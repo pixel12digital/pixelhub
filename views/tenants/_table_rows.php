@@ -22,7 +22,7 @@
         </td>
         <td style="padding: 12px; border-bottom: 1px solid #eee;">
             <?php if ($tenant['phone']): ?>
-                <a href="https://wa.me/55<?= preg_replace('/[^0-9]/', '', $tenant['phone']) ?>" target="_blank">
+                <a href="https://wa.me/55<?= preg_replace('/[^0-9]/', '', $tenant['phone']) ?>" target="_blank" rel="noopener noreferrer">
                     <?= htmlspecialchars($tenant['phone']) ?>
                 </a>
             <?php else: ?>

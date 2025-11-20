@@ -113,8 +113,11 @@ Sistema completo para gerenciar backups de sites WordPress e outros tipos de bac
 
 4. **Uploads em partes (chunked)** – usado automaticamente quando o JS calcula que o arquivo é maior do que o limite suportado pelo PHP na requisição tradicional.
    - `chunkInit()` cria sessão em `storage/temp/chunks/{upload_id}` com metadados
-   - `chunkUpload()` grava cada parte (`chunk_000000`, `chunk_000001`, ...)
-   - `chunkComplete()` reúne todas as partes, salva no destino final e registra no banco
+   - `chunkUpload()` grava cada parte (`chunk_000000`, `chunk_000001`, ...) com validações robustas
+   - `chunkComplete()` reúne todas as partes, valida tamanho final, e registra no banco usando `filesize()` real
+   - **Chunk size:** 1MB (otimizado para ambientes compartilhados)
+   - **Logs detalhados:** `logs/backup_upload.log` registra todo o fluxo
+   - **Validações:** Chunks vazios são detectados, arquivo final é validado antes de criar registro no banco
 
 **Status:** ✅ Implementado
 

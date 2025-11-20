@@ -818,28 +818,120 @@ class HostingBackupController extends Controller
     {
         Auth::requireInternal();
 
+        // Helper para log detalhado
+        $logFile = __DIR__ . '/../../logs/backup_upload.log';
+        $log = function($message, $isError = false) use ($logFile) {
+            $timestamp = date('Y-m-d H:i:s');
+            $level = $isError ? 'ERROR' : 'INFO';
+            $logMessage = "[{$timestamp}] [{$level}] {$message}\n";
+            @file_put_contents($logFile, $logMessage, FILE_APPEND | LOCK_EX);
+            if ($isError || \PixelHub\Core\Env::isDebug()) {
+                error_log('[HostingBackup][chunkUpload] ' . $message);
+            }
+        };
+
         $uploadId = $_POST['upload_id'] ?? null;
         $chunkIndex = isset($_POST['chunk_index']) ? (int)$_POST['chunk_index'] : null;
         $totalChunks = isset($_POST['total_chunks']) ? (int)$_POST['total_chunks'] : null;
 
+        // Log inicial
+        $log("=== CHUNK UPLOAD INICIADO ===");
+        $log("upload_id: {$uploadId}");
+        $log("chunk_index: {$chunkIndex}");
+        $log("total_chunks: {$totalChunks}");
+        $log("CONTENT_LENGTH: " . ($_SERVER['CONTENT_LENGTH'] ?? 'N/A'));
+        $log("post_max_size: " . ini_get('post_max_size'));
+        $log("upload_max_filesize: " . ini_get('upload_max_filesize'));
+
         if (!$uploadId || $chunkIndex === null || !isset($_FILES['chunk'])) {
-            $this->json(['success' => false, 'error' => 'Dados incompletos'], 400);
+            $errorMsg = 'Dados incompletos';
+            $log("ERRO: {$errorMsg} - upload_id=" . ($uploadId ?? 'null') . ", chunk_index=" . ($chunkIndex ?? 'null') . ", FILES[chunk]=" . (isset($_FILES['chunk']) ? 'presente' : 'ausente'), true);
+            $this->json(['success' => false, 'error' => $errorMsg], 400);
+            return;
+        }
+
+        // Valida se o chunk foi recebido corretamente
+        $chunkFileInfo = $_FILES['chunk'];
+        $chunkError = $chunkFileInfo['error'] ?? null;
+        $chunkTmpName = $chunkFileInfo['tmp_name'] ?? null;
+        $chunkSize = $chunkFileInfo['size'] ?? 0;
+        
+        $log("chunk error code: {$chunkError}");
+        $log("chunk tmp_name: {$chunkTmpName}");
+        $log("chunk size (from _FILES): {$chunkSize} bytes");
+
+        // Verifica erros de upload do PHP
+        if ($chunkError !== UPLOAD_ERR_OK) {
+            $errorMessages = [
+                UPLOAD_ERR_INI_SIZE => 'Arquivo excede upload_max_filesize',
+                UPLOAD_ERR_FORM_SIZE => 'Arquivo excede MAX_FILE_SIZE do formulário',
+                UPLOAD_ERR_PARTIAL => 'Upload parcial (arquivo não foi completamente enviado)',
+                UPLOAD_ERR_NO_FILE => 'Nenhum arquivo foi enviado',
+                UPLOAD_ERR_NO_TMP_DIR => 'Diretório temporário não encontrado',
+                UPLOAD_ERR_CANT_WRITE => 'Falha ao escrever arquivo no disco',
+                UPLOAD_ERR_EXTENSION => 'Upload bloqueado por extensão PHP'
+            ];
+            $errorMsg = $errorMessages[$chunkError] ?? "Erro de upload desconhecido (código: {$chunkError})";
+            $log("ERRO: Upload do chunk falhou - {$errorMsg}", true);
+            $this->json(['success' => false, 'error' => "Erro ao receber parte " . ($chunkIndex + 1) . ": {$errorMsg}"], 500);
+            return;
+        }
+
+        // Verifica se o arquivo temporário existe e tem conteúdo
+        if (empty($chunkTmpName) || !file_exists($chunkTmpName)) {
+            $errorMsg = 'Arquivo temporário não encontrado. Possível limite de tamanho excedido.';
+            $log("ERRO: {$errorMsg}", true);
+            $this->json(['success' => false, 'error' => "Erro ao receber parte " . ($chunkIndex + 1) . ": {$errorMsg}"], 500);
+            return;
+        }
+
+        // Verifica tamanho real do arquivo
+        $actualChunkSize = filesize($chunkTmpName);
+        $log("chunk size (filesize): {$actualChunkSize} bytes");
+        
+        if ($actualChunkSize === 0) {
+            $errorMsg = 'O servidor não recebeu esta parte do arquivo (chunk vazio). Possível limite de tamanho excedido.';
+            $log("ERRO: {$errorMsg}", true);
+            $this->json(['success' => false, 'error' => "Erro ao receber parte " . ($chunkIndex + 1) . ": {$errorMsg}"], 500);
             return;
         }
 
         $chunksDir = __DIR__ . '/../../storage/temp/chunks/' . $uploadId;
         if (!file_exists($chunksDir)) {
-            $this->json(['success' => false, 'error' => 'Sessão de upload não encontrada'], 404);
+            $errorMsg = 'Sessão de upload não encontrada';
+            $log("ERRO: {$errorMsg} - chunksDir={$chunksDir}", true);
+            $this->json(['success' => false, 'error' => $errorMsg], 404);
             return;
         }
 
         // Move chunk para diretório temporário
         $chunkFile = $chunksDir . '/chunk_' . str_pad($chunkIndex, 6, '0', STR_PAD_LEFT);
-        if (!move_uploaded_file($_FILES['chunk']['tmp_name'], $chunkFile)) {
-            $this->json(['success' => false, 'error' => 'Erro ao salvar chunk'], 500);
+        $log("Movendo chunk para: {$chunkFile}");
+        
+        if (!move_uploaded_file($chunkTmpName, $chunkFile)) {
+            $lastError = error_get_last();
+            $errorMsg = 'Erro ao salvar chunk no servidor';
+            $log("ERRO: {$errorMsg} - " . ($lastError['message'] ?? 'sem detalhes'), true);
+            $log("tmp_name: {$chunkTmpName}");
+            $log("destino: {$chunkFile}");
+            $log("is_writable(dirname): " . (is_writable(dirname($chunkFile)) ? 'sim' : 'não'));
+            $this->json(['success' => false, 'error' => "Erro ao salvar parte " . ($chunkIndex + 1)], 500);
             return;
         }
 
+        // Verifica se o arquivo foi salvo corretamente
+        $savedChunkSize = filesize($chunkFile);
+        $log("chunk salvo com sucesso - tamanho: {$savedChunkSize} bytes");
+        
+        if ($savedChunkSize !== $actualChunkSize) {
+            $errorMsg = "Tamanho do chunk salvo não confere. Esperado: {$actualChunkSize}, Recebido: {$savedChunkSize}";
+            $log("ERRO: {$errorMsg}", true);
+            @unlink($chunkFile);
+            $this->json(['success' => false, 'error' => "Erro ao salvar parte " . ($chunkIndex + 1)], 500);
+            return;
+        }
+
+        $log("=== CHUNK UPLOAD CONCLUÍDO COM SUCESSO ===");
         $this->json(['success' => true, 'chunk_index' => $chunkIndex, 'total_chunks' => $totalChunks]);
     }
 
@@ -850,10 +942,25 @@ class HostingBackupController extends Controller
     {
         Auth::requireInternal();
 
+        // Helper para log detalhado
+        $logFile = __DIR__ . '/../../logs/backup_upload.log';
+        $log = function($message, $isError = false) use ($logFile) {
+            $timestamp = date('Y-m-d H:i:s');
+            $level = $isError ? 'ERROR' : 'INFO';
+            $logMessage = "[{$timestamp}] [{$level}] {$message}\n";
+            @file_put_contents($logFile, $logMessage, FILE_APPEND | LOCK_EX);
+            if ($isError || \PixelHub\Core\Env::isDebug()) {
+                error_log('[HostingBackup][chunkComplete] ' . $message);
+            }
+        };
+
+        $log("=== CHUNK COMPLETE INICIADO ===");
+
         $input = json_decode(file_get_contents('php://input'), true);
         $uploadId = $input['upload_id'] ?? null;
 
         if (!$uploadId) {
+            $log("ERRO: Upload ID não fornecido", true);
             $this->json(['success' => false, 'error' => 'Upload ID não fornecido'], 400);
             return;
         }
@@ -862,6 +969,7 @@ class HostingBackupController extends Controller
         $sessionFile = $chunksDir . '/session.json';
 
         if (!file_exists($sessionFile)) {
+            $log("ERRO: Sessão de upload não encontrada - upload_id={$uploadId}, sessionFile={$sessionFile}", true);
             $this->json(['success' => false, 'error' => 'Sessão de upload não encontrada'], 404);
             return;
         }
@@ -871,25 +979,46 @@ class HostingBackupController extends Controller
         $hostingAccountId = $session['hosting_account_id'];
         $tenantId = $session['tenant_id'];
         $originalFileName = $session['file_name'];
-        $fileSize = $session['file_size'];
+        $expectedFileSize = $session['file_size'];
         $notes = $session['notes'] ?? '';
 
-        // Verifica se todos os chunks foram recebidos
+        $log("upload_id: {$uploadId}");
+        $log("hosting_account_id: {$hostingAccountId}");
+        $log("tenant_id: {$tenantId}");
+        $log("file_name: {$originalFileName}");
+        $log("expected_file_size: {$expectedFileSize} bytes");
+        $log("total_chunks: {$totalChunks}");
+
+        // Verifica se todos os chunks foram recebidos e valida tamanhos
         $receivedChunks = [];
+        $totalChunkSize = 0;
         for ($i = 0; $i < $totalChunks; $i++) {
             $chunkFile = $chunksDir . '/chunk_' . str_pad($i, 6, '0', STR_PAD_LEFT);
             if (!file_exists($chunkFile)) {
+                $log("ERRO: Chunk {$i} não encontrado - {$chunkFile}", true);
                 $this->json(['success' => false, 'error' => "Chunk {$i} não encontrado"], 400);
                 return;
             }
+            $chunkSize = filesize($chunkFile);
+            if ($chunkSize === 0) {
+                $log("ERRO: Chunk {$i} está vazio (0 bytes)", true);
+                $this->json(['success' => false, 'error' => "Chunk {$i} está vazio. Upload pode ter falhado."], 400);
+                return;
+            }
+            $totalChunkSize += $chunkSize;
             $receivedChunks[] = $chunkFile;
+            $log("chunk {$i}: {$chunkSize} bytes");
         }
+
+        $log("total_chunk_size (soma): {$totalChunkSize} bytes");
+        $log("expected_file_size: {$expectedFileSize} bytes");
 
         // Monta diretório de destino
         $backupDir = Storage::getTenantBackupDir($tenantId, $hostingAccountId);
         Storage::ensureDirExists($backupDir);
 
         if (!is_dir($backupDir) || !is_writable($backupDir)) {
+            $log("ERRO: Diretório de backup não é gravável - {$backupDir}", true);
             $this->json(['success' => false, 'error' => 'Diretório de backup não é gravável'], 500);
             return;
         }
@@ -898,31 +1027,71 @@ class HostingBackupController extends Controller
         $safeFileName = Storage::generateSafeFileName($originalFileName);
         $destinationPath = $backupDir . DIRECTORY_SEPARATOR . $safeFileName;
 
+        $log("destination_path: {$destinationPath}");
+
         // Reúne todos os chunks em um único arquivo
         $destination = fopen($destinationPath, 'wb');
         if (!$destination) {
+            $lastError = error_get_last();
+            $log("ERRO: Não foi possível criar arquivo final - " . ($lastError['message'] ?? 'sem detalhes'), true);
             $this->json(['success' => false, 'error' => 'Erro ao criar arquivo final'], 500);
             return;
         }
 
         try {
+            $bytesWritten = 0;
             foreach ($receivedChunks as $chunkFile) {
                 $chunk = fopen($chunkFile, 'rb');
                 if (!$chunk) {
                     throw new \Exception("Erro ao ler chunk: {$chunkFile}");
                 }
-                stream_copy_to_stream($chunk, $destination);
+                $chunkBytes = stream_copy_to_stream($chunk, $destination);
+                if ($chunkBytes === false) {
+                    fclose($chunk);
+                    throw new \Exception("Erro ao copiar chunk: {$chunkFile}");
+                }
+                $bytesWritten += $chunkBytes;
                 fclose($chunk);
             }
             fclose($destination);
 
-            // Verifica tamanho do arquivo final
-            $finalSize = filesize($destinationPath);
-            if ($finalSize !== $fileSize) {
-                unlink($destinationPath);
-                $this->json(['success' => false, 'error' => "Tamanho do arquivo final incorreto. Esperado: {$fileSize}, Recebido: {$finalSize}"], 500);
+            $log("bytes_written: {$bytesWritten}");
+
+            // Verifica se o arquivo final existe e tem tamanho > 0
+            if (!file_exists($destinationPath)) {
+                $log("ERRO: Arquivo final não existe após junção", true);
+                $this->json(['success' => false, 'error' => 'Arquivo final não foi criado corretamente'], 500);
                 return;
             }
+
+            // CRÍTICO: Verifica tamanho do arquivo final usando filesize()
+            $finalSize = filesize($destinationPath);
+            $log("final_size (filesize): {$finalSize} bytes");
+
+            // Validação crítica: arquivo não pode estar vazio
+            if ($finalSize === 0) {
+                $log("ERRO CRÍTICO: Arquivo final tem 0 bytes! Removendo arquivo inválido.", true);
+                @unlink($destinationPath);
+                $this->json(['success' => false, 'error' => 'Arquivo final está vazio. Upload falhou.'], 500);
+                return;
+            }
+
+            // Valida se o tamanho está próximo do esperado (permite pequena diferença por overhead)
+            // Mas não pode ser muito diferente (mais de 10% de diferença indica problema)
+            $sizeDifference = abs($finalSize - $expectedFileSize);
+            $sizeDifferencePercent = ($expectedFileSize > 0) ? ($sizeDifference / $expectedFileSize) * 100 : 100;
+            
+            if ($sizeDifferencePercent > 10) {
+                $log("ERRO: Tamanho do arquivo final muito diferente do esperado. Esperado: {$expectedFileSize}, Recebido: {$finalSize}, Diferença: {$sizeDifferencePercent}%", true);
+                @unlink($destinationPath);
+                $this->json(['success' => false, 'error' => "Tamanho do arquivo final incorreto. Esperado: " . $this->formatBytes($expectedFileSize) . ", Recebido: " . $this->formatBytes($finalSize)], 500);
+                return;
+            }
+
+            // Usa o tamanho REAL do arquivo (filesize) em vez do esperado
+            // Isso garante que o banco sempre tenha o tamanho correto
+            $actualFileSize = $finalSize;
+            $log("Usando tamanho real do arquivo: {$actualFileSize} bytes");
 
             // Limpa chunks temporários
             foreach ($receivedChunks as $chunkFile) {
@@ -930,6 +1099,7 @@ class HostingBackupController extends Controller
             }
             @unlink($sessionFile);
             @rmdir($chunksDir);
+            $log("Chunks temporários removidos");
 
             // Caminho relativo para salvar no banco
             $relativePath = '/storage/tenants/' . $tenantId . '/backups/' . $hostingAccountId . '/' . $safeFileName;
@@ -947,11 +1117,12 @@ class HostingBackupController extends Controller
                     (hosting_account_id, type, file_name, file_size, stored_path, notes, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, NOW())
                 ");
+                // CRÍTICO: Usa $actualFileSize (filesize do arquivo) em vez de $expectedFileSize
                 $stmt->execute([
                     $hostingAccountId,
                     $backupType,
                     $safeFileName,
-                    $fileSize,
+                    $actualFileSize, // Tamanho REAL do arquivo
                     $relativePath,
                     $notes
                 ]);
@@ -968,14 +1139,16 @@ class HostingBackupController extends Controller
 
                 $db->commit();
 
+                $log("Backup salvo no banco com sucesso - file_size={$actualFileSize} bytes");
+
                 // Log de sucesso
                 if (function_exists('pixelhub_log')) {
                     pixelhub_log(sprintf(
-                        '[HostingBackup] backup uploaded via chunks successfully: hosting_account_id=%d, tenant_id=%d, file=%s, size=%d bytes, chunks=%d',
+                        '[HostingBackup] backup uploaded via chunks successfully: hosting_account_id=%d, tenant_id=%d, file=%s, size=%d bytes (real), chunks=%d',
                         $hostingAccountId,
                         $tenantId,
                         $safeFileName,
-                        $fileSize,
+                        $actualFileSize,
                         $totalChunks
                     ));
                 }
@@ -995,14 +1168,18 @@ class HostingBackupController extends Controller
 
             } catch (\Exception $e) {
                 $db->rollBack();
-                unlink($destinationPath);
+                @unlink($destinationPath);
+                $log("ERRO ao salvar backup no banco: " . $e->getMessage(), true);
                 error_log("Erro ao salvar backup no banco: " . $e->getMessage());
                 $this->json(['success' => false, 'error' => 'Erro ao salvar no banco de dados'], 500);
             }
 
         } catch (\Exception $e) {
-            fclose($destination);
+            if (isset($destination) && is_resource($destination)) {
+                fclose($destination);
+            }
             @unlink($destinationPath);
+            $log("ERRO ao reunir chunks: " . $e->getMessage(), true);
             error_log("Erro ao reunir chunks: " . $e->getMessage());
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
         }

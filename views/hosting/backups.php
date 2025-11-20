@@ -250,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
             statusTextSelector: '#chunked-status',
             maxDirectUploadBytes: <?= (int) $maxDirectUploadBytes ?>,
             chunkMaxBytes: <?= 2 * 1024 * 1024 * 1024 ?>, // 2GB
-            chunkSize: 20 * 1024 * 1024, // 20MB por chunk (otimizado para melhor performance)
+            chunkSize: 1 * 1024 * 1024, // 1MB por chunk (otimizado para ambientes compartilhados)
             chunkInitUrl: '<?= pixelhub_url('/hosting/backups/chunk-init') ?>',
             chunkUploadUrl: '<?= pixelhub_url('/hosting/backups/chunk-upload') ?>',
             chunkCompleteUrl: '<?= pixelhub_url('/hosting/backups/chunk-complete') ?>',

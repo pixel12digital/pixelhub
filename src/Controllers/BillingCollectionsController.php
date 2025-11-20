@@ -320,6 +320,8 @@ class BillingCollectionsController extends Controller
         $diasSemContato = (int) ($_GET['dias_sem_contato'] ?? 7);
 
         // Query base agregada por tenant
+        // CORREÇÃO: Usa subquery para notificações para evitar multiplicação de linhas no JOIN
+        // O JOIN com billing_notifications estava causando duplicação na contagem de faturas
         $sql = "
             SELECT 
                 t.id as tenant_id,
@@ -332,8 +334,8 @@ class BillingCollectionsController extends Controller
                 -- Valor em atraso
                 COALESCE(SUM(CASE WHEN bi.status = 'overdue' AND (bi.is_deleted IS NULL OR bi.is_deleted = 0) THEN bi.amount ELSE 0 END), 0) as total_overdue,
                 
-                -- Qtd faturas vencidas
-                COUNT(CASE WHEN bi.status = 'overdue' AND (bi.is_deleted IS NULL OR bi.is_deleted = 0) THEN 1 END) as qtd_invoices_overdue,
+                -- Qtd faturas vencidas (usa COUNT DISTINCT para evitar duplicação)
+                COUNT(DISTINCT CASE WHEN bi.status = 'overdue' AND (bi.is_deleted IS NULL OR bi.is_deleted = 0) THEN bi.id END) as qtd_invoices_overdue,
                 
                 -- Valor vencendo hoje
                 COALESCE(SUM(CASE WHEN bi.due_date = CURDATE() AND bi.status = 'pending' AND (bi.is_deleted IS NULL OR bi.is_deleted = 0) THEN bi.amount ELSE 0 END), 0) as total_due_today,
@@ -347,12 +349,11 @@ class BillingCollectionsController extends Controller
                 -- Último contato WhatsApp (da tabela billing_invoices)
                 MAX(bi.whatsapp_last_at) as last_whatsapp_contact,
                 
-                -- Último contato via billing_notifications (mais completo)
-                MAX(bn.sent_at) as last_notification_sent
+                -- Último contato via billing_notifications (usando subquery para evitar JOIN multiplicador)
+                (SELECT MAX(sent_at) FROM billing_notifications WHERE tenant_id = t.id AND status = 'sent_manual') as last_notification_sent
                 
             FROM tenants t
             LEFT JOIN billing_invoices bi ON t.id = bi.tenant_id
-            LEFT JOIN billing_notifications bn ON t.id = bn.tenant_id AND bn.status = 'sent_manual'
             WHERE t.status = 'active'
             GROUP BY t.id, t.name, t.person_type, t.nome_fantasia, t.phone, t.billing_status
         ";

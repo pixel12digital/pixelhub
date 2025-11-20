@@ -49,7 +49,7 @@
                 statusTextSelector: config.statusTextSelector || '#chunked-status',
                 maxDirectUploadBytes: config.maxDirectUploadBytes || (500 * 1024 * 1024),
                 chunkMaxBytes: config.chunkMaxBytes || (2 * 1024 * 1024 * 1024),
-                chunkSize: config.chunkSize || (10 * 1024 * 1024),
+                chunkSize: config.chunkSize || (1 * 1024 * 1024), // 1MB padrão para ambientes compartilhados
                 chunkInitUrl: config.chunkInitUrl || '/hosting/backups/chunk-init',
                 chunkUploadUrl: config.chunkUploadUrl || '/hosting/backups/chunk-upload',
                 chunkCompleteUrl: config.chunkCompleteUrl || '/hosting/backups/chunk-complete',
@@ -198,12 +198,22 @@
 
                     if (!chunkResponse.ok) {
                         const errorData = await chunkResponse.json().catch(() => ({}));
-                        throw new Error(errorData.error || `Erro ao enviar parte ${chunkIndex + 1}`);
+                        const errorMsg = errorData.error || `Erro ao enviar parte ${chunkIndex + 1}`;
+                        if (this.statusText) {
+                            this.statusText.textContent = `Upload em Progresso – ${Math.round(((chunkIndex + 1) / totalChunks) * 100)}% – Erro: ${errorMsg}`;
+                            this.statusText.style.color = '#d32f2f';
+                        }
+                        throw new Error(errorMsg);
                     }
 
                     const chunkData = await chunkResponse.json();
                     if (!chunkData.success) {
-                        throw new Error(chunkData.error || `Erro ao enviar parte ${chunkIndex + 1}`);
+                        const errorMsg = chunkData.error || `Erro ao enviar parte ${chunkIndex + 1}`;
+                        if (this.statusText) {
+                            this.statusText.textContent = `Upload em Progresso – ${Math.round(((chunkIndex + 1) / totalChunks) * 100)}% – Erro: ${errorMsg}`;
+                            this.statusText.style.color = '#d32f2f';
+                        }
+                        throw new Error(errorMsg);
                     }
                 }
 
@@ -226,7 +236,12 @@
 
                 const finalData = await finalResponse.json();
                 if (!finalData.success) {
-                    throw new Error(finalData.error || 'Erro ao finalizar upload');
+                    const errorMsg = finalData.error || 'Erro ao finalizar upload';
+                    if (this.statusText) {
+                        this.statusText.textContent = `Erro: ${errorMsg}`;
+                        this.statusText.style.color = '#d32f2f';
+                    }
+                    throw new Error(errorMsg);
                 }
 
                 // Sucesso!

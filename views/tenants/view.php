@@ -218,7 +218,7 @@ $providerMap = $providerMap ?? [];
             <tr>
                 <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">WhatsApp:</td>
                 <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                    <a href="https://wa.me/55<?= preg_replace('/[^0-9]/', '', $tenant['phone']) ?>" target="_blank">
+                    <a href="https://wa.me/55<?= preg_replace('/[^0-9]/', '', $tenant['phone']) ?>" target="_blank" rel="noopener noreferrer">
                         <?= htmlspecialchars($tenant['phone']) ?>
                     </a>
                 </td>
@@ -523,7 +523,7 @@ $providerMap = $providerMap ?? [];
                         statusTextSelector: '#chunked-status',
                         maxDirectUploadBytes: <?= (int) $maxDirectUploadBytes ?>,
                         chunkMaxBytes: <?= 2 * 1024 * 1024 * 1024 ?>, // 2GB
-                        chunkSize: 20 * 1024 * 1024, // 20MB por chunk (otimizado para melhor performance)
+                        chunkSize: 1 * 1024 * 1024, // 1MB por chunk (otimizado para ambientes compartilhados)
                         chunkInitUrl: '<?= pixelhub_url('/hosting/backups/chunk-init') ?>',
                         chunkUploadUrl: '<?= pixelhub_url('/hosting/backups/chunk-upload') ?>',
                         chunkCompleteUrl: '<?= pixelhub_url('/hosting/backups/chunk-complete') ?>',

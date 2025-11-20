@@ -190,12 +190,12 @@ function openWhatsApp() {
             const phone = phoneMatch[1];
             const encodedMessage = encodeURIComponent(message);
             const link = `https://wa.me/${phone}?text=${encodedMessage}`;
-            window.open(link, '_blank');
+            window.open(link, '_blank', 'noopener,noreferrer');
         } else {
-            window.open(currentWhatsAppLink, '_blank');
+            window.open(currentWhatsAppLink, '_blank', 'noopener,noreferrer');
         }
     } else {
-        window.open(currentWhatsAppLink, '_blank');
+        window.open(currentWhatsAppLink, '_blank', 'noopener,noreferrer');
     }
 }
 

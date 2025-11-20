@@ -330,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
         html += '<div style="display: flex; gap: 10px; flex-wrap: wrap;">';
         html += '<button type="button" onclick="copyMessage()" style="background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">Copiar Mensagem</button>';
         if (whatsappLink) {
-            html += '<a href="' + escapeHtml(whatsappLink) + '" target="_blank" style="background: #25D366; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 500; display: inline-block;">Abrir WhatsApp Web</a>';
+            html += '<a href="' + escapeHtml(whatsappLink) + '" target="_blank" rel="noopener noreferrer" style="background: #25D366; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 500; display: inline-block;">Abrir WhatsApp Web</a>';
         }
         html += '<button type="submit" style="background: #023A8D; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">Salvar / Marcar como Enviado</button>';
         html += '</div>';

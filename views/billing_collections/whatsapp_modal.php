@@ -86,6 +86,7 @@ $baseUrl = pixelhub_url('');
                 <strong style="display: block; margin-bottom: 10px; color: #023A8D;">Passo 1: Abrir WhatsApp Web</strong>
                 <a href="<?= htmlspecialchars($whatsappLink) ?>" 
                    target="_blank"
+                   rel="noopener noreferrer"
                    style="display: inline-block; background: #25D366; color: white; padding: 12px 24px; border-radius: 4px; text-decoration: none; font-weight: 500; font-size: 16px;">
                     📱 Abrir WhatsApp Web
                 </a>
