@@ -1192,28 +1192,78 @@ function openHostingDetailsModal(hostingId) {
     
     // Faz requisição AJAX
     fetch('<?= pixelhub_url('/hosting/view?id=') ?>' + hostingId)
-        .then(response => response.json())
+        .then(response => {
+            // Tenta ler o texto primeiro para verificar se há conteúdo
+            return response.text().then(text => {
+                // Se a resposta está vazia, lança erro
+                if (!text || text.trim() === '') {
+                    throw new Error('Resposta vazia do servidor (status ' + response.status + ')');
+                }
+                
+                // Tenta parsear como JSON
+                try {
+                    const data = JSON.parse(text);
+                    // Se não é OK e tem erro, lança o erro
+                    if (!response.ok && data.error) {
+                        throw new Error(data.error);
+                    }
+                    // Se não é OK mas não tem erro, lança erro genérico
+                    if (!response.ok) {
+                        throw new Error('Erro ao carregar dados (status ' + response.status + ')');
+                    }
+                    return data;
+                } catch (parseError) {
+                    // Se não conseguiu parsear JSON, lança erro
+                    if (parseError instanceof Error && parseError.message.includes('JSON')) {
+                        throw new Error('Resposta inválida do servidor. Erro: ' + parseError.message);
+                    }
+                    throw parseError;
+                }
+            });
+        })
         .then(data => {
-            if (data.error) {
-                modalContent.innerHTML = '<p style="color: #c33;">Erro: ' + escapeHtml(data.error) + '</p>';
+            // Trata novo formato com success/error ou formato antigo
+            if (data.success === false || data.error) {
+                modalContent.innerHTML = '<p style="color: #c33;">Erro: ' + escapeHtml(data.error || 'Erro desconhecido') + '</p>';
                 return;
             }
             
+            // Suporta novo formato (data.hosting) e formato antigo (data direto)
+            const hosting = data.hosting || data;
+            const providerName = data.provider_name || data.provider || 'N/A';
+            const hostingStatus = data.status_hospedagem || data.hosting_status;
+            const domainStatus = data.status_dominio || data.domain_status;
+            
+            // Debug: log dos dados recebidos (remover após correção)
+            console.log('Dados recebidos:', data);
+            console.log('Hosting object:', hosting);
+            console.log('hostinger_expiration_date:', hosting.hostinger_expiration_date || data.hostinger_expiration_date);
+            console.log('domain_expiration_date:', hosting.domain_expiration_date || data.domain_expiration_date);
+            
             // Atualiza título
-            modalTitle.textContent = escapeHtml(data.domain.toUpperCase()) + ' — ' + escapeHtml(data.provider);
+            modalTitle.textContent = escapeHtml((hosting.domain || data.domain || '').toUpperCase()) + ' — ' + escapeHtml(providerName);
             
             // Monta conteúdo do modal
             var html = '<div style="margin-bottom: 25px;">';
             html += '<h3 style="margin: 0 0 15px 0; font-size: 16px; color: #023A8D; border-bottom: 2px solid #023A8D; padding-bottom: 8px;">Resumo</h3>';
             html += '<table style="width: 100%; border-collapse: collapse;">';
-            html += '<tr><td style="padding: 8px; font-weight: 600; width: 150px;">Plano / Valor:</td><td style="padding: 8px;">' + escapeHtml(data.plan_name || '-') + ' / ' + escapeHtml(data.amount) + '</td></tr>';
-            html += '<tr><td style="padding: 8px; font-weight: 600;">Provedor:</td><td style="padding: 8px;">' + escapeHtml(data.provider) + '</td></tr>';
-            html += '<tr><td style="padding: 8px; font-weight: 600;">Venc. Hospedagem:</td><td style="padding: 8px;">' + (data.hostinger_expiration_date ? formatDate(data.hostinger_expiration_date) : '-') + '</td></tr>';
-            html += '<tr><td style="padding: 8px; font-weight: 600;">Venc. Domínio:</td><td style="padding: 8px;">' + (data.domain_expiration_date ? formatDate(data.domain_expiration_date) : '-') + '</td></tr>';
+            html += '<tr><td style="padding: 8px; font-weight: 600; width: 150px;">Plano / Valor:</td><td style="padding: 8px;">' + escapeHtml(hosting.plan_name || data.plan_name || '-') + ' / ' + escapeHtml(hosting.amount || data.amount || '-') + '</td></tr>';
+            html += '<tr><td style="padding: 8px; font-weight: 600;">Provedor:</td><td style="padding: 8px;">' + escapeHtml(providerName) + '</td></tr>';
+            
+            // Extrai datas corretamente (tenta todas as possibilidades)
+            const hostingExpDate = hosting.hostinger_expiration_date || data.hostinger_expiration_date || hosting.hostinger_expiration_date;
+            const domainExpDate = hosting.domain_expiration_date || data.domain_expiration_date || hosting.domain_expiration_date;
+            
+            html += '<tr><td style="padding: 8px; font-weight: 600;">Venc. Hospedagem:</td><td style="padding: 8px;">' + (hostingExpDate ? formatDate(hostingExpDate) : '-') + '</td></tr>';
+            html += '<tr><td style="padding: 8px; font-weight: 600;">Venc. Domínio:</td><td style="padding: 8px;">' + (domainExpDate ? formatDate(domainExpDate) : '-') + '</td></tr>';
             html += '<tr><td style="padding: 8px; font-weight: 600;">Situação:</td><td style="padding: 8px;">';
             html += '<div style="display: flex; flex-direction: column; gap: 4px;">';
-            html += '<span style="' + data.hosting_status.style + '">' + escapeHtml(data.hosting_status.text) + '</span>';
-            html += '<span style="' + data.domain_status.style + '">' + escapeHtml(data.domain_status.text) + '</span>';
+            if (hostingStatus && hostingStatus.style && hostingStatus.text) {
+                html += '<span style="' + hostingStatus.style + '">' + escapeHtml(hostingStatus.text) + '</span>';
+            }
+            if (domainStatus && domainStatus.style && domainStatus.text) {
+                html += '<span style="' + domainStatus.style + '">' + escapeHtml(domainStatus.text) + '</span>';
+            }
             html += '</div>';
             html += '</td></tr>';
             html += '</table>';
@@ -1226,19 +1276,23 @@ function openHostingDetailsModal(hostingId) {
             // Painel de Hospedagem
             html += '<div style="margin-bottom: 20px;">';
             html += '<h4 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 600;">Painel de Hospedagem</h4>';
-            if (data.hosting_panel_url) {
-                html += '<p style="margin: 5px 0;"><strong>URL:</strong> <a href="' + escapeHtml(data.hosting_panel_url) + '" target="_blank" style="color: #023A8D;">' + escapeHtml(data.hosting_panel_url) + '</a></p>';
+            const hostingPanelUrl = hosting.hosting_panel_url || data.hosting_panel_url;
+            const hostingPanelUsername = hosting.hosting_panel_username || data.hosting_panel_username;
+            const hostingPanelPassword = hosting.hosting_panel_password || data.hosting_panel_password;
+            
+            if (hostingPanelUrl) {
+                html += '<p style="margin: 5px 0;"><strong>URL:</strong> <a href="' + escapeHtml(hostingPanelUrl) + '" target="_blank" style="color: #023A8D;">' + escapeHtml(hostingPanelUrl) + '</a></p>';
             } else {
                 html += '<p style="margin: 5px 0; color: #999;"><strong>URL:</strong> Não informado</p>';
             }
-            if (data.hosting_panel_username) {
-                html += '<p style="margin: 5px 0;"><strong>Usuário:</strong> ' + escapeHtml(data.hosting_panel_username) + '</p>';
+            if (hostingPanelUsername) {
+                html += '<p style="margin: 5px 0;"><strong>Usuário:</strong> ' + escapeHtml(hostingPanelUsername) + '</p>';
             } else {
                 html += '<p style="margin: 5px 0; color: #999;"><strong>Usuário:</strong> Não informado</p>';
             }
-            if (data.hosting_panel_password) {
+            if (hostingPanelPassword) {
                 html += '<p style="margin: 5px 0;"><strong>Senha:</strong> ';
-                html += '<input type="password" id="hosting_panel_password_display" value="' + escapeHtml(data.hosting_panel_password) + '" readonly style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5; width: 200px;"> ';
+                html += '<input type="password" id="hosting_panel_password_display" value="' + escapeHtml(hostingPanelPassword) + '" readonly style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5; width: 200px;"> ';
                 html += '<button type="button" onclick="togglePasswordDisplay(\'hosting_panel_password_display\', this)" style="background: #666; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">👁️</button>';
                 html += '</p>';
             } else {
@@ -1249,19 +1303,23 @@ function openHostingDetailsModal(hostingId) {
             // Admin do Site
             html += '<div style="margin-bottom: 0;">';
             html += '<h4 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 600;">Admin do Site</h4>';
-            if (data.site_admin_url) {
-                html += '<p style="margin: 5px 0;"><strong>URL:</strong> <a href="' + escapeHtml(data.site_admin_url) + '" target="_blank" style="color: #023A8D;">' + escapeHtml(data.site_admin_url) + '</a></p>';
+            const siteAdminUrl = hosting.site_admin_url || data.site_admin_url;
+            const siteAdminUsername = hosting.site_admin_username || data.site_admin_username;
+            const siteAdminPassword = hosting.site_admin_password || data.site_admin_password;
+            
+            if (siteAdminUrl) {
+                html += '<p style="margin: 5px 0;"><strong>URL:</strong> <a href="' + escapeHtml(siteAdminUrl) + '" target="_blank" style="color: #023A8D;">' + escapeHtml(siteAdminUrl) + '</a></p>';
             } else {
                 html += '<p style="margin: 5px 0; color: #999;"><strong>URL:</strong> Não informado</p>';
             }
-            if (data.site_admin_username) {
-                html += '<p style="margin: 5px 0;"><strong>Usuário:</strong> ' + escapeHtml(data.site_admin_username) + '</p>';
+            if (siteAdminUsername) {
+                html += '<p style="margin: 5px 0;"><strong>Usuário:</strong> ' + escapeHtml(siteAdminUsername) + '</p>';
             } else {
                 html += '<p style="margin: 5px 0; color: #999;"><strong>Usuário:</strong> Não informado</p>';
             }
-            if (data.site_admin_password) {
+            if (siteAdminPassword) {
                 html += '<p style="margin: 5px 0;"><strong>Senha:</strong> ';
-                html += '<input type="password" id="site_admin_password_display" value="' + escapeHtml(data.site_admin_password) + '" readonly style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5; width: 200px;"> ';
+                html += '<input type="password" id="site_admin_password_display" value="' + escapeHtml(siteAdminPassword) + '" readonly style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5; width: 200px;"> ';
                 html += '<button type="button" onclick="togglePasswordDisplay(\'site_admin_password_display\', this)" style="background: #666; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">👁️</button>';
                 html += '</p>';
             } else {
@@ -1274,13 +1332,16 @@ function openHostingDetailsModal(hostingId) {
             html += '<div style="margin-bottom: 0; padding: 15px; background: #f0f7ff; border-radius: 4px;">';
             html += '<h3 style="margin: 0 0 15px 0; font-size: 16px; color: #023A8D;">Ações Rápidas</h3>';
             html += '<div style="display: flex; gap: 10px; flex-wrap: wrap;">';
-            if (data.hosting_panel_url) {
-                html += '<a href="' + escapeHtml(data.hosting_panel_url) + '" target="_blank" style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; display: inline-block;">Abrir Painel de Hospedagem</a>';
+            const finalHostingPanelUrl = hosting.hosting_panel_url || data.hosting_panel_url;
+            const finalSiteAdminUrl = hosting.site_admin_url || data.site_admin_url;
+            
+            if (finalHostingPanelUrl) {
+                html += '<a href="' + escapeHtml(finalHostingPanelUrl) + '" target="_blank" style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; display: inline-block;">Abrir Painel de Hospedagem</a>';
             }
-            if (data.site_admin_url) {
-                html += '<a href="' + escapeHtml(data.site_admin_url) + '" target="_blank" style="background: #28a745; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; display: inline-block;">Abrir Admin do Site</a>';
+            if (finalSiteAdminUrl) {
+                html += '<a href="' + escapeHtml(finalSiteAdminUrl) + '" target="_blank" style="background: #28a745; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; display: inline-block;">Abrir Admin do Site</a>';
             }
-            if (!data.hosting_panel_url && !data.site_admin_url) {
+            if (!finalHostingPanelUrl && !finalSiteAdminUrl) {
                 html += '<p style="color: #999; margin: 0;">Nenhuma ação rápida disponível (URLs não configuradas)</p>';
             }
             html += '</div>';
