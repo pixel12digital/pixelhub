@@ -352,38 +352,57 @@ class HostingController extends Controller
      */
     public function view(): void
     {
-        Auth::requireInternal();
-
-        $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
-
-        if ($id <= 0) {
-            header('Content-Type: application/json');
-            http_response_code(400);
-            echo json_encode(['error' => 'ID inválido']);
-            return;
+        // Limpa qualquer output anterior
+        if (ob_get_level() > 0) {
+            ob_clean();
         }
+        
+        try {
+            // Verifica autenticação sem fazer redirect (para não quebrar JSON)
+            if (!Auth::check()) {
+                header('Content-Type: application/json');
+                http_response_code(401);
+                echo json_encode(['error' => 'Não autenticado']);
+                return;
+            }
+            
+            if (!Auth::isInternal()) {
+                header('Content-Type: application/json');
+                http_response_code(403);
+                echo json_encode(['error' => 'Acesso negado']);
+                return;
+            }
 
-        $db = DB::getConnection();
+            $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
-        // Busca conta de hospedagem
-        $stmt = $db->prepare("SELECT * FROM hosting_accounts WHERE id = ?");
-        $stmt->execute([$id]);
-        $hostingAccount = $stmt->fetch();
+            if ($id <= 0) {
+                header('Content-Type: application/json');
+                http_response_code(400);
+                echo json_encode(['error' => 'ID inválido']);
+                return;
+            }
 
-        if (!$hostingAccount) {
-            header('Content-Type: application/json');
-            http_response_code(404);
-            echo json_encode(['error' => 'Conta de hospedagem não encontrada']);
-            return;
-        }
+            $db = DB::getConnection();
 
-        // Busca nome do provedor
-        $providerMap = HostingProviderService::getSlugToNameMap();
-        $providerSlug = $hostingAccount['current_provider'] ?? '';
-        $providerName = $providerMap[$providerSlug] ?? $providerSlug;
+            // Busca conta de hospedagem
+            $stmt = $db->prepare("SELECT * FROM hosting_accounts WHERE id = ?");
+            $stmt->execute([$id]);
+            $hostingAccount = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Calcula status (reutiliza lógica da view)
-        $calculateStatus = function($expirationDate, $type = '') {
+            if (!$hostingAccount) {
+                header('Content-Type: application/json');
+                http_response_code(404);
+                echo json_encode(['error' => 'Conta de hospedagem não encontrada']);
+                return;
+            }
+
+            // Busca nome do provedor
+            $providerMap = HostingProviderService::getSlugToNameMap();
+            $providerSlug = $hostingAccount['current_provider'] ?? '';
+            $providerName = $providerMap[$providerSlug] ?? $providerSlug;
+
+            // Calcula status (reutiliza lógica da view)
+            $calculateStatus = function($expirationDate, $type = '') {
             if (empty($expirationDate)) {
                 $text = $type === 'domain' ? 'Domínio: Sem data' : ($type === 'hosting' ? 'Hospedagem: Sem data' : 'Sem data');
                 return [
@@ -435,35 +454,42 @@ class HostingController extends Controller
                     'style' => 'background: #f8d7da; color: #721c24; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
                 ];
             }
-        };
+            };
 
-        $hostingStatus = $calculateStatus($hostingAccount['hostinger_expiration_date'] ?? null, 'hosting');
-        $domainStatus = $calculateStatus($hostingAccount['domain_expiration_date'] ?? null, 'domain');
+            $hostingStatus = $calculateStatus($hostingAccount['hostinger_expiration_date'] ?? null, 'hosting');
+            $domainStatus = $calculateStatus($hostingAccount['domain_expiration_date'] ?? null, 'domain');
 
-        // Formata valor
-        $amount = $hostingAccount['amount'] ?? 0;
-        $billingCycle = $hostingAccount['billing_cycle'] ?? 'mensal';
-        $amountFormatted = $amount > 0 ? 'R$ ' . number_format($amount, 2, ',', '.') . ' / ' . $billingCycle : '-';
+            // Formata valor
+            $amount = $hostingAccount['amount'] ?? 0;
+            $billingCycle = $hostingAccount['billing_cycle'] ?? 'mensal';
+            $amountFormatted = $amount > 0 ? 'R$ ' . number_format($amount, 2, ',', '.') . ' / ' . $billingCycle : '-';
 
-        // Retorna JSON
-        header('Content-Type: application/json');
-        echo json_encode([
-            'id' => $hostingAccount['id'],
-            'domain' => $hostingAccount['domain'],
-            'provider' => $providerName,
-            'plan_name' => $hostingAccount['plan_name'] ?? '-',
-            'amount' => $amountFormatted,
-            'hosting_status' => $hostingStatus,
-            'domain_status' => $domainStatus,
-            'hosting_panel_url' => $hostingAccount['hosting_panel_url'] ?? '',
-            'hosting_panel_username' => $hostingAccount['hosting_panel_username'] ?? '',
-            'hosting_panel_password' => $hostingAccount['hosting_panel_password'] ?? '',
-            'site_admin_url' => $hostingAccount['site_admin_url'] ?? '',
-            'site_admin_username' => $hostingAccount['site_admin_username'] ?? '',
-            'site_admin_password' => $hostingAccount['site_admin_password'] ?? '',
-            'hostinger_expiration_date' => $hostingAccount['hostinger_expiration_date'] ?? null,
-            'domain_expiration_date' => $hostingAccount['domain_expiration_date'] ?? null,
-        ]);
+            // Retorna JSON
+            header('Content-Type: application/json');
+            echo json_encode([
+                'id' => $hostingAccount['id'],
+                'domain' => $hostingAccount['domain'],
+                'provider' => $providerName,
+                'plan_name' => $hostingAccount['plan_name'] ?? '-',
+                'amount' => $amountFormatted,
+                'hosting_status' => $hostingStatus,
+                'domain_status' => $domainStatus,
+                'hosting_panel_url' => $hostingAccount['hosting_panel_url'] ?? '',
+                'hosting_panel_username' => $hostingAccount['hosting_panel_username'] ?? '',
+                'hosting_panel_password' => $hostingAccount['hosting_panel_password'] ?? '',
+                'site_admin_url' => $hostingAccount['site_admin_url'] ?? '',
+                'site_admin_username' => $hostingAccount['site_admin_username'] ?? '',
+                'site_admin_password' => $hostingAccount['site_admin_password'] ?? '',
+                'hostinger_expiration_date' => $hostingAccount['hostinger_expiration_date'] ?? null,
+                'domain_expiration_date' => $hostingAccount['domain_expiration_date'] ?? null,
+            ]);
+        } catch (\Exception $e) {
+            header('Content-Type: application/json');
+            http_response_code(500);
+            error_log("Erro no HostingController@view: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            echo json_encode(['error' => 'Erro ao carregar dados: ' . $e->getMessage()]);
+        }
     }
 }
 
