@@ -321,6 +321,10 @@ $providerMap = $providerMap ?? [];
                             ?>
                         </td>
                         <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                            <button onclick="openHostingDetailsModal(<?= $hosting['id'] ?>)" 
+                                    style="background: #28a745; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; display: inline-block; margin-right: 5px; font-weight: 600;">
+                                Ver
+                            </button>
                             <a href="<?= pixelhub_url('/hosting/edit?id=' . $hosting['id'] . '&tenant_id=' . $tenant['id'] . '&redirect_to=tenant') ?>" 
                                style="background: #F7931E; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-block; margin-right: 5px;">
                                 Editar
@@ -1162,6 +1166,171 @@ $providerMap = $providerMap ?? [];
     </div>
 
 <?php endif; ?>
+
+<!-- Modal de Detalhes de Hospedagem -->
+<div id="hostingDetailsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+    <div style="background: white; margin: 50px auto; max-width: 800px; border-radius: 8px; padding: 30px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <button onclick="closeHostingDetailsModal()" style="position: absolute; top: 15px; right: 15px; background: #c33; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; line-height: 1;">×</button>
+        
+        <h2 id="modalTitle" style="margin: 0 0 20px 0; color: #023A8D;">Carregando...</h2>
+        
+        <div id="modalContent" style="color: #666;">
+            <p>Carregando informações...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+function openHostingDetailsModal(hostingId) {
+    var modal = document.getElementById('hostingDetailsModal');
+    var modalTitle = document.getElementById('modalTitle');
+    var modalContent = document.getElementById('modalContent');
+    
+    modal.style.display = 'block';
+    modalTitle.textContent = 'Carregando...';
+    modalContent.innerHTML = '<p>Carregando informações...</p>';
+    
+    // Faz requisição AJAX
+    fetch('<?= pixelhub_url('/hosting/view?id=') ?>' + hostingId)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                modalContent.innerHTML = '<p style="color: #c33;">Erro: ' + escapeHtml(data.error) + '</p>';
+                return;
+            }
+            
+            // Atualiza título
+            modalTitle.textContent = escapeHtml(data.domain.toUpperCase()) + ' — ' + escapeHtml(data.provider);
+            
+            // Monta conteúdo do modal
+            var html = '<div style="margin-bottom: 25px;">';
+            html += '<h3 style="margin: 0 0 15px 0; font-size: 16px; color: #023A8D; border-bottom: 2px solid #023A8D; padding-bottom: 8px;">Resumo</h3>';
+            html += '<table style="width: 100%; border-collapse: collapse;">';
+            html += '<tr><td style="padding: 8px; font-weight: 600; width: 150px;">Plano / Valor:</td><td style="padding: 8px;">' + escapeHtml(data.plan_name || '-') + ' / ' + escapeHtml(data.amount) + '</td></tr>';
+            html += '<tr><td style="padding: 8px; font-weight: 600;">Provedor:</td><td style="padding: 8px;">' + escapeHtml(data.provider) + '</td></tr>';
+            html += '<tr><td style="padding: 8px; font-weight: 600;">Venc. Hospedagem:</td><td style="padding: 8px;">' + (data.hostinger_expiration_date ? formatDate(data.hostinger_expiration_date) : '-') + '</td></tr>';
+            html += '<tr><td style="padding: 8px; font-weight: 600;">Venc. Domínio:</td><td style="padding: 8px;">' + (data.domain_expiration_date ? formatDate(data.domain_expiration_date) : '-') + '</td></tr>';
+            html += '<tr><td style="padding: 8px; font-weight: 600;">Situação:</td><td style="padding: 8px;">';
+            html += '<div style="display: flex; flex-direction: column; gap: 4px;">';
+            html += '<span style="' + data.hosting_status.style + '">' + escapeHtml(data.hosting_status.text) + '</span>';
+            html += '<span style="' + data.domain_status.style + '">' + escapeHtml(data.domain_status.text) + '</span>';
+            html += '</div>';
+            html += '</td></tr>';
+            html += '</table>';
+            html += '</div>';
+            
+            // Credenciais de Acesso
+            html += '<div style="margin-bottom: 25px; padding: 15px; background: #f9f9f9; border-radius: 4px; border-left: 4px solid #023A8D;">';
+            html += '<h3 style="margin: 0 0 15px 0; font-size: 16px; color: #023A8D;">Credenciais de Acesso</h3>';
+            
+            // Painel de Hospedagem
+            html += '<div style="margin-bottom: 20px;">';
+            html += '<h4 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 600;">Painel de Hospedagem</h4>';
+            if (data.hosting_panel_url) {
+                html += '<p style="margin: 5px 0;"><strong>URL:</strong> <a href="' + escapeHtml(data.hosting_panel_url) + '" target="_blank" style="color: #023A8D;">' + escapeHtml(data.hosting_panel_url) + '</a></p>';
+            } else {
+                html += '<p style="margin: 5px 0; color: #999;"><strong>URL:</strong> Não informado</p>';
+            }
+            if (data.hosting_panel_username) {
+                html += '<p style="margin: 5px 0;"><strong>Usuário:</strong> ' + escapeHtml(data.hosting_panel_username) + '</p>';
+            } else {
+                html += '<p style="margin: 5px 0; color: #999;"><strong>Usuário:</strong> Não informado</p>';
+            }
+            if (data.hosting_panel_password) {
+                html += '<p style="margin: 5px 0;"><strong>Senha:</strong> ';
+                html += '<input type="password" id="hosting_panel_password_display" value="' + escapeHtml(data.hosting_panel_password) + '" readonly style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5; width: 200px;"> ';
+                html += '<button type="button" onclick="togglePasswordDisplay(\'hosting_panel_password_display\', this)" style="background: #666; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">👁️</button>';
+                html += '</p>';
+            } else {
+                html += '<p style="margin: 5px 0; color: #999;"><strong>Senha:</strong> Não informado</p>';
+            }
+            html += '</div>';
+            
+            // Admin do Site
+            html += '<div style="margin-bottom: 0;">';
+            html += '<h4 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 600;">Admin do Site</h4>';
+            if (data.site_admin_url) {
+                html += '<p style="margin: 5px 0;"><strong>URL:</strong> <a href="' + escapeHtml(data.site_admin_url) + '" target="_blank" style="color: #023A8D;">' + escapeHtml(data.site_admin_url) + '</a></p>';
+            } else {
+                html += '<p style="margin: 5px 0; color: #999;"><strong>URL:</strong> Não informado</p>';
+            }
+            if (data.site_admin_username) {
+                html += '<p style="margin: 5px 0;"><strong>Usuário:</strong> ' + escapeHtml(data.site_admin_username) + '</p>';
+            } else {
+                html += '<p style="margin: 5px 0; color: #999;"><strong>Usuário:</strong> Não informado</p>';
+            }
+            if (data.site_admin_password) {
+                html += '<p style="margin: 5px 0;"><strong>Senha:</strong> ';
+                html += '<input type="password" id="site_admin_password_display" value="' + escapeHtml(data.site_admin_password) + '" readonly style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5; width: 200px;"> ';
+                html += '<button type="button" onclick="togglePasswordDisplay(\'site_admin_password_display\', this)" style="background: #666; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">👁️</button>';
+                html += '</p>';
+            } else {
+                html += '<p style="margin: 5px 0; color: #999;"><strong>Senha:</strong> Não informado</p>';
+            }
+            html += '</div>';
+            html += '</div>';
+            
+            // Ações Rápidas
+            html += '<div style="margin-bottom: 0; padding: 15px; background: #f0f7ff; border-radius: 4px;">';
+            html += '<h3 style="margin: 0 0 15px 0; font-size: 16px; color: #023A8D;">Ações Rápidas</h3>';
+            html += '<div style="display: flex; gap: 10px; flex-wrap: wrap;">';
+            if (data.hosting_panel_url) {
+                html += '<a href="' + escapeHtml(data.hosting_panel_url) + '" target="_blank" style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; display: inline-block;">Abrir Painel de Hospedagem</a>';
+            }
+            if (data.site_admin_url) {
+                html += '<a href="' + escapeHtml(data.site_admin_url) + '" target="_blank" style="background: #28a745; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; display: inline-block;">Abrir Admin do Site</a>';
+            }
+            if (!data.hosting_panel_url && !data.site_admin_url) {
+                html += '<p style="color: #999; margin: 0;">Nenhuma ação rápida disponível (URLs não configuradas)</p>';
+            }
+            html += '</div>';
+            html += '</div>';
+            
+            modalContent.innerHTML = html;
+        })
+        .catch(error => {
+            modalContent.innerHTML = '<p style="color: #c33;">Erro ao carregar dados: ' + escapeHtml(error.message) + '</p>';
+        });
+}
+
+function closeHostingDetailsModal() {
+    document.getElementById('hostingDetailsModal').style.display = 'none';
+}
+
+function togglePasswordDisplay(inputId, button) {
+    var input = document.getElementById(inputId);
+    if (input.type === 'password') {
+        input.type = 'text';
+        button.textContent = '🙈';
+    } else {
+        input.type = 'password';
+        button.textContent = '👁️';
+    }
+}
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    var date = new Date(dateStr + 'T00:00:00');
+    var day = String(date.getDate()).padStart(2, '0');
+    var month = String(date.getMonth() + 1).padStart(2, '0');
+    var year = date.getFullYear();
+    return day + '/' + month + '/' + year;
+}
+
+// Fecha modal ao clicar fora
+document.addEventListener('click', function(event) {
+    var modal = document.getElementById('hostingDetailsModal');
+    if (event.target === modal) {
+        closeHostingDetailsModal();
+    }
+});
+</script>
 
 <?php
 $content = ob_get_clean();

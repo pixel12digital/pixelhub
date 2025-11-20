@@ -179,6 +179,7 @@ $router->get('/hosting/create', 'HostingController@create');
 $router->post('/hosting/store', 'HostingController@store');
 $router->get('/hosting/edit', 'HostingController@edit');
 $router->post('/hosting/update', 'HostingController@update');
+$router->get('/hosting/view', 'HostingController@view');
 $router->get('/hosting/backups', 'HostingBackupController@index');
 $router->get('/hosting/backups/logs', 'HostingBackupController@viewLogs');
 $router->post('/hosting/backups/upload', 'HostingBackupController@upload');

@@ -104,6 +104,14 @@ class HostingController extends Controller
         $migrationStatus = $_POST['migration_status'] ?? 'nao_iniciada';
         $notes = trim($_POST['notes'] ?? '');
         $redirectTo = $_POST['redirect_to'] ?? 'hosting';
+        
+        // Campos de credenciais
+        $hostingPanelUrl = trim($_POST['hosting_panel_url'] ?? '');
+        $hostingPanelUsername = trim($_POST['hosting_panel_username'] ?? '');
+        $hostingPanelPassword = trim($_POST['hosting_panel_password'] ?? '');
+        $siteAdminUrl = trim($_POST['site_admin_url'] ?? '');
+        $siteAdminUsername = trim($_POST['site_admin_username'] ?? '');
+        $siteAdminPassword = trim($_POST['site_admin_password'] ?? '');
 
         // Validações
         if (!$tenantId) {
@@ -133,8 +141,10 @@ class HostingController extends Controller
                 INSERT INTO hosting_accounts 
                 (tenant_id, domain, hosting_plan_id, plan_name, amount, billing_cycle, current_provider, 
                  hostinger_expiration_date, domain_expiration_date, decision, migration_status, notes, 
+                 hosting_panel_url, hosting_panel_username, hosting_panel_password,
+                 site_admin_url, site_admin_username, site_admin_password,
                  backup_status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'nenhum', NOW(), NOW())
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'nenhum', NOW(), NOW())
             ");
 
             $stmt->execute([
@@ -150,6 +160,12 @@ class HostingController extends Controller
                 $decision,
                 $migrationStatus,
                 $notes ?: null,
+                $hostingPanelUrl ?: null,
+                $hostingPanelUsername ?: null,
+                $hostingPanelPassword ?: null,
+                $siteAdminUrl ?: null,
+                $siteAdminUsername ?: null,
+                $siteAdminPassword ?: null,
             ]);
 
             // Redireciona baseado em redirect_to
@@ -240,6 +256,14 @@ class HostingController extends Controller
         $migrationStatus = $_POST['migration_status'] ?? 'nao_iniciada';
         $notes = trim($_POST['notes'] ?? '');
         $redirectTo = $_POST['redirect_to'] ?? 'hosting';
+        
+        // Campos de credenciais
+        $hostingPanelUrl = trim($_POST['hosting_panel_url'] ?? '');
+        $hostingPanelUsername = trim($_POST['hosting_panel_username'] ?? '');
+        $hostingPanelPassword = trim($_POST['hosting_panel_password'] ?? '');
+        $siteAdminUrl = trim($_POST['site_admin_url'] ?? '');
+        $siteAdminUsername = trim($_POST['site_admin_username'] ?? '');
+        $siteAdminPassword = trim($_POST['site_admin_password'] ?? '');
 
         if ($id <= 0) {
             $this->redirect('/hosting');
@@ -270,11 +294,22 @@ class HostingController extends Controller
 
         // Atualiza no banco
         try {
+            // Se senha não foi fornecida, mantém a existente
+            $currentAccount = $db->prepare("SELECT hosting_panel_password, site_admin_password FROM hosting_accounts WHERE id = ?");
+            $currentAccount->execute([$id]);
+            $current = $currentAccount->fetch();
+            
+            $finalHostingPassword = !empty($hostingPanelPassword) ? $hostingPanelPassword : ($current['hosting_panel_password'] ?? null);
+            $finalSitePassword = !empty($siteAdminPassword) ? $siteAdminPassword : ($current['site_admin_password'] ?? null);
+            
             $stmt = $db->prepare("
                 UPDATE hosting_accounts 
                 SET tenant_id = ?, domain = ?, hosting_plan_id = ?, plan_name = ?, amount = ?, 
                     billing_cycle = ?, current_provider = ?, hostinger_expiration_date = ?, 
-                    domain_expiration_date = ?, decision = ?, migration_status = ?, notes = ?, updated_at = NOW()
+                    domain_expiration_date = ?, decision = ?, migration_status = ?, notes = ?, 
+                    hosting_panel_url = ?, hosting_panel_username = ?, hosting_panel_password = ?,
+                    site_admin_url = ?, site_admin_username = ?, site_admin_password = ?,
+                    updated_at = NOW()
                 WHERE id = ?
             ");
 
@@ -291,6 +326,12 @@ class HostingController extends Controller
                 $decision,
                 $migrationStatus,
                 $notes ?: null,
+                $hostingPanelUrl ?: null,
+                $hostingPanelUsername ?: null,
+                $finalHostingPassword,
+                $siteAdminUrl ?: null,
+                $siteAdminUsername ?: null,
+                $finalSitePassword,
                 $id,
             ]);
 
@@ -304,6 +345,125 @@ class HostingController extends Controller
             error_log("Erro ao atualizar hosting account: " . $e->getMessage());
             $this->redirect('/hosting/edit?id=' . $id . '&error=database_error&redirect_to=' . $redirectTo);
         }
+    }
+
+    /**
+     * Retorna dados de uma conta de hospedagem via AJAX (para modal de detalhes)
+     */
+    public function view(): void
+    {
+        Auth::requireInternal();
+
+        $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+
+        if ($id <= 0) {
+            header('Content-Type: application/json');
+            http_response_code(400);
+            echo json_encode(['error' => 'ID inválido']);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        // Busca conta de hospedagem
+        $stmt = $db->prepare("SELECT * FROM hosting_accounts WHERE id = ?");
+        $stmt->execute([$id]);
+        $hostingAccount = $stmt->fetch();
+
+        if (!$hostingAccount) {
+            header('Content-Type: application/json');
+            http_response_code(404);
+            echo json_encode(['error' => 'Conta de hospedagem não encontrada']);
+            return;
+        }
+
+        // Busca nome do provedor
+        $providerMap = HostingProviderService::getSlugToNameMap();
+        $providerSlug = $hostingAccount['current_provider'] ?? '';
+        $providerName = $providerMap[$providerSlug] ?? $providerSlug;
+
+        // Calcula status (reutiliza lógica da view)
+        $calculateStatus = function($expirationDate, $type = '') {
+            if (empty($expirationDate)) {
+                $text = $type === 'domain' ? 'Domínio: Sem data' : ($type === 'hosting' ? 'Hospedagem: Sem data' : 'Sem data');
+                return [
+                    'text' => $text,
+                    'style' => 'background: #e9ecef; color: #6c757d; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
+                ];
+            }
+            
+            $expDate = strtotime($expirationDate);
+            $today = strtotime('today');
+            $daysLeft = floor(($expDate - $today) / (60 * 60 * 24));
+            
+            $daysInfo = '';
+            if ($daysLeft > 0) {
+                $daysInfo = $daysLeft == 1 ? ' (vence em 1 dia)' : ' (vence em ' . $daysLeft . ' dias)';
+            } elseif ($daysLeft == 0) {
+                $daysInfo = ' (vence hoje)';
+            } else {
+                $daysOverdue = abs($daysLeft);
+                $daysInfo = $daysOverdue == 1 ? ' (vencido há 1 dia)' : ' (vencido há ' . $daysOverdue . ' dias)';
+            }
+            
+            if ($daysLeft > 30) {
+                $statusText = $type === 'domain' ? 'Domínio: Ativo' : ($type === 'hosting' ? 'Hospedagem: Ativa' : 'Ativo');
+                $text = $statusText . $daysInfo;
+                return [
+                    'text' => $text,
+                    'style' => 'background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
+                ];
+            } elseif ($daysLeft >= 15 && $daysLeft <= 30) {
+                $statusText = $type === 'domain' ? 'Domínio: Vencendo' : ($type === 'hosting' ? 'Hospedagem: Vencendo' : 'Vencendo');
+                $text = $statusText . $daysInfo;
+                return [
+                    'text' => $text,
+                    'style' => 'background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
+                ];
+            } elseif ($daysLeft >= 0 && $daysLeft < 15) {
+                $statusText = $type === 'domain' ? 'Domínio: Urgente' : ($type === 'hosting' ? 'Hospedagem: Urgente' : 'Urgente');
+                $text = $statusText . $daysInfo;
+                return [
+                    'text' => $text,
+                    'style' => 'background: #f8d7da; color: #721c24; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
+                ];
+            } else {
+                $statusText = $type === 'domain' ? 'Domínio: Vencido' : ($type === 'hosting' ? 'Hospedagem: Vencida' : 'Vencido');
+                $text = $statusText . $daysInfo;
+                return [
+                    'text' => $text,
+                    'style' => 'background: #f8d7da; color: #721c24; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
+                ];
+            }
+        };
+
+        $hostingStatus = $calculateStatus($hostingAccount['hostinger_expiration_date'] ?? null, 'hosting');
+        $domainStatus = $calculateStatus($hostingAccount['domain_expiration_date'] ?? null, 'domain');
+
+        // Formata valor
+        $amount = $hostingAccount['amount'] ?? 0;
+        $billingCycle = $hostingAccount['billing_cycle'] ?? 'mensal';
+        $amountFormatted = $amount > 0 ? 'R$ ' . number_format($amount, 2, ',', '.') . ' / ' . $billingCycle : '-';
+
+        // Retorna JSON
+        header('Content-Type: application/json');
+        echo json_encode([
+            'id' => $hostingAccount['id'],
+            'domain' => $hostingAccount['domain'],
+            'provider' => $providerName,
+            'plan_name' => $hostingAccount['plan_name'] ?? '-',
+            'amount' => $amountFormatted,
+            'hosting_status' => $hostingStatus,
+            'domain_status' => $domainStatus,
+            'hosting_panel_url' => $hostingAccount['hosting_panel_url'] ?? '',
+            'hosting_panel_username' => $hostingAccount['hosting_panel_username'] ?? '',
+            'hosting_panel_password' => $hostingAccount['hosting_panel_password'] ?? '',
+            'site_admin_url' => $hostingAccount['site_admin_url'] ?? '',
+            'site_admin_username' => $hostingAccount['site_admin_username'] ?? '',
+            'site_admin_password' => $hostingAccount['site_admin_password'] ?? '',
+            'hostinger_expiration_date' => $hostingAccount['hostinger_expiration_date'] ?? null,
+            'domain_expiration_date' => $hostingAccount['domain_expiration_date'] ?? null,
+        ]);
     }
 }
 

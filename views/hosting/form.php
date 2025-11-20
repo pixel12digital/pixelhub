@@ -197,6 +197,80 @@ $providers = $providers ?? [];
             </div>
         </div>
 
+        <div style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px; border-left: 4px solid #023A8D;">
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #023A8D;">Credenciais de Acesso</h3>
+            
+            <div style="margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 600; color: #333;">Painel de Hospedagem (cPanel / Painel do Provedor)</h4>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="hosting_panel_url" style="display: block; margin-bottom: 5px; font-weight: 600;">URL do Painel</label>
+                    <input type="text" id="hosting_panel_url" name="hosting_panel_url" 
+                           value="<?= $hostingAccount ? htmlspecialchars($hostingAccount['hosting_panel_url'] ?? '') : '' ?>"
+                           placeholder="https://cpanel.exemplo.com.br" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="hosting_panel_username" style="display: block; margin-bottom: 5px; font-weight: 600;">Usuário</label>
+                    <input type="text" id="hosting_panel_username" name="hosting_panel_username" 
+                           value="<?= $hostingAccount ? htmlspecialchars($hostingAccount['hosting_panel_username'] ?? '') : '' ?>"
+                           placeholder="usuário_cpanel" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="hosting_panel_password" style="display: block; margin-bottom: 5px; font-weight: 600;">Senha</label>
+                    <div style="display: flex; gap: 5px; align-items: center;">
+                        <input type="password" id="hosting_panel_password" name="hosting_panel_password" 
+                               value=""
+                               placeholder="<?= $hostingAccount && !empty($hostingAccount['hosting_panel_password']) ? '•••••••• (deixe em branco para manter)' : '••••••••' ?>" 
+                               style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <button type="button" onclick="togglePassword('hosting_panel_password', this)" 
+                                style="background: #666; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                            👁️
+                        </button>
+                    </div>
+                    <small style="color: #666; font-size: 12px;"><?= $hostingAccount ? 'Deixe em branco para manter a senha atual' : 'Digite a senha do painel de hospedagem' ?></small>
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 0;">
+                <h4 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 600; color: #333;">Admin do Site (WordPress ou outro)</h4>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="site_admin_url" style="display: block; margin-bottom: 5px; font-weight: 600;">URL do Admin</label>
+                    <input type="text" id="site_admin_url" name="site_admin_url" 
+                           value="<?= $hostingAccount ? htmlspecialchars($hostingAccount['site_admin_url'] ?? '') : '' ?>"
+                           placeholder="https://dominio.com.br/wp-admin" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="site_admin_username" style="display: block; margin-bottom: 5px; font-weight: 600;">Usuário</label>
+                    <input type="text" id="site_admin_username" name="site_admin_username" 
+                           value="<?= $hostingAccount ? htmlspecialchars($hostingAccount['site_admin_username'] ?? '') : '' ?>"
+                           placeholder="admin" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                
+                <div style="margin-bottom: 0;">
+                    <label for="site_admin_password" style="display: block; margin-bottom: 5px; font-weight: 600;">Senha</label>
+                    <div style="display: flex; gap: 5px; align-items: center;">
+                        <input type="password" id="site_admin_password" name="site_admin_password" 
+                               value=""
+                               placeholder="<?= $hostingAccount && !empty($hostingAccount['site_admin_password']) ? '•••••••• (deixe em branco para manter)' : '••••••••' ?>" 
+                               style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <button type="button" onclick="togglePassword('site_admin_password', this)" 
+                                style="background: #666; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                            👁️
+                        </button>
+                    </div>
+                    <small style="color: #666; font-size: 12px;"><?= $hostingAccount ? 'Deixe em branco para manter a senha atual' : 'Digite a senha do admin do site' ?></small>
+                </div>
+            </div>
+        </div>
+
         <div style="margin-bottom: 20px;">
             <label for="notes" style="display: block; margin-bottom: 5px; font-weight: 600;">Notas</label>
             <textarea id="notes" name="notes" rows="4" 
@@ -220,6 +294,17 @@ $providers = $providers ?? [];
 </div>
 
 <script>
+function togglePassword(inputId, button) {
+    var input = document.getElementById(inputId);
+    if (input.type === 'password') {
+        input.type = 'text';
+        button.textContent = '🙈';
+    } else {
+        input.type = 'password';
+        button.textContent = '👁️';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     var select = document.getElementById('hostingPlanSelect');
     if (!select) return;
