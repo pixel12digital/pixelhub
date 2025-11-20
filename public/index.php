@@ -70,22 +70,14 @@ try {
     die("Erro ao carregar configurações: " . $e->getMessage());
 }
 
-// ============================================
-// HABILITA ERROS TEMPORARIAMENTE PARA DEBUG
-// ============================================
-// TODO: REMOVER APÓS CORREÇÃO DO ERRO 500
-ini_set('display_errors', '1');
-error_reporting(E_ALL);
-// ============================================
-
-// Configura exibição de erros baseado no APP_DEBUG (comentado temporariamente)
-// if (Env::isDebug()) {
-//     ini_set('display_errors', '1');
-//     error_reporting(E_ALL);
-// } else {
-//     ini_set('display_errors', '0');
-//     error_reporting(0);
-// }
+// Configura exibição de erros baseado no APP_DEBUG
+if (Env::isDebug()) {
+    ini_set('display_errors', '1');
+    error_reporting(E_ALL);
+} else {
+    ini_set('display_errors', '0');
+    error_reporting(E_ALL); // Sempre reporta erros, mas não exibe em produção
+}
 
 // Configura timezone
 date_default_timezone_set('America/Sao_Paulo');
