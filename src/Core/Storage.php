@@ -58,5 +58,17 @@ class Storage
         
         return round($bytes, 2) . ' ' . $units[$pow];
     }
+
+    /**
+     * Verifica se um arquivo existe no caminho armazenado
+     * 
+     * @param string $storedPath Caminho relativo salvo no banco (ex: /storage/tenants/1/backups/2/file.wpress)
+     * @return bool
+     */
+    public static function fileExists(string $storedPath): bool
+    {
+        $absolutePath = __DIR__ . '/../../' . ltrim($storedPath, '/');
+        return file_exists($absolutePath) && is_file($absolutePath);
+    }
 }
 

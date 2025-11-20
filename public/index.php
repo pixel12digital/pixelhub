@@ -186,6 +186,7 @@ $router->post('/hosting/backups/chunk-init', 'HostingBackupController@chunkInit'
 $router->post('/hosting/backups/chunk-upload', 'HostingBackupController@chunkUpload');
 $router->post('/hosting/backups/chunk-complete', 'HostingBackupController@chunkComplete');
 $router->get('/hosting/backups/download', 'HostingBackupController@download');
+$router->post('/hosting/backups/delete', 'HostingBackupController@delete');
 
     // Rotas de planos de hospedagem
     $router->get('/hosting-plans', 'HostingPlanController@index');

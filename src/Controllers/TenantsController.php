@@ -72,6 +72,12 @@ class TenantsController extends Controller
             ");
             $stmt->execute($hostingIds);
             $backups = $stmt->fetchAll();
+            
+            // Verifica existência dos arquivos físicos
+            foreach ($backups as &$backup) {
+                $backup['file_exists'] = Storage::fileExists($backup['stored_path']);
+            }
+            unset($backup);
         } else {
             $backups = [];
         }

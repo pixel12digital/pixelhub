@@ -43,6 +43,10 @@ $providerMap = $providerMap ?? [];
                 echo 'Cliente criado com sucesso!';
             } elseif ($_GET['success'] === 'updated') {
                 echo 'Cliente atualizado com sucesso!';
+            } elseif ($_GET['success'] === 'deleted') {
+                echo 'Backup excluído com sucesso!';
+            } elseif ($_GET['success'] === 'deleted_but_file_remains') {
+                echo 'Backup excluído do banco de dados, mas o arquivo físico não pôde ser removido.';
             }
             ?>
         </p>
@@ -352,6 +356,9 @@ $providerMap = $providerMap ?? [];
                     elseif ($error === 'file_too_large') echo 'Arquivo muito grande. O limite é 2GB.';
                     elseif ($error === 'move_failed') echo 'Falha ao salvar o arquivo.';
                     elseif ($error === 'database_error') echo 'Erro ao registrar o backup no banco de dados.';
+                    elseif ($error === 'delete_missing_id') echo 'ID do backup não fornecido para exclusão.';
+                    elseif ($error === 'delete_not_found') echo 'Backup não encontrado para exclusão.';
+                    elseif ($error === 'delete_database_error') echo 'Erro ao excluir backup do banco de dados.';
                     else echo 'Erro desconhecido.';
                     ?>
                 </div>
@@ -373,6 +380,15 @@ $providerMap = $providerMap ?? [];
                     <label for="backup_file" style="display: block; margin-bottom: 5px; font-weight: 600;">Arquivo .wpress:</label>
                     <input type="file" id="backup_file" name="backup_file" accept=".wpress" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                     <small style="color: #666;">Apenas arquivos .wpress do All-in-One WP Migration. Tamanho máximo: 2GB</small>
+                    <div id="chunked-upload-progress" style="display: none; margin-top: 15px; padding: 15px; background: #f5f5f5; border-radius: 4px;">
+                        <h4 style="margin: 0 0 10px 0; color: #023A8D;">Upload em Progresso</h4>
+                        <div style="background: #ddd; height: 25px; border-radius: 4px; overflow: hidden; position: relative;">
+                            <div id="chunked-progress-bar" style="background: #4caf50; height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
+                                0%
+                            </div>
+                        </div>
+                        <p id="chunked-status" style="margin: 10px 0 0 0; color: #666; font-size: 13px;">Preparando upload...</p>
+                    </div>
                 </div>
                 
                 <div style="margin-bottom: 15px;">
@@ -380,10 +396,65 @@ $providerMap = $providerMap ?? [];
                     <textarea id="notes" name="notes" rows="3" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"></textarea>
                 </div>
                 
-                <button type="submit" style="background: #023A8D; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                <button type="submit" id="submit-btn" style="background: #023A8D; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
                     Enviar Backup
                 </button>
             </form>
+            
+            <?php
+            // Calcula limites do PHP para upload (mesma lógica da tela interna)
+            function php_ini_to_bytes_tenant(string $value): int {
+                $value = trim($value);
+                if (empty($value)) return 0;
+                $last = strtolower(substr($value, -1));
+                $num = (int)$value;
+                switch ($last) {
+                    case 'g': $num *= 1024;
+                    case 'm': $num *= 1024;
+                    case 'k': $num *= 1024;
+                }
+                return $num;
+            }
+            
+            $phpUploadMax = ini_get('upload_max_filesize');
+            $phpPostMax = ini_get('post_max_size');
+            $uploadMaxBytes = php_ini_to_bytes_tenant($phpUploadMax);
+            $postMaxBytes = php_ini_to_bytes_tenant($phpPostMax);
+            $phpHardLimitBytes = min($uploadMaxBytes, $postMaxBytes);
+            $systemMaxDirectBytes = 500 * 1024 * 1024; // 500MB
+            $maxDirectUploadBytes = min($systemMaxDirectBytes, $phpHardLimitBytes);
+            if ($maxDirectUploadBytes <= 0) {
+                $maxDirectUploadBytes = 30 * 1024 * 1024; // 30MB fallback
+            }
+            ?>
+            
+            <script src="<?= pixelhub_url('/assets/js/hosting_backups.js') ?>"></script>
+            <script>
+            // Inicializa upload em chunks para aba docs_backups
+            document.addEventListener('DOMContentLoaded', function() {
+                if (typeof HostingBackupUpload !== 'undefined') {
+                    HostingBackupUpload.init({
+                        formSelector: 'form[enctype="multipart/form-data"]',
+                        fileInputSelector: '#backup_file',
+                        notesSelector: '#notes',
+                        submitBtnSelector: '#submit-btn',
+                        progressContainerSelector: '#chunked-upload-progress',
+                        progressBarSelector: '#chunked-progress-bar',
+                        statusTextSelector: '#chunked-status',
+                        maxDirectUploadBytes: <?= (int) $maxDirectUploadBytes ?>,
+                        chunkMaxBytes: <?= 2 * 1024 * 1024 * 1024 ?>, // 2GB
+                        chunkSize: 10 * 1024 * 1024, // 10MB por chunk
+                        chunkInitUrl: '<?= pixelhub_url('/hosting/backups/chunk-init') ?>',
+                        chunkUploadUrl: '<?= pixelhub_url('/hosting/backups/chunk-upload') ?>',
+                        chunkCompleteUrl: '<?= pixelhub_url('/hosting/backups/chunk-complete') ?>',
+                        onSuccess: function(hostingAccountId) {
+                            // Recarrega a aba docs_backups após sucesso
+                            window.location.href = '<?= pixelhub_url('/tenants/view?id=' . $tenant['id'] . '&tab=docs_backups&success=uploaded') ?>';
+                        }
+                    });
+                }
+            });
+            </script>
         </div>
         
         <!-- Lista de Backups -->
@@ -420,10 +491,30 @@ $providerMap = $providerMap ?? [];
                             <?= htmlspecialchars($backup['notes'] ?? '') ?>
                         </td>
                         <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                            <a href="<?= pixelhub_url('/hosting/backups/download?id=' . $backup['id']) ?>" 
-                               style="color: #023A8D; text-decoration: none; font-weight: 600;">
-                                Download
-                            </a>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <?php if (!empty($backup['file_exists'])): ?>
+                                    <a href="<?= pixelhub_url('/hosting/backups/download?id=' . $backup['id']) ?>" 
+                                       style="color: #023A8D; text-decoration: none; font-weight: 600;">
+                                        Download
+                                    </a>
+                                <?php else: ?>
+                                    <span style="color: #999; font-size: 12px; font-style: italic;" title="Backup feito em outro ambiente">
+                                        Arquivo indisponível
+                                    </span>
+                                <?php endif; ?>
+                                
+                                <form method="POST" action="<?= pixelhub_url('/hosting/backups/delete') ?>" 
+                                      style="display: inline-block; margin: 0;"
+                                      onsubmit="return confirm('Tem certeza que deseja excluir este backup? Esta ação não pode ser desfeita.');">
+                                    <input type="hidden" name="backup_id" value="<?= $backup['id'] ?>">
+                                    <input type="hidden" name="hosting_id" value="<?= $backup['hosting_account_id'] ?>">
+                                    <input type="hidden" name="redirect_to" value="tenant">
+                                    <button type="submit" 
+                                            style="background: #c33; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                                        Excluir
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>

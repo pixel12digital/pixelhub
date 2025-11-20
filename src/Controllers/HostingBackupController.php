@@ -52,6 +52,12 @@ class HostingBackupController extends Controller
         ");
         $stmt->execute([$hostingId]);
         $backups = $stmt->fetchAll();
+        
+        // Verifica existência dos arquivos físicos
+        foreach ($backups as &$backup) {
+            $backup['file_exists'] = Storage::fileExists($backup['stored_path']);
+        }
+        unset($backup);
 
         // Busca mapa de provedores para exibir nomes
         $providerMap = HostingProviderService::getSlugToNameMap();
@@ -360,6 +366,160 @@ class HostingBackupController extends Controller
 
         readfile($absolutePath);
         exit;
+    }
+
+    /**
+     * Exclui um backup de forma segura (remove registro e arquivo físico se existir)
+     */
+    public function delete(): void
+    {
+        Auth::requireInternal();
+
+        $backupId = $_POST['backup_id'] ?? null;
+        $hostingId = $_POST['hosting_id'] ?? null;
+        $redirectTo = $_POST['redirect_to'] ?? 'hosting';
+
+        // Helper para log
+        $log = function($message) {
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log('[HostingBackup][delete] ' . $message);
+            }
+            error_log('[HostingBackup][delete] ' . $message);
+        };
+
+        if (!$backupId) {
+            $log('ERRO: backup_id não fornecido');
+            if ($redirectTo === 'tenant' && $hostingId) {
+                // Precisa buscar tenant_id do hosting
+                $db = DB::getConnection();
+                $stmt = $db->prepare("SELECT tenant_id FROM hosting_accounts WHERE id = ?");
+                $stmt->execute([$hostingId]);
+                $hosting = $stmt->fetch();
+                if ($hosting) {
+                    $this->redirect('/tenants/view?id=' . $hosting['tenant_id'] . '&tab=docs_backups&error=delete_missing_id');
+                    return;
+                }
+            }
+            $this->redirect('/hosting/backups?hosting_id=' . ($hostingId ?? '') . '&error=delete_missing_id');
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        // Busca backup com tenant_id
+        $stmt = $db->prepare("
+            SELECT hb.*, ha.tenant_id
+            FROM hosting_backups hb
+            INNER JOIN hosting_accounts ha ON hb.hosting_account_id = ha.id
+            WHERE hb.id = ?
+        ");
+        $stmt->execute([$backupId]);
+        $backup = $stmt->fetch();
+
+        if (!$backup) {
+            $log('ERRO: Backup não encontrado. backup_id=' . $backupId);
+            if ($redirectTo === 'tenant') {
+                $this->redirect('/tenants/view?id=' . ($backup['tenant_id'] ?? '') . '&tab=docs_backups&error=delete_not_found');
+            } else {
+                $this->redirect('/hosting/backups?hosting_id=' . ($hostingId ?? '') . '&error=delete_not_found');
+            }
+            return;
+        }
+
+        $tenantId = $backup['tenant_id'];
+        $hostingAccountId = $backup['hosting_account_id'];
+        $storedPath = $backup['stored_path'];
+        $fileName = $backup['file_name'];
+
+        // Monta caminho absoluto do arquivo
+        $absolutePath = __DIR__ . '/../../' . ltrim($storedPath, '/');
+        $fileDeleted = false;
+        $fileDeleteError = null;
+
+        // Tenta deletar arquivo físico se existir
+        if (file_exists($absolutePath) && is_file($absolutePath)) {
+            try {
+                if (unlink($absolutePath)) {
+                    $fileDeleted = true;
+                    $log(sprintf(
+                        'Arquivo físico deletado com sucesso: backup_id=%d, path=%s',
+                        $backupId,
+                        $absolutePath
+                    ));
+                } else {
+                    $fileDeleteError = 'Falha ao executar unlink()';
+                    $log('AVISO: Falha ao deletar arquivo físico. backup_id=' . $backupId . ', path=' . $absolutePath);
+                }
+            } catch (\Exception $e) {
+                $fileDeleteError = $e->getMessage();
+                $log('ERRO ao deletar arquivo físico: ' . $e->getMessage() . ' | backup_id=' . $backupId);
+            }
+        } else {
+            $log(sprintf(
+                'Arquivo físico não existe (normal em ambiente diferente): backup_id=%d, path=%s',
+                $backupId,
+                $absolutePath
+            ));
+        }
+
+        // Remove registro do banco (sempre, mesmo se arquivo não foi deletado)
+        try {
+            $db->beginTransaction();
+
+            $stmt = $db->prepare("DELETE FROM hosting_backups WHERE id = ?");
+            $stmt->execute([$backupId]);
+
+            // Verifica se ainda há backups para este hosting_account
+            $stmt = $db->prepare("SELECT COUNT(*) FROM hosting_backups WHERE hosting_account_id = ?");
+            $stmt->execute([$hostingAccountId]);
+            $remainingBackups = (int) $stmt->fetchColumn();
+
+            // Se não há mais backups, atualiza backup_status
+            if ($remainingBackups === 0) {
+                $stmt = $db->prepare("
+                    UPDATE hosting_accounts 
+                    SET backup_status = 'nenhum', 
+                        last_backup_at = NULL,
+                        updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([$hostingAccountId]);
+                $log('backup_status atualizado para "nenhum" (sem backups restantes). hosting_account_id=' . $hostingAccountId);
+            }
+
+            $db->commit();
+
+            $log(sprintf(
+                'Backup excluído com sucesso: backup_id=%d, hosting_account_id=%d, tenant_id=%d, arquivo_deletado=%s',
+                $backupId,
+                $hostingAccountId,
+                $tenantId,
+                $fileDeleted ? 'sim' : 'não'
+            ));
+
+            // Redireciona com mensagem de sucesso (e aviso se arquivo não foi deletado)
+            $successParam = 'deleted';
+            if (!$fileDeleted && file_exists($absolutePath)) {
+                $successParam = 'deleted_but_file_remains';
+            }
+
+            if ($redirectTo === 'tenant') {
+                $this->redirect('/tenants/view?id=' . $tenantId . '&tab=docs_backups&success=' . $successParam);
+            } else {
+                $this->redirect('/hosting/backups?hosting_id=' . $hostingAccountId . '&success=' . $successParam);
+            }
+
+        } catch (\Exception $e) {
+            $db->rollBack();
+            $log('ERRO ao excluir backup do banco: ' . $e->getMessage() . ' | backup_id=' . $backupId);
+            error_log("Erro ao excluir backup: " . $e->getMessage());
+
+            if ($redirectTo === 'tenant') {
+                $this->redirect('/tenants/view?id=' . $tenantId . '&tab=docs_backups&error=delete_database_error');
+            } else {
+                $this->redirect('/hosting/backups?hosting_id=' . $hostingAccountId . '&error=delete_database_error');
+            }
+        }
     }
 
     /**

@@ -51,6 +51,12 @@ $providerMap = $providerMap ?? [];
                 echo 'Erro ao salvar informações no banco de dados.';
             } elseif ($error === 'invalid_method') {
                 echo 'Método HTTP inválido. O formulário deve ser enviado via POST.';
+            } elseif ($error === 'delete_missing_id') {
+                echo 'ID do backup não fornecido para exclusão.';
+            } elseif ($error === 'delete_not_found') {
+                echo 'Backup não encontrado para exclusão.';
+            } elseif ($error === 'delete_database_error') {
+                echo 'Erro ao excluir backup do banco de dados.';
             } else {
                 echo 'Erro desconhecido.';
             }
@@ -65,6 +71,10 @@ $providerMap = $providerMap ?? [];
             <?php
             if ($_GET['success'] === 'uploaded') {
                 echo 'Backup enviado com sucesso!';
+            } elseif ($_GET['success'] === 'deleted') {
+                echo 'Backup excluído com sucesso!';
+            } elseif ($_GET['success'] === 'deleted_but_file_remains') {
+                echo 'Backup excluído do banco de dados, mas o arquivo físico não pôde ser removido.';
             }
             ?>
         </p>
@@ -205,153 +215,31 @@ $providerMap = $providerMap ?? [];
     </form>
 </div>
 
+<script src="<?= pixelhub_url('/assets/js/hosting_backups.js') ?>"></script>
 <script>
-(function() {
-    // Limites calculados pelo PHP e expostos para JavaScript
-    const MAX_DIRECT_UPLOAD_BYTES = <?= (int) $maxDirectUploadBytes ?>;
-    const PHP_UPLOAD_MAX_BYTES = <?= (int) $uploadMaxBytes ?>;
-    const PHP_POST_MAX_BYTES   = <?= (int) $postMaxBytes ?>;
-    const CHUNK_MAX_BYTES      = <?= 2 * 1024 * 1024 * 1024 ?>; // 2GB, mesmo limite já usado no controller
-    
-    const fileInput = document.getElementById('backup_file');
-    const form = fileInput.closest('form');
-    const submitBtn = document.getElementById('submit-btn');
-    const progressDiv = document.getElementById('chunked-upload-progress');
-    const progressBar = document.getElementById('chunked-progress-bar');
-    const statusText = document.getElementById('chunked-status');
-    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB por chunk
-
-    form.addEventListener('submit', async function(e) {
-        const file = fileInput.files[0];
-        if (!file) {
-            return;
-        }
-
-        // Arquivo maior que o limite máximo absoluto (2GB) → nem tenta
-        if (file.size > CHUNK_MAX_BYTES) {
-            e.preventDefault();
-            alert('Arquivo muito grande. O limite máximo para backup é de 2GB.');
-            return;
-        }
-
-        // Se o arquivo for menor ou igual ao limite calculado pelo PHP → upload direto
-        if (file.size <= MAX_DIRECT_UPLOAD_BYTES) {
-            // deixa o submit seguir normalmente (upload direto)
-            return;
-        }
-
-        // Se chegou aqui, o arquivo é maior que o que o PHP aguenta de uma vez,
-        // então força upload em chunks
-        e.preventDefault();
-        await uploadInChunks(file);
-    });
-
-    async function uploadInChunks(file) {
-        const hostingAccountId = form.querySelector('[name="hosting_account_id"]').value;
-        const notes = form.querySelector('[name="notes"]').value || '';
-        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-        const uploadId = 'upload_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        
-        progressDiv.style.display = 'block';
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Enviando...';
-
-        try {
-            // Inicia sessão de upload
-            const initResponse = await fetch('<?= pixelhub_url('/hosting/backups/chunk-init') ?>', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    hosting_account_id: hostingAccountId,
-                    file_name: file.name,
-                    file_size: file.size,
-                    total_chunks: totalChunks,
-                    upload_id: uploadId,
-                    notes: notes
-                })
-            });
-
-            if (!initResponse.ok) {
-                throw new Error('Erro ao iniciar upload');
-            }
-
-            const initData = await initResponse.json();
-            if (!initData.success) {
-                throw new Error(initData.error || 'Erro ao iniciar upload');
-            }
-
-            // Envia cada chunk
-            for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-                const start = chunkIndex * CHUNK_SIZE;
-                const end = Math.min(start + CHUNK_SIZE, file.size);
-                const chunk = file.slice(start, end);
-
-                const formData = new FormData();
-                formData.append('upload_id', uploadId);
-                formData.append('chunk_index', chunkIndex);
-                formData.append('chunk', chunk);
-                formData.append('total_chunks', totalChunks);
-
-                statusText.textContent = `Enviando parte ${chunkIndex + 1} de ${totalChunks}...`;
-                const progress = ((chunkIndex + 1) / totalChunks) * 100;
-                progressBar.style.width = progress + '%';
-                progressBar.textContent = Math.round(progress) + '%';
-
-                const chunkResponse = await fetch('<?= pixelhub_url('/hosting/backups/chunk-upload') ?>', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!chunkResponse.ok) {
-                    const errorData = await chunkResponse.json().catch(() => ({}));
-                    throw new Error(errorData.error || `Erro ao enviar parte ${chunkIndex + 1}`);
-                }
-
-                const chunkData = await chunkResponse.json();
-                if (!chunkData.success) {
-                    throw new Error(chunkData.error || `Erro ao enviar parte ${chunkIndex + 1}`);
-                }
-            }
-
-            // Finaliza upload
-            statusText.textContent = 'Finalizando upload...';
-            const finalResponse = await fetch('<?= pixelhub_url('/hosting/backups/chunk-complete') ?>', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ upload_id: uploadId })
-            });
-
-            if (!finalResponse.ok) {
-                throw new Error('Erro ao finalizar upload');
-            }
-
-            const finalData = await finalResponse.json();
-            if (!finalData.success) {
-                throw new Error(finalData.error || 'Erro ao finalizar upload');
-            }
-
-            // Sucesso!
-            progressBar.style.width = '100%';
-            progressBar.textContent = '100%';
-            statusText.textContent = 'Upload concluído com sucesso!';
-            statusText.style.color = '#4caf50';
-            statusText.style.fontWeight = 'bold';
-
-            // Redireciona após 1 segundo
-            setTimeout(() => {
+// Inicializa upload em chunks para esta tela
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof HostingBackupUpload !== 'undefined') {
+        HostingBackupUpload.init({
+            formSelector: 'form[enctype="multipart/form-data"]',
+            fileInputSelector: '#backup_file',
+            notesSelector: '#notes',
+            submitBtnSelector: '#submit-btn',
+            progressContainerSelector: '#chunked-upload-progress',
+            progressBarSelector: '#chunked-progress-bar',
+            statusTextSelector: '#chunked-status',
+            maxDirectUploadBytes: <?= (int) $maxDirectUploadBytes ?>,
+            chunkMaxBytes: <?= 2 * 1024 * 1024 * 1024 ?>, // 2GB
+            chunkSize: 10 * 1024 * 1024, // 10MB por chunk
+            chunkInitUrl: '<?= pixelhub_url('/hosting/backups/chunk-init') ?>',
+            chunkUploadUrl: '<?= pixelhub_url('/hosting/backups/chunk-upload') ?>',
+            chunkCompleteUrl: '<?= pixelhub_url('/hosting/backups/chunk-complete') ?>',
+            onSuccess: function(hostingAccountId) {
                 window.location.href = '<?= pixelhub_url('/hosting/backups?hosting_id=') ?>' + hostingAccountId + '&success=uploaded';
-            }, 1000);
-
-        } catch (error) {
-            console.error('Erro no upload:', error);
-            statusText.textContent = 'Erro: ' + error.message;
-            statusText.style.color = '#d32f2f';
-            progressBar.style.background = '#d32f2f';
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Tentar Novamente';
-        }
+            }
+        });
     }
-})();
+});
 </script>
 
 <div class="card">
@@ -390,10 +278,30 @@ $providerMap = $providerMap ?? [];
                         <?= htmlspecialchars($backup['notes'] ?? '') ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <a href="<?= pixelhub_url('/hosting/backups/download?id=' . $backup['id']) ?>" 
-                           style="color: #023A8D; text-decoration: none; font-weight: 600;">
-                            Download
-                        </a>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <?php if (!empty($backup['file_exists'])): ?>
+                                <a href="<?= pixelhub_url('/hosting/backups/download?id=' . $backup['id']) ?>" 
+                                   style="color: #023A8D; text-decoration: none; font-weight: 600;">
+                                    Download
+                                </a>
+                            <?php else: ?>
+                                <span style="color: #999; font-size: 12px; font-style: italic;">
+                                    Arquivo indisponível
+                                </span>
+                            <?php endif; ?>
+                            
+                            <form method="POST" action="<?= pixelhub_url('/hosting/backups/delete') ?>" 
+                                  style="display: inline-block; margin: 0;"
+                                  onsubmit="return confirm('Tem certeza que deseja excluir este backup? Esta ação não pode ser desfeita.');">
+                                <input type="hidden" name="backup_id" value="<?= $backup['id'] ?>">
+                                <input type="hidden" name="hosting_id" value="<?= $hostingAccount['id'] ?>">
+                                <input type="hidden" name="redirect_to" value="hosting">
+                                <button type="submit" 
+                                        style="background: #c33; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                                    Excluir
+                                </button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 <?php endforeach; ?>
