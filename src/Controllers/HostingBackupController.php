@@ -74,9 +74,11 @@ class HostingBackupController extends Controller
         $stmt->execute([$tenantId]);
         $backups = $stmt->fetchAll();
         
-        // Verifica existência dos arquivos físicos
+        // Lazy loading: não verifica existência de arquivos aqui (otimização de performance)
+        // A verificação será feita apenas quando necessário (ex: ao clicar em Download)
+        // Isso economiza tempo em produção, especialmente com muitos backups
         foreach ($backups as &$backup) {
-            $backup['file_exists'] = Storage::fileExists($backup['stored_path']);
+            $backup['file_exists'] = null; // null = não verificado ainda (lazy loading)
         }
         unset($backup);
         
@@ -125,9 +127,10 @@ class HostingBackupController extends Controller
         $stmt->execute([$hostingId]);
         $backups = $stmt->fetchAll();
         
-        // Verifica existência dos arquivos físicos
+        // Lazy loading: não verifica existência de arquivos aqui (otimização de performance)
+        // A verificação será feita apenas quando necessário (ex: ao clicar em Download)
         foreach ($backups as &$backup) {
-            $backup['file_exists'] = Storage::fileExists($backup['stored_path']);
+            $backup['file_exists'] = null; // null = não verificado ainda (lazy loading)
         }
         unset($backup);
 
@@ -149,42 +152,53 @@ class HostingBackupController extends Controller
         Auth::requireInternal();
 
         // Helper para log (usa pixelhub_log se disponível, senão error_log)
-        $log = function($message) {
-            if (function_exists('pixelhub_log')) {
-                pixelhub_log('[HostingBackup] ' . $message);
+        // Em produção, apenas logs de erro são registrados para melhor performance
+        $isDebug = \PixelHub\Core\Env::isDebug();
+        $log = function($message, $isError = false) use ($isDebug) {
+            // Sempre loga erros, mas logs detalhados apenas em debug
+            if ($isError || $isDebug) {
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log('[HostingBackup] ' . $message);
+                }
+                error_log('[HostingBackup] ' . $message);
             }
-            error_log('[HostingBackup] ' . $message);
         };
 
         // Verifica se é POST
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            $log('ERRO: Método HTTP não é POST. Método recebido: ' . ($_SERVER['REQUEST_METHOD'] ?? 'N/A'));
+            $log('ERRO: Método HTTP não é POST. Método recebido: ' . ($_SERVER['REQUEST_METHOD'] ?? 'N/A'), true);
             $this->redirect('/hosting/backups?error=invalid_method');
             return;
         }
 
-        // Log detalhado para diagnóstico
-        $log('=== INÍCIO DO UPLOAD ===');
-        $log('REQUEST_METHOD: ' . ($_SERVER['REQUEST_METHOD'] ?? 'N/A'));
-        $log('CONTENT_TYPE: ' . ($_SERVER['CONTENT_TYPE'] ?? 'N/A'));
-        $log('CONTENT_LENGTH: ' . ($_SERVER['CONTENT_LENGTH'] ?? 'N/A'));
-        $log('$_POST keys: ' . implode(', ', array_keys($_POST)));
-        $log('$_FILES keys: ' . implode(', ', array_keys($_FILES)));
+        // Log detalhado apenas em modo debug
+        if ($isDebug) {
+            $log('=== INÍCIO DO UPLOAD ===');
+            $log('REQUEST_METHOD: ' . ($_SERVER['REQUEST_METHOD'] ?? 'N/A'));
+            $log('CONTENT_TYPE: ' . ($_SERVER['CONTENT_TYPE'] ?? 'N/A'));
+            $log('CONTENT_LENGTH: ' . ($_SERVER['CONTENT_LENGTH'] ?? 'N/A'));
+            $log('$_POST keys: ' . implode(', ', array_keys($_POST)));
+            $log('$_FILES keys: ' . implode(', ', array_keys($_FILES)));
+        }
         
         // Verifica se o POST excedeu post_max_size (antes de acessar $_POST)
         $contentLength = isset($_SERVER['CONTENT_LENGTH']) ? (int)$_SERVER['CONTENT_LENGTH'] : 0;
         $postMaxSize = $this->parseSize(ini_get('post_max_size'));
         
-        $log('post_max_size: ' . ini_get('post_max_size') . ' (' . $this->formatBytes($postMaxSize) . ')');
-        $log('upload_max_filesize: ' . ini_get('upload_max_filesize'));
-        $log('max_file_uploads: ' . ini_get('max_file_uploads'));
+        if ($isDebug) {
+            $log('post_max_size: ' . ini_get('post_max_size') . ' (' . $this->formatBytes($postMaxSize) . ')');
+            $log('upload_max_filesize: ' . ini_get('upload_max_filesize'));
+            $log('max_file_uploads: ' . ini_get('max_file_uploads'));
+        }
         
         // Se $_POST e $_FILES estão vazios mas CONTENT_LENGTH > 0, provavelmente excedeu o limite
         if (empty($_POST) && empty($_FILES) && $contentLength > 0 && $postMaxSize > 0 && $contentLength > $postMaxSize) {
-            $log('ERRO DETECTADO: POST excede post_max_size');
-            $log('CONTENT_LENGTH: ' . $this->formatBytes($contentLength));
-            $log('post_max_size: ' . $this->formatBytes($postMaxSize));
-            $log('Arquivo muito grande! O PHP descartou os dados antes de chegar ao código.');
+            $log('ERRO DETECTADO: POST excede post_max_size', true);
+            if ($isDebug) {
+                $log('CONTENT_LENGTH: ' . $this->formatBytes($contentLength));
+                $log('post_max_size: ' . $this->formatBytes($postMaxSize));
+            }
+            $log('Arquivo muito grande! O PHP descartou os dados antes de chegar ao código.', true);
             // Redireciona para a página de backups com erro (usa GET para pegar hosting_id da URL)
             $hostingId = $_GET['hosting_id'] ?? null;
             if ($hostingId) {
@@ -195,10 +209,12 @@ class HostingBackupController extends Controller
             return;
         }
         
-        if (isset($_FILES['backup_file'])) {
-            $log('$_FILES[backup_file]: ' . var_export($_FILES['backup_file'], true));
-        } else {
-            $log('$_FILES[backup_file] NÃO ESTÁ DEFINIDO');
+        if ($isDebug) {
+            if (isset($_FILES['backup_file'])) {
+                $log('$_FILES[backup_file]: ' . var_export($_FILES['backup_file'], true));
+            } else {
+                $log('$_FILES[backup_file] NÃO ESTÁ DEFINIDO');
+            }
         }
 
         $hostingAccountId = $_POST['hosting_account_id'] ?? null;
@@ -235,11 +251,13 @@ class HostingBackupController extends Controller
 
         // Valida arquivo com tratamento detalhado de erros
         if (!isset($_FILES['backup_file'])) {
-            $log('ERRO: $_FILES[backup_file] não está definido. Possíveis causas:');
-            $log('- Arquivo não foi selecionado no formulário');
-            $log('- Formulário não tem enctype="multipart/form-data"');
-            $log('- Tamanho do POST excede post_max_size');
-            $log('- Método HTTP não é POST');
+            $log('ERRO: $_FILES[backup_file] não está definido', true);
+            if ($isDebug) {
+                $log('- Arquivo não foi selecionado no formulário');
+                $log('- Formulário não tem enctype="multipart/form-data"');
+                $log('- Tamanho do POST excede post_max_size');
+                $log('- Método HTTP não é POST');
+            }
             $redirectWithError('no_file');
             return;
         }
@@ -247,8 +265,10 @@ class HostingBackupController extends Controller
         $errorCode = $_FILES['backup_file']['error'] ?? null;
         
         if ($errorCode !== UPLOAD_ERR_OK) {
-            $log('upload error code: ' . var_export($errorCode, true));
-            $log('$_FILES[backup_file] completo: ' . var_export($_FILES['backup_file'], true));
+            $log('upload error code: ' . var_export($errorCode, true), true);
+            if ($isDebug) {
+                $log('$_FILES[backup_file] completo: ' . var_export($_FILES['backup_file'], true));
+            }
             
             switch ($errorCode) {
                 case UPLOAD_ERR_INI_SIZE:
@@ -317,7 +337,9 @@ class HostingBackupController extends Controller
         // Arquivos maiores que 500MB devem usar upload em chunks
         // (JavaScript já intercepta, mas mantemos como fallback)
         if ($fileSize > $maxDirectUpload) {
-            $log('Arquivo maior que 500MB detectado no upload direto. Use o sistema de chunks.');
+            if ($isDebug) {
+                $log('Arquivo maior que 500MB detectado no upload direto. Use o sistema de chunks.');
+            }
             if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
                 $this->json([
                     'success' => false,
@@ -335,7 +357,7 @@ class HostingBackupController extends Controller
 
         // Verifica se o diretório é gravável
         if (!is_dir($backupDir) || !is_writable($backupDir)) {
-            $log('backup dir not writable: ' . $backupDir);
+            $log('backup dir not writable: ' . $backupDir, true);
             if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
                 $this->json([
                     'success' => false,
@@ -353,7 +375,7 @@ class HostingBackupController extends Controller
 
         // Move arquivo
         if (!move_uploaded_file($tmpPath, $destinationPath)) {
-            $log("Erro ao mover arquivo de backup: {$tmpPath} para {$destinationPath}");
+            $log("Erro ao mover arquivo de backup: {$tmpPath} para {$destinationPath}", true);
             if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
                 $this->json([
                     'success' => false,
@@ -398,14 +420,16 @@ class HostingBackupController extends Controller
 
             $db->commit();
 
-            // Log de sucesso
-            $log(sprintf(
-                'backup uploaded successfully: hosting_account_id=%d, tenant_id=%d, file=%s, size=%d bytes',
-                $hostingAccountId,
-                $tenantId,
-                $safeFileName,
-                $fileSize
-            ));
+            // Log de sucesso (apenas em debug)
+            if ($isDebug) {
+                $log(sprintf(
+                    'backup uploaded successfully: hosting_account_id=%d, tenant_id=%d, file=%s, size=%d bytes',
+                    $hostingAccountId,
+                    $tenantId,
+                    $safeFileName,
+                    $fileSize
+                ));
+            }
 
             // Se for requisição AJAX, retorna JSON
             if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
@@ -484,7 +508,8 @@ class HostingBackupController extends Controller
 
         if (!file_exists($absolutePath)) {
             http_response_code(404);
-            echo "Arquivo não encontrado no servidor";
+            // Mensagem amigável para lazy loading (arquivo pode não existir em outro ambiente)
+            echo "Arquivo não encontrado no servidor. Este backup pode ter sido feito em outro ambiente.";
             exit;
         }
 

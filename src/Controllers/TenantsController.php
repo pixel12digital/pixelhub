@@ -73,9 +73,10 @@ class TenantsController extends Controller
             $stmt->execute($hostingIds);
             $backups = $stmt->fetchAll();
             
-            // Verifica existência dos arquivos físicos
+            // Lazy loading: não verifica existência de arquivos aqui (otimização de performance)
+            // A verificação será feita apenas quando necessário (ex: ao clicar em Download)
             foreach ($backups as &$backup) {
-                $backup['file_exists'] = Storage::fileExists($backup['stored_path']);
+                $backup['file_exists'] = null; // null = não verificado ainda (lazy loading)
             }
             unset($backup);
         } else {

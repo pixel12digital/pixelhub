@@ -57,16 +57,15 @@ if (empty($backups)):
                 </td>
                 <td style="padding: 12px; border-bottom: 1px solid #eee;">
                     <div style="display: flex; gap: 10px; align-items: center;">
-                        <?php if (!empty($backup['file_exists'])): ?>
-                            <a href="<?= pixelhub_url('/hosting/backups/download?id=' . $backup['id']) ?>" 
-                               style="color: #023A8D; text-decoration: none; font-weight: 600;">
-                                Download
-                            </a>
-                        <?php else: ?>
-                            <span style="color: #999; font-size: 12px; font-style: italic;" title="Backup feito em outro ambiente">
-                                Arquivo indisponível
-                            </span>
-                        <?php endif; ?>
+                        <?php 
+                        // Lazy loading: sempre mostra link de download (otimização de performance)
+                        // A verificação de existência será feita pelo servidor ao tentar baixar
+                        // Isso economiza tempo ao renderizar a tabela, especialmente com muitos backups
+                        ?>
+                        <a href="<?= pixelhub_url('/hosting/backups/download?id=' . $backup['id']) ?>" 
+                           style="color: #023A8D; text-decoration: none; font-weight: 600;">
+                            Download
+                        </a>
                         
                         <form method="POST" action="<?= pixelhub_url('/hosting/backups/delete') ?>" 
                               style="display: inline-block; margin: 0;">

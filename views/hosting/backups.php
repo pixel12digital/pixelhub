@@ -250,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
             statusTextSelector: '#chunked-status',
             maxDirectUploadBytes: <?= (int) $maxDirectUploadBytes ?>,
             chunkMaxBytes: <?= 2 * 1024 * 1024 * 1024 ?>, // 2GB
-            chunkSize: 10 * 1024 * 1024, // 10MB por chunk
+            chunkSize: 20 * 1024 * 1024, // 20MB por chunk (otimizado para melhor performance)
             chunkInitUrl: '<?= pixelhub_url('/hosting/backups/chunk-init') ?>',
             chunkUploadUrl: '<?= pixelhub_url('/hosting/backups/chunk-upload') ?>',
             chunkCompleteUrl: '<?= pixelhub_url('/hosting/backups/chunk-complete') ?>',
@@ -299,16 +299,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <div style="display: flex; gap: 10px; align-items: center;">
-                            <?php if (!empty($backup['file_exists'])): ?>
-                                <a href="<?= pixelhub_url('/hosting/backups/download?id=' . $backup['id']) ?>" 
-                                   style="color: #023A8D; text-decoration: none; font-weight: 600;">
-                                    Download
-                                </a>
-                            <?php else: ?>
-                                <span style="color: #999; font-size: 12px; font-style: italic;">
-                                    Arquivo indisponível
-                                </span>
-                            <?php endif; ?>
+                            <?php 
+                            // Lazy loading: sempre mostra link de download (otimização de performance)
+                            // A verificação de existência será feita pelo servidor ao tentar baixar
+                            ?>
+                            <a href="<?= pixelhub_url('/hosting/backups/download?id=' . $backup['id']) ?>" 
+                               style="color: #023A8D; text-decoration: none; font-weight: 600;">
+                                Download
+                            </a>
                             
                             <form method="POST" action="<?= pixelhub_url('/hosting/backups/delete') ?>" 
                                   style="display: inline-block; margin: 0;"
