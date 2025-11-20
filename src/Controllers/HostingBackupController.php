@@ -387,6 +387,61 @@ class HostingBackupController extends Controller
             return;
         }
 
+        // CRÍTICO: Verifica se o arquivo foi salvo corretamente
+        if (!file_exists($destinationPath)) {
+            $log("ERRO: Arquivo não existe após move_uploaded_file - {$destinationPath}", true);
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => 'Arquivo não foi salvo corretamente.'
+                ], 500);
+                return;
+            }
+            $redirectWithError('file_not_saved');
+            return;
+        }
+
+        // CRÍTICO: Verifica tamanho real do arquivo salvo
+        $actualFileSize = filesize($destinationPath);
+        $log("Tamanho do arquivo após upload: esperado={$fileSize} bytes, real={$actualFileSize} bytes");
+        
+        if ($actualFileSize === 0) {
+            $log("ERRO CRÍTICO: Arquivo salvo com 0 bytes! Removendo arquivo inválido.", true);
+            @unlink($destinationPath);
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => 'Arquivo foi salvo vazio. Upload falhou. Verifique os limites do servidor.'
+                ], 500);
+                return;
+            }
+            $redirectWithError('file_empty');
+            return;
+        }
+
+        // Valida se o tamanho está próximo do esperado (permite pequena diferença)
+        $sizeDifference = abs($actualFileSize - $fileSize);
+        $sizeDifferencePercent = ($fileSize > 0) ? ($sizeDifference / $fileSize) * 100 : 100;
+        
+        if ($sizeDifferencePercent > 10) {
+            $log("ERRO: Tamanho do arquivo muito diferente do esperado. Esperado: {$fileSize}, Recebido: {$actualFileSize}, Diferença: {$sizeDifferencePercent}%", true);
+            @unlink($destinationPath);
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => 'Tamanho do arquivo incorreto. Esperado: ' . $this->formatBytes($fileSize) . ', Recebido: ' . $this->formatBytes($actualFileSize)
+                ], 500);
+                return;
+            }
+            $redirectWithError('file_size_mismatch');
+            return;
+        }
+
+        // Usa o tamanho REAL do arquivo (filesize) em vez do valor de $_FILES
+        // Isso garante que o banco sempre tenha o tamanho correto
+        $finalFileSize = $actualFileSize;
+        $log("Usando tamanho real do arquivo no banco: {$finalFileSize} bytes");
+
         // Caminho relativo para salvar no banco
         $relativePath = '/storage/tenants/' . $tenantId . '/backups/' . $hostingAccountId . '/' . $safeFileName;
 
@@ -399,11 +454,12 @@ class HostingBackupController extends Controller
                 (hosting_account_id, type, file_name, file_size, stored_path, notes, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, NOW())
             ");
+            // CRÍTICO: Usa $finalFileSize (filesize do arquivo) em vez de $fileSize
             $stmt->execute([
                 $hostingAccountId,
                 $backupType,
                 $safeFileName,
-                $fileSize,
+                $finalFileSize, // Tamanho REAL do arquivo
                 $relativePath,
                 $notes
             ]);
@@ -423,11 +479,11 @@ class HostingBackupController extends Controller
             // Log de sucesso (apenas em debug)
             if ($isDebug) {
                 $log(sprintf(
-                    'backup uploaded successfully: hosting_account_id=%d, tenant_id=%d, file=%s, size=%d bytes',
+                    'backup uploaded successfully: hosting_account_id=%d, tenant_id=%d, file=%s, size=%d bytes (real)',
                     $hostingAccountId,
                     $tenantId,
                     $safeFileName,
-                    $fileSize
+                    $finalFileSize
                 ));
             }
 
@@ -513,14 +569,35 @@ class HostingBackupController extends Controller
             exit;
         }
 
+        // Verifica tamanho do arquivo antes de enviar
+        $fileSize = filesize($absolutePath);
+        if ($fileSize === 0) {
+            http_response_code(500);
+            echo "Erro: Arquivo está vazio (0 bytes). O upload pode ter falhado.";
+            exit;
+        }
+
+        // Limpa qualquer output buffer que possa interferir
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+
         // Envia arquivo
         header('Content-Type: application/octet-stream');
-        header('Content-Disposition: attachment; filename="' . $backup['file_name'] . '"');
-        header('Content-Length: ' . filesize($absolutePath));
+        header('Content-Disposition: attachment; filename="' . addslashes($backup['file_name']) . '"');
+        header('Content-Length: ' . $fileSize);
         header('Cache-Control: must-revalidate');
         header('Pragma: public');
+        header('Expires: 0');
 
-        readfile($absolutePath);
+        // Usa readfile com verificação de erro
+        $result = @readfile($absolutePath);
+        if ($result === false) {
+            http_response_code(500);
+            echo "Erro ao ler arquivo do servidor.";
+            exit;
+        }
+        
         exit;
     }
 
