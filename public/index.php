@@ -70,14 +70,22 @@ try {
     die("Erro ao carregar configurações: " . $e->getMessage());
 }
 
-// Configura exibição de erros baseado no APP_DEBUG
-if (Env::isDebug()) {
-    ini_set('display_errors', '1');
-    error_reporting(E_ALL);
-} else {
-    ini_set('display_errors', '0');
-    error_reporting(0);
-}
+// ============================================
+// HABILITA ERROS TEMPORARIAMENTE PARA DEBUG
+// ============================================
+// TODO: REMOVER APÓS CORREÇÃO DO ERRO 500
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
+// ============================================
+
+// Configura exibição de erros baseado no APP_DEBUG (comentado temporariamente)
+// if (Env::isDebug()) {
+//     ini_set('display_errors', '1');
+//     error_reporting(E_ALL);
+// } else {
+//     ini_set('display_errors', '0');
+//     error_reporting(0);
+// }
 
 // Configura timezone
 date_default_timezone_set('America/Sao_Paulo');
@@ -179,7 +187,7 @@ $router->get('/hosting/create', 'HostingController@create');
 $router->post('/hosting/store', 'HostingController@store');
 $router->get('/hosting/edit', 'HostingController@edit');
 $router->post('/hosting/update', 'HostingController@update');
-$router->get('/hosting/view', 'HostingController@view');
+$router->get('/hosting/view', 'HostingController@show');
 $router->get('/hosting/backups', 'HostingBackupController@index');
 $router->get('/hosting/backups/logs', 'HostingBackupController@viewLogs');
 $router->post('/hosting/backups/upload', 'HostingBackupController@upload');
@@ -267,17 +275,96 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/tasks/checklist/update', 'TaskChecklistController@update');
     $router->post('/tasks/checklist/delete', 'TaskChecklistController@delete');
 
+// Handler para erros fatais (antes do try-catch)
+register_shutdown_function(function() use ($path) {
+    $error = error_get_last();
+    if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        // Verifica se display_errors está habilitado
+        $displayErrors = ini_get('display_errors');
+        $showDetails = ($displayErrors == '1' || $displayErrors == 'On');
+        
+        // Verifica se é uma requisição AJAX (rotas que retornam JSON)
+        $isAjaxRoute = strpos($path, '/hosting/view') === 0 || 
+                       strpos($path, '/billing/') === 0 ||
+                       strpos($path, '/tasks/') === 0 ||
+                       (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+                       (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+        
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+        
+        $errorMsg = "Fatal error: " . $error['message'] . " in " . $error['file'] . ":" . $error['line'];
+        if (function_exists('pixelhub_log')) {
+            pixelhub_log($errorMsg);
+        } else {
+            @error_log($errorMsg);
+        }
+        
+        if ($showDetails) {
+            // Mostra erro detalhado quando display_errors está habilitado
+            http_response_code(500);
+            echo "<h1>Erro Fatal 500</h1>\n";
+            echo "<h2>Mensagem:</h2>\n";
+            echo "<pre>" . htmlspecialchars($error['message']) . "</pre>\n";
+            echo "<h2>Arquivo:</h2>\n";
+            echo "<pre>" . htmlspecialchars($error['file']) . ":" . $error['line'] . "</pre>\n";
+            echo "<h2>Tipo de Erro:</h2>\n";
+            echo "<pre>" . $error['type'] . "</pre>\n";
+        } elseif ($isAjaxRoute) {
+            header('Content-Type: application/json', true);
+            http_response_code(500);
+            echo json_encode(['error' => 'Erro interno do servidor']);
+        } else {
+            http_response_code(500);
+            echo "Erro interno do servidor.";
+        }
+        exit;
+    }
+});
+
 // Resolve a rota
 try {
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     $router->dispatch($method, $path);
 } catch (\Exception $e) {
-    error_log("Erro na aplicação: " . $e->getMessage());
+    $errorMsg = "Erro na aplicação: " . $e->getMessage() . " em " . $e->getFile() . ":" . $e->getLine();
+    if (function_exists('pixelhub_log')) {
+        pixelhub_log($errorMsg);
+        pixelhub_log("Stack trace: " . $e->getTraceAsString());
+    } else {
+        error_log($errorMsg);
+    }
     
-    if (Env::isDebug()) {
-        echo "<h1>Erro</h1>";
-        echo "<pre>" . htmlspecialchars($e->getMessage()) . "</pre>";
-        echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>";
+    // Verifica se display_errors está habilitado
+    $displayErrors = ini_get('display_errors');
+    $showDetails = ($displayErrors == '1' || $displayErrors == 'On');
+    
+    // Verifica se é uma requisição AJAX
+    $isAjaxRoute = strpos($path, '/hosting/view') === 0 || 
+                   strpos($path, '/billing/') === 0 ||
+                   strpos($path, '/tasks/') === 0 ||
+                   (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+                   (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+    
+    while (ob_get_level() > 0) {
+        @ob_end_clean();
+    }
+    
+    if ($showDetails) {
+        // Mostra erro detalhado quando display_errors está habilitado
+        http_response_code(500);
+        echo "<h1>Erro 500 - Exception</h1>\n";
+        echo "<h2>Mensagem:</h2>\n";
+        echo "<pre>" . htmlspecialchars($e->getMessage()) . "</pre>\n";
+        echo "<h2>Arquivo:</h2>\n";
+        echo "<pre>" . htmlspecialchars($e->getFile()) . ":" . $e->getLine() . "</pre>\n";
+        echo "<h2>Stack Trace:</h2>\n";
+        echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>\n";
+    } elseif ($isAjaxRoute) {
+        header('Content-Type: application/json', true);
+        http_response_code(500);
+        echo json_encode(['error' => 'Erro ao processar requisição: ' . htmlspecialchars($e->getMessage())]);
     } else {
         http_response_code(500);
         echo "Erro interno do servidor.";

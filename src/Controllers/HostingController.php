@@ -7,6 +7,7 @@ use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
 use PixelHub\Core\MoneyHelper;
 use PixelHub\Services\HostingProviderService;
+use PDO;
 
 /**
  * Controller para gerenciar contas de hospedagem
@@ -185,52 +186,104 @@ class HostingController extends Controller
      */
     public function edit(): void
     {
-        Auth::requireInternal();
-
-        $db = DB::getConnection();
-
-        $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
-        $redirectTo = $_GET['redirect_to'] ?? 'hosting';
-        $tenantIdFromQuery = isset($_GET['tenant_id']) ? (int) $_GET['tenant_id'] : null;
-
-        if ($id <= 0) {
-            $this->redirect('/hosting');
+        try {
+            Auth::requireInternal();
+        } catch (\Throwable $e) {
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log("HostingController@edit: Erro de autenticação: " . $e->getMessage());
+            }
+            // Auth::requireInternal() já faz redirect, mas se houver exceção, vamos tratar
+            $this->redirect('/login');
             return;
         }
 
-        // Busca conta de hospedagem
-        $stmt = $db->prepare("SELECT * FROM hosting_accounts WHERE id = ?");
-        $stmt->execute([$id]);
-        $hostingAccount = $stmt->fetch();
+        try {
+            $db = DB::getConnection();
 
-        if (!$hostingAccount) {
-            $this->redirect('/hosting?error=not_found');
-            return;
+            $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+            $redirectTo = $_GET['redirect_to'] ?? 'hosting';
+            $tenantIdFromQuery = isset($_GET['tenant_id']) ? (int) $_GET['tenant_id'] : null;
+
+            if ($id <= 0) {
+                $this->redirect('/hosting');
+                return;
+            }
+
+            // Busca conta de hospedagem
+            $stmt = $db->prepare("SELECT * FROM hosting_accounts WHERE id = ?");
+            $stmt->execute([$id]);
+            $hostingAccount = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$hostingAccount) {
+                $this->redirect('/hosting?error=not_found');
+                return;
+            }
+
+            // Usa tenant_id da query string se fornecido, senão usa do hostingAccount
+            // Isso mantém consistência com o padrão de create() e permite fixar o tenant na edição
+            $tenantId = $tenantIdFromQuery ?? $hostingAccount['tenant_id'];
+
+            // Busca lista de tenants para o select
+            $stmt = $db->query("SELECT id, name FROM tenants ORDER BY name ASC");
+            $tenants = $stmt->fetchAll();
+
+            // Busca planos de hospedagem ativos
+            $stmt = $db->query("SELECT id, name, amount, billing_cycle FROM hosting_plans WHERE is_active = 1 ORDER BY name");
+            $hostingPlans = $stmt->fetchAll();
+
+            // Busca provedores de hospedagem ativos
+            try {
+                $providers = HostingProviderService::getAllActive();
+            } catch (\Throwable $e) {
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log("HostingController@edit: Erro ao buscar provedores: " . $e->getMessage());
+                }
+                $providers = [];
+            }
+
+            $this->view('hosting.form', [
+                'tenantId' => $tenantId,
+                'redirectTo' => $redirectTo,
+                'tenants' => $tenants,
+                'hostingPlans' => $hostingPlans,
+                'hostingAccount' => $hostingAccount,
+                'providers' => $providers,
+            ]);
+            
+        } catch (\Throwable $e) {
+            // Log do erro
+            $errorMsg = "=== ERRO NO HostingController@edit ===\n";
+            $errorMsg .= "Mensagem: " . $e->getMessage() . "\n";
+            $errorMsg .= "Arquivo: " . $e->getFile() . "\n";
+            $errorMsg .= "Linha: " . $e->getLine() . "\n";
+            $errorMsg .= "Stack trace: " . $e->getTraceAsString() . "\n";
+            $errorMsg .= "=== FIM DO ERRO ===";
+            
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log($errorMsg);
+            } else {
+                @error_log($errorMsg);
+            }
+            
+            // Se display_errors estiver habilitado, mostra o erro real
+            $displayErrors = ini_get('display_errors');
+            if ($displayErrors == '1' || $displayErrors == 'On') {
+                http_response_code(500);
+                echo "<h1>Erro 500 - HostingController@edit</h1>\n";
+                echo "<h2>Mensagem:</h2>\n";
+                echo "<pre>" . htmlspecialchars($e->getMessage()) . "</pre>\n";
+                echo "<h2>Arquivo:</h2>\n";
+                echo "<pre>" . htmlspecialchars($e->getFile()) . ":" . $e->getLine() . "</pre>\n";
+                echo "<h2>Stack Trace:</h2>\n";
+                echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>\n";
+                exit;
+            }
+            
+            // Redireciona com erro
+            $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+            $redirectTo = $_GET['redirect_to'] ?? 'hosting';
+            $this->redirect('/hosting?error=internal_error');
         }
-
-        // Usa tenant_id da query string se fornecido, senão usa do hostingAccount
-        // Isso mantém consistência com o padrão de create() e permite fixar o tenant na edição
-        $tenantId = $tenantIdFromQuery ?? $hostingAccount['tenant_id'];
-
-        // Busca lista de tenants para o select
-        $stmt = $db->query("SELECT id, name FROM tenants ORDER BY name ASC");
-        $tenants = $stmt->fetchAll();
-
-        // Busca planos de hospedagem ativos
-        $stmt = $db->query("SELECT id, name, amount, billing_cycle FROM hosting_plans WHERE is_active = 1 ORDER BY name");
-        $hostingPlans = $stmt->fetchAll();
-
-        // Busca provedores de hospedagem ativos
-        $providers = HostingProviderService::getAllActive();
-
-        $this->view('hosting.form', [
-            'tenantId' => $tenantId,
-            'redirectTo' => $redirectTo,
-            'tenants' => $tenants,
-            'hostingPlans' => $hostingPlans,
-            'hostingAccount' => $hostingAccount,
-            'providers' => $providers,
-        ]);
     }
 
     /**
@@ -349,37 +402,64 @@ class HostingController extends Controller
 
     /**
      * Retorna dados de uma conta de hospedagem via AJAX (para modal de detalhes)
+     * 
+     * Retorna JSON no formato:
+     * {
+     *   "success": true,
+     *   "hosting": { ...dados da conta... },
+     *   "provider_name": "Hostinger",
+     *   "status_hospedagem": { "label": "...", "tipo": "...", "dias": 5 },
+     *   "status_dominio": { "label": "...", "tipo": "...", "dias": -49 }
+     * }
      */
-    public function view(): void
+    public function show(): void
     {
-        // Limpa qualquer output anterior
-        if (ob_get_level() > 0) {
-            ob_clean();
+        // Limpa qualquer output anterior (garante JSON limpo)
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
         }
         
         try {
             // Verifica autenticação sem fazer redirect (para não quebrar JSON)
             if (!Auth::check()) {
-                header('Content-Type: application/json');
+                while (ob_get_level() > 0) {
+                    @ob_end_clean();
+                }
+                header('Content-Type: application/json; charset=utf-8', true);
                 http_response_code(401);
-                echo json_encode(['error' => 'Não autenticado']);
-                return;
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Não autenticado'
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                exit;
             }
             
             if (!Auth::isInternal()) {
-                header('Content-Type: application/json');
+                while (ob_get_level() > 0) {
+                    @ob_end_clean();
+                }
+                header('Content-Type: application/json; charset=utf-8', true);
                 http_response_code(403);
-                echo json_encode(['error' => 'Acesso negado']);
-                return;
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Acesso negado'
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                exit;
             }
 
             $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
             if ($id <= 0) {
-                header('Content-Type: application/json');
+                while (ob_get_level() > 0) {
+                    @ob_end_clean();
+                }
+                header('Content-Type: application/json; charset=utf-8', true);
                 http_response_code(400);
-                echo json_encode(['error' => 'ID inválido']);
-                return;
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'ID inválido'
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                exit;
             }
 
             $db = DB::getConnection();
@@ -390,70 +470,118 @@ class HostingController extends Controller
             $hostingAccount = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$hostingAccount) {
-                header('Content-Type: application/json');
+                while (ob_get_level() > 0) {
+                    @ob_end_clean();
+                }
+                header('Content-Type: application/json; charset=utf-8', true);
                 http_response_code(404);
-                echo json_encode(['error' => 'Conta de hospedagem não encontrada']);
-                return;
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Conta de hospedagem não encontrada'
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                exit;
             }
 
             // Busca nome do provedor
-            $providerMap = HostingProviderService::getSlugToNameMap();
+            try {
+                $providerMap = HostingProviderService::getSlugToNameMap();
+            } catch (\Throwable $e) {
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log("HostingController@show: Erro ao buscar provedores: " . $e->getMessage());
+                }
+                $providerMap = [];
+            }
             $providerSlug = $hostingAccount['current_provider'] ?? '';
             $providerName = $providerMap[$providerSlug] ?? $providerSlug;
 
-            // Calcula status (reutiliza lógica da view)
+            // Calcula status com retorno estruturado
             $calculateStatus = function($expirationDate, $type = '') {
-            if (empty($expirationDate)) {
-                $text = $type === 'domain' ? 'Domínio: Sem data' : ($type === 'hosting' ? 'Hospedagem: Sem data' : 'Sem data');
-                return [
-                    'text' => $text,
-                    'style' => 'background: #e9ecef; color: #6c757d; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
-                ];
-            }
+                $days = null;
+                $tipo = 'sem_data';
+                $label = '';
+                
+                if (empty($expirationDate)) {
+                    $label = $type === 'domain' ? 'Domínio: Sem data' : ($type === 'hosting' ? 'Hospedagem: Sem data' : 'Sem data');
+                    return [
+                        'label' => $label,
+                        'tipo' => $tipo,
+                        'dias' => $days,
+                        'text' => $label,
+                        'style' => 'background: #e9ecef; color: #6c757d; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
+                    ];
+                }
             
-            $expDate = strtotime($expirationDate);
-            $today = strtotime('today');
-            $daysLeft = floor(($expDate - $today) / (60 * 60 * 24));
-            
-            $daysInfo = '';
-            if ($daysLeft > 0) {
-                $daysInfo = $daysLeft == 1 ? ' (vence em 1 dia)' : ' (vence em ' . $daysLeft . ' dias)';
-            } elseif ($daysLeft == 0) {
-                $daysInfo = ' (vence hoje)';
-            } else {
-                $daysOverdue = abs($daysLeft);
-                $daysInfo = $daysOverdue == 1 ? ' (vencido há 1 dia)' : ' (vencido há ' . $daysOverdue . ' dias)';
-            }
-            
-            if ($daysLeft > 30) {
-                $statusText = $type === 'domain' ? 'Domínio: Ativo' : ($type === 'hosting' ? 'Hospedagem: Ativa' : 'Ativo');
-                $text = $statusText . $daysInfo;
-                return [
-                    'text' => $text,
-                    'style' => 'background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
-                ];
-            } elseif ($daysLeft >= 15 && $daysLeft <= 30) {
-                $statusText = $type === 'domain' ? 'Domínio: Vencendo' : ($type === 'hosting' ? 'Hospedagem: Vencendo' : 'Vencendo');
-                $text = $statusText . $daysInfo;
-                return [
-                    'text' => $text,
-                    'style' => 'background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
-                ];
-            } elseif ($daysLeft >= 0 && $daysLeft < 15) {
-                $statusText = $type === 'domain' ? 'Domínio: Urgente' : ($type === 'hosting' ? 'Hospedagem: Urgente' : 'Urgente');
-                $text = $statusText . $daysInfo;
-                return [
-                    'text' => $text,
-                    'style' => 'background: #f8d7da; color: #721c24; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
-                ];
-            } else {
-                $statusText = $type === 'domain' ? 'Domínio: Vencido' : ($type === 'hosting' ? 'Hospedagem: Vencida' : 'Vencido');
-                $text = $statusText . $daysInfo;
-                return [
-                    'text' => $text,
-                    'style' => 'background: #f8d7da; color: #721c24; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
-                ];
-            }
+                $expDate = strtotime($expirationDate);
+                if ($expDate === false) {
+                    $label = $type === 'domain' ? 'Domínio: Data inválida' : ($type === 'hosting' ? 'Hospedagem: Data inválida' : 'Data inválida');
+                    return [
+                        'label' => $label,
+                        'tipo' => 'invalida',
+                        'dias' => $days,
+                        'text' => $label,
+                        'style' => 'background: #e9ecef; color: #6c757d; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
+                    ];
+                }
+                
+                $today = strtotime('today');
+                $daysLeft = floor(($expDate - $today) / (60 * 60 * 24));
+                $days = $daysLeft;
+                
+                $daysInfo = '';
+                if ($daysLeft > 0) {
+                    $daysInfo = $daysLeft == 1 ? ' (vence em 1 dia)' : ' (vence em ' . $daysLeft . ' dias)';
+                } elseif ($daysLeft == 0) {
+                    $daysInfo = ' (vence hoje)';
+                } else {
+                    $daysOverdue = abs($daysLeft);
+                    $daysInfo = $daysOverdue == 1 ? ' (vencido há 1 dia)' : ' (vencido há ' . $daysOverdue . ' dias)';
+                }
+                
+                if ($daysLeft > 30) {
+                    $tipo = 'ativo';
+                    $statusText = $type === 'domain' ? 'Domínio: Ativo' : ($type === 'hosting' ? 'Hospedagem: Ativa' : 'Ativo');
+                    $label = $statusText . $daysInfo;
+                    return [
+                        'label' => $label,
+                        'tipo' => $tipo,
+                        'dias' => $days,
+                        'text' => $label,
+                        'style' => 'background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
+                    ];
+                } elseif ($daysLeft >= 15 && $daysLeft <= 30) {
+                    $tipo = 'vencendo';
+                    $statusText = $type === 'domain' ? 'Domínio: Vencendo' : ($type === 'hosting' ? 'Hospedagem: Vencendo' : 'Vencendo');
+                    $label = $statusText . $daysInfo;
+                    return [
+                        'label' => $label,
+                        'tipo' => $tipo,
+                        'dias' => $days,
+                        'text' => $label,
+                        'style' => 'background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
+                    ];
+                } elseif ($daysLeft >= 0 && $daysLeft < 15) {
+                    $tipo = 'urgente';
+                    $statusText = $type === 'domain' ? 'Domínio: Urgente' : ($type === 'hosting' ? 'Hospedagem: Urgente' : 'Urgente');
+                    $label = $statusText . $daysInfo;
+                    return [
+                        'label' => $label,
+                        'tipo' => $tipo,
+                        'dias' => $days,
+                        'text' => $label,
+                        'style' => 'background: #f8d7da; color: #721c24; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
+                    ];
+                } else {
+                    $tipo = 'vencido';
+                    $statusText = $type === 'domain' ? 'Domínio: Vencido' : ($type === 'hosting' ? 'Hospedagem: Vencida' : 'Vencido');
+                    $label = $statusText . $daysInfo;
+                    return [
+                        'label' => $label,
+                        'tipo' => $tipo,
+                        'dias' => $days,
+                        'text' => $label,
+                        'style' => 'background: #f8d7da; color: #721c24; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
+                    ];
+                }
             };
 
             $hostingStatus = $calculateStatus($hostingAccount['hostinger_expiration_date'] ?? null, 'hosting');
@@ -464,9 +592,46 @@ class HostingController extends Controller
             $billingCycle = $hostingAccount['billing_cycle'] ?? 'mensal';
             $amountFormatted = $amount > 0 ? 'R$ ' . number_format($amount, 2, ',', '.') . ' / ' . $billingCycle : '-';
 
-            // Retorna JSON
-            header('Content-Type: application/json');
+            // Limpa qualquer output capturado antes de enviar JSON
+            while (ob_get_level() > 0) {
+                @ob_end_clean();
+            }
+            
+            // Retorna JSON no formato especificado
+            header('Content-Type: application/json; charset=utf-8', true);
+            http_response_code(200);
             echo json_encode([
+                'success' => true,
+                'hosting' => [
+                    'id' => $hostingAccount['id'],
+                    'domain' => $hostingAccount['domain'],
+                    'plan_name' => $hostingAccount['plan_name'] ?? '-',
+                    'amount' => $amountFormatted,
+                    'hosting_panel_url' => $hostingAccount['hosting_panel_url'] ?? '',
+                    'hosting_panel_username' => $hostingAccount['hosting_panel_username'] ?? '',
+                    'hosting_panel_password' => $hostingAccount['hosting_panel_password'] ?? '',
+                    'site_admin_url' => $hostingAccount['site_admin_url'] ?? '',
+                    'site_admin_username' => $hostingAccount['site_admin_username'] ?? '',
+                    'site_admin_password' => $hostingAccount['site_admin_password'] ?? '',
+                    'hostinger_expiration_date' => $hostingAccount['hostinger_expiration_date'] ?? null,
+                    'domain_expiration_date' => $hostingAccount['domain_expiration_date'] ?? null,
+                ],
+                'provider_name' => $providerName,
+                'status_hospedagem' => [
+                    'label' => $hostingStatus['label'],
+                    'tipo' => $hostingStatus['tipo'],
+                    'dias' => $hostingStatus['dias'],
+                    'text' => $hostingStatus['text'],
+                    'style' => $hostingStatus['style']
+                ],
+                'status_dominio' => [
+                    'label' => $domainStatus['label'],
+                    'tipo' => $domainStatus['tipo'],
+                    'dias' => $domainStatus['dias'],
+                    'text' => $domainStatus['text'],
+                    'style' => $domainStatus['style']
+                ],
+                // Mantém campos antigos para compatibilidade com JS existente
                 'id' => $hostingAccount['id'],
                 'domain' => $hostingAccount['domain'],
                 'provider' => $providerName,
@@ -474,21 +639,51 @@ class HostingController extends Controller
                 'amount' => $amountFormatted,
                 'hosting_status' => $hostingStatus,
                 'domain_status' => $domainStatus,
-                'hosting_panel_url' => $hostingAccount['hosting_panel_url'] ?? '',
-                'hosting_panel_username' => $hostingAccount['hosting_panel_username'] ?? '',
-                'hosting_panel_password' => $hostingAccount['hosting_panel_password'] ?? '',
-                'site_admin_url' => $hostingAccount['site_admin_url'] ?? '',
-                'site_admin_username' => $hostingAccount['site_admin_username'] ?? '',
-                'site_admin_password' => $hostingAccount['site_admin_password'] ?? '',
-                'hostinger_expiration_date' => $hostingAccount['hostinger_expiration_date'] ?? null,
-                'domain_expiration_date' => $hostingAccount['domain_expiration_date'] ?? null,
-            ]);
-        } catch (\Exception $e) {
-            header('Content-Type: application/json');
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+            
+        } catch (\Throwable $e) {
+            // Limpa qualquer output
+            while (ob_get_level() > 0) {
+                @ob_end_clean();
+            }
+            
+            // Log do erro com stack trace
+            $errorMsg = "=== ERRO NO HostingController@show ===\n";
+            $errorMsg .= "Mensagem: " . $e->getMessage() . "\n";
+            $errorMsg .= "Arquivo: " . $e->getFile() . "\n";
+            $errorMsg .= "Linha: " . $e->getLine() . "\n";
+            $errorMsg .= "Stack trace: " . $e->getTraceAsString() . "\n";
+            $errorMsg .= "=== FIM DO ERRO ===";
+            
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log($errorMsg);
+            } else {
+                @error_log($errorMsg);
+            }
+            
+            // Se display_errors estiver habilitado, mostra o erro real
+            $displayErrors = ini_get('display_errors');
+            if ($displayErrors == '1' || $displayErrors == 'On') {
+                header('Content-Type: text/html; charset=utf-8', true);
+                http_response_code(500);
+                echo "<h1>Erro 500 - HostingController@show</h1>\n";
+                echo "<h2>Mensagem:</h2>\n";
+                echo "<pre>" . htmlspecialchars($e->getMessage()) . "</pre>\n";
+                echo "<h2>Arquivo:</h2>\n";
+                echo "<pre>" . htmlspecialchars($e->getFile()) . ":" . $e->getLine() . "</pre>\n";
+                echo "<h2>Stack Trace:</h2>\n";
+                echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>\n";
+                exit;
+            }
+            
+            header('Content-Type: application/json; charset=utf-8', true);
             http_response_code(500);
-            error_log("Erro no HostingController@view: " . $e->getMessage());
-            error_log("Stack trace: " . $e->getTraceAsString());
-            echo json_encode(['error' => 'Erro ao carregar dados: ' . $e->getMessage()]);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Erro interno do servidor'
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
         }
     }
 }

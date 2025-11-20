@@ -72,8 +72,16 @@ class Router
         // Normaliza o path
         $path = rtrim($path, '/') ?: '/';
 
+        if (function_exists('pixelhub_log')) {
+            pixelhub_log("Router::dispatch: Buscando rota {$method} {$path}");
+        }
+
         foreach ($this->routes as $route) {
             if ($route['method'] === $method && $this->matchPath($route['path'], $path)) {
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log("Router::dispatch: Rota encontrada! {$method} {$route['path']} -> {$path}");
+                }
+                
                 // Executa middlewares
                 foreach ($this->middlewares as $middleware) {
                     $this->executeMiddleware($middleware);
@@ -86,6 +94,9 @@ class Router
         }
 
         // Rota não encontrada
+        if (function_exists('pixelhub_log')) {
+            pixelhub_log("Router::dispatch: 404 - Rota não encontrada: {$method} {$path}");
+        }
         error_log("404 - Rota não encontrada: {$method} {$path}");
         error_log("Rotas registradas: " . json_encode($this->routes, JSON_PRETTY_PRINT));
         http_response_code(404);
@@ -148,15 +159,66 @@ class Router
             [$controller, $method] = explode('@', $handler);
             $controllerClass = "PixelHub\\Controllers\\{$controller}";
             
-            if (class_exists($controllerClass)) {
-                $controllerInstance = new $controllerClass();
-                if (method_exists($controllerInstance, $method)) {
-                    $controllerInstance->$method();
-                } else {
-                    throw new \RuntimeException("Método {$method} não encontrado em {$controllerClass}");
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log("Router: Tentando executar {$controllerClass}@{$method}");
+            }
+            
+            if (!class_exists($controllerClass)) {
+                $errorMsg = "Controller {$controllerClass} não encontrado";
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log("Router: ERRO - {$errorMsg}");
                 }
-            } else {
-                throw new \RuntimeException("Controller {$controllerClass} não encontrado");
+                throw new \RuntimeException($errorMsg);
+            }
+            
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log("Router: Classe {$controllerClass} encontrada, instanciando...");
+            }
+            
+            try {
+                $controllerInstance = new $controllerClass();
+                
+                if (!method_exists($controllerInstance, $method)) {
+                    $errorMsg = "Método {$method} não encontrado em {$controllerClass}";
+                    if (function_exists('pixelhub_log')) {
+                        pixelhub_log("Router: ERRO - {$errorMsg}");
+                    }
+                    throw new \RuntimeException($errorMsg);
+                }
+                
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log("Router: Método {$method} encontrado, executando...");
+                }
+                
+                $controllerInstance->$method();
+                
+            } catch (\Throwable $e) {
+                $errorMsg = "Router: ERRO ao executar handler: " . $e->getMessage() . " em " . $e->getFile() . ":" . $e->getLine();
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log($errorMsg);
+                    pixelhub_log("Stack trace: " . $e->getTraceAsString());
+                } else {
+                    error_log($errorMsg);
+                }
+                
+                // Se display_errors estiver habilitado, mostra o erro
+                $displayErrors = ini_get('display_errors');
+                if ($displayErrors == '1' || $displayErrors == 'On') {
+                    while (ob_get_level() > 0) {
+                        @ob_end_clean();
+                    }
+                    http_response_code(500);
+                    echo "<h1>Erro 500 - Router::executeHandler</h1>\n";
+                    echo "<h2>Mensagem:</h2>\n";
+                    echo "<pre>" . htmlspecialchars($e->getMessage()) . "</pre>\n";
+                    echo "<h2>Arquivo:</h2>\n";
+                    echo "<pre>" . htmlspecialchars($e->getFile()) . ":" . $e->getLine() . "</pre>\n";
+                    echo "<h2>Stack Trace:</h2>\n";
+                    echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>\n";
+                    exit;
+                }
+                
+                throw $e;
             }
         } else {
             throw new \RuntimeException("Handler inválido: " . gettype($handler));
