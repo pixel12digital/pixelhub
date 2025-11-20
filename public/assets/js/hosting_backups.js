@@ -106,6 +106,13 @@
             // Se chegou aqui, o arquivo é maior que o que o PHP aguenta de uma vez,
             // então força upload em chunks
             e.preventDefault();
+            
+            // Marca o formulário para indicar que está fazendo upload em chunks
+            // (isso evita que tenant_docs_backups.js tente interceptar)
+            if (this.form) {
+                this.form.dataset.chunkedUpload = 'true';
+            }
+            
             await this.uploadInChunks(file);
         },
 
@@ -123,6 +130,12 @@
             const notes = notesElement ? notesElement.value || '' : '';
             const totalChunks = Math.ceil(file.size / this.config.chunkSize);
             const uploadId = 'upload_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            
+            // Salva texto original do botão
+            const originalBtnText = this.submitBtn ? this.submitBtn.textContent : 'Enviar Backup';
+            if (this.submitBtn) {
+                this.submitBtn.dataset.originalText = originalBtnText;
+            }
             
             // Mostra progresso
             if (this.progressDiv) {
@@ -200,7 +213,10 @@
                 }
                 const finalResponse = await fetch(this.config.chunkCompleteUrl, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
                     body: JSON.stringify({ upload_id: uploadId })
                 });
 
@@ -224,14 +240,23 @@
                     this.statusText.style.fontWeight = 'bold';
                 }
 
-                // Chama callback de sucesso
+                // Chama callback de sucesso passando a resposta do servidor
                 if (this.config.onSuccess) {
                     setTimeout(() => {
-                        this.config.onSuccess(hostingAccountId);
+                        this.config.onSuccess(hostingAccountId, finalData);
                     }, 1000);
+                }
+                
+                // Remove a marca de upload em chunks após sucesso
+                if (this.form) {
+                    delete this.form.dataset.chunkedUpload;
                 }
 
             } catch (error) {
+                // Remove a marca de upload em chunks em caso de erro
+                if (this.form) {
+                    delete this.form.dataset.chunkedUpload;
+                }
                 console.error('Erro no upload:', error);
                 if (this.statusText) {
                     this.statusText.textContent = 'Erro: ' + error.message;
@@ -242,7 +267,9 @@
                 }
                 if (this.submitBtn) {
                     this.submitBtn.disabled = false;
-                    this.submitBtn.textContent = 'Tentar Novamente';
+                    // Restaura texto original ou usa "Tentar Novamente" se não houver original salvo
+                    const originalBtnText = this.submitBtn.dataset.originalText || 'Enviar Backup';
+                    this.submitBtn.textContent = originalBtnText;
                 }
             }
         }

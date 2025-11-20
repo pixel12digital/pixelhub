@@ -30,8 +30,39 @@ $providerMap = $providerMap ?? [];
                 Excluir Cliente
             </button>
         </form>
+        <?php if (!empty($tenant['is_archived'])): ?>
+            <form method="POST" action="<?= pixelhub_url('/tenants/archive') ?>" 
+                  style="display: inline-block; margin: 0;">
+                <input type="hidden" name="id" value="<?= htmlspecialchars($tenant['id']) ?>">
+                <input type="hidden" name="action" value="unarchive">
+                <button type="submit" 
+                        style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px;">
+                    📂 Desarquivar Cliente
+                </button>
+            </form>
+        <?php else: ?>
+            <form method="POST" action="<?= pixelhub_url('/tenants/archive') ?>" 
+                  onsubmit="return confirm('Tem certeza que deseja arquivar este cliente? Ele não aparecerá mais na lista de clientes, mas continuará acessível na Central de Cobrança.');"
+                  style="display: inline-block; margin: 0;">
+                <input type="hidden" name="id" value="<?= htmlspecialchars($tenant['id']) ?>">
+                <input type="hidden" name="action" value="archive">
+                <button type="submit" 
+                        style="background: #6c757d; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px;">
+                    📦 Arquivar Cliente (Somente Financeiro)
+                </button>
+            </form>
+        <?php endif; ?>
     </div>
 </div>
+
+<?php if (!empty($tenant['is_archived'])): ?>
+    <div class="card" style="background: #fff3cd; border-left: 4px solid #ffc107; margin-bottom: 20px;">
+        <p style="color: #856404; margin: 0;">
+            ⚠️ Este cliente está <strong>arquivado</strong> e não aparece na lista de clientes. 
+            Ele permanece acessível para consultas financeiras e na Central de Cobrança.
+        </p>
+    </div>
+<?php endif; ?>
 
 <?php if (isset($_GET['success'])): ?>
     <div class="card" style="background: #efe; border-left: 4px solid #3c3; margin-bottom: 20px;">
@@ -47,6 +78,22 @@ $providerMap = $providerMap ?? [];
                 echo 'Backup excluído com sucesso!';
             } elseif ($_GET['success'] === 'deleted_but_file_remains') {
                 echo 'Backup excluído do banco de dados, mas o arquivo físico não pôde ser removido.';
+            } elseif ($_GET['success'] === 'doc_uploaded') {
+                echo 'Documento enviado com sucesso!';
+            } elseif ($_GET['success'] === 'doc_deleted') {
+                echo 'Documento excluído com sucesso!';
+            } elseif ($_GET['success'] === 'archived') {
+                if (isset($_GET['message'])) {
+                    echo htmlspecialchars(urldecode($_GET['message']));
+                } else {
+                    echo 'Cliente arquivado com sucesso.';
+                }
+            } elseif ($_GET['success'] === 'unarchived') {
+                if (isset($_GET['message'])) {
+                    echo htmlspecialchars(urldecode($_GET['message']));
+                } else {
+                    echo 'Cliente desarquivado com sucesso.';
+                }
             }
             ?>
         </p>
@@ -62,6 +109,26 @@ $providerMap = $providerMap ?? [];
                 echo 'Não é possível excluir um cliente que possui contas de hospedagem vinculadas.';
             } elseif ($error === 'delete_failed') {
                 echo 'Erro ao excluir o cliente. Tente novamente.';
+            } elseif ($error === 'archive_failed') {
+                echo 'Erro ao arquivar/desarquivar o cliente. Tente novamente.';
+            } elseif ($error === 'doc_no_file_or_link') {
+                echo 'É necessário fornecer um arquivo ou uma URL para cadastrar o documento.';
+            } elseif ($error === 'doc_invalid_extension') {
+                echo 'Extensão de arquivo não permitida. Extensões permitidas: PDF, DOC, DOCX, XLS, XLSX, CSV, TXT, JPG, JPEG, PNG, WEBP, GIF, ZIP, RAR, 7Z, TAR, GZ, SQL, MP4.';
+            } elseif ($error === 'doc_file_too_large') {
+                echo 'Arquivo muito grande. O limite é 200MB.';
+            } elseif ($error === 'doc_dir_not_writable') {
+                echo 'Erro ao salvar arquivo. Diretório não é gravável.';
+            } elseif ($error === 'doc_move_failed') {
+                echo 'Falha ao salvar o arquivo.';
+            } elseif ($error === 'doc_database_error') {
+                echo 'Erro ao registrar o documento no banco de dados.';
+            } elseif ($error === 'doc_delete_missing_id') {
+                echo 'ID do documento não fornecido para exclusão.';
+            } elseif ($error === 'doc_delete_not_found') {
+                echo 'Documento não encontrado para exclusão.';
+            } elseif ($error === 'doc_delete_database_error') {
+                echo 'Erro ao excluir documento do banco de dados.';
             }
             ?>
         </p>
@@ -344,6 +411,7 @@ $providerMap = $providerMap ?? [];
 <?php elseif ($activeTab === 'docs_backups'): ?>
     <!-- ABA: Docs & Backups -->
     
+    <div id="tenant-wp-backups">
     <!-- Seção 1: Backups WordPress -->
     <div class="card" style="margin-bottom: 20px;">
         <h3 style="margin-bottom: 20px;">Backups WordPress</h3>
@@ -351,12 +419,13 @@ $providerMap = $providerMap ?? [];
         <!-- Formulário de Upload -->
         <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
             <h4 style="margin-bottom: 15px;">Enviar Novo Backup</h4>
+            <div id="wp-backup-error-message" style="display: none; background: #fee; color: #c33; padding: 10px; border-radius: 5px; margin-bottom: 15px;"></div>
             <?php if (isset($_GET['error'])): ?>
                 <div style="background: #fee; color: #c33; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
                     <?php
                     $error = $_GET['error'];
                     if ($error === 'upload_failed') echo 'Erro ao enviar arquivo. Verifique se o arquivo foi selecionado.';
-                    elseif ($error === 'invalid_extension') echo 'Apenas arquivos .wpress são permitidos.';
+                    elseif ($error === 'invalid_extension') echo 'Tipo de arquivo não permitido para backup. Envie .wpress, .zip, .sql ou outro formato de backup suportado.';
                     elseif ($error === 'file_too_large') echo 'Arquivo muito grande. O limite é 2GB.';
                     elseif ($error === 'move_failed') echo 'Falha ao salvar o arquivo.';
                     elseif ($error === 'database_error') echo 'Erro ao registrar o backup no banco de dados.';
@@ -367,7 +436,7 @@ $providerMap = $providerMap ?? [];
                     ?>
                 </div>
             <?php endif; ?>
-            <form method="POST" action="<?= pixelhub_url('/hosting/backups/upload') ?>" enctype="multipart/form-data">
+            <form id="form-wp-backup" method="POST" action="<?= pixelhub_url('/hosting/backups/upload') ?>" enctype="multipart/form-data">
                 <input type="hidden" name="redirect_to" value="tenant">
                 
                 <div style="margin-bottom: 15px;">
@@ -381,9 +450,16 @@ $providerMap = $providerMap ?? [];
                 </div>
                 
                 <div style="margin-bottom: 15px;">
-                    <label for="backup_file" style="display: block; margin-bottom: 5px; font-weight: 600;">Arquivo .wpress:</label>
-                    <input type="file" id="backup_file" name="backup_file" accept=".wpress" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    <small style="color: #666;">Apenas arquivos .wpress do All-in-One WP Migration. Tamanho máximo: 2GB</small>
+                    <label for="backup_file" style="display: block; margin-bottom: 5px; font-weight: 600;">Arquivo de Backup:</label>
+                    <input type="file" id="backup_file" name="backup_file" accept=".wpress,.zip,.sql,.gz,.tgz,.tar,.bz2,.rar,.7z" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <small class="form-text text-muted" style="display: block; color: #666; margin-top: 5px;">
+                        Envie arquivos de backup do site, como:<br>
+                        - .wpress (backup do All-in-One WP Migration)<br>
+                        - .zip (arquivos do site, podendo incluir o banco .sql)<br>
+                        - .sql (dump de banco de dados)<br>
+                        Outros formatos de código ou backup também podem ser armazenados aqui.<br>
+                        Tamanho máximo: 2GB.
+                    </small>
                     <div id="chunked-upload-progress" style="display: none; margin-top: 15px; padding: 15px; background: #f5f5f5; border-radius: 4px;">
                         <h4 style="margin: 0 0 10px 0; color: #023A8D;">Upload em Progresso</h4>
                         <div style="background: #ddd; height: 25px; border-radius: 4px; overflow: hidden; position: relative;">
@@ -451,9 +527,44 @@ $providerMap = $providerMap ?? [];
                         chunkInitUrl: '<?= pixelhub_url('/hosting/backups/chunk-init') ?>',
                         chunkUploadUrl: '<?= pixelhub_url('/hosting/backups/chunk-upload') ?>',
                         chunkCompleteUrl: '<?= pixelhub_url('/hosting/backups/chunk-complete') ?>',
-                        onSuccess: function(hostingAccountId) {
-                            // Recarrega a aba docs_backups após sucesso
-                            window.location.href = '<?= pixelhub_url('/tenants/view?id=' . $tenant['id'] . '&tab=docs_backups&success=uploaded') ?>';
+                        onSuccess: function(hostingAccountId, responseData) {
+                            // Restaura estado do botão
+                            const submitBtn = document.getElementById('submit-btn');
+                            if (submitBtn) {
+                                submitBtn.disabled = false;
+                                submitBtn.textContent = 'Enviar Backup';
+                            }
+                            
+                            // Esconde barra de progresso
+                            const progressDiv = document.getElementById('chunked-upload-progress');
+                            if (progressDiv) {
+                                progressDiv.style.display = 'none';
+                            }
+                            
+                            // Se a resposta contém HTML da tabela, atualiza diretamente
+                            if (responseData && responseData.html) {
+                                const container = document.getElementById('wp-backups-table-container');
+                                if (container) {
+                                    container.innerHTML = responseData.html;
+                                }
+                                // Mostra mensagem de sucesso
+                                const successMsg = document.createElement('div');
+                                successMsg.style.cssText = 'background: #efe; color: #3c3; padding: 10px; border-radius: 5px; margin-bottom: 15px; border-left: 4px solid #3c3;';
+                                successMsg.textContent = responseData.message || 'Backup enviado com sucesso!';
+                                const wpBackups = document.getElementById('tenant-wp-backups');
+                                if (wpBackups) {
+                                    wpBackups.insertBefore(successMsg, wpBackups.firstChild);
+                                    setTimeout(() => successMsg.remove(), 5000);
+                                }
+                                // Limpa formulário
+                                const form = document.getElementById('form-wp-backup');
+                                if (form) {
+                                    form.reset();
+                                }
+                            } else {
+                                // Fallback: recarrega a página se não houver HTML
+                                window.location.href = '<?= pixelhub_url('/tenants/view?id=' . $tenant['id'] . '&tab=docs_backups&success=uploaded') ?>';
+                            }
                         }
                     });
                 }
@@ -462,76 +573,77 @@ $providerMap = $providerMap ?? [];
         </div>
         
         <!-- Lista de Backups -->
-        <?php if (empty($backups)): ?>
-            <p style="color: #666;">Nenhum backup encontrado.</p>
-        <?php else: ?>
-            <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="background: #f5f5f5;">
-                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Domínio</th>
-                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Data</th>
-                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Tipo</th>
-                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Tamanho</th>
-                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Notas</th>
-                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($backups as $backup): ?>
-                    <tr>
-                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                            <?= htmlspecialchars($backup['domain']) ?>
-                        </td>
-                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                            <?= $backup['created_at'] ? date('d/m/Y H:i', strtotime($backup['created_at'])) : 'N/A' ?>
-                        </td>
-                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                            <?= htmlspecialchars($backup['type']) ?>
-                        </td>
-                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                            <?= Storage::formatFileSize($backup['file_size'] ?? 0) ?>
-                        </td>
-                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                            <?= htmlspecialchars($backup['notes'] ?? '') ?>
-                        </td>
-                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                            <div style="display: flex; gap: 10px; align-items: center;">
-                                <?php if (!empty($backup['file_exists'])): ?>
-                                    <a href="<?= pixelhub_url('/hosting/backups/download?id=' . $backup['id']) ?>" 
-                                       style="color: #023A8D; text-decoration: none; font-weight: 600;">
-                                        Download
-                                    </a>
-                                <?php else: ?>
-                                    <span style="color: #999; font-size: 12px; font-style: italic;" title="Backup feito em outro ambiente">
-                                        Arquivo indisponível
-                                    </span>
-                                <?php endif; ?>
-                                
-                                <form method="POST" action="<?= pixelhub_url('/hosting/backups/delete') ?>" 
-                                      style="display: inline-block; margin: 0;"
-                                      onsubmit="return confirm('Tem certeza que deseja excluir este backup? Esta ação não pode ser desfeita.');">
-                                    <input type="hidden" name="backup_id" value="<?= $backup['id'] ?>">
-                                    <input type="hidden" name="hosting_id" value="<?= $backup['hosting_account_id'] ?>">
-                                    <input type="hidden" name="redirect_to" value="tenant">
-                                    <button type="submit" 
-                                            style="background: #c33; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">
-                                        Excluir
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        <?php endif; ?>
+        <div id="wp-backups-table-container">
+            <?php require __DIR__ . '/../partials/tenant_wp_backups_table.php'; ?>
+        </div>
+    </div>
     </div>
     
-    <!-- Seção 2: Documentos Gerais (placeholder) -->
+    <div id="tenant-documents">
+    <!-- Seção 2: Documentos Gerais -->
     <div class="card">
         <h3 style="margin-bottom: 20px;">Documentos Gerais</h3>
-        <p style="color: #666;">Funcionalidade de documentos será implementada em breve.</p>
+        
+        <!-- Formulário de Upload -->
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <h4 style="margin-bottom: 15px;">Enviar Novo Documento</h4>
+            <div id="doc-error-message" style="display: none; background: #fee; color: #c33; padding: 10px; border-radius: 5px; margin-bottom: 15px;"></div>
+            <form id="form-tenant-document" method="POST" action="<?= pixelhub_url('/tenants/documents/upload') ?>" enctype="multipart/form-data">
+                <input type="hidden" name="tenant_id" value="<?= htmlspecialchars($tenant['id']) ?>">
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="doc_title" style="display: block; margin-bottom: 5px; font-weight: 600;">Título do documento:</label>
+                    <input type="text" id="doc_title" name="title" placeholder="Título do documento" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <small style="color: #666;">Se deixar em branco, será usado o nome do arquivo.</small>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="doc_category" style="display: block; margin-bottom: 5px; font-weight: 600;">Categoria:</label>
+                    <select id="doc_category" name="category" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">Selecione uma categoria (opcional)</option>
+                        <option value="contrato">Contratos</option>
+                        <option value="assets_site">Assets do Site</option>
+                        <option value="banco_dados">Banco de Dados</option>
+                        <option value="midia">Mídias (imagens/vídeos)</option>
+                        <option value="documentos">Documentos</option>
+                        <option value="outros">Outros</option>
+                    </select>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="doc_file" style="display: block; margin-bottom: 5px; font-weight: 600;">Arquivo:</label>
+                    <input type="file" id="doc_file" name="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.webp,.gif,.zip,.rar,.7z,.tar,.gz,.sql,.mp4" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <small style="color: #666;">Formatos permitidos: PDF, DOC, DOCX, XLS, XLSX, CSV, TXT, JPG, JPEG, PNG, WEBP, GIF, ZIP, RAR, 7Z, TAR, GZ, SQL, MP4. Tamanho máximo: 200MB</small>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="doc_link_url" style="display: block; margin-bottom: 5px; font-weight: 600;">URL importante (opcional):</label>
+                    <input type="url" id="doc_link_url" name="link_url" placeholder="https://exemplo.com/documento" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <small style="color: #666;">Use este campo se quiser cadastrar apenas um link sem arquivo, ou em conjunto com o arquivo.</small>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="doc_notes" style="display: block; margin-bottom: 5px; font-weight: 600;">Notas (opcional):</label>
+                    <textarea id="doc_notes" name="notes" rows="3" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"></textarea>
+                </div>
+                
+                <button type="submit" style="background: #023A8D; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Enviar
+                </button>
+            </form>
+        </div>
+        
+        <!-- Lista de Documentos -->
+        <div id="documents-table-container">
+            <?php require __DIR__ . '/../partials/tenant_documents_table.php'; ?>
+        </div>
     </div>
+    </div>
+    
+    <!-- Script para AJAX na aba Docs & Backups -->
+    <?php if ($activeTab === 'docs_backups'): ?>
+    <script src="<?= pixelhub_url('/assets/js/tenant_docs_backups.js') ?>"></script>
+    <?php endif; ?>
 
 <?php elseif ($activeTab === 'financial'): ?>
     <!-- ABA: Financeiro -->

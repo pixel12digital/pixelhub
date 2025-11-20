@@ -155,6 +155,28 @@ class TenantsController extends Controller
             }
         }
 
+        // Busca documentos gerais do tenant (apenas se necessário para a aba docs_backups)
+        $tenantDocuments = [];
+        if ($activeTab === 'docs_backups') {
+            $stmt = $db->prepare("
+                SELECT * FROM tenant_documents
+                WHERE tenant_id = ?
+                ORDER BY created_at DESC, id DESC
+            ");
+            $stmt->execute([$tenantId]);
+            $tenantDocuments = $stmt->fetchAll();
+            
+            // Verifica existência dos arquivos físicos
+            foreach ($tenantDocuments as &$doc) {
+                if (!empty($doc['stored_path'])) {
+                    $doc['file_exists'] = Storage::fileExists($doc['stored_path']);
+                } else {
+                    $doc['file_exists'] = false;
+                }
+            }
+            unset($doc);
+        }
+
         $this->view('tenants.view', [
             'tenant' => $tenant,
             'hostingAccounts' => $hostingAccounts,
@@ -167,6 +189,7 @@ class TenantsController extends Controller
             'asaasPrimaryCustomerId' => $asaasPrimaryCustomerId,
             'providerMap' => $providerMap,
             'tasks' => $tasks,
+            'tenantDocuments' => $tenantDocuments,
         ]);
     }
 
@@ -257,11 +280,12 @@ class TenantsController extends Controller
         $db = DB::getConnection();
 
         // Monta WHERE clause para busca
-        $whereSql = '';
+        // Filtro padrão: excluir arquivados e somente financeiro
+        $whereSql = " WHERE (t.is_archived = 0 AND t.is_financial_only = 0)";
         $params = [];
 
         if ($search !== null && $search !== '') {
-            $whereSql = " WHERE (
+            $whereSql .= " AND (
                 t.name LIKE :search1
                 OR t.email LIKE :search2
                 OR t.phone LIKE :search3
@@ -666,6 +690,63 @@ class TenantsController extends Controller
         } catch (\Exception $e) {
             error_log("Erro ao excluir tenant: " . $e->getMessage());
             $this->redirect('/tenants/view?id=' . $tenantId . '&error=delete_failed');
+        }
+    }
+
+    /**
+     * Arquivar/desarquivar cliente (oculta da lista CRM, mantém no financeiro)
+     */
+    public function archive(): void
+    {
+        Auth::requireInternal();
+
+        $tenantId = isset($_POST['id']) ? (int) $_POST['id'] : 0;
+        $action = $_POST['action'] ?? 'archive'; // 'archive' ou 'unarchive'
+
+        if ($tenantId <= 0) {
+            $this->redirect('/tenants?error=missing_id');
+            return;
+        }
+
+        $db = DB::getConnection();
+        
+        // Busca tenant
+        $stmt = $db->prepare("SELECT * FROM tenants WHERE id = ?");
+        $stmt->execute([$tenantId]);
+        $tenant = $stmt->fetch();
+
+        if (!$tenant) {
+            $this->redirect('/tenants?error=not_found');
+            return;
+        }
+
+        try {
+            if ($action === 'archive') {
+                // Arquivar: marca como arquivado e somente financeiro
+                $stmt = $db->prepare("
+                    UPDATE tenants 
+                    SET is_archived = 1, is_financial_only = 1, updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([$tenantId]);
+                $successParam = 'archived';
+                $message = 'Cliente arquivado com sucesso. Ele não aparecerá mais na lista de clientes, mas continuará acessível na Central de Cobrança.';
+            } else {
+                // Desarquivar
+                $stmt = $db->prepare("
+                    UPDATE tenants 
+                    SET is_archived = 0, is_financial_only = 0, updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([$tenantId]);
+                $successParam = 'unarchived';
+                $message = 'Cliente desarquivado com sucesso.';
+            }
+
+            $this->redirect('/tenants/view?id=' . $tenantId . '&success=' . $successParam . '&message=' . urlencode($message));
+        } catch (\Exception $e) {
+            error_log("Erro ao arquivar tenant: " . $e->getMessage());
+            $this->redirect('/tenants/view?id=' . $tenantId . '&error=archive_failed');
         }
     }
 

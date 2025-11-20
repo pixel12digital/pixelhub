@@ -170,8 +170,14 @@ $router->post('/tenants/store', 'TenantsController@store');
 $router->get('/tenants/edit', 'TenantsController@edit');
 $router->post('/tenants/update', 'TenantsController@update');
 $router->post('/tenants/delete', 'TenantsController@delete');
+$router->post('/tenants/archive', 'TenantsController@archive');
     $router->get('/tenants/view', 'TenantsController@show');
     $router->post('/tenants/sync-billing', 'TenantsController@syncBilling');
+
+    // Rotas de documentos gerais de tenants (apenas internos)
+    $router->post('/tenants/documents/upload', 'TenantDocumentsController@upload');
+    $router->get('/tenants/documents/download', 'TenantDocumentsController@download');
+    $router->post('/tenants/documents/delete', 'TenantDocumentsController@delete');
 
     // Rotas de hospedagem (apenas internos)
 $router->get('/hosting', 'HostingController@index');

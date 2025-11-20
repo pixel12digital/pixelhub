@@ -14,6 +14,78 @@ use PixelHub\Services\HostingProviderService;
 class HostingBackupController extends Controller
 {
     /**
+     * Verifica se a requisição é AJAX
+     */
+    private function isAjaxRequest(): bool
+    {
+        return (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) 
+            && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
+    }
+
+    /**
+     * Detecta o tipo de backup pela extensão do arquivo
+     */
+    private function detectBackupType(string $fileName): string
+    {
+        $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        
+        switch ($extension) {
+            case 'wpress':
+                return 'all_in_one_wp';       // backup do All-in-One WP Migration
+            case 'zip':
+                return 'site_zip';            // backup completo do site em .zip
+            case 'sql':
+                return 'database_sql';        // dump de banco de dados
+            case 'gz':
+            case 'tgz':
+            case 'tar':
+            case 'bz2':
+                return 'compressed_archive';  // outros formatos de compactação
+            default:
+                return 'other_code';          // outros arquivos de código/backup
+        }
+    }
+
+    /**
+     * Valida se a extensão do arquivo é permitida para backup
+     */
+    private function isValidBackupExtension(string $fileName): bool
+    {
+        $allowedExtensions = ['wpress', 'zip', 'sql', 'gz', 'tgz', 'tar', 'bz2', 'rar', '7z'];
+        $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        return in_array($extension, $allowedExtensions, true);
+    }
+
+    /**
+     * Renderiza a tabela de backups para AJAX
+     */
+    private function renderBackupsTable(int $tenantId): string
+    {
+        $db = DB::getConnection();
+        
+        // Busca todos os backups dos hosting accounts desse tenant
+        $stmt = $db->prepare("
+            SELECT hb.*, ha.domain, ha.id as hosting_account_id
+            FROM hosting_backups hb
+            INNER JOIN hosting_accounts ha ON hb.hosting_account_id = ha.id
+            WHERE ha.tenant_id = ?
+            ORDER BY hb.created_at DESC
+        ");
+        $stmt->execute([$tenantId]);
+        $backups = $stmt->fetchAll();
+        
+        // Verifica existência dos arquivos físicos
+        foreach ($backups as &$backup) {
+            $backup['file_exists'] = Storage::fileExists($backup['stored_path']);
+        }
+        unset($backup);
+        
+        ob_start();
+        require __DIR__ . '/../../views/partials/tenant_wp_backups_table.php';
+        return ob_get_clean();
+    }
+
+    /**
      * Lista backups de um hosting account
      */
     public function index(): void
@@ -210,17 +282,34 @@ class HostingBackupController extends Controller
         $tmpPath = $file['tmp_name'];
 
         // Valida extensão
-        $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-        if ($ext !== 'wpress') {
+        if (!$this->isValidBackupExtension($originalName)) {
+            $errorMessage = 'Tipo de arquivo não permitido para backup. Envie .wpress, .zip, .sql ou outro formato de backup suportado.';
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => $errorMessage
+                ], 400);
+                return;
+            }
             $redirectWithError('invalid_extension');
             return;
         }
+
+        // Detecta tipo de backup pela extensão
+        $backupType = $this->detectBackupType($originalName);
 
         // Valida tamanho (máximo 500MB para upload direto, maiores usam chunks)
         $maxDirectUpload = 500 * 1024 * 1024; // 500MB
         $maxTotalSize = 2 * 1024 * 1024 * 1024; // 2GB (limite total)
         
         if ($fileSize > $maxTotalSize) {
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => 'Arquivo muito grande. O limite é 2GB.'
+                ], 400);
+                return;
+            }
             $redirectWithError('file_too_large');
             return;
         }
@@ -229,6 +318,13 @@ class HostingBackupController extends Controller
         // (JavaScript já intercepta, mas mantemos como fallback)
         if ($fileSize > $maxDirectUpload) {
             $log('Arquivo maior que 500MB detectado no upload direto. Use o sistema de chunks.');
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => 'Arquivo muito grande para upload direto. Use o sistema de chunks.'
+                ], 400);
+                return;
+            }
             $redirectWithError('use_chunked_upload');
             return;
         }
@@ -240,6 +336,13 @@ class HostingBackupController extends Controller
         // Verifica se o diretório é gravável
         if (!is_dir($backupDir) || !is_writable($backupDir)) {
             $log('backup dir not writable: ' . $backupDir);
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => 'Erro ao salvar arquivo. Diretório não é gravável.'
+                ], 500);
+                return;
+            }
             $redirectWithError('dir_not_writable');
             return;
         }
@@ -251,6 +354,13 @@ class HostingBackupController extends Controller
         // Move arquivo
         if (!move_uploaded_file($tmpPath, $destinationPath)) {
             $log("Erro ao mover arquivo de backup: {$tmpPath} para {$destinationPath}");
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => 'Falha ao salvar o arquivo.'
+                ], 500);
+                return;
+            }
             $redirectWithError('move_failed');
             return;
         }
@@ -265,10 +375,11 @@ class HostingBackupController extends Controller
             $stmt = $db->prepare("
                 INSERT INTO hosting_backups 
                 (hosting_account_id, type, file_name, file_size, stored_path, notes, created_at)
-                VALUES (?, 'all_in_one_wp', ?, ?, ?, ?, NOW())
+                VALUES (?, ?, ?, ?, ?, ?, NOW())
             ");
             $stmt->execute([
                 $hostingAccountId,
+                $backupType,
                 $safeFileName,
                 $fileSize,
                 $relativePath,
@@ -296,7 +407,18 @@ class HostingBackupController extends Controller
                 $fileSize
             ));
 
-            // Redireciona baseado em redirect_to
+            // Se for requisição AJAX, retorna JSON
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $html = $this->renderBackupsTable($tenantId);
+                $this->json([
+                    'success' => true,
+                    'message' => 'Backup enviado com sucesso!',
+                    'html' => $html
+                ]);
+                return;
+            }
+
+            // Redireciona baseado em redirect_to (comportamento padrão)
             if ($redirectTo === 'tenant') {
                 $this->redirect('/tenants/view?id=' . $tenantId . '&tab=docs_backups&success=uploaded');
             } else {
@@ -309,6 +431,15 @@ class HostingBackupController extends Controller
             // Remove arquivo se salvou mas falhou no banco
             if (isset($destinationPath) && file_exists($destinationPath)) {
                 unlink($destinationPath);
+            }
+            
+            // Se for AJAX, retorna JSON com erro
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => 'Erro ao registrar o backup no banco de dados.'
+                ], 500);
+                return;
             }
             
             $redirectWithError('database_error');
@@ -418,6 +549,16 @@ class HostingBackupController extends Controller
 
         if (!$backup) {
             $log('ERRO: Backup não encontrado. backup_id=' . $backupId);
+            
+            // Se for AJAX, retorna JSON com erro
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => 'Backup não encontrado para exclusão.'
+                ], 404);
+                return;
+            }
+            
             if ($redirectTo === 'tenant') {
                 $this->redirect('/tenants/view?id=' . ($backup['tenant_id'] ?? '') . '&tab=docs_backups&error=delete_not_found');
             } else {
@@ -496,6 +637,21 @@ class HostingBackupController extends Controller
                 $tenantId,
                 $fileDeleted ? 'sim' : 'não'
             ));
+
+            // Se for requisição AJAX, retorna JSON
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $html = $this->renderBackupsTable($tenantId);
+                $message = 'Backup excluído com sucesso!';
+                if (!$fileDeleted && file_exists($absolutePath)) {
+                    $message = 'Backup excluído do banco de dados, mas o arquivo físico não pôde ser removido.';
+                }
+                $this->json([
+                    'success' => true,
+                    'message' => $message,
+                    'html' => $html
+                ]);
+                return;
+            }
 
             // Redireciona com mensagem de sucesso (e aviso se arquivo não foi deletado)
             $successParam = 'deleted';
@@ -585,9 +741,8 @@ class HostingBackupController extends Controller
         }
 
         // Valida extensão
-        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-        if ($ext !== 'wpress') {
-            $this->json(['success' => false, 'error' => 'Apenas arquivos .wpress são aceitos'], 400);
+        if (!$this->isValidBackupExtension($fileName)) {
+            $this->json(['success' => false, 'error' => 'Tipo de arquivo não permitido para backup. Envie .wpress, .zip, .sql ou outro formato de backup suportado.'], 400);
             return;
         }
 
@@ -754,6 +909,9 @@ class HostingBackupController extends Controller
             // Caminho relativo para salvar no banco
             $relativePath = '/storage/tenants/' . $tenantId . '/backups/' . $hostingAccountId . '/' . $safeFileName;
 
+            // Detecta tipo de backup pela extensão
+            $backupType = $this->detectBackupType($originalFileName);
+
             // Salva no banco
             $db = DB::getConnection();
             $db->beginTransaction();
@@ -762,10 +920,11 @@ class HostingBackupController extends Controller
                 $stmt = $db->prepare("
                     INSERT INTO hosting_backups 
                     (hosting_account_id, type, file_name, file_size, stored_path, notes, created_at)
-                    VALUES (?, 'all_in_one_wp', ?, ?, ?, ?, NOW())
+                    VALUES (?, ?, ?, ?, ?, ?, NOW())
                 ");
                 $stmt->execute([
                     $hostingAccountId,
+                    $backupType,
                     $safeFileName,
                     $fileSize,
                     $relativePath,
@@ -794,6 +953,17 @@ class HostingBackupController extends Controller
                         $fileSize,
                         $totalChunks
                     ));
+                }
+
+                // Se for requisição AJAX, retorna tabela HTML atualizada (similar ao upload direto)
+                if ($this->isAjaxRequest()) {
+                    $html = $this->renderBackupsTable($tenantId);
+                    $this->json([
+                        'success' => true,
+                        'message' => 'Upload concluído com sucesso!',
+                        'html' => $html
+                    ]);
+                    return;
                 }
 
                 $this->json(['success' => true, 'message' => 'Upload concluído com sucesso']);

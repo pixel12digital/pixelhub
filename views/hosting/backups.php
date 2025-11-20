@@ -1,6 +1,26 @@
 <?php
 use PixelHub\Core\Storage;
 
+/**
+ * Formata o tipo de backup para exibição amigável
+ */
+function formatBackupType(string $type): string {
+    switch ($type) {
+        case 'all_in_one_wp':
+            return 'WordPress (.wpress – All-in-One)';
+        case 'site_zip':
+            return 'Site completo (.zip)';
+        case 'database_sql':
+            return 'Banco de dados (.sql)';
+        case 'compressed_archive':
+            return 'Arquivo compactado';
+        case 'other_code':
+            return 'Arquivo de código/backup';
+        default:
+            return htmlspecialchars($type);
+    }
+}
+
 ob_start();
 $providerMap = $providerMap ?? [];
 ?>
@@ -27,7 +47,7 @@ $providerMap = $providerMap ?? [];
             } elseif ($error === 'upload_failed') {
                 echo 'Erro ao fazer upload do arquivo.';
             } elseif ($error === 'invalid_extension') {
-                echo 'Arquivo inválido. Apenas arquivos .wpress são aceitos.';
+                echo 'Tipo de arquivo não permitido para backup. Envie .wpress, .zip, .sql ou outro formato de backup suportado.';
             } elseif ($error === 'file_too_large') {
                 echo 'Arquivo muito grande. Tamanho máximo: 2GB.';
             } elseif ($error === 'file_too_large_php') {
@@ -175,10 +195,10 @@ $providerMap = $providerMap ?? [];
         <input type="hidden" name="redirect_to" value="hosting">
         
         <div style="margin-bottom: 15px;">
-            <label for="backup_file" style="display: block; margin-bottom: 5px; font-weight: 600;">Arquivo .wpress:</label>
-            <input type="file" id="backup_file" name="backup_file" accept=".wpress" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            <label for="backup_file" style="display: block; margin-bottom: 5px; font-weight: 600;">Arquivo de Backup:</label>
+            <input type="file" id="backup_file" name="backup_file" accept=".wpress,.zip,.sql,.gz,.tgz,.tar,.bz2,.rar,.7z" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             <small style="color: #666; display: block; margin-top: 5px;">
-                Apenas arquivos .wpress do All-in-One WP Migration.<br>
+                Envie arquivos de backup do site, como: .wpress (All-in-One WP Migration), .zip (site completo), .sql (banco de dados) ou outros formatos de backup.<br>
                 <strong>Limites atuais do PHP:</strong><br>
                 • upload_max_filesize = <?= htmlspecialchars($phpUploadMax) ?><br>
                 • post_max_size = <?= htmlspecialchars($phpPostMax) ?><br>
@@ -266,7 +286,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <?= $backup['created_at'] ? date('d/m/Y H:i', strtotime($backup['created_at'])) : 'N/A' ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <?= htmlspecialchars($backup['type']) ?>
+                        <?= formatBackupType($backup['type'] ?? 'other_code') ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?= htmlspecialchars($backup['file_name']) ?>

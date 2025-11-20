@@ -17,6 +17,15 @@ class Storage
     }
 
     /**
+     * Obtém o diretório de documentos gerais de um tenant
+     */
+    public static function getTenantDocsDir(int $tenantId): string
+    {
+        $baseDir = __DIR__ . '/../../storage/tenants/' . $tenantId . '/docs';
+        return $baseDir;
+    }
+
+    /**
      * Garante que um diretório existe (cria se necessário)
      */
     public static function ensureDirExists(string $path): void
