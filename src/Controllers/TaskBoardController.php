@@ -286,6 +286,7 @@ class TaskBoardController extends Controller
             $task['checklist'] = $checklist;
             
             // Busca anexos
+            $db = DB::getConnection();
             $stmt = $db->prepare("
                 SELECT * FROM task_attachments
                 WHERE task_id = ?
