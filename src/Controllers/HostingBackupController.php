@@ -24,6 +24,7 @@ class HostingBackupController extends Controller
 
     /**
      * Detecta o tipo de backup pela extensão do arquivo
+     * Agora também suporta backups externos (external_link, google_drive)
      */
     private function detectBackupType(string $fileName): string
     {
@@ -145,17 +146,16 @@ class HostingBackupController extends Controller
     }
 
     /**
-     * Processa upload de backup
+     * Processa registro de backup (via URL externa)
+     * Agora o Pixel Hub não armazena mais arquivos de backup, apenas registra URLs externas
      */
     public function upload(): void
     {
         Auth::requireInternal();
 
         // Helper para log (usa pixelhub_log se disponível, senão error_log)
-        // Em produção, apenas logs de erro são registrados para melhor performance
         $isDebug = \PixelHub\Core\Env::isDebug();
         $log = function($message, $isError = false) use ($isDebug) {
-            // Sempre loga erros, mas logs detalhados apenas em debug
             if ($isError || $isDebug) {
                 if (function_exists('pixelhub_log')) {
                     pixelhub_log('[HostingBackup] ' . $message);
@@ -171,57 +171,88 @@ class HostingBackupController extends Controller
             return;
         }
 
-        // Log detalhado apenas em modo debug
-        if ($isDebug) {
-            $log('=== INÍCIO DO UPLOAD ===');
-            $log('REQUEST_METHOD: ' . ($_SERVER['REQUEST_METHOD'] ?? 'N/A'));
-            $log('CONTENT_TYPE: ' . ($_SERVER['CONTENT_TYPE'] ?? 'N/A'));
-            $log('CONTENT_LENGTH: ' . ($_SERVER['CONTENT_LENGTH'] ?? 'N/A'));
-            $log('$_POST keys: ' . implode(', ', array_keys($_POST)));
-            $log('$_FILES keys: ' . implode(', ', array_keys($_FILES)));
-        }
-        
-        // Verifica se o POST excedeu post_max_size (antes de acessar $_POST)
-        $contentLength = isset($_SERVER['CONTENT_LENGTH']) ? (int)$_SERVER['CONTENT_LENGTH'] : 0;
-        $postMaxSize = $this->parseSize(ini_get('post_max_size'));
-        
-        if ($isDebug) {
-            $log('post_max_size: ' . ini_get('post_max_size') . ' (' . $this->formatBytes($postMaxSize) . ')');
-            $log('upload_max_filesize: ' . ini_get('upload_max_filesize'));
-            $log('max_file_uploads: ' . ini_get('max_file_uploads'));
-        }
-        
-        // Se $_POST e $_FILES estão vazios mas CONTENT_LENGTH > 0, provavelmente excedeu o limite
-        if (empty($_POST) && empty($_FILES) && $contentLength > 0 && $postMaxSize > 0 && $contentLength > $postMaxSize) {
-            $log('ERRO DETECTADO: POST excede post_max_size', true);
-            if ($isDebug) {
-                $log('CONTENT_LENGTH: ' . $this->formatBytes($contentLength));
-                $log('post_max_size: ' . $this->formatBytes($postMaxSize));
+        $hostingAccountId = $_POST['hosting_account_id'] ?? null;
+        $externalUrl = trim($_POST['external_url'] ?? '');
+        $notes = trim($_POST['notes'] ?? '');
+        $redirectTo = $_POST['redirect_to'] ?? 'hosting';
+
+        if (!$hostingAccountId) {
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => 'Selecione um site/hospedagem.'
+                ], 400);
+                return;
             }
-            $log('Arquivo muito grande! O PHP descartou os dados antes de chegar ao código.', true);
-            // Redireciona para a página de backups com erro (usa GET para pegar hosting_id da URL)
-            $hostingId = $_GET['hosting_id'] ?? null;
-            if ($hostingId) {
-                $this->redirect('/hosting/backups?hosting_id=' . $hostingId . '&error=file_too_large_php');
+            $this->redirect('/hosting/backups?error=missing_id');
+            return;
+        }
+
+        // Valida external_url (obrigatório para novos backups)
+        if (empty($externalUrl)) {
+            $errorMessage = 'URL do backup é obrigatória. Informe o link do backup (Google Drive ou outro serviço externo).';
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => $errorMessage
+                ], 400);
+                return;
+            }
+            // Para requisições não-AJAX, precisa buscar tenant_id primeiro
+            $db = DB::getConnection();
+            $stmt = $db->prepare("SELECT tenant_id FROM hosting_accounts WHERE id = ?");
+            $stmt->execute([$hostingAccountId]);
+            $hosting = $stmt->fetch();
+            if ($hosting) {
+                $this->redirect('/tenants/view?id=' . $hosting['tenant_id'] . '&tab=docs_backups&error=missing_external_url');
             } else {
-                $this->redirect('/hosting?error=file_too_large_php');
+                $this->redirect('/hosting/backups?hosting_id=' . $hostingAccountId . '&error=missing_external_url');
             }
             return;
         }
-        
-        if ($isDebug) {
-            if (isset($_FILES['backup_file'])) {
-                $log('$_FILES[backup_file]: ' . var_export($_FILES['backup_file'], true));
-            } else {
-                $log('$_FILES[backup_file] NÃO ESTÁ DEFINIDO');
+
+        // Valida formato da URL
+        if (!filter_var($externalUrl, FILTER_VALIDATE_URL) || 
+            (!preg_match('/^https?:\/\//i', $externalUrl))) {
+            $errorMessage = 'URL inválida. Informe uma URL válida começando com http:// ou https://';
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => $errorMessage
+                ], 400);
+                return;
             }
+            $db = DB::getConnection();
+            $stmt = $db->prepare("SELECT tenant_id FROM hosting_accounts WHERE id = ?");
+            $stmt->execute([$hostingAccountId]);
+            $hosting = $stmt->fetch();
+            if ($hosting) {
+                $this->redirect('/tenants/view?id=' . $hosting['tenant_id'] . '&tab=docs_backups&error=invalid_external_url');
+            } else {
+                $this->redirect('/hosting/backups?hosting_id=' . $hostingAccountId . '&error=invalid_external_url');
+            }
+            return;
         }
 
-        $hostingAccountId = $_POST['hosting_account_id'] ?? null;
-        $notes = $_POST['notes'] ?? '';
-
-        if (!$hostingAccountId) {
-            $this->redirect('/hosting/backups?error=missing_id');
+        // Valida tamanho máximo da URL (500 caracteres)
+        if (strlen($externalUrl) > 500) {
+            $errorMessage = 'URL muito longa. Máximo de 500 caracteres.';
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => $errorMessage
+                ], 400);
+                return;
+            }
+            $db = DB::getConnection();
+            $stmt = $db->prepare("SELECT tenant_id FROM hosting_accounts WHERE id = ?");
+            $stmt->execute([$hostingAccountId]);
+            $hosting = $stmt->fetch();
+            if ($hosting) {
+                $this->redirect('/tenants/view?id=' . $hosting['tenant_id'] . '&tab=docs_backups&error=external_url_too_long');
+            } else {
+                $this->redirect('/hosting/backups?hosting_id=' . $hostingAccountId . '&error=external_url_too_long');
+            }
             return;
         }
 
@@ -233,12 +264,18 @@ class HostingBackupController extends Controller
         $hostingAccount = $stmt->fetch();
 
         if (!$hostingAccount) {
+            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                $this->json([
+                    'success' => false,
+                    'message' => 'Site/hospedagem não encontrado.'
+                ], 404);
+                return;
+            }
             $this->redirect('/hosting/backups?error=not_found');
             return;
         }
 
         $tenantId = $hostingAccount['tenant_id'];
-        $redirectTo = $_POST['redirect_to'] ?? 'hosting';
 
         // Helper para redirecionar com erro
         $redirectWithError = function($error) use ($redirectTo, $tenantId, $hostingAccountId) {
@@ -249,201 +286,31 @@ class HostingBackupController extends Controller
             }
         };
 
-        // Valida arquivo com tratamento detalhado de erros
-        if (!isset($_FILES['backup_file'])) {
-            $log('ERRO: $_FILES[backup_file] não está definido', true);
-            if ($isDebug) {
-                $log('- Arquivo não foi selecionado no formulário');
-                $log('- Formulário não tem enctype="multipart/form-data"');
-                $log('- Tamanho do POST excede post_max_size');
-                $log('- Método HTTP não é POST');
-            }
-            $redirectWithError('no_file');
-            return;
-        }
+        // Detecta tipo de backup baseado na URL (padrão: external_link)
+        // Por padrão, considera Google Drive
+        $storageLocation = 'google_drive';
         
-        $errorCode = $_FILES['backup_file']['error'] ?? null;
-        
-        if ($errorCode !== UPLOAD_ERR_OK) {
-            $log('upload error code: ' . var_export($errorCode, true), true);
-            if ($isDebug) {
-                $log('$_FILES[backup_file] completo: ' . var_export($_FILES['backup_file'], true));
-            }
-            
-            switch ($errorCode) {
-                case UPLOAD_ERR_INI_SIZE:
-                case UPLOAD_ERR_FORM_SIZE:
-                    $redirectWithError('file_too_large_php');
-                    break;
-                case UPLOAD_ERR_NO_FILE:
-                    $redirectWithError('no_file');
-                    break;
-                case UPLOAD_ERR_PARTIAL:
-                    $redirectWithError('partial_upload');
-                    break;
-                case UPLOAD_ERR_NO_TMP_DIR:
-                    $redirectWithError('no_tmp_dir');
-                    break;
-                case UPLOAD_ERR_CANT_WRITE:
-                    $redirectWithError('cant_write');
-                    break;
-                case UPLOAD_ERR_EXTENSION:
-                    $redirectWithError('php_extension');
-                    break;
-                default:
-                    $redirectWithError('upload_failed');
-            }
-            return;
+        // Detecta o provedor de armazenamento pela URL
+        if (preg_match('/drive\.google\.com/i', $externalUrl)) {
+            $storageLocation = 'google_drive';
+            $backupType = 'external_link'; // ou 'google_drive' se preferir
+        } elseif (preg_match('/onedrive\.live\.com|1drv\.ms/i', $externalUrl)) {
+            $storageLocation = 'onedrive';
+            $backupType = 'external_link';
+        } elseif (preg_match('/amazonaws\.com|s3\./i', $externalUrl)) {
+            $storageLocation = 's3';
+            $backupType = 'external_link';
+        } else {
+            // Outro provedor externo
+            $storageLocation = 'outro';
+            $backupType = 'external_link';
         }
 
-        $file = $_FILES['backup_file'];
-        $originalName = $file['name'];
-        $fileSize = $file['size'];
-        $tmpPath = $file['tmp_name'];
-
-        // Valida extensão
-        if (!$this->isValidBackupExtension($originalName)) {
-            $errorMessage = 'Tipo de arquivo não permitido para backup. Envie .wpress, .zip, .sql ou outro formato de backup suportado.';
-            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
-                $this->json([
-                    'success' => false,
-                    'message' => $errorMessage
-                ], 400);
-                return;
-            }
-            $redirectWithError('invalid_extension');
-            return;
+        // Extrai nome do arquivo da URL (se possível) ou usa um nome padrão
+        $fileName = 'backup-externo-' . date('Y-m-d-His');
+        if (preg_match('/[^\/\?]+\.(wpress|zip|sql|gz|tgz|tar|bz2|rar|7z)(\?|$)/i', $externalUrl, $matches)) {
+            $fileName = basename(parse_url($externalUrl, PHP_URL_PATH));
         }
-
-        // Detecta tipo de backup pela extensão
-        $backupType = $this->detectBackupType($originalName);
-
-        // Valida tamanho (máximo 500MB para upload direto, maiores usam chunks)
-        $maxDirectUpload = 500 * 1024 * 1024; // 500MB
-        $maxTotalSize = 2 * 1024 * 1024 * 1024; // 2GB (limite total)
-        
-        if ($fileSize > $maxTotalSize) {
-            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
-                $this->json([
-                    'success' => false,
-                    'message' => 'Arquivo muito grande. O limite é 2GB.'
-                ], 400);
-                return;
-            }
-            $redirectWithError('file_too_large');
-            return;
-        }
-        
-        // Arquivos maiores que 500MB devem usar upload em chunks
-        // (JavaScript já intercepta, mas mantemos como fallback)
-        if ($fileSize > $maxDirectUpload) {
-            if ($isDebug) {
-                $log('Arquivo maior que 500MB detectado no upload direto. Use o sistema de chunks.');
-            }
-            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
-                $this->json([
-                    'success' => false,
-                    'message' => 'Arquivo muito grande para upload direto. Use o sistema de chunks.'
-                ], 400);
-                return;
-            }
-            $redirectWithError('use_chunked_upload');
-            return;
-        }
-
-        // Monta diretório de destino
-        $backupDir = Storage::getTenantBackupDir($tenantId, $hostingAccountId);
-        Storage::ensureDirExists($backupDir);
-
-        // Verifica se o diretório é gravável
-        if (!is_dir($backupDir) || !is_writable($backupDir)) {
-            $log('backup dir not writable: ' . $backupDir, true);
-            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
-                $this->json([
-                    'success' => false,
-                    'message' => 'Erro ao salvar arquivo. Diretório não é gravável.'
-                ], 500);
-                return;
-            }
-            $redirectWithError('dir_not_writable');
-            return;
-        }
-
-        // Gera nome de arquivo seguro
-        $safeFileName = Storage::generateSafeFileName($originalName);
-        $destinationPath = $backupDir . DIRECTORY_SEPARATOR . $safeFileName;
-
-        // Move arquivo
-        if (!move_uploaded_file($tmpPath, $destinationPath)) {
-            $log("Erro ao mover arquivo de backup: {$tmpPath} para {$destinationPath}", true);
-            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
-                $this->json([
-                    'success' => false,
-                    'message' => 'Falha ao salvar o arquivo.'
-                ], 500);
-                return;
-            }
-            $redirectWithError('move_failed');
-            return;
-        }
-
-        // CRÍTICO: Verifica se o arquivo foi salvo corretamente
-        if (!file_exists($destinationPath)) {
-            $log("ERRO: Arquivo não existe após move_uploaded_file - {$destinationPath}", true);
-            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
-                $this->json([
-                    'success' => false,
-                    'message' => 'Arquivo não foi salvo corretamente.'
-                ], 500);
-                return;
-            }
-            $redirectWithError('file_not_saved');
-            return;
-        }
-
-        // CRÍTICO: Verifica tamanho real do arquivo salvo
-        $actualFileSize = filesize($destinationPath);
-        $log("Tamanho do arquivo após upload: esperado={$fileSize} bytes, real={$actualFileSize} bytes");
-        
-        if ($actualFileSize === 0) {
-            $log("ERRO CRÍTICO: Arquivo salvo com 0 bytes! Removendo arquivo inválido.", true);
-            @unlink($destinationPath);
-            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
-                $this->json([
-                    'success' => false,
-                    'message' => 'Arquivo foi salvo vazio. Upload falhou. Verifique os limites do servidor.'
-                ], 500);
-                return;
-            }
-            $redirectWithError('file_empty');
-            return;
-        }
-
-        // Valida se o tamanho está próximo do esperado (permite pequena diferença)
-        $sizeDifference = abs($actualFileSize - $fileSize);
-        $sizeDifferencePercent = ($fileSize > 0) ? ($sizeDifference / $fileSize) * 100 : 100;
-        
-        if ($sizeDifferencePercent > 10) {
-            $log("ERRO: Tamanho do arquivo muito diferente do esperado. Esperado: {$fileSize}, Recebido: {$actualFileSize}, Diferença: {$sizeDifferencePercent}%", true);
-            @unlink($destinationPath);
-            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
-                $this->json([
-                    'success' => false,
-                    'message' => 'Tamanho do arquivo incorreto. Esperado: ' . $this->formatBytes($fileSize) . ', Recebido: ' . $this->formatBytes($actualFileSize)
-                ], 500);
-                return;
-            }
-            $redirectWithError('file_size_mismatch');
-            return;
-        }
-
-        // Usa o tamanho REAL do arquivo (filesize) em vez do valor de $_FILES
-        // Isso garante que o banco sempre tenha o tamanho correto
-        $finalFileSize = $actualFileSize;
-        $log("Usando tamanho real do arquivo no banco: {$finalFileSize} bytes");
-
-        // Caminho relativo para salvar no banco
-        $relativePath = '/storage/tenants/' . $tenantId . '/backups/' . $hostingAccountId . '/' . $safeFileName;
 
         // Salva no banco
         try {
@@ -451,16 +318,15 @@ class HostingBackupController extends Controller
 
             $stmt = $db->prepare("
                 INSERT INTO hosting_backups 
-                (hosting_account_id, type, file_name, file_size, stored_path, notes, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, NOW())
+                (hosting_account_id, type, file_name, file_size, stored_path, external_url, storage_location, notes, created_at)
+                VALUES (?, ?, ?, NULL, '', ?, ?, ?, NOW())
             ");
-            // CRÍTICO: Usa $finalFileSize (filesize do arquivo) em vez de $fileSize
             $stmt->execute([
                 $hostingAccountId,
                 $backupType,
-                $safeFileName,
-                $finalFileSize, // Tamanho REAL do arquivo
-                $relativePath,
+                $fileName,
+                $externalUrl,
+                $storageLocation,
                 $notes
             ]);
 
@@ -476,14 +342,14 @@ class HostingBackupController extends Controller
 
             $db->commit();
 
-            // Log de sucesso (apenas em debug)
+            // Log de sucesso
             if ($isDebug) {
                 $log(sprintf(
-                    'backup uploaded successfully: hosting_account_id=%d, tenant_id=%d, file=%s, size=%d bytes (real)',
+                    'backup registered successfully (external URL): hosting_account_id=%d, tenant_id=%d, url=%s, storage=%s',
                     $hostingAccountId,
                     $tenantId,
-                    $safeFileName,
-                    $finalFileSize
+                    substr($externalUrl, 0, 100) . '...',
+                    $storageLocation
                 ));
             }
 
@@ -492,7 +358,7 @@ class HostingBackupController extends Controller
                 $html = $this->renderBackupsTable($tenantId);
                 $this->json([
                     'success' => true,
-                    'message' => 'Backup enviado com sucesso!',
+                    'message' => 'Backup registrado com sucesso!',
                     'html' => $html
                 ]);
                 return;

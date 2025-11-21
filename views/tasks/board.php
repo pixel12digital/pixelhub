@@ -880,6 +880,59 @@ ob_start();
         html += '</div>';
         html += '</div>';
         
+        // Seção Anexos - dentro do formulário, após o checklist
+        html += '<div class="task-details-attachments-section" style="margin-top: 24px; padding-top: 20px; border-top: 2px solid #f0f0f0;">';
+        html += '<h4 style="margin-bottom: 15px; color: #023A8D;">Anexos da Tarefa</h4>';
+        html += '<div id="task-attachments-container">';
+        // Renderiza anexos se existirem
+        if (data.attachments && data.attachments.length > 0) {
+            html += '<table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">';
+            html += '<thead><tr style="background: #f5f5f5;">';
+            html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Nome do Arquivo</th>';
+            html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Tamanho</th>';
+            html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Data de Upload</th>';
+            html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>';
+            html += '</tr></thead><tbody>';
+            data.attachments.forEach(function(attachment) {
+                const fileName = escapeHtml(attachment.original_name || attachment.file_name || '');
+                const fileSize = attachment.file_size ? formatFileSize(attachment.file_size) : '-';
+                const uploadedAt = attachment.uploaded_at ? formatDateTime(attachment.uploaded_at) : 'N/A';
+                const fileExists = attachment.file_exists !== false; // Assume true se não especificado
+                
+                html += '<tr>';
+                html += '<td style="padding: 12px; border-bottom: 1px solid #eee;">';
+                if (fileExists) {
+                    html += '<span style="color: #023A8D; font-weight: 600;">📄 ' + fileName + '</span>';
+                } else {
+                    html += '<span style="color: #999; font-style: italic;" title="Arquivo indisponível (feito em outro ambiente)">📄 ' + fileName + ' (indisponível)</span>';
+                }
+                html += '</td>';
+                html += '<td style="padding: 12px; border-bottom: 1px solid #eee;">' + fileSize + '</td>';
+                html += '<td style="padding: 12px; border-bottom: 1px solid #eee;">' + uploadedAt + '</td>';
+                html += '<td style="padding: 12px; border-bottom: 1px solid #eee;">';
+                html += '<div style="display: flex; gap: 10px; align-items: center;">';
+                if (fileExists) {
+                    html += '<a href="' + escapeHtml('<?= pixelhub_url("/tasks/attachments/download?id=") ?>' + attachment.id) + '" style="color: #023A8D; text-decoration: none; font-weight: 600;">Download</a>';
+                }
+                html += '<button type="button" onclick="deleteTaskAttachment(' + taskId + ', ' + attachment.id + ')" style="background: #c33; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">Excluir</button>';
+                html += '</div>';
+                html += '</td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+        } else {
+            html += '<p style="color: #666;">Nenhum anexo cadastrado.</p>';
+        }
+        html += '</div>';
+        html += '<div style="margin-top: 15px; padding: 15px; background: #f9f9f9; border-radius: 4px;">';
+        html += '<form id="task-attachment-upload-form" enctype="multipart/form-data" onsubmit="event.preventDefault(); uploadTaskAttachment(' + taskId + ');" style="display: flex; gap: 10px; align-items: center;">';
+        html += '<input type="hidden" name="task_id" value="' + taskId + '">';
+        html += '<input type="file" name="file" id="task-attachment-file" required style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">';
+        html += '<button type="submit" class="btn btn-primary btn-small">Enviar Arquivo</button>';
+        html += '</form>';
+        html += '</div>';
+        html += '</div>';
+        
         // Botões do rodapé - dentro do formulário, por último
         html += '<div class="form-actions">';
         if (isEditing) {
@@ -1228,6 +1281,144 @@ ob_start();
     }
     // Garante que está no escopo global
     window.closeTaskDetailModal = closeTaskDetailModal;
+
+    // Funções auxiliares para anexos
+    function formatFileSize(bytes) {
+        if (!bytes || bytes === 0) return '-';
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const bytesNum = parseInt(bytes);
+        const pow = Math.floor((bytesNum ? Math.log(bytesNum) : 0) / Math.log(1024));
+        const unit = units[Math.min(pow, units.length - 1)];
+        const size = bytesNum / Math.pow(1024, pow);
+        return Math.round(size * 100) / 100 + ' ' + unit;
+    }
+
+    function formatDateTime(dateString) {
+        if (!dateString) return 'N/A';
+        try {
+            const date = new Date(dateString);
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return day + '/' + month + '/' + year + ' ' + hours + ':' + minutes;
+        } catch (e) {
+            return dateString;
+        }
+    }
+
+    // Upload de anexo
+    function uploadTaskAttachment(taskId) {
+        const form = document.getElementById('task-attachment-upload-form');
+        if (!form) return;
+
+        const fileInput = document.getElementById('task-attachment-file');
+        if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+            alert('Por favor, selecione um arquivo.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('task_id', taskId);
+        formData.append('file', fileInput.files[0]);
+
+        // Desabilita botão durante upload
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Enviando...';
+
+        fetch('<?= pixelhub_url('/tasks/attachments/upload') ?>', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+            
+            if (data.success) {
+                // Atualiza a tabela de anexos
+                const container = document.getElementById('task-attachments-container');
+                if (container && data.html) {
+                    container.innerHTML = data.html;
+                }
+                // Limpa o input
+                fileInput.value = '';
+                // Recarrega os dados da tarefa para atualizar a lista completa
+                if (window.currentTaskId) {
+                    fetch('<?= pixelhub_url('/tasks') ?>/' + window.currentTaskId)
+                        .then(response => response.json())
+                        .then(taskData => {
+                            if (!taskData.error) {
+                                window.currentTaskData = taskData;
+                                renderTaskDetailModal(taskData, window.currentTaskId, false);
+                            }
+                        });
+                }
+            } else {
+                alert('Erro: ' + (data.message || 'Erro ao enviar arquivo.'));
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+            alert('Erro ao enviar arquivo. Tente novamente.');
+        });
+    }
+
+    // Delete de anexo
+    function deleteTaskAttachment(taskId, attachmentId) {
+        if (!confirm('Tem certeza que deseja excluir este anexo?')) return;
+
+        const formData = new FormData();
+        formData.append('id', attachmentId);
+        formData.append('task_id', taskId);
+
+        fetch('<?= pixelhub_url('/tasks/attachments/delete') ?>', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Atualiza a tabela de anexos
+                const container = document.getElementById('task-attachments-container');
+                if (container && data.html) {
+                    container.innerHTML = data.html;
+                }
+                // Recarrega os dados da tarefa para atualizar a lista completa
+                if (window.currentTaskId) {
+                    fetch('<?= pixelhub_url('/tasks') ?>/' + window.currentTaskId)
+                        .then(response => response.json())
+                        .then(taskData => {
+                            if (!taskData.error) {
+                                window.currentTaskData = taskData;
+                                renderTaskDetailModal(taskData, window.currentTaskId, false);
+                            }
+                        });
+                }
+            } else {
+                alert('Erro: ' + (data.message || 'Erro ao excluir anexo.'));
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro ao excluir anexo. Tente novamente.');
+        });
+    }
+
+    // Garante que as funções estão no escopo global
+    window.uploadTaskAttachment = uploadTaskAttachment;
+    window.deleteTaskAttachment = deleteTaskAttachment;
 
     // Função centralizada para atualizar status da tarefa
     // Usada tanto pelo select quanto pelo drag & drop

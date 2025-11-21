@@ -100,16 +100,16 @@ class WhatsAppTemplateService
     }
 
     /**
-     * Gera link wa.me com mensagem
+     * Gera link do WhatsApp Web com mensagem
      * 
      * @param string $phone Telefone normalizado
      * @param string $message Mensagem (será URL encoded)
-     * @return string Link completo
+     * @return string Link completo do WhatsApp Web
      */
     public static function buildWhatsAppLink(string $phone, string $message): string
     {
         $encodedMessage = urlencode($message);
-        return "https://wa.me/{$phone}?text={$encodedMessage}";
+        return "https://web.whatsapp.com/send?phone={$phone}&text={$encodedMessage}";
     }
 
     /**

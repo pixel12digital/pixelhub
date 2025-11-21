@@ -225,6 +225,32 @@ $providerMap = $providerMap ?? [];
             </tr>
             <?php endif; ?>
             <tr>
+                <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">Último contato WhatsApp:</td>
+                <td id="last-whatsapp-contact" style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <?php if (!empty($lastWhatsAppContact)): ?>
+                        <?php
+                        $sentAt = $lastWhatsAppContact['sent_at'] ?? null;
+                        $sentAtFormatted = $sentAt ? date('d/m/Y H:i', strtotime($sentAt)) : '-';
+                        $source = $lastWhatsAppContact['source'] ?? 'generic';
+                        $sourceLabel = $source === 'billing' ? 'Financeiro' : 'Visão Geral';
+                        $templateName = $lastWhatsAppContact['template_name'] ?? null;
+                        $templateId = $lastWhatsAppContact['template_id'] ?? null;
+                        
+                        if ($templateId === null && $source === 'generic') {
+                            $templateInfo = 'Sem template (mensagem livre)';
+                        } elseif ($templateName) {
+                            $templateInfo = htmlspecialchars($templateName);
+                        } else {
+                            $templateInfo = 'Sem template';
+                        }
+                        ?>
+                        <?= htmlspecialchars($sentAtFormatted) ?> – Origem: <?= htmlspecialchars($sourceLabel) ?> – Template: <?= $templateInfo ?>
+                    <?php else: ?>
+                        <span style="color: #999;">Nenhum contato registrado</span>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <tr>
                 <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">Status:</td>
                 <td style="padding: 12px; border-bottom: 1px solid #eee;">
                     <?php
@@ -236,6 +262,347 @@ $providerMap = $providerMap ?? [];
             </tr>
         </table>
     </div>
+
+    <!-- Card: Histórico WhatsApp -->
+    <div class="card" style="margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0;">Histórico WhatsApp</h3>
+            <a href="<?= pixelhub_url('/tenants/whatsapp-history?id=' . $tenant['id']) ?>" 
+               style="color: #023A8D; text-decoration: none; font-size: 14px; font-weight: 600;">
+                Ver histórico completo →
+            </a>
+        </div>
+        <div id="whatsapp-timeline-container">
+            <?php if (empty($whatsappTimeline)): ?>
+                <p style="color: #666; text-align: center; padding: 20px;">Nenhum histórico de WhatsApp registrado.</p>
+            <?php else: ?>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f5f5f5;">
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Data/Hora</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Origem</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Template</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Observação</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="whatsapp-timeline-tbody">
+                        <?php foreach ($whatsappTimeline as $index => $item): ?>
+                        <tr>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php
+                                $sentAt = $item['sent_at'] ?? null;
+                                echo $sentAt ? htmlspecialchars(date('d/m/Y H:i', strtotime($sentAt))) : '-';
+                                ?>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php
+                                $source = $item['source'] ?? 'generic';
+                                $sourceLabel = $source === 'billing' ? 'Financeiro' : 'Visão Geral';
+                                echo htmlspecialchars($sourceLabel);
+                                ?>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php
+                                $templateId = $item['template_id'] ?? null;
+                                $templateName = $item['template_name'] ?? null;
+                                
+                                if ($templateId === null && $source === 'generic') {
+                                    echo '<span style="color: #999;">Sem template / mensagem livre</span>';
+                                } elseif ($templateName) {
+                                    echo htmlspecialchars($templateName);
+                                } else {
+                                    echo '<span style="color: #999;">-</span>';
+                                }
+                                ?>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php
+                                $message = $item['message'] ?? $item['message_full'] ?? '';
+                                $messageFull = $item['message_full'] ?? $message;
+                                
+                                // Preview de 100-120 caracteres
+                                $preview = mb_substr($message, 0, 120);
+                                if (mb_strlen($message) > 120) {
+                                    $preview .= '...';
+                                }
+                                
+                                if ($source === 'billing') {
+                                    // Para billing, mostra descrição + preview da mensagem se houver
+                                    $description = $item['description'] ?? '';
+                                    echo htmlspecialchars($description);
+                                    if (!empty($message)) {
+                                        echo '<br><span style="color: #666; font-size: 12px;">' . htmlspecialchars($preview) . '</span>';
+                                    }
+                                } else {
+                                    // Para generic, mostra preview da mensagem
+                                    echo '<span style="color: #666; font-size: 13px;">' . htmlspecialchars($preview) . '</span>';
+                                }
+                                ?>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php if (!empty($messageFull)): ?>
+                                    <button onclick="openMessageModal(<?= $index ?>)" 
+                                            style="background: #023A8D; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                                        Ver mensagem
+                                    </button>
+                                    <!-- Dados da mensagem completa (ocultos) -->
+                                    <div id="message-data-<?= $index ?>" style="display: none;" 
+                                         data-sent-at="<?= htmlspecialchars($item['sent_at'] ?? '', ENT_QUOTES) ?>"
+                                         data-source="<?= htmlspecialchars($source, ENT_QUOTES) ?>"
+                                         data-source-label="<?= htmlspecialchars($sourceLabel, ENT_QUOTES) ?>"
+                                         data-template-name="<?= htmlspecialchars($templateName ?? ($templateId === null && $source === 'generic' ? 'Sem template / mensagem livre' : 'Sem template'), ENT_QUOTES) ?>"
+                                         data-phone="<?= htmlspecialchars($item['phone'] ?? '', ENT_QUOTES) ?>"
+                                         data-message-full="<?= htmlspecialchars($messageFull, ENT_QUOTES) ?>">
+                                    </div>
+                                <?php else: ?>
+                                    <span style="color: #999; font-size: 13px;">-</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </div>
+
+    <!-- Modal de Detalhes da Mensagem -->
+    <div id="message-detail-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+        <div style="max-width: 700px; margin: 50px auto; background: white; border-radius: 8px; padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); position: relative;">
+            <button onclick="closeMessageModal()" 
+                    style="position: absolute; top: 15px; right: 15px; background: #c33; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; line-height: 1;">×</button>
+            
+            <h2 style="margin: 0 0 20px 0; color: #023A8D;">Detalhes da Mensagem</h2>
+            
+            <div id="message-detail-content" style="color: #666;">
+                <!-- Conteúdo será preenchido via JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // Função para atualizar timeline via AJAX
+    function updateWhatsAppTimeline(tenantId) {
+        if (!tenantId) {
+            console.error('tenantId não fornecido para atualizar timeline');
+            return;
+        }
+
+        fetch('<?= pixelhub_url('/tenants/whatsapp-timeline-ajax') ?>?tenant_id=' + tenantId)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Atualiza último contato
+                    updateLastContact(data.lastContact);
+                    
+                    // Atualiza timeline
+                    updateTimelineTable(data.timeline);
+                } else {
+                    console.error('Erro ao atualizar timeline:', data.message);
+                }
+            })
+            .catch(err => {
+                console.error('Erro ao buscar timeline:', err);
+            });
+    }
+
+    function updateLastContact(lastContact) {
+        const container = document.getElementById('last-whatsapp-contact');
+        if (!container) return;
+
+        if (!lastContact) {
+            container.innerHTML = '<span style="color: #999;">Nenhum contato registrado</span>';
+            return;
+        }
+
+        const sentAt = lastContact.sent_at || null;
+        const sentAtFormatted = sentAt ? formatDateTime(sentAt) : '-';
+        const source = lastContact.source || 'generic';
+        const sourceLabel = source === 'billing' ? 'Financeiro' : 'Visão Geral';
+        const templateName = lastContact.template_name || null;
+        const templateId = lastContact.template_id || null;
+
+        let templateInfo = 'Sem template';
+        if (templateId === null && source === 'generic') {
+            templateInfo = 'Sem template (mensagem livre)';
+        } else if (templateName) {
+            templateInfo = escapeHtml(templateName);
+        }
+
+        container.innerHTML = `${escapeHtml(sentAtFormatted)} – Origem: ${escapeHtml(sourceLabel)} – Template: ${templateInfo}`;
+    }
+
+    function updateTimelineTable(timeline) {
+        const container = document.getElementById('whatsapp-timeline-container');
+        if (!container) return;
+
+        if (!timeline || timeline.length === 0) {
+            container.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">Nenhum histórico de WhatsApp registrado.</p>';
+            return;
+        }
+
+        let html = '<table style="width: 100%; border-collapse: collapse;">';
+        html += '<thead>';
+        html += '<tr style="background: #f5f5f5;">';
+        html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Data/Hora</th>';
+        html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Origem</th>';
+        html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Template</th>';
+        html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Observação</th>';
+        html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>';
+        html += '</tr>';
+        html += '</thead>';
+        html += '<tbody id="whatsapp-timeline-tbody">';
+
+        timeline.forEach((item, index) => {
+            const sentAt = item.sent_at || null;
+            const sentAtFormatted = sentAt ? formatDateTime(sentAt) : '-';
+            const source = item.source || 'generic';
+            const sourceLabel = source === 'billing' ? 'Financeiro' : 'Visão Geral';
+            const templateId = item.template_id || null;
+            const templateName = item.template_name || null;
+
+            let templateHtml = '<span style="color: #999;">-</span>';
+            if (templateId === null && source === 'generic') {
+                templateHtml = '<span style="color: #999;">Sem template / mensagem livre</span>';
+            } else if (templateName) {
+                templateHtml = escapeHtml(templateName);
+            }
+
+            const message = item.message || item.message_full || '';
+            const messageFull = item.message_full || message;
+            const preview = message.length > 120 ? message.substring(0, 120) + '...' : message;
+
+            let observationHtml = '';
+            if (source === 'billing') {
+                observationHtml = escapeHtml(item.description || '');
+                if (message) {
+                    observationHtml += '<br><span style="color: #666; font-size: 12px;">' + escapeHtml(preview) + '</span>';
+                }
+            } else {
+                observationHtml = `<span style="color: #666; font-size: 13px;">${escapeHtml(preview)}</span>`;
+            }
+
+            const actionsHtml = messageFull ? 
+                `<button onclick="openMessageModal(${index})" style="background: #023A8D; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">Ver mensagem</button>
+                 <div id="message-data-${index}" style="display: none;" 
+                      data-sent-at="${escapeHtml(sentAt || '')}"
+                      data-source="${escapeHtml(source)}"
+                      data-source-label="${escapeHtml(sourceLabel)}"
+                      data-template-name="${escapeHtml(templateName || (templateId === null && source === 'generic' ? 'Sem template / mensagem livre' : 'Sem template'))}"
+                      data-phone="${escapeHtml(item.phone || '')}"
+                      data-message-full="${escapeHtml(messageFull)}"></div>` :
+                '<span style="color: #999; font-size: 13px;">-</span>';
+
+            html += '<tr>';
+            html += `<td style="padding: 12px; border-bottom: 1px solid #eee;">${escapeHtml(sentAtFormatted)}</td>`;
+            html += `<td style="padding: 12px; border-bottom: 1px solid #eee;">${escapeHtml(sourceLabel)}</td>`;
+            html += `<td style="padding: 12px; border-bottom: 1px solid #eee;">${templateHtml}</td>`;
+            html += `<td style="padding: 12px; border-bottom: 1px solid #eee;">${observationHtml}</td>`;
+            html += `<td style="padding: 12px; border-bottom: 1px solid #eee;">${actionsHtml}</td>`;
+            html += '</tr>';
+        });
+
+        html += '</tbody>';
+        html += '</table>';
+
+        container.innerHTML = html;
+    }
+
+    // Funções do modal de detalhes da mensagem
+    function openMessageModal(index) {
+        const dataDiv = document.getElementById('message-data-' + index);
+        if (!dataDiv) {
+            console.error('Dados da mensagem não encontrados para índice:', index);
+            return;
+        }
+
+        const sentAt = dataDiv.getAttribute('data-sent-at') || '';
+        const sourceLabel = dataDiv.getAttribute('data-source-label') || '';
+        const templateName = dataDiv.getAttribute('data-template-name') || 'Sem template';
+        const phone = dataDiv.getAttribute('data-phone') || '';
+        const messageFull = dataDiv.getAttribute('data-message-full') || '';
+
+        // Formata data/hora
+        let sentAtFormatted = '-';
+        if (sentAt) {
+            try {
+                const date = new Date(sentAt);
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const year = date.getFullYear();
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                sentAtFormatted = `${day}/${month}/${year} ${hours}:${minutes}`;
+            } catch (e) {
+                sentAtFormatted = sentAt;
+            }
+        }
+
+        // Formata telefone (se houver)
+        let phoneFormatted = phone;
+        if (phone && phone.length >= 10) {
+            // Formata como (XX) XXXXX-XXXX ou (XX) XXXX-XXXX
+            const digits = phone.replace(/\D/g, '');
+            if (digits.length === 11) {
+                phoneFormatted = `(${digits.substring(0, 2)}) ${digits.substring(2, 7)}-${digits.substring(7)}`;
+            } else if (digits.length === 10) {
+                phoneFormatted = `(${digits.substring(0, 2)}) ${digits.substring(2, 6)}-${digits.substring(6)}`;
+            }
+        }
+
+        // Monta conteúdo do modal
+        let content = '<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">';
+        content += '<tr><td style="padding: 8px; font-weight: 600; width: 150px; border-bottom: 1px solid #eee;">Data/Hora:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(sentAtFormatted) + '</td></tr>';
+        content += '<tr><td style="padding: 8px; font-weight: 600; border-bottom: 1px solid #eee;">Origem:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(sourceLabel) + '</td></tr>';
+        content += '<tr><td style="padding: 8px; font-weight: 600; border-bottom: 1px solid #eee;">Template:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(templateName) + '</td></tr>';
+        if (phoneFormatted) {
+            content += '<tr><td style="padding: 8px; font-weight: 600; border-bottom: 1px solid #eee;">Telefone:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(phoneFormatted) + '</td></tr>';
+        }
+        content += '</table>';
+
+        content += '<div style="margin-top: 20px;">';
+        content += '<h3 style="margin: 0 0 10px 0; font-size: 16px; color: #023A8D;">Mensagem Completa:</h3>';
+        // Preserva quebras de linha usando <pre> ou nl2br
+        const messageEscaped = escapeHtml(messageFull);
+        const messageWithBreaks = messageEscaped.replace(/\n/g, '<br>');
+        content += '<div style="background: #f9f9f9; padding: 15px; border-radius: 4px; border-left: 4px solid #023A8D; white-space: pre-wrap; word-wrap: break-word; font-family: inherit; line-height: 1.6;">' + messageWithBreaks + '</div>';
+        content += '</div>';
+
+        document.getElementById('message-detail-content').innerHTML = content;
+        document.getElementById('message-detail-modal').style.display = 'block';
+    }
+
+    function closeMessageModal() {
+        document.getElementById('message-detail-modal').style.display = 'none';
+    }
+
+    // Fecha modal ao clicar fora
+    document.getElementById('message-detail-modal')?.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeMessageModal();
+        }
+    });
+
+    function formatDateTime(dateTimeString) {
+        if (!dateTimeString) return '-';
+        const date = new Date(dateTimeString);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Armazena tenant_id globalmente para uso no modal
+    window.currentTenantId = <?= $tenant['id'] ?? 0 ?>;
+    </script>
 
 <?php elseif ($activeTab === 'hosting'): ?>
     <!-- ABA: Hospedagem & Sites -->
@@ -424,10 +791,9 @@ $providerMap = $providerMap ?? [];
                 <div style="background: #fee; color: #c33; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
                     <?php
                     $error = $_GET['error'];
-                    if ($error === 'upload_failed') echo 'Erro ao enviar arquivo. Verifique se o arquivo foi selecionado.';
-                    elseif ($error === 'invalid_extension') echo 'Tipo de arquivo não permitido para backup. Envie .wpress, .zip, .sql ou outro formato de backup suportado.';
-                    elseif ($error === 'file_too_large') echo 'Arquivo muito grande. O limite é 2GB.';
-                    elseif ($error === 'move_failed') echo 'Falha ao salvar o arquivo.';
+                    if ($error === 'missing_external_url') echo 'URL do backup é obrigatória. Informe o link do backup (Google Drive ou outro serviço externo).';
+                    elseif ($error === 'invalid_external_url') echo 'URL inválida. Informe uma URL válida começando com http:// ou https://';
+                    elseif ($error === 'external_url_too_long') echo 'URL muito longa. Máximo de 500 caracteres.';
                     elseif ($error === 'database_error') echo 'Erro ao registrar o backup no banco de dados.';
                     elseif ($error === 'delete_missing_id') echo 'ID do backup não fornecido para exclusão.';
                     elseif ($error === 'delete_not_found') echo 'Backup não encontrado para exclusão.';
@@ -436,7 +802,7 @@ $providerMap = $providerMap ?? [];
                     ?>
                 </div>
             <?php endif; ?>
-            <form id="form-wp-backup" method="POST" action="<?= pixelhub_url('/hosting/backups/upload') ?>" enctype="multipart/form-data">
+            <form id="form-wp-backup" method="POST" action="<?= pixelhub_url('/hosting/backups/upload') ?>">
                 <input type="hidden" name="redirect_to" value="tenant">
                 
                 <div style="margin-bottom: 15px;">
@@ -450,25 +816,19 @@ $providerMap = $providerMap ?? [];
                 </div>
                 
                 <div style="margin-bottom: 15px;">
-                    <label for="backup_file" style="display: block; margin-bottom: 5px; font-weight: 600;">Arquivo de Backup:</label>
-                    <input type="file" id="backup_file" name="backup_file" accept=".wpress,.zip,.sql,.gz,.tgz,.tar,.bz2,.rar,.7z" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <label for="external_url" style="display: block; margin-bottom: 5px; font-weight: 600;">URL do backup (Google Drive):</label>
+                    <input 
+                        type="url" 
+                        id="external_url" 
+                        name="external_url" 
+                        class="form-control" 
+                        placeholder="Cole aqui o link compartilhável do backup (arquivo ou pasta no Google Drive)"
+                        required
+                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+                    >
                     <small class="form-text text-muted" style="display: block; color: #666; margin-top: 5px;">
-                        Envie arquivos de backup do site, como:<br>
-                        - .wpress (backup do All-in-One WP Migration)<br>
-                        - .zip (arquivos do site, podendo incluir o banco .sql)<br>
-                        - .sql (dump de banco de dados)<br>
-                        Outros formatos de código ou backup também podem ser armazenados aqui.<br>
-                        Tamanho máximo: 2GB.
+                        Use um link compartilhável do Google Drive (ou outro serviço externo) com acesso adequado para restauração.
                     </small>
-                    <div id="chunked-upload-progress" style="display: none; margin-top: 15px; padding: 15px; background: #f5f5f5; border-radius: 4px;">
-                        <h4 style="margin: 0 0 10px 0; color: #023A8D;">Upload em Progresso</h4>
-                        <div style="background: #ddd; height: 25px; border-radius: 4px; overflow: hidden; position: relative;">
-                            <div id="chunked-progress-bar" style="background: #4caf50; height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
-                                0%
-                            </div>
-                        </div>
-                        <p id="chunked-status" style="margin: 10px 0 0 0; color: #666; font-size: 13px;">Preparando upload...</p>
-                    </div>
                 </div>
                 
                 <div style="margin-bottom: 15px;">
@@ -477,99 +837,10 @@ $providerMap = $providerMap ?? [];
                 </div>
                 
                 <button type="submit" id="submit-btn" style="background: #023A8D; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
-                    Enviar Backup
+                    Registrar Backup
                 </button>
             </form>
             
-            <?php
-            // Calcula limites do PHP para upload (mesma lógica da tela interna)
-            function php_ini_to_bytes_tenant(string $value): int {
-                $value = trim($value);
-                if (empty($value)) return 0;
-                $last = strtolower(substr($value, -1));
-                $num = (int)$value;
-                switch ($last) {
-                    case 'g': $num *= 1024;
-                    case 'm': $num *= 1024;
-                    case 'k': $num *= 1024;
-                }
-                return $num;
-            }
-            
-            $phpUploadMax = ini_get('upload_max_filesize');
-            $phpPostMax = ini_get('post_max_size');
-            $uploadMaxBytes = php_ini_to_bytes_tenant($phpUploadMax);
-            $postMaxBytes = php_ini_to_bytes_tenant($phpPostMax);
-            $phpHardLimitBytes = min($uploadMaxBytes, $postMaxBytes);
-            $systemMaxDirectBytes = 500 * 1024 * 1024; // 500MB
-            $maxDirectUploadBytes = min($systemMaxDirectBytes, $phpHardLimitBytes);
-            if ($maxDirectUploadBytes <= 0) {
-                $maxDirectUploadBytes = 30 * 1024 * 1024; // 30MB fallback
-            }
-            ?>
-            
-            <script src="<?= pixelhub_url('/assets/js/hosting_backups.js') ?>"></script>
-            <script>
-            // Inicializa upload em chunks para aba docs_backups
-            document.addEventListener('DOMContentLoaded', function() {
-                if (typeof HostingBackupUpload !== 'undefined') {
-                    HostingBackupUpload.init({
-                        formSelector: 'form[enctype="multipart/form-data"]',
-                        fileInputSelector: '#backup_file',
-                        notesSelector: '#notes',
-                        submitBtnSelector: '#submit-btn',
-                        progressContainerSelector: '#chunked-upload-progress',
-                        progressBarSelector: '#chunked-progress-bar',
-                        statusTextSelector: '#chunked-status',
-                        maxDirectUploadBytes: <?= (int) $maxDirectUploadBytes ?>,
-                        chunkMaxBytes: <?= 2 * 1024 * 1024 * 1024 ?>, // 2GB
-                        chunkSize: 1 * 1024 * 1024, // 1MB por chunk (otimizado para ambientes compartilhados)
-                        chunkInitUrl: '<?= pixelhub_url('/hosting/backups/chunk-init') ?>',
-                        chunkUploadUrl: '<?= pixelhub_url('/hosting/backups/chunk-upload') ?>',
-                        chunkCompleteUrl: '<?= pixelhub_url('/hosting/backups/chunk-complete') ?>',
-                        onSuccess: function(hostingAccountId, responseData) {
-                            // Restaura estado do botão
-                            const submitBtn = document.getElementById('submit-btn');
-                            if (submitBtn) {
-                                submitBtn.disabled = false;
-                                submitBtn.textContent = 'Enviar Backup';
-                            }
-                            
-                            // Esconde barra de progresso
-                            const progressDiv = document.getElementById('chunked-upload-progress');
-                            if (progressDiv) {
-                                progressDiv.style.display = 'none';
-                            }
-                            
-                            // Se a resposta contém HTML da tabela, atualiza diretamente
-                            if (responseData && responseData.html) {
-                                const container = document.getElementById('wp-backups-table-container');
-                                if (container) {
-                                    container.innerHTML = responseData.html;
-                                }
-                                // Mostra mensagem de sucesso
-                                const successMsg = document.createElement('div');
-                                successMsg.style.cssText = 'background: #efe; color: #3c3; padding: 10px; border-radius: 5px; margin-bottom: 15px; border-left: 4px solid #3c3;';
-                                successMsg.textContent = responseData.message || 'Backup enviado com sucesso!';
-                                const wpBackups = document.getElementById('tenant-wp-backups');
-                                if (wpBackups) {
-                                    wpBackups.insertBefore(successMsg, wpBackups.firstChild);
-                                    setTimeout(() => successMsg.remove(), 5000);
-                                }
-                                // Limpa formulário
-                                const form = document.getElementById('form-wp-backup');
-                                if (form) {
-                                    form.reset();
-                                }
-                            } else {
-                                // Fallback: recarrega a página se não houver HTML
-                                window.location.href = '<?= pixelhub_url('/tenants/view?id=' . $tenant['id'] . '&tab=docs_backups&success=uploaded') ?>';
-                            }
-                        }
-                    });
-                }
-            });
-            </script>
         </div>
         
         <!-- Lista de Backups -->

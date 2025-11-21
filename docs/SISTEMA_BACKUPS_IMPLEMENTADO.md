@@ -2,7 +2,9 @@
 
 ## 📋 Resumo
 
-Sistema completo para gerenciar backups de sites WordPress e outros tipos de backup (arquivos .wpress, .zip, .sql, etc.) dentro do Pixel Hub. O sistema detecta automaticamente o tipo de backup pela extensão do arquivo.
+Sistema completo para gerenciar backups de sites WordPress e outros tipos de backup via URLs externas (principalmente Google Drive). O Pixel Hub funciona como um painel de controle centralizado, registrando apenas os links dos backups e metadados, sem armazenar os arquivos físicos de backup na hospedagem compartilhada.
+
+**Mudança Importante (31/01/2025):** O sistema não armazena mais arquivos de backup no Pixel Hub. Todos os backups são registrados via URL externa, preferencialmente Google Drive.
 
 ---
 
@@ -38,15 +40,20 @@ Sistema completo para gerenciar backups de sites WordPress e outros tipos de bac
 - `id` - INT UNSIGNED AUTO_INCREMENT PRIMARY KEY
 - `hosting_account_id` - INT UNSIGNED NOT NULL
 - `type` - VARCHAR(50) NOT NULL DEFAULT 'all_in_one_wp'
-  - Valores possíveis: `all_in_one_wp`, `site_zip`, `database_sql`, `compressed_archive`, `other_code`
-  - **Auto-detectado pela extensão do arquivo** (não mais seleção manual)
+  - Valores possíveis: `all_in_one_wp`, `site_zip`, `database_sql`, `compressed_archive`, `other_code`, `external_link`, `google_drive`
+  - Para backups externos: `external_link` ou `google_drive`
+  - Para backups antigos (arquivos locais): mantém tipos originais detectados por extensão
 - `file_name` - VARCHAR(255) NOT NULL
-- `file_size` - BIGINT UNSIGNED NULL
-- `stored_path` - VARCHAR(500) NOT NULL
+- `file_size` - BIGINT UNSIGNED NULL (NULL para backups externos)
+- `stored_path` - VARCHAR(500) NULL (NULL para backups externos, mantido para compatibilidade com backups antigos)
+- `external_url` - VARCHAR(500) NULL (URL do backup externo, ex.: Google Drive)
+- `storage_location` - VARCHAR(100) NULL (Onde está armazenado: `google_drive`, `onedrive`, `s3`, `outro`)
 - `notes` - TEXT NULL
 - `created_at` - DATETIME NULL
 
-**Status:** ✅ Criada
+**Migration:** `20250131_alter_hosting_backups_add_external_url.php` adiciona os campos `external_url` e `storage_location`.
+
+**Status:** ✅ Criada e atualizada
 
 ---
 
@@ -98,13 +105,16 @@ Sistema completo para gerenciar backups de sites WordPress e outros tipos de bac
    - Recebe `hosting_id` via GET
    - Busca dados do hosting account e lista backups
 
-2. **`upload()`** - Processa upload de backup
+2. **`upload()`** - Registra backup via URL externa
    - Requer autenticação interna
-   - **Auto-detecta tipo de backup pela extensão** (.wpress, .zip, .sql, .gz, .tgz, .tar, .bz2, .rar, .7z)
-   - Valida extensão permitida (tamanho máximo 2GB)
-   - Salva arquivo no diretório correto
-   - Grava registro no banco com tipo detectado automaticamente
+   - **Agora aceita apenas URL externa** (não faz mais upload de arquivo)
+   - Valida URL (deve começar com http:// ou https://, máximo 500 caracteres)
+   - Detecta automaticamente o provedor de armazenamento pela URL (Google Drive, OneDrive, S3, etc.)
+   - Define `type = 'external_link'` para novos backups externos
+   - Define `storage_location` automaticamente (google_drive, onedrive, s3, outro)
+   - Grava registro no banco com `external_url` preenchido e `stored_path = NULL`
    - Atualiza `backup_status` do hosting account
+   - **Compatibilidade:** Backups antigos com `stored_path` continuam funcionando normalmente
 
 3. **`download()`** - Download protegido de backup
    - Requer autenticação interna
@@ -208,16 +218,24 @@ Acesse:
 http://localhost/painel.pixel12digital/public/hosting/backups?hosting_id=1
 ```
 
-### 3. Fazer Upload
+### 3. Registrar Backup
 
-1. Selecione o arquivo de backup (.wpress, .zip, .sql, ou outro formato suportado)
-2. O sistema detecta automaticamente o tipo pela extensão
-3. (Opcional) Adicione notas
-4. Clique em "Enviar Backup"
+1. No Google Drive (ou outro serviço), faça upload do arquivo de backup
+2. Compartilhe o arquivo/pasta e obtenha o link compartilhável
+3. No Pixel Hub, selecione o site/hospedagem
+4. Cole a URL do backup no campo "URL do backup (Google Drive)"
+5. (Opcional) Adicione notas sobre o backup
+6. Clique em "Registrar Backup"
 
-### 4. Visualizar Backups
+**Importante:** O Pixel Hub não armazena mais os arquivos de backup. Apenas registra o link e os metadados.
 
-A lista mostra todos os backups do site com opção de download.
+### 4. Visualizar e Acessar Backups
+
+A lista mostra todos os backups do site:
+- **Backups externos (novos):** Mostram botão "Abrir backup" que abre a URL externa em nova aba
+- **Backups antigos (com arquivo local):** Continuam mostrando botão "Download" para baixar do servidor
+- Tipo exibido como "Backup externo (link)" ou "Google Drive (link)" para novos backups
+- Tamanho exibido como "—" para backups externos (file_size = NULL)
 
 ---
 
@@ -266,16 +284,39 @@ storage/
 ---
 
 **Data da Implementação:** 17/11/2025  
-**Última Atualização:** 25/01/2025 - Auto-detecção de tipo de backup por extensão  
+**Última Atualização:** 31/01/2025 - Migração para URLs externas (Google Drive)  
 **Status:** ✅ Implementação Completa - Pronto para Uso
 
 ---
 
-## 🔄 Mudanças Recentes (25/01/2025)
+## 🔄 Mudanças Recentes
 
-### Auto-detecção de Tipo de Backup
+### Migração para URLs Externas (31/01/2025)
 
-O sistema agora detecta automaticamente o tipo de backup pela extensão do arquivo, eliminando a necessidade de seleção manual:
+O sistema foi reestruturado para não armazenar mais arquivos de backup na hospedagem compartilhada. Agora funciona como um painel de controle centralizado:
+
+**Mudanças principais:**
+1. **Novos backups:** Registrados apenas via URL externa (principalmente Google Drive)
+2. **Campos novos:** `external_url` e `storage_location` adicionados à tabela `hosting_backups`
+3. **Tipo:** Novos backups usam `type = 'external_link'` ou `google_drive`
+4. **Armazenamento:** `stored_path` e `file_size` são NULL para backups externos
+5. **Interface:** Campo de upload de arquivo substituído por campo de URL
+6. **Listagem:** Mostra botão "Abrir backup" para backups externos, "Download" para backups antigos
+
+**Compatibilidade:**
+- Backups antigos com `stored_path` e arquivo físico continuam funcionando normalmente
+- Botão "Download" permanece disponível para backups antigos
+- Todos os registros existentes são preservados
+
+**Benefícios:**
+- Não há mais problemas com upload de arquivos grandes (erros de chunk, arquivo 0 bytes)
+- Não ocupa espaço na hospedagem compartilhada
+- Links externos são mais confiáveis para backups grandes
+- Pixel Hub funciona como "painel de controle" centralizado
+
+### Auto-detecção de Tipo de Backup (25/01/2025)
+
+O sistema detecta automaticamente o tipo de backup pela extensão do arquivo (para backups antigos):
 
 - **.wpress** → `all_in_one_wp` (WordPress - All-in-One WP Migration)
 - **.zip** → `site_zip` (Site completo)
@@ -283,9 +324,7 @@ O sistema agora detecta automaticamente o tipo de backup pela extensão do arqui
 - **.gz, .tgz, .tar, .bz2** → `compressed_archive` (Arquivo compactado)
 - **Outros** → `other_code` (Arquivo de código/backup)
 
-**Extensões permitidas:** .wpress, .zip, .sql, .gz, .tgz, .tar, .bz2, .rar, .7z
+**Extensões permitidas (apenas para referência, não mais usadas para upload):** .wpress, .zip, .sql, .gz, .tgz, .tar, .bz2, .rar, .7z
 
-A exibição do tipo na tabela foi atualizada para mostrar textos amigáveis como "WordPress (.wpress – All-in-One)" em vez do valor técnico do banco.
-
-**Compatibilidade:** Registros antigos com `type = 'all_in_one_wp'` continuam funcionando normalmente.
+A exibição do tipo na tabela foi atualizada para mostrar textos amigáveis, incluindo "Backup externo (link)" e "Google Drive (link)" para novos backups.
 

@@ -237,6 +237,79 @@ $providerMap = $providerMap ?? [];
 
 <script src="<?= pixelhub_url('/assets/js/hosting_backups.js') ?>"></script>
 <script>
+// Funcionalidade para copiar link do backup
+document.addEventListener('click', function(e) {
+    const copyBtn = e.target.closest('.copy-backup-link-btn');
+    if (!copyBtn) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const url = copyBtn.getAttribute('data-url');
+    if (!url) {
+        alert('URL do backup não encontrada.');
+        return;
+    }
+
+    // Tenta copiar para a área de transferência usando a API moderna
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+            // Feedback visual: muda o texto do botão temporariamente
+            const originalText = copyBtn.textContent;
+            copyBtn.textContent = '✓ Copiado!';
+            copyBtn.style.background = '#28a745';
+            
+            // Restaura após 2 segundos
+            setTimeout(() => {
+                copyBtn.textContent = originalText;
+                copyBtn.style.background = '#28a745';
+            }, 2000);
+        }).catch(err => {
+            console.error('Erro ao copiar:', err);
+            // Fallback: usa método antigo
+            fallbackCopyTextToClipboard(url, copyBtn);
+        });
+    } else {
+        // Fallback para navegadores mais antigos
+        fallbackCopyTextToClipboard(url, copyBtn);
+    }
+});
+
+/**
+ * Método alternativo para copiar texto (fallback)
+ */
+function fallbackCopyTextToClipboard(text, button) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            const originalText = button.textContent;
+            button.textContent = '✓ Copiado!';
+            button.style.background = '#28a745';
+            
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.style.background = '#28a745';
+            }, 2000);
+        } else {
+            alert('Não foi possível copiar o link. Tente selecionar e copiar manualmente.');
+        }
+    } catch (err) {
+        console.error('Erro ao copiar:', err);
+        alert('Erro ao copiar o link. Tente selecionar e copiar manualmente.');
+    } finally {
+        document.body.removeChild(textArea);
+    }
+}
+
 // Inicializa upload em chunks para esta tela
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof HostingBackupUpload !== 'undefined') {
@@ -300,13 +373,42 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <div style="display: flex; gap: 10px; align-items: center;">
                             <?php 
-                            // Lazy loading: sempre mostra link de download (otimização de performance)
-                            // A verificação de existência será feita pelo servidor ao tentar baixar
+                            // Verifica se tem external_url (backup externo) ou stored_path (backup interno antigo)
+                            $hasExternalUrl = !empty($backup['external_url']);
+                            $hasStoredPath = !empty($backup['stored_path']);
+                            
+                            if ($hasExternalUrl) {
+                                // Backup externo: mostra botão "Abrir backup" e "Copiar link"
+                                $externalUrl = htmlspecialchars($backup['external_url']);
+                                ?>
+                                <a href="<?= $externalUrl ?>" 
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   style="background: #023A8D; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; font-weight: 600; display: inline-block;">
+                                    Abrir backup
+                                </a>
+                                <button type="button" 
+                                        class="copy-backup-link-btn"
+                                        data-url="<?= $externalUrl ?>"
+                                        style="background: #28a745; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; display: inline-block;">
+                                    Copiar link
+                                </button>
+                                <?php
+                            } elseif ($hasStoredPath) {
+                                // Backup antigo com arquivo interno: mostra link de download
+                                ?>
+                                <a href="<?= pixelhub_url('/hosting/backups/download?id=' . $backup['id']) ?>" 
+                                   style="color: #023A8D; text-decoration: none; font-weight: 600;">
+                                    Download
+                                </a>
+                                <?php
+                            } else {
+                                // Sem URL e sem path: mostra indicador de problema
+                                ?>
+                                <span style="color: #999; font-size: 12px;">Sem acesso</span>
+                                <?php
+                            }
                             ?>
-                            <a href="<?= pixelhub_url('/hosting/backups/download?id=' . $backup['id']) ?>" 
-                               style="color: #023A8D; text-decoration: none; font-weight: 600;">
-                                Download
-                            </a>
                             
                             <form method="POST" action="<?= pixelhub_url('/hosting/backups/delete') ?>" 
                                   style="display: inline-block; margin: 0;"

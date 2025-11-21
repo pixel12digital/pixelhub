@@ -302,6 +302,8 @@ class WhatsAppTemplatesController extends Controller
 
     /**
      * API: Retorna dados para modal de WhatsApp no cliente
+     * 
+     * Aceita template_id opcional. Se não fornecido, retorna apenas dados do tenant.
      */
     public function getTemplateData(): void
     {
@@ -309,22 +311,15 @@ class WhatsAppTemplatesController extends Controller
 
         header('Content-Type: application/json; charset=utf-8');
 
-        $templateId = isset($_GET['template_id']) ? (int) $_GET['template_id'] : 0;
+        $templateId = isset($_GET['template_id']) && $_GET['template_id'] !== '' ? (int) $_GET['template_id'] : 0;
         $tenantId = isset($_GET['tenant_id']) ? (int) $_GET['tenant_id'] : 0;
 
-        if ($templateId <= 0 || $tenantId <= 0) {
-            echo json_encode(['error' => 'Parâmetros inválidos']);
+        if ($tenantId <= 0) {
+            echo json_encode(['error' => 'tenant_id é obrigatório']);
             return;
         }
 
         $db = DB::getConnection();
-
-        // Busca template
-        $template = WhatsAppTemplateService::getById($templateId);
-        if (!$template) {
-            echo json_encode(['error' => 'Template não encontrado']);
-            return;
-        }
 
         // Busca tenant
         $stmt = $db->prepare("SELECT * FROM tenants WHERE id = ?");
@@ -333,6 +328,34 @@ class WhatsAppTemplatesController extends Controller
 
         if (!$tenant) {
             echo json_encode(['error' => 'Cliente não encontrado']);
+            return;
+        }
+
+        // Normaliza telefone
+        $phoneNormalized = WhatsAppTemplateService::normalizePhone($tenant['phone'] ?? null);
+
+        // Se não tem template_id, retorna apenas dados do tenant
+        if ($templateId <= 0) {
+            echo json_encode([
+                'success' => true,
+                'template' => null,
+                'tenant' => [
+                    'id' => $tenant['id'],
+                    'name' => $tenant['name'],
+                ],
+                'phone' => $tenant['phone'] ?? '',
+                'phone_normalized' => $phoneNormalized,
+                'message' => '',
+                'whatsapp_link' => $phoneNormalized ? 'https://wa.me/' . $phoneNormalized : '',
+                'variables' => [],
+            ]);
+            return;
+        }
+
+        // Busca template
+        $template = WhatsAppTemplateService::getById($templateId);
+        if (!$template) {
+            echo json_encode(['error' => 'Template não encontrado']);
             return;
         }
 
@@ -350,9 +373,6 @@ class WhatsAppTemplatesController extends Controller
 
         // Renderiza mensagem
         $message = WhatsAppTemplateService::renderContent($template, $vars);
-
-        // Normaliza telefone
-        $phoneNormalized = WhatsAppTemplateService::normalizePhone($tenant['phone'] ?? null);
 
         // Gera link
         $whatsappLink = '';

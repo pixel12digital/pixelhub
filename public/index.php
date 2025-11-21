@@ -172,7 +172,10 @@ $router->post('/tenants/update', 'TenantsController@update');
 $router->post('/tenants/delete', 'TenantsController@delete');
 $router->post('/tenants/archive', 'TenantsController@archive');
     $router->get('/tenants/view', 'TenantsController@show');
+    $router->get('/tenants/whatsapp-history', 'TenantsController@whatsappHistory');
     $router->post('/tenants/sync-billing', 'TenantsController@syncBilling');
+    $router->post('/tenants/whatsapp-generic-log', 'TenantsController@logGenericWhatsApp');
+    $router->get('/tenants/whatsapp-timeline-ajax', 'TenantsController@getWhatsAppTimelineAjax');
 
     // Rotas de documentos gerais de tenants (apenas internos)
     $router->post('/tenants/documents/upload', 'TenantDocumentsController@upload');
@@ -272,6 +275,12 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/tasks/checklist/toggle', 'TaskChecklistController@toggle');
     $router->post('/tasks/checklist/update', 'TaskChecklistController@update');
     $router->post('/tasks/checklist/delete', 'TaskChecklistController@delete');
+    
+    // Rotas de anexos de tarefas
+    $router->post('/tasks/attachments/upload', 'TaskAttachmentsController@upload');
+    $router->get('/tasks/attachments/list', 'TaskAttachmentsController@list');
+    $router->get('/tasks/attachments/download', 'TaskAttachmentsController@download');
+    $router->post('/tasks/attachments/delete', 'TaskAttachmentsController@delete');
 
 // Handler para erros fatais (antes do try-catch)
 register_shutdown_function(function() use ($path) {

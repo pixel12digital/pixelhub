@@ -8,6 +8,7 @@ use PixelHub\Core\DB;
 use PixelHub\Core\Storage;
 use PixelHub\Services\HostingProviderService;
 use PixelHub\Services\TaskService;
+use PixelHub\Services\WhatsAppHistoryService;
 
 /**
  * Controller para gerenciar tenants (clientes)
@@ -100,17 +101,15 @@ class TenantsController extends Controller
         $stmt->execute([$tenantId]);
         $overdueCount = (int) $stmt->fetchColumn();
 
-        // Busca últimas notificações WhatsApp do tenant
-        $stmt = $db->prepare("
-            SELECT bn.*, bi.due_date, bi.amount
-            FROM billing_notifications bn
-            LEFT JOIN billing_invoices bi ON bn.invoice_id = bi.id
-            WHERE bn.tenant_id = ?
-            ORDER BY bn.sent_at DESC, bn.created_at DESC
-            LIMIT 5
-        ");
-        $stmt->execute([$tenantId]);
-        $whatsappNotifications = $stmt->fetchAll();
+        // Busca timeline unificada de WhatsApp usando WhatsAppHistoryService
+        // Limite de histórico na Visão Geral: 5 mensagens (para não poluir a tela)
+        $whatsappTimeline = WhatsAppHistoryService::getTimelineByTenant((int)$tenantId, 5);
+        
+        // Último contato WhatsApp (primeiro item da timeline, se houver)
+        $lastWhatsAppContact = !empty($whatsappTimeline) ? $whatsappTimeline[0] : null;
+        
+        // Mantém variável antiga para compatibilidade (pode ser removida depois)
+        $whatsappNotifications = [];
 
         // Busca todos os customers Asaas para o CPF/CNPJ do tenant (apenas na aba financeira)
         // Sempre inicializa as variáveis para evitar erros na view
@@ -185,6 +184,8 @@ class TenantsController extends Controller
             'invoices' => $invoices,
             'overdueCount' => $overdueCount,
             'whatsappNotifications' => $whatsappNotifications,
+            'whatsappTimeline' => $whatsappTimeline,
+            'lastWhatsAppContact' => $lastWhatsAppContact,
             'activeTab' => $activeTab,
             'asaasCustomersByCpf' => $asaasCustomersByCpf,
             'asaasPrimaryCustomerId' => $asaasPrimaryCustomerId,
@@ -818,6 +819,189 @@ class TenantsController extends Controller
             error_log("Erro ao sincronizar faturas do tenant {$tenantId}: " . $e->getMessage());
             $this->redirect('/tenants/view?id=' . $tenantId . '&tab=financial&error=sync_failed&message=' . urlencode('Erro inesperado ao sincronizar. Verifique os logs.'));
         }
+    }
+
+    /**
+     * Endpoint para registrar log genérico de WhatsApp (modal do cliente)
+     * 
+     * Registra envio de mensagem genérica (não relacionada a cobrança) em whatsapp_generic_logs.
+     * Este endpoint é usado pelo modal genérico do painel do cliente (tab Overview).
+     * 
+     * Payload esperado (JSON ou form-data):
+     * - tenant_id (obrigatório)
+     * - template_id (opcional - pode ser null se nenhum template foi usado)
+     * - phone_raw (telefone que o usuário está vendo/editando no modal)
+     * - message (conteúdo final que está no textarea, já editado pelo usuário)
+     * 
+     * Retorna JSON:
+     * - Sucesso: { "success": true }
+     * - Erro: { "success": false, "message": "..." }
+     */
+    public function logGenericWhatsApp(): void
+    {
+        Auth::requireInternal();
+
+        header('Content-Type: application/json; charset=utf-8');
+
+        // Lê dados do POST (suporta JSON ou form-data)
+        $input = file_get_contents('php://input');
+        $data = json_decode($input, true);
+        
+        // Se não conseguiu parsear JSON, tenta form-data
+        if ($data === null) {
+            $data = $_POST;
+        }
+
+        $tenantId = isset($data['tenant_id']) ? (int) $data['tenant_id'] : 0;
+        $templateId = isset($data['template_id']) && $data['template_id'] !== '' && $data['template_id'] !== null 
+            ? (int) $data['template_id'] 
+            : null;
+        $phoneRaw = isset($data['phone_raw']) ? trim($data['phone_raw']) : '';
+        $message = isset($data['message']) ? trim($data['message']) : '';
+
+        // Validações
+        if ($tenantId <= 0) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'tenant_id é obrigatório']);
+            return;
+        }
+
+        if (empty($message)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'message é obrigatório']);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        // Valida se tenant existe
+        $stmt = $db->prepare("SELECT id FROM tenants WHERE id = ?");
+        $stmt->execute([$tenantId]);
+        $tenant = $stmt->fetch();
+
+        if (!$tenant) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Cliente não encontrado']);
+            return;
+        }
+
+        // Valida template_id se informado (opcional, mas se informado deve existir)
+        if ($templateId !== null && $templateId > 0) {
+            $stmt = $db->prepare("SELECT id FROM whatsapp_templates WHERE id = ?");
+            $stmt->execute([$templateId]);
+            $template = $stmt->fetch();
+
+            if (!$template) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Template não encontrado']);
+                return;
+            }
+        }
+
+        // Normaliza telefone usando a mesma lógica existente
+        $phoneNormalized = \PixelHub\Services\WhatsAppTemplateService::normalizePhone($phoneRaw);
+
+        if (empty($phoneNormalized)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Telefone inválido ou não foi possível normalizar']);
+            return;
+        }
+
+        // Insere registro em whatsapp_generic_logs
+        try {
+            $stmt = $db->prepare("
+                INSERT INTO whatsapp_generic_logs 
+                (tenant_id, template_id, phone, message, sent_at, created_at)
+                VALUES (?, ?, ?, ?, NOW(), NOW())
+            ");
+
+            $stmt->execute([
+                $tenantId,
+                $templateId,
+                $phoneNormalized,
+                $message,
+            ]);
+
+            echo json_encode(['success' => true]);
+        } catch (\Exception $e) {
+            error_log("Erro ao registrar log genérico de WhatsApp: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Erro ao registrar log. Tente novamente.']);
+        }
+    }
+
+    /**
+     * Endpoint AJAX: Retorna timeline atualizada de WhatsApp do tenant
+     * 
+     * Usado para atualizar a timeline sem recarregar a página após envio de mensagem.
+     * 
+     * Retorna JSON:
+     * {
+     *   "success": true,
+     *   "timeline": [...],
+     *   "lastContact": {...} | null
+     * }
+     */
+    public function getWhatsAppTimelineAjax(): void
+    {
+        Auth::requireInternal();
+
+        header('Content-Type: application/json; charset=utf-8');
+
+        $tenantId = isset($_GET['tenant_id']) ? (int) $_GET['tenant_id'] : 0;
+
+        if ($tenantId <= 0) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'tenant_id é obrigatório']);
+            return;
+        }
+
+        // Busca timeline unificada (mantém limite de 10 para AJAX, pois pode ser usado em outros contextos)
+        $whatsappTimeline = WhatsAppHistoryService::getTimelineByTenant($tenantId, 10);
+        
+        // Último contato WhatsApp (primeiro item da timeline, se houver)
+        $lastWhatsAppContact = !empty($whatsappTimeline) ? $whatsappTimeline[0] : null;
+
+        echo json_encode([
+            'success' => true,
+            'timeline' => $whatsappTimeline,
+            'lastContact' => $lastWhatsAppContact,
+        ]);
+    }
+
+    /**
+     * Exibe histórico completo de WhatsApp do tenant
+     */
+    public function whatsappHistory(): void
+    {
+        Auth::requireInternal();
+
+        $tenantId = $_GET['id'] ?? null;
+
+        if (!$tenantId) {
+            $this->redirect('/tenants?error=missing_id');
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        // Busca dados do tenant
+        $stmt = $db->prepare("SELECT * FROM tenants WHERE id = ?");
+        $stmt->execute([$tenantId]);
+        $tenant = $stmt->fetch();
+
+        if (!$tenant) {
+            $this->redirect('/tenants?error=not_found');
+            return;
+        }
+
+        // Busca timeline unificada com limite maior para histórico completo (100 mensagens)
+        $whatsappTimeline = WhatsAppHistoryService::getTimelineByTenant((int)$tenantId, 100);
+
+        $this->view('tenants.whatsapp_history', [
+            'tenant' => $tenant,
+            'whatsappTimeline' => $whatsappTimeline,
+        ]);
     }
 }
 

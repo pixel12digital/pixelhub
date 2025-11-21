@@ -285,6 +285,27 @@ class TaskBoardController extends Controller
             $checklist = \PixelHub\Services\TaskChecklistService::getItemsByTask($id);
             $task['checklist'] = $checklist;
             
+            // Busca anexos
+            $stmt = $db->prepare("
+                SELECT * FROM task_attachments
+                WHERE task_id = ?
+                ORDER BY uploaded_at DESC, id DESC
+            ");
+            $stmt->execute([$id]);
+            $attachments = $stmt->fetchAll();
+            
+            // Verifica existência dos arquivos físicos
+            foreach ($attachments as &$attachment) {
+                if (!empty($attachment['file_path'])) {
+                    $attachment['file_exists'] = \PixelHub\Core\Storage::fileExists($attachment['file_path']);
+                } else {
+                    $attachment['file_exists'] = false;
+                }
+            }
+            unset($attachment);
+            
+            $task['attachments'] = $attachments;
+            
             $this->json($task);
         } catch (\Exception $e) {
             error_log("Erro ao buscar tarefa: " . $e->getMessage());

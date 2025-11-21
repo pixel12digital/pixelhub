@@ -16,6 +16,10 @@ function formatBackupType(string $type): string {
             return 'Arquivo compactado';
         case 'other_code':
             return 'Arquivo de código/backup';
+        case 'external_link':
+            return 'Backup externo (link)';
+        case 'google_drive':
+            return 'Google Drive (link)';
         default:
             return htmlspecialchars($type);
     }
@@ -50,7 +54,14 @@ if (empty($backups)):
                     <?= formatBackupType($backup['type'] ?? 'other_code') ?>
                 </td>
                 <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                    <?= Storage::formatFileSize($backup['file_size'] ?? 0) ?>
+                    <?php
+                    // Para backups externos, file_size pode ser NULL
+                    if (isset($backup['file_size']) && $backup['file_size'] !== null && $backup['file_size'] > 0) {
+                        echo Storage::formatFileSize($backup['file_size']);
+                    } else {
+                        echo '<span style="color: #999;">—</span>';
+                    }
+                    ?>
                 </td>
                 <td style="padding: 12px; border-bottom: 1px solid #eee;">
                     <?= htmlspecialchars($backup['notes'] ?? '') ?>
@@ -58,14 +69,42 @@ if (empty($backups)):
                 <td style="padding: 12px; border-bottom: 1px solid #eee;">
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <?php 
-                        // Lazy loading: sempre mostra link de download (otimização de performance)
-                        // A verificação de existência será feita pelo servidor ao tentar baixar
-                        // Isso economiza tempo ao renderizar a tabela, especialmente com muitos backups
+                        // Verifica se tem external_url (backup externo) ou stored_path (backup interno antigo)
+                        $hasExternalUrl = !empty($backup['external_url']);
+                        $hasStoredPath = !empty($backup['stored_path']);
+                        
+                        if ($hasExternalUrl) {
+                            // Backup externo: mostra botão "Abrir backup" e "Copiar link"
+                            $externalUrl = htmlspecialchars($backup['external_url']);
+                            ?>
+                            <a href="<?= $externalUrl ?>" 
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               style="background: #023A8D; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; font-weight: 600; display: inline-block;">
+                                Abrir backup
+                            </a>
+                            <button type="button" 
+                                    class="copy-backup-link-btn"
+                                    data-url="<?= $externalUrl ?>"
+                                    style="background: #28a745; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; display: inline-block;">
+                                Copiar link
+                            </button>
+                            <?php
+                        } elseif ($hasStoredPath) {
+                            // Backup antigo com arquivo interno: mostra link de download
+                            ?>
+                            <a href="<?= pixelhub_url('/hosting/backups/download?id=' . $backup['id']) ?>" 
+                               style="color: #023A8D; text-decoration: none; font-weight: 600;">
+                                Download
+                            </a>
+                            <?php
+                        } else {
+                            // Sem URL e sem path: mostra indicador de problema
+                            ?>
+                            <span style="color: #999; font-size: 12px;">Sem acesso</span>
+                            <?php
+                        }
                         ?>
-                        <a href="<?= pixelhub_url('/hosting/backups/download?id=' . $backup['id']) ?>" 
-                           style="color: #023A8D; text-decoration: none; font-weight: 600;">
-                            Download
-                        </a>
                         
                         <form method="POST" action="<?= pixelhub_url('/hosting/backups/delete') ?>" 
                               style="display: inline-block; margin: 0;">

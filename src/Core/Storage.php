@@ -26,6 +26,15 @@ class Storage
     }
 
     /**
+     * Obtém o diretório de anexos de uma tarefa
+     */
+    public static function getTaskAttachmentsDir(int $taskId): string
+    {
+        $baseDir = __DIR__ . '/../../storage/tasks/' . $taskId;
+        return $baseDir;
+    }
+
+    /**
      * Garante que um diretório existe (cria se necessário)
      */
     public static function ensureDirExists(string $path): void

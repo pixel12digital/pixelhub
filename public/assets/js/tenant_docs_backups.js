@@ -182,30 +182,12 @@
      */
     document.addEventListener('DOMContentLoaded', function() {
         // Intercepta formulário de backup WordPress
+        // Agora o formulário de backup usa apenas URL externa (não faz mais upload de arquivo)
         const formBackup = document.getElementById('form-wp-backup');
         if (formBackup) {
             formBackup.addEventListener('submit', function(e) {
-                // Verifica se o upload está sendo feito via chunks
-                // (o hosting_backups.js marca o formulário quando inicia upload em chunks)
-                if (formBackup.dataset.chunkedUpload === 'true') {
-                    // Deixa o hosting_backups.js gerenciar o upload
-                    return;
-                }
-                
-                const fileInput = formBackup.querySelector('#backup_file');
-                if (fileInput && fileInput.files[0]) {
-                    const file = fileInput.files[0];
-                    // Se o arquivo for maior que 500MB, deixa o hosting_backups.js fazer upload em chunks
-                    const maxDirectUpload = 500 * 1024 * 1024; // 500MB
-                    if (file.size > maxDirectUpload) {
-                        // Marca o formulário para indicar que será feito upload em chunks
-                        formBackup.dataset.chunkedUpload = 'true';
-                        // Deixa o hosting_backups.js gerenciar
-                        return;
-                    }
-                }
-                
                 e.preventDefault();
+                // Envia apenas URL externa (sem upload de arquivo)
                 sendAjaxForm(formBackup, 'tenant-wp-backups');
             });
         }
@@ -261,6 +243,80 @@
                 console.error('Erro na exclusão:', err);
             });
         });
+
+        // Funcionalidade para copiar link do backup
+        // Usa event delegation para funcionar mesmo quando a tabela é atualizada via AJAX
+        document.addEventListener('click', function(e) {
+            const copyBtn = e.target.closest('.copy-backup-link-btn');
+            if (!copyBtn) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const url = copyBtn.getAttribute('data-url');
+            if (!url) {
+                showError('URL do backup não encontrada.');
+                return;
+            }
+
+            // Tenta copiar para a área de transferência usando a API moderna
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                    // Feedback visual: muda o texto do botão temporariamente
+                    const originalText = copyBtn.textContent;
+                    copyBtn.textContent = '✓ Copiado!';
+                    copyBtn.style.background = '#28a745';
+                    
+                    // Restaura após 2 segundos
+                    setTimeout(() => {
+                        copyBtn.textContent = originalText;
+                        copyBtn.style.background = '#28a745';
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Erro ao copiar:', err);
+                    // Fallback: usa método antigo
+                    fallbackCopyTextToClipboard(url, copyBtn);
+                });
+            } else {
+                // Fallback para navegadores mais antigos
+                fallbackCopyTextToClipboard(url, copyBtn);
+            }
+        });
+
+        /**
+         * Método alternativo para copiar texto (fallback)
+         */
+        function fallbackCopyTextToClipboard(text, button) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    const originalText = button.textContent;
+                    button.textContent = '✓ Copiado!';
+                    button.style.background = '#28a745';
+                    
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.style.background = '#28a745';
+                    }, 2000);
+                } else {
+                    showError('Não foi possível copiar o link. Tente selecionar e copiar manualmente.');
+                }
+            } catch (err) {
+                console.error('Erro ao copiar:', err);
+                showError('Erro ao copiar o link. Tente selecionar e copiar manualmente.');
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
     });
 })();
 
