@@ -880,7 +880,20 @@ ob_start();
         html += '</div>';
         html += '</div>';
         
-        // Seção Anexos - dentro do formulário, após o checklist
+        // Botões do rodapé - dentro do formulário, por último
+        html += '<div class="form-actions">';
+        if (isEditing) {
+            html += '<button type="button" data-action="cancel-edit" class="btn btn-secondary js-task-cancel-btn">Cancelar</button>';
+            html += '<button type="submit" class="btn btn-primary">Salvar</button>';
+        } else {
+            html += '<button type="button" data-action="edit-task" class="btn btn-primary js-task-edit-btn">Editar Tarefa</button>';
+            html += '<button type="button" class="btn btn-secondary" onclick="closeTaskDetailModal()">Fechar</button>';
+        }
+        html += '</div>';
+        
+        html += '</form>';
+        
+        // Seção Anexos - FORA do formulário principal para evitar conflitos
         html += '<div class="task-details-attachments-section" style="margin-top: 24px; padding-top: 20px; border-top: 2px solid #f0f0f0;">';
         html += '<h4 style="margin-bottom: 15px; color: #023A8D;">Anexos da Tarefa</h4>';
         html += '<div id="task-attachments-container">';
@@ -925,26 +938,13 @@ ob_start();
         }
         html += '</div>';
         html += '<div style="margin-top: 15px; padding: 15px; background: #f9f9f9; border-radius: 4px;">';
-        html += '<form id="task-attachment-upload-form" enctype="multipart/form-data" onsubmit="event.preventDefault(); uploadTaskAttachment(' + taskId + ');" style="display: flex; gap: 10px; align-items: center;">';
+        html += '<form id="task-attachment-upload-form" enctype="multipart/form-data" onsubmit="event.preventDefault(); uploadTaskAttachment(' + taskId + '); return false;" style="display: flex; gap: 10px; align-items: center;">';
         html += '<input type="hidden" name="task_id" value="' + taskId + '">';
         html += '<input type="file" name="file" id="task-attachment-file" multiple required style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">';
         html += '<button type="submit" class="btn btn-primary btn-small">Enviar Arquivo</button>';
         html += '</form>';
         html += '</div>';
         html += '</div>';
-        
-        // Botões do rodapé - dentro do formulário, por último
-        html += '<div class="form-actions">';
-        if (isEditing) {
-            html += '<button type="button" data-action="cancel-edit" class="btn btn-secondary js-task-cancel-btn">Cancelar</button>';
-            html += '<button type="submit" class="btn btn-primary">Salvar</button>';
-        } else {
-            html += '<button type="button" data-action="edit-task" class="btn btn-primary js-task-edit-btn">Editar Tarefa</button>';
-            html += '<button type="button" class="btn btn-secondary" onclick="closeTaskDetailModal()">Fechar</button>';
-        }
-        html += '</div>';
-        
-        html += '</form>';
         
         const contentDiv = document.getElementById('taskDetailContent');
         if (contentDiv) {
@@ -1310,8 +1310,12 @@ ob_start();
 
     // Upload de anexo
     function uploadTaskAttachment(taskId) {
+        console.log('[Upload] Iniciando upload para taskId:', taskId);
         const form = document.getElementById('task-attachment-upload-form');
-        if (!form) return;
+        if (!form) {
+            console.error('[Upload] Formulário não encontrado!');
+            return;
+        }
 
         const fileInput = document.getElementById('task-attachment-file');
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
@@ -1319,11 +1323,14 @@ ob_start();
             return;
         }
 
+        console.log('[Upload] Arquivos selecionados:', fileInput.files.length);
+
         // Processa cada arquivo (permite múltiplos, mas envia um por vez)
         const files = Array.from(fileInput.files);
         let uploadPromises = [];
         
         files.forEach((file, index) => {
+            console.log('[Upload] Preparando upload do arquivo:', file.name, 'Tamanho:', file.size);
             const formData = new FormData();
             formData.append('task_id', taskId);
             formData.append('file', file);
@@ -1336,12 +1343,23 @@ ob_start();
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    console.log('[Upload] Resposta recebida. Status:', response.status);
+                    if (!response.ok) {
+                        throw new Error('HTTP error! status: ' + response.status);
+                    }
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('[Upload] Dados recebidos:', data);
                     if (!data.success) {
                         throw new Error(data.message || 'Erro ao enviar ' + file.name);
                     }
                     return data;
+                })
+                .catch(error => {
+                    console.error('[Upload] Erro ao enviar arquivo', file.name, ':', error);
+                    throw error;
                 })
             );
         });
@@ -1391,7 +1409,7 @@ ob_start();
             }
         })
         .catch(error => {
-            console.error('Erro:', error);
+            console.error('[Upload] Erro geral:', error);
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
             alert('Erro: ' + (error.message || 'Erro ao enviar arquivo. Tente novamente.'));
