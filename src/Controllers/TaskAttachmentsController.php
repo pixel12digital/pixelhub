@@ -122,14 +122,41 @@ class TaskAttachmentsController extends Controller
         $tenantId = $task['tenant_id'] ? (int)$task['tenant_id'] : null;
 
         // Valida que há arquivo
-        if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        if (!isset($_FILES['file'])) {
+            $log('ERRO: $_FILES[file] não está definido');
             if ($this->isAjaxRequest()) {
                 $this->json([
                     'success' => false,
-                    'message' => 'Nenhum arquivo foi enviado ou ocorreu um erro no upload.'
+                    'message' => 'Nenhum arquivo foi enviado.'
                 ], 400);
             } else {
                 $this->redirect('/tasks/board?error=no_file');
+            }
+            return;
+        }
+
+        // Verifica erro de upload
+        $uploadError = $_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE;
+        if ($uploadError !== UPLOAD_ERR_OK) {
+            $errorMessages = [
+                UPLOAD_ERR_INI_SIZE => 'Arquivo excede o tamanho máximo permitido pelo PHP (upload_max_filesize).',
+                UPLOAD_ERR_FORM_SIZE => 'Arquivo excede o tamanho máximo permitido pelo formulário.',
+                UPLOAD_ERR_PARTIAL => 'Upload foi feito parcialmente.',
+                UPLOAD_ERR_NO_FILE => 'Nenhum arquivo foi enviado.',
+                UPLOAD_ERR_NO_TMP_DIR => 'Falta diretório temporário.',
+                UPLOAD_ERR_CANT_WRITE => 'Falha ao escrever arquivo no disco.',
+                UPLOAD_ERR_EXTENSION => 'Upload bloqueado por extensão PHP.'
+            ];
+            $errorMessage = $errorMessages[$uploadError] ?? 'Erro desconhecido no upload (código: ' . $uploadError . ').';
+            $log('ERRO: Erro no upload - ' . $errorMessage . ' (código: ' . $uploadError . ')');
+            
+            if ($this->isAjaxRequest()) {
+                $this->json([
+                    'success' => false,
+                    'message' => $errorMessage
+                ], 400);
+            } else {
+                $this->redirect('/tasks/board?error=upload_error');
             }
             return;
         }
@@ -236,14 +263,17 @@ class TaskAttachmentsController extends Controller
             $db->commit();
 
             $log(sprintf(
-                'Anexo enviado com sucesso: task_id=%d, file_name=%s',
+                'Anexo enviado com sucesso: task_id=%d, file_name=%s, file_size=%d, stored_path=%s',
                 $taskId,
-                $safeFileName
+                $safeFileName,
+                $fileSize,
+                $storedPath
             ));
 
             // Se for requisição AJAX, retorna JSON
             if ($this->isAjaxRequest()) {
                 $html = $this->renderAttachmentsTable($taskId);
+                $log('Retornando resposta AJAX com sucesso. HTML length: ' . strlen($html));
                 $this->json([
                     'success' => true,
                     'message' => 'Arquivo enviado com sucesso!',

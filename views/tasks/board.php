@@ -927,7 +927,7 @@ ob_start();
         html += '<div style="margin-top: 15px; padding: 15px; background: #f9f9f9; border-radius: 4px;">';
         html += '<form id="task-attachment-upload-form" enctype="multipart/form-data" onsubmit="event.preventDefault(); uploadTaskAttachment(' + taskId + ');" style="display: flex; gap: 10px; align-items: center;">';
         html += '<input type="hidden" name="task_id" value="' + taskId + '">';
-        html += '<input type="file" name="file" id="task-attachment-file" required style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">';
+        html += '<input type="file" name="file" id="task-attachment-file" multiple required style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">';
         html += '<button type="submit" class="btn btn-primary btn-small">Enviar Arquivo</button>';
         html += '</form>';
         html += '</div>';
@@ -1314,61 +1314,87 @@ ob_start();
         if (!form) return;
 
         const fileInput = document.getElementById('task-attachment-file');
-        if (!fileInput || !fileInput.files || !fileInput.files[0]) {
-            alert('Por favor, selecione um arquivo.');
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            alert('Por favor, selecione pelo menos um arquivo.');
             return;
         }
 
-        const formData = new FormData();
-        formData.append('task_id', taskId);
-        formData.append('file', fileInput.files[0]);
-
+        // Processa cada arquivo (permite múltiplos, mas envia um por vez)
+        const files = Array.from(fileInput.files);
+        let uploadPromises = [];
+        
+        files.forEach((file, index) => {
+            const formData = new FormData();
+            formData.append('task_id', taskId);
+            formData.append('file', file);
+            
+            uploadPromises.push(
+                fetch('<?= pixelhub_url('/tasks/attachments/upload') ?>', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Erro ao enviar ' + file.name);
+                    }
+                    return data;
+                })
+            );
+        });
+        
         // Desabilita botão durante upload
         const submitBtn = form.querySelector('button[type="submit"]');
         const originalText = submitBtn.textContent;
         submitBtn.disabled = true;
         submitBtn.textContent = 'Enviando...';
+        
+        // Aguarda todos os uploads
+        Promise.all(uploadPromises)
 
-        fetch('<?= pixelhub_url('/tasks/attachments/upload') ?>', {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
+        .then(results => {
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
             
-            if (data.success) {
-                // Atualiza a tabela de anexos
-                const container = document.getElementById('task-attachments-container');
-                if (container && data.html) {
-                    container.innerHTML = data.html;
-                }
-                // Limpa o input
-                fileInput.value = '';
-                // Recarrega os dados da tarefa para atualizar a lista completa
-                if (window.currentTaskId) {
-                    fetch('<?= pixelhub_url('/tasks') ?>/' + window.currentTaskId)
-                        .then(response => response.json())
-                        .then(taskData => {
-                            if (!taskData.error) {
-                                window.currentTaskData = taskData;
-                                renderTaskDetailModal(taskData, window.currentTaskId, false);
-                            }
-                        });
-                }
+            // Pega o último resultado para atualizar a tabela
+            const lastResult = results[results.length - 1];
+            
+            // Atualiza a tabela de anexos com o último resultado
+            const container = document.getElementById('task-attachments-container');
+            if (container && lastResult && lastResult.html) {
+                container.innerHTML = lastResult.html;
+            }
+            
+            // Limpa o input
+            fileInput.value = '';
+            
+            // Recarrega os dados da tarefa para atualizar a lista completa
+            if (window.currentTaskId) {
+                fetch('<?= pixelhub_url('/tasks') ?>/' + window.currentTaskId)
+                    .then(response => response.json())
+                    .then(taskData => {
+                        if (!taskData.error) {
+                            window.currentTaskData = taskData;
+                            renderTaskDetailModal(taskData, window.currentTaskId, false);
+                        }
+                    });
+            }
+            
+            // Mostra mensagem de sucesso
+            if (files.length === 1) {
+                alert('Arquivo enviado com sucesso!');
             } else {
-                alert('Erro: ' + (data.message || 'Erro ao enviar arquivo.'));
+                alert(files.length + ' arquivos enviados com sucesso!');
             }
         })
         .catch(error => {
             console.error('Erro:', error);
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
-            alert('Erro ao enviar arquivo. Tente novamente.');
+            alert('Erro: ' + (error.message || 'Erro ao enviar arquivo. Tente novamente.'));
         });
     }
 
