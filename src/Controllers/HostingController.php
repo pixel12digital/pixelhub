@@ -101,8 +101,6 @@ class HostingController extends Controller
         $currentProvider = $_POST['current_provider'] ?? 'hostinger';
         $hostingerExpirationDate = !empty($_POST['hostinger_expiration_date']) ? $_POST['hostinger_expiration_date'] : null;
         $domainExpirationDate = !empty($_POST['domain_expiration_date']) ? $_POST['domain_expiration_date'] : null;
-        $decision = $_POST['decision'] ?? 'pendente';
-        $migrationStatus = $_POST['migration_status'] ?? 'nao_iniciada';
         $notes = trim($_POST['notes'] ?? '');
         $redirectTo = $_POST['redirect_to'] ?? 'hosting';
         
@@ -138,6 +136,10 @@ class HostingController extends Controller
 
         // Insere no banco
         try {
+            // Define valores padrão para campos removidos do formulário
+            $decision = 'pendente';
+            $migrationStatus = 'nao_iniciada';
+            
             $stmt = $db->prepare("
                 INSERT INTO hosting_accounts 
                 (tenant_id, domain, hosting_plan_id, plan_name, amount, billing_cycle, current_provider, 
@@ -176,7 +178,16 @@ class HostingController extends Controller
                 $this->redirect('/hosting?success=created');
             }
         } catch (\Exception $e) {
-            error_log("Erro ao criar hosting account: " . $e->getMessage());
+            $errorMsg = "Erro ao criar hosting account: " . $e->getMessage();
+            $errorMsg .= "\nStack trace: " . $e->getTraceAsString();
+            if (isset($stmt) && $stmt) {
+                $errorInfo = $stmt->errorInfo();
+                if ($errorInfo) {
+                    $errorMsg .= "\nSQL Error Code: " . ($errorInfo[0] ?? 'N/A');
+                    $errorMsg .= "\nSQL Error Message: " . ($errorInfo[2] ?? 'N/A');
+                }
+            }
+            error_log($errorMsg);
             $this->redirect('/hosting/create?error=database_error&redirect_to=' . $redirectTo . ($tenantId ? '&tenant_id=' . $tenantId : ''));
         }
     }
@@ -305,8 +316,6 @@ class HostingController extends Controller
         $currentProvider = $_POST['current_provider'] ?? 'hostinger';
         $hostingerExpirationDate = !empty($_POST['hostinger_expiration_date']) ? $_POST['hostinger_expiration_date'] : null;
         $domainExpirationDate = !empty($_POST['domain_expiration_date']) ? $_POST['domain_expiration_date'] : null;
-        $decision = $_POST['decision'] ?? 'pendente';
-        $migrationStatus = $_POST['migration_status'] ?? 'nao_iniciada';
         $notes = trim($_POST['notes'] ?? '');
         $redirectTo = $_POST['redirect_to'] ?? 'hosting';
         
@@ -359,7 +368,7 @@ class HostingController extends Controller
                 UPDATE hosting_accounts 
                 SET tenant_id = ?, domain = ?, hosting_plan_id = ?, plan_name = ?, amount = ?, 
                     billing_cycle = ?, current_provider = ?, hostinger_expiration_date = ?, 
-                    domain_expiration_date = ?, decision = ?, migration_status = ?, notes = ?, 
+                    domain_expiration_date = ?, notes = ?, 
                     hosting_panel_url = ?, hosting_panel_username = ?, hosting_panel_password = ?,
                     site_admin_url = ?, site_admin_username = ?, site_admin_password = ?,
                     updated_at = NOW()
@@ -376,8 +385,6 @@ class HostingController extends Controller
                 $currentProvider,
                 $hostingerExpirationDate ?: null,
                 $domainExpirationDate ?: null,
-                $decision,
-                $migrationStatus,
                 $notes ?: null,
                 $hostingPanelUrl ?: null,
                 $hostingPanelUsername ?: null,
@@ -396,6 +403,10 @@ class HostingController extends Controller
             }
         } catch (\Exception $e) {
             error_log("Erro ao atualizar hosting account: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            if (isset($stmt)) {
+                error_log("SQL Error Info: " . print_r($stmt->errorInfo() ?? [], true));
+            }
             $this->redirect('/hosting/edit?id=' . $id . '&error=database_error&redirect_to=' . $redirectTo);
         }
     }
@@ -615,8 +626,10 @@ class HostingController extends Controller
                     'site_admin_password' => $hostingAccount['site_admin_password'] ?? '',
                     'hostinger_expiration_date' => $hostingAccount['hostinger_expiration_date'] ?? null,
                     'domain_expiration_date' => $hostingAccount['domain_expiration_date'] ?? null,
+                    'current_provider' => $providerSlug,
                 ],
                 'provider_name' => $providerName,
+                'current_provider' => $providerSlug,
                 'status_hospedagem' => [
                     'label' => $hostingStatus['label'],
                     'tipo' => $hostingStatus['tipo'],

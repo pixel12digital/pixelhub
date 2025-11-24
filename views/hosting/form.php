@@ -151,12 +151,56 @@ $providers = $providers ?? [];
                     <option value="hostweb" <?= ($hostingAccount['current_provider'] ?? '') === 'hostweb' ? 'selected' : '' ?>>HostWeb</option>
                     <option value="externo" <?= ($hostingAccount['current_provider'] ?? '') === 'externo' ? 'selected' : '' ?>>Externo</option>
                 <?php endif; ?>
+                <!-- Opção especial para sites sem hospedagem ativa -->
+                <option value="nenhum_backup" <?= ($hostingAccount['current_provider'] ?? '') === 'nenhum_backup' ? 'selected' : '' ?>>
+                    Nenhum (Somente backup externo)
+                </option>
             </select>
             <?php if (empty($providers)): ?>
                 <small style="color: #856404; font-size: 12px; display: block; margin-top: 5px;">
                     ⚠️ Nenhum provedor configurado. Configure em <strong>Configurações > Configurações de Infraestrutura > Provedores de Hospedagem</strong>.
                 </small>
             <?php endif; ?>
+            
+            <!-- Mensagem informativa quando nenhum_backup estiver selecionado -->
+            <div id="nenhum-backup-info" style="display: none; margin-top: 15px; padding: 15px; background: #e7f3ff; border: 1px solid #023A8D; border-radius: 4px;">
+                <p style="margin: 0; color: #023A8D; font-size: 14px;">
+                    <strong>ℹ️ Informação:</strong> Este site está sem hospedagem ativa. Use a aba <strong>Docs & Backups</strong> para ver os links de backup (Google Drive, GitHub, etc.).
+                </p>
+            </div>
+            
+            <!-- DNS do HostWeb -->
+            <div id="hostweb-dns-info" style="display: none; margin-top: 15px; padding: 15px; background: #e7f3ff; border: 1px solid #023A8D; border-radius: 4px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 600; color: #023A8D;">DNS NameServers - HostWeb</h4>
+                <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-bottom: 10px;">
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: #333;">NameServer1:</label>
+                        <input type="text" id="hostweb-ns1" value="ns1.r225us.hmservers.net" readonly 
+                               style="width: 100%; padding: 8px; border: 1px solid #023A8D; border-radius: 4px; background: white; font-family: monospace; cursor: text;"
+                               onclick="this.select();">
+                    </div>
+                    <div style="display: flex; align-items: flex-end;">
+                        <button type="button" onclick="copyToClipboard('hostweb-ns1', this)" 
+                                style="background: #023A8D; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;">
+                            📋 Copiar
+                        </button>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px;">
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: #333;">NameServer2:</label>
+                        <input type="text" id="hostweb-ns2" value="ns2.r225us.hmservers.net" readonly 
+                               style="width: 100%; padding: 8px; border: 1px solid #023A8D; border-radius: 4px; background: white; font-family: monospace; cursor: text;"
+                               onclick="this.select();">
+                    </div>
+                    <div style="display: flex; align-items: flex-end;">
+                        <button type="button" onclick="copyToClipboard('hostweb-ns2', this)" 
+                                style="background: #023A8D; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;">
+                            📋 Copiar
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div style="margin-bottom: 20px;">
@@ -175,27 +219,6 @@ $providers = $providers ?? [];
             <small style="color: #666;">Data de vencimento do domínio (opcional). Usado para alertas de renovação.</small>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-            <div>
-                <label for="decision" style="display: block; margin-bottom: 5px; font-weight: 600;">Decisão</label>
-                <select id="decision" name="decision" 
-                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    <option value="pendente" <?= ($hostingAccount['decision'] ?? 'pendente') === 'pendente' ? 'selected' : '' ?>>Pendente</option>
-                    <option value="migrar_pixel" <?= ($hostingAccount['decision'] ?? '') === 'migrar_pixel' ? 'selected' : '' ?>>Migrar Pixel</option>
-                    <option value="hostinger_afiliado" <?= ($hostingAccount['decision'] ?? '') === 'hostinger_afiliado' ? 'selected' : '' ?>>Hostinger Afiliado</option>
-                    <option value="encerrar" <?= ($hostingAccount['decision'] ?? '') === 'encerrar' ? 'selected' : '' ?>>Encerrar</option>
-                </select>
-            </div>
-            <div>
-                <label for="migration_status" style="display: block; margin-bottom: 5px; font-weight: 600;">Status de Migração</label>
-                <select id="migration_status" name="migration_status" 
-                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    <option value="nao_iniciada" <?= ($hostingAccount['migration_status'] ?? 'nao_iniciada') === 'nao_iniciada' ? 'selected' : '' ?>>Não Iniciada</option>
-                    <option value="em_andamento" <?= ($hostingAccount['migration_status'] ?? '') === 'em_andamento' ? 'selected' : '' ?>>Em Andamento</option>
-                    <option value="concluida" <?= ($hostingAccount['migration_status'] ?? '') === 'concluida' ? 'selected' : '' ?>>Concluída</option>
-                </select>
-            </div>
-        </div>
 
         <div style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px; border-left: 4px solid #023A8D;">
             <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #023A8D;">Credenciais de Acesso</h3>
@@ -305,7 +328,102 @@ function togglePassword(inputId, button) {
     }
 }
 
+function copyToClipboard(inputId, button) {
+    var input = document.getElementById(inputId);
+    if (!input) return;
+    
+    input.select();
+    input.setSelectionRange(0, 99999); // Para mobile
+    
+    try {
+        document.execCommand('copy');
+        var originalText = button.textContent;
+        button.textContent = '✓ Copiado!';
+        button.style.background = '#28a745';
+        
+        setTimeout(function() {
+            button.textContent = originalText;
+            button.style.background = '#023A8D';
+        }, 2000);
+    } catch (err) {
+        // Fallback: tenta usar Clipboard API moderna
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(input.value).then(function() {
+                var originalText = button.textContent;
+                button.textContent = '✓ Copiado!';
+                button.style.background = '#28a745';
+                
+                setTimeout(function() {
+                    button.textContent = originalText;
+                    button.style.background = '#023A8D';
+                }, 2000);
+            });
+        }
+    }
+}
+
+function toggleHostWebDNS() {
+    var providerSelect = document.getElementById('current_provider');
+    var dnsInfo = document.getElementById('hostweb-dns-info');
+    
+    if (!providerSelect || !dnsInfo) return;
+    
+    var selectedValue = providerSelect.value;
+    if (selectedValue === 'hostweb') {
+        dnsInfo.style.display = 'block';
+    } else {
+        dnsInfo.style.display = 'none';
+    }
+}
+
+function toggleNenhumBackupInfo() {
+    var providerSelect = document.getElementById('current_provider');
+    var nenhumBackupInfo = document.getElementById('nenhum-backup-info');
+    var credentialsSection = document.querySelector('div[style*="background: #f9f9f9"][style*="border-left: 4px solid #023A8D"]');
+    
+    if (!providerSelect) return;
+    
+    var selectedValue = providerSelect.value;
+    var isNenhumBackup = selectedValue === 'nenhum_backup';
+    
+    // Mostra/esconde mensagem informativa
+    if (nenhumBackupInfo) {
+        nenhumBackupInfo.style.display = isNenhumBackup ? 'block' : 'none';
+    }
+    
+    // Desabilita campos de credenciais quando nenhum_backup estiver selecionado
+    if (credentialsSection) {
+        var credentialInputs = credentialsSection.querySelectorAll('input[type="text"], input[type="password"]');
+        credentialInputs.forEach(function(input) {
+            if (isNenhumBackup) {
+                input.disabled = true;
+                input.style.background = '#f5f5f5';
+                input.style.cursor = 'not-allowed';
+            } else {
+                input.disabled = false;
+                input.style.background = '';
+                input.style.cursor = '';
+            }
+        });
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
+    // Toggle DNS do HostWeb e info de nenhum_backup
+    var providerSelect = document.getElementById('current_provider');
+    if (providerSelect) {
+        // Verifica valor inicial
+        toggleHostWebDNS();
+        toggleNenhumBackupInfo();
+        
+        // Adiciona listener para mudanças
+        providerSelect.addEventListener('change', function() {
+            toggleHostWebDNS();
+            toggleNenhumBackupInfo();
+        });
+    }
+    
+    // Preenchimento automático de planos
     var select = document.getElementById('hostingPlanSelect');
     if (!select) return;
 
