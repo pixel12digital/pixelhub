@@ -16,6 +16,10 @@ function formatBackupType(string $type): string {
             return 'Arquivo compactado';
         case 'other_code':
             return 'Arquivo de código/backup';
+        case 'external_link':
+            return 'Backup externo (link)';
+        case 'google_drive':
+            return 'Google Drive (link)';
         default:
             return htmlspecialchars($type);
     }
@@ -75,8 +79,20 @@ $providerMap = $providerMap ?? [];
                 echo 'ID do backup não fornecido para exclusão.';
             } elseif ($error === 'delete_not_found') {
                 echo 'Backup não encontrado para exclusão.';
-            } elseif ($error === 'delete_database_error') {
+            }             elseif ($error === 'delete_database_error') {
                 echo 'Erro ao excluir backup do banco de dados.';
+            } elseif ($error === 'missing_backup_or_repo') {
+                echo 'Informe pelo menos um dos campos: URL do backup (Google Drive) ou Repositório GitHub.';
+            } elseif ($error === 'missing_external_url') {
+                echo 'URL do backup é obrigatória. Informe o link do backup (Google Drive ou outro serviço externo).';
+            } elseif ($error === 'invalid_external_url') {
+                echo 'URL inválida. Informe uma URL válida começando com http:// ou https://';
+            } elseif ($error === 'external_url_too_long') {
+                echo 'URL muito longa. Máximo de 500 caracteres.';
+            } elseif ($error === 'invalid_github_url') {
+                echo 'URL do GitHub inválida. Informe uma URL válida começando com http:// ou https://';
+            } elseif ($error === 'github_url_too_long') {
+                echo 'URL do GitHub muito longa. Máximo de 500 caracteres.';
             } else {
                 echo 'Erro desconhecido.';
             }
@@ -114,7 +130,12 @@ $providerMap = $providerMap ?? [];
                 <?php
                 $providerSlug = $hostingAccount['current_provider'] ?? '';
                 $providerName = $providerMap[$providerSlug] ?? $providerSlug;
-                echo htmlspecialchars($providerName);
+                
+                if ($providerSlug === 'nenhum_backup') {
+                    echo '<span style="background: #ffc107; color: #856404; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-block;">Somente backup</span>';
+                } else {
+                    echo htmlspecialchars($providerName);
+                }
                 ?>
             </td>
         </tr>
@@ -139,89 +160,56 @@ $providerMap = $providerMap ?? [];
 </div>
 
 <div class="card">
-    <h3 style="margin-bottom: 20px;">Enviar Novo Backup</h3>
-    <?php
-    // Função helper para converter valores do php.ini para bytes
-    function php_ini_to_bytes(string $value): int {
-        $value = trim($value);
-        if (empty($value)) {
-            return 0;
-        }
-        $last = strtolower(substr($value, -1));
-        $num = (int)$value;
-
-        switch ($last) {
-            case 'g':
-                $num *= 1024;
-                // fall through
-            case 'm':
-                $num *= 1024;
-                // fall through
-            case 'k':
-                $num *= 1024;
-        }
-
-        return $num;
-    }
-
-    $phpUploadMax = ini_get('upload_max_filesize');
-    $phpPostMax   = ini_get('post_max_size');
-    $phpMaxExecTime = ini_get('max_execution_time');
-    $phpMemoryLimit = ini_get('memory_limit');
-
-    // Calcula limites em bytes para uso no JavaScript
-    $uploadMaxBytes = php_ini_to_bytes($phpUploadMax);
-    $postMaxBytes   = php_ini_to_bytes($phpPostMax);
+    <h3 style="margin-bottom: 20px;">Registrar Novo Backup</h3>
     
-    // O limite real é o menor entre upload_max_filesize e post_max_size
-    $phpHardLimitBytes = min($uploadMaxBytes, $postMaxBytes);
+    <?php if (isset($_GET['error'])): ?>
+        <div style="background: #fee; color: #c33; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+            <?php
+            $error = $_GET['error'];
+            if ($error === 'missing_backup_or_repo') echo 'Informe pelo menos um dos campos: URL do backup (Google Drive) ou Repositório GitHub.';
+            elseif ($error === 'missing_external_url') echo 'URL do backup é obrigatória. Informe o link do backup (Google Drive ou outro serviço externo).';
+            elseif ($error === 'invalid_external_url') echo 'URL inválida. Informe uma URL válida começando com http:// ou https://';
+            elseif ($error === 'external_url_too_long') echo 'URL muito longa. Máximo de 500 caracteres.';
+            elseif ($error === 'invalid_github_url') echo 'URL do GitHub inválida. Informe uma URL válida começando com http:// ou https://';
+            elseif ($error === 'github_url_too_long') echo 'URL do GitHub muito longa. Máximo de 500 caracteres.';
+            elseif ($error === 'database_error') echo 'Erro ao registrar o backup no banco de dados.';
+            else echo 'Erro desconhecido.';
+            ?>
+        </div>
+    <?php endif; ?>
     
-    // Limite teórico do sistema (500MB), mas não pode passar do limite do PHP
-    $systemMaxDirectBytes = 500 * 1024 * 1024; // 500MB
-    $maxDirectUploadBytes = min($systemMaxDirectBytes, $phpHardLimitBytes);
-    
-    // Evita valores muito altos por engano; se algo der errado, usa 30MB por segurança
-    if ($maxDirectUploadBytes <= 0) {
-        $maxDirectUploadBytes = 30 * 1024 * 1024; // 30MB fallback
-    }
-
-    // Função para formatar bytes em MB para exibição
-    function formatBytesToMB(int $bytes): string {
-        return number_format($bytes / (1024 * 1024), 0, ',', '.') . ' MB';
-    }
-    ?>
-    <form method="POST" action="<?= pixelhub_url('/hosting/backups/upload') ?>" enctype="multipart/form-data">
+    <form method="POST" action="<?= pixelhub_url('/hosting/backups/upload') ?>">
         <input type="hidden" name="hosting_account_id" value="<?= $hostingAccount['id'] ?>">
         <input type="hidden" name="redirect_to" value="hosting">
         
         <div style="margin-bottom: 15px;">
-            <label for="backup_file" style="display: block; margin-bottom: 5px; font-weight: 600;">Arquivo de Backup:</label>
-            <input type="file" id="backup_file" name="backup_file" accept=".wpress,.zip,.sql,.gz,.tgz,.tar,.bz2,.rar,.7z" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-            <small style="color: #666; display: block; margin-top: 5px;">
-                Envie arquivos de backup do site, como: .wpress (All-in-One WP Migration), .zip (site completo), .sql (banco de dados) ou outros formatos de backup.<br>
-                <strong>Limites atuais do PHP:</strong><br>
-                • upload_max_filesize = <?= htmlspecialchars($phpUploadMax) ?><br>
-                • post_max_size = <?= htmlspecialchars($phpPostMax) ?><br>
-                • max_execution_time = <?= htmlspecialchars($phpMaxExecTime) ?>s<br>
-                • memory_limit = <?= htmlspecialchars($phpMemoryLimit) ?><br>
-                <strong style="color: #F7931E;">Limite direto: <?= formatBytesToMB($maxDirectUploadBytes) ?></strong> | <strong style="color: #F7931E;">Limite total com chunks: 2GB</strong>
+            <label for="external_url" style="display: block; margin-bottom: 5px; font-weight: 600;">URL do backup (Google Drive) <span style="color: #666; font-weight: normal;">(opcional)</span>:</label>
+            <input 
+                type="url" 
+                id="external_url" 
+                name="external_url" 
+                class="form-control" 
+                placeholder="Cole aqui o link compartilhável do backup (arquivo ou pasta no Google Drive)"
+                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+            >
+            <small class="form-text text-muted" style="display: block; color: #666; margin-top: 5px;">
+                Use um link compartilhável do Google Drive (ou outro serviço externo) com acesso adequado para restauração. Preencha este campo ou o repositório GitHub.
             </small>
-            <div style="background: #e8f5e9; border-left: 4px solid #4caf50; padding: 10px; margin-top: 10px; border-radius: 4px;">
-                <strong style="color: #2e7d32;">ℹ️ Sistema de Upload Inteligente:</strong>
-                <p style="margin: 5px 0; color: #2e7d32; font-size: 13px;">
-                    <strong>Arquivos até <?= formatBytesToMB($maxDirectUploadBytes) ?>:</strong> Upload direto (rápido e simples).<br>
-                    <strong>Arquivos acima de <?= formatBytesToMB($maxDirectUploadBytes) ?> até 2GB:</strong> Upload automático em partes (chunks) - mais seguro e confiável.
-                </p>
-            </div>
-            <div id="chunked-upload-progress" style="display: none; margin-top: 15px; padding: 15px; background: #f5f5f5; border-radius: 4px;">
-                <h4 style="margin: 0 0 10px 0; color: #023A8D;">Upload em Progresso</h4>
-                <div style="background: #ddd; height: 25px; border-radius: 4px; overflow: hidden; position: relative;">
-                    <div id="chunked-progress-bar" style="background: #4caf50; height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
-                        0%
-                    </div>
-                </div>
-                <p id="chunked-status" style="margin: 10px 0 0 0; color: #666; font-size: 13px;">Preparando upload...</p>
-            </div>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label for="github_repo_url" style="display: block; margin-bottom: 5px; font-weight: 600;">Repositório GitHub (opcional):</label>
+            <input 
+                type="url" 
+                id="github_repo_url" 
+                name="github_repo_url" 
+                class="form-control" 
+                placeholder="Cole aqui a URL do repositório no GitHub (ou outro controle de versão)"
+                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+            >
+            <small class="form-text text-muted" style="display: block; color: #666; margin-top: 5px;">
+                Use este campo para registrar o repositório de código relacionado a este site/backup. Preencha este campo ou a URL do backup.
+            </small>
         </div>
         
         <div style="margin-bottom: 15px;">
@@ -230,12 +218,11 @@ $providerMap = $providerMap ?? [];
         </div>
         
         <button type="submit" id="submit-btn" style="background: #023A8D; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
-            Enviar Backup
+            Registrar Backup
         </button>
     </form>
 </div>
 
-<script src="<?= pixelhub_url('/assets/js/hosting_backups.js') ?>"></script>
 <script>
 // Funcionalidade para copiar link do backup
 document.addEventListener('click', function(e) {
@@ -309,30 +296,6 @@ function fallbackCopyTextToClipboard(text, button) {
         document.body.removeChild(textArea);
     }
 }
-
-// Inicializa upload em chunks para esta tela
-document.addEventListener('DOMContentLoaded', function() {
-    if (typeof HostingBackupUpload !== 'undefined') {
-        HostingBackupUpload.init({
-            formSelector: 'form[enctype="multipart/form-data"]',
-            fileInputSelector: '#backup_file',
-            notesSelector: '#notes',
-            submitBtnSelector: '#submit-btn',
-            progressContainerSelector: '#chunked-upload-progress',
-            progressBarSelector: '#chunked-progress-bar',
-            statusTextSelector: '#chunked-status',
-            maxDirectUploadBytes: <?= (int) $maxDirectUploadBytes ?>,
-            chunkMaxBytes: <?= 2 * 1024 * 1024 * 1024 ?>, // 2GB
-            chunkSize: 1 * 1024 * 1024, // 1MB por chunk (otimizado para ambientes compartilhados)
-            chunkInitUrl: '<?= pixelhub_url('/hosting/backups/chunk-init') ?>',
-            chunkUploadUrl: '<?= pixelhub_url('/hosting/backups/chunk-upload') ?>',
-            chunkCompleteUrl: '<?= pixelhub_url('/hosting/backups/chunk-complete') ?>',
-            onSuccess: function(hostingAccountId) {
-                window.location.href = '<?= pixelhub_url('/hosting/backups?hosting_id=') ?>' + hostingAccountId + '&success=uploaded';
-            }
-        });
-    }
-});
 </script>
 
 <div class="card">
@@ -365,17 +328,25 @@ document.addEventListener('DOMContentLoaded', function() {
                         <?= htmlspecialchars($backup['file_name']) ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <?= Storage::formatFileSize($backup['file_size'] ?? 0) ?>
+                        <?php
+                        // Para backups externos, file_size pode ser NULL
+                        if (isset($backup['file_size']) && $backup['file_size'] !== null && $backup['file_size'] > 0) {
+                            echo Storage::formatFileSize($backup['file_size']);
+                        } else {
+                            echo '<span style="color: #999;">—</span>';
+                        }
+                        ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?= htmlspecialchars($backup['notes'] ?? '') ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <div style="display: flex; gap: 10px; align-items: center;">
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                             <?php 
                             // Verifica se tem external_url (backup externo) ou stored_path (backup interno antigo)
                             $hasExternalUrl = !empty($backup['external_url']);
                             $hasStoredPath = !empty($backup['stored_path']);
+                            $hasGithubUrl = !empty($backup['github_repo_url']);
                             
                             if ($hasExternalUrl) {
                                 // Backup externo: mostra botão "Abrir backup" e "Copiar link"
@@ -406,6 +377,19 @@ document.addEventListener('DOMContentLoaded', function() {
                                 // Sem URL e sem path: mostra indicador de problema
                                 ?>
                                 <span style="color: #999; font-size: 12px;">Sem acesso</span>
+                                <?php
+                            }
+                            
+                            // Mostra link do GitHub se existir
+                            if ($hasGithubUrl) {
+                                $githubUrl = htmlspecialchars($backup['github_repo_url']);
+                                ?>
+                                <a href="<?= $githubUrl ?>" 
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   style="background: #24292e; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; font-weight: 600; display: inline-block;">
+                                    📦 GitHub
+                                </a>
                                 <?php
                             }
                             ?>

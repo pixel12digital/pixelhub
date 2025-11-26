@@ -56,7 +56,12 @@ $providerMap = $providerMap ?? [];
                         <?php
                         $providerSlug = $hostingAccount['current_provider'] ?? '';
                         $providerName = $providerMap[$providerSlug] ?? $providerSlug;
-                        echo htmlspecialchars($providerName);
+                        
+                        if ($providerSlug === 'nenhum_backup') {
+                            echo '<span style="background: #ffc107; color: #856404; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-block;">Somente backup</span>';
+                        } else {
+                            echo htmlspecialchars($providerName);
+                        }
                         ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">

@@ -173,6 +173,7 @@ class HostingBackupController extends Controller
 
         $hostingAccountId = $_POST['hosting_account_id'] ?? null;
         $externalUrl = trim($_POST['external_url'] ?? '');
+        $githubRepoUrl = trim($_POST['github_repo_url'] ?? '');
         $notes = trim($_POST['notes'] ?? '');
         $redirectTo = $_POST['redirect_to'] ?? 'hosting';
 
@@ -188,9 +189,9 @@ class HostingBackupController extends Controller
             return;
         }
 
-        // Valida external_url (obrigatório para novos backups)
-        if (empty($externalUrl)) {
-            $errorMessage = 'URL do backup é obrigatória. Informe o link do backup (Google Drive ou outro serviço externo).';
+        // Valida se pelo menos um dos campos (external_url OU github_repo_url) está preenchido
+        if (empty($externalUrl) && empty($githubRepoUrl)) {
+            $errorMessage = 'Informe pelo menos um dos campos: URL do backup (Google Drive) ou Repositório GitHub.';
             if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
                 $this->json([
                     'success' => false,
@@ -204,56 +205,106 @@ class HostingBackupController extends Controller
             $stmt->execute([$hostingAccountId]);
             $hosting = $stmt->fetch();
             if ($hosting) {
-                $this->redirect('/tenants/view?id=' . $hosting['tenant_id'] . '&tab=docs_backups&error=missing_external_url');
+                $this->redirect('/tenants/view?id=' . $hosting['tenant_id'] . '&tab=docs_backups&error=missing_backup_or_repo');
             } else {
-                $this->redirect('/hosting/backups?hosting_id=' . $hostingAccountId . '&error=missing_external_url');
+                $this->redirect('/hosting/backups?hosting_id=' . $hostingAccountId . '&error=missing_backup_or_repo');
             }
             return;
         }
 
-        // Valida formato da URL
-        if (!filter_var($externalUrl, FILTER_VALIDATE_URL) || 
-            (!preg_match('/^https?:\/\//i', $externalUrl))) {
-            $errorMessage = 'URL inválida. Informe uma URL válida começando com http:// ou https://';
-            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
-                $this->json([
-                    'success' => false,
-                    'message' => $errorMessage
-                ], 400);
+        // Valida formato da URL do backup (se fornecida)
+        if (!empty($externalUrl)) {
+            if (!filter_var($externalUrl, FILTER_VALIDATE_URL) || 
+                (!preg_match('/^https?:\/\//i', $externalUrl))) {
+                $errorMessage = 'URL inválida. Informe uma URL válida começando com http:// ou https://';
+                if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                    $this->json([
+                        'success' => false,
+                        'message' => $errorMessage
+                    ], 400);
+                    return;
+                }
+                $db = DB::getConnection();
+                $stmt = $db->prepare("SELECT tenant_id FROM hosting_accounts WHERE id = ?");
+                $stmt->execute([$hostingAccountId]);
+                $hosting = $stmt->fetch();
+                if ($hosting) {
+                    $this->redirect('/tenants/view?id=' . $hosting['tenant_id'] . '&tab=docs_backups&error=invalid_external_url');
+                } else {
+                    $this->redirect('/hosting/backups?hosting_id=' . $hostingAccountId . '&error=invalid_external_url');
+                }
                 return;
             }
-            $db = DB::getConnection();
-            $stmt = $db->prepare("SELECT tenant_id FROM hosting_accounts WHERE id = ?");
-            $stmt->execute([$hostingAccountId]);
-            $hosting = $stmt->fetch();
-            if ($hosting) {
-                $this->redirect('/tenants/view?id=' . $hosting['tenant_id'] . '&tab=docs_backups&error=invalid_external_url');
-            } else {
-                $this->redirect('/hosting/backups?hosting_id=' . $hostingAccountId . '&error=invalid_external_url');
+
+            // Valida tamanho máximo da URL (500 caracteres)
+            if (strlen($externalUrl) > 500) {
+                $errorMessage = 'URL muito longa. Máximo de 500 caracteres.';
+                if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                    $this->json([
+                        'success' => false,
+                        'message' => $errorMessage
+                    ], 400);
+                    return;
+                }
+                $db = DB::getConnection();
+                $stmt = $db->prepare("SELECT tenant_id FROM hosting_accounts WHERE id = ?");
+                $stmt->execute([$hostingAccountId]);
+                $hosting = $stmt->fetch();
+                if ($hosting) {
+                    $this->redirect('/tenants/view?id=' . $hosting['tenant_id'] . '&tab=docs_backups&error=external_url_too_long');
+                } else {
+                    $this->redirect('/hosting/backups?hosting_id=' . $hostingAccountId . '&error=external_url_too_long');
+                }
+                return;
             }
-            return;
         }
 
-        // Valida tamanho máximo da URL (500 caracteres)
-        if (strlen($externalUrl) > 500) {
-            $errorMessage = 'URL muito longa. Máximo de 500 caracteres.';
-            if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
-                $this->json([
-                    'success' => false,
-                    'message' => $errorMessage
-                ], 400);
+        // Valida GitHub URL se fornecida (opcional)
+        if (!empty($githubRepoUrl)) {
+            // Valida formato da URL
+            if (!filter_var($githubRepoUrl, FILTER_VALIDATE_URL) || 
+                (!preg_match('/^https?:\/\//i', $githubRepoUrl))) {
+                $errorMessage = 'URL do GitHub inválida. Informe uma URL válida começando com http:// ou https://';
+                if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                    $this->json([
+                        'success' => false,
+                        'message' => $errorMessage
+                    ], 400);
+                    return;
+                }
+                $db = DB::getConnection();
+                $stmt = $db->prepare("SELECT tenant_id FROM hosting_accounts WHERE id = ?");
+                $stmt->execute([$hostingAccountId]);
+                $hosting = $stmt->fetch();
+                if ($hosting) {
+                    $this->redirect('/tenants/view?id=' . $hosting['tenant_id'] . '&tab=docs_backups&error=invalid_github_url');
+                } else {
+                    $this->redirect('/hosting/backups?hosting_id=' . $hostingAccountId . '&error=invalid_github_url');
+                }
                 return;
             }
-            $db = DB::getConnection();
-            $stmt = $db->prepare("SELECT tenant_id FROM hosting_accounts WHERE id = ?");
-            $stmt->execute([$hostingAccountId]);
-            $hosting = $stmt->fetch();
-            if ($hosting) {
-                $this->redirect('/tenants/view?id=' . $hosting['tenant_id'] . '&tab=docs_backups&error=external_url_too_long');
-            } else {
-                $this->redirect('/hosting/backups?hosting_id=' . $hostingAccountId . '&error=external_url_too_long');
+
+            // Valida tamanho máximo da URL do GitHub (500 caracteres)
+            if (strlen($githubRepoUrl) > 500) {
+                $errorMessage = 'URL do GitHub muito longa. Máximo de 500 caracteres.';
+                if ($this->isAjaxRequest() && $redirectTo === 'tenant') {
+                    $this->json([
+                        'success' => false,
+                        'message' => $errorMessage
+                    ], 400);
+                    return;
+                }
+                $db = DB::getConnection();
+                $stmt = $db->prepare("SELECT tenant_id FROM hosting_accounts WHERE id = ?");
+                $stmt->execute([$hostingAccountId]);
+                $hosting = $stmt->fetch();
+                if ($hosting) {
+                    $this->redirect('/tenants/view?id=' . $hosting['tenant_id'] . '&tab=docs_backups&error=github_url_too_long');
+                } else {
+                    $this->redirect('/hosting/backups?hosting_id=' . $hostingAccountId . '&error=github_url_too_long');
+                }
+                return;
             }
-            return;
         }
 
         $db = DB::getConnection();
@@ -286,30 +337,45 @@ class HostingBackupController extends Controller
             }
         };
 
-        // Detecta tipo de backup baseado na URL (padrão: external_link)
-        // Por padrão, considera Google Drive
-        $storageLocation = 'google_drive';
+        // Detecta tipo de backup baseado na URL (se houver external_url)
+        $storageLocation = null;
+        $backupType = 'other_code'; // padrão para backups apenas com GitHub
         
-        // Detecta o provedor de armazenamento pela URL
-        if (preg_match('/drive\.google\.com/i', $externalUrl)) {
+        if (!empty($externalUrl)) {
+            // Por padrão, considera Google Drive
             $storageLocation = 'google_drive';
-            $backupType = 'external_link'; // ou 'google_drive' se preferir
-        } elseif (preg_match('/onedrive\.live\.com|1drv\.ms/i', $externalUrl)) {
-            $storageLocation = 'onedrive';
-            $backupType = 'external_link';
-        } elseif (preg_match('/amazonaws\.com|s3\./i', $externalUrl)) {
-            $storageLocation = 's3';
-            $backupType = 'external_link';
-        } else {
-            // Outro provedor externo
-            $storageLocation = 'outro';
-            $backupType = 'external_link';
-        }
+            
+            // Detecta o provedor de armazenamento pela URL
+            if (preg_match('/drive\.google\.com/i', $externalUrl)) {
+                $storageLocation = 'google_drive';
+                $backupType = 'external_link';
+            } elseif (preg_match('/onedrive\.live\.com|1drv\.ms/i', $externalUrl)) {
+                $storageLocation = 'onedrive';
+                $backupType = 'external_link';
+            } elseif (preg_match('/amazonaws\.com|s3\./i', $externalUrl)) {
+                $storageLocation = 's3';
+                $backupType = 'external_link';
+            } else {
+                // Outro provedor externo
+                $storageLocation = 'outro';
+                $backupType = 'external_link';
+            }
 
-        // Extrai nome do arquivo da URL (se possível) ou usa um nome padrão
-        $fileName = 'backup-externo-' . date('Y-m-d-His');
-        if (preg_match('/[^\/\?]+\.(wpress|zip|sql|gz|tgz|tar|bz2|rar|7z)(\?|$)/i', $externalUrl, $matches)) {
-            $fileName = basename(parse_url($externalUrl, PHP_URL_PATH));
+            // Extrai nome do arquivo da URL (se possível) ou usa um nome padrão
+            $fileName = 'backup-externo-' . date('Y-m-d-His');
+            if (preg_match('/[^\/\?]+\.(wpress|zip|sql|gz|tgz|tar|bz2|rar|7z)(\?|$)/i', $externalUrl, $matches)) {
+                $fileName = basename(parse_url($externalUrl, PHP_URL_PATH));
+            }
+        } else {
+            // Se não houver external_url, usa nome padrão baseado no GitHub
+            $fileName = 'repositorio-github-' . date('Y-m-d-His');
+            if (!empty($githubRepoUrl)) {
+                // Tenta extrair nome do repositório da URL do GitHub
+                if (preg_match('/github\.com\/[^\/]+\/([^\/\?]+)/i', $githubRepoUrl, $matches)) {
+                    $repoName = $matches[1];
+                    $fileName = $repoName . '-backup-' . date('Y-m-d-His');
+                }
+            }
         }
 
         // Salva no banco
@@ -318,14 +384,15 @@ class HostingBackupController extends Controller
 
             $stmt = $db->prepare("
                 INSERT INTO hosting_backups 
-                (hosting_account_id, type, file_name, file_size, stored_path, external_url, storage_location, notes, created_at)
-                VALUES (?, ?, ?, NULL, '', ?, ?, ?, NOW())
+                (hosting_account_id, type, file_name, file_size, stored_path, external_url, github_repo_url, storage_location, notes, created_at)
+                VALUES (?, ?, ?, NULL, '', ?, ?, ?, ?, NOW())
             ");
             $stmt->execute([
                 $hostingAccountId,
                 $backupType,
                 $fileName,
-                $externalUrl,
+                !empty($externalUrl) ? $externalUrl : null,
+                !empty($githubRepoUrl) ? $githubRepoUrl : null,
                 $storageLocation,
                 $notes
             ]);

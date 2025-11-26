@@ -388,6 +388,162 @@ Se nenhum método funcionar, pode ser que o servidor não permita alterar esses 
 
 ---
 
+---
+
+## 🚀 Método Alternativo: Upload Direto via FTP/cPanel (Contorna Erro 500)
+
+Se você está tendo erro **500** ao tentar fazer upload pelo plugin, pode fazer upload direto do arquivo via FTP ou cPanel File Manager. Isso **contorna completamente** a restrição de upload e permite arquivos de qualquer tamanho.
+
+### PARTE 1: Remover Completamente a Restrição do Plugin
+
+#### PASSO 1: Editar o constants.php do plugin
+
+1. No cPanel File Manager, navegue até:
+   - `public_html/wp/wp-content/plugins/all-in-one-wp-migration/constants.php`
+
+#### PASSO 2: Remover ou comentar todas as restrições
+
+**Procure por estas linhas no arquivo e REMOVA ou COMENTE:**
+
+```php
+// Remova ou comente estas linhas se existirem:
+define('AI1WM_MAX_FILE_SIZE', ...);  // ← REMOVER ESTA
+define('AI1WM_MAX_CHUNK_SIZE', ...); // ← REMOVER ESTA (se existir)
+```
+
+**Em vez disso, adicione no final do arquivo:**
+
+```php
+// Remover todas as restrições de tamanho
+define('AI1WM_MAX_FILE_SIZE', 0); // 0 = sem limite
+```
+
+**Ou, se quiser um limite muito alto:**
+
+```php
+// Limite de 10GB (10000000000 bytes)
+define('AI1WM_MAX_FILE_SIZE', 10000000000);
+```
+
+---
+
+### PARTE 2: Fazer Upload Direto do Arquivo
+
+#### PASSO 3: Criar pasta de backups (se não existir)
+
+1. No cPanel File Manager, navegue até:
+   - `public_html/wp/wp-content/`
+
+2. **Crie a pasta** `ai1wm-backups` se ela não existir:
+   - Clique em **"Nova Pasta"** ou **"Create Folder"**
+   - Digite: `ai1wm-backups`
+   - Confirme a criação
+
+**Caminho completo onde o arquivo deve ficar:**
+```
+public_html/wp/wp-content/ai1wm-backups/
+```
+
+#### PASSO 4: Fazer upload do arquivo .wpress
+
+**Opção A: Via cPanel File Manager**
+
+1. Navegue até: `public_html/wp/wp-content/ai1wm-backups/`
+2. Clique em **"Upload"** ou **"Enviar arquivos"**
+3. Selecione seu arquivo `.wpress`
+4. Aguarde o upload completar
+
+**Opção B: Via FTP (FileZilla, etc.)**
+
+1. Conecte-se via FTP ao servidor
+2. Navegue até: `/wp-content/ai1wm-backups/`
+3. Arraste o arquivo `.wpress` para esta pasta
+4. Aguarde o upload completar
+
+**Importante:**
+- O arquivo deve ter extensão `.wpress`
+- Pode ter qualquer nome (ex: `backup-2025-11-21.wpress`)
+- Não precisa estar dentro de subpastas
+
+---
+
+### PARTE 3: Restaurar o Backup
+
+#### PASSO 5: Acessar os backups no WordPress
+
+1. Acesse o **WordPress Admin**
+2. No menu lateral, vá em **All-in-One WP Migration** → **Backups**
+3. Você verá uma lista com todos os arquivos da pasta `ai1wm-backups/`
+4. O arquivo que você fez upload **aparecerá automaticamente** na lista
+
+#### PASSO 6: Restaurar o backup
+
+1. Na lista de backups, encontre o arquivo que você fez upload
+2. Clique em **"Restaurar"** ou **"Restore"**
+3. Confirme a restauração quando solicitado
+4. Aguarde o processo concluir (pode demorar alguns minutos)
+
+---
+
+## ✅ Vantagens do Método de Upload Direto
+
+1. ✅ **Sem limites de tamanho** - Você pode fazer upload de arquivos de qualquer tamanho
+2. ✅ **Mais rápido** - Upload via FTP/cPanel é mais estável que via navegador
+3. ✅ **Sem erro 500** - Contorna completamente o problema de upload via plugin
+4. ✅ **Mais confiável** - Não depende das configurações de PHP para upload
+5. ✅ **Permite pausar e retomar** - Se o upload via FTP for interrompido, pode continuar depois
+
+---
+
+## 🔧 Resolução de Problemas
+
+### Problema: "Arquivo não aparece na lista de backups"
+
+**Soluções:**
+1. Verifique se o arquivo está em: `wp-content/ai1wm-backups/` (não em subpastas)
+2. Verifique se o arquivo tem extensão `.wpress`
+3. Verifique as permissões da pasta (deve ser 755 ou 775)
+4. Recarregue a página de backups no WordPress (F5)
+
+### Problema: "Ainda mostra limite de 512MB ou 2GB"
+
+**Solução:**
+- Verifique se editou o `constants.php` corretamente
+- Adicione: `define('AI1WM_MAX_FILE_SIZE', 0);` no final do arquivo
+- Limpe o cache do WordPress (se houver plugin de cache)
+
+### Problema: "Erro ao restaurar"
+
+**Soluções:**
+1. Verifique as permissões do arquivo (deve ser 644 ou 644)
+2. Verifique se o arquivo não está corrompido
+3. Aumente `max_execution_time` no `.htaccess` para 600 segundos:
+   ```apache
+   php_value max_execution_time 600
+   ```
+
+---
+
+## 📝 Resumo Rápido - Upload Direto
+
+**Para fazer upload direto e remover restrições:**
+
+1. **Editar `constants.php` do plugin:**
+   ```php
+   define('AI1WM_MAX_FILE_SIZE', 0); // Sem limite
+   ```
+
+2. **Criar pasta (se não existir):**
+   - `wp-content/ai1wm-backups/`
+
+3. **Fazer upload do arquivo `.wpress`** para esta pasta via FTP/cPanel
+
+4. **No WordPress:** All-in-One WP Migration → Backups → Restaurar
+
+**Pronto! O arquivo aparecerá automaticamente na lista de backups.**
+
+---
+
 **Data:** 21/11/2025  
 **Última atualização:** 21/11/2025  
 **Status:** ✅ Testado e funcionando em produção

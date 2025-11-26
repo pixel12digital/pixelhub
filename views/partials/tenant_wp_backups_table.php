@@ -25,7 +25,7 @@ function formatBackupType(string $type): string {
     }
 }
 
-// Lista de Backups WordPress
+// Lista de Backups do Site
 if (empty($backups)):
 ?>
     <p style="color: #666;">Nenhum backup encontrado.</p>
@@ -67,11 +67,12 @@ if (empty($backups)):
                     <?= htmlspecialchars($backup['notes'] ?? '') ?>
                 </td>
                 <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                    <div style="display: flex; gap: 10px; align-items: center;">
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                         <?php 
                         // Verifica se tem external_url (backup externo) ou stored_path (backup interno antigo)
                         $hasExternalUrl = !empty($backup['external_url']);
                         $hasStoredPath = !empty($backup['stored_path']);
+                        $hasGithubUrl = !empty($backup['github_repo_url']);
                         
                         if ($hasExternalUrl) {
                             // Backup externo: mostra botão "Abrir backup" e "Copiar link"
@@ -102,6 +103,19 @@ if (empty($backups)):
                             // Sem URL e sem path: mostra indicador de problema
                             ?>
                             <span style="color: #999; font-size: 12px;">Sem acesso</span>
+                            <?php
+                        }
+                        
+                        // Mostra link do GitHub se existir
+                        if ($hasGithubUrl) {
+                            $githubUrl = htmlspecialchars($backup['github_repo_url']);
+                            ?>
+                            <a href="<?= $githubUrl ?>" 
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               style="background: #24292e; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; font-weight: 600; display: inline-block;">
+                                📦 GitHub
+                            </a>
                             <?php
                         }
                         ?>

@@ -659,7 +659,12 @@ $providerMap = $providerMap ?? [];
                             <?php
                             $providerSlug = $hosting['current_provider'] ?? '';
                             $providerName = $providerMap[$providerSlug] ?? $providerSlug;
-                            echo htmlspecialchars($providerName);
+                            
+                            if ($providerSlug === 'nenhum_backup') {
+                                echo '<span style="background: #ffc107; color: #856404; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-block;">Somente backup</span>';
+                            } else {
+                                echo htmlspecialchars($providerName);
+                            }
                             ?>
                         </td>
                         <td style="padding: 12px; border-bottom: 1px solid #eee;">
@@ -779,9 +784,12 @@ $providerMap = $providerMap ?? [];
     <!-- ABA: Docs & Backups -->
     
     <div id="tenant-wp-backups">
-    <!-- Seção 1: Backups WordPress -->
+    <!-- Seção 1: Backups do Site -->
     <div class="card" style="margin-bottom: 20px;">
-        <h3 style="margin-bottom: 20px;">Backups WordPress</h3>
+        <h3 style="margin-bottom: 20px;">Backups do Site</h3>
+        <p style="color: #666; margin-bottom: 20px;">
+            Registre aqui os backups do site (WordPress ou outros tipos), informando apenas a URL do backup e, opcionalmente, o repositório de código.
+        </p>
         
         <!-- Formulário de Upload -->
         <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
@@ -791,9 +799,12 @@ $providerMap = $providerMap ?? [];
                 <div style="background: #fee; color: #c33; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
                     <?php
                     $error = $_GET['error'];
-                    if ($error === 'missing_external_url') echo 'URL do backup é obrigatória. Informe o link do backup (Google Drive ou outro serviço externo).';
+                    if ($error === 'missing_backup_or_repo') echo 'Informe pelo menos um dos campos: URL do backup (Google Drive) ou Repositório GitHub.';
+                    elseif ($error === 'missing_external_url') echo 'URL do backup é obrigatória. Informe o link do backup (Google Drive ou outro serviço externo).';
                     elseif ($error === 'invalid_external_url') echo 'URL inválida. Informe uma URL válida começando com http:// ou https://';
                     elseif ($error === 'external_url_too_long') echo 'URL muito longa. Máximo de 500 caracteres.';
+                    elseif ($error === 'invalid_github_url') echo 'URL do GitHub inválida. Informe uma URL válida começando com http:// ou https://';
+                    elseif ($error === 'github_url_too_long') echo 'URL do GitHub muito longa. Máximo de 500 caracteres.';
                     elseif ($error === 'database_error') echo 'Erro ao registrar o backup no banco de dados.';
                     elseif ($error === 'delete_missing_id') echo 'ID do backup não fornecido para exclusão.';
                     elseif ($error === 'delete_not_found') echo 'Backup não encontrado para exclusão.';
@@ -816,18 +827,32 @@ $providerMap = $providerMap ?? [];
                 </div>
                 
                 <div style="margin-bottom: 15px;">
-                    <label for="external_url" style="display: block; margin-bottom: 5px; font-weight: 600;">URL do backup (Google Drive):</label>
+                    <label for="external_url" style="display: block; margin-bottom: 5px; font-weight: 600;">URL do backup (Google Drive) <span style="color: #666; font-weight: normal;">(opcional)</span>:</label>
                     <input 
                         type="url" 
                         id="external_url" 
                         name="external_url" 
                         class="form-control" 
                         placeholder="Cole aqui o link compartilhável do backup (arquivo ou pasta no Google Drive)"
-                        required
                         style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
                     >
                     <small class="form-text text-muted" style="display: block; color: #666; margin-top: 5px;">
-                        Use um link compartilhável do Google Drive (ou outro serviço externo) com acesso adequado para restauração.
+                        Use um link compartilhável do Google Drive (ou outro serviço externo) com acesso adequado para restauração. Preencha este campo ou o repositório GitHub.
+                    </small>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="github_repo_url" style="display: block; margin-bottom: 5px; font-weight: 600;">Repositório GitHub (opcional):</label>
+                    <input 
+                        type="url" 
+                        id="github_repo_url" 
+                        name="github_repo_url" 
+                        class="form-control" 
+                        placeholder="Cole aqui a URL do repositório no GitHub (ou outro controle de versão)"
+                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+                    >
+                    <small class="form-text text-muted" style="display: block; color: #666; margin-top: 5px;">
+                        Use este campo para registrar o repositório de código relacionado a este site/backup. Preencha este campo ou a URL do backup.
                     </small>
                 </div>
                 
@@ -1631,7 +1656,15 @@ function openHostingDetailsModal(hostingId) {
             html += '<h3 style="margin: 0 0 15px 0; font-size: 16px; color: #023A8D; border-bottom: 2px solid #023A8D; padding-bottom: 8px;">Resumo</h3>';
             html += '<table style="width: 100%; border-collapse: collapse;">';
             html += '<tr><td style="padding: 8px; font-weight: 600; width: 150px;">Plano / Valor:</td><td style="padding: 8px;">' + escapeHtml(hosting.plan_name || data.plan_name || '-') + ' / ' + escapeHtml(hosting.amount || data.amount || '-') + '</td></tr>';
-            html += '<tr><td style="padding: 8px; font-weight: 600;">Provedor:</td><td style="padding: 8px;">' + escapeHtml(providerName) + '</td></tr>';
+            // Verifica se é "nenhum_backup" para mostrar badge
+            var currentProvider = data.current_provider || (hosting && hosting.current_provider) || '';
+            var providerDisplay = providerName;
+            if (currentProvider === 'nenhum_backup' || providerName === 'Nenhum (Somente backup externo)') {
+                providerDisplay = '<span style="background: #ffc107; color: #856404; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-block;">Somente backup</span>';
+            } else {
+                providerDisplay = escapeHtml(providerName);
+            }
+            html += '<tr><td style="padding: 8px; font-weight: 600;">Provedor:</td><td style="padding: 8px;">' + providerDisplay + '</td></tr>';
             
             // Extrai datas corretamente (tenta todas as possibilidades)
             const hostingExpDate = hosting.hostinger_expiration_date || data.hostinger_expiration_date || hosting.hostinger_expiration_date;

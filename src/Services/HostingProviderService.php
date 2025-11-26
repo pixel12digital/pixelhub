@@ -87,6 +87,8 @@ class HostingProviderService
         foreach ($providers as $provider) {
             $map[$provider['slug']] = $provider['name'];
         }
+        // Adiciona opção especial para sites sem hospedagem ativa (apenas backup)
+        $map['nenhum_backup'] = 'Nenhum (Somente backup externo)';
         return $map;
     }
 }
