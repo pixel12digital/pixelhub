@@ -247,10 +247,15 @@ try {
     // IMPORTANTE: file_path já contém 'screen-recordings/', então usamos diretamente
     $relativePath = ltrim($recording['file_path'], '/');
     
-    // Constrói URL completa
-    // Se BASE_URL já termina com /, não adiciona outro
+    // Garante que não há duplicação de 'screen-recordings/'
+    // Se o BASE_URL já termina com 'screen-recordings/', remove do início do relativePath
     $baseUrl = rtrim(BASE_URL, '/');
-    // file_path já contém 'screen-recordings/', então apenas adiciona BASE_URL
+    if (substr($baseUrl, -strlen('/screen-recordings')) === '/screen-recordings') {
+        // BASE_URL já contém /screen-recordings, então remove do início do relativePath
+        $relativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
+    }
+    
+    // Constrói URL completa
     $videoUrl = $baseUrl . '/' . $relativePath;
     
     // Debug: sempre loga para diagnóstico em produção
