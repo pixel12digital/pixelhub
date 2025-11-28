@@ -256,7 +256,7 @@ try {
     // Debug: sempre loga para diagnóstico em produção
     error_log('[ScreenRecordings Share] Token: ' . $token);
     error_log('[ScreenRecordings Share] file_path do banco: ' . $recording['file_path']);
-    error_log('[ScreenRecordings Share] videoRelativePath: ' . $videoRelativePath);
+    error_log('[ScreenRecordings Share] relativePath: ' . $relativePath);
     error_log('[ScreenRecordings Share] BASE_URL: ' . BASE_URL);
     error_log('[ScreenRecordings Share] baseUrl (trimmed): ' . $baseUrl);
     error_log('[ScreenRecordings Share] videoUrl final: ' . $videoUrl);
