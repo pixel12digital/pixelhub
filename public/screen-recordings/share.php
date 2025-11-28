@@ -101,7 +101,13 @@ if (empty($token)) {
 }
 
 try {
+    // Log inicial
+    error_log('[ScreenRecordings Share] Iniciando busca por token: ' . $token);
+    error_log('[ScreenRecordings Share] BASE_PATH: ' . (defined('BASE_PATH') ? BASE_PATH : 'NÃO DEFINIDO'));
+    error_log('[ScreenRecordings Share] BASE_URL: ' . (defined('BASE_URL') ? BASE_URL : 'NÃO DEFINIDO'));
+    
     $db = DB::getConnection();
+    error_log('[ScreenRecordings Share] Conexão com banco estabelecida');
     
     // Busca gravação por token público
     $stmt = $db->prepare("
@@ -116,7 +122,6 @@ try {
     $recording = $stmt->fetch(PDO::FETCH_ASSOC);
     
     // Log para debug
-    error_log('[ScreenRecordings Share] Buscando token: ' . $token);
     error_log('[ScreenRecordings Share] Registro encontrado: ' . ($recording ? 'SIM' : 'NÃO'));
     
     if (!$recording) {
@@ -244,9 +249,15 @@ try {
     error_log('[ScreenRecordings Share] file_path do banco: ' . $recording['file_path']);
     error_log('[ScreenRecordings Share] videoRelativePath: ' . $videoRelativePath);
     error_log('[ScreenRecordings Share] BASE_URL: ' . BASE_URL);
+    error_log('[ScreenRecordings Share] baseUrl (trimmed): ' . $baseUrl);
     error_log('[ScreenRecordings Share] videoUrl final: ' . $videoUrl);
     error_log('[ScreenRecordings Share] filePath físico: ' . $filePath);
     error_log('[ScreenRecordings Share] arquivo existe: ' . (file_exists($filePath) ? 'SIM' : 'NÃO'));
+    
+    // Valida se as variáveis necessárias estão definidas
+    if (empty($videoUrl)) {
+        throw new \RuntimeException('URL do vídeo não pôde ser construída. BASE_URL: ' . BASE_URL);
+    }
     
     // Formata duração
     $duration = $recording['duration_seconds'] ?? 0;
@@ -260,8 +271,12 @@ try {
         ? date('d/m/Y H:i', strtotime($createdAt))
         : null;
     
-} catch (Exception $e) {
-    error_log('[ScreenRecordings Share] Erro: ' . $e->getMessage());
+} catch (\Exception $e) {
+    $errorMsg = $e->getMessage();
+    $errorTrace = $e->getTraceAsString();
+    error_log('[ScreenRecordings Share] ERRO: ' . $errorMsg);
+    error_log('[ScreenRecordings Share] Trace: ' . $errorTrace);
+    error_log('[ScreenRecordings Share] File: ' . $e->getFile() . ' Line: ' . $e->getLine());
     http_response_code(500);
     ?>
     <!DOCTYPE html>
