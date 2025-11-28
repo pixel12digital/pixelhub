@@ -287,6 +287,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Rotas de Biblioteca de Gravações de Tela
     $router->get('/screen-recordings', 'ScreenRecordingsController@index');
     $router->post('/screen-recordings/delete', 'ScreenRecordingsController@delete');
+    $router->get('/screen-recordings/check-token', 'ScreenRecordingsController@checkToken');
 
 // Handler para erros fatais (antes do try-catch)
 register_shutdown_function(function() use ($path) {

@@ -267,5 +267,105 @@ class ScreenRecordingsController extends Controller
             $this->redirect('/screen-recordings?error=delete_failed');
         }
     }
+
+    /**
+     * Diagnóstico de token de gravação (apenas admin)
+     */
+    public function checkToken(): void
+    {
+        Auth::requireInternal();
+
+        $token = isset($_GET['token']) ? trim($_GET['token']) : '';
+
+        if (empty($token)) {
+            $this->json([
+                'success' => false,
+                'message' => 'Token não fornecido. Use: /screen-recordings/check-token?token=SEU_TOKEN'
+            ], 400);
+            return;
+        }
+
+        try {
+            $db = DB::getConnection();
+            
+            // Busca gravação por token
+            $stmt = $db->prepare("
+                SELECT 
+                    id, file_path, file_name, original_name, mime_type, 
+                    size_bytes, duration_seconds, has_audio, public_token, created_at
+                FROM screen_recordings
+                WHERE public_token = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$token]);
+            $recording = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$recording) {
+                // Verifica se a tabela existe e lista alguns tokens
+                $countStmt = $db->query("SELECT COUNT(*) as total FROM screen_recordings");
+                $count = $countStmt->fetch(PDO::FETCH_ASSOC);
+                
+                $lastStmt = $db->query("SELECT id, public_token, file_path, created_at FROM screen_recordings ORDER BY id DESC LIMIT 5");
+                $last = $lastStmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                $this->json([
+                    'success' => false,
+                    'message' => 'Token não encontrado no banco',
+                    'total_recordings' => $count['total'] ?? 0,
+                    'last_recordings' => $last
+                ], 404);
+                return;
+            }
+            
+            // Verifica se arquivo físico existe
+            $relativePath = ltrim($recording['file_path'], '/');
+            $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
+            $filePath = __DIR__ . '/../../public/screen-recordings/' . $fileRelativePath;
+            $fileExists = file_exists($filePath) && is_file($filePath);
+            $fileSize = $fileExists ? filesize($filePath) : 0;
+            
+            // Constrói URL do vídeo
+            $baseUrl = defined('BASE_URL') ? BASE_URL : (defined('BASE_PATH') ? BASE_PATH : '');
+            $baseUrl = rtrim($baseUrl, '/');
+            $videoUrl = $baseUrl . '/screen-recordings/' . $fileRelativePath;
+            
+            // URL de compartilhamento
+            $shareUrl = $baseUrl . '/screen-recordings/share?token=' . urlencode($token);
+            
+            $this->json([
+                'success' => true,
+                'token' => $token,
+                'recording' => [
+                    'id' => $recording['id'],
+                    'file_path' => $recording['file_path'],
+                    'file_name' => $recording['file_name'],
+                    'original_name' => $recording['original_name'],
+                    'size_bytes' => $recording['size_bytes'],
+                    'duration_seconds' => $recording['duration_seconds'],
+                    'created_at' => $recording['created_at']
+                ],
+                'file' => [
+                    'exists' => $fileExists,
+                    'path' => $filePath,
+                    'relative_path' => $fileRelativePath,
+                    'size' => $fileSize,
+                    'size_match' => $fileExists && $fileSize == $recording['size_bytes']
+                ],
+                'urls' => [
+                    'video' => $videoUrl,
+                    'share' => $shareUrl
+                ],
+                'base_url' => $baseUrl,
+                'base_path' => defined('BASE_PATH') ? BASE_PATH : 'N/A'
+            ]);
+            
+        } catch (\Exception $e) {
+            $this->json([
+                'success' => false,
+                'message' => 'Erro ao verificar token: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    }
 }
 
