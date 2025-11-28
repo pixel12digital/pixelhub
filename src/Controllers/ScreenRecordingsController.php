@@ -129,10 +129,19 @@ class ScreenRecordingsController extends Controller
                 $recording['file_exists'] = false;
             }
 
-            // Adiciona URL pública de compartilhamento
+            // Adiciona URL pública de compartilhamento (URL absoluta completa)
             if (!empty($recording['public_token'])) {
-                $basePath = defined('BASE_PATH') ? BASE_PATH : '';
-                $recording['public_url'] = $basePath . '/screen-recordings/share?token=' . urlencode($recording['public_token']);
+                // Constrói URL absoluta com domínio completo
+                if (defined('BASE_URL')) {
+                    $baseUrl = rtrim(BASE_URL, '/');
+                } else {
+                    // Fallback: constrói BASE_URL se não estiver definido
+                    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+                    $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                    $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+                    $baseUrl = $protocol . $domainName . $basePath;
+                }
+                $recording['public_url'] = $baseUrl . '/screen-recordings/share?token=' . urlencode($recording['public_token']);
             } else {
                 $recording['public_url'] = null;
             }

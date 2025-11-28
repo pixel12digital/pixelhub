@@ -351,15 +351,18 @@ class TaskAttachmentsController extends Controller
                     throw new \RuntimeException('Falha ao obter ID do registro inserido');
                 }
                 
-                // Monta URL pública (com fallback se pixelhub_url não estiver disponível)
-                if (function_exists('pixelhub_url')) {
-                    $publicUrl = pixelhub_url('/screen-recordings/share?token=' . urlencode($publicToken));
-                } elseif (defined('BASE_PATH')) {
-                    $base = BASE_PATH;
-                    $publicUrl = $base . '/screen-recordings/share?token=' . urlencode($publicToken);
+                // Monta URL pública (URL absoluta completa com domínio)
+                // Constrói URL absoluta com domínio completo para compartilhamento
+                if (defined('BASE_URL')) {
+                    $baseUrl = rtrim(BASE_URL, '/');
                 } else {
-                    $publicUrl = '/screen-recordings/share?token=' . urlencode($publicToken);
+                    // Fallback: constrói BASE_URL se não estiver definido
+                    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+                    $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                    $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+                    $baseUrl = $protocol . $domainName . $basePath;
                 }
+                $publicUrl = $baseUrl . '/screen-recordings/share?token=' . urlencode($publicToken);
             } else {
                 // Salva na tabela task_attachments (modo task)
                 // Monta query dinamicamente baseado nos campos opcionais
