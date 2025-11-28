@@ -80,46 +80,51 @@ class TaskAttachmentsController extends Controller
             return;
         }
 
-        $taskId = (int)($_POST['task_id'] ?? 0);
-
-        // Valida task_id
-        if ($taskId <= 0) {
-            if ($this->isAjaxRequest()) {
-                $this->json([
-                    'success' => false,
-                    'message' => 'ID da tarefa não fornecido.'
-                ], 400);
-            } else {
-                $this->redirect('/tasks/board?error=missing_task_id');
-            }
-            return;
-        }
+        // Lê o modo de operação
+        $mode = isset($_POST['mode']) ? trim($_POST['mode']) : 'task';
+        $taskId = isset($_POST['task_id']) && !empty($_POST['task_id']) ? (int)$_POST['task_id'] : null;
 
         $db = DB::getConnection();
+        $tenantId = null;
 
-        // Verifica se tarefa existe e obtém tenant_id
-        $stmt = $db->prepare("
-            SELECT t.id, t.project_id, p.tenant_id
-            FROM tasks t
-            LEFT JOIN projects p ON t.project_id = p.id
-            WHERE t.id = ?
-        ");
-        $stmt->execute([$taskId]);
-        $task = $stmt->fetch();
-
-        if (!$task) {
-            if ($this->isAjaxRequest()) {
-                $this->json([
-                    'success' => false,
-                    'message' => 'Tarefa não encontrada.'
-                ], 404);
-            } else {
-                $this->redirect('/tasks/board?error=task_not_found');
+        // Valida task_id apenas se for modo task
+        if ($mode === 'task') {
+            if (!$taskId || $taskId <= 0) {
+                if ($this->isAjaxRequest()) {
+                    $this->json([
+                        'success' => false,
+                        'message' => 'ID da tarefa não fornecido.'
+                    ], 400);
+                } else {
+                    $this->redirect('/tasks/board?error=missing_task_id');
+                }
+                return;
             }
-            return;
-        }
 
-        $tenantId = $task['tenant_id'] ? (int)$task['tenant_id'] : null;
+            // Verifica se tarefa existe e obtém tenant_id
+            $stmt = $db->prepare("
+                SELECT t.id, t.project_id, p.tenant_id
+                FROM tasks t
+                LEFT JOIN projects p ON t.project_id = p.id
+                WHERE t.id = ?
+            ");
+            $stmt->execute([$taskId]);
+            $task = $stmt->fetch();
+
+            if (!$task) {
+                if ($this->isAjaxRequest()) {
+                    $this->json([
+                        'success' => false,
+                        'message' => 'Tarefa não encontrada.'
+                    ], 404);
+                } else {
+                    $this->redirect('/tasks/board?error=task_not_found');
+                }
+                return;
+            }
+
+            $tenantId = $task['tenant_id'] ? (int)$task['tenant_id'] : null;
+        }
 
         // Valida que há arquivo
         if (!isset($_FILES['file'])) {
@@ -167,15 +172,15 @@ class TaskAttachmentsController extends Controller
         $tmpPath = $file['tmp_name'];
         $mimeType = $file['type'] ?? 'application/octet-stream';
 
-        // Valida extensão permitida (mesmas do TenantDocumentsController)
-        $allowedExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'zip', 'rar', '7z', 'tar', 'gz', 'sql', 'mp4'];
+        // Valida extensão permitida (incluindo webm para gravações de tela)
+        $allowedExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'zip', 'rar', '7z', 'tar', 'gz', 'sql', 'mp4', 'webm'];
         $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
 
         if (!in_array($ext, $allowedExtensions)) {
             if ($this->isAjaxRequest()) {
                 $this->json([
                     'success' => false,
-                    'message' => 'Extensão de arquivo não permitida. Extensões permitidas: PDF, DOC, DOCX, XLS, XLSX, CSV, TXT, JPG, JPEG, PNG, WEBP, GIF, ZIP, RAR, 7Z, TAR, GZ, SQL, MP4.'
+                    'message' => 'Extensão de arquivo não permitida. Extensões permitidas: PDF, DOC, DOCX, XLS, XLSX, CSV, TXT, JPG, JPEG, PNG, WEBP, GIF, ZIP, RAR, 7Z, TAR, GZ, SQL, MP4, WEBM.'
                 ], 400);
             } else {
                 $this->redirect('/tasks/board?error=invalid_extension');
@@ -183,13 +188,19 @@ class TaskAttachmentsController extends Controller
             return;
         }
 
-        // Valida tamanho máximo (200MB)
-        $maxSize = 200 * 1024 * 1024; // 200MB
+        // Valida tamanho máximo
+        // Para vídeos (mime_type começa com 'video/'), permite até 300MB
+        // Para outros arquivos, mantém 200MB
+        // TODO: Se necessário, ajustar upload_max_filesize e post_max_size no php.ini para suportar vídeos maiores
+        $isVideo = strpos($mimeType, 'video/') === 0;
+        $maxSize = $isVideo ? (300 * 1024 * 1024) : (200 * 1024 * 1024); // 300MB para vídeos, 200MB para outros
+        
         if ($fileSize > $maxSize) {
+            $maxSizeMB = $isVideo ? 300 : 200;
             if ($this->isAjaxRequest()) {
                 $this->json([
                     'success' => false,
-                    'message' => 'Arquivo muito grande. O limite é 200MB.'
+                    'message' => "Arquivo muito grande. O limite é {$maxSizeMB}MB."
                 ], 400);
             } else {
                 $this->redirect('/tasks/board?error=file_too_large');
@@ -197,13 +208,39 @@ class TaskAttachmentsController extends Controller
             return;
         }
 
-        // Salva arquivo
-        $docsDir = Storage::getTaskAttachmentsDir($taskId);
-        Storage::ensureDirExists($docsDir);
+        // Define diretório e caminho baseado no modo
+        if ($mode === 'library') {
+            // Modo biblioteca: organiza por data
+            $subDir = date('Y/m/d');
+            $docsDir = Storage::getScreenRecordingsDir($subDir);
+            Storage::ensureDirExists($docsDir);
+            
+            // Gera token público único
+            $publicToken = bin2hex(random_bytes(16)); // 32 caracteres
+            
+            // Nome do arquivo usa o token
+            $ext = pathinfo($originalName, PATHINFO_EXTENSION) ?: 'webm';
+            $safeFileName = $publicToken . '.' . $ext;
+            $destinationPath = $docsDir . DIRECTORY_SEPARATOR . $safeFileName;
+            
+            // Caminho relativo para salvar no banco
+            $storedPath = 'screen-recordings/' . $subDir . '/' . $safeFileName;
+        } else {
+            // Modo task: usa diretório da tarefa
+            $docsDir = Storage::getTaskAttachmentsDir($taskId);
+            Storage::ensureDirExists($docsDir);
+            
+            // Gera nome de arquivo seguro
+            $safeFileName = Storage::generateSafeFileName($originalName);
+            $destinationPath = $docsDir . DIRECTORY_SEPARATOR . $safeFileName;
+            
+            // Caminho relativo para salvar no banco
+            $storedPath = '/storage/tasks/' . $taskId . '/' . $safeFileName;
+        }
 
         // Verifica se o diretório é gravável
         if (!is_dir($docsDir) || !is_writable($docsDir)) {
-            $log('ERRO: Diretório de anexos não é gravável: ' . $docsDir);
+            $log('ERRO: Diretório não é gravável: ' . $docsDir);
             if ($this->isAjaxRequest()) {
                 $this->json([
                     'success' => false,
@@ -214,10 +251,6 @@ class TaskAttachmentsController extends Controller
             }
             return;
         }
-
-        // Gera nome de arquivo seguro
-        $safeFileName = Storage::generateSafeFileName($originalName);
-        $destinationPath = $docsDir . DIRECTORY_SEPARATOR . $safeFileName;
 
         // Move arquivo
         if (!move_uploaded_file($tmpPath, $destinationPath)) {
@@ -233,38 +266,148 @@ class TaskAttachmentsController extends Controller
             return;
         }
 
-        // Caminho relativo para salvar no banco
-        $storedPath = '/storage/tasks/' . $taskId . '/' . $safeFileName;
-
         // Obtém usuário atual (se houver)
         $user = Auth::user();
         $uploadedBy = $user ? (int)$user['id'] : null;
+
+        // Lê campos opcionais para gravações de tela
+        $recordingType = isset($_POST['recording_type']) && !empty(trim($_POST['recording_type'])) 
+            ? trim($_POST['recording_type']) 
+            : null;
+        $duration = isset($_POST['duration_seconds']) && $_POST['duration_seconds'] !== '' 
+            ? (int)$_POST['duration_seconds'] 
+            : (isset($_POST['duration']) && $_POST['duration'] !== '' ? (int)$_POST['duration'] : null);
+        $hasAudio = isset($_POST['has_audio']) ? (int)$_POST['has_audio'] : 0;
 
         // Salva no banco
         try {
             $db->beginTransaction();
 
-            $stmt = $db->prepare("
-                INSERT INTO task_attachments 
-                (tenant_id, task_id, file_name, original_name, file_path, file_size, mime_type, uploaded_at, uploaded_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)
-            ");
-            $stmt->execute([
-                $tenantId,
-                $taskId,
-                $safeFileName,
-                $originalName,
-                $storedPath,
-                $fileSize,
-                $mimeType,
-                $uploadedBy,
-            ]);
+            if ($mode === 'library') {
+                // Salva na tabela screen_recordings
+                $publicToken = $publicToken ?? bin2hex(random_bytes(16)); // Garante que existe
+                
+                // Garante que originalName não está vazio (a migration exige NOT NULL)
+                if (empty($originalName)) {
+                    $originalName = $safeFileName ?: 'screen-recording-' . date('Y-m-d-His') . '.webm';
+                }
+                
+                $log(sprintf(
+                    'Tentando inserir na screen_recordings: file_path=%s, file_name=%s, original_name=%s, public_token=%s',
+                    $storedPath,
+                    $safeFileName,
+                    $originalName,
+                    $publicToken
+                ));
+                
+                $stmt = $db->prepare("
+                    INSERT INTO screen_recordings 
+                    (task_id, file_path, file_name, original_name, mime_type, size_bytes, duration_seconds, has_audio, public_token, created_at, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+                ");
+                
+                // Garante que duration é null ou int
+                $durationValue = ($duration !== null && $duration > 0) ? (int)$duration : null;
+                
+                // Prepara valores para inserção
+                $mimeTypeValue = $mimeType ?: 'video/webm';
+                $hasAudioValue = $hasAudio ? 1 : 0;
+                
+                $log(sprintf(
+                    'Valores para INSERT: task_id=NULL, file_path=%s, file_name=%s, original_name=%s, mime_type=%s, size_bytes=%d, duration_seconds=%s, has_audio=%d, public_token=%s, created_by=%s',
+                    $storedPath,
+                    $safeFileName,
+                    $originalName,
+                    $mimeTypeValue,
+                    $fileSize,
+                    $durationValue !== null ? (string)$durationValue : 'NULL',
+                    $hasAudioValue,
+                    $publicToken,
+                    $uploadedBy !== null ? (string)$uploadedBy : 'NULL'
+                ));
+                
+                try {
+                    $stmt->execute([
+                        null, // task_id é NULL para biblioteca
+                        $storedPath,
+                        $safeFileName,
+                        $originalName,
+                        $mimeTypeValue,
+                        $fileSize,
+                        $durationValue,
+                        $hasAudioValue,
+                        $publicToken,
+                        $uploadedBy
+                    ]);
+                } catch (\PDOException $e) {
+                    $log('ERRO PDO ao executar INSERT: ' . $e->getMessage());
+                    $log('SQL State: ' . $e->getCode());
+                    throw $e; // Re-lança para ser capturado pelo catch externo
+                }
+                
+                $recordingId = $db->lastInsertId();
+                
+                if (!$recordingId) {
+                    throw new \RuntimeException('Falha ao obter ID do registro inserido');
+                }
+                
+                // Monta URL pública (com fallback se pixelhub_url não estiver disponível)
+                if (function_exists('pixelhub_url')) {
+                    $publicUrl = pixelhub_url('/screen-recordings/share?token=' . urlencode($publicToken));
+                } elseif (defined('BASE_PATH')) {
+                    $base = BASE_PATH;
+                    $publicUrl = $base . '/screen-recordings/share?token=' . urlencode($publicToken);
+                } else {
+                    $publicUrl = '/screen-recordings/share?token=' . urlencode($publicToken);
+                }
+            } else {
+                // Salva na tabela task_attachments (modo task)
+                // Monta query dinamicamente baseado nos campos opcionais
+                $fields = ['tenant_id', 'task_id', 'file_name', 'original_name', 'file_path', 'file_size', 'mime_type'];
+                $placeholders = ['?', '?', '?', '?', '?', '?', '?'];
+                $values = [$tenantId, $taskId, $safeFileName, $originalName, $storedPath, $fileSize, $mimeType];
+
+                // Adiciona recording_type se fornecido
+                if ($recordingType !== null) {
+                    $fields[] = 'recording_type';
+                    $placeholders[] = '?';
+                    $values[] = $recordingType;
+                }
+
+                // Adiciona duration se fornecido
+                if ($duration !== null) {
+                    $fields[] = 'duration';
+                    $placeholders[] = '?';
+                    $values[] = $duration;
+                }
+
+                // Campos fixos no final
+                $fields[] = 'uploaded_at';
+                $fields[] = 'uploaded_by';
+                $placeholders[] = 'NOW()';
+                $placeholders[] = '?';
+                $values[] = $uploadedBy;
+
+                $fieldsStr = implode(', ', $fields);
+                $placeholdersStr = implode(', ', $placeholders);
+
+                $stmt = $db->prepare("
+                    INSERT INTO task_attachments 
+                    ({$fieldsStr})
+                    VALUES ({$placeholdersStr})
+                ");
+                $stmt->execute($values);
+                
+                $recordingId = $db->lastInsertId();
+                $publicUrl = null;
+            }
 
             $db->commit();
 
             $log(sprintf(
-                'Anexo enviado com sucesso: task_id=%d, file_name=%s, file_size=%d, stored_path=%s',
-                $taskId,
+                'Anexo enviado com sucesso: mode=%s, task_id=%s, file_name=%s, file_size=%d, stored_path=%s',
+                $mode,
+                $taskId ?? 'NULL',
                 $safeFileName,
                 $fileSize,
                 $storedPath
@@ -272,33 +415,131 @@ class TaskAttachmentsController extends Controller
 
             // Se for requisição AJAX, retorna JSON
             if ($this->isAjaxRequest()) {
-                $html = $this->renderAttachmentsTable($taskId);
-                $log('Retornando resposta AJAX com sucesso. HTML length: ' . strlen($html));
-                $this->json([
-                    'success' => true,
-                    'message' => 'Arquivo enviado com sucesso!',
-                    'html' => $html
-                ]);
-                return;
+                if ($mode === 'library') {
+                    // Modo library: retorna dados da gravação
+                    $response = [
+                        'success' => true,
+                        'message' => 'Gravação salva na biblioteca com sucesso.',
+                        'id' => $recordingId,
+                        'mode' => $mode
+                    ];
+                    
+                    if ($publicUrl) {
+                        $response['public_url'] = $publicUrl;
+                        $response['duration'] = $duration;
+                        $response['has_audio'] = (bool)$hasAudio;
+                    }
+                    
+                    $this->json($response);
+                    return;
+                } else {
+                    // Modo task: retorna HTML da tabela de anexos
+                    $html = $this->renderAttachmentsTable($taskId);
+                    $log('Retornando resposta AJAX com sucesso. HTML length: ' . strlen($html));
+                    $this->json([
+                        'success' => true,
+                        'message' => 'Arquivo enviado com sucesso!',
+                        'html' => $html
+                    ]);
+                    return;
+                }
             }
 
             $this->redirect('/tasks/board?success=attachment_uploaded');
-        } catch (\Exception $e) {
+        } catch (\PDOException $e) {
             $db->rollBack();
-            $log('ERRO ao salvar anexo no banco: ' . $e->getMessage());
+            $errorMsg = $e->getMessage();
+            $errorCode = $e->getCode();
+            $errorInfo = $e->errorInfo ?? [];
+            $errorTrace = $e->getTraceAsString();
+            
+            $log('ERRO PDO ao salvar anexo no banco: ' . $errorMsg);
+            $log('Código do erro: ' . $errorCode);
+            $log('ErrorInfo: ' . json_encode($errorInfo));
+            $log('Trace: ' . $errorTrace);
 
             // Remove arquivo se salvou mas falhou no banco
             if (isset($destinationPath) && file_exists($destinationPath)) {
-                unlink($destinationPath);
+                @unlink($destinationPath);
             }
 
             if ($this->isAjaxRequest()) {
-                $this->json([
+                $response = [
                     'success' => false,
                     'message' => 'Erro ao registrar o anexo no banco de dados.'
-                ], 500);
+                ];
+                
+                // Em modo debug, inclui detalhes do erro
+                if (class_exists('\PixelHub\Core\Env') && \PixelHub\Core\Env::isDebug()) {
+                    $response['error_details'] = $errorMsg;
+                    $response['error_code'] = $errorCode;
+                    if (!empty($errorInfo)) {
+                        $response['error_info'] = $errorInfo;
+                    }
+                }
+                
+                $this->json($response, 500);
             } else {
                 $this->redirect('/tasks/board?error=database_error');
+            }
+        } catch (\Exception $e) {
+            $db->rollBack();
+            $errorMsg = $e->getMessage();
+            $errorTrace = $e->getTraceAsString();
+            $log('ERRO ao salvar anexo no banco: ' . $errorMsg);
+            $log('Trace: ' . $errorTrace);
+
+            // Remove arquivo se salvou mas falhou no banco
+            if (isset($destinationPath) && file_exists($destinationPath)) {
+                @unlink($destinationPath);
+            }
+
+            if ($this->isAjaxRequest()) {
+                $response = [
+                    'success' => false,
+                    'message' => 'Erro ao registrar o anexo no banco de dados.'
+                ];
+                
+                // Em modo debug, inclui detalhes do erro
+                if (class_exists('\PixelHub\Core\Env') && \PixelHub\Core\Env::isDebug()) {
+                    $response['error_details'] = $errorMsg;
+                }
+                
+                $this->json($response, 500);
+            } else {
+                $this->redirect('/tasks/board?error=database_error');
+            }
+        } catch (\Throwable $e) {
+            // Captura qualquer erro fatal ou exceção não capturada
+            if (isset($db) && $db->inTransaction()) {
+                $db->rollBack();
+            }
+            
+            $errorMsg = $e->getMessage();
+            $errorTrace = $e->getTraceAsString();
+            $log('ERRO FATAL ao salvar anexo: ' . $errorMsg);
+            $log('Trace: ' . $errorTrace);
+
+            // Remove arquivo se salvou mas falhou no banco
+            if (isset($destinationPath) && file_exists($destinationPath)) {
+                @unlink($destinationPath);
+            }
+
+            if ($this->isAjaxRequest()) {
+                $response = [
+                    'success' => false,
+                    'message' => 'Erro inesperado ao processar o upload.'
+                ];
+                
+                // Em modo debug, inclui detalhes do erro
+                if (class_exists('\PixelHub\Core\Env') && \PixelHub\Core\Env::isDebug()) {
+                    $response['error_details'] = $errorMsg;
+                    $response['error_type'] = get_class($e);
+                }
+                
+                $this->json($response, 500);
+            } else {
+                $this->redirect('/tasks/board?error=unexpected_error');
             }
         }
     }

@@ -204,6 +204,14 @@
     <header class="header">
         <h1>Pixel Hub</h1>
         <div class="header-user">
+            <button type="button"
+                    onclick="startGlobalScreenRecording()"
+                    style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; margin-right: 10px; transition: background 0.3s;"
+                    onmouseover="this.style.background='rgba(255,255,255,0.3)'"
+                    onmouseout="this.style.background='rgba(255,255,255,0.2)'"
+                    title="Gravar tela (contexto inteligente)">
+                🎥 Gravar tela
+            </button>
             <span><?= htmlspecialchars($user['name'] ?? 'Usuário') ?></span>
             <a href="<?= pixelhub_url('/logout') ?>">Sair</a>
         </div>
@@ -273,8 +281,8 @@
             
             <!-- Projetos & Tarefas -->
             <?php
-            $projetosActive = $isActive(['/projects/board', '/projects']);
-            $projetosExpanded = $shouldExpand(['/projects/board', '/projects']);
+            $projetosActive = $isActive(['/projects/board', '/projects', '/screen-recordings']);
+            $projetosExpanded = $shouldExpand(['/projects/board', '/projects', '/screen-recordings']);
             ?>
             <div class="sidebar-module" data-module="projetos">
                 <div class="sidebar-module-header has-children <?= $projetosActive ? 'active' : '' ?> <?= $projetosExpanded ? 'is-open' : '' ?>">
@@ -283,6 +291,7 @@
                 <div class="sidebar-module-content <?= $projetosExpanded ? 'is-open' : '' ?>">
                     <a href="<?= pixelhub_url('/projects/board') ?>" class="sub-item <?= (strpos($currentUri, '/projects/board') !== false) ? 'active' : '' ?>">Quadro Kanban</a>
                     <a href="<?= pixelhub_url('/projects') ?>" class="sub-item <?= (strpos($currentUri, '/projects') !== false && strpos($currentUri, '/projects/board') === false) ? 'active' : '' ?>">Lista de Projetos</a>
+                    <a href="<?= pixelhub_url('/screen-recordings') ?>" class="sub-item <?= (strpos($currentUri, '/screen-recordings') !== false) ? 'active' : '' ?>">Gravações de Tela</a>
                 </div>
             </div>
             
@@ -380,6 +389,50 @@
                 }
             });
         })();
+    </script>
+    
+    <!-- Script do gravador de tela (global) -->
+    <script src="<?= pixelhub_url('/assets/js/screen-recorder.js') ?>"></script>
+    
+    <!-- Função global para iniciar gravação com contexto inteligente -->
+    <script>
+        /**
+         * Inicia gravação de tela com contexto inteligente
+         * - Se estiver na página /screen-recordings: abre em modo LIBRARY (salva na biblioteca)
+         * - Se houver currentTaskId: abre em modo TAREFA (anexa na task)
+         * - Se não houver: abre em modo RÁPIDO (apenas download)
+         */
+        function startGlobalScreenRecording() {
+            if (!window.PixelHubScreenRecorder) {
+                alert('Gravador de tela não está disponível no momento.');
+                return;
+            }
+
+            // Detecta se estamos na página de Gravações de Tela
+            const currentPath = window.location.pathname;
+            const isOnScreenRecordingsPage = currentPath.includes('/screen-recordings') && !currentPath.includes('/screen-recordings/share');
+            
+            if (isOnScreenRecordingsPage) {
+                // Na página de Gravações de Tela, sempre usa modo library
+                console.log('[ScreenRecorder] startGlobalScreenRecording: modo biblioteca (página Gravações de Tela)');
+                window.currentTaskId = null;
+                window.PixelHubScreenRecorder.open(null, 'library');
+                return;
+            }
+
+            // Verifica se realmente há uma tarefa válida em foco
+            // (não apenas se currentTaskId existe, mas se é um número válido)
+            const taskId = window.currentTaskId;
+            if (taskId && typeof taskId === 'number' && taskId > 0) {
+                // Modo tarefa: vincula à tarefa atual
+                console.log('[ScreenRecorder] startGlobalScreenRecording: modo tarefa, taskId=', taskId);
+                window.PixelHubScreenRecorder.open(taskId, 'task');
+            } else {
+                // Modo rápido: apenas download, sem tarefa
+                console.log('[ScreenRecorder] startGlobalScreenRecording: modo rápido (sem tarefa)');
+                window.PixelHubScreenRecorder.open(null, 'quick');
+            }
+        }
     </script>
 </body>
 </html>

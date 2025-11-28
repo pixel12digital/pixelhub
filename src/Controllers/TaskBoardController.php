@@ -285,22 +285,48 @@ class TaskBoardController extends Controller
             $checklist = \PixelHub\Services\TaskChecklistService::getItemsByTask($id);
             $task['checklist'] = $checklist;
             
-            // Busca anexos
+            // Busca anexos com informações do usuário que fez upload
             $db = DB::getConnection();
             $stmt = $db->prepare("
-                SELECT * FROM task_attachments
-                WHERE task_id = ?
-                ORDER BY uploaded_at DESC, id DESC
+                SELECT 
+                    ta.*,
+                    u.name as uploaded_by_name
+                FROM task_attachments ta
+                LEFT JOIN users u ON ta.uploaded_by = u.id
+                WHERE ta.task_id = ?
+                ORDER BY ta.uploaded_at DESC, ta.id DESC
             ");
             $stmt->execute([$id]);
             $attachments = $stmt->fetchAll();
             
-            // Verifica existência dos arquivos físicos
+            // Verifica existência dos arquivos físicos e adiciona URL de download
             foreach ($attachments as &$attachment) {
                 if (!empty($attachment['file_path'])) {
                     $attachment['file_exists'] = \PixelHub\Core\Storage::fileExists($attachment['file_path']);
                 } else {
                     $attachment['file_exists'] = false;
+                }
+                
+                // Adiciona URL de download para uso no player de vídeo
+                if (!empty($attachment['id']) && $attachment['file_exists']) {
+                    // Monta URL de download usando BASE_PATH
+                    $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+                    $attachment['download_url'] = $basePath . '/tasks/attachments/download?id=' . $attachment['id'];
+                } else {
+                    $attachment['download_url'] = null;
+                }
+                
+                // Garante que recording_type e duration estejam presentes (mesmo que null)
+                if (!isset($attachment['recording_type'])) {
+                    $attachment['recording_type'] = null;
+                }
+                if (!isset($attachment['duration'])) {
+                    $attachment['duration'] = null;
+                }
+                
+                // Garante que uploaded_by_name esteja presente (mesmo que null)
+                if (!isset($attachment['uploaded_by_name'])) {
+                    $attachment['uploaded_by_name'] = null;
                 }
             }
             unset($attachment);

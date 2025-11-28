@@ -35,6 +35,20 @@ class Storage
     }
 
     /**
+     * Obtém o diretório de gravações de tela da biblioteca geral
+     * Organiza por data (Y/m/d)
+     * Salva em public/screen-recordings para acesso público
+     */
+    public static function getScreenRecordingsDir(string $subDir = ''): string
+    {
+        $baseDir = __DIR__ . '/../../public/screen-recordings';
+        if ($subDir) {
+            $baseDir .= '/' . trim($subDir, '/');
+        }
+        return $baseDir;
+    }
+
+    /**
      * Garante que um diretório existe (cria se necessário)
      */
     public static function ensureDirExists(string $path): void

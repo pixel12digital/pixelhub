@@ -119,7 +119,7 @@ if ($scriptDir !== '' && $scriptDir !== '/') {
     $path = $uri;
 }
 
-// Normaliza o path
+// Normaliza o path (remove barras duplicadas e barra final)
 $path = '/' . trim($path, '/');
 if ($path === '//') {
     $path = '/';
@@ -127,6 +127,8 @@ if ($path === '//') {
 if ($path === '') {
     $path = '/';
 }
+// Remove barra final para normalizar (Router também faz isso, mas fazemos aqui para garantir)
+$path = rtrim($path, '/') ?: '/';
 
 // Debug: log dos valores
 error_log("=== Router Debug ===");
@@ -281,6 +283,10 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/tasks/attachments/list', 'TaskAttachmentsController@list');
     $router->get('/tasks/attachments/download', 'TaskAttachmentsController@download');
     $router->post('/tasks/attachments/delete', 'TaskAttachmentsController@delete');
+    
+    // Rotas de Biblioteca de Gravações de Tela
+    $router->get('/screen-recordings', 'ScreenRecordingsController@index');
+    $router->post('/screen-recordings/delete', 'ScreenRecordingsController@delete');
 
 // Handler para erros fatais (antes do try-catch)
 register_shutdown_function(function() use ($path) {

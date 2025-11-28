@@ -893,6 +893,19 @@ ob_start();
         
         html += '</form>';
         
+        // Seção Gravações de Tela - ANTES da seção de anexos
+        html += '<div class="task-screen-recordings-section" style="margin-top: 24px; padding-top: 20px; border-top: 2px solid #f0f0f0;">';
+        html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">';
+        html += '<h4 style="margin: 0; color: #023A8D;">Gravações de Tela</h4>';
+        html += '<button type="button" class="btn btn-primary" onclick="PixelHubScreenRecorder.open(' + taskId + ', \'task\')" style="padding: 8px 16px; font-size: 14px; font-weight: 600;">';
+        html += '🎥 Gravar tela';
+        html += '</button>';
+        html += '</div>';
+        html += '<div id="task-screen-recordings-list-' + taskId + '">';
+        html += '<p style="color: #666; font-size: 14px;">Nenhuma gravação de tela cadastrada.</p>';
+        html += '</div>';
+        html += '</div>';
+        
         // Seção Anexos - FORA do formulário principal para evitar conflitos
         html += '<div class="task-details-attachments-section" style="margin-top: 24px; padding-top: 20px; border-top: 2px solid #f0f0f0;">';
         html += '<h4 style="margin-bottom: 15px; color: #023A8D;">Anexos da Tarefa</h4>';
@@ -959,8 +972,108 @@ ob_start();
                 if (!viewMode || !editMode) {
                     console.warn('Elementos de visualização/edição não encontrados após inserção do HTML');
                 }
+                
+                // Renderiza a lista de gravações de tela
+                renderTaskScreenRecordings(data, taskId);
             }, 10);
         }
+    }
+
+    /**
+     * Renderiza a lista de gravações de tela no modal
+     */
+    function renderTaskScreenRecordings(task, taskId) {
+        const containerId = 'task-screen-recordings-list-' + taskId;
+        const container = document.getElementById(containerId);
+        
+        if (!container) {
+            console.warn('[ScreenRecordings] Container não encontrado:', containerId);
+            return;
+        }
+        
+        // Filtra anexos que são gravações de tela
+        const recordings = (task.attachments || []).filter(function(attachment) {
+            // Critério principal: recording_type === 'screen_recording'
+            if (attachment.recording_type === 'screen_recording') {
+                return true;
+            }
+            // Critério secundário (fallback): mime_type video/* ou extensão .webm
+            if (attachment.mime_type && attachment.mime_type.startsWith('video/')) {
+                return true;
+            }
+            if (attachment.file_name && attachment.file_name.toLowerCase().endsWith('.webm')) {
+                return true;
+            }
+            return false;
+        });
+        
+        // Se não houver gravações, mostra mensagem padrão
+        if (recordings.length === 0) {
+            container.innerHTML = '<p style="color: #666; font-size: 14px;">Nenhuma gravação de tela cadastrada.</p>';
+            return;
+        }
+        
+        // Monta HTML da lista de gravações
+        let html = '';
+        recordings.forEach(function(recording) {
+            const fileName = escapeHtml(recording.original_name || recording.file_name || 'Gravação de tela');
+            const duration = recording.duration && recording.duration > 0 
+                ? formatDuration(recording.duration) 
+                : null;
+            const downloadUrl = recording.download_url || null;
+            const mimeType = recording.mime_type || 'video/webm';
+            
+            // Formata informações de upload (se disponíveis)
+            let uploadInfo = '';
+            if (recording.uploaded_at) {
+                const uploadedDate = formatDateTime(recording.uploaded_at);
+                const uploadedByName = recording.uploaded_by_name || (recording.uploaded_by ? 'Usuário #' + recording.uploaded_by : null);
+                
+                if (uploadedByName) {
+                    uploadInfo = '<small style="color: #888; font-size: 12px; display: block; margin-top: 4px;">Enviado por <strong>' + escapeHtml(uploadedByName) + '</strong> em ' + uploadedDate + '</small>';
+                } else {
+                    uploadInfo = '<small style="color: #888; font-size: 12px; display: block; margin-top: 4px;">Enviado em ' + uploadedDate + '</small>';
+                }
+            }
+            
+            html += '<div class="task-screen-recording-item" style="margin-bottom: 16px; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; background: #fafafa;">';
+            html += '<div style="font-size: 13px; margin-bottom: 6px;">';
+            html += '<strong>' + fileName + '</strong>';
+            if (duration) {
+                html += '<span style="color: #888; margin-left: 8px;">(' + duration + ')</span>';
+            }
+            html += '</div>';
+            
+            // Informações de upload (se disponíveis)
+            if (uploadInfo) {
+                html += uploadInfo;
+            }
+            
+            html += '<div style="margin-top: 8px;">';
+            if (downloadUrl && recording.file_exists !== false) {
+                html += '<video controls style="max-width: 100%; border-radius: 6px; outline: none; background: #000;" preload="metadata">';
+                html += '<source src="' + escapeHtml(downloadUrl) + '" type="' + escapeHtml(mimeType) + '">';
+                html += 'Seu navegador não suporta a reprodução deste vídeo.';
+                html += '</video>';
+            } else {
+                html += '<p style="color: #999; font-style: italic; font-size: 13px; margin: 0;">Vídeo indisponível (feito em outro ambiente)</p>';
+            }
+            html += '</div>';
+            
+            html += '</div>';
+        });
+        
+        container.innerHTML = html;
+    }
+    
+    /**
+     * Formata duração em segundos para mm:ss
+     */
+    function formatDuration(seconds) {
+        if (!seconds || seconds <= 0) return '00:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
     }
 
     function escapeHtml(text) {
@@ -1278,6 +1391,9 @@ ob_start();
     function closeTaskDetailModal() {
         console.log('[TaskDetail] closeTaskDetailModal chamado');
         document.getElementById('taskDetailModal').style.display = 'none';
+        // Limpa o currentTaskId quando o modal é fechado para permitir modo rápido em outras telas
+        window.currentTaskId = null;
+        window.currentTaskData = null;
     }
     // Garante que está no escopo global
     window.closeTaskDetailModal = closeTaskDetailModal;
@@ -1887,8 +2003,80 @@ ob_start();
             }
         });
         // ===== FIM DRAG & DROP =====
+        
+        // Configura URL de upload para o gravador de tela
+        window.pixelhubUploadUrl = '<?= pixelhub_url('/tasks/attachments/upload') ?>';
+        
+        /**
+         * Recarrega os dados detalhados de uma tarefa via AJAX
+         */
+        function reloadTaskDetails(taskId, callback) {
+            fetch('<?= pixelhub_url('/tasks') ?>/' + taskId)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP error! status: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        console.error('[ReloadTaskDetails] Erro na resposta:', data.error);
+                        if (callback) callback(null);
+                        return;
+                    }
+                    if (callback) callback(data);
+                })
+                .catch(error => {
+                    console.error('[ReloadTaskDetails] Erro ao recarregar tarefa:', error);
+                    if (callback) callback(null);
+                });
+        }
+        
+        // Listener para evento de gravação enviada
+        document.addEventListener('screenRecordingUploaded', function(event) {
+            const taskId = event.detail.taskId;
+            console.log('[ScreenRecorder] Gravação enviada para tarefa:', taskId);
+            
+            // Atualiza a lista de anexos e gravações se o modal estiver aberto
+            if (window.currentTaskId === taskId) {
+                reloadTaskDetails(taskId, function(updatedTask) {
+                    if (!updatedTask) {
+                        console.error('[ScreenRecorder] Não foi possível recarregar dados da tarefa');
+                        return;
+                    }
+                    
+                    // Atualiza os dados globais
+                    window.currentTaskData = updatedTask;
+                    
+                    // Atualiza a seção de gravações de tela
+                    renderTaskScreenRecordings(updatedTask, taskId);
+                    
+                    // Atualiza também a lista de anexos padrão recarregando via endpoint de listagem
+                    // Isso garante que o vídeo apareça também na seção de anexos
+                    fetch('<?= pixelhub_url('/tasks/attachments/list?task_id=') ?>' + taskId, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.html) {
+                            const attachmentsContainer = document.getElementById('task-attachments-container');
+                            if (attachmentsContainer) {
+                                attachmentsContainer.innerHTML = data.html;
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('[ScreenRecorder] Erro ao atualizar lista de anexos:', error);
+                    });
+                });
+            }
+        });
     });
 </script>
+
+<!-- Script do gravador de tela removido - agora está no layout principal (main.php) -->
 
 <?php
 $content = ob_get_clean();
