@@ -244,14 +244,14 @@ try {
     // O file_path no banco é: screen-recordings/2025/11/28/xxx.webm
     // O arquivo físico está em: public/screen-recordings/2025/11/28/xxx.webm
     // A URL pública deve ser: BASE_URL/screen-recordings/2025/11/28/xxx.webm
+    // IMPORTANTE: file_path já contém 'screen-recordings/', então usamos diretamente
     $relativePath = ltrim($recording['file_path'], '/');
-    // Remove 'screen-recordings/' do início se existir (já está no caminho)
-    $videoRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
     
     // Constrói URL completa
     // Se BASE_URL já termina com /, não adiciona outro
     $baseUrl = rtrim(BASE_URL, '/');
-    $videoUrl = $baseUrl . '/screen-recordings/' . $videoRelativePath;
+    // file_path já contém 'screen-recordings/', então apenas adiciona BASE_URL
+    $videoUrl = $baseUrl . '/' . $relativePath;
     
     // Debug: sempre loga para diagnóstico em produção
     error_log('[ScreenRecordings Share] Token: ' . $token);
