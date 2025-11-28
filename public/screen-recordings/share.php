@@ -189,7 +189,16 @@ try {
     // Remove 'screen-recordings/' do início se existir
     $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
     $filePath = __DIR__ . '/' . $fileRelativePath;
-    if (!file_exists($filePath) || !is_file($filePath)) {
+    $fileExists = file_exists($filePath) && is_file($filePath);
+    
+    // Log detalhado
+    error_log('[ScreenRecordings Share] Verificando arquivo:');
+    error_log('[ScreenRecordings Share]   file_path (banco): ' . $recording['file_path']);
+    error_log('[ScreenRecordings Share]   fileRelativePath: ' . $fileRelativePath);
+    error_log('[ScreenRecordings Share]   filePath absoluto: ' . $filePath);
+    error_log('[ScreenRecordings Share]   arquivo existe: ' . ($fileExists ? 'SIM' : 'NÃO'));
+    
+    if (!$fileExists) {
         http_response_code(404);
         ?>
         <!DOCTYPE html>
@@ -385,10 +394,36 @@ try {
                 <span>Com áudio</span>
             <?php endif; ?>
         </div>
-        <video controls>
-            <source src="<?= htmlspecialchars($videoUrl) ?>" type="<?= htmlspecialchars($recording['mime_type'] ?? 'video/webm') ?>">
-            Seu navegador não suporta a reprodução de vídeo.
-        </video>
+        <?php if ($fileExists): ?>
+            <video controls preload="metadata">
+                <source src="<?= htmlspecialchars($videoUrl) ?>" type="<?= htmlspecialchars($recording['mime_type'] ?? 'video/webm') ?>">
+                Seu navegador não suporta a reprodução de vídeo.
+            </video>
+            <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                <a href="<?= htmlspecialchars($videoUrl) ?>" target="_blank" style="color: #023A8D; text-decoration: underline;">
+                    Abrir vídeo diretamente
+                </a>
+            </p>
+        <?php else: ?>
+            <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 4px; padding: 20px; margin-top: 20px; text-align: left;">
+                <h3 style="color: #856404; margin: 0 0 10px;">⚠️ Arquivo não encontrado no servidor</h3>
+                <p style="color: #856404; margin: 0 0 10px;">O arquivo de vídeo não está disponível no servidor. Isso pode acontecer se:</p>
+                <ul style="color: #856404; margin: 10px 0; padding-left: 20px;">
+                    <li>O arquivo não foi enviado corretamente durante o upload</li>
+                    <li>O arquivo foi movido ou deletado</li>
+                    <li>O servidor está em um ambiente diferente do que fez o upload</li>
+                </ul>
+                <details style="margin-top: 15px;">
+                    <summary style="color: #856404; cursor: pointer; font-weight: 600;">Detalhes técnicos</summary>
+                    <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px; font-family: monospace; font-size: 11px;">
+                        <strong>file_path (banco):</strong> <?= htmlspecialchars($recording['file_path']) ?><br>
+                        <strong>Caminho físico esperado:</strong> <?= htmlspecialchars($filePath) ?><br>
+                        <strong>URL do vídeo:</strong> <a href="<?= htmlspecialchars($videoUrl) ?>" target="_blank" style="color: #023A8D;"><?= htmlspecialchars($videoUrl) ?></a><br>
+                        <strong>BASE_URL:</strong> <?= htmlspecialchars(BASE_URL) ?>
+                    </div>
+                </details>
+            </div>
+        <?php endif; ?>
     </div>
 </body>
 </html>
