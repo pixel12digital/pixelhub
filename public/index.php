@@ -270,6 +270,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/tasks/store', 'TaskBoardController@store');
     $router->post('/tasks/update', 'TaskBoardController@update');
     $router->post('/tasks/move', 'TaskBoardController@move');
+    $router->post('/tasks/delete', 'TaskBoardController@delete');
     $router->get('/tasks/{id}', 'TaskBoardController@show');
     
     // Rotas de Checklist (AJAX)
@@ -277,6 +278,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/tasks/checklist/toggle', 'TaskChecklistController@toggle');
     $router->post('/tasks/checklist/update', 'TaskChecklistController@update');
     $router->post('/tasks/checklist/delete', 'TaskChecklistController@delete');
+    $router->post('/tasks/checklist/reorder', 'TaskChecklistController@reorder');
     
     // Rotas de anexos de tarefas
     $router->post('/tasks/attachments/upload', 'TaskAttachmentsController@upload');
@@ -288,6 +290,47 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/screen-recordings', 'ScreenRecordingsController@index');
     $router->post('/screen-recordings/delete', 'ScreenRecordingsController@delete');
     $router->get('/screen-recordings/check-token', 'ScreenRecordingsController@checkToken');
+    
+    // Rotas de Agenda
+    $router->get('/agenda', 'AgendaController@index');
+    $router->get('/agenda/semana', 'AgendaController@semana');
+    $router->get('/agenda/stats', 'AgendaController@stats');
+    $router->get('/agenda/bloco', 'AgendaController@show');
+    $router->get('/agenda/available-blocks', 'AgendaController@getAvailableBlocks');
+    $router->get('/agenda/block-types', 'AgendaController@getBlockTypes');
+    $router->get('/agenda/bloco/editar', 'AgendaController@editBlock');
+    $router->post('/agenda/bloco/editar', 'AgendaController@updateBlock');
+    $router->get('/agenda/bloco/novo', 'AgendaController@createBlock');
+    $router->post('/agenda/bloco/novo', 'AgendaController@storeBlock');
+    $router->post('/agenda/bloco/attach-task', 'AgendaController@attachTask');
+    $router->post('/agenda/bloco/detach-task', 'AgendaController@detachTask');
+    $router->post('/agenda/bloco/set-focus-task', 'AgendaController@setFocusTask');
+    $router->post('/agenda/bloco/create-quick-task', 'AgendaController@createQuickTask');
+    $router->post('/agenda/bloco/delete', 'AgendaController@delete');
+    $router->post('/agenda/bloco/finish', 'AgendaController@finishBlock');
+    $router->post('/agenda/bloco/reopen', 'AgendaController@reopenBlock');
+    $router->post('/agenda/start', 'AgendaController@start');
+    $router->get('/agenda/ongoing-block', 'AgendaController@getOngoingBlock');
+    $router->post('/agenda/finish', 'AgendaController@finish');
+    $router->post('/agenda/cancel', 'AgendaController@cancel');
+    $router->post('/agenda/update-project-focus', 'AgendaController@updateProjectFocus');
+    $router->post('/agenda/generate-blocks', 'AgendaController@generateBlocks');
+    $router->get('/agenda/weekly-report', 'AgendaController@weeklyReport');
+    $router->get('/agenda/monthly-report', 'AgendaController@monthlyReport');
+    
+    // Rotas de Tarefas
+    $router->get('/tasks/modal', 'TaskBoardController@modal');
+    $router->post('/tasks/update-status', 'TaskBoardController@updateTaskStatus');
+    
+    // Rotas de Tickets
+    $router->get('/tickets', 'TicketController@index');
+    $router->get('/tickets/create', 'TicketController@create');
+    $router->get('/tickets/create-from-task', 'TicketController@createFromTask');
+    $router->post('/tickets/store', 'TicketController@store');
+    $router->get('/tickets/show', 'TicketController@show');
+    $router->get('/tickets/edit', 'TicketController@edit');
+    $router->post('/tickets/update', 'TicketController@update');
+    $router->post('/tickets/create-task', 'TicketController@createTaskFromTicket');
 
 // Handler para erros fatais (antes do try-catch)
 register_shutdown_function(function() use ($path) {
