@@ -187,8 +187,22 @@ try {
         $filePath = null;
         
         if (strpos($relativePath, 'storage/tasks/') === 0) {
-            // Arquivo de tarefa: busca em storage/tasks/
+            // Arquivo de tarefa: busca em storage/tasks/ (raiz do projeto)
+            // __DIR__ é public/screen-recordings/, então ../../ volta para a raiz
             $filePath = __DIR__ . '/../../' . $relativePath;
+            
+            // Normaliza o caminho (resolve .. e .)
+            $normalizedPath = realpath($filePath);
+            if ($normalizedPath) {
+                $filePath = $normalizedPath;
+            }
+            
+            // Log para debug
+            error_log('[ScreenRecordings Share Stream] relativePath: ' . $relativePath);
+            error_log('[ScreenRecordings Share Stream] __DIR__: ' . __DIR__);
+            error_log('[ScreenRecordings Share Stream] filePath calculado: ' . $filePath);
+            error_log('[ScreenRecordings Share Stream] filePath normalizado: ' . ($normalizedPath ?: 'NÃO EXISTE'));
+            error_log('[ScreenRecordings Share Stream] arquivo existe: ' . (file_exists($filePath) ? 'SIM' : 'NÃO'));
         } elseif (strpos($relativePath, 'screen-recordings/') === 0) {
             // Arquivo da biblioteca: busca em public/screen-recordings/
             $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
@@ -230,6 +244,24 @@ try {
             }
             exit;
         } else {
+            // Log detalhado para debug
+            error_log('[ScreenRecordings Share Stream] Arquivo não encontrado!');
+            error_log('[ScreenRecordings Share Stream] relativePath: ' . $relativePath);
+            error_log('[ScreenRecordings Share Stream] filePath: ' . $filePath);
+            error_log('[ScreenRecordings Share Stream] __DIR__: ' . __DIR__);
+            error_log('[ScreenRecordings Share Stream] file_exists: ' . (file_exists($filePath) ? 'SIM' : 'NÃO'));
+            if ($filePath) {
+                error_log('[ScreenRecordings Share Stream] is_file: ' . (is_file($filePath) ? 'SIM' : 'NÃO'));
+                error_log('[ScreenRecordings Share Stream] is_dir: ' . (is_dir($filePath) ? 'SIM' : 'NÃO'));
+                // Tenta verificar diretório pai
+                $parentDir = dirname($filePath);
+                error_log('[ScreenRecordings Share Stream] parentDir existe: ' . (is_dir($parentDir) ? 'SIM' : 'NÃO'));
+                if (is_dir($parentDir)) {
+                    $files = scandir($parentDir);
+                    error_log('[ScreenRecordings Share Stream] Arquivos no diretório: ' . implode(', ', $files));
+                }
+            }
+            
             http_response_code(404);
             echo 'Arquivo não encontrado';
             exit;
@@ -244,8 +276,19 @@ try {
     $filePath = null;
     
     if (strpos($relativePath, 'storage/tasks/') === 0) {
-        // Arquivo de tarefa: busca em storage/tasks/
+        // Arquivo de tarefa: busca em storage/tasks/ (raiz do projeto)
+        // __DIR__ é public/screen-recordings/, então ../../ volta para a raiz
         $filePath = __DIR__ . '/../../' . $relativePath;
+        
+        // Normaliza o caminho (resolve .. e .)
+        $filePath = realpath($filePath) ?: $filePath;
+        
+        // Log para debug
+        error_log('[ScreenRecordings Share] Verificando arquivo de tarefa:');
+        error_log('[ScreenRecordings Share]   relativePath: ' . $relativePath);
+        error_log('[ScreenRecordings Share]   __DIR__: ' . __DIR__);
+        error_log('[ScreenRecordings Share]   filePath calculado: ' . $filePath);
+        error_log('[ScreenRecordings Share]   filePath normalizado: ' . (realpath($filePath) ?: 'NÃO EXISTE'));
     } elseif (strpos($relativePath, 'screen-recordings/') === 0) {
         // Arquivo da biblioteca: busca em public/screen-recordings/
         $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);

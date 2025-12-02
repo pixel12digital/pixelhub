@@ -35,7 +35,7 @@ class ScreenRecordingsController extends Controller
 
             // Monta WHERE clause - busca todas as gravações (biblioteca e vinculadas a tarefas)
             // Remove filtro task_id IS NULL para mostrar todas
-            $whereConditions = [];
+            $whereConditions = ['1=1']; // Sempre verdadeiro para permitir WHERE válido
             $params = [];
 
         // Filtro de busca (nome do arquivo)
@@ -78,6 +78,7 @@ class ScreenRecordingsController extends Controller
             error_log('[ScreenRecordings] Erro na query de contagem: ' . $e->getMessage());
             error_log('[ScreenRecordings] SQL: ' . $countSql);
             error_log('[ScreenRecordings] Params: ' . print_r($params, true));
+            error_log('[ScreenRecordings] Error Info: ' . print_r($e->errorInfo ?? [], true));
             throw $e;
         }
 
@@ -120,7 +121,52 @@ class ScreenRecordingsController extends Controller
             error_log('[ScreenRecordings] Erro na query principal: ' . $e->getMessage());
             error_log('[ScreenRecordings] SQL: ' . $sql);
             error_log('[ScreenRecordings] Params: ' . print_r($allParams, true));
-            throw $e;
+            error_log('[ScreenRecordings] Error Info: ' . print_r($e->errorInfo ?? [], true));
+            
+            // Se o erro for relacionado a tabelas não encontradas, tenta query simplificada
+            if (strpos($e->getMessage(), "doesn't exist") !== false || 
+                strpos($e->getMessage(), "Unknown column") !== false) {
+                error_log('[ScreenRecordings] Tentando query simplificada sem JOINs...');
+                $simpleSql = "
+                    SELECT 
+                        sr.id,
+                        sr.task_id,
+                        sr.file_name,
+                        sr.original_name,
+                        sr.size_bytes as file_size,
+                        sr.mime_type,
+                        sr.duration_seconds as duration,
+                        sr.created_at as uploaded_at,
+                        sr.created_by as uploaded_by,
+                        sr.file_path,
+                        sr.public_token,
+                        sr.has_audio,
+                        u.name as uploaded_by_name
+                    FROM screen_recordings sr
+                    LEFT JOIN users u ON sr.created_by = u.id
+                    WHERE {$whereSql}
+                    ORDER BY sr.created_at DESC, sr.id DESC
+                    LIMIT ? OFFSET ?
+                ";
+                try {
+                    $stmt = $db->prepare($simpleSql);
+                    $stmt->execute($allParams);
+                    $recordings = $stmt->fetchAll();
+                    // Adiciona campos vazios para compatibilidade
+                    foreach ($recordings as &$rec) {
+                        $rec['task_title'] = null;
+                        $rec['project_name'] = null;
+                        $rec['tenant_id'] = null;
+                        $rec['client_name'] = null;
+                    }
+                    unset($rec);
+                } catch (\PDOException $e2) {
+                    error_log('[ScreenRecordings] Erro na query simplificada: ' . $e2->getMessage());
+                    throw $e;
+                }
+            } else {
+                throw $e;
+            }
         }
 
         // Enriquece os dados com public_url e file_exists
