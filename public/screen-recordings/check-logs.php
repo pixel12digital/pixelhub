@@ -7,6 +7,32 @@
 // Carrega autoload
 if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
     require_once __DIR__ . '/../../vendor/autoload.php';
+} else {
+    spl_autoload_register(function ($class) {
+        $prefix = 'PixelHub\\';
+        $baseDir = __DIR__ . '/../../src/';
+        
+        $len = strlen($prefix);
+        if (strncmp($prefix, $class, $len) !== 0) {
+            return;
+        }
+        
+        $relativeClass = substr($class, $len);
+        $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+        
+        if (file_exists($file)) {
+            require $file;
+        }
+    });
+}
+
+// Carrega variáveis de ambiente
+try {
+    if (class_exists('PixelHub\Core\Env')) {
+        \PixelHub\Core\Env::load();
+    }
+} catch (\Exception $e) {
+    // Ignora erro de env
 }
 
 header('Content-Type: text/html; charset=utf-8');
@@ -218,141 +244,6 @@ header('Content-Type: text/html; charset=utf-8');
                 echo '<div class="warning">Isso significa que o arquivo está sendo incluído, mas não está executando o código</div>';
             }
             echo '</div>';
-
-            // Nova seção: Verificação de arquivos físicos
-            echo '<h2>7. Verificação de Arquivos Físicos no Servidor</h2>';
-            echo '<div class="section">';
-            
-            try {
-                $db = DB::getConnection();
-                
-                // Busca o registro com o token de exemplo
-                $tokenStmt = $db->query("SELECT id, file_path, file_name, original_name, public_token FROM screen_recordings WHERE public_token IS NOT NULL ORDER BY id DESC LIMIT 5");
-                $tokens = $tokenStmt->fetchAll(PDO::FETCH_ASSOC);
-                
-                if (!empty($tokens)) {
-                    echo '<div class="info">Verificando arquivos físicos para os últimos 5 registros com token:</div>';
-                    echo '<pre>';
-                    
-                    foreach ($tokens as $rec) {
-                        echo '<div class="log-entry">';
-                        echo '<strong>ID:</strong> ' . $rec['id'] . '<br>';
-                        echo '<strong>Token:</strong> ' . htmlspecialchars($rec['public_token']) . '<br>';
-                        echo '<strong>file_path (banco):</strong> ' . htmlspecialchars($rec['file_path']) . '<br>';
-                        echo '<strong>file_name (banco):</strong> ' . htmlspecialchars($rec['file_name']) . '<br>';
-                        echo '<strong>original_name (banco):</strong> ' . htmlspecialchars($rec['original_name']) . '<br>';
-                        
-                        // Verifica se o arquivo existe com file_path
-                        $relativePath = ltrim($rec['file_path'], '/');
-                        $filePath1 = null;
-                        $fileExists1 = false;
-                        
-                        if (strpos($relativePath, 'screen-recordings/') === 0) {
-                            $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
-                            $baseDir = '/home/pixel12digital/hub.pixel12digital.com.br/public/screen-recordings';
-                            $filePath1 = $baseDir . '/' . $fileRelativePath;
-                            $fileExists1 = file_exists($filePath1) && is_file($filePath1);
-                        }
-                        
-                        echo '<strong>Arquivo com file_path:</strong> ';
-                        if ($filePath1) {
-                            echo '<code>' . htmlspecialchars($filePath1) . '</code> - ';
-                            echo $fileExists1 ? '<span class="success">✓ EXISTE</span>' : '<span class="error">✗ NÃO EXISTE</span>';
-                        } else {
-                            echo '<span class="warning">N/A</span>';
-                        }
-                        echo '<br>';
-                        
-                        // Verifica se o arquivo existe com file_name
-                        if (!empty($rec['file_name']) && strpos($relativePath, 'screen-recordings/') === 0) {
-                            $pathDir = dirname(preg_replace('#^screen-recordings/#', '', $relativePath));
-                            $baseDir = '/home/pixel12digital/hub.pixel12digital.com.br/public/screen-recordings';
-                            $filePath2 = $baseDir . '/' . $pathDir . '/' . $rec['file_name'];
-                            $fileExists2 = file_exists($filePath2) && is_file($filePath2);
-                            
-                            echo '<strong>Arquivo com file_name:</strong> ';
-                            echo '<code>' . htmlspecialchars($filePath2) . '</code> - ';
-                            echo $fileExists2 ? '<span class="success">✓ EXISTE</span>' : '<span class="error">✗ NÃO EXISTE</span>';
-                            echo '<br>';
-                            
-                            // Lista arquivos no diretório
-                            $dirPath = $baseDir . '/' . $pathDir;
-                            if (is_dir($dirPath)) {
-                                $files = @scandir($dirPath);
-                                if ($files) {
-                                    $actualFiles = array_filter($files, function($f) {
-                                        return $f !== '.' && $f !== '..';
-                                    });
-                                    echo '<strong>Arquivos no diretório:</strong> ' . implode(', ', array_slice($actualFiles, 0, 5));
-                                    if (count($actualFiles) > 5) {
-                                        echo ' ... (mais ' . (count($actualFiles) - 5) . ')';
-                                    }
-                                }
-                            }
-                        }
-                        
-                        echo '</div><br>';
-                    }
-                    
-                    echo '</pre>';
-                } else {
-                    echo '<div class="warning">Nenhum registro com token encontrado no banco</div>';
-                }
-            } catch (\Exception $e) {
-                echo '<div class="error">Erro ao verificar arquivos: ' . htmlspecialchars($e->getMessage()) . '</div>';
-            }
-            
-            echo '</div>';
-
-            // Nova seção: Análise de logs detalhada
-            echo '<h2>8. Análise Detalhada dos Logs do share.php</h2>';
-            echo '<div class="section">';
-            
-            if (!empty($shareLines)) {
-                // Agrupa por timestamp
-                $grouped = [];
-                foreach ($shareLines as $line) {
-                    if (preg_match('/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]/', $line, $matches)) {
-                        $timestamp = $matches[1];
-                        if (!isset($grouped[$timestamp])) {
-                            $grouped[$timestamp] = [];
-                        }
-                        $grouped[$timestamp][] = $line;
-                    }
-                }
-                
-                echo '<div class="info">Encontradas ' . count($shareLines) . ' linhas em ' . count($grouped) . ' execuções diferentes:</div>';
-                echo '<pre>';
-                
-                $count = 0;
-                foreach ($grouped as $timestamp => $lines) {
-                    if ($count++ >= 3) break; // Mostra apenas as 3 últimas execuções
-                    
-                    echo '<div class="log-entry share">';
-                    echo '<strong>Execução em ' . htmlspecialchars($timestamp) . ':</strong><br>';
-                    foreach ($lines as $line) {
-                        // Destaca informações importantes
-                        if (stripos($line, 'fileExists') !== false) {
-                            if (stripos($line, 'SIM') !== false) {
-                                echo '<span class="success">' . htmlspecialchars($line) . '</span>';
-                            } else {
-                                echo '<span class="error">' . htmlspecialchars($line) . '</span>';
-                            }
-                        } elseif (stripos($line, 'file_name') !== false || stripos($line, 'file_path') !== false) {
-                            echo '<span class="info">' . htmlspecialchars($line) . '</span>';
-                        } else {
-                            echo htmlspecialchars($line);
-                        }
-                    }
-                    echo '</div><br>';
-                }
-                
-                echo '</pre>';
-            } else {
-                echo '<div class="warning">Nenhuma linha do share.php encontrada nos logs</div>';
-            }
-            
-            echo '</div>';
         } else {
             echo '<h2>2. Como Verificar os Logs Manualmente</h2>';
             echo '<div class="section">';
@@ -373,73 +264,174 @@ header('Content-Type: text/html; charset=utf-8');
         echo '<div class="section">';
         
         try {
-            if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
-                require_once __DIR__ . '/../../vendor/autoload.php';
+            // DB já deve estar carregado pelo autoload acima
+            if (!class_exists('PixelHub\Core\DB')) {
+                throw new \Exception('Classe DB não encontrada. Verifique se o autoload está funcionando.');
             }
             
             $db = \PixelHub\Core\DB::getConnection();
             
-            // Busca o registro com o token de exemplo
-            $tokenStmt = $db->query("SELECT id, file_path, file_name, original_name, public_token FROM screen_recordings WHERE public_token IS NOT NULL ORDER BY id DESC LIMIT 5");
+            // Busca TODOS os registros com token
+            $tokenStmt = $db->query("SELECT id, file_path, file_name, original_name, public_token, created_at, task_id FROM screen_recordings WHERE public_token IS NOT NULL ORDER BY id DESC");
             $tokens = $tokenStmt->fetchAll(PDO::FETCH_ASSOC);
             
             if (!empty($tokens)) {
-                echo '<div class="info">Verificando arquivos físicos para os últimos 5 registros com token:</div>';
+                echo '<div class="info">Verificando arquivos físicos para ' . count($tokens) . ' registros com token:</div>';
                 echo '<pre>';
                 
                 foreach ($tokens as $rec) {
-                    echo '<div class="log-entry">';
-                    echo '<strong>ID:</strong> ' . $rec['id'] . '<br>';
-                    echo '<strong>Token:</strong> ' . htmlspecialchars($rec['public_token']) . '<br>';
-                    echo '<strong>file_path (banco):</strong> ' . htmlspecialchars($rec['file_path']) . '<br>';
-                    echo '<strong>file_name (banco):</strong> ' . htmlspecialchars($rec['file_name']) . '<br>';
-                    echo '<strong>original_name (banco):</strong> ' . htmlspecialchars($rec['original_name']) . '<br>';
+                    echo '<div class="log-entry" style="border: 2px solid #3e3e42; padding: 15px; margin: 10px 0; background: #1e1e1e;">';
+                    echo '<strong style="color: #4ec9b0;">═══════════════════════════════════════════════════════════</strong><br>';
+                    echo '<strong style="color: #569cd6;">ID:</strong> ' . $rec['id'] . '<br>';
+                    echo '<strong style="color: #569cd6;">Token:</strong> <code>' . htmlspecialchars($rec['public_token']) . '</code><br>';
+                    echo '<strong style="color: #569cd6;">Task ID:</strong> ' . ($rec['task_id'] ?? 'NULL') . '<br>';
+                    echo '<strong style="color: #569cd6;">Criado em:</strong> ' . htmlspecialchars($rec['created_at']) . '<br><br>';
+                    
+                    echo '<strong style="color: #dcdcaa;">DADOS DO BANCO:</strong><br>';
+                    echo '  <strong>file_path:</strong> <code>' . htmlspecialchars($rec['file_path']) . '</code><br>';
+                    echo '  <strong>file_name:</strong> <code>' . htmlspecialchars($rec['file_name']) . '</code><br>';
+                    echo '  <strong>original_name:</strong> <code>' . htmlspecialchars($rec['original_name']) . '</code><br><br>';
                     
                     // Verifica se o arquivo existe com file_path
                     $relativePath = ltrim($rec['file_path'], '/');
                     $filePath1 = null;
                     $fileExists1 = false;
+                    $fileSize1 = null;
+                    $filePerms1 = null;
                     
                     if (strpos($relativePath, 'screen-recordings/') === 0) {
                         $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
                         $baseDir = '/home/pixel12digital/hub.pixel12digital.com.br/public/screen-recordings';
                         $filePath1 = $baseDir . '/' . $fileRelativePath;
                         $fileExists1 = file_exists($filePath1) && is_file($filePath1);
+                        if ($fileExists1) {
+                            $fileSize1 = filesize($filePath1);
+                            $filePerms1 = substr(sprintf('%o', fileperms($filePath1)), -4);
+                        }
+                    } elseif (strpos($relativePath, 'storage/tasks/') === 0) {
+                        $baseDir = '/home/pixel12digital/hub.pixel12digital.com.br';
+                        $filePath1 = $baseDir . '/' . $relativePath;
+                        $fileExists1 = file_exists($filePath1) && is_file($filePath1);
+                        if ($fileExists1) {
+                            $fileSize1 = filesize($filePath1);
+                            $filePerms1 = substr(sprintf('%o', fileperms($filePath1)), -4);
+                        }
                     }
                     
-                    echo '<strong>Arquivo com file_path:</strong> ';
+                    echo '<strong style="color: #dcdcaa;">TENTATIVA 1 - Com file_path:</strong><br>';
                     if ($filePath1) {
-                        echo '<code>' . htmlspecialchars($filePath1) . '</code> - ';
-                        echo $fileExists1 ? '<span class="success">✓ EXISTE</span>' : '<span class="error">✗ NÃO EXISTE</span>';
+                        echo '  <strong>Caminho:</strong> <code>' . htmlspecialchars($filePath1) . '</code><br>';
+                        echo '  <strong>Existe:</strong> ';
+                        echo $fileExists1 ? '<span class="success">✓ SIM</span>' : '<span class="error">✗ NÃO</span>';
+                        echo '<br>';
+                        if ($fileExists1) {
+                            echo '  <strong>Tamanho:</strong> ' . number_format($fileSize1) . ' bytes (' . number_format($fileSize1 / 1024 / 1024, 2) . ' MB)<br>';
+                            echo '  <strong>Permissões:</strong> ' . $filePerms1 . '<br>';
+                            echo '  <strong>Legível:</strong> ' . (is_readable($filePath1) ? '<span class="success">✓ SIM</span>' : '<span class="error">✗ NÃO</span>') . '<br>';
+                        } else {
+                            // Verifica se o diretório existe
+                            $parentDir = dirname($filePath1);
+                            echo '  <strong>Diretório pai existe:</strong> ' . (is_dir($parentDir) ? '<span class="success">✓ SIM</span>' : '<span class="error">✗ NÃO</span>') . '<br>';
+                            if (is_dir($parentDir)) {
+                                echo '  <strong>Diretório pai:</strong> <code>' . htmlspecialchars($parentDir) . '</code><br>';
+                            }
+                        }
                     } else {
-                        echo '<span class="warning">N/A</span>';
+                        echo '  <span class="warning">N/A - file_path não é screen-recordings/ nem storage/tasks/</span><br>';
                     }
                     echo '<br>';
                     
                     // Verifica se o arquivo existe com file_name
-                    if (!empty($rec['file_name']) && strpos($relativePath, 'screen-recordings/') === 0) {
-                        $pathDir = dirname(preg_replace('#^screen-recordings/#', '', $relativePath));
-                        $baseDir = '/home/pixel12digital/hub.pixel12digital.com.br/public/screen-recordings';
-                        $filePath2 = $baseDir . '/' . $pathDir . '/' . $rec['file_name'];
-                        $fileExists2 = file_exists($filePath2) && is_file($filePath2);
+                    if (!empty($rec['file_name'])) {
+                        $filePath2 = null;
+                        $fileExists2 = false;
+                        $fileSize2 = null;
+                        $filePerms2 = null;
                         
-                        echo '<strong>Arquivo com file_name:</strong> ';
-                        echo '<code>' . htmlspecialchars($filePath2) . '</code> - ';
-                        echo $fileExists2 ? '<span class="success">✓ EXISTE</span>' : '<span class="error">✗ NÃO EXISTE</span>';
+                        if (strpos($relativePath, 'screen-recordings/') === 0) {
+                            $pathDir = dirname(preg_replace('#^screen-recordings/#', '', $relativePath));
+                            $baseDir = '/home/pixel12digital/hub.pixel12digital.com.br/public/screen-recordings';
+                            $filePath2 = $baseDir . '/' . $pathDir . '/' . $rec['file_name'];
+                            $fileExists2 = file_exists($filePath2) && is_file($filePath2);
+                            if ($fileExists2) {
+                                $fileSize2 = filesize($filePath2);
+                                $filePerms2 = substr(sprintf('%o', fileperms($filePath2)), -4);
+                            }
+                        } elseif (strpos($relativePath, 'storage/tasks/') === 0) {
+                            $pathDir = dirname($relativePath);
+                            $baseDir = '/home/pixel12digital/hub.pixel12digital.com.br';
+                            $filePath2 = $baseDir . '/' . $pathDir . '/' . $rec['file_name'];
+                            $fileExists2 = file_exists($filePath2) && is_file($filePath2);
+                            if ($fileExists2) {
+                                $fileSize2 = filesize($filePath2);
+                                $filePerms2 = substr(sprintf('%o', fileperms($filePath2)), -4);
+                            }
+                        }
+                        
+                        echo '<strong style="color: #dcdcaa;">TENTATIVA 2 - Com file_name:</strong><br>';
+                        if ($filePath2) {
+                            echo '  <strong>Caminho:</strong> <code>' . htmlspecialchars($filePath2) . '</code><br>';
+                            echo '  <strong>Existe:</strong> ';
+                            echo $fileExists2 ? '<span class="success">✓ SIM</span>' : '<span class="error">✗ NÃO</span>';
+                            echo '<br>';
+                            if ($fileExists2) {
+                                echo '  <strong>Tamanho:</strong> ' . number_format($fileSize2) . ' bytes (' . number_format($fileSize2 / 1024 / 1024, 2) . ' MB)<br>';
+                                echo '  <strong>Permissões:</strong> ' . $filePerms2 . '<br>';
+                                echo '  <strong>Legível:</strong> ' . (is_readable($filePath2) ? '<span class="success">✓ SIM</span>' : '<span class="error">✗ NÃO</span>') . '<br>';
+                            }
+                        } else {
+                            echo '  <span class="warning">N/A - não foi possível construir caminho</span><br>';
+                        }
                         echo '<br>';
                         
-                        // Lista arquivos no diretório
-                        $dirPath = $baseDir . '/' . $pathDir;
-                        if (is_dir($dirPath)) {
-                            $files = @scandir($dirPath);
-                            if ($files) {
-                                $actualFiles = array_filter($files, function($f) {
-                                    return $f !== '.' && $f !== '..';
-                                });
-                                echo '<strong>Arquivos no diretório:</strong> ' . implode(', ', array_slice($actualFiles, 0, 5));
-                                if (count($actualFiles) > 5) {
-                                    echo ' ... (mais ' . (count($actualFiles) - 5) . ')';
+                        // Lista TODOS os arquivos no diretório
+                        if (strpos($relativePath, 'screen-recordings/') === 0) {
+                            $pathDir = dirname(preg_replace('#^screen-recordings/#', '', $relativePath));
+                            $baseDir = '/home/pixel12digital/hub.pixel12digital.com.br/public/screen-recordings';
+                            $dirPath = $baseDir . '/' . $pathDir;
+                            
+                            echo '<strong style="color: #dcdcaa;">ARQUIVOS NO DIRETÓRIO:</strong><br>';
+                            echo '  <strong>Diretório:</strong> <code>' . htmlspecialchars($dirPath) . '</code><br>';
+                            if (is_dir($dirPath)) {
+                                $files = @scandir($dirPath);
+                                if ($files) {
+                                    $actualFiles = array_filter($files, function($f) {
+                                        return $f !== '.' && $f !== '..';
+                                    });
+                                    $actualFiles = array_values($actualFiles);
+                                    
+                                    echo '  <strong>Total de arquivos:</strong> ' . count($actualFiles) . '<br>';
+                                    echo '  <strong>Lista completa:</strong><br>';
+                                    foreach ($actualFiles as $f) {
+                                        $fullPath = $dirPath . '/' . $f;
+                                        $isFile = is_file($fullPath);
+                                        $size = $isFile ? filesize($fullPath) : 0;
+                                        $match = ($f === basename($rec['file_path']) || $f === $rec['file_name'] || $f === $rec['original_name']);
+                                        $marker = $match ? ' <span class="success">← CORRESPONDE!</span>' : '';
+                                        echo '    - <code>' . htmlspecialchars($f) . '</code> (' . ($isFile ? number_format($size) . ' bytes' : 'DIR') . ')' . $marker . '<br>';
+                                    }
+                                } else {
+                                    echo '  <span class="error">Erro ao listar arquivos do diretório</span><br>';
                                 }
+                            } else {
+                                echo '  <span class="error">Diretório não existe!</span><br>';
+                            }
+                        }
+                    }
+                    
+                    // Verifica também com original_name (caso especial)
+                    if (!empty($rec['original_name']) && !$fileExists1 && !$fileExists2) {
+                        if (strpos($relativePath, 'screen-recordings/') === 0) {
+                            $pathDir = dirname(preg_replace('#^screen-recordings/#', '', $relativePath));
+                            $baseDir = '/home/pixel12digital/hub.pixel12digital.com.br/public/screen-recordings';
+                            $filePath3 = $baseDir . '/' . $pathDir . '/' . $rec['original_name'];
+                            $fileExists3 = file_exists($filePath3) && is_file($filePath3);
+                            
+                            if ($fileExists3) {
+                                echo '<br><strong style="color: #dcdcaa;">TENTATIVA 3 - Com original_name (ENCONTRADO!):</strong><br>';
+                                echo '  <strong>Caminho:</strong> <code>' . htmlspecialchars($filePath3) . '</code><br>';
+                                echo '  <strong>Existe:</strong> <span class="success">✓ SIM</span><br>';
+                                echo '  <strong>Tamanho:</strong> ' . number_format(filesize($filePath3)) . ' bytes<br>';
                             }
                         }
                     }
@@ -453,6 +445,7 @@ header('Content-Type: text/html; charset=utf-8');
             }
         } catch (\Exception $e) {
             echo '<div class="error">Erro ao verificar arquivos: ' . htmlspecialchars($e->getMessage()) . '</div>';
+            echo '<div class="error">Stack trace: <pre>' . htmlspecialchars($e->getTraceAsString()) . '</pre></div>';
         }
         
         echo '</div>';
