@@ -122,7 +122,19 @@ try {
     $recording = $stmt->fetch(PDO::FETCH_ASSOC);
     
     // Log para debug
+    error_log('[ScreenRecordings Share] ==========================================');
+    error_log('[ScreenRecordings Share] DEBUG COMPLETO - Token: ' . $token);
     error_log('[ScreenRecordings Share] Registro encontrado: ' . ($recording ? 'SIM' : 'NÃO'));
+    
+    if ($recording) {
+        error_log('[ScreenRecordings Share] Dados do registro:');
+        error_log('[ScreenRecordings Share]   - ID: ' . ($recording['id'] ?? 'N/A'));
+        error_log('[ScreenRecordings Share]   - file_path: ' . ($recording['file_path'] ?? 'N/A'));
+        error_log('[ScreenRecordings Share]   - file_name: ' . ($recording['file_name'] ?? 'N/A'));
+        error_log('[ScreenRecordings Share]   - original_name: ' . ($recording['original_name'] ?? 'N/A'));
+        error_log('[ScreenRecordings Share]   - public_token: ' . ($recording['public_token'] ?? 'N/A'));
+        error_log('[ScreenRecordings Share]   - mime_type: ' . ($recording['mime_type'] ?? 'N/A'));
+    }
     
     if (!$recording) {
         // Log adicional: verifica se a tabela existe e quantos registros tem
@@ -183,33 +195,63 @@ try {
     
     // Se for requisição de streaming (parâmetro stream=1), serve o arquivo diretamente
     if (isset($_GET['stream']) && $_GET['stream'] == '1') {
+        error_log('[ScreenRecordings Share Stream] ==========================================');
+        error_log('[ScreenRecordings Share Stream] MODO STREAMING ATIVADO');
+        error_log('[ScreenRecordings Share Stream] file_path do banco: ' . ($recording['file_path'] ?? 'N/A'));
+        
         $relativePath = ltrim($recording['file_path'], '/');
         $filePath = null;
         
+        error_log('[ScreenRecordings Share Stream] relativePath (após ltrim): ' . $relativePath);
+        error_log('[ScreenRecordings Share Stream] __DIR__: ' . __DIR__);
+        
         if (strpos($relativePath, 'storage/tasks/') === 0) {
+            error_log('[ScreenRecordings Share Stream] Tipo: Arquivo de tarefa (storage/tasks/)');
             // Arquivo de tarefa: busca em storage/tasks/ (raiz do projeto)
             // __DIR__ é public/screen-recordings/, então ../../ volta para a raiz
             $filePath = __DIR__ . '/../../' . $relativePath;
+            
+            error_log('[ScreenRecordings Share Stream] filePath calculado (antes de realpath): ' . $filePath);
             
             // Normaliza o caminho (resolve .. e .)
             $normalizedPath = realpath($filePath);
             if ($normalizedPath) {
                 $filePath = $normalizedPath;
+                error_log('[ScreenRecordings Share Stream] filePath normalizado (realpath): ' . $filePath);
+            } else {
+                error_log('[ScreenRecordings Share Stream] realpath FALHOU - tentando sem normalização');
             }
             
             // Log para debug
-            error_log('[ScreenRecordings Share Stream] relativePath: ' . $relativePath);
-            error_log('[ScreenRecordings Share Stream] __DIR__: ' . __DIR__);
-            error_log('[ScreenRecordings Share Stream] filePath calculado: ' . $filePath);
-            error_log('[ScreenRecordings Share Stream] filePath normalizado: ' . ($normalizedPath ?: 'NÃO EXISTE'));
-            error_log('[ScreenRecordings Share Stream] arquivo existe: ' . (file_exists($filePath) ? 'SIM' : 'NÃO'));
+            error_log('[ScreenRecordings Share Stream] filePath final: ' . $filePath);
+            error_log('[ScreenRecordings Share Stream] file_exists: ' . (file_exists($filePath) ? 'SIM' : 'NÃO'));
+            error_log('[ScreenRecordings Share Stream] is_file: ' . (is_file($filePath) ? 'SIM' : 'NÃO'));
+            error_log('[ScreenRecordings Share Stream] is_readable: ' . (is_readable($filePath) ? 'SIM' : 'NÃO'));
+            
+            // Verifica diretório pai
+            if ($filePath) {
+                $parentDir = dirname($filePath);
+                error_log('[ScreenRecordings Share Stream] parentDir: ' . $parentDir);
+                error_log('[ScreenRecordings Share Stream] parentDir existe: ' . (is_dir($parentDir) ? 'SIM' : 'NÃO'));
+                if (is_dir($parentDir)) {
+                    $files = @scandir($parentDir);
+                    if ($files) {
+                        error_log('[ScreenRecordings Share Stream] Arquivos no diretório: ' . implode(', ', array_slice($files, 0, 10)));
+                    }
+                }
+            }
         } elseif (strpos($relativePath, 'screen-recordings/') === 0) {
+            error_log('[ScreenRecordings Share Stream] Tipo: Arquivo da biblioteca (screen-recordings/)');
             // Arquivo da biblioteca: busca em public/screen-recordings/
             $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
             $filePath = __DIR__ . '/' . $fileRelativePath;
+            error_log('[ScreenRecordings Share Stream] fileRelativePath: ' . $fileRelativePath);
+            error_log('[ScreenRecordings Share Stream] filePath: ' . $filePath);
         } else {
+            error_log('[ScreenRecordings Share Stream] Tipo: Caminho relativo genérico');
             // Tenta como caminho relativo a partir de public/screen-recordings/
             $filePath = __DIR__ . '/' . $relativePath;
+            error_log('[ScreenRecordings Share Stream] filePath: ' . $filePath);
         }
         
         // Verifica se o arquivo existe antes de servir
@@ -289,6 +331,10 @@ try {
     }
     
     // Verifica se o arquivo existe (para exibição da página)
+    error_log('[ScreenRecordings Share] ==========================================');
+    error_log('[ScreenRecordings Share] VERIFICAÇÃO DE ARQUIVO PARA EXIBIÇÃO');
+    error_log('[ScreenRecordings Share] file_path do banco: ' . ($recording['file_path'] ?? 'N/A'));
+    
     // O file_path no banco pode ser:
     // 1. screen-recordings/2025/11/28/xxx.webm (biblioteca) -> public/screen-recordings/2025/11/28/xxx.webm
     // 2. storage/tasks/1/xxx.webm (tarefa) -> storage/tasks/1/xxx.webm
@@ -296,42 +342,71 @@ try {
     $filePath = null;
     $fileExists = false;
     
+    error_log('[ScreenRecordings Share] relativePath (após ltrim): ' . $relativePath);
+    error_log('[ScreenRecordings Share] __DIR__: ' . __DIR__);
+    
     if (strpos($relativePath, 'storage/tasks/') === 0) {
+        error_log('[ScreenRecordings Share] Tipo: Arquivo de tarefa (storage/tasks/)');
         // Arquivo de tarefa: busca em storage/tasks/ (raiz do projeto)
         // __DIR__ é public/screen-recordings/, então ../../ volta para a raiz
         $filePath = __DIR__ . '/../../' . $relativePath;
+        
+        error_log('[ScreenRecordings Share] filePath calculado (antes de realpath): ' . $filePath);
         
         // Normaliza o caminho (resolve .. e .)
         $normalizedPath = realpath($filePath);
         if ($normalizedPath) {
             $filePath = $normalizedPath;
+            error_log('[ScreenRecordings Share] filePath normalizado (realpath): ' . $filePath);
+        } else {
+            error_log('[ScreenRecordings Share] realpath FALHOU - tentando sem normalização');
         }
         
         $fileExists = file_exists($filePath) && is_file($filePath);
         
         // Log para debug
-        error_log('[ScreenRecordings Share] Verificando arquivo de tarefa:');
-        error_log('[ScreenRecordings Share]   relativePath: ' . $relativePath);
-        error_log('[ScreenRecordings Share]   __DIR__: ' . __DIR__);
-        error_log('[ScreenRecordings Share]   filePath calculado: ' . ($filePath ?? 'NULL'));
-        error_log('[ScreenRecordings Share]   filePath normalizado: ' . ($normalizedPath ?: 'NÃO EXISTE'));
-        error_log('[ScreenRecordings Share]   fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
+        error_log('[ScreenRecordings Share] filePath final: ' . ($filePath ?? 'NULL'));
+        error_log('[ScreenRecordings Share] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
+        error_log('[ScreenRecordings Share] is_file: ' . (is_file($filePath) ? 'SIM' : 'NÃO'));
+        error_log('[ScreenRecordings Share] is_readable: ' . (is_readable($filePath) ? 'SIM' : 'NÃO'));
         
         // Se não encontrou, tenta sem normalizar (pode ser problema de permissões)
         if (!$fileExists && $filePath) {
             $fileExists = @file_exists($filePath) && @is_file($filePath);
-            error_log('[ScreenRecordings Share]   fileExists (após @): ' . ($fileExists ? 'SIM' : 'NÃO'));
+            error_log('[ScreenRecordings Share] fileExists (após @): ' . ($fileExists ? 'SIM' : 'NÃO'));
+        }
+        
+        // Verifica diretório pai
+        if ($filePath && !$fileExists) {
+            $parentDir = dirname($filePath);
+            error_log('[ScreenRecordings Share] parentDir: ' . $parentDir);
+            error_log('[ScreenRecordings Share] parentDir existe: ' . (is_dir($parentDir) ? 'SIM' : 'NÃO'));
+            if (is_dir($parentDir)) {
+                $files = @scandir($parentDir);
+                if ($files) {
+                    error_log('[ScreenRecordings Share] Arquivos no diretório: ' . implode(', ', array_slice($files, 0, 10)));
+                }
+            }
         }
     } elseif (strpos($relativePath, 'screen-recordings/') === 0) {
+        error_log('[ScreenRecordings Share] Tipo: Arquivo da biblioteca (screen-recordings/)');
         // Arquivo da biblioteca: busca em public/screen-recordings/
         $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
         $filePath = __DIR__ . '/' . $fileRelativePath;
         $fileExists = file_exists($filePath) && is_file($filePath);
+        error_log('[ScreenRecordings Share] fileRelativePath: ' . $fileRelativePath);
+        error_log('[ScreenRecordings Share] filePath: ' . $filePath);
+        error_log('[ScreenRecordings Share] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
     } else {
+        error_log('[ScreenRecordings Share] Tipo: Caminho relativo genérico');
         // Tenta como caminho relativo a partir de public/screen-recordings/
         $filePath = __DIR__ . '/' . $relativePath;
         $fileExists = file_exists($filePath) && is_file($filePath);
+        error_log('[ScreenRecordings Share] filePath: ' . $filePath);
+        error_log('[ScreenRecordings Share] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
     }
+    
+    error_log('[ScreenRecordings Share] ==========================================');
     
     // Log detalhado
     error_log('[ScreenRecordings Share] Verificando arquivo:');
@@ -402,14 +477,29 @@ try {
     }
     
     // Debug: sempre loga para diagnóstico em produção
+    error_log('[ScreenRecordings Share] ==========================================');
+    error_log('[ScreenRecordings Share] CONSTRUÇÃO DE URL DO VÍDEO');
     error_log('[ScreenRecordings Share] Token: ' . $token);
     error_log('[ScreenRecordings Share] file_path do banco: ' . $recording['file_path']);
     error_log('[ScreenRecordings Share] relativePath: ' . $relativePath);
     error_log('[ScreenRecordings Share] BASE_URL: ' . BASE_URL);
     error_log('[ScreenRecordings Share] baseUrl (trimmed): ' . $baseUrl);
     error_log('[ScreenRecordings Share] videoUrl final: ' . $videoUrl);
-    error_log('[ScreenRecordings Share] filePath físico: ' . $filePath);
-    error_log('[ScreenRecordings Share] arquivo existe: ' . (file_exists($filePath) ? 'SIM' : 'NÃO'));
+    error_log('[ScreenRecordings Share] filePath físico: ' . ($filePath ?? 'NULL'));
+    error_log('[ScreenRecordings Share] arquivo existe: ' . (($filePath && file_exists($filePath)) ? 'SIM' : 'NÃO'));
+    error_log('[ScreenRecordings Share] ==========================================');
+    
+    // Variável para debug na página (se necessário)
+    $debugInfo = [
+        'token' => $token,
+        'file_path_banco' => $recording['file_path'],
+        'relativePath' => $relativePath,
+        'filePath_fisico' => $filePath ?? 'NULL',
+        'fileExists' => ($filePath && file_exists($filePath)) ? 'SIM' : 'NÃO',
+        'BASE_URL' => BASE_URL,
+        'videoUrl' => $videoUrl,
+        '__DIR__' => __DIR__
+    ];
     
     // Valida se as variáveis necessárias estão definidas
     if (empty($videoUrl)) {
@@ -556,6 +646,29 @@ try {
                 <p style="margin-top: 10px; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404; font-size: 12px;">
                     ⚠️ O arquivo pode não estar disponível no servidor, mas você pode tentar reproduzir o vídeo acima.
                 </p>
+            <?php endif; ?>
+            
+            <!-- DEBUG INFO (adicionar ?debug=1 na URL para ver) -->
+            <?php if (isset($_GET['debug']) && $_GET['debug'] == '1'): ?>
+                <details style="margin-top: 20px; padding: 15px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; text-align: left;">
+                    <summary style="cursor: pointer; font-weight: 600; color: #023A8D;">🔍 Informações de Debug</summary>
+                    <div style="margin-top: 10px; font-family: monospace; font-size: 11px; line-height: 1.6;">
+                        <strong>Token:</strong> <?= htmlspecialchars($debugInfo['token']) ?><br>
+                        <strong>file_path (banco):</strong> <?= htmlspecialchars($debugInfo['file_path_banco']) ?><br>
+                        <strong>relativePath:</strong> <?= htmlspecialchars($debugInfo['relativePath']) ?><br>
+                        <strong>filePath (físico):</strong> <?= htmlspecialchars($debugInfo['filePath_fisico']) ?><br>
+                        <strong>fileExists:</strong> <?= htmlspecialchars($debugInfo['fileExists']) ?><br>
+                        <strong>BASE_URL:</strong> <?= htmlspecialchars($debugInfo['BASE_URL']) ?><br>
+                        <strong>videoUrl:</strong> <a href="<?= htmlspecialchars($debugInfo['videoUrl']) ?>" target="_blank"><?= htmlspecialchars($debugInfo['videoUrl']) ?></a><br>
+                        <strong>__DIR__:</strong> <?= htmlspecialchars($debugInfo['__DIR__']) ?><br>
+                        <?php if ($filePath): ?>
+                            <strong>is_file:</strong> <?= is_file($filePath) ? 'SIM' : 'NÃO' ?><br>
+                            <strong>is_readable:</strong> <?= is_readable($filePath) ? 'SIM' : 'NÃO' ?><br>
+                            <strong>is_dir (parent):</strong> <?= is_dir(dirname($filePath)) ? 'SIM' : 'NÃO' ?><br>
+                            <strong>parentDir:</strong> <?= htmlspecialchars(dirname($filePath)) ?><br>
+                        <?php endif; ?>
+                    </div>
+                </details>
             <?php endif; ?>
         <?php else: ?>
             <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 4px; padding: 20px; margin-top: 20px; text-align: left;">
