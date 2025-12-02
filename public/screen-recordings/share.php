@@ -274,6 +274,7 @@ try {
     // 2. storage/tasks/1/xxx.webm (tarefa) -> storage/tasks/1/xxx.webm
     $relativePath = ltrim($recording['file_path'], '/');
     $filePath = null;
+    $fileExists = false;
     
     if (strpos($relativePath, 'storage/tasks/') === 0) {
         // Arquivo de tarefa: busca em storage/tasks/ (raiz do projeto)
@@ -281,24 +282,29 @@ try {
         $filePath = __DIR__ . '/../../' . $relativePath;
         
         // Normaliza o caminho (resolve .. e .)
-        $filePath = realpath($filePath) ?: $filePath;
+        $normalizedPath = realpath($filePath);
+        if ($normalizedPath) {
+            $filePath = $normalizedPath;
+            $fileExists = file_exists($filePath) && is_file($filePath);
+        }
         
         // Log para debug
         error_log('[ScreenRecordings Share] Verificando arquivo de tarefa:');
         error_log('[ScreenRecordings Share]   relativePath: ' . $relativePath);
         error_log('[ScreenRecordings Share]   __DIR__: ' . __DIR__);
-        error_log('[ScreenRecordings Share]   filePath calculado: ' . $filePath);
-        error_log('[ScreenRecordings Share]   filePath normalizado: ' . (realpath($filePath) ?: 'NÃO EXISTE'));
+        error_log('[ScreenRecordings Share]   filePath calculado: ' . ($filePath ?? 'NULL'));
+        error_log('[ScreenRecordings Share]   filePath normalizado: ' . ($normalizedPath ?: 'NÃO EXISTE'));
+        error_log('[ScreenRecordings Share]   fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
     } elseif (strpos($relativePath, 'screen-recordings/') === 0) {
         // Arquivo da biblioteca: busca em public/screen-recordings/
         $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
         $filePath = __DIR__ . '/' . $fileRelativePath;
+        $fileExists = file_exists($filePath) && is_file($filePath);
     } else {
         // Tenta como caminho relativo a partir de public/screen-recordings/
         $filePath = __DIR__ . '/' . $relativePath;
+        $fileExists = file_exists($filePath) && is_file($filePath);
     }
-    
-    $fileExists = $filePath && file_exists($filePath) && is_file($filePath);
     
     // Log detalhado
     error_log('[ScreenRecordings Share] Verificando arquivo:');

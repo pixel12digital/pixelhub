@@ -165,38 +165,65 @@ ob_start();
                                 <?= $uploadedAt ?>
                             </td>
                             <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
                                     <?php if ($publicUrl && $fileExists): ?>
+                                        <!-- Abrir -->
                                         <a href="<?= htmlspecialchars($publicUrl) ?>" 
                                            target="_blank"
-                                           class="btn btn-sm btn-outline-primary"
-                                           style="background: white; color: #023A8D; padding: 4px 12px; border: 1px solid #023A8D; border-radius: 4px; text-decoration: none; font-size: 12px; font-weight: 600; cursor: pointer;"
+                                           style="color: #023A8D; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #023A8D;"
                                            title="Abrir vídeo em nova aba">
                                             Abrir
                                         </a>
-                                        <button type="button" 
-                                                class="btn btn-sm btn-outline-secondary"
-                                                onclick="copyRecordingLink('<?= htmlspecialchars($publicUrl) ?>')"
-                                                style="background: white; color: #666; padding: 4px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer;"
-                                                title="Copiar link público para compartilhar">
+                                        <!-- Copiar link -->
+                                        <a href="#" 
+                                           onclick="event.preventDefault(); copyRecordingLink('<?= htmlspecialchars($publicUrl) ?>'); return false;"
+                                           style="color: #666; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #666;"
+                                           title="Copiar link público para compartilhar">
                                             Copiar link
-                                        </button>
+                                        </a>
+                                        <!-- Compartilhar (se tiver cliente) -->
+                                        <?php if ($taskId && !empty($recording['tenant_id'])): ?>
+                                            <?php
+                                            // Busca WhatsApp do cliente
+                                            $db = \PixelHub\Core\DB::getConnection();
+                                            $tenantStmt = $db->prepare("SELECT phone FROM tenants WHERE id = ?");
+                                            $tenantStmt->execute([$recording['tenant_id']]);
+                                            $tenant = $tenantStmt->fetch();
+                                            $whatsappLink = null;
+                                            if ($tenant && !empty($tenant['phone'])) {
+                                                $phoneNormalized = \PixelHub\Services\WhatsAppBillingService::normalizePhone($tenant['phone']);
+                                                if ($phoneNormalized) {
+                                                    $whatsappLink = 'https://wa.me/' . $phoneNormalized;
+                                                }
+                                            }
+                                            ?>
+                                            <?php if ($whatsappLink): ?>
+                                                <a href="#" 
+                                                   onclick="event.preventDefault(); shareRecordingViaWhatsApp('<?= htmlspecialchars($publicUrl) ?>', '<?= htmlspecialchars($whatsappLink) ?>'); return false;"
+                                                   style="color: #25D366; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #25D366;"
+                                                   title="Compartilhar via WhatsApp do cliente">
+                                                    Compartilhar
+                                                </a>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                        <!-- Excluir (como link) -->
+                                        <form method="POST" 
+                                              action="<?= pixelhub_url('/screen-recordings/delete') ?>" 
+                                              style="display: inline-block; margin: 0;"
+                                              onsubmit="return confirm('Tem certeza que deseja excluir esta gravação? Esta ação não pode ser desfeita.');">
+                                            <input type="hidden" name="id" value="<?= $recording['id'] ?>">
+                                            <a href="#" 
+                                               onclick="event.preventDefault(); if(confirm('Tem certeza que deseja excluir esta gravação? Esta ação não pode ser desfeita.')) { this.closest('form').submit(); } return false;"
+                                               style="color: #c33; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #c33;"
+                                               title="Excluir gravação">
+                                                Excluir
+                                            </a>
+                                        </form>
                                     <?php else: ?>
                                         <span style="color: #999; font-size: 12px; font-style: italic;" title="Vídeo indisponível (feito em outro ambiente)">
                                             Indisponível
                                         </span>
                                     <?php endif; ?>
-                                    <form method="POST" 
-                                          action="<?= pixelhub_url('/screen-recordings/delete') ?>" 
-                                          style="display: inline-block; margin: 0;"
-                                          onsubmit="return confirm('Tem certeza que deseja excluir esta gravação? Esta ação não pode ser desfeita.');">
-                                        <input type="hidden" name="id" value="<?= $recording['id'] ?>">
-                                        <button type="submit" 
-                                                style="background: #c33; color: white; padding: 4px 12px; border: none; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer;"
-                                                title="Excluir gravação">
-                                            Excluir
-                                        </button>
-                                    </form>
                                 </div>
                             </td>
                         </tr>
@@ -321,6 +348,27 @@ function copyRecordingLink(url) {
     } else {
         // Fallback para navegadores antigos
         window.prompt('Copie o link abaixo:', url);
+    }
+}
+
+/**
+ * Compartilha gravação via WhatsApp
+ */
+function shareRecordingViaWhatsApp(publicUrl, whatsappLink) {
+    if (!publicUrl) {
+        alert('Link não disponível.');
+        return;
+    }
+    
+    // Monta mensagem com link da gravação
+    const message = encodeURIComponent('Olá! Segue o link da gravação de tela:\n\n' + publicUrl);
+    
+    if (whatsappLink) {
+        // Abre WhatsApp do cliente com mensagem pré-formatada
+        window.open(whatsappLink + '&text=' + message, '_blank');
+    } else {
+        // Se não tem WhatsApp do cliente, abre WhatsApp Web sem número
+        window.open('https://web.whatsapp.com/send?text=' + message, '_blank');
     }
 }
 

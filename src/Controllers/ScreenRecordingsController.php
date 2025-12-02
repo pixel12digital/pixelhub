@@ -152,12 +152,32 @@ class ScreenRecordingsController extends Controller
                     $stmt = $db->prepare($simpleSql);
                     $stmt->execute($allParams);
                     $recordings = $stmt->fetchAll();
-                    // Adiciona campos vazios para compatibilidade
+                    // Adiciona campos vazios para compatibilidade e busca tenant_id se tiver task_id
                     foreach ($recordings as &$rec) {
                         $rec['task_title'] = null;
                         $rec['project_name'] = null;
                         $rec['tenant_id'] = null;
                         $rec['client_name'] = null;
+                        
+                        // Se tiver task_id, tenta buscar tenant_id
+                        if (!empty($rec['task_id'])) {
+                            try {
+                                $tenantStmt = $db->prepare("
+                                    SELECT p.tenant_id 
+                                    FROM tasks t
+                                    INNER JOIN projects p ON t.project_id = p.id
+                                    WHERE t.id = ?
+                                    LIMIT 1
+                                ");
+                                $tenantStmt->execute([$rec['task_id']]);
+                                $taskData = $tenantStmt->fetch();
+                                if ($taskData && !empty($taskData['tenant_id'])) {
+                                    $rec['tenant_id'] = $taskData['tenant_id'];
+                                }
+                            } catch (\Exception $e) {
+                                error_log('[ScreenRecordings] Erro ao buscar tenant_id: ' . $e->getMessage());
+                            }
+                        }
                     }
                     unset($rec);
                 } catch (\PDOException $e2) {
@@ -172,11 +192,31 @@ class ScreenRecordingsController extends Controller
         // Enriquece os dados com public_url e file_exists
         foreach ($recordings as &$recording) {
             // Verifica existência do arquivo
-            // O file_path no banco é: screen-recordings/2025/11/28/xxx.webm
-            // O arquivo está em: public/screen-recordings/2025/11/28/xxx.webm
+            // O file_path no banco pode ser:
+            // 1. screen-recordings/2025/11/28/xxx.webm (biblioteca) -> public/screen-recordings/2025/11/28/xxx.webm
+            // 2. storage/tasks/1/xxx.webm (tarefa) -> storage/tasks/1/xxx.webm (raiz do projeto)
             if (!empty($recording['file_path'])) {
                 $relativePath = ltrim($recording['file_path'], '/');
-                $absolutePath = __DIR__ . '/../../public/' . $relativePath;
+                $absolutePath = null;
+                
+                if (strpos($relativePath, 'storage/tasks/') === 0) {
+                    // Arquivo de tarefa: busca em storage/tasks/ (raiz do projeto)
+                    $absolutePath = __DIR__ . '/../../' . $relativePath;
+                } elseif (strpos($relativePath, 'screen-recordings/') === 0) {
+                    // Arquivo da biblioteca: busca em public/screen-recordings/
+                    $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
+                    $absolutePath = __DIR__ . '/../../public/screen-recordings/' . $fileRelativePath;
+                } else {
+                    // Tenta como caminho relativo a partir de public/
+                    $absolutePath = __DIR__ . '/../../public/' . $relativePath;
+                }
+                
+                // Normaliza o caminho
+                $normalizedPath = realpath($absolutePath);
+                if ($normalizedPath) {
+                    $absolutePath = $normalizedPath;
+                }
+                
                 $recording['file_exists'] = file_exists($absolutePath) && is_file($absolutePath);
             } else {
                 $recording['file_exists'] = false;
@@ -220,14 +260,41 @@ class ScreenRecordingsController extends Controller
             foreach ($recordings as &$recording) {
                 if (!empty($recording['file_path'])) {
                     $relativePath = ltrim($recording['file_path'], '/');
-                    $absolutePath = __DIR__ . '/../../public/' . $relativePath;
+                    $absolutePath = null;
+                    
+                    if (strpos($relativePath, 'storage/tasks/') === 0) {
+                        // Arquivo de tarefa: busca em storage/tasks/ (raiz do projeto)
+                        $absolutePath = __DIR__ . '/../../' . $relativePath;
+                    } elseif (strpos($relativePath, 'screen-recordings/') === 0) {
+                        // Arquivo da biblioteca: busca em public/screen-recordings/
+                        $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
+                        $absolutePath = __DIR__ . '/../../public/screen-recordings/' . $fileRelativePath;
+                    } else {
+                        // Tenta como caminho relativo a partir de public/
+                        $absolutePath = __DIR__ . '/../../public/' . $relativePath;
+                    }
+                    
+                    // Normaliza o caminho
+                    $normalizedPath = realpath($absolutePath);
+                    if ($normalizedPath) {
+                        $absolutePath = $normalizedPath;
+                    }
+                    
                     $recording['file_exists'] = file_exists($absolutePath) && is_file($absolutePath);
                 } else {
                     $recording['file_exists'] = false;
                 }
+                
                 if (!empty($recording['public_token'])) {
-                    $basePath = defined('BASE_PATH') ? BASE_PATH : '';
-                    $recording['public_url'] = $basePath . '/screen-recordings/share?token=' . urlencode($recording['public_token']);
+                    if (defined('BASE_URL')) {
+                        $baseUrl = rtrim(BASE_URL, '/');
+                    } else {
+                        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+                        $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                        $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+                        $baseUrl = $protocol . $domainName . $basePath;
+                    }
+                    $recording['public_url'] = $baseUrl . '/screen-recordings/share?token=' . urlencode($recording['public_token']);
                 } else {
                     $recording['public_url'] = null;
                 }
