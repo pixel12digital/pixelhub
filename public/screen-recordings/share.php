@@ -482,7 +482,7 @@ try {
                 }
             }
         }
-    } elseif (strpos($relativePath, 'screen-recordings/') === 0) {
+    } elseif (!$fileExists && strpos($relativePath, 'screen-recordings/') === 0) {
         error_log('[ScreenRecordings Share] Tipo: Arquivo da biblioteca (screen-recordings/)');
         // Arquivo da biblioteca: busca em public/screen-recordings/
         $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
