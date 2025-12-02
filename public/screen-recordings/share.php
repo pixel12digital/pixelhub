@@ -4,6 +4,14 @@
  * Não exige login - usa token público
  */
 
+// Log imediato para confirmar execução
+error_log('[ScreenRecordings Share] ==========================================');
+error_log('[ScreenRecordings Share] share.php INICIADO');
+error_log('[ScreenRecordings Share] __DIR__: ' . __DIR__);
+error_log('[ScreenRecordings Share] REQUEST_URI: ' . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
+error_log('[ScreenRecordings Share] QUERY_STRING: ' . ($_SERVER['QUERY_STRING'] ?? 'N/A'));
+error_log('[ScreenRecordings Share] $_GET: ' . json_encode($_GET));
+
 // Carrega autoload
 if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
     require_once __DIR__ . '/../../vendor/autoload.php';
