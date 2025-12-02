@@ -36,7 +36,7 @@ use PixelHub\Core\Storage;
 try {
     Env::load();
 } catch (\Exception $e) {
-    error_log('[ScreenRecordings Share] Erro ao carregar Env: ' . $e->getMessage());
+    // Erro ao carregar env não é crítico, continua
 }
 
 // Define BASE_PATH se não estiver definido
@@ -114,12 +114,10 @@ try {
         WHERE public_token = ?
         LIMIT 1
     ");
-    // Log para debug
     $stmt->execute([$token]);
     $recording = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$recording) {
-        error_log('[ScreenRecordings Share] ERRO: Gravação não encontrada para token: ' . substr($token, 0, 8) . '...');
         http_response_code(404);
         ?>
         <!DOCTYPE html>
@@ -232,10 +230,6 @@ try {
         
         // Verifica se o arquivo existe antes de servir
         if (!$filePath || !$fileExists) {
-            error_log('[ScreenRecordings Share Stream] ERRO: Arquivo não encontrado para token: ' . substr($token, 0, 8) . '...');
-            if ($filePath) {
-                error_log('[ScreenRecordings Share Stream] Caminho tentado: ' . $filePath);
-            }
             http_response_code(404);
             echo 'Arquivo não encontrado';
             exit;
@@ -243,7 +237,6 @@ try {
         
         // Valida novamente antes de servir
         if (!file_exists($filePath) || !is_file($filePath)) {
-            error_log('[ScreenRecordings Share Stream] ERRO: Arquivo não existe ou não é um arquivo válido: ' . $filePath);
             http_response_code(404);
             echo 'Arquivo não encontrado';
             exit;
@@ -284,7 +277,7 @@ try {
                     echo fread($fp, $length);
                     fclose($fp);
                 } else {
-                    error_log('[ScreenRecordings Share Stream] Erro ao abrir arquivo: ' . $filePath);
+                    error_log('[ScreenRecordings Share Stream] Erro ao abrir arquivo para streaming: ' . $filePath);
                     http_response_code(500);
                     echo 'Erro ao ler arquivo';
                 }
@@ -293,7 +286,6 @@ try {
             }
             exit;
         } else {
-            error_log('[ScreenRecordings Share Stream] ERRO: Arquivo não encontrado para streaming');
             http_response_code(404);
             echo 'Arquivo não encontrado';
             exit;
@@ -457,11 +449,8 @@ try {
         : null;
     
 } catch (\Exception $e) {
-    $errorMsg = $e->getMessage();
-    $errorTrace = $e->getTraceAsString();
-    error_log('[ScreenRecordings Share] ERRO: ' . $errorMsg);
-    error_log('[ScreenRecordings Share] Trace: ' . $errorTrace);
-    error_log('[ScreenRecordings Share] File: ' . $e->getFile() . ' Line: ' . $e->getLine());
+    // Log apenas erros críticos
+    error_log('[ScreenRecordings Share] Erro crítico: ' . $e->getMessage() . ' em ' . $e->getFile() . ':' . $e->getLine());
     http_response_code(500);
     ?>
     <!DOCTYPE html>
