@@ -130,6 +130,18 @@ if ($path === '') {
 // Remove barra final para normalizar (Router também faz isso, mas fazemos aqui para garantir)
 $path = rtrim($path, '/') ?: '/';
 
+// ATALHO: Se for /screen-recordings/share, inclui diretamente sem passar pelo router
+// Isso garante que funcione mesmo se houver problemas com o router
+if ($path === '/screen-recordings/share' || strpos($path, '/screen-recordings/share?') === 0) {
+    $shareFile = __DIR__ . '/screen-recordings/share.php';
+    if (file_exists($shareFile)) {
+        pixelhub_log('[Direct Share] Acessando share.php diretamente (bypass router)');
+        error_log('[Direct Share] Acessando share.php diretamente (bypass router)');
+        require $shareFile;
+        exit;
+    }
+}
+
 // Debug: log dos valores
 error_log("=== Router Debug ===");
 error_log("REQUEST_URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
@@ -148,16 +160,30 @@ $router->get('/logout', 'AuthController@logout');
 
 // Rota pública para compartilhar gravações (não requer autenticação)
 $router->get('/screen-recordings/share', function() {
+    pixelhub_log('[Share Route] Rota /screen-recordings/share foi chamada!');
+    error_log('[Share Route] Rota /screen-recordings/share foi chamada!');
+    
     // Inclui o arquivo share.php diretamente
     $shareFile = __DIR__ . '/screen-recordings/share.php';
+    pixelhub_log('[Share Route] Tentando incluir arquivo: ' . $shareFile);
+    error_log('[Share Route] Tentando incluir arquivo: ' . $shareFile);
+    pixelhub_log('[Share Route] Arquivo existe: ' . (file_exists($shareFile) ? 'SIM' : 'NÃO'));
+    error_log('[Share Route] Arquivo existe: ' . (file_exists($shareFile) ? 'SIM' : 'NÃO'));
+    
     if (file_exists($shareFile)) {
+        pixelhub_log('[Share Route] Incluindo arquivo share.php...');
+        error_log('[Share Route] Incluindo arquivo share.php...');
         require $shareFile;
     } else {
+        pixelhub_log('[Share Route] ERRO: Arquivo share.php não encontrado em: ' . $shareFile);
+        error_log('[Share Route] ERRO: Arquivo share.php não encontrado em: ' . $shareFile);
         http_response_code(404);
-        echo 'Arquivo não encontrado';
+        echo 'Arquivo não encontrado: ' . $shareFile;
     }
     exit;
 });
+pixelhub_log('[Router Setup] Rota /screen-recordings/share registrada');
+error_log('[Router Setup] Rota /screen-recordings/share registrada');
 
 // Rota raiz: redireciona para login se não autenticado, senão vai para dashboard
 use PixelHub\Core\Auth;
@@ -396,6 +422,14 @@ register_shutdown_function(function() use ($path) {
 // Resolve a rota
 try {
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    // Log todas as rotas registradas antes de dispatch (apenas para debug)
+    if (strpos($path, '/screen-recordings/share') !== false) {
+        pixelhub_log('[Router Debug] Path sendo buscado: ' . $path);
+        pixelhub_log('[Router Debug] Method: ' . $method);
+        error_log('[Router Debug] Path sendo buscado: ' . $path);
+        error_log('[Router Debug] Method: ' . $method);
+    }
+    
     $router->dispatch($method, $path);
 } catch (\Exception $e) {
     $errorMsg = "Erro na aplicação: " . $e->getMessage() . " em " . $e->getFile() . ":" . $e->getLine();
