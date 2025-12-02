@@ -410,6 +410,7 @@ try {
     $relativePath = ltrim($recording['file_path'], '/');
     $filePath = null;
     $fileExists = false;
+    $fileRelativePath = ''; // Inicializa para evitar undefined variable
     
     error_log('[ScreenRecordings Share] relativePath (após ltrim): ' . $relativePath);
     error_log('[ScreenRecordings Share] __DIR__: ' . __DIR__);
@@ -428,6 +429,8 @@ try {
                 error_log('[ScreenRecordings Share] ✓ Arquivo encontrado em storage/tasks/ (via task_id)');
                 $filePath = $taskFilePathNormalized;
                 $fileExists = true;
+                // Define fileRelativePath para logs
+                $fileRelativePath = 'storage/tasks/' . $taskId . '/' . $fileName;
             } else {
                 error_log('[ScreenRecordings Share] ✗ Arquivo NÃO encontrado em storage/tasks/' . $taskId . '/' . $fileName);
                 error_log('[ScreenRecordings Share] Caminho tentado: ' . $taskFilePath);
@@ -510,7 +513,7 @@ try {
         error_log('[ScreenRecordings Share] filePath: ' . $filePath);
         error_log('[ScreenRecordings Share] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
         error_log('[ScreenRecordings Share] file_name do banco: ' . ($recording['file_name'] ?? 'N/A'));
-    } else {
+    } elseif (!$fileExists) {
         error_log('[ScreenRecordings Share] Tipo: Caminho relativo genérico');
         // Tenta como caminho relativo a partir de public/screen-recordings/
         $filePath = __DIR__ . '/' . $relativePath;
@@ -524,8 +527,8 @@ try {
     // Log detalhado
     error_log('[ScreenRecordings Share] Verificando arquivo:');
     error_log('[ScreenRecordings Share]   file_path (banco): ' . $recording['file_path']);
-    error_log('[ScreenRecordings Share]   fileRelativePath: ' . $fileRelativePath);
-    error_log('[ScreenRecordings Share]   filePath absoluto: ' . $filePath);
+    error_log('[ScreenRecordings Share]   fileRelativePath: ' . ($fileRelativePath ?? 'N/A'));
+    error_log('[ScreenRecordings Share]   filePath absoluto: ' . ($filePath ?? 'NULL'));
     error_log('[ScreenRecordings Share]   arquivo existe: ' . ($fileExists ? 'SIM' : 'NÃO'));
     
     if (!$fileExists) {
