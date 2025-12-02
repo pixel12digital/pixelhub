@@ -4,13 +4,7 @@
  * Não exige login - usa token público
  */
 
-// Log imediato para confirmar execução
-error_log('[ScreenRecordings Share] ==========================================');
-error_log('[ScreenRecordings Share] share.php INICIADO');
-error_log('[ScreenRecordings Share] __DIR__: ' . __DIR__);
-error_log('[ScreenRecordings Share] REQUEST_URI: ' . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
-error_log('[ScreenRecordings Share] QUERY_STRING: ' . ($_SERVER['QUERY_STRING'] ?? 'N/A'));
-error_log('[ScreenRecordings Share] $_GET: ' . json_encode($_GET));
+// Log apenas em caso de erro
 
 // Carrega autoload
 if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
@@ -109,13 +103,7 @@ if (empty($token)) {
 }
 
 try {
-    // Log inicial
-    error_log('[ScreenRecordings Share] Iniciando busca por token: ' . $token);
-    error_log('[ScreenRecordings Share] BASE_PATH: ' . (defined('BASE_PATH') ? BASE_PATH : 'NÃO DEFINIDO'));
-    error_log('[ScreenRecordings Share] BASE_URL: ' . (defined('BASE_URL') ? BASE_URL : 'NÃO DEFINIDO'));
-    
     $db = DB::getConnection();
-    error_log('[ScreenRecordings Share] Conexão com banco estabelecida');
     
     // Busca gravação por token público (inclui task_id para verificar se é anexo de tarefa)
     $stmt = $db->prepare("
@@ -127,42 +115,11 @@ try {
         LIMIT 1
     ");
     // Log para debug
-    error_log('[ScreenRecordings Share] Buscando registro com token: ' . $token);
     $stmt->execute([$token]);
     $recording = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    // Log para debug
-    error_log('[ScreenRecordings Share] ==========================================');
-    error_log('[ScreenRecordings Share] DEBUG COMPLETO - Token: ' . $token);
-    error_log('[ScreenRecordings Share] Registro encontrado: ' . ($recording ? 'SIM' : 'NÃO'));
-    
-    if ($recording) {
-        error_log('[ScreenRecordings Share] Dados do registro:');
-        error_log('[ScreenRecordings Share]   - ID: ' . ($recording['id'] ?? 'N/A'));
-        error_log('[ScreenRecordings Share]   - task_id: ' . ($recording['task_id'] ?? 'NULL'));
-        error_log('[ScreenRecordings Share]   - file_path: ' . ($recording['file_path'] ?? 'N/A'));
-        error_log('[ScreenRecordings Share]   - file_name: ' . ($recording['file_name'] ?? 'N/A'));
-        error_log('[ScreenRecordings Share]   - original_name: ' . ($recording['original_name'] ?? 'N/A'));
-        error_log('[ScreenRecordings Share]   - public_token: ' . ($recording['public_token'] ?? 'N/A'));
-        error_log('[ScreenRecordings Share]   - mime_type: ' . ($recording['mime_type'] ?? 'N/A'));
-    }
-    
     if (!$recording) {
-        // Log adicional: verifica se a tabela existe e quantos registros tem
-        try {
-            $countStmt = $db->query("SELECT COUNT(*) as total FROM screen_recordings");
-            $count = $countStmt->fetch(PDO::FETCH_ASSOC);
-            error_log('[ScreenRecordings Share] Total de gravações no banco: ' . ($count['total'] ?? 0));
-            
-            // Lista últimos 3 tokens para debug
-            $lastStmt = $db->query("SELECT public_token, file_path FROM screen_recordings ORDER BY id DESC LIMIT 3");
-            $last = $lastStmt->fetchAll(PDO::FETCH_ASSOC);
-            foreach ($last as $r) {
-                error_log('[ScreenRecordings Share] Token exemplo: ' . $r['public_token'] . ' -> ' . $r['file_path']);
-            }
-        } catch (\Exception $e) {
-            error_log('[ScreenRecordings Share] Erro ao verificar tabela: ' . $e->getMessage());
-        }
+        error_log('[ScreenRecordings Share] ERRO: Gravação não encontrada para token: ' . substr($token, 0, 8) . '...');
         http_response_code(404);
         ?>
         <!DOCTYPE html>
@@ -206,17 +163,9 @@ try {
     
     // Se for requisição de streaming (parâmetro stream=1), serve o arquivo diretamente
     if (isset($_GET['stream']) && $_GET['stream'] == '1') {
-        error_log('[ScreenRecordings Share Stream] ==========================================');
-        error_log('[ScreenRecordings Share Stream] MODO STREAMING ATIVADO');
-        error_log('[ScreenRecordings Share Stream] file_path do banco: ' . ($recording['file_path'] ?? 'N/A'));
-        
         $relativePath = ltrim($recording['file_path'], '/');
         $filePath = null;
         $fileExists = false;
-        
-        error_log('[ScreenRecordings Share Stream] relativePath (após ltrim): ' . $relativePath);
-        error_log('[ScreenRecordings Share Stream] __DIR__: ' . __DIR__);
-        error_log('[ScreenRecordings Share Stream] task_id: ' . ($recording['task_id'] ?? 'NULL'));
         
         // PRIORIDADE 1: Se task_id não é NULL, verifica primeiro em storage/tasks/
         if (!empty($recording['task_id'])) {
@@ -224,109 +173,58 @@ try {
             $fileName = $recording['file_name'] ?? $recording['original_name'];
             
             if (!empty($fileName)) {
-                error_log('[ScreenRecordings Share Stream] task_id não é NULL, tentando storage/tasks/' . $taskId . '/' . $fileName);
                 $taskFilePath = __DIR__ . '/../../storage/tasks/' . $taskId . '/' . $fileName;
                 $taskFilePathNormalized = realpath($taskFilePath);
                 
                 if ($taskFilePathNormalized && file_exists($taskFilePathNormalized) && is_file($taskFilePathNormalized)) {
-                    error_log('[ScreenRecordings Share Stream] ✓ Arquivo encontrado em storage/tasks/ (via task_id)');
                     $filePath = $taskFilePathNormalized;
                     $fileExists = true;
-                } else {
-                    error_log('[ScreenRecordings Share Stream] ✗ Arquivo NÃO encontrado em storage/tasks/' . $taskId . '/' . $fileName);
                 }
             }
         }
         
-        // Se já encontrou o arquivo em storage/tasks/, não tenta outros caminhos
-        if ($fileExists && $filePath) {
-            error_log('[ScreenRecordings Share Stream] Arquivo já encontrado, pulando outras tentativas');
-        }
         // PRIORIDADE 2: Se não encontrou e file_path indica storage/tasks/
-        elseif (!$fileExists && strpos($relativePath, 'storage/tasks/') === 0) {
-            error_log('[ScreenRecordings Share Stream] Tipo: Arquivo de tarefa (storage/tasks/)');
+        if (!$fileExists && strpos($relativePath, 'storage/tasks/') === 0) {
             // Arquivo de tarefa: busca em storage/tasks/ (raiz do projeto)
-            // __DIR__ é public/screen-recordings/, então ../../ volta para a raiz
             $filePath = __DIR__ . '/../../' . $relativePath;
-            
-            error_log('[ScreenRecordings Share Stream] filePath calculado (antes de realpath): ' . $filePath);
-            
-            // Normaliza o caminho (resolve .. e .)
             $normalizedPath = realpath($filePath);
             if ($normalizedPath) {
                 $filePath = $normalizedPath;
-                error_log('[ScreenRecordings Share Stream] filePath normalizado (realpath): ' . $filePath);
-            } else {
-                error_log('[ScreenRecordings Share Stream] realpath FALHOU - tentando sem normalização');
-            }
-            
-            // Log para debug
-            error_log('[ScreenRecordings Share Stream] filePath final: ' . $filePath);
-            error_log('[ScreenRecordings Share Stream] file_exists: ' . (file_exists($filePath) ? 'SIM' : 'NÃO'));
-            error_log('[ScreenRecordings Share Stream] is_file: ' . (is_file($filePath) ? 'SIM' : 'NÃO'));
-            error_log('[ScreenRecordings Share Stream] is_readable: ' . (is_readable($filePath) ? 'SIM' : 'NÃO'));
-            
-            // Verifica diretório pai
-            if ($filePath) {
-                $parentDir = dirname($filePath);
-                error_log('[ScreenRecordings Share Stream] parentDir: ' . $parentDir);
-                error_log('[ScreenRecordings Share Stream] parentDir existe: ' . (is_dir($parentDir) ? 'SIM' : 'NÃO'));
-                if (is_dir($parentDir)) {
-                    $files = @scandir($parentDir);
-                    if ($files) {
-                        error_log('[ScreenRecordings Share Stream] Arquivos no diretório: ' . implode(', ', array_slice($files, 0, 10)));
-                    }
-                }
             }
         } elseif (!$fileExists && strpos($relativePath, 'screen-recordings/') === 0) {
-            error_log('[ScreenRecordings Share Stream] Tipo: Arquivo da biblioteca (screen-recordings/)');
             // Arquivo da biblioteca: busca em public/screen-recordings/
             $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
             $filePath = __DIR__ . '/' . $fileRelativePath;
             
-            // CORREÇÃO: Se não encontrou com file_path, tenta com file_name (que deve ter o token)
+            // Se não encontrou com file_path, tenta com file_name
             if (!file_exists($filePath) && !empty($recording['file_name'])) {
-                // Extrai o diretório do file_path
                 $pathDir = dirname($fileRelativePath);
-                // Usa file_name (que deve ter o token) no mesmo diretório
                 $filePathAlt = __DIR__ . '/' . $pathDir . '/' . $recording['file_name'];
-                error_log('[ScreenRecordings Share Stream] Tentando caminho alternativo com file_name: ' . $filePathAlt);
                 if (file_exists($filePathAlt) && is_file($filePathAlt)) {
                     $filePath = $filePathAlt;
                     $fileExists = true;
-                    error_log('[ScreenRecordings Share Stream] Arquivo encontrado com file_name!');
                 }
             }
             
             if ($filePath && file_exists($filePath) && is_file($filePath)) {
                 $fileExists = true;
             }
-            
-            error_log('[ScreenRecordings Share Stream] fileRelativePath: ' . $fileRelativePath);
-            error_log('[ScreenRecordings Share Stream] filePath: ' . $filePath);
-            error_log('[ScreenRecordings Share Stream] file_name do banco: ' . ($recording['file_name'] ?? 'N/A'));
-            error_log('[ScreenRecordings Share Stream] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
         } elseif (!$fileExists) {
-            error_log('[ScreenRecordings Share Stream] Tipo: Caminho relativo genérico');
             // Tenta como caminho relativo a partir de public/screen-recordings/
             $filePath = __DIR__ . '/' . $relativePath;
             if (file_exists($filePath) && is_file($filePath)) {
                 $fileExists = true;
             }
-            error_log('[ScreenRecordings Share Stream] filePath: ' . $filePath);
-            error_log('[ScreenRecordings Share Stream] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
         }
         
         // PRIORIDADE 3: Se ainda não encontrou e task_id não é NULL, tenta storage/tasks/ com original_name
         if (!$fileExists && !empty($recording['task_id']) && !empty($recording['original_name'])) {
             $taskId = (int)$recording['task_id'];
             $originalName = $recording['original_name'];
-            error_log('[ScreenRecordings Share Stream] Tentando storage/tasks/' . $taskId . '/' . $originalName . ' (com original_name)');
             $taskFilePath = __DIR__ . '/../../storage/tasks/' . $taskId . '/' . $originalName;
             $taskFilePathNormalized = realpath($taskFilePath);
             
             if ($taskFilePathNormalized && file_exists($taskFilePathNormalized) && is_file($taskFilePathNormalized)) {
-                error_log('[ScreenRecordings Share Stream] ✓ Arquivo encontrado em storage/tasks/ (via original_name)');
                 $filePath = $taskFilePathNormalized;
                 $fileExists = true;
             }
@@ -334,25 +232,18 @@ try {
         
         // Verifica se o arquivo existe antes de servir
         if (!$filePath || !$fileExists) {
-            error_log('[ScreenRecordings Share Stream] Arquivo não encontrado!');
-            error_log('[ScreenRecordings Share Stream] filePath: ' . ($filePath ?? 'NULL'));
-            error_log('[ScreenRecordings Share Stream] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
+            error_log('[ScreenRecordings Share Stream] ERRO: Arquivo não encontrado para token: ' . substr($token, 0, 8) . '...');
             if ($filePath) {
-                error_log('[ScreenRecordings Share Stream] filePath tentado: ' . $filePath);
-                error_log('[ScreenRecordings Share Stream] file_exists(): ' . (file_exists($filePath) ? 'SIM' : 'NÃO'));
-                error_log('[ScreenRecordings Share Stream] is_file(): ' . (is_file($filePath) ? 'SIM' : 'NÃO'));
+                error_log('[ScreenRecordings Share Stream] Caminho tentado: ' . $filePath);
             }
             http_response_code(404);
-            echo 'Arquivo não encontrado - caminho não determinado';
+            echo 'Arquivo não encontrado';
             exit;
         }
         
-        // Garante que fileExists está correto antes de servir
-        if ($filePath && file_exists($filePath) && is_file($filePath)) {
-            $fileExists = true;
-        } else {
-            error_log('[ScreenRecordings Share Stream] ERRO: Arquivo marcado como encontrado mas não existe!');
-            error_log('[ScreenRecordings Share Stream] filePath: ' . ($filePath ?? 'NULL'));
+        // Valida novamente antes de servir
+        if (!file_exists($filePath) || !is_file($filePath)) {
+            error_log('[ScreenRecordings Share Stream] ERRO: Arquivo não existe ou não é um arquivo válido: ' . $filePath);
             http_response_code(404);
             echo 'Arquivo não encontrado';
             exit;
@@ -427,11 +318,6 @@ try {
     }
     
     // Verifica se o arquivo existe (para exibição da página)
-    error_log('[ScreenRecordings Share] ==========================================');
-    error_log('[ScreenRecordings Share] VERIFICAÇÃO DE ARQUIVO PARA EXIBIÇÃO');
-    error_log('[ScreenRecordings Share] file_path do banco: ' . ($recording['file_path'] ?? 'N/A'));
-    error_log('[ScreenRecordings Share] task_id: ' . ($recording['task_id'] ?? 'NULL'));
-    
     // O file_path no banco pode ser:
     // 1. screen-recordings/2025/11/28/xxx.webm (biblioteca) -> public/screen-recordings/2025/11/28/xxx.webm
     // 2. storage/tasks/1/xxx.webm (tarefa) -> storage/tasks/1/xxx.webm
@@ -441,124 +327,51 @@ try {
     $fileExists = false;
     $fileRelativePath = ''; // Inicializa para evitar undefined variable
     
-    error_log('[ScreenRecordings Share] relativePath (após ltrim): ' . $relativePath);
-    error_log('[ScreenRecordings Share] __DIR__: ' . __DIR__);
-    
     // PRIORIDADE 1: Se task_id não é NULL, verifica primeiro em storage/tasks/
     if (!empty($recording['task_id'])) {
         $taskId = (int)$recording['task_id'];
         $fileName = $recording['file_name'] ?? $recording['original_name'];
         
         if (!empty($fileName)) {
-            error_log('[ScreenRecordings Share] task_id não é NULL, tentando storage/tasks/' . $taskId . '/' . $fileName);
             $taskFilePath = __DIR__ . '/../../storage/tasks/' . $taskId . '/' . $fileName;
             $taskFilePathNormalized = realpath($taskFilePath);
             
             if ($taskFilePathNormalized && file_exists($taskFilePathNormalized) && is_file($taskFilePathNormalized)) {
-                error_log('[ScreenRecordings Share] ✓ Arquivo encontrado em storage/tasks/ (via task_id)');
                 $filePath = $taskFilePathNormalized;
                 $fileExists = true;
-                // Define fileRelativePath para logs
                 $fileRelativePath = 'storage/tasks/' . $taskId . '/' . $fileName;
-            } else {
-                error_log('[ScreenRecordings Share] ✗ Arquivo NÃO encontrado em storage/tasks/' . $taskId . '/' . $fileName);
-                error_log('[ScreenRecordings Share] Caminho tentado: ' . $taskFilePath);
-                if ($taskFilePathNormalized) {
-                    error_log('[ScreenRecordings Share] Caminho normalizado: ' . $taskFilePathNormalized);
-                }
             }
         }
     }
     
     // PRIORIDADE 2: Se não encontrou e file_path indica storage/tasks/
     if (!$fileExists && strpos($relativePath, 'storage/tasks/') === 0) {
-        error_log('[ScreenRecordings Share] Tipo: Arquivo de tarefa (storage/tasks/)');
-        // Arquivo de tarefa: busca em storage/tasks/ (raiz do projeto)
-        // __DIR__ é public/screen-recordings/, então ../../ volta para a raiz
         $filePath = __DIR__ . '/../../' . $relativePath;
-        
-        error_log('[ScreenRecordings Share] filePath calculado (antes de realpath): ' . $filePath);
-        
-        // Normaliza o caminho (resolve .. e .)
         $normalizedPath = realpath($filePath);
         if ($normalizedPath) {
             $filePath = $normalizedPath;
-            error_log('[ScreenRecordings Share] filePath normalizado (realpath): ' . $filePath);
-        } else {
-            error_log('[ScreenRecordings Share] realpath FALHOU - tentando sem normalização');
         }
-        
         $fileExists = file_exists($filePath) && is_file($filePath);
-        
-        // Log para debug
-        error_log('[ScreenRecordings Share] filePath final: ' . ($filePath ?? 'NULL'));
-        error_log('[ScreenRecordings Share] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
-        error_log('[ScreenRecordings Share] is_file: ' . (is_file($filePath) ? 'SIM' : 'NÃO'));
-        error_log('[ScreenRecordings Share] is_readable: ' . (is_readable($filePath) ? 'SIM' : 'NÃO'));
-        
-        // Se não encontrou, tenta sem normalizar (pode ser problema de permissões)
-        if (!$fileExists && $filePath) {
-            $fileExists = @file_exists($filePath) && @is_file($filePath);
-            error_log('[ScreenRecordings Share] fileExists (após @): ' . ($fileExists ? 'SIM' : 'NÃO'));
-        }
-        
-        // Verifica diretório pai
-        if ($filePath && !$fileExists) {
-            $parentDir = dirname($filePath);
-            error_log('[ScreenRecordings Share] parentDir: ' . $parentDir);
-            error_log('[ScreenRecordings Share] parentDir existe: ' . (is_dir($parentDir) ? 'SIM' : 'NÃO'));
-            if (is_dir($parentDir)) {
-                $files = @scandir($parentDir);
-                if ($files) {
-                    error_log('[ScreenRecordings Share] Arquivos no diretório: ' . implode(', ', array_slice($files, 0, 10)));
-                }
-            }
-        }
     } elseif (!$fileExists && strpos($relativePath, 'screen-recordings/') === 0) {
-        error_log('[ScreenRecordings Share] Tipo: Arquivo da biblioteca (screen-recordings/)');
         // Arquivo da biblioteca: busca em public/screen-recordings/
         $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
-        
-        // CORREÇÃO: Se o file_path tem o nome original mas o file_name tem o token,
-        // tenta usar o file_name primeiro
         $filePath = __DIR__ . '/' . $fileRelativePath;
         $fileExists = file_exists($filePath) && is_file($filePath);
         
-        // Se não encontrou com file_path, tenta com file_name (que deve ter o token)
+        // Se não encontrou com file_path, tenta com file_name
         if (!$fileExists && !empty($recording['file_name'])) {
-            // Extrai o diretório do file_path
             $pathDir = dirname($fileRelativePath);
-            // Usa file_name (que deve ter o token) no mesmo diretório
             $filePathAlt = __DIR__ . '/' . $pathDir . '/' . $recording['file_name'];
-            error_log('[ScreenRecordings Share] Tentando caminho alternativo com file_name: ' . $filePathAlt);
             if (file_exists($filePathAlt) && is_file($filePathAlt)) {
                 $filePath = $filePathAlt;
                 $fileExists = true;
-                error_log('[ScreenRecordings Share] Arquivo encontrado com file_name!');
             }
         }
-        
-        error_log('[ScreenRecordings Share] fileRelativePath: ' . $fileRelativePath);
-        error_log('[ScreenRecordings Share] filePath: ' . $filePath);
-        error_log('[ScreenRecordings Share] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
-        error_log('[ScreenRecordings Share] file_name do banco: ' . ($recording['file_name'] ?? 'N/A'));
     } elseif (!$fileExists) {
-        error_log('[ScreenRecordings Share] Tipo: Caminho relativo genérico');
         // Tenta como caminho relativo a partir de public/screen-recordings/
         $filePath = __DIR__ . '/' . $relativePath;
         $fileExists = file_exists($filePath) && is_file($filePath);
-        error_log('[ScreenRecordings Share] filePath: ' . $filePath);
-        error_log('[ScreenRecordings Share] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
     }
-    
-    error_log('[ScreenRecordings Share] ==========================================');
-    
-    // Log detalhado
-    error_log('[ScreenRecordings Share] Verificando arquivo:');
-    error_log('[ScreenRecordings Share]   file_path (banco): ' . $recording['file_path']);
-    error_log('[ScreenRecordings Share]   fileRelativePath: ' . ($fileRelativePath ?? 'N/A'));
-    error_log('[ScreenRecordings Share]   filePath absoluto: ' . ($filePath ?? 'NULL'));
-    error_log('[ScreenRecordings Share]   arquivo existe: ' . ($fileExists ? 'SIM' : 'NÃO'));
     
     if (!$fileExists) {
         http_response_code(404);
