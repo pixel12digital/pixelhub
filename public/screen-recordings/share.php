@@ -117,10 +117,10 @@ try {
     $db = DB::getConnection();
     error_log('[ScreenRecordings Share] Conexão com banco estabelecida');
     
-    // Busca gravação por token público
+    // Busca gravação por token público (inclui task_id para verificar se é anexo de tarefa)
     $stmt = $db->prepare("
         SELECT 
-            id, file_path, file_name, original_name, mime_type, 
+            id, task_id, file_path, file_name, original_name, mime_type, 
             size_bytes, duration_seconds, has_audio, public_token, created_at
         FROM screen_recordings
         WHERE public_token = ?
@@ -139,6 +139,7 @@ try {
     if ($recording) {
         error_log('[ScreenRecordings Share] Dados do registro:');
         error_log('[ScreenRecordings Share]   - ID: ' . ($recording['id'] ?? 'N/A'));
+        error_log('[ScreenRecordings Share]   - task_id: ' . ($recording['task_id'] ?? 'NULL'));
         error_log('[ScreenRecordings Share]   - file_path: ' . ($recording['file_path'] ?? 'N/A'));
         error_log('[ScreenRecordings Share]   - file_name: ' . ($recording['file_name'] ?? 'N/A'));
         error_log('[ScreenRecordings Share]   - original_name: ' . ($recording['original_name'] ?? 'N/A'));
@@ -211,11 +212,34 @@ try {
         
         $relativePath = ltrim($recording['file_path'], '/');
         $filePath = null;
+        $fileExists = false;
         
         error_log('[ScreenRecordings Share Stream] relativePath (após ltrim): ' . $relativePath);
         error_log('[ScreenRecordings Share Stream] __DIR__: ' . __DIR__);
+        error_log('[ScreenRecordings Share Stream] task_id: ' . ($recording['task_id'] ?? 'NULL'));
         
-        if (strpos($relativePath, 'storage/tasks/') === 0) {
+        // PRIORIDADE 1: Se task_id não é NULL, verifica primeiro em storage/tasks/
+        if (!empty($recording['task_id'])) {
+            $taskId = (int)$recording['task_id'];
+            $fileName = $recording['file_name'] ?? $recording['original_name'];
+            
+            if (!empty($fileName)) {
+                error_log('[ScreenRecordings Share Stream] task_id não é NULL, tentando storage/tasks/' . $taskId . '/' . $fileName);
+                $taskFilePath = __DIR__ . '/../../storage/tasks/' . $taskId . '/' . $fileName;
+                $taskFilePathNormalized = realpath($taskFilePath);
+                
+                if ($taskFilePathNormalized && file_exists($taskFilePathNormalized) && is_file($taskFilePathNormalized)) {
+                    error_log('[ScreenRecordings Share Stream] ✓ Arquivo encontrado em storage/tasks/ (via task_id)');
+                    $filePath = $taskFilePathNormalized;
+                    $fileExists = true;
+                } else {
+                    error_log('[ScreenRecordings Share Stream] ✗ Arquivo NÃO encontrado em storage/tasks/' . $taskId . '/' . $fileName);
+                }
+            }
+        }
+        
+        // PRIORIDADE 2: Se não encontrou e file_path indica storage/tasks/
+        if (!$fileExists && strpos($relativePath, 'storage/tasks/') === 0) {
             error_log('[ScreenRecordings Share Stream] Tipo: Arquivo de tarefa (storage/tasks/)');
             // Arquivo de tarefa: busca em storage/tasks/ (raiz do projeto)
             // __DIR__ é public/screen-recordings/, então ../../ volta para a raiz
@@ -279,9 +303,27 @@ try {
             error_log('[ScreenRecordings Share Stream] filePath: ' . $filePath);
         }
         
+        // PRIORIDADE 3: Se ainda não encontrou e task_id não é NULL, tenta storage/tasks/ com original_name
+        if (!$fileExists && !empty($recording['task_id']) && !empty($recording['original_name'])) {
+            $taskId = (int)$recording['task_id'];
+            $originalName = $recording['original_name'];
+            error_log('[ScreenRecordings Share Stream] Tentando storage/tasks/' . $taskId . '/' . $originalName . ' (com original_name)');
+            $taskFilePath = __DIR__ . '/../../storage/tasks/' . $taskId . '/' . $originalName;
+            $taskFilePathNormalized = realpath($taskFilePath);
+            
+            if ($taskFilePathNormalized && file_exists($taskFilePathNormalized) && is_file($taskFilePathNormalized)) {
+                error_log('[ScreenRecordings Share Stream] ✓ Arquivo encontrado em storage/tasks/ (via original_name)');
+                $filePath = $taskFilePathNormalized;
+                $fileExists = true;
+            }
+        }
+        
         // Verifica se o arquivo existe antes de servir
-        if (!$filePath) {
-            error_log('[ScreenRecordings Share Stream] filePath é NULL');
+        if (!$filePath || !$fileExists) {
+            error_log('[ScreenRecordings Share Stream] filePath é NULL ou arquivo não existe');
+            if ($filePath) {
+                error_log('[ScreenRecordings Share Stream] filePath tentado: ' . $filePath);
+            }
             http_response_code(404);
             echo 'Arquivo não encontrado - caminho não determinado';
             exit;
@@ -359,10 +401,12 @@ try {
     error_log('[ScreenRecordings Share] ==========================================');
     error_log('[ScreenRecordings Share] VERIFICAÇÃO DE ARQUIVO PARA EXIBIÇÃO');
     error_log('[ScreenRecordings Share] file_path do banco: ' . ($recording['file_path'] ?? 'N/A'));
+    error_log('[ScreenRecordings Share] task_id: ' . ($recording['task_id'] ?? 'NULL'));
     
     // O file_path no banco pode ser:
     // 1. screen-recordings/2025/11/28/xxx.webm (biblioteca) -> public/screen-recordings/2025/11/28/xxx.webm
     // 2. storage/tasks/1/xxx.webm (tarefa) -> storage/tasks/1/xxx.webm
+    // 3. Se task_id não é NULL mas file_path está errado, tenta storage/tasks/{task_id}/{file_name}
     $relativePath = ltrim($recording['file_path'], '/');
     $filePath = null;
     $fileExists = false;
@@ -370,7 +414,32 @@ try {
     error_log('[ScreenRecordings Share] relativePath (após ltrim): ' . $relativePath);
     error_log('[ScreenRecordings Share] __DIR__: ' . __DIR__);
     
-    if (strpos($relativePath, 'storage/tasks/') === 0) {
+    // PRIORIDADE 1: Se task_id não é NULL, verifica primeiro em storage/tasks/
+    if (!empty($recording['task_id'])) {
+        $taskId = (int)$recording['task_id'];
+        $fileName = $recording['file_name'] ?? $recording['original_name'];
+        
+        if (!empty($fileName)) {
+            error_log('[ScreenRecordings Share] task_id não é NULL, tentando storage/tasks/' . $taskId . '/' . $fileName);
+            $taskFilePath = __DIR__ . '/../../storage/tasks/' . $taskId . '/' . $fileName;
+            $taskFilePathNormalized = realpath($taskFilePath);
+            
+            if ($taskFilePathNormalized && file_exists($taskFilePathNormalized) && is_file($taskFilePathNormalized)) {
+                error_log('[ScreenRecordings Share] ✓ Arquivo encontrado em storage/tasks/ (via task_id)');
+                $filePath = $taskFilePathNormalized;
+                $fileExists = true;
+            } else {
+                error_log('[ScreenRecordings Share] ✗ Arquivo NÃO encontrado em storage/tasks/' . $taskId . '/' . $fileName);
+                error_log('[ScreenRecordings Share] Caminho tentado: ' . $taskFilePath);
+                if ($taskFilePathNormalized) {
+                    error_log('[ScreenRecordings Share] Caminho normalizado: ' . $taskFilePathNormalized);
+                }
+            }
+        }
+    }
+    
+    // PRIORIDADE 2: Se não encontrou e file_path indica storage/tasks/
+    if (!$fileExists && strpos($relativePath, 'storage/tasks/') === 0) {
         error_log('[ScreenRecordings Share] Tipo: Arquivo de tarefa (storage/tasks/)');
         // Arquivo de tarefa: busca em storage/tasks/ (raiz do projeto)
         // __DIR__ é public/screen-recordings/, então ../../ volta para a raiz
