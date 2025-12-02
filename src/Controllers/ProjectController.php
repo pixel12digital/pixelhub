@@ -9,6 +9,20 @@ use PixelHub\Services\ProjectService;
 
 /**
  * Controller para gerenciar projetos
+ * 
+ * FLUXO DE NEGÓCIO - Projetos vs Tickets:
+ * 
+ * Projetos são coisas grandes e recorrentes (ex: desenvolvimento de site, migração, etc.)
+ * - Podem ser internos (sem tenant_id) ou de cliente (com tenant_id)
+ * - Projetos podem ter múltiplas tarefas vinculadas
+ * 
+ * IMPORTANTE: Não criar um projeto para cada chamado de suporte.
+ * Para chamados pontuais de suporte, use TICKETS:
+ * - Tickets são a unidade de suporte vinculada a um cliente (tenant_id obrigatório)
+ * - Tickets podem ter project_id opcional (quando o chamado está ligado a um projeto maior)
+ * - Use o botão "Abrir ticket relacionado" na view de projetos para criar tickets vinculados
+ * 
+ * Dentro do bloco de agenda SUPORTE, trabalhe nos tickets pendentes, não crie projetos novos.
  */
 class ProjectController extends Controller
 {

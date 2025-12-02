@@ -285,12 +285,46 @@ ob_start();
     .btn-secondary:hover {
         background: #555;
     }
+    .btn-danger {
+        background: #c33;
+        color: white;
+    }
+    .btn-danger:hover {
+        background: #a00;
+    }
     .checklist-item {
         display: flex;
         align-items: center;
         gap: 10px;
         padding: 8px;
         border-bottom: 1px solid #eee;
+        cursor: move;
+        user-select: none;
+        position: relative;
+    }
+    .checklist-item.dragging {
+        opacity: 0.5;
+        background: #f0f0f0;
+    }
+    .checklist-item.drag-over {
+        border-top: 2px solid #023A8D;
+    }
+    .checklist-item-handle {
+        cursor: grab;
+        color: #999;
+        font-size: 16px;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        user-select: none;
+    }
+    .checklist-item-handle:active {
+        cursor: grabbing;
+    }
+    .checklist-item input[type="checkbox"],
+    .checklist-item input[type="text"],
+    .checklist-item button {
+        cursor: default;
     }
     .checklist-item input[type="checkbox"] {
         width: auto;
@@ -340,10 +374,34 @@ ob_start();
         <h2>Quadro de Tarefas</h2>
         <p>Gerenciamento visual de tarefas em formato Kanban</p>
     </div>
-    <button id="btn-new-task" 
-            style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; font-size: 14px;">
-        Nova tarefa
-    </button>
+    <div style="display: flex; gap: 10px;">
+        <?php
+        $ticketUrl = pixelhub_url('/tickets/create');
+        $ticketParams = [];
+        if ($selectedProjectId) {
+            $ticketParams[] = 'project_id=' . $selectedProjectId;
+            // Busca o projeto para pegar tenant_id
+            $selectedProject = null;
+            foreach ($projects as $proj) {
+                if ($proj['id'] == $selectedProjectId && !empty($proj['tenant_id'])) {
+                    $ticketParams[] = 'tenant_id=' . $proj['tenant_id'];
+                    break;
+                }
+            }
+        }
+        if (!empty($ticketParams)) {
+            $ticketUrl .= '?' . implode('&', $ticketParams);
+        }
+        ?>
+        <a href="<?= $ticketUrl ?>" 
+           style="background: #f57c00; color: white; padding: 10px 20px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; font-size: 14px; text-decoration: none; display: inline-block;">
+            🎫 Novo Ticket
+        </a>
+        <button id="btn-new-task" 
+                style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; font-size: 14px;">
+            Nova tarefa
+        </button>
+    </div>
 </div>
 
 <!-- Filtros -->
@@ -389,6 +447,14 @@ ob_start();
             <option value="">Todos</option>
             <option value="interno" <?= ($selectedType === 'interno') ? 'selected' : '' ?>>Somente internos</option>
             <option value="cliente" <?= ($selectedType === 'cliente') ? 'selected' : '' ?>>Somente clientes</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="filter_agenda">Agenda</label>
+        <select id="filter_agenda" onchange="applyFilters()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            <option value="">Todas</option>
+            <option value="with" <?= ($selectedAgendaFilter === 'with') ? 'selected' : '' ?>>Com Agenda</option>
+            <option value="without" <?= ($selectedAgendaFilter === 'without') ? 'selected' : '' ?>>Sem Agenda</option>
         </select>
     </div>
 </div>
@@ -580,11 +646,13 @@ ob_start();
         const tenantId = document.getElementById('filter_tenant').value;
         const type = document.getElementById('filter_type').value;
         const clientQuery = document.getElementById('filter_client_query').value.trim();
+        const agendaFilter = document.getElementById('filter_agenda').value;
         const params = new URLSearchParams();
         if (projectId) params.append('project_id', projectId);
         if (tenantId) params.append('tenant_id', tenantId);
         if (type) params.append('type', type);
         if (clientQuery) params.append('client_query', clientQuery);
+        if (agendaFilter) params.append('agenda_filter', agendaFilter);
         window.location.href = '<?= pixelhub_url('/projects/board') ?>?' + params.toString();
     }
 
@@ -887,11 +955,76 @@ ob_start();
             html += '<button type="submit" class="btn btn-primary">Salvar</button>';
         } else {
             html += '<button type="button" data-action="edit-task" class="btn btn-primary js-task-edit-btn">Editar Tarefa</button>';
+            html += '<button type="button" data-action="delete-task" class="btn btn-danger js-task-delete-btn" style="background: #c33; color: white; margin-left: auto;">Excluir Tarefa</button>';
             html += '<button type="button" class="btn btn-secondary" onclick="closeTaskDetailModal()">Fechar</button>';
         }
         html += '</div>';
         
         html += '</form>';
+        
+        // Seção Blocos de Agenda Relacionados
+        html += '<div class="task-agenda-blocks-section" style="margin-top: 24px; padding-top: 20px; border-top: 2px solid #f0f0f0;">';
+        html += '<h4 style="margin: 0 0 15px 0; color: #023A8D;">Blocos de Agenda relacionados</h4>';
+        if (data.blocos_relacionados && data.blocos_relacionados.length > 0) {
+            html += '<ul style="list-style: none; padding: 0; margin: 0;">';
+            data.blocos_relacionados.forEach(function(bloco) {
+                const dataFormatada = bloco.data_formatada || bloco.data;
+                const horaInicio = bloco.hora_inicio ? bloco.hora_inicio.substring(0, 5) : '';
+                const horaFim = bloco.hora_fim ? bloco.hora_fim.substring(0, 5) : '';
+                const tipoNome = escapeHtml(bloco.tipo_nome || '');
+                const blocoUrl = '<?= pixelhub_url('/agenda/bloco?id=') ?>' + bloco.id;
+                html += '<li style="padding: 10px; margin-bottom: 8px; background: #f9f9f9; border-radius: 4px; border-left: 3px solid ' + (bloco.tipo_cor_hex || '#ddd') + ';">';
+                html += '<a href="' + blocoUrl + '" target="_blank" style="color: #023A8D; text-decoration: none; font-weight: 500;">';
+                html += escapeHtml(dataFormatada) + ' — ' + horaInicio + '–' + horaFim + ' (' + tipoNome + ')';
+                html += '</a>';
+                html += '</li>';
+            });
+            html += '</ul>';
+        } else {
+            html += '<p style="color: #666; font-size: 14px; margin: 0 0 10px 0;">Nenhum bloco de agenda vinculado a esta tarefa.</p>';
+            html += '<button type="button" onclick="openScheduleTaskModal(' + taskId + ')" class="btn btn-primary" style="display: inline-block; padding: 8px 16px; background: #023A8D; color: white; text-decoration: none; border-radius: 4px; font-weight: 600; font-size: 14px; border: none; cursor: pointer;">Agendar na Agenda</button>';
+        }
+        html += '</div>';
+        
+        // Seção Tickets Vinculados
+        html += '<div class="task-tickets-section" style="margin-top: 24px; padding-top: 20px; border-top: 2px solid #f0f0f0;">';
+        html += '<h4 style="margin: 0 0 15px 0; color: #023A8D;">Tickets Relacionados</h4>';
+        if (data.tickets_vinculados && data.tickets_vinculados.length > 0) {
+            html += '<ul style="list-style: none; padding: 0; margin: 0;">';
+            data.tickets_vinculados.forEach(function(ticket) {
+                const ticketUrl = '<?= pixelhub_url('/tickets/show?id=') ?>' + ticket.id;
+                const statusLabels = {
+                    'aberto': 'Aberto',
+                    'em_atendimento': 'Em Atendimento',
+                    'aguardando_cliente': 'Aguardando Cliente',
+                    'resolvido': 'Resolvido',
+                    'cancelado': 'Cancelado'
+                };
+                const statusLabel = statusLabels[ticket.status] || ticket.status;
+                const prioridadeLabels = {
+                    'baixa': 'Baixa',
+                    'media': 'Média',
+                    'alta': 'Alta',
+                    'critica': 'Crítica'
+                };
+                const prioridadeLabel = prioridadeLabels[ticket.prioridade] || ticket.prioridade;
+                
+                html += '<li style="padding: 12px; margin-bottom: 8px; background: #f9f9f9; border-radius: 4px; border-left: 3px solid #f57c00;">';
+                html += '<a href="' + ticketUrl + '" style="color: #023A8D; text-decoration: none; font-weight: 500; display: block;">';
+                html += '<strong>Ticket #' + ticket.id + ':</strong> ' + escapeHtml(ticket.titulo || 'Sem título');
+                html += '</a>';
+                html += '<div style="margin-top: 6px; font-size: 12px; color: #666;">';
+                html += '<span style="background: #fff3e0; color: #e65100; padding: 2px 6px; border-radius: 3px; margin-right: 6px;">' + prioridadeLabel + '</span>';
+                html += '<span style="background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 3px;">' + statusLabel + '</span>';
+                html += '</div>';
+                html += '</li>';
+            });
+            html += '</ul>';
+        } else {
+            html += '<p style="color: #666; font-size: 14px; margin: 0 0 15px 0;">Nenhum ticket vinculado a esta tarefa.</p>';
+            html += '<a href="<?= pixelhub_url('/tickets/create-from-task?task_id=') ?>' + taskId + '" class="btn btn-primary" style="display: inline-block; padding: 8px 16px; background: #023A8D; color: white; text-decoration: none; border-radius: 4px; font-weight: 600; font-size: 14px;">Criar ticket a partir desta tarefa</a>';
+        }
+        html += '</div>';
         
         // Seção Gravações de Tela - ANTES da seção de anexos
         html += '<div class="task-screen-recordings-section" style="margin-top: 24px; padding-top: 20px; border-top: 2px solid #f0f0f0;">';
@@ -972,6 +1105,9 @@ ob_start();
                 if (!viewMode || !editMode) {
                     console.warn('Elementos de visualização/edição não encontrados após inserção do HTML');
                 }
+                
+                // Inicializa drag-and-drop do checklist
+                initChecklistDragAndDrop();
                 
                 // Renderiza a lista de gravações de tela
                 renderTaskScreenRecordings(data, taskId);
@@ -1233,6 +1369,227 @@ ob_start();
         });
     }
 
+    function deleteTask() {
+        if (!window.currentTaskId) {
+            alert('Erro: ID da tarefa não encontrado');
+            return;
+        }
+
+        const confirmMessage = 'Tem certeza que deseja excluir esta tarefa?\n\nEsta ação não pode ser desfeita.';
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('task_id', window.currentTaskId);
+        
+        // Adiciona project_id se disponível (para validação no backend)
+        if (window.currentTaskData && window.currentTaskData.project_id) {
+            formData.append('project_id', window.currentTaskData.project_id);
+        }
+
+        fetch('<?= pixelhub_url('/tasks/delete') ?>', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Erro na resposta do servidor: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                alert('Erro ao excluir tarefa: ' + data.error);
+                return;
+            }
+
+            console.log('[DeleteTask] Tarefa excluída com sucesso, removendo do DOM...');
+
+            // Salva o ID antes de limpar
+            const deletedTaskId = window.currentTaskId;
+
+            // Fecha o modal primeiro
+            closeTaskDetailModal();
+
+            // Tenta encontrar o card usando múltiplos métodos
+            let taskCard = null;
+            
+            console.log('[DeleteTask] Procurando card com taskId:', deletedTaskId);
+            
+            // Método 1: Busca direta por atributo (mais rápido)
+            taskCard = document.querySelector(`[data-task-id="${deletedTaskId}"]`);
+            if (taskCard) {
+                console.log('[DeleteTask] Card encontrado via querySelector direto');
+            }
+            
+            // Método 2: Se não encontrou, busca por classe + atributo
+            if (!taskCard) {
+                taskCard = document.querySelector(`.kanban-task[data-task-id="${deletedTaskId}"]`);
+                if (taskCard) {
+                    console.log('[DeleteTask] Card encontrado via querySelector com classe');
+                }
+            }
+            
+            // Método 3: Busca em todas as colunas manualmente (mais robusto)
+            if (!taskCard) {
+                console.log('[DeleteTask] Buscando manualmente em todas as colunas...');
+                const columns = ['column-backlog', 'column-em_andamento', 'column-aguardando_cliente', 'column-concluida'];
+                for (const columnId of columns) {
+                    const column = document.getElementById(columnId);
+                    if (column) {
+                        const cards = column.querySelectorAll('.kanban-task, [data-task-id]');
+                        for (const card of cards) {
+                            const cardTaskId = card.getAttribute('data-task-id');
+                            if (cardTaskId && parseInt(cardTaskId) === parseInt(deletedTaskId)) {
+                                taskCard = card;
+                                console.log('[DeleteTask] Card encontrado na coluna:', columnId);
+                                break;
+                            }
+                        }
+                        if (taskCard) break;
+                    }
+                }
+            }
+            
+            // Método 4: Última tentativa - busca em todo o documento
+            if (!taskCard) {
+                console.log('[DeleteTask] Última tentativa: busca em todo o documento...');
+                const allElements = document.querySelectorAll('[data-task-id]');
+                for (const el of allElements) {
+                    if (el.getAttribute('data-task-id') == deletedTaskId) {
+                        taskCard = el;
+                        console.log('[DeleteTask] Card encontrado via busca global');
+                        break;
+                    }
+                }
+            }
+
+            if (taskCard) {
+                console.log('[DeleteTask] Card encontrado, removendo...', taskCard);
+                
+                // Adiciona animação de fade out antes de remover
+                taskCard.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+                taskCard.style.opacity = '0';
+                taskCard.style.transform = 'scale(0.95)';
+                
+                // Remove após a animação
+                setTimeout(() => {
+                    taskCard.remove();
+                    console.log('[DeleteTask] Card removido do DOM');
+                    
+                    // Atualiza contadores das colunas
+                    updateColumnCounters();
+                }, 300);
+            } else {
+                console.warn('[DeleteTask] Card não encontrado no DOM para taskId:', deletedTaskId);
+                console.warn('[DeleteTask] Recarregando página para garantir sincronização...');
+                // Se não encontrou o card, recarrega a página para garantir sincronização
+                setTimeout(() => {
+                    location.reload();
+                }, 500);
+                return;
+            }
+
+            // Limpa as variáveis globais
+            window.currentTaskId = null;
+            window.currentTaskData = null;
+        })
+        .catch(error => {
+            console.error('[DeleteTask] Erro:', error);
+            alert('Erro ao excluir tarefa. Tente novamente.');
+        });
+    }
+    // Garante que está no escopo global
+    window.deleteTask = deleteTask;
+
+    /**
+     * Atualiza os contadores das colunas do Kanban
+     */
+    function updateColumnCounters() {
+        const columns = {
+            'backlog': document.getElementById('column-backlog'),
+            'em_andamento': document.getElementById('column-em_andamento'),
+            'aguardando_cliente': document.getElementById('column-aguardando_cliente'),
+            'concluida': document.getElementById('column-concluida')
+        };
+
+        Object.keys(columns).forEach(status => {
+            const column = columns[status];
+            if (column) {
+                const taskCount = column.querySelectorAll('.kanban-task').length;
+                const header = column.previousElementSibling;
+                if (header && header.classList.contains('kanban-column-header')) {
+                    // Atualiza o header com o contador (se houver)
+                    const headerText = header.textContent.trim();
+                    const baseText = headerText.replace(/\s*\(\d+\)\s*$/, ''); // Remove contador existente
+                    header.textContent = baseText + (taskCount > 0 ? ` (${taskCount})` : '');
+                }
+            }
+        });
+    }
+
+    /**
+     * Atualiza o badge de agenda no card da tarefa
+     * @param {number} taskId ID da tarefa
+     * @param {boolean} hasAgenda Se a tarefa tem blocos de agenda vinculados
+     * @param {string} [status] Status da tarefa (opcional, será buscado do DOM se não fornecido)
+     */
+    function updateTaskAgendaBadge(taskId, hasAgenda, status) {
+        const taskCard = document.querySelector(`[data-task-id="${taskId}"]`);
+        if (!taskCard) {
+            console.warn('[updateTaskAgendaBadge] Card não encontrado para taskId:', taskId);
+            return;
+        }
+        
+        // Se status não foi fornecido, busca do select de status no card
+        if (!status) {
+            const statusSelect = taskCard.querySelector('select.task-status-select');
+            if (statusSelect) {
+                status = statusSelect.value;
+            }
+        }
+        
+        // Se a tarefa está concluída, remove qualquer badge existente e não adiciona nenhum
+        if (status === 'concluida') {
+            // Remove qualquer badge de agenda existente
+            const existingBadge = taskCard.querySelector('.badge-agenda');
+            if (existingBadge) {
+                existingBadge.remove();
+            }
+            // Também remove o container se estiver vazio (para limpeza visual)
+            const badgeContainer = taskCard.querySelector('div[style*="margin-bottom: 5px"]');
+            if (badgeContainer && badgeContainer.querySelectorAll('.badge-agenda').length === 0) {
+                // Verifica se o container só tem espaços em branco ou está vazio
+                const containerText = badgeContainer.textContent.trim();
+                if (containerText === '') {
+                    badgeContainer.remove();
+                }
+            }
+            return;
+        }
+        
+        const badgeContainer = taskCard.querySelector('div[style*="margin-bottom: 5px"]');
+        if (!badgeContainer) {
+            console.warn('[updateTaskAgendaBadge] Container do badge não encontrado');
+            return;
+        }
+        
+        // Remove badge existente
+        const existingBadge = badgeContainer.querySelector('.badge-agenda');
+        if (existingBadge) {
+            existingBadge.remove();
+        }
+        
+        // Cria novo badge apenas se a tarefa não estiver concluída
+        const newBadge = document.createElement('span');
+        newBadge.className = 'badge-agenda ' + (hasAgenda ? 'badge-na-agenda' : 'badge-sem-agenda');
+        newBadge.style.cssText = 'background: ' + (hasAgenda ? '#4CAF50' : '#9e9e9e') + '; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;';
+        newBadge.textContent = hasAgenda ? 'Na Agenda' : 'Sem Agenda';
+        
+        badgeContainer.appendChild(newBadge);
+    }
+
     function updateTaskCard(task) {
         // Atualiza o card da tarefa no Kanban sem recarregar a página
         const taskCard = document.querySelector(`[data-task-id="${task.id}"]`);
@@ -1243,10 +1600,16 @@ ob_start();
                 titleElement.textContent = task.title || 'Sem título';
             }
             
-            // Atualiza select de status
+            // Atualiza select de status primeiro (para que o badge possa ler o status correto)
             const statusSelect = taskCard.querySelector('select');
             if (statusSelect) {
                 statusSelect.value = task.status;
+            }
+            
+            // Atualiza badge de agenda se a informação estiver disponível
+            // Passa o status explicitamente para garantir que a verificação seja correta
+            if (task.has_agenda_blocks !== undefined) {
+                updateTaskAgendaBadge(task.id, task.has_agenda_blocks > 0, task.status);
             }
             
             // Atualiza status (pode precisar mover o card para outra coluna)
@@ -1274,7 +1637,10 @@ ob_start();
 
     function renderChecklistItem(item) {
         return `
-            <div class="checklist-item ${item.is_done ? 'done' : ''}" data-id="${item.id}">
+            <div class="checklist-item ${item.is_done ? 'done' : ''}" 
+                 data-checklist-id="${item.id}" 
+                 draggable="true">
+                <span class="checklist-item-handle" title="Arrastar para reordenar">☰</span>
                 <input type="checkbox" ${item.is_done ? 'checked' : ''} 
                        onchange="toggleChecklistItem(${item.id}, this.checked)">
                 <input type="text" value="${item.label.replace(/"/g, '&quot;')}" 
@@ -1308,6 +1674,8 @@ ob_start();
             const checklistItems = document.getElementById('checklist-items');
             checklistItems.innerHTML += renderChecklistItem({id: data.id, label: label, is_done: 0});
             input.value = '';
+            // Reinicializa drag-and-drop após adicionar item
+            initChecklistDragAndDrop();
         })
         .catch(error => {
             console.error('Erro:', error);
@@ -1330,7 +1698,7 @@ ob_start();
                 alert('Erro: ' + data.error);
                 return;
             }
-            const item = document.querySelector(`.checklist-item[data-id="${id}"]`);
+            const item = document.querySelector(`.checklist-item[data-checklist-id="${id}"]`);
             if (done) {
                 item.classList.add('done');
             } else {
@@ -1380,11 +1748,163 @@ ob_start();
                 alert('Erro: ' + data.error);
                 return;
             }
-            document.querySelector(`.checklist-item[data-id="${id}"]`).remove();
+            document.querySelector(`.checklist-item[data-checklist-id="${id}"]`).remove();
+            // Reinicializa drag-and-drop após remover item
+            initChecklistDragAndDrop();
         })
         .catch(error => {
             console.error('Erro:', error);
             alert('Erro ao excluir item');
+        });
+    }
+
+    /**
+     * Reordena os itens do checklist
+     */
+    function reorderChecklistItems(taskId, orderedIds) {
+        const formData = new FormData();
+        formData.append('task_id', taskId);
+        orderedIds.forEach(id => {
+            formData.append('ordered_ids[]', id);
+        });
+        
+        fetch('<?= pixelhub_url('/tasks/checklist/reorder') ?>', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Erro ao reordenar:', data.error);
+                alert('Erro ao salvar nova ordem: ' + data.error);
+                // Recarrega a tarefa para restaurar ordem original
+                if (window.currentTaskId) {
+                    fetch('<?= pixelhub_url('/tasks') ?>/' + window.currentTaskId)
+                        .then(response => response.json())
+                        .then(taskData => {
+                            if (!taskData.error) {
+                                renderTaskDetailModal(taskData, window.currentTaskId, false);
+                            }
+                        });
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro ao salvar nova ordem');
+            // Recarrega a tarefa para restaurar ordem original
+            if (window.currentTaskId) {
+                fetch('<?= pixelhub_url('/tasks') ?>/' + window.currentTaskId)
+                    .then(response => response.json())
+                    .then(taskData => {
+                        if (!taskData.error) {
+                            renderTaskDetailModal(taskData, window.currentTaskId, false);
+                        }
+                    });
+            }
+        });
+    }
+
+    /**
+     * Inicializa drag-and-drop para os itens do checklist
+     */
+    function initChecklistDragAndDrop() {
+        const checklistContainer = document.getElementById('checklist-items');
+        if (!checklistContainer) return;
+        
+        const items = checklistContainer.querySelectorAll('.checklist-item[draggable="true"]');
+        let draggedElement = null;
+        let draggedOverElement = null;
+        
+        items.forEach(item => {
+            // Previne drag em elementos interativos
+            const handle = item.querySelector('.checklist-item-handle');
+            if (handle) {
+                handle.addEventListener('mousedown', function(e) {
+                    e.stopPropagation();
+                });
+            }
+            
+            // Dragstart
+            item.addEventListener('dragstart', function(e) {
+                // Não permite drag se o clique foi em elementos interativos
+                if (e.target.tagName === 'INPUT' || 
+                    e.target.tagName === 'BUTTON' ||
+                    e.target.closest('input') ||
+                    e.target.closest('button')) {
+                    e.preventDefault();
+                    return false;
+                }
+                
+                draggedElement = this;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', this.outerHTML);
+            });
+            
+            // Dragend
+            item.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                // Remove classe drag-over de todos os itens
+                items.forEach(i => i.classList.remove('drag-over'));
+                draggedElement = null;
+                draggedOverElement = null;
+            });
+            
+            // Dragover
+            item.addEventListener('dragover', function(e) {
+                if (e.preventDefault) {
+                    e.preventDefault();
+                }
+                e.dataTransfer.dropEffect = 'move';
+                
+                // Adiciona classe visual para indicar onde o item será solto
+                if (draggedElement && draggedElement !== this) {
+                    this.classList.add('drag-over');
+                }
+                
+                return false;
+            });
+            
+            // Dragleave
+            item.addEventListener('dragleave', function(e) {
+                this.classList.remove('drag-over');
+            });
+            
+            // Drop
+            item.addEventListener('drop', function(e) {
+                if (e.stopPropagation) {
+                    e.stopPropagation();
+                }
+                
+                if (draggedElement && draggedElement !== this) {
+                    const container = checklistContainer;
+                    const allItems = Array.from(container.querySelectorAll('.checklist-item[draggable="true"]'));
+                    const draggedIndex = allItems.indexOf(draggedElement);
+                    const targetIndex = allItems.indexOf(this);
+                    
+                    if (draggedIndex < targetIndex) {
+                        // Move para baixo
+                        container.insertBefore(draggedElement, this.nextSibling);
+                    } else {
+                        // Move para cima
+                        container.insertBefore(draggedElement, this);
+                    }
+                    
+                    // Remove classe drag-over
+                    items.forEach(i => i.classList.remove('drag-over'));
+                    
+                    // Salva nova ordem
+                    const taskId = window.currentTaskId;
+                    if (taskId) {
+                        const newOrder = Array.from(container.querySelectorAll('.checklist-item[draggable="true"]'))
+                            .map(item => parseInt(item.getAttribute('data-checklist-id')));
+                        reorderChecklistItems(taskId, newOrder);
+                    }
+                }
+                
+                return false;
+            });
         });
     }
 
@@ -1631,6 +2151,14 @@ ob_start();
         document.getElementById('taskForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
+            // Prevenção de duplicidade: desabilita o botão de submit imediatamente
+            const submitButton = this.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton ? submitButton.textContent : '';
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = 'Salvando...';
+            }
+            
             const formData = new FormData(this);
             const isEdit = formData.get('id');
             const url = isEdit ? '<?= pixelhub_url('/tasks/update') ?>' : '<?= pixelhub_url('/tasks/store') ?>';
@@ -1642,13 +2170,25 @@ ob_start();
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
+                    // Reabilita o botão em caso de erro
+                    if (submitButton) {
+                        submitButton.disabled = false;
+                        submitButton.textContent = originalButtonText;
+                    }
                     alert('Erro: ' + data.error);
                     return;
                 }
+                
+                // Em caso de sucesso, recarrega a página (botão já estará desabilitado)
                 location.reload();
             })
             .catch(error => {
                 console.error('Erro:', error);
+                // Reabilita o botão em caso de erro
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalButtonText;
+                }
                 alert('Erro ao salvar tarefa');
             });
         });
@@ -1677,6 +2217,7 @@ ob_start();
                 // Busca o botão pai se o clique foi em um elemento filho
                 const editBtn = target.closest('[data-action="edit-task"]');
                 const cancelBtn = target.closest('[data-action="cancel-edit"]');
+                const deleteBtn = target.closest('[data-action="delete-task"]');
 
                 // Botão Editar Tarefa
                 if (editBtn) {
@@ -1698,6 +2239,19 @@ ob_start();
                         cancelTaskEdit();
                     } else {
                         console.error('[TaskDetail] cancelTaskEdit não é função ou não está disponível');
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return false;
+                }
+
+                // Botão Excluir Tarefa
+                if (deleteBtn) {
+                    console.log('[TaskDetail] clique no botão Excluir (delegação)');
+                    if (typeof deleteTask === 'function') {
+                        deleteTask();
+                    } else {
+                        console.error('[TaskDetail] deleteTask não é função ou não está disponível');
                     }
                     event.preventDefault();
                     event.stopPropagation();
@@ -1888,6 +2442,12 @@ ob_start();
                         statusSelect.value = newStatus;
                     }
                     
+                    // Atualiza o badge de agenda baseado no novo status
+                    // Busca se a tarefa tem agenda vinculada (do atributo data ou do badge existente)
+                    const existingBadge = draggedTaskElement.querySelector('.badge-agenda');
+                    const hasAgenda = existingBadge && existingBadge.classList.contains('badge-na-agenda');
+                    updateTaskAgendaBadge(draggedTaskId, hasAgenda, newStatus);
+                    
                     // Atualiza o status no backend
                     updateTaskStatus(
                         draggedTaskId,
@@ -1998,6 +2558,15 @@ ob_start();
                 
                 if (taskId && newStatus) {
                     console.log('[KANBAN] Mudança de status via select', { taskId, newStatus });
+                    
+                    // Atualiza o badge imediatamente antes de mover a tarefa
+                    const taskCard = document.querySelector(`[data-task-id="${taskId}"]`);
+                    if (taskCard) {
+                        const existingBadge = taskCard.querySelector('.badge-agenda');
+                        const hasAgenda = existingBadge && existingBadge.classList.contains('badge-na-agenda');
+                        updateTaskAgendaBadge(parseInt(taskId), hasAgenda, newStatus);
+                    }
+                    
                     moveTask(parseInt(taskId), newStatus);
                 }
             }
@@ -2074,6 +2643,302 @@ ob_start();
             }
         });
     });
+    
+    /**
+     * Abre modal para agendar tarefa na Agenda
+     */
+    function openScheduleTaskModal(taskId) {
+        // Cria modal HTML
+        const modalHtml = `
+            <div id="scheduleTaskModal" class="modal fade" tabindex="-1" style="display: block;">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Agendar Tarefa na Agenda</h5>
+                            <button type="button" class="btn-close" onclick="closeScheduleTaskModal()"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="scheduleTaskForm">
+                                <div class="mb-3">
+                                    <label for="schedule-tipo" class="form-label">Tipo de Bloco</label>
+                                    <select id="schedule-tipo" class="form-select">
+                                        <option value="">Todos os tipos</option>
+                                    </select>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="schedule-data-inicio" class="form-label">Data Início</label>
+                                        <input type="date" id="schedule-data-inicio" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="schedule-data-fim" class="form-label">Data Fim</label>
+                                        <input type="date" id="schedule-data-fim" class="form-control" required>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <button type="button" class="btn btn-primary" onclick="searchAvailableBlocks(${taskId})">
+                                        Buscar Horários
+                                    </button>
+                                </div>
+                            </form>
+                            <div id="schedule-blocks-list" style="margin-top: 20px; display: none;">
+                                <h6>Blocos Disponíveis</h6>
+                                <div id="schedule-blocks-content"></div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" onclick="closeScheduleTaskModal()">Fechar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-backdrop fade show"></div>
+        `;
+        
+        // Insere modal no body
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Preenche datas padrão (hoje e +7 dias)
+        const hoje = new Date();
+        const dataFim = new Date(hoje);
+        dataFim.setDate(dataFim.getDate() + 7);
+        
+        document.getElementById('schedule-data-inicio').value = hoje.toISOString().split('T')[0];
+        document.getElementById('schedule-data-fim').value = dataFim.toISOString().split('T')[0];
+        
+        // Carrega tipos de blocos
+        loadBlockTypes();
+    }
+    
+    /**
+     * Carrega tipos de blocos no select
+     */
+    function loadBlockTypes() {
+        fetch('<?= pixelhub_url('/agenda/block-types') ?>')
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Erro ao carregar tipos:', data.error);
+                    return;
+                }
+                
+                const scheduleTipo = document.getElementById('schedule-tipo');
+                if (scheduleTipo && data.types) {
+                    // Limpa opções existentes (exceto "Todos os tipos")
+                    scheduleTipo.innerHTML = '<option value="">Todos os tipos</option>';
+                    
+                    // Adiciona tipos
+                    data.types.forEach(function(tipo) {
+                        const option = document.createElement('option');
+                        option.value = tipo.id;
+                        option.textContent = tipo.nome + ' (' + tipo.codigo + ')';
+                        scheduleTipo.appendChild(option);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao carregar tipos de blocos:', error);
+            });
+    }
+    
+    /**
+     * Busca blocos disponíveis
+     */
+    function searchAvailableBlocks(taskId) {
+        const tipoId = document.getElementById('schedule-tipo').value;
+        const dataInicio = document.getElementById('schedule-data-inicio').value;
+        const dataFim = document.getElementById('schedule-data-fim').value;
+        
+        if (!dataInicio || !dataFim) {
+            alert('Por favor, preencha as datas de início e fim.');
+            return;
+        }
+        
+        // Monta URL
+        let url = '<?= pixelhub_url('/agenda/available-blocks') ?>?task_id=' + taskId;
+        if (tipoId) {
+            url += '&tipo=' + tipoId;
+        }
+        url += '&data_inicio=' + encodeURIComponent(dataInicio);
+        url += '&data_fim=' + encodeURIComponent(dataFim);
+        
+        // Mostra loading
+        const contentDiv = document.getElementById('schedule-blocks-content');
+        contentDiv.innerHTML = '<p>Buscando blocos disponíveis...</p>';
+        document.getElementById('schedule-blocks-list').style.display = 'block';
+        
+        // Busca blocos
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    contentDiv.innerHTML = '<p style="color: #c33;">Erro: ' + escapeHtml(data.error) + '</p>';
+                    return;
+                }
+                
+                if (!data.blocks || data.blocks.length === 0) {
+                    contentDiv.innerHTML = '<p style="color: #666;">Nenhum bloco disponível nesse período. Crie um bloco na Agenda e volte para agendar esta tarefa.</p>';
+                    return;
+                }
+                
+                // Renderiza lista de blocos
+                let html = '<div style="max-height: 400px; overflow-y: auto;">';
+                data.blocks.forEach(function(bloco) {
+                    const isLinked = bloco.already_linked === 1;
+                    const isCurrent = bloco.is_current === true;
+                    const tasksCount = bloco.tasks_count || 0;
+                    const sampleTasks = bloco.sample_tasks || [];
+                    const status = (bloco.status || '').toLowerCase();
+                    
+                    html += '<div style="padding: 12px; margin-bottom: 8px; background: #f9f9f9; border-radius: 4px; border-left: 4px solid ' + (bloco.tipo_cor_hex || '#ddd') + ';' + (isLinked ? ' opacity: 0.6;' : '') + '">';
+                    html += '<div style="display: flex; justify-content: space-between; align-items: flex-start;">';
+                    html += '<div style="flex: 1;">';
+                    
+                    // Linha principal: Data — Horário (Tipo) [Status]
+                    html += '<div style="margin-bottom: 4px;">';
+                    html += '<strong>' + escapeHtml(bloco.data_formatada) + '</strong> — ';
+                    html += escapeHtml(bloco.hora_inicio.substring(0, 5)) + '–' + escapeHtml(bloco.hora_fim.substring(0, 5));
+                    html += ' <span style="color: #666;">(' + escapeHtml(bloco.tipo_nome) + ')</span>';
+                    
+                    // Badge de status do bloco
+                    if (status === 'planned') {
+                        html += ' <span style="background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; margin-left: 8px;">Planejado</span>';
+                    } else if (status === 'ongoing' || isCurrent) {
+                        html += ' <span style="background: #fff3e0; color: #f57c00; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; margin-left: 8px;">Em andamento</span>';
+                    }
+                    
+                    if (isLinked) {
+                        html += ' <span style="color: #999; font-size: 12px;">(já agendado)</span>';
+                    }
+                    html += '</div>';
+                    
+                    // Linha de resumo de tarefas
+                    html += '<div style="font-size: 12px; color: #666; margin-top: 4px;">';
+                    if (isLinked) {
+                        html += '<span style="color: #999;">Já contém esta tarefa.</span>';
+                    } else if (tasksCount === 0) {
+                        html += '<span style="color: #999;">Nenhuma tarefa vinculada.</span>';
+                    } else if (tasksCount === 1 && sampleTasks.length > 0) {
+                        let taskTitle = escapeHtml(sampleTasks[0]);
+                        if (taskTitle.length > 60) {
+                            taskTitle = taskTitle.substring(0, 60) + '...';
+                        }
+                        html += '<span>1 tarefa vinculada: ' + taskTitle + '</span>';
+                    } else {
+                        html += '<span>' + tasksCount + ' tarefas vinculadas</span>';
+                        if (sampleTasks.length > 0) {
+                            let taskTitle = escapeHtml(sampleTasks[0]);
+                            if (taskTitle.length > 50) {
+                                taskTitle = taskTitle.substring(0, 50) + '...';
+                            }
+                            html += ' <span style="color: #999;">Ex.: ' + taskTitle + '</span>';
+                        }
+                    }
+                    html += '</div>';
+                    
+                    html += '</div>';
+                    
+                    // Botão de seleção
+                    // Desabilita apenas se: already_linked (tarefa já está no bloco)
+                    // Blocos disponíveis (status planned/ongoing e não encerrados) podem receber tarefas
+                    html += '<div style="margin-left: 12px;">';
+                    if (isLinked) {
+                        html += '<button type="button" class="btn btn-sm btn-secondary" disabled title="Esta tarefa já está agendada neste bloco">Já agendada neste bloco</button>';
+                    } else {
+                        html += '<button type="button" class="btn btn-sm btn-primary" onclick="selectBlockForTask(' + taskId + ', ' + bloco.id + ')">Selecionar</button>';
+                    }
+                    html += '</div>';
+                    
+                    html += '</div>';
+                    html += '</div>';
+                });
+                html += '</div>';
+                contentDiv.innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Erro ao buscar blocos:', error);
+                contentDiv.innerHTML = '<p style="color: #c33;">Erro ao buscar blocos disponíveis. Tente novamente.</p>';
+            });
+    }
+    
+    /**
+     * Seleciona um bloco e vincula a tarefa
+     */
+    function selectBlockForTask(taskId, blockId) {
+        if (!confirm('Deseja vincular esta tarefa ao bloco selecionado?')) {
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('block_id', blockId);
+        formData.append('task_id', taskId);
+        
+        fetch('<?= pixelhub_url('/agenda/bloco/attach-task') ?>', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => {
+            // Verifica se a resposta é JSON
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            }
+            
+            // Se redirecionou, recarrega a página
+            if (response.redirected) {
+                window.location.reload();
+                return;
+            }
+            
+            // Tenta ler como texto
+            return response.text().then(text => {
+                // Se contém 'success', trata como sucesso
+                if (text.includes('success')) {
+                    return { success: true };
+                }
+                return { error: 'Resposta inesperada do servidor' };
+            });
+        })
+        .then(data => {
+            if (data && data.success) {
+                // Atualiza o badge de agenda no card do quadro Kanban
+                if (data.task_id && data.has_agenda !== undefined) {
+                    updateTaskAgendaBadge(data.task_id, data.has_agenda);
+                }
+                
+                // Sucesso - fecha modal e recarrega detalhes da tarefa
+                closeScheduleTaskModal();
+                if (window.currentTaskId) {
+                    openTaskDetail(window.currentTaskId);
+                }
+                alert('Tarefa agendada na Agenda com sucesso!');
+            } else {
+                const errorMsg = (data && data.error) ? data.error : 'Erro ao vincular tarefa ao bloco. Tente novamente.';
+                alert(errorMsg);
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao vincular tarefa:', error);
+            alert('Erro ao vincular tarefa ao bloco. Tente novamente.');
+        });
+    }
+    
+    /**
+     * Fecha modal de agendamento
+     */
+    function closeScheduleTaskModal() {
+        const modal = document.getElementById('scheduleTaskModal');
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (modal) {
+            modal.remove();
+        }
+        if (backdrop) {
+            backdrop.remove();
+        }
+    }
 </script>
 
 <!-- Script do gravador de tela removido - agora está no layout principal (main.php) -->

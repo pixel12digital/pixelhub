@@ -89,7 +89,11 @@ try {
         require_once $file;
         
         // Remove a data do início do nome (formato: YYYYMMDD_nome_da_migration)
-        $nameWithoutDate = preg_replace('/^\d{8}_/', '', $migrationName);
+        // Também remove prefixo numérico opcional (ex: YYYYMMDD_01_nome_da_migration)
+        $nameWithoutDate = preg_replace('/^\d{8}_\d{2}_/', '', $migrationName); // Tenta com prefixo numérico primeiro
+        if ($nameWithoutDate === $migrationName) {
+            $nameWithoutDate = preg_replace('/^\d{8}_/', '', $migrationName); // Se não funcionou, tenta sem prefixo numérico
+        }
         // Converte para PascalCase
         $className = str_replace(' ', '', ucwords(str_replace('_', ' ', $nameWithoutDate)));
         

@@ -127,5 +127,36 @@ class TaskChecklistController extends Controller
             $this->json(['error' => 'Erro ao excluir item'], 500);
         }
     }
+
+    /**
+     * Reordena os itens do checklist
+     */
+    public function reorder(): void
+    {
+        Auth::requireInternal();
+
+        $taskId = isset($_POST['task_id']) ? (int) $_POST['task_id'] : 0;
+        $orderedIds = $_POST['ordered_ids'] ?? [];
+
+        if ($taskId <= 0) {
+            $this->json(['error' => 'ID da tarefa inválido'], 400);
+            return;
+        }
+
+        if (!is_array($orderedIds) || empty($orderedIds)) {
+            $this->json(['error' => 'Lista de IDs ordenados é obrigatória'], 400);
+            return;
+        }
+
+        try {
+            TaskChecklistService::reorderItems($taskId, $orderedIds);
+            $this->json(['success' => true]);
+        } catch (\RuntimeException $e) {
+            $this->json(['error' => $e->getMessage()], 400);
+        } catch (\Exception $e) {
+            error_log("Erro ao reordenar itens do checklist: " . $e->getMessage());
+            $this->json(['error' => 'Erro ao reordenar itens'], 500);
+        }
+    }
 }
 

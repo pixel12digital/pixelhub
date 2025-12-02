@@ -17,6 +17,10 @@ $providerMap = $providerMap ?? [];
                 style="background: #25D366; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px;">
             📱 WhatsApp
         </button>
+        <a href="<?= pixelhub_url('/tickets/create?tenant_id=' . $tenant['id']) ?>" 
+           style="background: #28a745; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
+            🎫 Novo Ticket
+        </a>
         <a href="<?= pixelhub_url('/tenants/edit?id=' . $tenant['id']) ?>" 
            style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
             Editar Cliente

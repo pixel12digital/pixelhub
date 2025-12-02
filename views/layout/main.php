@@ -248,6 +248,25 @@
             <!-- Clientes (sem subitens) -->
             <a href="<?= pixelhub_url('/tenants') ?>" class="sidebar-top-link <?= (strpos($currentUri, '/tenants') !== false) ? 'active' : '' ?>">Clientes</a>
             
+            <!-- Tickets (sem subitens) -->
+            <a href="<?= pixelhub_url('/tickets') ?>" class="sidebar-top-link <?= (strpos($currentUri, '/tickets') !== false) ? 'active' : '' ?>">Tickets</a>
+            
+            <!-- Agenda -->
+            <?php
+            $agendaActive = $isActive(['/agenda', '/agenda/semana', '/agenda/stats', '/agenda/bloco']);
+            $agendaExpanded = $shouldExpand(['/agenda', '/agenda/semana', '/agenda/stats', '/agenda/bloco']);
+            ?>
+            <div class="sidebar-module" data-module="agenda">
+                <div class="sidebar-module-header has-children <?= $agendaActive ? 'active' : '' ?> <?= $agendaExpanded ? 'is-open' : '' ?>">
+                    Agenda
+                </div>
+                <div class="sidebar-module-content <?= $agendaExpanded ? 'is-open' : '' ?>">
+                    <a href="<?= pixelhub_url('/agenda') ?>" class="sub-item <?= (strpos($currentUri, '/agenda') !== false && strpos($currentUri, '/agenda/semana') === false && strpos($currentUri, '/agenda/stats') === false && strpos($currentUri, '/agenda/bloco') === false) ? 'active' : '' ?>">Agenda Diária</a>
+                    <a href="<?= pixelhub_url('/agenda/semana') ?>" class="sub-item <?= (strpos($currentUri, '/agenda/semana') !== false) ? 'active' : '' ?>">Agenda Semanal</a>
+                    <a href="<?= pixelhub_url('/agenda/stats') ?>" class="sub-item <?= (strpos($currentUri, '/agenda/stats') !== false) ? 'active' : '' ?>">Resumo Semanal</a>
+                </div>
+            </div>
+            
             <!-- Financeiro -->
             <?php
             $financeiroActive = $isActive(['/billing/overview', '/billing/collections', '/recurring-contracts']);

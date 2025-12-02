@@ -312,12 +312,19 @@ ob_start();
                         ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <div style="display: flex; gap: 5px;">
+                        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
                             <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id']) ?>" 
                                class="btn btn-primary btn-small"
                                style="text-decoration: none;">
                                 Ver quadro
                             </a>
+                            <?php if (!empty($project['tenant_id'])): ?>
+                            <a href="<?= pixelhub_url('/tickets/create?project_id=' . $project['id'] . '&tenant_id=' . $project['tenant_id']) ?>" 
+                               class="btn btn-small"
+                               style="background: #28a745; color: white; text-decoration: none;">
+                                🎫 Abrir ticket
+                            </a>
+                            <?php endif; ?>
                             <button class="btn btn-secondary btn-small btn-edit-project"
                                     data-id="<?= $project['id'] ?>"
                                     data-name="<?= htmlspecialchars($project['name']) ?>"

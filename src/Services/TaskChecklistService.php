@@ -148,6 +148,76 @@ class TaskChecklistService
     }
 
     /**
+     * Reordena os itens do checklist de uma tarefa
+     * 
+     * @param int $taskId ID da tarefa
+     * @param array $orderedIds Array de IDs na ordem desejada
+     * @return bool
+     * @throws \RuntimeException Se algum item não pertencer à tarefa
+     */
+    public static function reorderItems(int $taskId, array $orderedIds): bool
+    {
+        $db = DB::getConnection();
+        
+        // Valida se a tarefa existe
+        $task = \PixelHub\Services\TaskService::findTask($taskId);
+        if (!$task) {
+            throw new \RuntimeException('Tarefa não encontrada');
+        }
+        
+        // Valida se todos os IDs pertencem à tarefa
+        if (empty($orderedIds)) {
+            return true; // Nada para reordenar
+        }
+        
+        // Converte para inteiros e remove duplicatas
+        $orderedIds = array_map('intval', $orderedIds);
+        $orderedIds = array_values(array_unique($orderedIds));
+        
+        // Verifica se todos os itens pertencem à tarefa
+        $placeholders = str_repeat('?,', count($orderedIds) - 1) . '?';
+        $stmt = $db->prepare("
+            SELECT id, task_id
+            FROM task_checklists
+            WHERE id IN ($placeholders)
+        ");
+        $stmt->execute($orderedIds);
+        $items = $stmt->fetchAll();
+        
+        // Verifica se todos os IDs foram encontrados
+        if (count($items) !== count($orderedIds)) {
+            throw new \RuntimeException('Um ou mais itens não foram encontrados');
+        }
+        
+        // Verifica se todos pertencem à tarefa
+        foreach ($items as $item) {
+            if ((int) $item['task_id'] !== $taskId) {
+                throw new \RuntimeException('Um ou mais itens não pertencem a esta tarefa');
+            }
+        }
+        
+        // Atualiza a ordem sequencialmente (1, 2, 3...)
+        $db->beginTransaction();
+        try {
+            foreach ($orderedIds as $index => $itemId) {
+                $order = $index + 1;
+                $stmt = $db->prepare("
+                    UPDATE task_checklists
+                    SET `order` = ?, updated_at = NOW()
+                    WHERE id = ? AND task_id = ?
+                ");
+                $stmt->execute([$order, $itemId, $taskId]);
+            }
+            
+            $db->commit();
+            return true;
+        } catch (\Exception $e) {
+            $db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
      * Busca um item por ID
      */
     private static function findItem(int $id): ?array

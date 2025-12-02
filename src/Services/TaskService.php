@@ -15,15 +15,31 @@ class TaskService
     public static function getTasksByProject(int $projectId): array
     {
         $db = DB::getConnection();
-        $stmt = $db->prepare("
-            SELECT t.*, 
-                   (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) as checklist_total,
-                   (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id AND is_done = 1) as checklist_done
-            FROM tasks t
-            WHERE t.project_id = ?
-            ORDER BY t.status ASC, t.`order` ASC, t.created_at ASC
-        ");
-        $stmt->execute([$projectId]);
+        
+        // Tenta primeiro com deleted_at (se a coluna existir)
+        try {
+            $stmt = $db->prepare("
+                SELECT t.*, 
+                       (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) as checklist_total,
+                       (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id AND is_done = 1) as checklist_done
+                FROM tasks t
+                WHERE t.project_id = ? AND t.deleted_at IS NULL
+                ORDER BY t.status ASC, t.`order` ASC, t.created_at ASC
+            ");
+            $stmt->execute([$projectId]);
+        } catch (\PDOException $e) {
+            // Se deu erro, tenta sem a condição deleted_at
+            $stmt = $db->prepare("
+                SELECT t.*, 
+                       (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) as checklist_total,
+                       (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id AND is_done = 1) as checklist_done
+                FROM tasks t
+                WHERE t.project_id = ?
+                ORDER BY t.status ASC, t.`order` ASC, t.created_at ASC
+            ");
+            $stmt->execute([$projectId]);
+        }
+        
         $tasks = $stmt->fetchAll();
         
         // Agrupa por status
@@ -52,50 +68,112 @@ class TaskService
      * @param int|null $projectId Filtro por projeto
      * @param int|null $tenantId Filtro por tenant/cliente
      * @param string|null $clientQuery Filtro por texto no nome do cliente (case-insensitive)
+     * @param string|null $agendaFilter Filtro por agenda: 'with' (com agenda), 'without' (sem agenda), null (todas)
      */
-    public static function getAllTasks(?int $projectId = null, ?int $tenantId = null, ?string $clientQuery = null): array
+    public static function getAllTasks(?int $projectId = null, ?int $tenantId = null, ?string $clientQuery = null, ?string $agendaFilter = null): array
     {
         $db = DB::getConnection();
         
-        $sql = "
-            SELECT t.*, 
-                   p.name as project_name,
-                   p.tenant_id as project_tenant_id,
-                   t2.name as tenant_name,
-                   completed_user.name as completed_by_name,
-                   (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) as checklist_total,
-                   (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id AND is_done = 1) as checklist_done
-            FROM tasks t
-            INNER JOIN projects p ON t.project_id = p.id
-            LEFT JOIN tenants t2 ON p.tenant_id = t2.id
-            LEFT JOIN users completed_user ON completed_user.id = t.completed_by
-            WHERE 1=1
-        ";
-        
-        $params = [];
-        
-        if ($projectId !== null) {
-            $sql .= " AND t.project_id = ?";
-            $params[] = $projectId;
+        // Tenta primeiro com deleted_at (se a coluna existir)
+        // Se der erro, tenta sem a condição (compatibilidade com banco antigo)
+        try {
+            $sql = "
+                SELECT t.*, 
+                       p.name as project_name,
+                       p.tenant_id as project_tenant_id,
+                       t2.name as tenant_name,
+                       completed_user.name as completed_by_name,
+                       (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) as checklist_total,
+                       (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id AND is_done = 1) as checklist_done,
+                       CASE WHEN EXISTS (SELECT 1 FROM agenda_block_tasks WHERE task_id = t.id) THEN 1 ELSE 0 END as has_agenda_blocks
+                FROM tasks t
+                INNER JOIN projects p ON t.project_id = p.id
+                LEFT JOIN tenants t2 ON p.tenant_id = t2.id
+                LEFT JOIN users completed_user ON completed_user.id = t.completed_by
+                WHERE t.deleted_at IS NULL
+            ";
+            
+            $params = [];
+            
+            if ($projectId !== null) {
+                $sql .= " AND t.project_id = ?";
+                $params[] = $projectId;
+            }
+            
+            if ($tenantId !== null) {
+                $sql .= " AND p.tenant_id = ?";
+                $params[] = $tenantId;
+            }
+            
+            // Filtro por texto no nome do cliente (case-insensitive)
+            if (!empty($clientQuery)) {
+                $sql .= " AND t2.name LIKE ?";
+                $searchTerm = '%' . $clientQuery . '%';
+                $params[] = $searchTerm;
+            }
+            
+            // Filtro por agenda
+            if ($agendaFilter === 'with') {
+                $sql .= " AND EXISTS (SELECT 1 FROM agenda_block_tasks WHERE task_id = t.id)";
+            } elseif ($agendaFilter === 'without') {
+                $sql .= " AND NOT EXISTS (SELECT 1 FROM agenda_block_tasks WHERE task_id = t.id)";
+            }
+            
+            $sql .= " ORDER BY t.status ASC, t.`order` ASC, t.created_at ASC";
+            
+            $stmt = $db->prepare($sql);
+            $stmt->execute($params);
+            $tasks = $stmt->fetchAll();
+        } catch (\PDOException $e) {
+            // Se deu erro (provavelmente coluna deleted_at não existe), tenta sem a condição
+            $sql = "
+                SELECT t.*, 
+                       p.name as project_name,
+                       p.tenant_id as project_tenant_id,
+                       t2.name as tenant_name,
+                       completed_user.name as completed_by_name,
+                       (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) as checklist_total,
+                       (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id AND is_done = 1) as checklist_done,
+                       CASE WHEN EXISTS (SELECT 1 FROM agenda_block_tasks WHERE task_id = t.id) THEN 1 ELSE 0 END as has_agenda_blocks
+                FROM tasks t
+                INNER JOIN projects p ON t.project_id = p.id
+                LEFT JOIN tenants t2 ON p.tenant_id = t2.id
+                LEFT JOIN users completed_user ON completed_user.id = t.completed_by
+                WHERE 1=1
+            ";
+            
+            $params = [];
+            
+            if ($projectId !== null) {
+                $sql .= " AND t.project_id = ?";
+                $params[] = $projectId;
+            }
+            
+            if ($tenantId !== null) {
+                $sql .= " AND p.tenant_id = ?";
+                $params[] = $tenantId;
+            }
+            
+            // Filtro por texto no nome do cliente (case-insensitive)
+            if (!empty($clientQuery)) {
+                $sql .= " AND t2.name LIKE ?";
+                $searchTerm = '%' . $clientQuery . '%';
+                $params[] = $searchTerm;
+            }
+            
+            // Filtro por agenda
+            if ($agendaFilter === 'with') {
+                $sql .= " AND EXISTS (SELECT 1 FROM agenda_block_tasks WHERE task_id = t.id)";
+            } elseif ($agendaFilter === 'without') {
+                $sql .= " AND NOT EXISTS (SELECT 1 FROM agenda_block_tasks WHERE task_id = t.id)";
+            }
+            
+            $sql .= " ORDER BY t.status ASC, t.`order` ASC, t.created_at ASC";
+            
+            $stmt = $db->prepare($sql);
+            $stmt->execute($params);
+            $tasks = $stmt->fetchAll();
         }
-        
-        if ($tenantId !== null) {
-            $sql .= " AND p.tenant_id = ?";
-            $params[] = $tenantId;
-        }
-        
-        // Filtro por texto no nome do cliente (case-insensitive)
-        if (!empty($clientQuery)) {
-            $sql .= " AND t2.name LIKE ?";
-            $searchTerm = '%' . $clientQuery . '%';
-            $params[] = $searchTerm;
-        }
-        
-        $sql .= " ORDER BY t.status ASC, t.`order` ASC, t.created_at ASC";
-        
-        $stmt = $db->prepare($sql);
-        $stmt->execute($params);
-        $tasks = $stmt->fetchAll();
         
         // Agrupa por status
         $grouped = [
@@ -193,21 +271,98 @@ class TaskService
             $startDate = $now->format('Y-m-d');
         }
         
-        // Tipo de tarefa: 'internal' ou 'client_ticket', padrão 'internal'
+        // Tipo de tarefa: 'internal', 'client_ticket', 'finance_overdue', etc.
         $taskType = trim($data['task_type'] ?? 'internal');
-        if (!in_array($taskType, ['internal', 'client_ticket'])) {
+        $allowedTaskTypes = ['internal', 'client_ticket', 'finance_overdue', 'lead_followup', 'crm_followup'];
+        if (!in_array($taskType, $allowedTaskTypes)) {
             $taskType = 'internal';
         }
         
         $createdBy = !empty($data['created_by']) ? (int) $data['created_by'] : null;
         
+        // Verificação de duplicidade: verifica se existe tarefa similar criada nos últimos 60 segundos
+        // Considera duplicada quando: mesmo project_id, mesmo title, mesmas datas (quando existirem)
+        // Tenta primeiro com deleted_at (se a coluna existir)
+        try {
+            $duplicateSql = "
+                SELECT id 
+                FROM tasks 
+                WHERE project_id = ? 
+                  AND title = ? 
+                  AND deleted_at IS NULL
+                  AND created_at >= DATE_SUB(NOW(), INTERVAL 60 SECOND)
+            ";
+            $duplicateParams = [$projectId, $title];
+            
+            if ($startDate) {
+                $duplicateSql .= " AND start_date = ?";
+                $duplicateParams[] = $startDate;
+            } else {
+                $duplicateSql .= " AND start_date IS NULL";
+            }
+            
+            if ($dueDate) {
+                $duplicateSql .= " AND due_date = ?";
+                $duplicateParams[] = $dueDate;
+            } else {
+                $duplicateSql .= " AND due_date IS NULL";
+            }
+            
+            $duplicateCheck = $db->prepare($duplicateSql);
+            $duplicateCheck->execute($duplicateParams);
+        } catch (\PDOException $e) {
+            // Se deu erro, tenta sem deleted_at
+            $duplicateSql = "
+                SELECT id 
+                FROM tasks 
+                WHERE project_id = ? 
+                  AND title = ? 
+                  AND created_at >= DATE_SUB(NOW(), INTERVAL 60 SECOND)
+            ";
+            $duplicateParams = [$projectId, $title];
+            
+            if ($startDate) {
+                $duplicateSql .= " AND start_date = ?";
+                $duplicateParams[] = $startDate;
+            } else {
+                $duplicateSql .= " AND start_date IS NULL";
+            }
+            
+            if ($dueDate) {
+                $duplicateSql .= " AND due_date = ?";
+                $duplicateParams[] = $dueDate;
+            } else {
+                $duplicateSql .= " AND due_date IS NULL";
+            }
+            
+            $duplicateCheck = $db->prepare($duplicateSql);
+            $duplicateCheck->execute($duplicateParams);
+        }
+        
+        $duplicate = $duplicateCheck->fetch();
+        
+        if ($duplicate) {
+            // Retorna o ID da tarefa existente em vez de criar duplicada
+            return (int) $duplicate['id'];
+        }
+        
         // Calcula order (maior order da coluna + 1)
-        $stmt = $db->prepare("
-            SELECT COALESCE(MAX(`order`), 0) + 1 as next_order
-            FROM tasks
-            WHERE project_id = ? AND status = ?
-        ");
-        $stmt->execute([$projectId, $status]);
+        try {
+            $stmt = $db->prepare("
+                SELECT COALESCE(MAX(`order`), 0) + 1 as next_order
+                FROM tasks
+                WHERE project_id = ? AND status = ? AND deleted_at IS NULL
+            ");
+            $stmt->execute([$projectId, $status]);
+        } catch (\PDOException $e) {
+            // Se deu erro, tenta sem deleted_at
+            $stmt = $db->prepare("
+                SELECT COALESCE(MAX(`order`), 0) + 1 as next_order
+                FROM tasks
+                WHERE project_id = ? AND status = ?
+            ");
+            $stmt->execute([$projectId, $status]);
+        }
         $result = $stmt->fetch();
         $order = (int) ($result['next_order'] ?? 1);
         
@@ -232,6 +387,11 @@ class TaskService
         ]);
         
         $taskId = (int) $db->lastInsertId();
+        
+        // REMOVIDO: Vínculo automático com Agenda
+        // Agora as tarefas só são vinculadas manualmente via:
+        // - Botão "Agendar na Agenda" no modal da tarefa
+        // - Botão "Vincular tarefa existente" dentro do bloco
         
         return $taskId;
     }
@@ -312,7 +472,8 @@ class TaskService
         $taskType = $task['task_type'] ?? 'internal';
         if (isset($data['task_type'])) {
             $newTaskType = trim($data['task_type']);
-            if (in_array($newTaskType, ['internal', 'client_ticket'])) {
+            $allowedTaskTypes = ['internal', 'client_ticket', 'finance_overdue', 'lead_followup', 'crm_followup'];
+            if (in_array($newTaskType, $allowedTaskTypes)) {
                 $taskType = $newTaskType;
             }
         }
@@ -407,7 +568,7 @@ class TaskService
             $stmt = $db->prepare("
                 UPDATE tasks 
                 SET `order` = `order` - 1
-                WHERE project_id = ? AND status = ? AND `order` > ?
+                WHERE project_id = ? AND status = ? AND `order` > ? AND deleted_at IS NULL
             ");
             $stmt->execute([$projectId, $oldStatus, $oldOrder]);
             
@@ -416,7 +577,7 @@ class TaskService
                 $stmt = $db->prepare("
                     SELECT COALESCE(MAX(`order`), 0) + 1 as next_order
                     FROM tasks
-                    WHERE project_id = ? AND status = ?
+                    WHERE project_id = ? AND status = ? AND deleted_at IS NULL
                 ");
                 $stmt->execute([$projectId, $newStatus]);
                 $result = $stmt->fetch();
@@ -426,7 +587,7 @@ class TaskService
                 $stmt = $db->prepare("
                     UPDATE tasks 
                     SET `order` = `order` + 1
-                    WHERE project_id = ? AND status = ? AND `order` >= ?
+                    WHERE project_id = ? AND status = ? AND `order` >= ? AND deleted_at IS NULL
                 ");
                 $stmt->execute([$projectId, $newStatus, $newOrder]);
             }
@@ -440,7 +601,7 @@ class TaskService
                     $stmt = $db->prepare("
                         UPDATE tasks 
                         SET `order` = `order` - 1
-                        WHERE project_id = ? AND status = ? AND `order` > ? AND `order` <= ?
+                        WHERE project_id = ? AND status = ? AND `order` > ? AND `order` <= ? AND deleted_at IS NULL
                     ");
                     $stmt->execute([$projectId, $newStatus, $oldOrder, $newOrder]);
                 } else {
@@ -448,7 +609,7 @@ class TaskService
                     $stmt = $db->prepare("
                         UPDATE tasks 
                         SET `order` = `order` + 1
-                        WHERE project_id = ? AND status = ? AND `order` >= ? AND `order` < ?
+                        WHERE project_id = ? AND status = ? AND `order` >= ? AND `order` < ? AND deleted_at IS NULL
                     ");
                     $stmt->execute([$projectId, $newStatus, $newOrder, $oldOrder]);
                 }
@@ -493,19 +654,39 @@ class TaskService
     public static function findTask(int $id): ?array
     {
         $db = DB::getConnection();
-        $stmt = $db->prepare("
-            SELECT t.*, 
-                   p.name as project_name,
-                   p.tenant_id as project_tenant_id,
-                   t2.name as tenant_name,
-                   completed_user.name as completed_by_name
-            FROM tasks t
-            INNER JOIN projects p ON t.project_id = p.id
-            LEFT JOIN tenants t2 ON p.tenant_id = t2.id
-            LEFT JOIN users completed_user ON completed_user.id = t.completed_by
-            WHERE t.id = ?
-        ");
-        $stmt->execute([$id]);
+        
+        // Tenta primeiro com deleted_at (se a coluna existir)
+        try {
+            $stmt = $db->prepare("
+                SELECT t.*, 
+                       p.name as project_name,
+                       p.tenant_id as project_tenant_id,
+                       t2.name as tenant_name,
+                       completed_user.name as completed_by_name
+                FROM tasks t
+                INNER JOIN projects p ON t.project_id = p.id
+                LEFT JOIN tenants t2 ON p.tenant_id = t2.id
+                LEFT JOIN users completed_user ON completed_user.id = t.completed_by
+                WHERE t.id = ? AND t.deleted_at IS NULL
+            ");
+            $stmt->execute([$id]);
+        } catch (\PDOException $e) {
+            // Se deu erro, tenta sem a condição deleted_at
+            $stmt = $db->prepare("
+                SELECT t.*, 
+                       p.name as project_name,
+                       p.tenant_id as project_tenant_id,
+                       t2.name as tenant_name,
+                       completed_user.name as completed_by_name
+                FROM tasks t
+                INNER JOIN projects p ON t.project_id = p.id
+                LEFT JOIN tenants t2 ON p.tenant_id = t2.id
+                LEFT JOIN users completed_user ON completed_user.id = t.completed_by
+                WHERE t.id = ?
+            ");
+            $stmt->execute([$id]);
+        }
+        
         $result = $stmt->fetch();
         return $result ?: null;
     }
@@ -516,17 +697,35 @@ class TaskService
     public static function getProjectSummary(int $projectId): array
     {
         $db = DB::getConnection();
-        $stmt = $db->prepare("
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN status = 'backlog' THEN 1 ELSE 0 END) as backlog,
-                SUM(CASE WHEN status = 'em_andamento' THEN 1 ELSE 0 END) as em_andamento,
-                SUM(CASE WHEN status = 'aguardando_cliente' THEN 1 ELSE 0 END) as aguardando_cliente,
-                SUM(CASE WHEN status = 'concluida' THEN 1 ELSE 0 END) as concluida
-            FROM tasks
-            WHERE project_id = ?
-        ");
-        $stmt->execute([$projectId]);
+        
+        // Tenta primeiro com deleted_at (se a coluna existir)
+        try {
+            $stmt = $db->prepare("
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'backlog' THEN 1 ELSE 0 END) as backlog,
+                    SUM(CASE WHEN status = 'em_andamento' THEN 1 ELSE 0 END) as em_andamento,
+                    SUM(CASE WHEN status = 'aguardando_cliente' THEN 1 ELSE 0 END) as aguardando_cliente,
+                    SUM(CASE WHEN status = 'concluida' THEN 1 ELSE 0 END) as concluida
+                FROM tasks
+                WHERE project_id = ? AND deleted_at IS NULL
+            ");
+            $stmt->execute([$projectId]);
+        } catch (\PDOException $e) {
+            // Se deu erro, tenta sem a condição deleted_at
+            $stmt = $db->prepare("
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'backlog' THEN 1 ELSE 0 END) as backlog,
+                    SUM(CASE WHEN status = 'em_andamento' THEN 1 ELSE 0 END) as em_andamento,
+                    SUM(CASE WHEN status = 'aguardando_cliente' THEN 1 ELSE 0 END) as aguardando_cliente,
+                    SUM(CASE WHEN status = 'concluida' THEN 1 ELSE 0 END) as concluida
+                FROM tasks
+                WHERE project_id = ?
+            ");
+            $stmt->execute([$projectId]);
+        }
+        
         $result = $stmt->fetch();
         
         return [
@@ -536,6 +735,42 @@ class TaskService
             'aguardando_cliente' => (int) ($result['aguardando_cliente'] ?? 0),
             'concluida' => (int) ($result['concluida'] ?? 0),
         ];
+    }
+
+    /**
+     * Exclui uma tarefa (soft delete)
+     * Define deleted_at = NOW() sem remover o registro do banco
+     * 
+     * @param int $id ID da tarefa
+     * @param int|null $projectId ID do projeto (opcional, para validação)
+     * @return bool
+     * @throws \RuntimeException Se a tarefa não for encontrada ou já estiver deletada
+     */
+    public static function deleteTask(int $id, ?int $projectId = null): bool
+    {
+        $db = DB::getConnection();
+        
+        // Verifica se a tarefa existe e não está deletada
+        $task = self::findTask($id);
+        if (!$task) {
+            throw new \RuntimeException('Tarefa não encontrada ou já excluída');
+        }
+        
+        // Valida se a tarefa pertence ao projeto (se projectId foi fornecido)
+        if ($projectId !== null && (int) $task['project_id'] !== $projectId) {
+            throw new \RuntimeException('Tarefa não pertence ao projeto especificado');
+        }
+        
+        // Realiza soft delete (define deleted_at)
+        $stmt = $db->prepare("
+            UPDATE tasks 
+            SET deleted_at = NOW(), updated_at = NOW()
+            WHERE id = ? AND deleted_at IS NULL
+        ");
+        
+        $stmt->execute([$id]);
+        
+        return $stmt->rowCount() > 0;
     }
 }
 

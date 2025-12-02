@@ -38,9 +38,15 @@ class TaskBoardController extends Controller
         $tenantId = isset($_GET['tenant_id']) && $_GET['tenant_id'] !== '' ? (int) $_GET['tenant_id'] : null;
         $type = isset($_GET['type']) && $_GET['type'] !== '' ? $_GET['type'] : null;
         $clientQuery = isset($_GET['client_query']) && $_GET['client_query'] !== '' ? trim($_GET['client_query']) : null;
+        $agendaFilter = isset($_GET['agenda_filter']) && $_GET['agenda_filter'] !== '' ? $_GET['agenda_filter'] : null;
+        
+        // Valida filtro de agenda
+        if ($agendaFilter && !in_array($agendaFilter, ['with', 'without'])) {
+            $agendaFilter = null;
+        }
         
         // Busca tarefas agrupadas por status
-        $tasks = TaskService::getAllTasks($projectId, $tenantId, $clientQuery);
+        $tasks = TaskService::getAllTasks($projectId, $tenantId, $clientQuery, $agendaFilter);
         
         // Busca lista de projetos para o filtro (com filtro de tipo se aplicável)
         $projects = ProjectService::getAllProjects($tenantId, 'ativo', $type);
@@ -63,6 +69,7 @@ class TaskBoardController extends Controller
             'selectedTenantId' => $tenantId,
             'selectedType' => $type,
             'selectedClientQuery' => $clientQuery,
+            'selectedAgendaFilter' => $agendaFilter,
             'projectSummary' => $projectSummary,
         ]);
     }
@@ -285,6 +292,24 @@ class TaskBoardController extends Controller
             $checklist = \PixelHub\Services\TaskChecklistService::getItemsByTask($id);
             $task['checklist'] = $checklist;
             
+            // Busca blocos de agenda relacionados
+            try {
+                $blocosRelacionados = \PixelHub\Services\AgendaService::getBlocksForTask($id);
+                $task['blocos_relacionados'] = $blocosRelacionados;
+            } catch (\Exception $e) {
+                error_log("Erro ao buscar blocos relacionados: " . $e->getMessage());
+                $task['blocos_relacionados'] = [];
+            }
+            
+            // Busca tickets vinculados a esta tarefa
+            try {
+                $ticketsVinculados = \PixelHub\Services\TicketService::findTicketsByTaskId($id);
+                $task['tickets_vinculados'] = $ticketsVinculados;
+            } catch (\Exception $e) {
+                error_log("Erro ao buscar tickets vinculados: " . $e->getMessage());
+                $task['tickets_vinculados'] = [];
+            }
+            
             // Busca anexos com informações do usuário que fez upload
             $db = DB::getConnection();
             $stmt = $db->prepare("
@@ -337,6 +362,211 @@ class TaskBoardController extends Controller
         } catch (\Exception $e) {
             error_log("Erro ao buscar tarefa: " . $e->getMessage());
             $this->json(['error' => 'Erro ao buscar tarefa'], 500);
+        }
+    }
+    
+    /**
+     * Retorna HTML do modal de detalhes da tarefa para uso via AJAX
+     * Reutiliza a mesma lógica do método show() mas retorna HTML renderizado
+     */
+    public function modal(): void
+    {
+        Auth::requireInternal();
+        
+        $taskId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+        
+        if ($taskId <= 0) {
+            http_response_code(400);
+            echo '<p style="color: #c33;">Task ID inválido</p>';
+            return;
+        }
+        
+        try {
+            $task = TaskService::findTask($taskId);
+            if (!$task) {
+                http_response_code(404);
+                echo '<p style="color: #c33;">Tarefa não encontrada</p>';
+                return;
+            }
+            
+            // Formata completed_at se existir
+            $completedAtFormatted = null;
+            if (!empty($task['completed_at'])) {
+                try {
+                    $dt = new \DateTime($task['completed_at']);
+                    $completedAtFormatted = $dt->format('d/m/Y H:i');
+                } catch (\Exception $e) {
+                    $completedAtFormatted = date('d/m/Y H:i', strtotime($task['completed_at']));
+                }
+            }
+            $task['completed_at_formatted'] = $completedAtFormatted;
+            
+            // Busca checklist
+            $checklist = \PixelHub\Services\TaskChecklistService::getItemsByTask($taskId);
+            $task['checklist'] = $checklist;
+            
+            // Busca blocos de agenda relacionados
+            try {
+                $blocosRelacionados = \PixelHub\Services\AgendaService::getBlocksForTask($taskId);
+                $task['blocos_relacionados'] = $blocosRelacionados;
+            } catch (\Exception $e) {
+                error_log("Erro ao buscar blocos relacionados: " . $e->getMessage());
+                $task['blocos_relacionados'] = [];
+            }
+            
+            // Busca anexos
+            $db = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT 
+                    ta.*,
+                    u.name as uploaded_by_name
+                FROM task_attachments ta
+                LEFT JOIN users u ON ta.uploaded_by = u.id
+                WHERE ta.task_id = ?
+                ORDER BY ta.uploaded_at DESC, ta.id DESC
+            ");
+            $stmt->execute([$taskId]);
+            $attachments = $stmt->fetchAll();
+            
+            // Verifica existência dos arquivos físicos
+            foreach ($attachments as &$attachment) {
+                if (!empty($attachment['file_path'])) {
+                    $attachment['file_exists'] = \PixelHub\Core\Storage::fileExists($attachment['file_path']);
+                } else {
+                    $attachment['file_exists'] = false;
+                }
+                
+                if (!empty($attachment['id']) && $attachment['file_exists']) {
+                    $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+                    $attachment['download_url'] = $basePath . '/tasks/attachments/download?id=' . $attachment['id'];
+                } else {
+                    $attachment['download_url'] = null;
+                }
+                
+                if (!isset($attachment['recording_type'])) {
+                    $attachment['recording_type'] = null;
+                }
+                if (!isset($attachment['duration'])) {
+                    $attachment['duration'] = null;
+                }
+                if (!isset($attachment['uploaded_by_name'])) {
+                    $attachment['uploaded_by_name'] = null;
+                }
+            }
+            unset($attachment);
+            
+            $task['attachments'] = $attachments;
+            
+            // Renderiza o modal usando a mesma view do board
+            // Passa os dados para serem renderizados via JavaScript no lado do cliente
+            // Ou retorna JSON para o JavaScript renderizar
+            header('Content-Type: application/json');
+            echo json_encode($task);
+            
+        } catch (\Exception $e) {
+            error_log("Erro ao carregar modal da tarefa: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Erro ao carregar tarefa']);
+        }
+    }
+    
+    /**
+     * Atualiza apenas o status da tarefa
+     */
+    public function updateTaskStatus(): void
+    {
+        Auth::requireInternal();
+        
+        $taskId = isset($_POST['task_id']) ? (int)$_POST['task_id'] : 0;
+        $status = isset($_POST['status']) ? trim($_POST['status']) : null;
+        
+        if ($taskId <= 0) {
+            http_response_code(400);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'ID de tarefa inválido']);
+            return;
+        }
+        
+        if (!$status) {
+            http_response_code(400);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Status não informado']);
+            return;
+        }
+        
+        $allowedStatuses = ['backlog', 'em_andamento', 'aguardando_cliente', 'concluida'];
+        if (!in_array($status, $allowedStatuses)) {
+            http_response_code(400);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Status inválido']);
+            return;
+        }
+        
+        try {
+            // Busca a tarefa atual para verificar se o status mudou
+            $task = TaskService::findTask($taskId);
+            if (!$task) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'Tarefa não encontrada']);
+                return;
+            }
+            
+            $oldStatus = $task['status'] ?? null;
+            
+            // Se o status mudou, usa moveTask para ajustar a ordem corretamente
+            // Isso garante que a tarefa apareça na coluna correta no quadro Kanban
+            if ($oldStatus !== $status) {
+                // moveTask ajusta a ordem automaticamente quando o status muda
+                TaskService::moveTask($taskId, $status, null);
+                
+                // Se a tarefa foi concluída e está vinculada a um ticket, marca ticket como resolvido
+                if ($status === 'concluida') {
+                    try {
+                        \PixelHub\Services\TicketService::markTicketResolvedFromTask($taskId);
+                    } catch (\Exception $e) {
+                        // Loga mas não quebra o fluxo se houver erro na sincronização
+                        error_log("Erro ao sincronizar ticket ao concluir tarefa: " . $e->getMessage());
+                    }
+                }
+            } else {
+                // Se o status não mudou, apenas atualiza outros campos se necessário
+                TaskService::updateTask($taskId, ['status' => $status]);
+            }
+            
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true]);
+        } catch (\Exception $e) {
+            error_log("Erro ao atualizar status da tarefa: " . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Erro ao atualizar status da tarefa']);
+        }
+    }
+
+    /**
+     * Exclui uma tarefa (soft delete)
+     */
+    public function delete(): void
+    {
+        Auth::requireInternal();
+
+        $taskId = isset($_POST['task_id']) ? (int) $_POST['task_id'] : 0;
+        $projectId = isset($_POST['project_id']) && $_POST['project_id'] !== '' ? (int) $_POST['project_id'] : null;
+
+        if ($taskId <= 0) {
+            $this->json(['error' => 'ID da tarefa é obrigatório'], 400);
+            return;
+        }
+
+        try {
+            TaskService::deleteTask($taskId, $projectId);
+            $this->json(['success' => true, 'message' => 'Tarefa excluída com sucesso']);
+        } catch (\RuntimeException $e) {
+            $this->json(['error' => $e->getMessage()], 404);
+        } catch (\Exception $e) {
+            error_log("Erro ao excluir tarefa: " . $e->getMessage());
+            $this->json(['error' => 'Erro ao excluir tarefa'], 500);
         }
     }
 }
