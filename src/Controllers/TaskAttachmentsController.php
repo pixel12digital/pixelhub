@@ -637,8 +637,8 @@ class TaskAttachmentsController extends Controller
     {
         Auth::requireInternal();
 
-        $attachmentId = $_POST['id'] ?? null;
-        $taskId = $_POST['task_id'] ?? null;
+        $attachmentId = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+        $taskId = isset($_POST['task_id']) ? (int)$_POST['task_id'] : 0;
 
         // Helper para log
         $log = function($message) {
@@ -648,28 +648,30 @@ class TaskAttachmentsController extends Controller
             error_log('[TaskAttachments][delete] ' . $message);
         };
 
-        if (!$attachmentId) {
-            $log('ERRO: id não fornecido');
+        if ($attachmentId <= 0) {
+            $log('ERRO: id inválido ou não fornecido. Valor recebido: ' . ($_POST['id'] ?? 'não definido'));
             if ($this->isAjaxRequest()) {
                 $this->json([
                     'success' => false,
-                    'message' => 'ID do anexo não fornecido.'
+                    'error' => 'ID inválido',
+                    'message' => 'ID do anexo inválido ou não fornecido.'
                 ], 400);
             } else {
-                $this->redirect('/tasks/board?error=missing_id');
+                $this->redirect('/tasks/board?error=invalid_id');
             }
             return;
         }
 
-        if (!$taskId) {
-            $log('ERRO: task_id não fornecido');
+        if ($taskId <= 0) {
+            $log('ERRO: task_id inválido ou não fornecido. Valor recebido: ' . ($_POST['task_id'] ?? 'não definido'));
             if ($this->isAjaxRequest()) {
                 $this->json([
                     'success' => false,
-                    'message' => 'ID da tarefa não fornecido.'
+                    'error' => 'ID inválido',
+                    'message' => 'ID da tarefa inválido ou não fornecido.'
                 ], 400);
             } else {
-                $this->redirect('/tasks/board?error=missing_task_id');
+                $this->redirect('/tasks/board?error=invalid_task_id');
             }
             return;
         }

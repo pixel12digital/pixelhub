@@ -324,6 +324,16 @@ class TaskBoardController extends Controller
             $stmt->execute([$id]);
             $attachments = $stmt->fetchAll();
             
+            // Constrói BASE_URL para links de compartilhamento
+            if (defined('BASE_URL')) {
+                $baseUrl = rtrim(BASE_URL, '/');
+            } else {
+                $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+                $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+                $baseUrl = $protocol . $domainName . $basePath;
+            }
+            
             // Verifica existência dos arquivos físicos e adiciona URL de download
             foreach ($attachments as &$attachment) {
                 if (!empty($attachment['file_path'])) {
@@ -339,6 +349,68 @@ class TaskBoardController extends Controller
                     $attachment['download_url'] = $basePath . '/tasks/attachments/download?id=' . $attachment['id'];
                 } else {
                     $attachment['download_url'] = null;
+                }
+                
+                // Para gravações de tela, busca ou cria link de compartilhamento
+                if (!empty($attachment['recording_type']) && $attachment['recording_type'] === 'screen_recording') {
+                    // Busca se já existe registro na screen_recordings para este anexo
+                    $srStmt = $db->prepare("
+                        SELECT id, public_token 
+                        FROM screen_recordings 
+                        WHERE task_id = ? AND file_name = ?
+                        LIMIT 1
+                    ");
+                    $srStmt->execute([$id, $attachment['file_name']]);
+                    $screenRecording = $srStmt->fetch();
+                    
+                    if ($screenRecording && !empty($screenRecording['public_token'])) {
+                        // Já existe token público
+                        $attachment['public_url'] = $baseUrl . '/screen-recordings/share?token=' . urlencode($screenRecording['public_token']);
+                    } else {
+                        // Cria registro na screen_recordings com public_token
+                        $publicToken = bin2hex(random_bytes(16)); // 32 caracteres
+                        
+                        // Extrai subdiretório do file_path (ex: /storage/tasks/1/arquivo.webm -> tasks/1)
+                        $filePath = $attachment['file_path'];
+                        $relativePath = ltrim($filePath, '/');
+                        
+                        // Se o caminho começa com /storage/tasks/, converte para formato screen-recordings
+                        if (strpos($relativePath, 'storage/tasks/') === 0) {
+                            // Extrai data do uploaded_at para organizar
+                            $uploadDate = !empty($attachment['uploaded_at']) ? date('Y/m/d', strtotime($attachment['uploaded_at'])) : date('Y/m/d');
+                            $newRelativePath = 'screen-recordings/' . $uploadDate . '/' . $attachment['file_name'];
+                        } else {
+                            $newRelativePath = $relativePath;
+                        }
+                        
+                        try {
+                            $insertStmt = $db->prepare("
+                                INSERT INTO screen_recordings 
+                                (task_id, file_path, file_name, original_name, mime_type, size_bytes, duration_seconds, has_audio, public_token, created_at, created_by)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ");
+                            $insertStmt->execute([
+                                $id, // task_id
+                                $newRelativePath,
+                                $attachment['file_name'],
+                                $attachment['original_name'],
+                                $attachment['mime_type'] ?? 'video/webm',
+                                $attachment['file_size'] ?? 0,
+                                $attachment['duration'] ?? null,
+                                0, // has_audio (assume false se não informado)
+                                $publicToken,
+                                $attachment['uploaded_at'] ?? date('Y-m-d H:i:s'),
+                                $attachment['uploaded_by'] ?? null
+                            ]);
+                            
+                            $attachment['public_url'] = $baseUrl . '/screen-recordings/share?token=' . urlencode($publicToken);
+                        } catch (\Exception $e) {
+                            error_log("Erro ao criar registro de compartilhamento para anexo {$attachment['id']}: " . $e->getMessage());
+                            $attachment['public_url'] = null;
+                        }
+                    }
+                } else {
+                    $attachment['public_url'] = null;
                 }
                 
                 // Garante que recording_type e duration estejam presentes (mesmo que null)
@@ -357,6 +429,41 @@ class TaskBoardController extends Controller
             unset($attachment);
             
             $task['attachments'] = $attachments;
+            
+            // Adiciona dados do tenant (cliente) para compartilhamento via WhatsApp
+            if (!empty($task['project_tenant_id'])) {
+                $tenantStmt = $db->prepare("
+                    SELECT id, name, phone 
+                    FROM tenants 
+                    WHERE id = ?
+                ");
+                $tenantStmt->execute([$task['project_tenant_id']]);
+                $tenant = $tenantStmt->fetch();
+                
+                if ($tenant) {
+                    $task['tenant'] = [
+                        'id' => $tenant['id'],
+                        'name' => $tenant['name'],
+                        'phone' => $tenant['phone'] ?? null
+                    ];
+                    
+                    // Normaliza telefone para WhatsApp usando função existente
+                    if (!empty($tenant['phone'])) {
+                        $phoneNormalized = \PixelHub\Services\WhatsAppBillingService::normalizePhone($tenant['phone']);
+                        if ($phoneNormalized) {
+                            $task['tenant']['whatsapp_link'] = 'https://wa.me/' . $phoneNormalized;
+                        } else {
+                            $task['tenant']['whatsapp_link'] = null;
+                        }
+                    } else {
+                        $task['tenant']['whatsapp_link'] = null;
+                    }
+                } else {
+                    $task['tenant'] = null;
+                }
+            } else {
+                $task['tenant'] = null;
+            }
             
             $this->json($task);
         } catch (\Exception $e) {

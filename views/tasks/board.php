@@ -1069,11 +1069,21 @@ ob_start();
                 html += '<td style="padding: 12px; border-bottom: 1px solid #eee;">' + fileSize + '</td>';
                 html += '<td style="padding: 12px; border-bottom: 1px solid #eee;">' + uploadedAt + '</td>';
                 html += '<td style="padding: 12px; border-bottom: 1px solid #eee;">';
-                html += '<div style="display: flex; gap: 10px; align-items: center;">';
+                html += '<div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">';
                 if (fileExists) {
                     html += '<a href="' + escapeHtml('<?= pixelhub_url("/tasks/attachments/download?id=") ?>' + attachment.id) + '" style="color: #023A8D; text-decoration: none; font-weight: 600;">Download</a>';
                 }
-                html += '<button type="button" onclick="deleteTaskAttachment(' + taskId + ', ' + attachment.id + ')" style="background: #c33; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">Excluir</button>';
+                // Botão de compartilhar para gravações de tela
+                if (attachment.recording_type === 'screen_recording' && attachment.public_url) {
+                    html += '<button type="button" onclick="shareRecordingViaWhatsApp(\'' + escapeHtml(attachment.public_url) + '\', ' + taskId + ')" style="background: #25D366; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">';
+                    html += '<span>📱</span> Compartilhar';
+                    html += '</button>';
+                }
+                if (attachment.id && attachment.id > 0) {
+                    html += '<button type="button" onclick="deleteTaskAttachment(' + taskId + ', ' + attachment.id + ')" style="background: #c33; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">Excluir</button>';
+                } else {
+                    html += '<span style="color: #999; font-size: 12px;">ID inválido</span>';
+                }
                 html += '</div>';
                 html += '</td>';
                 html += '</tr>';
@@ -2054,11 +2064,27 @@ ob_start();
 
     // Delete de anexo
     function deleteTaskAttachment(taskId, attachmentId) {
+        // Valida os IDs antes de prosseguir
+        const taskIdNum = parseInt(taskId, 10);
+        const attachmentIdNum = parseInt(attachmentId, 10);
+        
+        if (!taskIdNum || taskIdNum <= 0) {
+            alert('Erro: ID da tarefa inválido.');
+            console.error('[deleteTaskAttachment] taskId inválido:', taskId);
+            return;
+        }
+        
+        if (!attachmentIdNum || attachmentIdNum <= 0) {
+            alert('Erro: ID do anexo inválido.');
+            console.error('[deleteTaskAttachment] attachmentId inválido:', attachmentId);
+            return;
+        }
+        
         if (!confirm('Tem certeza que deseja excluir este anexo?')) return;
 
         const formData = new FormData();
-        formData.append('id', attachmentId);
-        formData.append('task_id', taskId);
+        formData.append('id', attachmentIdNum);
+        formData.append('task_id', taskIdNum);
 
         fetch('<?= pixelhub_url('/tasks/attachments/delete') ?>', {
             method: 'POST',
@@ -2096,9 +2122,54 @@ ob_start();
         });
     }
 
+    /**
+     * Compartilha gravação via WhatsApp do cliente
+     */
+    function shareRecordingViaWhatsApp(publicUrl, taskId) {
+        // Busca dados da tarefa para obter WhatsApp do cliente
+        if (!window.currentTaskData || !window.currentTaskData.tenant) {
+            // Se não tem dados da tarefa, busca novamente
+            fetch('<?= pixelhub_url('/tasks') ?>/' + taskId)
+                .then(response => response.json())
+                .then(taskData => {
+                    if (taskData.error) {
+                        alert('Erro ao buscar dados da tarefa.');
+                        return;
+                    }
+                    window.currentTaskData = taskData;
+                    openWhatsAppWithLink(publicUrl, taskData);
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar tarefa:', error);
+                    alert('Erro ao buscar dados da tarefa. Tente novamente.');
+                });
+        } else {
+            openWhatsAppWithLink(publicUrl, window.currentTaskData);
+        }
+    }
+    
+    /**
+     * Abre WhatsApp com link pré-formatado
+     */
+    function openWhatsAppWithLink(publicUrl, taskData) {
+        if (!taskData.tenant || !taskData.tenant.whatsapp_link) {
+            // Se não tem WhatsApp do cliente, abre WhatsApp Web sem número
+            const message = encodeURIComponent('Olá! Segue o link da gravação de tela:\n\n' + publicUrl);
+            window.open('https://web.whatsapp.com/send?text=' + message, '_blank');
+            return;
+        }
+        
+        // Monta mensagem com link da gravação
+        const message = encodeURIComponent('Olá! Segue o link da gravação de tela:\n\n' + publicUrl);
+        
+        // Abre WhatsApp do cliente com mensagem pré-formatada
+        window.open(taskData.tenant.whatsapp_link + '&text=' + message, '_blank');
+    }
+
     // Garante que as funções estão no escopo global
     window.uploadTaskAttachment = uploadTaskAttachment;
     window.deleteTaskAttachment = deleteTaskAttachment;
+    window.shareRecordingViaWhatsApp = shareRecordingViaWhatsApp;
 
     // Função centralizada para atualizar status da tarefa
     // Usada tanto pelo select quanto pelo drag & drop
