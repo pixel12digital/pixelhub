@@ -196,8 +196,17 @@ $path = rtrim($path, '/') ?: '/';
 $isShareRoute = ($path === '/screen-recordings/share' || strpos($path, '/screen-recordings/share?') === 0) ||
                 (strpos($uri, '/screen-recordings/share') !== false && strpos($uri, '/screen-recordings/debug-share.php') === false);
 
+// Log sempre para debug
+pixelhub_log('[Bypass Check] URI: ' . $uri . ', Path: ' . $path . ', isShareRoute: ' . ($isShareRoute ? 'SIM' : 'NÃO'));
+error_log('[Bypass Check] URI: ' . $uri . ', Path: ' . $path . ', isShareRoute: ' . ($isShareRoute ? 'SIM' : 'NÃO'));
+
 if ($isShareRoute) {
     $shareFile = __DIR__ . '/screen-recordings/share.php';
+    pixelhub_log('[Direct Share] Tentando acessar share.php - Arquivo: ' . $shareFile);
+    error_log('[Direct Share] Tentando acessar share.php - Arquivo: ' . $shareFile);
+    pixelhub_log('[Direct Share] Arquivo existe: ' . (file_exists($shareFile) ? 'SIM' : 'NÃO'));
+    error_log('[Direct Share] Arquivo existe: ' . (file_exists($shareFile) ? 'SIM' : 'NÃO'));
+    
     if (file_exists($shareFile)) {
         pixelhub_log('[Direct Share] Acessando share.php diretamente (bypass router)');
         pixelhub_log('[Direct Share] URI: ' . $uri . ', Path: ' . $path);
@@ -208,6 +217,9 @@ if ($isShareRoute) {
     } else {
         pixelhub_log('[Direct Share] ERRO: Arquivo share.php não encontrado em: ' . $shareFile);
         error_log('[Direct Share] ERRO: Arquivo share.php não encontrado em: ' . $shareFile);
+        http_response_code(404);
+        echo 'Arquivo share.php não encontrado: ' . $shareFile;
+        exit;
     }
 }
 
