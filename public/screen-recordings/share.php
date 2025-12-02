@@ -181,15 +181,81 @@ try {
         exit;
     }
     
-    // Verifica se o arquivo existe
-    // O file_path no banco é: screen-recordings/2025/11/28/xxx.webm
-    // O arquivo físico está em: public/screen-recordings/2025/11/28/xxx.webm
-    // __DIR__ é public/screen-recordings/, então precisamos remover 'screen-recordings/' do início
+    // Se for requisição de streaming (parâmetro stream=1), serve o arquivo diretamente
+    if (isset($_GET['stream']) && $_GET['stream'] == '1') {
+        $relativePath = ltrim($recording['file_path'], '/');
+        $filePath = null;
+        
+        if (strpos($relativePath, 'storage/tasks/') === 0) {
+            // Arquivo de tarefa: busca em storage/tasks/
+            $filePath = __DIR__ . '/../../' . $relativePath;
+        } elseif (strpos($relativePath, 'screen-recordings/') === 0) {
+            // Arquivo da biblioteca: busca em public/screen-recordings/
+            $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
+            $filePath = __DIR__ . '/' . $fileRelativePath;
+        } else {
+            // Tenta como caminho relativo a partir de public/screen-recordings/
+            $filePath = __DIR__ . '/' . $relativePath;
+        }
+        
+        if ($filePath && file_exists($filePath) && is_file($filePath)) {
+            // Serve o arquivo diretamente para streaming
+            $mimeType = $recording['mime_type'] ?? 'video/webm';
+            $fileSize = filesize($filePath);
+            
+            header('Content-Type: ' . $mimeType);
+            header('Content-Length: ' . $fileSize);
+            header('Accept-Ranges: bytes');
+            header('Cache-Control: public, max-age=3600');
+            
+            // Suporte a Range requests para streaming
+            if (isset($_SERVER['HTTP_RANGE'])) {
+                $range = $_SERVER['HTTP_RANGE'];
+                $range = str_replace('bytes=', '', $range);
+                $range = explode('-', $range);
+                $start = intval($range[0]);
+                $end = $range[1] ? intval($range[1]) : $fileSize - 1;
+                $length = $end - $start + 1;
+                
+                header('HTTP/1.1 206 Partial Content');
+                header('Content-Range: bytes ' . $start . '-' . $end . '/' . $fileSize);
+                header('Content-Length: ' . $length);
+                
+                $fp = fopen($filePath, 'rb');
+                fseek($fp, $start);
+                echo fread($fp, $length);
+                fclose($fp);
+            } else {
+                readfile($filePath);
+            }
+            exit;
+        } else {
+            http_response_code(404);
+            echo 'Arquivo não encontrado';
+            exit;
+        }
+    }
+    
+    // Verifica se o arquivo existe (para exibição da página)
+    // O file_path no banco pode ser:
+    // 1. screen-recordings/2025/11/28/xxx.webm (biblioteca) -> public/screen-recordings/2025/11/28/xxx.webm
+    // 2. storage/tasks/1/xxx.webm (tarefa) -> storage/tasks/1/xxx.webm
     $relativePath = ltrim($recording['file_path'], '/');
-    // Remove 'screen-recordings/' do início se existir
-    $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
-    $filePath = __DIR__ . '/' . $fileRelativePath;
-    $fileExists = file_exists($filePath) && is_file($filePath);
+    $filePath = null;
+    
+    if (strpos($relativePath, 'storage/tasks/') === 0) {
+        // Arquivo de tarefa: busca em storage/tasks/
+        $filePath = __DIR__ . '/../../' . $relativePath;
+    } elseif (strpos($relativePath, 'screen-recordings/') === 0) {
+        // Arquivo da biblioteca: busca em public/screen-recordings/
+        $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
+        $filePath = __DIR__ . '/' . $fileRelativePath;
+    } else {
+        // Tenta como caminho relativo a partir de public/screen-recordings/
+        $filePath = __DIR__ . '/' . $relativePath;
+    }
+    
+    $fileExists = $filePath && file_exists($filePath) && is_file($filePath);
     
     // Log detalhado
     error_log('[ScreenRecordings Share] Verificando arquivo:');
@@ -240,23 +306,24 @@ try {
         exit;
     }
     
-    // Monta URL do vídeo
-    // O file_path no banco é: screen-recordings/2025/11/28/xxx.webm
-    // O arquivo físico está em: public/screen-recordings/2025/11/28/xxx.webm
-    // A URL pública deve ser: BASE_URL/screen-recordings/2025/11/28/xxx.webm
-    // IMPORTANTE: file_path já contém 'screen-recordings/', então usamos diretamente
+    // Monta URL do vídeo para streaming
+    // Para arquivos de tarefas (storage/tasks/), usa endpoint de download protegido
+    // Para arquivos da biblioteca (screen-recordings/), usa URL pública direta
     $relativePath = ltrim($recording['file_path'], '/');
-    
-    // Garante que não há duplicação de 'screen-recordings/'
-    // Se o BASE_URL já termina com 'screen-recordings/', remove do início do relativePath
     $baseUrl = rtrim(BASE_URL, '/');
-    if (substr($baseUrl, -strlen('/screen-recordings')) === '/screen-recordings') {
-        // BASE_URL já contém /screen-recordings, então remove do início do relativePath
-        $relativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
-    }
     
-    // Constrói URL completa
-    $videoUrl = $baseUrl . '/' . $relativePath;
+    if (strpos($relativePath, 'storage/tasks/') === 0) {
+        // Arquivo de tarefa: serve diretamente via PHP para streaming
+        // Usa o próprio share.php para servir o arquivo (já temos o token validado)
+        $videoUrl = $baseUrl . '/screen-recordings/share?token=' . urlencode($token) . '&stream=1';
+    } else {
+        // Arquivo da biblioteca: URL pública direta
+        // Garante que não há duplicação de 'screen-recordings/'
+        if (substr($baseUrl, -strlen('/screen-recordings')) === '/screen-recordings') {
+            $relativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
+        }
+        $videoUrl = $baseUrl . '/' . $relativePath;
+    }
     
     // Debug: sempre loga para diagnóstico em produção
     error_log('[ScreenRecordings Share] Token: ' . $token);

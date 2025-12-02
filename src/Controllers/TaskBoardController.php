@@ -352,7 +352,13 @@ class TaskBoardController extends Controller
                 }
                 
                 // Para gravações de tela, busca ou cria link de compartilhamento
-                if (!empty($attachment['recording_type']) && $attachment['recording_type'] === 'screen_recording') {
+                // Detecta por recording_type ou por mime_type e nome do arquivo
+                $isScreenRecording = (!empty($attachment['recording_type']) && $attachment['recording_type'] === 'screen_recording') ||
+                                     (!empty($attachment['mime_type']) && strpos($attachment['mime_type'], 'video/') === 0 &&
+                                      (strpos($attachment['file_name'], 'screen-recording') !== false || 
+                                       strpos($attachment['original_name'], 'screen-recording') !== false));
+                
+                if ($isScreenRecording) {
                     // Busca se já existe registro na screen_recordings para este anexo
                     $srStmt = $db->prepare("
                         SELECT id, public_token 
@@ -370,18 +376,10 @@ class TaskBoardController extends Controller
                         // Cria registro na screen_recordings com public_token
                         $publicToken = bin2hex(random_bytes(16)); // 32 caracteres
                         
-                        // Extrai subdiretório do file_path (ex: /storage/tasks/1/arquivo.webm -> tasks/1)
+                        // Usa o caminho real do arquivo (storage/tasks/{taskId}/arquivo.webm)
+                        // Isso permite que o share.php encontre o arquivo corretamente
                         $filePath = $attachment['file_path'];
                         $relativePath = ltrim($filePath, '/');
-                        
-                        // Se o caminho começa com /storage/tasks/, converte para formato screen-recordings
-                        if (strpos($relativePath, 'storage/tasks/') === 0) {
-                            // Extrai data do uploaded_at para organizar
-                            $uploadDate = !empty($attachment['uploaded_at']) ? date('Y/m/d', strtotime($attachment['uploaded_at'])) : date('Y/m/d');
-                            $newRelativePath = 'screen-recordings/' . $uploadDate . '/' . $attachment['file_name'];
-                        } else {
-                            $newRelativePath = $relativePath;
-                        }
                         
                         try {
                             $insertStmt = $db->prepare("
@@ -390,8 +388,8 @@ class TaskBoardController extends Controller
                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             ");
                             $insertStmt->execute([
-                                $id, // task_id
-                                $newRelativePath,
+                                $id, // task_id - importante para identificar que é de uma tarefa
+                                $relativePath, // Usa o caminho real do arquivo
                                 $attachment['file_name'],
                                 $attachment['original_name'],
                                 $attachment['mime_type'] ?? 'video/webm',

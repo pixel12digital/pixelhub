@@ -140,6 +140,18 @@ ob_start();
                             <td style="padding: 12px; border-bottom: 1px solid #eee;">
                                 <span style="color: #023A8D; font-weight: 600;"><?= $fileName ?></span>
                             </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php if ($taskId): ?>
+                                    <a href="<?= pixelhub_url('/projects/board?project_id=' . ($recording['project_id'] ?? '')) ?>" style="color: #023A8D; text-decoration: none;">
+                                        <?= $taskTitle ?>
+                                    </a>
+                                <?php else: ?>
+                                    <span style="color: #999; font-style: italic;">Biblioteca</span>
+                                <?php endif; ?>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?= $clientName ?>
+                            </td>
                             <td style="padding: 12px; border-bottom: 1px solid #eee; font-family: monospace;">
                                 <?= $duration ?>
                             </td>

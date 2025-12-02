@@ -1073,11 +1073,28 @@ ob_start();
                 if (fileExists) {
                     html += '<a href="' + escapeHtml('<?= pixelhub_url("/tasks/attachments/download?id=") ?>' + attachment.id) + '" style="color: #023A8D; text-decoration: none; font-weight: 600;">Download</a>';
                 }
-                // Botão de compartilhar para gravações de tela
-                if (attachment.recording_type === 'screen_recording' && attachment.public_url) {
-                    html += '<button type="button" onclick="shareRecordingViaWhatsApp(\'' + escapeHtml(attachment.public_url) + '\', ' + taskId + ')" style="background: #25D366; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">';
-                    html += '<span>📱</span> Compartilhar';
-                    html += '</button>';
+                // Botão de compartilhar para gravações de tela (detecta por recording_type ou mime_type)
+                const isScreenRecording = attachment.recording_type === 'screen_recording' || 
+                                         (attachment.mime_type && attachment.mime_type.startsWith('video/') && 
+                                          (attachment.file_name && attachment.file_name.includes('screen-recording') || 
+                                           attachment.original_name && attachment.original_name.includes('screen-recording')));
+                
+                if (isScreenRecording) {
+                    if (attachment.public_url) {
+                        // Botão de compartilhar via WhatsApp
+                        html += '<button type="button" onclick="shareRecordingViaWhatsApp(\'' + escapeHtml(attachment.public_url) + '\', ' + taskId + ')" style="background: #25D366; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Compartilhar via WhatsApp">';
+                        html += '<span>📱</span> Compartilhar';
+                        html += '</button>';
+                        // Botão de copiar link
+                        html += '<button type="button" onclick="copyRecordingLink(\'' + escapeHtml(attachment.public_url) + '\')" style="background: #6c757d; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Copiar link de compartilhamento">';
+                        html += '<span>🔗</span> Copiar link';
+                        html += '</button>';
+                    } else {
+                        // Se não tem public_url, tenta gerar na hora
+                        html += '<button type="button" onclick="generateShareLink(' + attachment.id + ', ' + taskId + ')" style="background: #6c757d; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Gerar link de compartilhamento">';
+                        html += '<span>🔗</span> Gerar link';
+                        html += '</button>';
+                    }
                 }
                 if (attachment.id && attachment.id > 0) {
                     html += '<button type="button" onclick="deleteTaskAttachment(' + taskId + ', ' + attachment.id + ')" style="background: #c33; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">Excluir</button>';
@@ -2165,11 +2182,72 @@ ob_start();
         // Abre WhatsApp do cliente com mensagem pré-formatada
         window.open(taskData.tenant.whatsapp_link + '&text=' + message, '_blank');
     }
+    
+    /**
+     * Copia link de compartilhamento para área de transferência
+     */
+    function copyRecordingLink(url) {
+        if (!url) {
+            alert('Link não disponível.');
+            return;
+        }
+
+        // Tenta usar Clipboard API moderna
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url)
+                .then(function() {
+                    // Feedback visual
+                    alert('Link copiado para a área de transferência!');
+                })
+                .catch(function(err) {
+                    console.error('Erro ao copiar link:', err);
+                    // Fallback: mostra prompt com o link
+                    window.prompt('Copie o link abaixo:', url);
+                });
+        } else {
+            // Fallback para navegadores antigos
+            window.prompt('Copie o link abaixo:', url);
+        }
+    }
+    
+    /**
+     * Gera link de compartilhamento para anexo que ainda não tem
+     */
+    function generateShareLink(attachmentId, taskId) {
+        // Recarrega os dados da tarefa para forçar geração do link
+        fetch('<?= pixelhub_url('/tasks') ?>/' + taskId)
+            .then(response => response.json())
+            .then(taskData => {
+                if (taskData.error) {
+                    alert('Erro ao gerar link de compartilhamento.');
+                    return;
+                }
+                
+                // Atualiza dados da tarefa
+                window.currentTaskData = taskData;
+                
+                // Busca o anexo atualizado
+                const attachment = taskData.attachments.find(a => a.id === attachmentId);
+                if (attachment && attachment.public_url) {
+                    // Recarrega o modal para mostrar os novos botões
+                    renderTaskDetailModal(taskData, taskId, false);
+                    alert('Link de compartilhamento gerado com sucesso!');
+                } else {
+                    alert('Não foi possível gerar o link de compartilhamento. Tente novamente.');
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao gerar link:', error);
+                alert('Erro ao gerar link de compartilhamento. Tente novamente.');
+            });
+    }
 
     // Garante que as funções estão no escopo global
     window.uploadTaskAttachment = uploadTaskAttachment;
     window.deleteTaskAttachment = deleteTaskAttachment;
     window.shareRecordingViaWhatsApp = shareRecordingViaWhatsApp;
+    window.copyRecordingLink = copyRecordingLink;
+    window.generateShareLink = generateShareLink;
 
     // Função centralizada para atualizar status da tarefa
     // Usada tanto pelo select quanto pelo drag & drop

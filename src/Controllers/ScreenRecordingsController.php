@@ -33,9 +33,9 @@ class ScreenRecordingsController extends Controller
             $perPage = 20;
             $offset = ($page - 1) * $perPage;
 
-            // Monta WHERE clause - busca apenas gravações da biblioteca (task_id IS NULL)
-            // Gravações vinculadas a tarefas continuam em task_attachments
-            $whereConditions = ["sr.task_id IS NULL"];
+            // Monta WHERE clause - busca todas as gravações (biblioteca e vinculadas a tarefas)
+            // Remove filtro task_id IS NULL para mostrar todas
+            $whereConditions = [];
             $params = [];
 
         // Filtro de busca (nome do arquivo)
@@ -81,7 +81,7 @@ class ScreenRecordingsController extends Controller
             throw $e;
         }
 
-        // Query para buscar gravações da biblioteca
+        // Query para buscar todas as gravações (biblioteca e vinculadas a tarefas)
         $sql = "
             SELECT 
                 sr.id,
@@ -96,9 +96,16 @@ class ScreenRecordingsController extends Controller
                 sr.file_path,
                 sr.public_token,
                 sr.has_audio,
-                u.name as uploaded_by_name
+                u.name as uploaded_by_name,
+                t.title as task_title,
+                p.name as project_name,
+                p.tenant_id,
+                t2.name as client_name
             FROM screen_recordings sr
             LEFT JOIN users u ON sr.created_by = u.id
+            LEFT JOIN tasks t ON sr.task_id = t.id
+            LEFT JOIN projects p ON t.project_id = p.id
+            LEFT JOIN tenants t2 ON p.tenant_id = t2.id
             WHERE {$whereSql}
             ORDER BY sr.created_at DESC, sr.id DESC
             LIMIT ? OFFSET ?
