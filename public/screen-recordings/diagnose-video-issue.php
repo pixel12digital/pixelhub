@@ -12,6 +12,33 @@ header('Content-Type: text/html; charset=utf-8');
 // Carrega autoload
 if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
     require_once __DIR__ . '/../../vendor/autoload.php';
+} else {
+    // Fallback: autoload manual se composer não estiver disponível
+    spl_autoload_register(function ($class) {
+        $prefix = 'PixelHub\\';
+        $baseDir = __DIR__ . '/../../src/';
+        
+        $len = strlen($prefix);
+        if (strncmp($prefix, $class, $len) !== 0) {
+            return;
+        }
+        
+        $relativeClass = substr($class, $len);
+        $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+        
+        if (file_exists($file)) {
+            require $file;
+        }
+    });
+}
+
+// Carrega variáveis de ambiente se necessário
+if (class_exists('PixelHub\Core\Env')) {
+    try {
+        \PixelHub\Core\Env::load();
+    } catch (\Exception $e) {
+        // Ignora erro de env se não existir
+    }
 }
 
 use PixelHub\Core\DB;
