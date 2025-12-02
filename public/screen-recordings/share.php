@@ -126,6 +126,8 @@ try {
         WHERE public_token = ?
         LIMIT 1
     ");
+    // Log para debug
+    error_log('[ScreenRecordings Share] Buscando registro com token: ' . $token);
     $stmt->execute([$token]);
     $recording = $stmt->fetch(PDO::FETCH_ASSOC);
     
@@ -253,8 +255,23 @@ try {
             // Arquivo da biblioteca: busca em public/screen-recordings/
             $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
             $filePath = __DIR__ . '/' . $fileRelativePath;
+            
+            // CORREÇÃO: Se não encontrou com file_path, tenta com file_name (que deve ter o token)
+            if (!file_exists($filePath) && !empty($recording['file_name'])) {
+                // Extrai o diretório do file_path
+                $pathDir = dirname($fileRelativePath);
+                // Usa file_name (que deve ter o token) no mesmo diretório
+                $filePathAlt = __DIR__ . '/' . $pathDir . '/' . $recording['file_name'];
+                error_log('[ScreenRecordings Share Stream] Tentando caminho alternativo com file_name: ' . $filePathAlt);
+                if (file_exists($filePathAlt) && is_file($filePathAlt)) {
+                    $filePath = $filePathAlt;
+                    error_log('[ScreenRecordings Share Stream] Arquivo encontrado com file_name!');
+                }
+            }
+            
             error_log('[ScreenRecordings Share Stream] fileRelativePath: ' . $fileRelativePath);
             error_log('[ScreenRecordings Share Stream] filePath: ' . $filePath);
+            error_log('[ScreenRecordings Share Stream] file_name do banco: ' . ($recording['file_name'] ?? 'N/A'));
         } else {
             error_log('[ScreenRecordings Share Stream] Tipo: Caminho relativo genérico');
             // Tenta como caminho relativo a partir de public/screen-recordings/
@@ -400,11 +417,30 @@ try {
         error_log('[ScreenRecordings Share] Tipo: Arquivo da biblioteca (screen-recordings/)');
         // Arquivo da biblioteca: busca em public/screen-recordings/
         $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
+        
+        // CORREÇÃO: Se o file_path tem o nome original mas o file_name tem o token,
+        // tenta usar o file_name primeiro
         $filePath = __DIR__ . '/' . $fileRelativePath;
         $fileExists = file_exists($filePath) && is_file($filePath);
+        
+        // Se não encontrou com file_path, tenta com file_name (que deve ter o token)
+        if (!$fileExists && !empty($recording['file_name'])) {
+            // Extrai o diretório do file_path
+            $pathDir = dirname($fileRelativePath);
+            // Usa file_name (que deve ter o token) no mesmo diretório
+            $filePathAlt = __DIR__ . '/' . $pathDir . '/' . $recording['file_name'];
+            error_log('[ScreenRecordings Share] Tentando caminho alternativo com file_name: ' . $filePathAlt);
+            if (file_exists($filePathAlt) && is_file($filePathAlt)) {
+                $filePath = $filePathAlt;
+                $fileExists = true;
+                error_log('[ScreenRecordings Share] Arquivo encontrado com file_name!');
+            }
+        }
+        
         error_log('[ScreenRecordings Share] fileRelativePath: ' . $fileRelativePath);
         error_log('[ScreenRecordings Share] filePath: ' . $filePath);
         error_log('[ScreenRecordings Share] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
+        error_log('[ScreenRecordings Share] file_name do banco: ' . ($recording['file_name'] ?? 'N/A'));
     } else {
         error_log('[ScreenRecordings Share] Tipo: Caminho relativo genérico');
         // Tenta como caminho relativo a partir de public/screen-recordings/
