@@ -293,24 +293,7 @@ try {
             }
             exit;
         } else {
-            // Log detalhado para debug
-            error_log('[ScreenRecordings Share Stream] Arquivo não encontrado!');
-            error_log('[ScreenRecordings Share Stream] relativePath: ' . $relativePath);
-            error_log('[ScreenRecordings Share Stream] filePath: ' . $filePath);
-            error_log('[ScreenRecordings Share Stream] __DIR__: ' . __DIR__);
-            error_log('[ScreenRecordings Share Stream] file_exists: ' . (file_exists($filePath) ? 'SIM' : 'NÃO'));
-            if ($filePath) {
-                error_log('[ScreenRecordings Share Stream] is_file: ' . (is_file($filePath) ? 'SIM' : 'NÃO'));
-                error_log('[ScreenRecordings Share Stream] is_dir: ' . (is_dir($filePath) ? 'SIM' : 'NÃO'));
-                // Tenta verificar diretório pai
-                $parentDir = dirname($filePath);
-                error_log('[ScreenRecordings Share Stream] parentDir existe: ' . (is_dir($parentDir) ? 'SIM' : 'NÃO'));
-                if (is_dir($parentDir)) {
-                    $files = scandir($parentDir);
-                    error_log('[ScreenRecordings Share Stream] Arquivos no diretório: ' . implode(', ', $files));
-                }
-            }
-            
+            error_log('[ScreenRecordings Share Stream] ERRO: Arquivo não encontrado para streaming');
             http_response_code(404);
             echo 'Arquivo não encontrado';
             exit;
