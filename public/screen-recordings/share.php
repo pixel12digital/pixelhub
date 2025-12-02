@@ -238,8 +238,12 @@ try {
             }
         }
         
+        // Se já encontrou o arquivo em storage/tasks/, não tenta outros caminhos
+        if ($fileExists && $filePath) {
+            error_log('[ScreenRecordings Share Stream] Arquivo já encontrado, pulando outras tentativas');
+        }
         // PRIORIDADE 2: Se não encontrou e file_path indica storage/tasks/
-        if (!$fileExists && strpos($relativePath, 'storage/tasks/') === 0) {
+        elseif (!$fileExists && strpos($relativePath, 'storage/tasks/') === 0) {
             error_log('[ScreenRecordings Share Stream] Tipo: Arquivo de tarefa (storage/tasks/)');
             // Arquivo de tarefa: busca em storage/tasks/ (raiz do projeto)
             // __DIR__ é public/screen-recordings/, então ../../ volta para a raiz
@@ -274,7 +278,7 @@ try {
                     }
                 }
             }
-        } elseif (strpos($relativePath, 'screen-recordings/') === 0) {
+        } elseif (!$fileExists && strpos($relativePath, 'screen-recordings/') === 0) {
             error_log('[ScreenRecordings Share Stream] Tipo: Arquivo da biblioteca (screen-recordings/)');
             // Arquivo da biblioteca: busca em public/screen-recordings/
             $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
@@ -289,18 +293,28 @@ try {
                 error_log('[ScreenRecordings Share Stream] Tentando caminho alternativo com file_name: ' . $filePathAlt);
                 if (file_exists($filePathAlt) && is_file($filePathAlt)) {
                     $filePath = $filePathAlt;
+                    $fileExists = true;
                     error_log('[ScreenRecordings Share Stream] Arquivo encontrado com file_name!');
                 }
+            }
+            
+            if ($filePath && file_exists($filePath) && is_file($filePath)) {
+                $fileExists = true;
             }
             
             error_log('[ScreenRecordings Share Stream] fileRelativePath: ' . $fileRelativePath);
             error_log('[ScreenRecordings Share Stream] filePath: ' . $filePath);
             error_log('[ScreenRecordings Share Stream] file_name do banco: ' . ($recording['file_name'] ?? 'N/A'));
-        } else {
+            error_log('[ScreenRecordings Share Stream] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
+        } elseif (!$fileExists) {
             error_log('[ScreenRecordings Share Stream] Tipo: Caminho relativo genérico');
             // Tenta como caminho relativo a partir de public/screen-recordings/
             $filePath = __DIR__ . '/' . $relativePath;
+            if (file_exists($filePath) && is_file($filePath)) {
+                $fileExists = true;
+            }
             error_log('[ScreenRecordings Share Stream] filePath: ' . $filePath);
+            error_log('[ScreenRecordings Share Stream] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
         }
         
         // PRIORIDADE 3: Se ainda não encontrou e task_id não é NULL, tenta storage/tasks/ com original_name
@@ -320,12 +334,27 @@ try {
         
         // Verifica se o arquivo existe antes de servir
         if (!$filePath || !$fileExists) {
-            error_log('[ScreenRecordings Share Stream] filePath é NULL ou arquivo não existe');
+            error_log('[ScreenRecordings Share Stream] Arquivo não encontrado!');
+            error_log('[ScreenRecordings Share Stream] filePath: ' . ($filePath ?? 'NULL'));
+            error_log('[ScreenRecordings Share Stream] fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
             if ($filePath) {
                 error_log('[ScreenRecordings Share Stream] filePath tentado: ' . $filePath);
+                error_log('[ScreenRecordings Share Stream] file_exists(): ' . (file_exists($filePath) ? 'SIM' : 'NÃO'));
+                error_log('[ScreenRecordings Share Stream] is_file(): ' . (is_file($filePath) ? 'SIM' : 'NÃO'));
             }
             http_response_code(404);
             echo 'Arquivo não encontrado - caminho não determinado';
+            exit;
+        }
+        
+        // Garante que fileExists está correto antes de servir
+        if ($filePath && file_exists($filePath) && is_file($filePath)) {
+            $fileExists = true;
+        } else {
+            error_log('[ScreenRecordings Share Stream] ERRO: Arquivo marcado como encontrado mas não existe!');
+            error_log('[ScreenRecordings Share Stream] filePath: ' . ($filePath ?? 'NULL'));
+            http_response_code(404);
+            echo 'Arquivo não encontrado';
             exit;
         }
         
