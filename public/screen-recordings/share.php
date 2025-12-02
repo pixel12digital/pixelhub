@@ -444,19 +444,6 @@ try {
         $videoUrl = $baseUrl . '/' . $relativePath;
     }
     
-    // Debug: sempre loga para diagnóstico em produção
-    error_log('[ScreenRecordings Share] ==========================================');
-    error_log('[ScreenRecordings Share] CONSTRUÇÃO DE URL DO VÍDEO');
-    error_log('[ScreenRecordings Share] Token: ' . $token);
-    error_log('[ScreenRecordings Share] file_path do banco: ' . $recording['file_path']);
-    error_log('[ScreenRecordings Share] relativePath: ' . $relativePath);
-    error_log('[ScreenRecordings Share] BASE_URL: ' . BASE_URL);
-    error_log('[ScreenRecordings Share] baseUrl (trimmed): ' . $baseUrl);
-    error_log('[ScreenRecordings Share] videoUrl final: ' . $videoUrl);
-    error_log('[ScreenRecordings Share] filePath físico: ' . ($filePath ?? 'NULL'));
-    error_log('[ScreenRecordings Share] arquivo existe: ' . (($filePath && file_exists($filePath)) ? 'SIM' : 'NÃO'));
-    error_log('[ScreenRecordings Share] ==========================================');
-    
     // Variável para debug na página (se necessário)
     $debugInfo = [
         'token' => $token,
