@@ -39,8 +39,25 @@ use PixelHub\Core\Router;
 // 1. DEFINE BASE_PATH (FONTE ÚNICA DA VERDADE)
 // ============================================
 // Descobre o diretório base do projeto (subpasta)
+// IMPORTANTE: Quando acessamos um arquivo que existe (ex: debug-share.php),
+// o SCRIPT_NAME é o próprio arquivo, não o index.php. Por isso, precisamos
+// sempre usar o diretório do index.php como referência.
 $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
 $scriptDir = rtrim(str_replace('\\', '/', dirname($scriptName)), '/');
+
+// Se o SCRIPT_NAME não é index.php, assume que estamos em um subdiretório
+// e calcula o BASE_PATH a partir do diretório do index.php
+if (basename($scriptName) !== 'index.php' && strpos($scriptName, '/index.php') === false) {
+    // Estamos em um arquivo que não é index.php, então o BASE_PATH
+    // deve ser calculado a partir do diretório public/
+    // Remove o caminho do arquivo atual e adiciona o caminho até public/
+    $currentDir = dirname($scriptName);
+    // Se estamos em /screen-recordings/debug-share.php, o currentDir é /screen-recordings
+    // Precisamos voltar até public/, então BASE_PATH deve ser o diretório pai
+    // Mas na verdade, se estamos em public/screen-recordings/, o BASE_PATH deve ser /public
+    // Vamos usar uma abordagem diferente: sempre usar o diretório do index.php
+    $scriptDir = '/'; // Reset para calcular corretamente
+}
 
 // Ex: /painel.pixel12digital/public ou /
 if (!defined('BASE_PATH')) {
@@ -107,39 +124,60 @@ if (!function_exists('pixelhub_log')) {
 pixelhub_log("BASE_PATH definido como: '" . BASE_PATH . "' (scriptDir: '{$scriptDir}')");
 error_log("BASE_PATH definido como: '" . BASE_PATH . "' (scriptDir: '{$scriptDir}')");
 
-// CORREÇÃO: O path deve ser calculado a partir da URI completa
-// Quando acessamos /screen-recordings/share via .htaccess, o SCRIPT_NAME é /index.php
-// mas a URI original é /screen-recordings/share, então usamos a URI diretamente
-// e removemos apenas o BASE_PATH se necessário
+// CORREÇÃO CRÍTICA: O path deve ser calculado SEMPRE a partir da URI original
+// Não importa se o arquivo existe ou não, sempre usamos REQUEST_URI
+// O problema anterior era usar SCRIPT_NAME que muda quando o arquivo existe
 
-// Remove o prefixo BASE_PATH da URI se estiver presente
-$path = $uri;
-if (defined('BASE_PATH') && BASE_PATH !== '' && BASE_PATH !== '/') {
-    // Se a URI começa com BASE_PATH, remove esse prefixo
-    if (strpos($uri, BASE_PATH) === 0) {
-        $path = substr($uri, strlen(BASE_PATH));
-        // Garante que começa com /
-        if ($path === '' || $path[0] !== '/') {
-            $path = '/' . $path;
+// ATALHO PRIMEIRO: Se for /screen-recordings/share, usa diretamente sem calcular
+// Isso garante que funcione independente de problemas com BASE_PATH
+if (strpos($uri, '/screen-recordings/share') !== false) {
+    // Extrai apenas a parte do path (sem query string)
+    $path = parse_url($uri, PHP_URL_PATH);
+    // Remove BASE_PATH se estiver presente
+    if (defined('BASE_PATH') && BASE_PATH !== '' && BASE_PATH !== '/' && strpos($path, BASE_PATH) === 0) {
+        $path = substr($path, strlen(BASE_PATH));
+    }
+    // Garante que começa com /
+    if ($path === '' || $path[0] !== '/') {
+        $path = '/' . $path;
+    }
+} else {
+    // Para outras rotas, calcula normalmente
+    // Remove o prefixo BASE_PATH da URI se estiver presente
+    $path = $uri;
+    if (defined('BASE_PATH') && BASE_PATH !== '' && BASE_PATH !== '/') {
+        // Se a URI começa com BASE_PATH, remove esse prefixo
+        if (strpos($uri, BASE_PATH) === 0) {
+            $path = substr($uri, strlen(BASE_PATH));
+            // Garante que começa com /
+            if ($path === '' || $path[0] !== '/') {
+                $path = '/' . $path;
+            }
         }
     }
-}
 
-// Se ainda não funcionou, tenta com scriptDir (fallback para compatibilidade)
-if ($path === $uri && $scriptDir !== '' && $scriptDir !== '/') {
-    // Se a URI começa com o scriptDir, remove esse prefixo
-    if (strpos($uri, $scriptDir) === 0) {
-        $path = substr($uri, strlen($scriptDir));
-        // Garante que começa com /
-        if ($path === '' || $path[0] !== '/') {
-            $path = '/' . $path;
+    // Se ainda não funcionou (BASE_PATH não estava na URI), tenta com scriptDir
+    // Mas só se o path ainda for igual à URI original
+    if ($path === $uri && $scriptDir !== '' && $scriptDir !== '/') {
+        // Se a URI começa com o scriptDir, remove esse prefixo
+        if (strpos($uri, $scriptDir) === 0) {
+            $path = substr($uri, strlen($scriptDir));
+            // Garante que começa com /
+            if ($path === '' || $path[0] !== '/') {
+                $path = '/' . $path;
+            }
         }
+    }
+
+    // Se ainda não funcionou, usa a URI diretamente (sem remover nada)
+    if ($path === $uri && ($path === '' || $path[0] !== '/')) {
+        $path = '/' . $path;
     }
 }
 
 // Log para debug
-pixelhub_log("Path calculado - URI: {$uri}, BASE_PATH: " . (defined('BASE_PATH') ? BASE_PATH : 'N/A') . ", scriptDir: {$scriptDir}, path final: {$path}");
-error_log("Path calculado - URI: {$uri}, BASE_PATH: " . (defined('BASE_PATH') ? BASE_PATH : 'N/A') . ", scriptDir: {$scriptDir}, path final: {$path}");
+pixelhub_log("Path calculado - REQUEST_URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A') . ", URI: {$uri}, BASE_PATH: " . (defined('BASE_PATH') ? BASE_PATH : 'N/A') . ", scriptDir: {$scriptDir}, SCRIPT_NAME: " . ($_SERVER['SCRIPT_NAME'] ?? 'N/A') . ", path final: {$path}");
+error_log("Path calculado - REQUEST_URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A') . ", URI: {$uri}, BASE_PATH: " . (defined('BASE_PATH') ? BASE_PATH : 'N/A') . ", scriptDir: {$scriptDir}, SCRIPT_NAME: " . ($_SERVER['SCRIPT_NAME'] ?? 'N/A') . ", path final: {$path}");
 
 // Normaliza o path (remove barras duplicadas e barra final)
 $path = '/' . trim($path, '/');
