@@ -107,17 +107,39 @@ if (!function_exists('pixelhub_log')) {
 pixelhub_log("BASE_PATH definido como: '" . BASE_PATH . "' (scriptDir: '{$scriptDir}')");
 error_log("BASE_PATH definido como: '" . BASE_PATH . "' (scriptDir: '{$scriptDir}')");
 
-// Remove o prefixo da pasta do projeto da URI (usa $scriptDir já calculado)
-if ($scriptDir !== '' && $scriptDir !== '/') {
+// CORREÇÃO: O path deve ser calculado a partir da URI completa
+// Quando acessamos /screen-recordings/share via .htaccess, o SCRIPT_NAME é /index.php
+// mas a URI original é /screen-recordings/share, então usamos a URI diretamente
+// e removemos apenas o BASE_PATH se necessário
+
+// Remove o prefixo BASE_PATH da URI se estiver presente
+$path = $uri;
+if (defined('BASE_PATH') && BASE_PATH !== '' && BASE_PATH !== '/') {
+    // Se a URI começa com BASE_PATH, remove esse prefixo
+    if (strpos($uri, BASE_PATH) === 0) {
+        $path = substr($uri, strlen(BASE_PATH));
+        // Garante que começa com /
+        if ($path === '' || $path[0] !== '/') {
+            $path = '/' . $path;
+        }
+    }
+}
+
+// Se ainda não funcionou, tenta com scriptDir (fallback para compatibilidade)
+if ($path === $uri && $scriptDir !== '' && $scriptDir !== '/') {
     // Se a URI começa com o scriptDir, remove esse prefixo
     if (strpos($uri, $scriptDir) === 0) {
         $path = substr($uri, strlen($scriptDir));
-    } else {
-        $path = $uri;
+        // Garante que começa com /
+        if ($path === '' || $path[0] !== '/') {
+            $path = '/' . $path;
+        }
     }
-} else {
-    $path = $uri;
 }
+
+// Log para debug
+pixelhub_log("Path calculado - URI: {$uri}, BASE_PATH: " . (defined('BASE_PATH') ? BASE_PATH : 'N/A') . ", scriptDir: {$scriptDir}, path final: {$path}");
+error_log("Path calculado - URI: {$uri}, BASE_PATH: " . (defined('BASE_PATH') ? BASE_PATH : 'N/A') . ", scriptDir: {$scriptDir}, path final: {$path}");
 
 // Normaliza o path (remove barras duplicadas e barra final)
 $path = '/' . trim($path, '/');
@@ -132,13 +154,22 @@ $path = rtrim($path, '/') ?: '/';
 
 // ATALHO: Se for /screen-recordings/share, inclui diretamente sem passar pelo router
 // Isso garante que funcione mesmo se houver problemas com o router
-if ($path === '/screen-recordings/share' || strpos($path, '/screen-recordings/share?') === 0) {
+// Verifica tanto o path calculado quanto a URI original (para casos onde o path está errado)
+$isShareRoute = ($path === '/screen-recordings/share' || strpos($path, '/screen-recordings/share?') === 0) ||
+                (strpos($uri, '/screen-recordings/share') !== false && strpos($uri, '/screen-recordings/debug-share.php') === false);
+
+if ($isShareRoute) {
     $shareFile = __DIR__ . '/screen-recordings/share.php';
     if (file_exists($shareFile)) {
         pixelhub_log('[Direct Share] Acessando share.php diretamente (bypass router)');
+        pixelhub_log('[Direct Share] URI: ' . $uri . ', Path: ' . $path);
         error_log('[Direct Share] Acessando share.php diretamente (bypass router)');
+        error_log('[Direct Share] URI: ' . $uri . ', Path: ' . $path);
         require $shareFile;
         exit;
+    } else {
+        pixelhub_log('[Direct Share] ERRO: Arquivo share.php não encontrado em: ' . $shareFile);
+        error_log('[Direct Share] ERRO: Arquivo share.php não encontrado em: ' . $shareFile);
     }
 }
 
