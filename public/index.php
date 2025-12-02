@@ -291,6 +291,19 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/screen-recordings/delete', 'ScreenRecordingsController@delete');
     $router->get('/screen-recordings/check-token', 'ScreenRecordingsController@checkToken');
     
+    // Rota pública para compartilhar gravações (não requer autenticação)
+    $router->get('/screen-recordings/share', function() {
+        // Inclui o arquivo share.php diretamente
+        $shareFile = __DIR__ . '/screen-recordings/share.php';
+        if (file_exists($shareFile)) {
+            require $shareFile;
+        } else {
+            http_response_code(404);
+            echo 'Arquivo não encontrado';
+        }
+        exit;
+    });
+    
     // Rotas de Agenda
     $router->get('/agenda', 'AgendaController@index');
     $router->get('/agenda/semana', 'AgendaController@semana');
