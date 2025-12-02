@@ -579,7 +579,17 @@ try {
     $relativePath = ltrim($recording['file_path'], '/');
     $baseUrl = rtrim(BASE_URL, '/');
     
-    if (strpos($relativePath, 'storage/tasks/') === 0) {
+    // Verifica se o arquivo está em storage/tasks/ (via task_id ou filePath físico)
+    $isTaskFile = false;
+    if (!empty($recording['task_id'])) {
+        $isTaskFile = true;
+    } elseif ($filePath && strpos($filePath, '/storage/tasks/') !== false) {
+        $isTaskFile = true;
+    } elseif (strpos($relativePath, 'storage/tasks/') === 0) {
+        $isTaskFile = true;
+    }
+    
+    if ($isTaskFile) {
         // Arquivo de tarefa: serve diretamente via PHP para streaming
         // Usa o próprio share.php para servir o arquivo (já temos o token validado)
         $videoUrl = $baseUrl . '/screen-recordings/share?token=' . urlencode($token) . '&stream=1';
