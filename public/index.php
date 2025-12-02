@@ -146,6 +146,19 @@ $router->get('/login', 'AuthController@loginForm');
 $router->post('/login', 'AuthController@login');
 $router->get('/logout', 'AuthController@logout');
 
+// Rota pública para compartilhar gravações (não requer autenticação)
+$router->get('/screen-recordings/share', function() {
+    // Inclui o arquivo share.php diretamente
+    $shareFile = __DIR__ . '/screen-recordings/share.php';
+    if (file_exists($shareFile)) {
+        require $shareFile;
+    } else {
+        http_response_code(404);
+        echo 'Arquivo não encontrado';
+    }
+    exit;
+});
+
 // Rota raiz: redireciona para login se não autenticado, senão vai para dashboard
 use PixelHub\Core\Auth;
 
@@ -290,19 +303,6 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/screen-recordings', 'ScreenRecordingsController@index');
     $router->post('/screen-recordings/delete', 'ScreenRecordingsController@delete');
     $router->get('/screen-recordings/check-token', 'ScreenRecordingsController@checkToken');
-    
-    // Rota pública para compartilhar gravações (não requer autenticação)
-    $router->get('/screen-recordings/share', function() {
-        // Inclui o arquivo share.php diretamente
-        $shareFile = __DIR__ . '/screen-recordings/share.php';
-        if (file_exists($shareFile)) {
-            require $shareFile;
-        } else {
-            http_response_code(404);
-            echo 'Arquivo não encontrado';
-        }
-        exit;
-    });
     
     // Rotas de Agenda
     $router->get('/agenda', 'AgendaController@index');
