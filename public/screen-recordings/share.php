@@ -577,7 +577,11 @@ try {
     // Para arquivos de tarefas (storage/tasks/), usa endpoint de download protegido
     // Para arquivos da biblioteca (screen-recordings/), usa URL pública direta
     $relativePath = ltrim($recording['file_path'], '/');
-    $baseUrl = rtrim(BASE_URL, '/');
+    
+    // Constrói BASE_URL corretamente (sem duplicar /screen-recordings)
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+    $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $baseUrl = $protocol . $domainName; // URL base sem caminho
     
     // Verifica se o arquivo está em storage/tasks/ (via task_id ou filePath físico)
     $isTaskFile = false;
@@ -595,10 +599,6 @@ try {
         $videoUrl = $baseUrl . '/screen-recordings/share?token=' . urlencode($token) . '&stream=1';
     } else {
         // Arquivo da biblioteca: URL pública direta
-        // Garante que não há duplicação de 'screen-recordings/'
-        if (substr($baseUrl, -strlen('/screen-recordings')) === '/screen-recordings') {
-            $relativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
-        }
         $videoUrl = $baseUrl . '/' . $relativePath;
     }
     
