@@ -166,20 +166,20 @@ ob_start();
                             </td>
                             <td style="padding: 12px; border-bottom: 1px solid #eee;">
                                 <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                                    <?php if ($publicUrl && $fileExists): ?>
+                                    <?php if ($publicUrl): ?>
                                         <!-- Abrir -->
                                         <a href="<?= htmlspecialchars($publicUrl) ?>" 
                                            target="_blank"
-                                           style="color: #023A8D; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #023A8D;"
+                                           style="color: #023A8D; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #023A8D; display: inline-flex; align-items: center; gap: 4px;"
                                            title="Abrir vídeo em nova aba">
-                                            Abrir
+                                            <span>▶️</span> Abrir
                                         </a>
                                         <!-- Copiar link -->
                                         <a href="#" 
                                            onclick="event.preventDefault(); copyRecordingLink('<?= htmlspecialchars($publicUrl) ?>'); return false;"
-                                           style="color: #666; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #666;"
+                                           style="color: #666; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #666; display: inline-flex; align-items: center; gap: 4px;"
                                            title="Copiar link público para compartilhar">
-                                            Copiar link
+                                            <span>🔗</span> Copiar link
                                         </a>
                                         <!-- Compartilhar (se tiver cliente) -->
                                         <?php if ($taskId && !empty($recording['tenant_id'])): ?>
@@ -200,9 +200,9 @@ ob_start();
                                             <?php if ($whatsappLink): ?>
                                                 <a href="#" 
                                                    onclick="event.preventDefault(); shareRecordingViaWhatsApp('<?= htmlspecialchars($publicUrl) ?>', '<?= htmlspecialchars($whatsappLink) ?>'); return false;"
-                                                   style="color: #25D366; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #25D366;"
+                                                   style="color: #25D366; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #25D366; display: inline-flex; align-items: center; gap: 4px;"
                                                    title="Compartilhar via WhatsApp do cliente">
-                                                    Compartilhar
+                                                    <span>📱</span> Compartilhar
                                                 </a>
                                             <?php endif; ?>
                                         <?php endif; ?>
@@ -214,14 +214,14 @@ ob_start();
                                             <input type="hidden" name="id" value="<?= $recording['id'] ?>">
                                             <a href="#" 
                                                onclick="event.preventDefault(); if(confirm('Tem certeza que deseja excluir esta gravação? Esta ação não pode ser desfeita.')) { this.closest('form').submit(); } return false;"
-                                               style="color: #c33; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #c33;"
+                                               style="color: #c33; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #c33; display: inline-flex; align-items: center; gap: 4px;"
                                                title="Excluir gravação">
-                                                Excluir
+                                                <span>🗑️</span> Excluir
                                             </a>
                                         </form>
                                     <?php else: ?>
-                                        <span style="color: #999; font-size: 12px; font-style: italic;" title="Vídeo indisponível (feito em outro ambiente)">
-                                            Indisponível
+                                        <span style="color: #999; font-size: 12px; font-style: italic;" title="Link de compartilhamento não disponível">
+                                            Sem link
                                         </span>
                                     <?php endif; ?>
                                 </div>

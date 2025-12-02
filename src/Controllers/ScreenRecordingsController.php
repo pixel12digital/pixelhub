@@ -211,13 +211,26 @@ class ScreenRecordingsController extends Controller
                     $absolutePath = __DIR__ . '/../../public/' . $relativePath;
                 }
                 
-                // Normaliza o caminho
+                // Normaliza o caminho (resolve .. e .)
                 $normalizedPath = realpath($absolutePath);
                 if ($normalizedPath) {
                     $absolutePath = $normalizedPath;
+                    $recording['file_exists'] = file_exists($absolutePath) && is_file($absolutePath);
+                } else {
+                    // Se realpath falhou, tenta verificar diretamente
+                    $recording['file_exists'] = file_exists($absolutePath) && is_file($absolutePath);
+                    
+                    // Log para debug
+                    error_log('[ScreenRecordings] Arquivo não encontrado:');
+                    error_log('[ScreenRecordings]   relativePath: ' . $relativePath);
+                    error_log('[ScreenRecordings]   absolutePath: ' . $absolutePath);
+                    error_log('[ScreenRecordings]   __DIR__: ' . __DIR__);
+                    error_log('[ScreenRecordings]   file_exists: ' . (file_exists($absolutePath) ? 'SIM' : 'NÃO'));
+                    if (file_exists($absolutePath)) {
+                        error_log('[ScreenRecordings]   is_file: ' . (is_file($absolutePath) ? 'SIM' : 'NÃO'));
+                        error_log('[ScreenRecordings]   is_dir: ' . (is_dir($absolutePath) ? 'SIM' : 'NÃO'));
+                    }
                 }
-                
-                $recording['file_exists'] = file_exists($absolutePath) && is_file($absolutePath);
             } else {
                 $recording['file_exists'] = false;
             }

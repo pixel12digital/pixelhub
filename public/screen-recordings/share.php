@@ -212,7 +212,21 @@ try {
             $filePath = __DIR__ . '/' . $relativePath;
         }
         
-        if ($filePath && file_exists($filePath) && is_file($filePath)) {
+        // Verifica se o arquivo existe antes de servir
+        if (!$filePath) {
+            error_log('[ScreenRecordings Share Stream] filePath é NULL');
+            http_response_code(404);
+            echo 'Arquivo não encontrado - caminho não determinado';
+            exit;
+        }
+        
+        // Tenta normalizar o caminho
+        $normalizedPath = realpath($filePath);
+        if ($normalizedPath) {
+            $filePath = $normalizedPath;
+        }
+        
+        if (file_exists($filePath) && is_file($filePath)) {
             // Serve o arquivo diretamente para streaming
             $mimeType = $recording['mime_type'] ?? 'video/webm';
             $fileSize = filesize($filePath);
@@ -235,12 +249,18 @@ try {
                 header('Content-Range: bytes ' . $start . '-' . $end . '/' . $fileSize);
                 header('Content-Length: ' . $length);
                 
-                $fp = fopen($filePath, 'rb');
-                fseek($fp, $start);
-                echo fread($fp, $length);
-                fclose($fp);
+                $fp = @fopen($filePath, 'rb');
+                if ($fp) {
+                    fseek($fp, $start);
+                    echo fread($fp, $length);
+                    fclose($fp);
+                } else {
+                    error_log('[ScreenRecordings Share Stream] Erro ao abrir arquivo: ' . $filePath);
+                    http_response_code(500);
+                    echo 'Erro ao ler arquivo';
+                }
             } else {
-                readfile($filePath);
+                @readfile($filePath);
             }
             exit;
         } else {
@@ -285,8 +305,9 @@ try {
         $normalizedPath = realpath($filePath);
         if ($normalizedPath) {
             $filePath = $normalizedPath;
-            $fileExists = file_exists($filePath) && is_file($filePath);
         }
+        
+        $fileExists = file_exists($filePath) && is_file($filePath);
         
         // Log para debug
         error_log('[ScreenRecordings Share] Verificando arquivo de tarefa:');
@@ -295,6 +316,12 @@ try {
         error_log('[ScreenRecordings Share]   filePath calculado: ' . ($filePath ?? 'NULL'));
         error_log('[ScreenRecordings Share]   filePath normalizado: ' . ($normalizedPath ?: 'NÃO EXISTE'));
         error_log('[ScreenRecordings Share]   fileExists: ' . ($fileExists ? 'SIM' : 'NÃO'));
+        
+        // Se não encontrou, tenta sem normalizar (pode ser problema de permissões)
+        if (!$fileExists && $filePath) {
+            $fileExists = @file_exists($filePath) && @is_file($filePath);
+            error_log('[ScreenRecordings Share]   fileExists (após @): ' . ($fileExists ? 'SIM' : 'NÃO'));
+        }
     } elseif (strpos($relativePath, 'screen-recordings/') === 0) {
         // Arquivo da biblioteca: busca em public/screen-recordings/
         $fileRelativePath = preg_replace('#^screen-recordings/#', '', $relativePath);
@@ -515,8 +542,8 @@ try {
                 <span>Com áudio</span>
             <?php endif; ?>
         </div>
-        <?php if ($fileExists): ?>
-            <video controls preload="metadata">
+        <?php if (!empty($videoUrl)): ?>
+            <video controls preload="metadata" style="max-width: 100%; border-radius: 6px; outline: none; background: #000;">
                 <source src="<?= htmlspecialchars($videoUrl) ?>" type="<?= htmlspecialchars($recording['mime_type'] ?? 'video/webm') ?>">
                 Seu navegador não suporta a reprodução de vídeo.
             </video>
@@ -525,6 +552,11 @@ try {
                     Abrir vídeo diretamente
                 </a>
             </p>
+            <?php if (!$fileExists): ?>
+                <p style="margin-top: 10px; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404; font-size: 12px;">
+                    ⚠️ O arquivo pode não estar disponível no servidor, mas você pode tentar reproduzir o vídeo acima.
+                </p>
+            <?php endif; ?>
         <?php else: ?>
             <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 4px; padding: 20px; margin-top: 20px; text-align: left;">
                 <h3 style="color: #856404; margin: 0 0 10px;">⚠️ Arquivo não encontrado no servidor</h3>
