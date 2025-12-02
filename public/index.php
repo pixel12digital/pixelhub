@@ -210,10 +210,34 @@ if ($isShareRoute) {
     if (file_exists($shareFile)) {
         pixelhub_log('[Direct Share] Acessando share.php diretamente (bypass router)');
         pixelhub_log('[Direct Share] URI: ' . $uri . ', Path: ' . $path);
+        pixelhub_log('[Direct Share] $_GET antes do require: ' . json_encode($_GET));
         error_log('[Direct Share] Acessando share.php diretamente (bypass router)');
         error_log('[Direct Share] URI: ' . $uri . ', Path: ' . $path);
-        require $shareFile;
-        exit;
+        error_log('[Direct Share] $_GET antes do require: ' . json_encode($_GET));
+        
+        // Tenta incluir o arquivo com tratamento de erro
+        try {
+            // Limpa qualquer output buffer antes
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+            
+            // Inclui o arquivo
+            include $shareFile;
+            
+            // Se chegou aqui, o arquivo foi incluído mas não fez exit
+            pixelhub_log('[Direct Share] AVISO: share.php foi incluído mas não fez exit');
+            error_log('[Direct Share] AVISO: share.php foi incluído mas não fez exit');
+            exit;
+        } catch (\Throwable $e) {
+            pixelhub_log('[Direct Share] ERRO ao incluir share.php: ' . $e->getMessage());
+            pixelhub_log('[Direct Share] Stack trace: ' . $e->getTraceAsString());
+            error_log('[Direct Share] ERRO ao incluir share.php: ' . $e->getMessage());
+            error_log('[Direct Share] Stack trace: ' . $e->getTraceAsString());
+            http_response_code(500);
+            echo 'Erro ao carregar página de compartilhamento: ' . htmlspecialchars($e->getMessage());
+            exit;
+        }
     } else {
         pixelhub_log('[Direct Share] ERRO: Arquivo share.php não encontrado em: ' . $shareFile);
         error_log('[Direct Share] ERRO: Arquivo share.php não encontrado em: ' . $shareFile);
