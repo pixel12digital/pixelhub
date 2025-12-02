@@ -232,8 +232,13 @@ if ($isShareRoute) {
             // Log imediato antes do include
             error_log('[Direct Share] EXECUTANDO include agora...');
             
-            // Inclui o arquivo
-            include $shareFile;
+            // Verifica se o arquivo pode ser lido
+            if (!is_readable($shareFile)) {
+                throw new \RuntimeException('Arquivo share.php não é legível: ' . $shareFile);
+            }
+            
+            // Inclui o arquivo - usa require para garantir que pare se houver erro
+            require $shareFile;
             
             // Se chegou aqui, o arquivo foi incluído mas não fez exit
             pixelhub_log('[Direct Share] AVISO: share.php foi incluído mas não fez exit');
