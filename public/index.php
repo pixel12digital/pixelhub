@@ -217,10 +217,20 @@ if ($isShareRoute) {
         
         // Tenta incluir o arquivo com tratamento de erro
         try {
+            // Força flush dos logs antes de incluir
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log('[Direct Share] Antes de incluir share.php - Forçando flush');
+            }
+            error_log('[Direct Share] Antes de incluir share.php - Forçando flush');
+            flush();
+            
             // Limpa qualquer output buffer antes
             while (ob_get_level() > 0) {
                 ob_end_clean();
             }
+            
+            // Log imediato antes do include
+            error_log('[Direct Share] EXECUTANDO include agora...');
             
             // Inclui o arquivo
             include $shareFile;
