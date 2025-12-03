@@ -73,6 +73,7 @@ ob_start();
     .status-em_atendimento { background: #fff3e0; color: #f57c00; }
     .status-aguardando_cliente { background: #fce4ec; color: #c2185b; }
     .status-resolvido { background: #e8f5e9; color: #388e3c; }
+    .status-cancelado { background: #f5f5f5; color: #757575; }
     .ticket-info {
         margin-top: 10px;
         color: #666;
@@ -120,6 +121,7 @@ ob_start();
         <option value="em_atendimento" <?= $filters['status'] === 'em_atendimento' ? 'selected' : '' ?>>Em Atendimento</option>
         <option value="aguardando_cliente" <?= $filters['status'] === 'aguardando_cliente' ? 'selected' : '' ?>>Aguardando Cliente</option>
         <option value="resolvido" <?= $filters['status'] === 'resolvido' ? 'selected' : '' ?>>Resolvido</option>
+        <option value="cancelado" <?= $filters['status'] === 'cancelado' ? 'selected' : '' ?>>Cancelado</option>
     </select>
     
     <select id="filtro-prioridade" onchange="applyFilters()">
@@ -152,6 +154,7 @@ ob_start();
                                 'em_atendimento' => 'Em Atendimento',
                                 'aguardando_cliente' => 'Aguardando Cliente',
                                 'resolvido' => 'Resolvido',
+                                'cancelado' => 'Cancelado',
                             ];
                             echo $statusLabels[$ticket['status']] ?? $ticket['status'];
                             ?>

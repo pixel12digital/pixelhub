@@ -178,22 +178,26 @@ ob_start();
 <div class="ticket-detail">
     <div class="ticket-header">
         <h2><?= htmlspecialchars($ticket['titulo']) ?></h2>
-        <div>
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
             <span class="ticket-prioridade prioridade-<?= htmlspecialchars($ticket['prioridade']) ?>">
                 <?= ucfirst($ticket['prioridade']) ?>
             </span>
-            <span class="ticket-status status-<?= htmlspecialchars($ticket['status']) ?>">
-                <?php
-                $statusLabels = [
-                    'aberto' => 'Aberto',
-                    'em_atendimento' => 'Em Atendimento',
-                    'aguardando_cliente' => 'Aguardando Cliente',
-                    'resolvido' => 'Resolvido',
-                    'cancelado' => 'Cancelado',
-                ];
-                echo $statusLabels[$ticket['status']] ?? $ticket['status'];
-                ?>
-            </span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <label for="status-select" style="font-size: 12px; color: #666; font-weight: 600;">Status:</label>
+                <select 
+                    id="status-select" 
+                    class="ticket-status-select"
+                    data-ticket-id="<?= $ticket['id'] ?>"
+                    style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; background: white;"
+                    onchange="updateTicketStatus(<?= $ticket['id'] ?>, this.value)"
+                >
+                    <option value="aberto" <?= $ticket['status'] === 'aberto' ? 'selected' : '' ?> style="background: #e3f2fd; color: #1976d2;">Aberto</option>
+                    <option value="em_atendimento" <?= $ticket['status'] === 'em_atendimento' ? 'selected' : '' ?> style="background: #fff3e0; color: #f57c00;">Em Atendimento</option>
+                    <option value="aguardando_cliente" <?= $ticket['status'] === 'aguardando_cliente' ? 'selected' : '' ?> style="background: #fce4ec; color: #c2185b;">Aguardando Cliente</option>
+                    <option value="resolvido" <?= $ticket['status'] === 'resolvido' ? 'selected' : '' ?> style="background: #e8f5e9; color: #388e3c;">Resolvido</option>
+                    <option value="cancelado" <?= $ticket['status'] === 'cancelado' ? 'selected' : '' ?> style="background: #f5f5f5; color: #757575;">Cancelado</option>
+                </select>
+            </div>
         </div>
     </div>
     
@@ -554,6 +558,82 @@ ob_start();
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+function updateTicketStatus(ticketId, newStatus) {
+    if (!ticketId || !newStatus) {
+        alert('Erro: dados inválidos');
+        return;
+    }
+    
+    // Desabilita o select enquanto atualiza
+    const select = document.getElementById('status-select');
+    const originalValue = select.getAttribute('data-original-value') || select.value;
+    select.disabled = true;
+    
+    // Cria form data
+    const formData = new FormData();
+    formData.append('id', ticketId);
+    formData.append('status', newStatus);
+    
+    // Faz requisição AJAX
+    fetch('<?= pixelhub_url('/tickets/update') ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Atualiza o estilo do select baseado no novo status
+            updateStatusSelectStyle(newStatus);
+            
+            // Se mudou para resolvido/cancelado, recarrega a página para mostrar seção de encerramento
+            if (['resolvido', 'cancelado'].includes(newStatus) && !['resolvido', 'cancelado'].includes(originalValue)) {
+                window.location.reload();
+            } else if (!['resolvido', 'cancelado'].includes(newStatus) && ['resolvido', 'cancelado'].includes(originalValue)) {
+                // Se saiu de resolvido/cancelado, recarrega para mostrar formulário de encerramento
+                window.location.reload();
+            }
+        } else {
+            // Reverte o select em caso de erro
+            select.value = originalValue;
+            alert(data.error || 'Erro ao atualizar status do ticket');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        select.value = originalValue;
+        alert('Erro ao atualizar status do ticket. Tente novamente.');
+    })
+    .finally(() => {
+        select.disabled = false;
+    });
+}
+
+function updateStatusSelectStyle(status) {
+    const select = document.getElementById('status-select');
+    const statusStyles = {
+        'aberto': { background: '#e3f2fd', color: '#1976d2' },
+        'em_atendimento': { background: '#fff3e0', color: '#f57c00' },
+        'aguardando_cliente': { background: '#fce4ec', color: '#c2185b' },
+        'resolvido': { background: '#e8f5e9', color: '#388e3c' },
+        'cancelado': { background: '#f5f5f5', color: '#757575' }
+    };
+    
+    const style = statusStyles[status] || {};
+    select.style.background = style.background || 'white';
+    select.style.color = style.color || '#333';
+}
+
+// Salva valor original ao carregar
+document.addEventListener('DOMContentLoaded', function() {
+    const select = document.getElementById('status-select');
+    if (select) {
+        select.setAttribute('data-original-value', select.value);
+        updateStatusSelectStyle(select.value);
+    }
+});
+</script>
 
 <?php
 $content = ob_get_clean();
