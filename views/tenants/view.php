@@ -5,6 +5,7 @@ ob_start();
 
 $activeTab = $activeTab ?? 'overview';
 $providerMap = $providerMap ?? [];
+$emailAccounts = $emailAccounts ?? [];
 ?>
 
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -629,6 +630,21 @@ $providerMap = $providerMap ?? [];
                 Conta de hospedagem atualizada com sucesso!
             </div>
         <?php endif; ?>
+        <?php if (isset($_GET['success']) && $_GET['success'] === 'email_created'): ?>
+            <div style="background: #efe; color: #3c3; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                Conta de email criada com sucesso!
+            </div>
+        <?php endif; ?>
+        <?php if (isset($_GET['success']) && $_GET['success'] === 'email_updated'): ?>
+            <div style="background: #efe; color: #3c3; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                Conta de email atualizada com sucesso!
+            </div>
+        <?php endif; ?>
+        <?php if (isset($_GET['success']) && $_GET['success'] === 'email_deleted'): ?>
+            <div style="background: #efe; color: #3c3; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                Conta de email excluída com sucesso!
+            </div>
+        <?php endif; ?>
         
         <?php if (empty($hostingAccounts)): ?>
             <div style="text-align: center; padding: 40px 20px;">
@@ -781,6 +797,79 @@ $providerMap = $providerMap ?? [];
                     <?php endforeach; ?>
                 </tbody>
             </table>
+        <?php endif; ?>
+    </div>
+
+    <!-- Seção: Contas de Email -->
+    <div class="card" style="margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0;">Contas de Email</h3>
+            <a href="<?= pixelhub_url('/email-accounts/create?tenant_id=' . $tenant['id'] . '&redirect_to=tenant') ?>" 
+               style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
+                Nova Conta de Email
+            </a>
+        </div>
+        
+        <?php if (empty($emailAccounts ?? [])): ?>
+            <div style="text-align: center; padding: 20px;">
+                <p style="color: #666; margin-bottom: 15px;">Nenhuma conta de email cadastrada para este cliente.</p>
+                <a href="<?= pixelhub_url('/email-accounts/create?tenant_id=' . $tenant['id'] . '&redirect_to=tenant') ?>" 
+                   style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
+                    Cadastrar Primeira Conta de Email
+                </a>
+            </div>
+        <?php else: ?>
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f5f5f5;">
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Email</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Descrição</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Provedor</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Domínio Vinculado</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($emailAccounts as $account): ?>
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                            <strong style="color: #023A8D;"><?= htmlspecialchars($account['email']) ?></strong>
+                        </td>
+                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                            <?= htmlspecialchars($account['description'] ?? '-') ?>
+                        </td>
+                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                            <?= htmlspecialchars($account['provider'] ?? '-') ?>
+                        </td>
+                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                            <?= htmlspecialchars($account['hosting_domain'] ?? '-') ?>
+                        </td>
+                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                            <a href="<?= pixelhub_url('/email-accounts/edit?id=' . $account['id'] . '&redirect_to=tenant') ?>" 
+                               style="background: #F7931E; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-block; margin-right: 5px;">
+                                Editar
+                            </a>
+                            <form method="POST" action="<?= pixelhub_url('/email-accounts/delete') ?>" 
+                                  onsubmit="return confirm('Tem certeza que deseja excluir a conta de email <?= htmlspecialchars($account['email']) ?>?');" 
+                                  style="display: inline-block; margin: 0;">
+                                <input type="hidden" name="id" value="<?= htmlspecialchars($account['id']) ?>">
+                                <input type="hidden" name="redirect_to" value="tenant">
+                                <button type="submit" 
+                                        style="background: #c33; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                                    Excluir
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <div style="margin-top: 15px; text-align: right;">
+                <a href="<?= pixelhub_url('/email-accounts?tenant_id=' . $tenant['id'] . '&redirect_to=tenant') ?>" 
+                   style="color: #023A8D; text-decoration: none; font-size: 14px;">
+                    Ver todas as contas de email →
+                </a>
+            </div>
         <?php endif; ?>
     </div>
 

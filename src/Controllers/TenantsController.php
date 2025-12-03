@@ -59,6 +59,17 @@ class TenantsController extends Controller
         }
         unset($account);
 
+        // Busca contas de email do tenant
+        $stmt = $db->prepare("
+            SELECT ea.*, ha.domain as hosting_domain
+            FROM tenant_email_accounts ea
+            LEFT JOIN hosting_accounts ha ON ea.hosting_account_id = ha.id
+            WHERE ea.tenant_id = ?
+            ORDER BY ea.email ASC
+        ");
+        $stmt->execute([$tenantId]);
+        $emailAccounts = $stmt->fetchAll();
+
         // Busca todos os backups dos hosting accounts desse tenant
         if (!empty($hostingAccounts)) {
             $hostingIds = array_column($hostingAccounts, 'id');
@@ -180,6 +191,7 @@ class TenantsController extends Controller
         $this->view('tenants.view', [
             'tenant' => $tenant,
             'hostingAccounts' => $hostingAccounts,
+            'emailAccounts' => $emailAccounts,
             'backups' => $backups,
             'invoices' => $invoices,
             'overdueCount' => $overdueCount,

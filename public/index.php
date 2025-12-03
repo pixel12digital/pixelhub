@@ -359,6 +359,16 @@ $router->post('/hosting/backups/chunk-complete', 'HostingBackupController@chunkC
 $router->get('/hosting/backups/download', 'HostingBackupController@download');
 $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
 
+    // Rotas de contas de email (apenas internos)
+    $router->get('/email-accounts', 'EmailAccountController@index');
+    $router->get('/email-accounts/create', 'EmailAccountController@create');
+    $router->post('/email-accounts/store', 'EmailAccountController@store');
+    $router->get('/email-accounts/edit', 'EmailAccountController@edit');
+    $router->post('/email-accounts/update', 'EmailAccountController@update');
+    $router->post('/email-accounts/delete', 'EmailAccountController@delete');
+    $router->get('/email-accounts/password', 'EmailAccountController@getPassword');
+    $router->post('/email-accounts/password', 'EmailAccountController@getPassword');
+
     // Rotas de planos de hospedagem
     $router->get('/hosting-plans', 'HostingPlanController@index');
     $router->get('/hosting-plans/create', 'HostingPlanController@create');
