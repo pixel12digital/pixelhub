@@ -279,6 +279,146 @@ ob_start();
         </div>
     <?php endif; ?>
     
+    <!-- Seção de Encerramento do Ticket -->
+    <?php
+    $isClosed = in_array($ticket['status'], ['resolvido', 'cancelado']);
+    ?>
+    
+    <?php if (!$isClosed): ?>
+        <!-- Formulário de Encerramento (quando ticket está aberto) -->
+        <div class="ticket-section">
+            <h3>Encerramento do Ticket</h3>
+            
+            <?php if ($hasOpenTasksError): ?>
+                <div class="alert alert-error" style="margin-bottom: 20px;">
+                    <strong>Atenção:</strong> Este ticket ainda possui tarefas em aberto. Deseja concluir essas tarefas e encerrar o ticket mesmo assim, ou prefere revisar no Kanban?
+                </div>
+            <?php endif; ?>
+            
+            <?php if ($hasOpenTasks && !empty($openTasks)): ?>
+                <div class="alert alert-error" style="margin-bottom: 20px;">
+                    <strong>Tarefas em aberto relacionadas:</strong>
+                    <ul style="margin: 10px 0 0 20px; padding: 0;">
+                        <?php foreach ($openTasks as $task): ?>
+                            <li style="margin: 5px 0;">
+                                <strong>#<?= $task['id'] ?></strong> - <?= htmlspecialchars($task['title']) ?> 
+                                <span style="color: #666;">(<?= htmlspecialchars($task['status']) ?>)</span>
+                                <a href="<?= pixelhub_url('/projects/board?project_id=' . ($task['project_id'] ?? '') . '&task_id=' . $task['id']) ?>" 
+                                   style="margin-left: 10px; color: #023A8D; text-decoration: none; font-size: 12px;">
+                                    Ver no Kanban →
+                                </a>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+            
+            <form method="POST" action="<?= pixelhub_url('/tickets/close') ?>" style="margin-top: 20px;">
+                <input type="hidden" name="id" value="<?= $ticket['id'] ?>">
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="closing_feedback" style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
+                        Feedback de encerramento / observações para o cliente:
+                    </label>
+                    <textarea 
+                        id="closing_feedback" 
+                        name="closing_feedback" 
+                        rows="5" 
+                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; font-size: 14px;"
+                        placeholder="Descreva o que foi feito para resolver o problema, orientações para o cliente, etc."
+                    ></textarea>
+                    <small style="color: #666; display: block; margin-top: 5px;">
+                        Recomendamos preencher este campo para documentar o que foi feito.
+                    </small>
+                </div>
+                
+                <?php if ($hasOpenTasks && !empty($openTasks)): ?>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input 
+                                type="checkbox" 
+                                name="force_close" 
+                                value="1" 
+                                style="margin-right: 8px;"
+                            >
+                            <span style="color: #333;">
+                                Concluir automaticamente todas as tarefas relacionadas em aberto e encerrar o ticket.
+                            </span>
+                        </label>
+                    </div>
+                <?php endif; ?>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary" style="margin: 0;">
+                        Encerrar ticket
+                    </button>
+                    <?php if ($hasOpenTasks && !empty($openTasks)): ?>
+                        <a href="<?= pixelhub_url('/projects/board?project_id=' . ($ticket['project_id'] ?? '')) ?>" class="btn btn-secondary" style="margin: 0;">
+                            Revisar tarefas no Kanban
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </form>
+        </div>
+    <?php else: ?>
+        <!-- Histórico de Encerramento (quando ticket está fechado) -->
+        <div class="ticket-section">
+            <h3>Histórico de Encerramento</h3>
+            
+            <div style="margin-top: 15px; padding: 15px; background: #f9f9f9; border-radius: 4px;">
+                <div style="margin-bottom: 10px;">
+                    <strong style="color: #666; display: block; margin-bottom: 5px;">Status:</strong>
+                    <span class="ticket-status status-<?= htmlspecialchars($ticket['status']) ?>">
+                        <?php
+                        $statusLabels = [
+                            'aberto' => 'Aberto',
+                            'em_atendimento' => 'Em Atendimento',
+                            'aguardando_cliente' => 'Aguardando Cliente',
+                            'resolvido' => 'Resolvido',
+                            'cancelado' => 'Cancelado',
+                        ];
+                        echo $statusLabels[$ticket['status']] ?? $ticket['status'];
+                        ?>
+                    </span>
+                </div>
+                
+                <?php if ($ticket['closed_at']): ?>
+                    <div style="margin-bottom: 10px;">
+                        <strong style="color: #666; display: block; margin-bottom: 5px;">Encerrado em:</strong>
+                        <span style="color: #333;">
+                            <?= date('d/m/Y H:i', strtotime($ticket['closed_at'])) ?>
+                        </span>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if ($ticket['closed_by_name']): ?>
+                    <div style="margin-bottom: 10px;">
+                        <strong style="color: #666; display: block; margin-bottom: 5px;">Encerrado por:</strong>
+                        <span style="color: #333;">
+                            <?= htmlspecialchars($ticket['closed_by_name']) ?>
+                        </span>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if ($ticket['closing_feedback']): ?>
+                    <div style="margin-top: 15px;">
+                        <strong style="color: #666; display: block; margin-bottom: 5px;">Feedback de encerramento:</strong>
+                        <p style="margin: 0; color: #333; white-space: pre-wrap; padding: 10px; background: white; border-radius: 4px;">
+                            <?= htmlspecialchars($ticket['closing_feedback']) ?>
+                        </p>
+                    </div>
+                <?php else: ?>
+                    <div style="margin-top: 15px;">
+                        <strong style="color: #666; display: block; margin-bottom: 5px;">Feedback de encerramento:</strong>
+                        <p style="margin: 0; color: #999; font-style: italic;">
+                            Nenhum feedback registrado.
+                        </p>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    <?php endif; ?>
+    
     <!-- Seção de Blocos de Agenda Relacionados -->
     <div class="ticket-section">
         <h3>Blocos de Agenda relacionados</h3>

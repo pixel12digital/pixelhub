@@ -38,12 +38,14 @@ class TicketService
                 tn.name as tenant_name,
                 p.name as project_name,
                 u.name as created_by_name,
+                closed_by_user.name as closed_by_name,
                 task.title as task_title,
                 task.status as task_status
             FROM tickets t
             LEFT JOIN tenants tn ON t.tenant_id = tn.id
             LEFT JOIN projects p ON t.project_id = p.id
             LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users closed_by_user ON t.closed_by_user_id = closed_by_user.id
             LEFT JOIN tasks task ON t.task_id = task.id
             WHERE 1=1
         ";
@@ -94,12 +96,14 @@ class TicketService
                 tn.name as tenant_name,
                 p.name as project_name,
                 u.name as created_by_name,
+                closed_by_user.name as closed_by_name,
                 task.title as task_title,
                 task.status as task_status
             FROM tickets t
             LEFT JOIN tenants tn ON t.tenant_id = tn.id
             LEFT JOIN projects p ON t.project_id = p.id
             LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users closed_by_user ON t.closed_by_user_id = closed_by_user.id
             LEFT JOIN tasks task ON t.task_id = task.id
             WHERE t.id = ?
         ");
@@ -623,6 +627,188 @@ class TicketService
         ];
         
         return \PixelHub\Services\ProjectService::createProject($projectData);
+    }
+    
+    /**
+     * Busca tarefas relacionadas a um ticket que não estão concluídas
+     * 
+     * Busca tarefas do projeto vinculado ao ticket (se houver) que não estão concluídas.
+     * Também verifica a tarefa diretamente vinculada ao ticket (task_id).
+     * 
+     * @param int $ticketId ID do ticket
+     * @return array Lista de tarefas abertas relacionadas
+     */
+    public static function getOpenTasksForTicket(int $ticketId): array
+    {
+        $ticket = self::findTicket($ticketId);
+        if (!$ticket) {
+            return [];
+        }
+        
+        $db = DB::getConnection();
+        $openTasks = [];
+        
+        // Busca tarefas do projeto vinculado ao ticket que não estão concluídas
+        if (!empty($ticket['project_id'])) {
+            $projectId = (int)$ticket['project_id'];
+            
+            // Tenta com deleted_at primeiro
+            try {
+                $stmt = $db->prepare("
+                    SELECT t.*, p.name as project_name
+                    FROM tasks t
+                    INNER JOIN projects p ON t.project_id = p.id
+                    WHERE t.project_id = ? 
+                    AND t.status != 'concluida'
+                    AND t.deleted_at IS NULL
+                    ORDER BY t.created_at ASC
+                ");
+                $stmt->execute([$projectId]);
+            } catch (\PDOException $e) {
+                // Se deu erro, tenta sem deleted_at
+                $stmt = $db->prepare("
+                    SELECT t.*, p.name as project_name
+                    FROM tasks t
+                    INNER JOIN projects p ON t.project_id = p.id
+                    WHERE t.project_id = ? 
+                    AND t.status != 'concluida'
+                    ORDER BY t.created_at ASC
+                ");
+                $stmt->execute([$projectId]);
+            }
+            
+            $projectTasks = $stmt->fetchAll();
+            foreach ($projectTasks as $task) {
+                $openTasks[] = $task;
+            }
+        }
+        
+        // Remove duplicatas (caso a tarefa vinculada diretamente também esteja no projeto)
+        $seenIds = [];
+        $uniqueTasks = [];
+        foreach ($openTasks as $task) {
+            if (!in_array($task['id'], $seenIds)) {
+                $seenIds[] = $task['id'];
+                $uniqueTasks[] = $task;
+            }
+        }
+        
+        return $uniqueTasks;
+    }
+    
+    /**
+     * Verifica se um ticket possui tarefas relacionadas em aberto
+     * 
+     * @param int $ticketId ID do ticket
+     * @return bool True se houver tarefas abertas, false caso contrário
+     */
+    public static function hasOpenTasks(int $ticketId): bool
+    {
+        $openTasks = self::getOpenTasksForTicket($ticketId);
+        return !empty($openTasks);
+    }
+    
+    /**
+     * Encerra um ticket com feedback
+     * 
+     * @param int $ticketId ID do ticket
+     * @param string $closingFeedback Feedback de encerramento
+     * @param int|null $closedByUserId ID do usuário que está encerrando (null = usuário logado)
+     * @param bool $forceClose Se true, conclui automaticamente todas as tarefas relacionadas em aberto
+     * @return array ['success' => bool, 'message' => string, 'openTasks' => array]
+     */
+    public static function closeTicket(int $ticketId, string $closingFeedback = '', ?int $closedByUserId = null, bool $forceClose = false): array
+    {
+        $db = DB::getConnection();
+        
+        // Busca o ticket
+        $ticket = self::findTicket($ticketId);
+        if (!$ticket) {
+            throw new \RuntimeException('Ticket não encontrado');
+        }
+        
+        // Verifica se já está fechado
+        if (in_array($ticket['status'], ['resolvido', 'cancelado'])) {
+            throw new \InvalidArgumentException('Ticket já está encerrado');
+        }
+        
+        // Busca tarefas abertas relacionadas
+        $openTasks = self::getOpenTasksForTicket($ticketId);
+        
+        // Se há tarefas abertas e não foi forçado o fechamento, retorna erro
+        if (!empty($openTasks) && !$forceClose) {
+            return [
+                'success' => false,
+                'message' => 'Este ticket ainda possui tarefas em aberto. Deseja concluir essas tarefas e encerrar o ticket mesmo assim, ou prefere revisar no Kanban?',
+                'openTasks' => $openTasks,
+            ];
+        }
+        
+        // Obtém ID do usuário que está encerrando
+        if ($closedByUserId === null) {
+            $user = \PixelHub\Core\Auth::user();
+            $closedByUserId = $user ? (int)$user['id'] : null;
+        }
+        
+        // Inicia transação
+        $db->beginTransaction();
+        
+        try {
+            // Se forceClose está ativo, conclui todas as tarefas relacionadas
+            if ($forceClose && !empty($openTasks)) {
+                foreach ($openTasks as $task) {
+                    $taskId = (int)$task['id'];
+                    \PixelHub\Services\TaskService::updateTask($taskId, [
+                        'status' => 'concluida'
+                    ]);
+                }
+            }
+            
+            // Atualiza o ticket
+            $stmt = $db->prepare("
+                UPDATE tickets 
+                SET status = 'resolvido',
+                    closed_at = NOW(),
+                    closed_by_user_id = ?,
+                    closing_feedback = ?,
+                    data_resolucao = NOW(),
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([
+                $closedByUserId,
+                trim($closingFeedback) ?: null,
+                $ticketId,
+            ]);
+            
+            $db->commit();
+            
+            return [
+                'success' => true,
+                'message' => 'Ticket encerrado com sucesso',
+                'openTasks' => [],
+            ];
+            
+        } catch (\Exception $e) {
+            $db->rollBack();
+            throw $e;
+        }
+    }
+    
+    /**
+     * Verifica se um ticket está fechado
+     * 
+     * @param int $ticketId ID do ticket
+     * @return bool True se o ticket estiver fechado (resolvido ou cancelado)
+     */
+    public static function isClosed(int $ticketId): bool
+    {
+        $ticket = self::findTicket($ticketId);
+        if (!$ticket) {
+            return false;
+        }
+        
+        return in_array($ticket['status'], ['resolvido', 'cancelado']);
     }
 }
 

@@ -165,9 +165,23 @@ class TicketController extends Controller
             }
         }
         
+        // Busca tarefas abertas relacionadas (se o ticket estiver aberto)
+        $openTasks = [];
+        $hasOpenTasks = false;
+        if (!TicketService::isClosed($id)) {
+            $openTasks = TicketService::getOpenTasksForTicket($id);
+            $hasOpenTasks = !empty($openTasks);
+        }
+        
+        // Verifica se há erro de tarefas abertas (vindo do método close)
+        $hasOpenTasksError = isset($_GET['has_open_tasks']) && $_GET['has_open_tasks'] === '1';
+        
         $this->view('tickets.show', [
             'ticket' => $ticket,
             'blocosRelacionados' => $blocosRelacionados,
+            'openTasks' => $openTasks,
+            'hasOpenTasks' => $hasOpenTasks,
+            'hasOpenTasksError' => $hasOpenTasksError,
         ]);
     }
     
@@ -332,6 +346,55 @@ class TicketController extends Controller
             'selectedProjectId' => $ticket['project_id'],
             'isEdit' => true,
         ]);
+    }
+    
+    /**
+     * Encerra um ticket
+     */
+    public function close(): void
+    {
+        Auth::requireInternal();
+        
+        $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+        
+        if ($id <= 0) {
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $id . '&erro=' . urlencode('ID inválido')));
+            exit;
+        }
+        
+        try {
+            $closingFeedback = trim($_POST['closing_feedback'] ?? '');
+            $forceClose = isset($_POST['force_close']) && $_POST['force_close'] === '1';
+            
+            // Valida feedback mínimo (opcional, mas recomendado)
+            if (empty($closingFeedback) || strlen($closingFeedback) < 5) {
+                // Não bloqueia, mas pode avisar o usuário
+                // Por enquanto, apenas loga
+                error_log("Ticket {$id} sendo encerrado sem feedback ou com feedback muito curto");
+            }
+            
+            $result = TicketService::closeTicket($id, $closingFeedback, null, $forceClose);
+            
+            if ($result['success']) {
+                header('Location: ' . pixelhub_url('/tickets/show?id=' . $id . '&sucesso=' . urlencode('Ticket encerrado com sucesso')));
+            } else {
+                // Há tarefas abertas e não foi forçado
+                // Redireciona de volta para a view com informações das tarefas
+                header('Location: ' . pixelhub_url('/tickets/show?id=' . $id . '&erro=' . urlencode($result['message']) . '&has_open_tasks=1'));
+            }
+            exit;
+            
+        } catch (\InvalidArgumentException $e) {
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $id . '&erro=' . urlencode($e->getMessage())));
+            exit;
+        } catch (\RuntimeException $e) {
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $id . '&erro=' . urlencode($e->getMessage())));
+            exit;
+        } catch (\Exception $e) {
+            error_log("Erro ao encerrar ticket: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $id . '&erro=' . urlencode('Erro ao encerrar ticket')));
+            exit;
+        }
     }
 }
 
