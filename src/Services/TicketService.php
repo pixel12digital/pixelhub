@@ -819,5 +819,70 @@ class TicketService
         
         return in_array($ticket['status'], ['resolvido', 'cancelado']);
     }
+    
+    /**
+     * Adiciona uma nota/ocorrência a um ticket
+     * 
+     * @param int $ticketId ID do ticket
+     * @param string $note Texto da nota
+     * @param int|null $createdBy ID do usuário que está criando a nota (null = usuário logado)
+     * @return int ID da nota criada
+     * @throws \RuntimeException Se ticket não existir
+     */
+    public static function addNote(int $ticketId, string $note, ?int $createdBy = null): int
+    {
+        $db = DB::getConnection();
+        
+        // Verifica se o ticket existe
+        $ticket = self::findTicket($ticketId);
+        if (!$ticket) {
+            throw new \RuntimeException('Ticket não encontrado');
+        }
+        
+        // Valida a nota
+        $note = trim($note);
+        if (empty($note)) {
+            throw new \InvalidArgumentException('A nota não pode estar vazia');
+        }
+        
+        // Obtém ID do usuário se não fornecido
+        if ($createdBy === null) {
+            $user = \PixelHub\Core\Auth::user();
+            $createdBy = $user ? (int)$user['id'] : null;
+        }
+        
+        // Insere a nota
+        $stmt = $db->prepare("
+            INSERT INTO ticket_notes (ticket_id, note, created_by, created_at)
+            VALUES (?, ?, ?, NOW())
+        ");
+        $stmt->execute([$ticketId, $note, $createdBy]);
+        
+        return (int)$db->lastInsertId();
+    }
+    
+    /**
+     * Busca todas as notas de um ticket
+     * 
+     * @param int $ticketId ID do ticket
+     * @return array Lista de notas ordenadas por data (mais recente primeiro)
+     */
+    public static function getNotes(int $ticketId): array
+    {
+        $db = DB::getConnection();
+        
+        $stmt = $db->prepare("
+            SELECT 
+                tn.*,
+                u.name as created_by_name
+            FROM ticket_notes tn
+            LEFT JOIN users u ON tn.created_by = u.id
+            WHERE tn.ticket_id = ?
+            ORDER BY tn.created_at DESC
+        ");
+        $stmt->execute([$ticketId]);
+        
+        return $stmt->fetchAll();
+    }
 }
 

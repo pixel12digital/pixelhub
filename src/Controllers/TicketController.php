@@ -396,6 +396,39 @@ class TicketController extends Controller
             exit;
         }
     }
+    
+    /**
+     * Adiciona uma nota/ocorrência a um ticket
+     */
+    public function addNote(): void
+    {
+        Auth::requireInternal();
+        
+        $ticketId = isset($_POST['ticket_id']) ? (int)$_POST['ticket_id'] : 0;
+        $note = trim($_POST['note'] ?? '');
+        
+        if ($ticketId <= 0) {
+            $this->json(['error' => 'ID do ticket inválido'], 400);
+            return;
+        }
+        
+        if (empty($note)) {
+            $this->json(['error' => 'A nota não pode estar vazia'], 400);
+            return;
+        }
+        
+        try {
+            $noteId = TicketService::addNote($ticketId, $note);
+            $this->json(['success' => true, 'id' => $noteId]);
+        } catch (\InvalidArgumentException $e) {
+            $this->json(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            $this->json(['error' => $e->getMessage()], 404);
+        } catch (\Exception $e) {
+            error_log("Erro ao adicionar nota ao ticket: " . $e->getMessage());
+            $this->json(['error' => 'Erro ao adicionar nota'], 500);
+        }
+    }
 }
 
 

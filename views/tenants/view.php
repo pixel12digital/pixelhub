@@ -1665,6 +1665,115 @@ $emailAccounts = $emailAccounts ?? [];
             ?>
         <?php endif; ?>
     </div>
+    
+    <!-- Seção de Tickets -->
+    <?php
+    $tickets = $tickets ?? [];
+    ?>
+    <div class="card" style="margin-top: 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0;">Tickets do Cliente</h3>
+            <a href="<?= pixelhub_url('/tickets/create?tenant_id=' . $tenant['id']) ?>" 
+               style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
+                Criar Novo Ticket
+            </a>
+        </div>
+        
+        <?php if (empty($tickets)): ?>
+            <p style="color: #666; text-align: center; padding: 40px 20px;">
+                Nenhum ticket registrado para este cliente até o momento.
+            </p>
+        <?php else: ?>
+            <?php
+            // Função auxiliar para label de status legível
+            function renderTicketStatusLabel($status) {
+                $labels = [
+                    'aberto' => 'Aberto',
+                    'em_atendimento' => 'Em Atendimento',
+                    'aguardando_cliente' => 'Aguardando Cliente',
+                    'resolvido' => 'Resolvido',
+                    'cancelado' => 'Cancelado',
+                ];
+                return $labels[$status] ?? ucfirst($status);
+            }
+            
+            // Função auxiliar para cor de status
+            function getTicketStatusColor($status) {
+                $colors = [
+                    'aberto' => '#1976d2',
+                    'em_atendimento' => '#f57c00',
+                    'aguardando_cliente' => '#c2185b',
+                    'resolvido' => '#388e3c',
+                    'cancelado' => '#757575',
+                ];
+                return $colors[$status] ?? '#666';
+            }
+            
+            // Função auxiliar para cor de prioridade
+            function getTicketPrioridadeColor($prioridade) {
+                $colors = [
+                    'baixa' => '#1976d2',
+                    'media' => '#f57c00',
+                    'alta' => '#d32f2f',
+                    'critica' => '#7b1fa2',
+                ];
+                return $colors[$prioridade] ?? '#666';
+            }
+            ?>
+            
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; background: white;">
+                    <thead>
+                        <tr style="background: #f5f5f5;">
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600;">Ticket</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600;">Status</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600;">Prioridade</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600;">Criado em</th>
+                            <th style="padding: 12px; text-align: center; border-bottom: 2px solid #ddd; font-weight: 600; width: 150px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($tickets as $ticket): ?>
+                            <tr style="border-bottom: 1px solid #eee;">
+                                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                    <strong>#<?= $ticket['id'] ?> - <?= htmlspecialchars($ticket['titulo'] ?? '—') ?></strong>
+                                    <?php if (!empty($ticket['descricao'])): ?>
+                                        <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                                            <?= htmlspecialchars(substr($ticket['descricao'], 0, 100)) ?><?= strlen($ticket['descricao']) > 100 ? '...' : '' ?>
+                                        </div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($ticket['project_name'])): ?>
+                                        <div style="font-size: 11px; color: #999; margin-top: 4px;">
+                                            Projeto: <?= htmlspecialchars($ticket['project_name']) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                    <span style="background: <?= getTicketStatusColor($ticket['status']) ?>; color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                                        <?= renderTicketStatusLabel($ticket['status']) ?>
+                                    </span>
+                                </td>
+                                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                    <span style="background: <?= getTicketPrioridadeColor($ticket['prioridade']) ?>; color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                                        <?= ucfirst($ticket['prioridade']) ?>
+                                    </span>
+                                </td>
+                                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                    <?= date('d/m/Y H:i', strtotime($ticket['created_at'])) ?>
+                                </td>
+                                <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">
+                                    <a href="<?= pixelhub_url('/tickets/show?id=' . $ticket['id']) ?>" 
+                                       style="background: #023A8D; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-block; font-weight: 600;">
+                                        Ver Detalhes
+                                    </a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </div>
 
 <?php endif; ?>
 

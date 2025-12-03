@@ -283,6 +283,65 @@ ob_start();
         </div>
     <?php endif; ?>
     
+    <!-- Seção de Notas/Ocorrências -->
+    <?php
+    $notes = \PixelHub\Services\TicketService::getNotes($ticket['id']);
+    ?>
+    <div class="ticket-section">
+        <h3>Notas e Ocorrências</h3>
+        
+        <!-- Formulário para adicionar nova nota -->
+        <div style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px;">
+            <form id="addNoteForm" style="margin: 0;">
+                <input type="hidden" name="ticket_id" value="<?= $ticket['id'] ?>">
+                <div style="margin-bottom: 10px;">
+                    <label for="note_text" style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
+                        Adicionar nova nota/ocorrência:
+                    </label>
+                    <textarea 
+                        id="note_text" 
+                        name="note" 
+                        rows="3" 
+                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; font-size: 14px; resize: vertical;"
+                        placeholder="Ex: Entrei em contato com suporte da hospedagem. Aguardando retorno..."
+                        required
+                    ></textarea>
+                    <small style="color: #666; display: block; margin-top: 5px;">
+                        A data e hora serão registradas automaticamente.
+                    </small>
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin: 0;">
+                    Adicionar Nota
+                </button>
+            </form>
+        </div>
+        
+        <!-- Lista de notas -->
+        <?php if (empty($notes)): ?>
+            <p style="color: #666; font-style: italic; margin-top: 15px;">
+                Nenhuma nota registrada ainda.
+            </p>
+        <?php else: ?>
+            <div style="margin-top: 15px;">
+                <?php foreach ($notes as $note): ?>
+                    <div style="padding: 12px; background: #f9f9f9; border-radius: 4px; margin-bottom: 10px; border-left: 3px solid #023A8D;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                            <div style="flex: 1;">
+                                <p style="margin: 0 0 8px 0; color: #333; white-space: pre-wrap;"><?= htmlspecialchars($note['note']) ?></p>
+                                <div style="font-size: 12px; color: #666;">
+                                    <?php if ($note['created_by_name']): ?>
+                                        <strong><?= htmlspecialchars($note['created_by_name']) ?></strong> • 
+                                    <?php endif; ?>
+                                    <?= date('d/m/Y H:i', strtotime($note['created_at'])) ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+    
     <!-- Seção de Encerramento do Ticket -->
     <?php
     $isClosed = in_array($ticket['status'], ['resolvido', 'cancelado']);
@@ -631,6 +690,53 @@ document.addEventListener('DOMContentLoaded', function() {
     if (select) {
         select.setAttribute('data-original-value', select.value);
         updateStatusSelectStyle(select.value);
+    }
+    
+    // Handler para formulário de adicionar nota
+    const addNoteForm = document.getElementById('addNoteForm');
+    if (addNoteForm) {
+        addNoteForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(addNoteForm);
+            const noteText = formData.get('note');
+            
+            if (!noteText || !noteText.trim()) {
+                alert('Por favor, preencha a nota.');
+                return;
+            }
+            
+            // Desabilita o botão durante o envio
+            const submitBtn = addNoteForm.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Adicionando...';
+            
+            // Faz requisição AJAX
+            fetch('<?= pixelhub_url('/tickets/add-note') ?>', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Limpa o campo de texto
+                    document.getElementById('note_text').value = '';
+                    // Recarrega a página para mostrar a nova nota
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Erro ao adicionar nota');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = originalText;
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('Erro ao adicionar nota. Tente novamente.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+            });
+        });
     }
 });
 </script>

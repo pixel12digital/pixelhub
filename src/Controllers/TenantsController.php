@@ -8,6 +8,7 @@ use PixelHub\Core\DB;
 use PixelHub\Core\Storage;
 use PixelHub\Services\HostingProviderService;
 use PixelHub\Services\TaskService;
+use PixelHub\Services\TicketService;
 use PixelHub\Services\WhatsAppHistoryService;
 
 /**
@@ -165,6 +166,12 @@ class TenantsController extends Controller
                 }
             }
         }
+        
+        // Busca tickets do tenant (apenas se necessário para a aba de tarefas)
+        $tickets = [];
+        if ($activeTab === 'tasks') {
+            $tickets = TicketService::getAllTickets(['tenant_id' => (int) $tenantId]);
+        }
 
         // Busca documentos gerais do tenant (apenas se necessário para a aba docs_backups)
         $tenantDocuments = [];
@@ -198,6 +205,7 @@ class TenantsController extends Controller
             'whatsappNotifications' => $whatsappNotifications,
             'whatsappTimeline' => $whatsappTimeline,
             'lastWhatsAppContact' => $lastWhatsAppContact,
+            'tickets' => $tickets ?? [],
             'activeTab' => $activeTab,
             'asaasCustomersByCpf' => $asaasCustomersByCpf,
             'asaasPrimaryCustomerId' => $asaasPrimaryCustomerId,
