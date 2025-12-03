@@ -218,6 +218,26 @@ class TaskChecklistService
     }
 
     /**
+     * Verifica se uma tarefa possui checklists em aberto (não concluídos)
+     * 
+     * @param int $taskId ID da tarefa
+     * @return bool True se houver checklists em aberto, false caso contrário
+     */
+    public static function hasOpenChecklists(int $taskId): bool
+    {
+        $db = DB::getConnection();
+        $stmt = $db->prepare("
+            SELECT COUNT(*) as total
+            FROM task_checklists
+            WHERE task_id = ? AND is_done = 0
+        ");
+        $stmt->execute([$taskId]);
+        $result = $stmt->fetch();
+        
+        return isset($result['total']) && (int)$result['total'] > 0;
+    }
+
+    /**
      * Busca um item por ID
      */
     private static function findItem(int $id): ?array

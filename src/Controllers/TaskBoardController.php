@@ -641,6 +641,11 @@ class TaskBoardController extends Controller
             
             header('Content-Type: application/json');
             echo json_encode(['success' => true]);
+        } catch (\InvalidArgumentException $e) {
+            // Retorna mensagem amigável para validações (ex: checklists em aberto)
+            http_response_code(400);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         } catch (\Exception $e) {
             error_log("Erro ao atualizar status da tarefa: " . $e->getMessage());
             http_response_code(500);

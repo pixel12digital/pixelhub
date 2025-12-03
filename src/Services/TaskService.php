@@ -487,6 +487,11 @@ class TaskService
         
         $oldStatus = $task['status'];
         if ($status === 'concluida') {
+            // Valida se há checklists em aberto antes de concluir
+            if ($oldStatus !== 'concluida' && \PixelHub\Services\TaskChecklistService::hasOpenChecklists($id)) {
+                throw new \InvalidArgumentException('Não é possível concluir a tarefa. Existem itens do checklist que ainda não foram concluídos. Por favor, conclua todos os itens do checklist antes de finalizar a tarefa.');
+            }
+            
             // Se está indo para "concluida", preenche completed_at e completed_by (se ainda não estiver preenchido)
             if (empty($completedAt)) {
                 $now = new \DateTime('now', new \DateTimeZone('America/Sao_Paulo'));
@@ -621,6 +626,11 @@ class TaskService
         $completedBy = null;
         
         if ($newStatus === 'concluida') {
+            // Valida se há checklists em aberto antes de concluir
+            if ($oldStatus !== 'concluida' && \PixelHub\Services\TaskChecklistService::hasOpenChecklists($id)) {
+                throw new \InvalidArgumentException('Não é possível concluir a tarefa. Existem itens do checklist que ainda não foram concluídos. Por favor, conclua todos os itens do checklist antes de finalizar a tarefa.');
+            }
+            
             // Se está indo para "concluida", preenche completed_at e completed_by
             $now = new \DateTime('now', new \DateTimeZone('America/Sao_Paulo'));
             $completedAt = $now->format('Y-m-d H:i:s');

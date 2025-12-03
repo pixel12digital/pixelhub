@@ -293,6 +293,15 @@ class TicketService
             $status = $ticket['status'];
         }
         
+        // Valida se há tarefas abertas antes de resolver o ticket
+        $oldStatus = $ticket['status'];
+        if (in_array($status, ['resolvido', 'cancelado']) && !in_array($oldStatus, ['resolvido', 'cancelado'])) {
+            $openTasks = self::getOpenTasksForTicket($id);
+            if (!empty($openTasks)) {
+                throw new \InvalidArgumentException('Não é possível resolver o ticket. Existem tarefas relacionadas que ainda não foram concluídas. Por favor, conclua todas as tarefas antes de resolver o ticket.');
+            }
+        }
+        
         // Valida origem
         $allowedOrigens = ['cliente', 'interno', 'whatsapp', 'automatico'];
         $origem = isset($data['origem']) ? trim($data['origem']) : $ticket['origem'];
