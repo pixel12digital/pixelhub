@@ -425,6 +425,10 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/diagnostic/financial', 'DiagnosticController@financial');
     $router->get('/diagnostic/financial/errors', 'DiagnosticController@getErrorsJson');
 
+    // Rotas de Configurações do Asaas
+    $router->get('/settings/asaas', 'AsaasSettingsController@index');
+    $router->post('/settings/asaas', 'AsaasSettingsController@update');
+
     // Rotas de acessos e links de infraestrutura (apenas internos)
     $router->get('/owner/shortcuts', 'OwnerShortcutsController@index');
     $router->post('/owner/shortcuts/store', 'OwnerShortcutsController@store');

@@ -330,8 +330,8 @@
             
             <!-- Configurações -->
             <?php
-            $configuracoesActive = $isActive(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates', '/diagnostic/financial']);
-            $configuracoesExpanded = $shouldExpand(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates', '/diagnostic/financial']);
+            $configuracoesActive = $isActive(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates', '/diagnostic/financial', '/settings/asaas']);
+            $configuracoesExpanded = $shouldExpand(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates', '/diagnostic/financial', '/settings/asaas']);
             ?>
             <div class="sidebar-module" data-module="configuracoes">
                 <div class="sidebar-module-header has-children <?= $configuracoesActive ? 'active' : '' ?> <?= $configuracoesExpanded ? 'is-open' : '' ?>">
@@ -342,6 +342,7 @@
                     <a href="<?= pixelhub_url('/diagnostic/financial') ?>" class="sub-item <?= (strpos($currentUri, '/diagnostic/financial') !== false) ? 'active' : '' ?>">Financeiro</a>
                     <div class="sidebar-internal-title">Financeiro</div>
                     <a href="<?= pixelhub_url('/billing/service-types') ?>" class="sub-item <?= (strpos($currentUri, '/billing/service-types') !== false) ? 'active' : '' ?>">Categorias de Contratos</a>
+                    <a href="<?= pixelhub_url('/settings/asaas') ?>" class="sub-item <?= (strpos($currentUri, '/settings/asaas') !== false) ? 'active' : '' ?>">Configurações Asaas</a>
                     <div class="sidebar-internal-title">Mensagens</div>
                     <a href="<?= pixelhub_url('/settings/whatsapp-templates') ?>" class="sub-item <?= (strpos($currentUri, '/settings/whatsapp-templates') !== false) ? 'active' : '' ?>">Mensagens WhatsApp</a>
                     <div class="sidebar-internal-title">Infraestrutura</div>

@@ -116,5 +116,13 @@ class AsaasConfig
         $config = self::getConfig();
         return $config['webhook_token'] ?? null;
     }
+
+    /**
+     * Limpa o cache da configuração (útil após atualizar o .env)
+     */
+    public static function clearCache(): void
+    {
+        self::$config = null;
+    }
 }
 
