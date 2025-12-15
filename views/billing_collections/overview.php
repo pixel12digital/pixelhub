@@ -11,7 +11,10 @@ $baseUrl = pixelhub_url('');
         <h2>Central de Cobranças</h2>
         <p>Visão geral de cobranças agrupadas por cliente</p>
     </div>
-    <div>
+    <div style="display: flex; gap: 10px; align-items: center;">
+        <a href="<?= pixelhub_url('/billing/sync-errors') ?>" style="background: #ffc107; color: #000; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 14px; text-decoration: none; display: inline-block;">
+            Ver Erros de Sincronização
+        </a>
         <form method="POST" action="<?= pixelhub_url('/billing/sync-all-from-asaas') ?>" style="display: inline-block;" onsubmit="return confirm('Deseja sincronizar todos os clientes e cobranças do Asaas? Isso pode levar alguns minutos.');">
             <button type="submit" class="btn btn-secondary btn-sm" style="background: #6c757d; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 14px;">
                 Sincronizar com Asaas
@@ -29,6 +32,12 @@ $baseUrl = pixelhub_url('');
     <?php elseif ($_GET['success'] === 'sync_completed'): ?>
         <div style="background: #d4edda; color: #155724; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #c3e6cb;">
             ✓ <?= isset($_GET['message']) ? htmlspecialchars(urldecode($_GET['message'])) : 'Sincronização concluída com sucesso!' ?>
+            <?php if (isset($_GET['message']) && strpos(urldecode($_GET['message']), 'erro') !== false): ?>
+                <br><br>
+                <a href="<?= pixelhub_url('/billing/sync-errors') ?>" style="color: #155724; text-decoration: underline; font-weight: 500;">
+                    Ver detalhes dos erros →
+                </a>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
 <?php endif; ?>

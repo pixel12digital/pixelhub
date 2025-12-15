@@ -388,6 +388,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/billing/tenant-reminder', 'BillingCollectionsController@getTenantReminderData');
     $router->post('/billing/tenant-reminder-sent', 'BillingCollectionsController@markTenantReminderSent');
     $router->post('/billing/sync-all-from-asaas', 'BillingCollectionsController@syncAllFromAsaas');
+    $router->get('/billing/sync-errors', 'BillingCollectionsController@viewSyncErrors');
     
     // Rota de Carteira Recorrente
     $router->get('/recurring-contracts', 'RecurringContractsController@index');
@@ -419,6 +420,10 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/settings/whatsapp-templates/toggle-status', 'WhatsAppTemplatesController@toggleStatus');
     $router->get('/settings/whatsapp-templates/ajax-templates', 'WhatsAppTemplatesController@getTemplatesAjax');
     $router->get('/settings/whatsapp-templates/template-data', 'WhatsAppTemplatesController@getTemplateData');
+
+    // Rotas de Diagnóstico
+    $router->get('/diagnostic/financial', 'DiagnosticController@financial');
+    $router->get('/diagnostic/financial/errors', 'DiagnosticController@getErrorsJson');
 
     // Rotas de acessos e links de infraestrutura (apenas internos)
     $router->get('/owner/shortcuts', 'OwnerShortcutsController@index');

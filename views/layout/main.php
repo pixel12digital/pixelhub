@@ -330,14 +330,16 @@
             
             <!-- Configurações -->
             <?php
-            $configuracoesActive = $isActive(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates']);
-            $configuracoesExpanded = $shouldExpand(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates']);
+            $configuracoesActive = $isActive(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates', '/diagnostic/financial']);
+            $configuracoesExpanded = $shouldExpand(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates', '/diagnostic/financial']);
             ?>
             <div class="sidebar-module" data-module="configuracoes">
                 <div class="sidebar-module-header has-children <?= $configuracoesActive ? 'active' : '' ?> <?= $configuracoesExpanded ? 'is-open' : '' ?>">
                     Configurações
                 </div>
                 <div class="sidebar-module-content <?= $configuracoesExpanded ? 'is-open' : '' ?>">
+                    <div class="sidebar-internal-title">Diagnóstico</div>
+                    <a href="<?= pixelhub_url('/diagnostic/financial') ?>" class="sub-item <?= (strpos($currentUri, '/diagnostic/financial') !== false) ? 'active' : '' ?>">Financeiro</a>
                     <div class="sidebar-internal-title">Financeiro</div>
                     <a href="<?= pixelhub_url('/billing/service-types') ?>" class="sub-item <?= (strpos($currentUri, '/billing/service-types') !== false) ? 'active' : '' ?>">Categorias de Contratos</a>
                     <div class="sidebar-internal-title">Mensagens</div>

@@ -300,7 +300,9 @@ class BillingCollectionsController extends Controller
             }
         } catch (\Exception $e) {
             $db->rollBack();
-            error_log("Erro ao marcar WhatsApp como enviado: " . $e->getMessage());
+            $errorMsg = "Erro ao marcar WhatsApp como enviado: " . $e->getMessage();
+            error_log($errorMsg);
+            self::logFinancialError('whatsapp', $errorMsg, ['invoice_id' => $invoiceId]);
             $this->redirect('/billing/collections?error=save_failed');
         }
     }
@@ -534,7 +536,9 @@ class BillingCollectionsController extends Controller
             $this->redirect('/billing/overview?success=reminder_sent');
         } catch (\Exception $e) {
             $db->rollBack();
-            error_log("Erro ao marcar lembrete como enviado: " . $e->getMessage());
+            $errorMsg = "Erro ao marcar lembrete como enviado: " . $e->getMessage();
+            error_log($errorMsg);
+            self::logFinancialError('reminder', $errorMsg, ['tenant_id' => $tenantId]);
             $this->redirect('/billing/overview?error=save_failed&message=' . urlencode($e->getMessage()));
         }
     }
@@ -568,6 +572,10 @@ class BillingCollectionsController extends Controller
             if (!empty($stats['errors'])) {
                 $errorCount = count($stats['errors']);
                 $message .= " ({$errorCount} erro(s) - verifique os logs)";
+                
+                // Salva erros em arquivo de log específico
+                $this->logSyncErrors($stats['errors']);
+                
                 error_log("Erros na sincronização Asaas: " . implode('; ', $stats['errors']));
             }
 
@@ -576,9 +584,86 @@ class BillingCollectionsController extends Controller
 
             $this->redirect('/billing/overview?success=sync_completed&message=' . urlencode($message));
         } catch (\Exception $e) {
-            error_log("Erro na sincronização completa do Asaas: " . $e->getMessage());
+            $errorMsg = "Erro na sincronização completa do Asaas: " . $e->getMessage();
+            error_log($errorMsg);
+            self::logFinancialError('sync', $errorMsg);
             $this->redirect('/billing/overview?error=sync_failed&message=' . urlencode($e->getMessage()));
         }
+    }
+
+    /**
+     * Visualiza erros de sincronização
+     * 
+     * GET /billing/sync-errors
+     */
+    public function viewSyncErrors(): void
+    {
+        Auth::requireInternal();
+
+        $logFile = __DIR__ . '/../../logs/asaas_sync_errors.log';
+        $errors = [];
+
+        if (file_exists($logFile)) {
+            $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            // Pega as últimas 50 linhas
+            $lines = array_slice($lines, -50);
+            
+            foreach ($lines as $line) {
+                if (preg_match('/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s*(.+)$/', $line, $matches)) {
+                    $errors[] = [
+                        'timestamp' => $matches[1],
+                        'message' => $matches[2]
+                    ];
+                }
+            }
+            $errors = array_reverse($errors); // Mais recentes primeiro
+        }
+
+        $this->view('billing_collections.sync_errors', [
+            'errors' => $errors,
+            'logFile' => $logFile,
+        ]);
+    }
+
+    /**
+     * Salva erros de sincronização em arquivo de log específico
+     */
+    private function logSyncErrors(array $errors): void
+    {
+        $logDir = __DIR__ . '/../../logs';
+        if (!is_dir($logDir)) {
+            mkdir($logDir, 0755, true);
+        }
+
+        $logFile = $logDir . '/asaas_sync_errors.log';
+        $timestamp = date('Y-m-d H:i:s');
+        
+        $logContent = "\n[{$timestamp}] Sincronização Asaas - Erros detectados:\n";
+        foreach ($errors as $index => $error) {
+            $logContent .= "[{$timestamp}] Erro #" . ($index + 1) . ": {$error}\n";
+        }
+        $logContent .= "[{$timestamp}] ---\n";
+
+        file_put_contents($logFile, $logContent, FILE_APPEND);
+    }
+
+    /**
+     * Log genérico de erros financeiros (para uso em outros métodos)
+     */
+    public static function logFinancialError(string $category, string $message, array $context = []): void
+    {
+        $logDir = __DIR__ . '/../../logs';
+        if (!is_dir($logDir)) {
+            mkdir($logDir, 0755, true);
+        }
+
+        $logFile = $logDir . '/financial_errors.log';
+        $timestamp = date('Y-m-d H:i:s');
+        
+        $contextStr = !empty($context) ? ' | Contexto: ' . json_encode($context, JSON_UNESCAPED_UNICODE) : '';
+        $logContent = "[{$timestamp}] [{$category}] {$message}{$contextStr}\n";
+
+        file_put_contents($logFile, $logContent, FILE_APPEND);
     }
 }
 
