@@ -3,6 +3,7 @@
 namespace PixelHub\Services;
 
 use PixelHub\Core\Env;
+use PixelHub\Core\CryptoHelper;
 
 /**
  * Classe de configuração do Asaas
@@ -32,7 +33,27 @@ class AsaasConfig
         // Lê variáveis de ambiente usando Env::get() (que lê do .env carregado)
         // Usa trim() para remover espaços e considera vazio apenas se realmente vazio ou placeholder
         $apiKeyRaw = Env::get('ASAAS_API_KEY');
-        $apiKey = trim($apiKeyRaw ?: ($baseConfig['api_key'] ?? ''));
+        $apiKeyEncrypted = trim($apiKeyRaw ?: ($baseConfig['api_key'] ?? ''));
+        
+        // Tenta descriptografar a chave (pode estar criptografada ou em texto plano para compatibilidade)
+        $apiKey = '';
+        if (!empty($apiKeyEncrypted)) {
+            try {
+                // Tenta descriptografar primeiro
+                $decrypted = CryptoHelper::decrypt($apiKeyEncrypted);
+                // Se descriptografou com sucesso e retornou algo, usa a versão descriptografada
+                // Se retornou vazio, pode ser que não seja criptografado (compatibilidade)
+                if (!empty($decrypted)) {
+                    $apiKey = $decrypted;
+                } else {
+                    // Retornou vazio, provavelmente não é criptografado
+                    $apiKey = $apiKeyEncrypted;
+                }
+            } catch (\Exception $e) {
+                // Se falhar ao descriptografar, assume que está em texto plano (compatibilidade com instalações antigas)
+                $apiKey = $apiKeyEncrypted;
+            }
+        }
         
         $envRaw = Env::get('ASAAS_ENV');
         $env = trim($envRaw ?: ($baseConfig['env'] ?? 'production'));

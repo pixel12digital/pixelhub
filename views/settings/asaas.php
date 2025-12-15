@@ -48,24 +48,45 @@ $baseUrl = pixelhub_url('');
             <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
                 Chave de API do Asaas <span style="color: #dc3545;">*</span>
             </label>
-            <input 
-                type="text" 
-                name="api_key" 
-                id="api_key"
-                value="<?= htmlspecialchars($apiKey ?? '') ?>" 
-                required
-                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px;"
-                placeholder="Cole sua chave de API do Asaas aqui"
-            />
-            <?php if (!empty($apiKeyMasked)): ?>
-                <div style="margin-top: 5px; font-size: 12px; color: #666;">
-                    <strong>Chave atual:</strong> <code><?= htmlspecialchars($apiKeyMasked) ?></code>
-                    <br><small>Digite uma nova chave para substituir</small>
+            <?php if ($hasApiKey ?? false): ?>
+                <div style="margin-bottom: 10px; padding: 10px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px; font-size: 13px; color: #155724;">
+                    <strong>✓ Chave de API configurada</strong>
+                    <br><small>A chave está criptografada e armazenada com segurança. Digite uma nova chave abaixo para substituir.</small>
+                </div>
+            <?php else: ?>
+                <div style="margin-bottom: 10px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; font-size: 13px; color: #856404;">
+                    <strong>⚠ Nenhuma chave configurada</strong>
+                    <br><small>Configure sua chave de API do Asaas para habilitar a integração.</small>
                 </div>
             <?php endif; ?>
+            <input 
+                type="password" 
+                name="api_key" 
+                id="api_key"
+                value="" 
+                required
+                autocomplete="new-password"
+                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px;"
+                placeholder="<?= ($hasApiKey ?? false) ? 'Digite a nova chave de API para substituir' : 'Cole sua chave de API do Asaas aqui' ?>"
+            />
+            <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                <input 
+                    type="checkbox" 
+                    id="show_api_key" 
+                    onchange="toggleApiKeyVisibility()"
+                    style="cursor: pointer;"
+                />
+                <label for="show_api_key" style="font-size: 13px; color: #666; cursor: pointer; margin: 0;">
+                    Mostrar chave enquanto digito
+                </label>
+            </div>
             <div style="margin-top: 8px; padding: 10px; background: #e7f3ff; border-left: 4px solid #2196F3; border-radius: 4px; font-size: 13px; color: #0c5460;">
                 <strong>💡 Dica:</strong> Você pode obter sua chave de API no painel do Asaas em 
                 <strong>Configurações → Integrações → API</strong>
+            </div>
+            <div style="margin-top: 8px; padding: 10px; background: #f8f9fa; border-left: 4px solid #6c757d; border-radius: 4px; font-size: 12px; color: #495057;">
+                <strong>🔒 Segurança:</strong> A chave será criptografada usando AES-256-CBC antes de ser armazenada no arquivo .env. 
+                Ela nunca será exibida em texto plano após ser salva.
             </div>
         </div>
 
@@ -132,7 +153,7 @@ $baseUrl = pixelhub_url('');
     <ul style="list-style: none; padding: 0; margin: 0;">
         <li style="margin-bottom: 10px; padding-left: 25px; position: relative;">
             <span style="position: absolute; left: 0;">🔒</span>
-            <strong>Segurança:</strong> A chave de API é armazenada no arquivo <code>.env</code> e não é exibida completamente por questões de segurança.
+            <strong>Segurança:</strong> A chave de API é criptografada usando AES-256-CBC antes de ser armazenada no arquivo <code>.env</code>. Ela nunca é exibida após ser salva e não pode ser recuperada em texto plano.
         </li>
         <li style="margin-bottom: 10px; padding-left: 25px; position: relative;">
             <span style="position: absolute; left: 0;">✅</span>
@@ -150,6 +171,18 @@ $baseUrl = pixelhub_url('');
 </div>
 
 <script>
+// Toggle para mostrar/ocultar a chave de API
+function toggleApiKeyVisibility() {
+    const input = document.getElementById('api_key');
+    const checkbox = document.getElementById('show_api_key');
+    
+    if (checkbox.checked) {
+        input.type = 'text';
+    } else {
+        input.type = 'password';
+    }
+}
+
 // Confirmação antes de salvar
 document.getElementById('asaas-settings-form').addEventListener('submit', function(e) {
     const apiKey = document.getElementById('api_key').value.trim();
@@ -160,7 +193,7 @@ document.getElementById('asaas-settings-form').addEventListener('submit', functi
         return false;
     }
     
-    if (!confirm('Tem certeza que deseja atualizar as configurações do Asaas?\n\nIsso pode afetar todas as operações de sincronização e cobrança.')) {
+    if (!confirm('Tem certeza que deseja atualizar as configurações do Asaas?\n\nA chave será criptografada e armazenada com segurança. Isso pode afetar todas as operações de sincronização e cobrança.')) {
         e.preventDefault();
         return false;
     }

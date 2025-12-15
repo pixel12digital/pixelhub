@@ -6,6 +6,7 @@ use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Services\AsaasConfig;
 use PixelHub\Core\Env;
+use PixelHub\Core\CryptoHelper;
 
 /**
  * Controller para gerenciar configurações do Asaas
@@ -23,25 +24,21 @@ class AsaasSettingsController extends Controller
 
         try {
             $config = AsaasConfig::getConfig();
-            $apiKey = $config['api_key'] ?? '';
+            // Não expõe a chave descriptografada na view
+            $hasApiKey = !empty($config['api_key']);
             $env = $config['env'] ?? 'production';
             $webhookToken = $config['webhook_token'] ?? '';
             
-            // Mascara a chave para exibição (mostra apenas últimos 4 caracteres)
-            $apiKeyMasked = $this->maskApiKey($apiKey);
-            
         } catch (\Exception $e) {
             // Se não conseguir carregar, mostra campos vazios
-            $apiKey = '';
-            $apiKeyMasked = '';
+            $hasApiKey = false;
             $env = 'production';
             $webhookToken = '';
             $error = $e->getMessage();
         }
 
         $this->view('settings.asaas', [
-            'apiKey' => $apiKey,
-            'apiKeyMasked' => $apiKeyMasked ?? '',
+            'hasApiKey' => $hasApiKey ?? false,
             'env' => $env ?? 'production',
             'webhookToken' => $webhookToken ?? '',
             'error' => $error ?? null,
@@ -72,9 +69,12 @@ class AsaasSettingsController extends Controller
         }
 
         try {
-            // Atualiza o arquivo .env
+            // Criptografa a chave de API antes de salvar
+            $apiKeyEncrypted = CryptoHelper::encrypt($apiKey);
+            
+            // Atualiza o arquivo .env com a chave criptografada
             $this->updateEnvFile([
-                'ASAAS_API_KEY' => $apiKey,
+                'ASAAS_API_KEY' => $apiKeyEncrypted,
                 'ASAAS_ENV' => $env,
                 'ASAAS_WEBHOOK_TOKEN' => $webhookToken,
             ]);
@@ -198,26 +198,5 @@ class AsaasSettingsController extends Controller
     }
 
 
-    /**
-     * Mascara a chave de API para exibição
-     */
-    private function maskApiKey(string $apiKey): string
-    {
-        if (empty($apiKey)) {
-            return '';
-        }
-
-        $length = strlen($apiKey);
-        if ($length <= 8) {
-            return str_repeat('*', $length);
-        }
-
-        // Mostra primeiros 4 e últimos 4 caracteres
-        $start = substr($apiKey, 0, 4);
-        $end = substr($apiKey, -4);
-        $middle = str_repeat('*', max(0, $length - 8));
-        
-        return $start . $middle . $end;
-    }
 }
 
