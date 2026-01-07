@@ -38,11 +38,23 @@ class AsaasConfig
         // Tenta descriptografar a chave (pode estar criptografada ou em texto plano para compatibilidade)
         $apiKey = '';
         if (!empty($apiKeyEncrypted)) {
-            // Detecta se parece ser uma chave criptografada (base64 longo)
-            $isLikelyEncrypted = strlen($apiKeyEncrypted) > 50 && (
-                strpos($apiKeyEncrypted, '$aact') === 0 || // Formato do Asaas
-                @base64_decode($apiKeyEncrypted, true) !== false // Base64 válido
-            );
+            // Detecta se parece ser uma chave criptografada
+            // Chaves do Asaas em texto plano começam com "$aact_" (ex: $aact_prod_...)
+            // Chaves criptografadas são base64 (sem $ no início) e muito mais longas
+            $isLikelyEncrypted = false;
+            
+            // Se começa com $aact_, é uma chave do Asaas em texto plano
+            if (strpos($apiKeyEncrypted, '$aact_') === 0) {
+                $isLikelyEncrypted = false; // É texto plano, não precisa descriptografar
+            } 
+            // Se é muito longa (>100 chars) e não começa com $, provavelmente é base64 criptografado
+            elseif (strlen($apiKeyEncrypted) > 100 && strpos($apiKeyEncrypted, '$') !== 0) {
+                // Testa se é base64 válido
+                $decoded = @base64_decode($apiKeyEncrypted, true);
+                if ($decoded !== false && strlen($decoded) > 16) {
+                    $isLikelyEncrypted = true;
+                }
+            }
             
             if ($isLikelyEncrypted) {
                 try {

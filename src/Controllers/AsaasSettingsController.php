@@ -226,16 +226,19 @@ class AsaasSettingsController extends Controller
                 // Verifica se a chave parece criptografada
                 $apiKeyRaw = $config['api_key'] ?? '';
                 $keyLength = strlen($apiKeyRaw);
-                $isLikelyEncrypted = $keyLength > 50;
+                $startsWithAsaas = strpos($apiKeyRaw, '$aact_') === 0;
+                $isLikelyEncrypted = !$startsWithAsaas && $keyLength > 100 && @base64_decode($apiKeyRaw, true) !== false;
+                
                 $logs[] = "🔑 Status da chave:";
                 $logs[] = "   - Tamanho: {$keyLength} caracteres";
-                $logs[] = "   - Parece criptografada: " . ($isLikelyEncrypted ? 'Sim ⚠️' : 'Não');
+                $logs[] = "   - Formato: " . ($startsWithAsaas ? 'Chave Asaas (texto plano) ✅' : ($isLikelyEncrypted ? 'Base64 (criptografada) ⚠️' : 'Texto plano'));
                 
-                if ($isLikelyEncrypted) {
+                if ($isLikelyEncrypted && !$startsWithAsaas) {
                     $logs[] = "⚠️ AVISO: A chave parece estar criptografada mas não foi descriptografada corretamente!";
-                    $logs[] = "💡 Se você vê caracteres estranhos (começando com $aact_ ou base64),";
-                    $logs[] = "   isso significa que a descriptografia falhou.";
+                    $logs[] = "💡 Isso pode acontecer se a INFRA_SECRET_KEY for diferente entre ambientes.";
                     $logs[] = "💡 SOLUÇÃO: Cole a chave de API do Asaas novamente e salve.";
+                } elseif ($startsWithAsaas) {
+                    $logs[] = "✅ Chave Asaas detectada em formato texto plano - pronta para uso!";
                 }
             } catch (\Exception $e) {
                 $logs[] = "❌ Erro ao carregar configuração: " . $e->getMessage();
@@ -277,8 +280,23 @@ class AsaasSettingsController extends Controller
                     return;
                 }
                 
-                // Verifica se parece ser uma chave criptografada (base64 normalmente tem mais de 50 caracteres)
-                $isEncrypted = strlen($apiKeyEncrypted) > 50 && (strpos($apiKeyEncrypted, '$') === 0 || base64_decode($apiKeyEncrypted, true) !== false);
+                // Detecta se parece ser uma chave criptografada
+                // Chaves do Asaas em texto plano começam com "$aact_" (ex: $aact_prod_...)
+                // Chaves criptografadas são base64 (sem $ no início) e muito mais longas
+                $isEncrypted = false;
+                
+                // Se começa com $aact_, é uma chave do Asaas em texto plano
+                if (strpos($apiKeyEncrypted, '$aact_') === 0) {
+                    $isEncrypted = false; // É texto plano, não precisa descriptografar
+                } 
+                // Se é muito longa (>100 chars) e não começa com $, provavelmente é base64 criptografado
+                elseif (strlen($apiKeyEncrypted) > 100 && strpos($apiKeyEncrypted, '$') !== 0) {
+                    // Testa se é base64 válido
+                    $decoded = @base64_decode($apiKeyEncrypted, true);
+                    if ($decoded !== false && strlen($decoded) > 16) {
+                        $isEncrypted = true;
+                    }
+                }
                 
                 $logs[] = "🔐 Status da chave:";
                 $logs[] = "   - Tamanho: " . strlen($apiKeyEncrypted) . " caracteres";
