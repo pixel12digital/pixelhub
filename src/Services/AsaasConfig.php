@@ -38,19 +38,35 @@ class AsaasConfig
         // Tenta descriptografar a chave (pode estar criptografada ou em texto plano para compatibilidade)
         $apiKey = '';
         if (!empty($apiKeyEncrypted)) {
-            try {
-                // Tenta descriptografar primeiro
-                $decrypted = CryptoHelper::decrypt($apiKeyEncrypted);
-                // Se descriptografou com sucesso e retornou algo, usa a versão descriptografada
-                // Se retornou vazio, pode ser que não seja criptografado (compatibilidade)
-                if (!empty($decrypted)) {
-                    $apiKey = $decrypted;
-                } else {
-                    // Retornou vazio, provavelmente não é criptografado
+            // Detecta se parece ser uma chave criptografada (base64 longo)
+            $isLikelyEncrypted = strlen($apiKeyEncrypted) > 50 && (
+                strpos($apiKeyEncrypted, '$aact') === 0 || // Formato do Asaas
+                @base64_decode($apiKeyEncrypted, true) !== false // Base64 válido
+            );
+            
+            if ($isLikelyEncrypted) {
+                try {
+                    // Tenta descriptografar
+                    $decrypted = CryptoHelper::decrypt($apiKeyEncrypted);
+                    if (!empty($decrypted)) {
+                        $apiKey = $decrypted;
+                    } else {
+                        // Se retornou vazio após descriptografar, algo está errado
+                        // Mas pode ser que a chave real do Asaas seja curta, então tentamos usar direto
+                        error_log('[ASAAS WARNING] Chave parece criptografada mas descriptografia retornou vazio');
+                        $apiKey = $apiKeyEncrypted;
+                    }
+                } catch (\Exception $e) {
+                    // Se falhar ao descriptografar, pode ser problema com INFRA_SECRET_KEY
+                    error_log('[ASAAS ERROR] Falha ao descriptografar chave: ' . $e->getMessage());
+                    error_log('[ASAAS ERROR] A chave no .env está criptografada mas não pode ser descriptografada.');
+                    error_log('[ASAAS ERROR] Possível causa: INFRA_SECRET_KEY foi alterada após criptografar a chave.');
+                    // Usa a chave criptografada mesmo assim - isso resultará em erro 401 claro
+                    // que será tratado pelo teste de conexão
                     $apiKey = $apiKeyEncrypted;
                 }
-            } catch (\Exception $e) {
-                // Se falhar ao descriptografar, assume que está em texto plano (compatibilidade com instalações antigas)
+            } else {
+                // Não parece criptografada, usa como texto plano
                 $apiKey = $apiKeyEncrypted;
             }
         }

@@ -45,10 +45,14 @@ class AsaasBillingService
         $name = $tenant['name'] ?? '';
         $email = $tenant['email'] ?? null;
         $phone = $tenant['phone'] ?? null;
+        $phoneFixed = $tenant['phone_fixed'] ?? null;
 
         // Remove formatação do telefone
         if ($phone) {
             $phone = preg_replace('/[^0-9]/', '', $phone);
+        }
+        if ($phoneFixed) {
+            $phoneFixed = preg_replace('/[^0-9]/', '', $phoneFixed);
         }
 
         // Tenta buscar customer existente no Asaas
@@ -68,6 +72,12 @@ class AsaasBillingService
             if (!empty($phone) && ($asaasCustomer['phone'] ?? '') !== $phone) {
                 $updateData['phone'] = $phone;
             }
+            
+            // Monta endereço completo se disponível
+            $addressData = self::buildAddressData($tenant);
+            if (!empty($addressData)) {
+                $updateData = array_merge($updateData, $addressData);
+            }
 
             if (!empty($updateData)) {
                 AsaasClient::updateCustomer($customerId, $updateData);
@@ -86,6 +96,9 @@ class AsaasBillingService
             if ($phone) {
                 $customerData['phone'] = $phone;
             }
+            if ($phoneFixed) {
+                $customerData['phone'] = $phoneFixed; // Asaas pode ter apenas um campo phone
+            }
 
             // Para PJ, adiciona campos específicos
             if ($personType === 'COMPANY') {
@@ -95,6 +108,12 @@ class AsaasBillingService
                 if (!empty($tenant['nome_fantasia'])) {
                     $customerData['name'] = $tenant['nome_fantasia'];
                 }
+            }
+            
+            // Adiciona endereço se disponível
+            $addressData = self::buildAddressData($tenant);
+            if (!empty($addressData)) {
+                $customerData = array_merge($customerData, $addressData);
             }
 
             $asaasCustomer = AsaasClient::createCustomer($customerData);
@@ -106,6 +125,122 @@ class AsaasBillingService
         $stmt->execute([$customerId, $tenant['id']]);
 
         return $customerId;
+    }
+
+    /**
+     * Monta dados de endereço no formato do Asaas
+     * 
+     * @param array $tenant Dados do tenant
+     * @return array Dados de endereço ou array vazio se não houver endereço completo
+     */
+    private static function buildAddressData(array $tenant): array
+    {
+        $cep = preg_replace('/[^0-9]/', '', $tenant['address_cep'] ?? '');
+        $street = trim($tenant['address_street'] ?? '');
+        $number = trim($tenant['address_number'] ?? '');
+        $complement = trim($tenant['address_complement'] ?? '');
+        $neighborhood = trim($tenant['address_neighborhood'] ?? '');
+        $city = trim($tenant['address_city'] ?? '');
+        $state = strtoupper(trim($tenant['address_state'] ?? ''));
+
+        // Retorna array vazio se não tiver pelo menos CEP, rua e cidade
+        if (empty($cep) || empty($street) || empty($city)) {
+            return [];
+        }
+
+        $addressData = [
+            'postalCode' => $cep,
+            'address' => $street,
+            'addressNumber' => $number ?: 'S/N',
+            'complement' => $complement ?: null,
+            'province' => $neighborhood ?: null,
+            'city' => $city,
+        ];
+
+        if (!empty($state) && strlen($state) === 2) {
+            $addressData['state'] = $state;
+        }
+
+        // Remove valores vazios/null
+        return array_filter($addressData, function($value) {
+            return $value !== null && $value !== '';
+        });
+    }
+
+    /**
+     * Sincroniza dados do tenant para o Asaas (sistema → Asaas)
+     * 
+     * Atualiza os dados do customer no Asaas com as informações do tenant.
+     * Usado quando o cliente é editado no sistema e precisa ser atualizado no Asaas.
+     * 
+     * @param array $tenant Dados completos do tenant
+     * @return void
+     * @throws \RuntimeException Se tenant não possui asaas_customer_id
+     */
+    public static function syncCustomerDataToAsaas(array $tenant): void
+    {
+        if (empty($tenant['asaas_customer_id'])) {
+            throw new \RuntimeException('Tenant não possui asaas_customer_id');
+        }
+
+        $customerId = $tenant['asaas_customer_id'];
+        
+        // Prepara dados para atualização
+        $updateData = [];
+        
+        $name = $tenant['name'] ?? '';
+        $email = $tenant['email'] ?? null;
+        $phone = $tenant['phone'] ?? null;
+        $phoneFixed = $tenant['phone_fixed'] ?? null;
+        
+        // Remove formatação do telefone
+        if ($phone) {
+            $phone = preg_replace('/[^0-9]/', '', $phone);
+        }
+        if ($phoneFixed) {
+            $phoneFixed = preg_replace('/[^0-9]/', '', $phoneFixed);
+        }
+        
+        if (!empty($name)) {
+            $updateData['name'] = $name;
+        }
+        
+        if (!empty($email)) {
+            $updateData['email'] = $email;
+        }
+        
+        // Prioriza telefone fixo se existir, senão usa celular
+        if (!empty($phoneFixed)) {
+            $updateData['phone'] = $phoneFixed;
+        } elseif (!empty($phone)) {
+            $updateData['phone'] = $phone;
+        }
+        
+        // Para PJ, atualiza companyName se existir
+        if (($tenant['person_type'] ?? 'pf') === 'pj') {
+            if (!empty($tenant['razao_social'])) {
+                $updateData['companyName'] = $tenant['razao_social'];
+            }
+            if (!empty($tenant['nome_fantasia'])) {
+                $updateData['name'] = $tenant['nome_fantasia'];
+            }
+        }
+        
+        // Adiciona endereço se disponível
+        $addressData = self::buildAddressData($tenant);
+        if (!empty($addressData)) {
+            $updateData = array_merge($updateData, $addressData);
+        }
+        
+        // Atualiza no Asaas se houver dados para atualizar
+        if (!empty($updateData)) {
+            try {
+                AsaasClient::updateCustomer($customerId, $updateData);
+            } catch (\Exception $e) {
+                error_log("Erro ao atualizar customer no Asaas (ID: {$customerId}): " . $e->getMessage());
+                throw new \RuntimeException('Erro ao atualizar cliente no Asaas: ' . $e->getMessage());
+            }
+        }
     }
 
     /**

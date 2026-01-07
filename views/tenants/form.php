@@ -80,11 +80,22 @@ $hasAsaasCustomerId = !empty($tenant['asaas_customer_id'] ?? null);
 
                 <div style="margin-bottom: 15px;">
                     <label for="cpf_pf" style="display: block; margin-bottom: 5px; font-weight: 600;">CPF *</label>
-                    <input type="text" id="cpf_pf" name="cpf_pf" 
-                           value="<?= htmlspecialchars($personType === 'pf' && $tenant ? ($tenant['cpf_cnpj'] ?? '') : '') ?>" 
-                           placeholder="000.000.000-00"
-                           <?= $hasAsaasCustomerId ? 'readonly' : '' ?>
-                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; <?= $hasAsaasCustomerId ? 'background: #f5f5f5; cursor: not-allowed;' : '' ?>">
+                    <div style="display: flex; gap: 10px; align-items: flex-start;">
+                        <input type="text" id="cpf_pf" name="cpf_pf" 
+                               value="<?= htmlspecialchars($personType === 'pf' && $tenant ? ($tenant['cpf_cnpj'] ?? '') : '') ?>" 
+                               placeholder="000.000.000-00"
+                               <?= $hasAsaasCustomerId ? 'readonly' : '' ?>
+                               onblur="<?= !$hasAsaasCustomerId ? 'checkClientExistsInAsaas()' : '' ?>"
+                               style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; <?= $hasAsaasCustomerId ? 'background: #f5f5f5; cursor: not-allowed;' : '' ?>">
+                        <span id="cpf-checking" style="display: none; color: #023A8D; padding: 8px; font-size: 14px; white-space: nowrap;">
+                            <span style="display: inline-block; width: 16px; height: 16px; border: 2px solid #023A8D; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 5px;"></span>
+                            Verificando...
+                        </span>
+                    </div>
+                    <small style="color: #666; font-size: 12px; display: block; margin-top: 5px;">
+                        <?= $hasAsaasCustomerId ? 'Campo bloqueado - cliente sincronizado com Asaas' : 'Verificando automaticamente se cliente já existe no Asaas' ?>
+                    </small>
+                    <div id="asaas-check-result" style="display: none; margin-top: 10px;"></div>
                 </div>
             </div>
         </div>
@@ -119,11 +130,22 @@ $hasAsaasCustomerId = !empty($tenant['asaas_customer_id'] ?? null);
 
                 <div style="margin-bottom: 15px;">
                     <label for="cnpj" style="display: block; margin-bottom: 5px; font-weight: 600;">CNPJ *</label>
-                    <input type="text" id="cnpj" name="cnpj" 
-                           value="<?= htmlspecialchars($personType === 'pj' && $tenant ? ($tenant['cpf_cnpj'] ?? '') : '') ?>" 
-                           placeholder="00.000.000/0000-00"
-                           <?= $hasAsaasCustomerId ? 'readonly' : '' ?>
-                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; <?= $hasAsaasCustomerId ? 'background: #f5f5f5; cursor: not-allowed;' : '' ?>">
+                    <div style="display: flex; gap: 10px; align-items: flex-start;">
+                        <input type="text" id="cnpj" name="cnpj" 
+                               value="<?= htmlspecialchars($personType === 'pj' && $tenant ? ($tenant['cpf_cnpj'] ?? '') : '') ?>" 
+                               placeholder="00.000.000/0000-00"
+                               <?= $hasAsaasCustomerId ? 'readonly' : '' ?>
+                               onblur="<?= !$hasAsaasCustomerId ? 'checkClientExistsInAsaas()' : '' ?>"
+                               style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; <?= $hasAsaasCustomerId ? 'background: #f5f5f5; cursor: not-allowed;' : '' ?>">
+                        <span id="cnpj-checking" style="display: none; color: #023A8D; padding: 8px; font-size: 14px; white-space: nowrap;">
+                            <span style="display: inline-block; width: 16px; height: 16px; border: 2px solid #023A8D; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 5px;"></span>
+                            Verificando...
+                        </span>
+                    </div>
+                    <small style="color: #666; font-size: 12px; display: block; margin-top: 5px;">
+                        <?= $hasAsaasCustomerId ? 'Campo bloqueado - cliente sincronizado com Asaas' : 'Verificando automaticamente se cliente já existe no Asaas' ?>
+                    </small>
+                    <div id="asaas-check-result" style="display: none; margin-top: 10px;"></div>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
@@ -165,6 +187,90 @@ $hasAsaasCustomerId = !empty($tenant['asaas_customer_id'] ?? null);
                            placeholder="(00) 00000-0000"
                            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                     <small style="color: #666; font-size: 12px;">Campo interno - pode ser editado livremente</small>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <label for="phone_fixed" style="display: block; margin-bottom: 5px; font-weight: 600;">Telefone Fixo</label>
+                    <input type="text" id="phone_fixed" name="phone_fixed" 
+                           value="<?= htmlspecialchars($tenant['phone_fixed'] ?? '') ?>" 
+                           placeholder="(00) 0000-0000"
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+            </div>
+
+            <!-- Endereço -->
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee;">
+                <h3 style="margin: 0 0 15px 0; font-size: 16px;">Endereço</h3>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="address_cep" style="display: block; margin-bottom: 5px; font-weight: 600;">CEP</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="address_cep" name="address_cep" 
+                               value="<?= htmlspecialchars($tenant['address_cep'] ?? '') ?>" 
+                               placeholder="00000-000"
+                               maxlength="9"
+                               style="flex: 0 0 150px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <button type="button" id="btn-buscar-cep" 
+                                style="background: #023A8D; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;"
+                                onclick="buscarCep()">
+                            Buscar CEP
+                        </button>
+                        <span id="cep-loading" style="display: none; color: #023A8D; padding: 8px; font-size: 14px;">Buscando...</span>
+                        <span id="cep-error" style="display: none; color: #c33; padding: 8px; font-size: 14px;"></span>
+                    </div>
+                    <small style="color: #666; font-size: 12px;">Digite o CEP e clique em buscar para preencher automaticamente</small>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label for="address_street" style="display: block; margin-bottom: 5px; font-weight: 600;">Rua / Logradouro</label>
+                        <input type="text" id="address_street" name="address_street" 
+                               value="<?= htmlspecialchars($tenant['address_street'] ?? '') ?>" 
+                               placeholder="Nome da rua"
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div>
+                        <label for="address_number" style="display: block; margin-bottom: 5px; font-weight: 600;">Número</label>
+                        <input type="text" id="address_number" name="address_number" 
+                               value="<?= htmlspecialchars($tenant['address_number'] ?? '') ?>" 
+                               placeholder="123"
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label for="address_complement" style="display: block; margin-bottom: 5px; font-weight: 600;">Complemento</label>
+                    <input type="text" id="address_complement" name="address_complement" 
+                           value="<?= htmlspecialchars($tenant['address_complement'] ?? '') ?>" 
+                           placeholder="Apto, Sala, etc."
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label for="address_neighborhood" style="display: block; margin-bottom: 5px; font-weight: 600;">Bairro</label>
+                        <input type="text" id="address_neighborhood" name="address_neighborhood" 
+                               value="<?= htmlspecialchars($tenant['address_neighborhood'] ?? '') ?>" 
+                               placeholder="Nome do bairro"
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div>
+                        <label for="address_city" style="display: block; margin-bottom: 5px; font-weight: 600;">Cidade</label>
+                        <input type="text" id="address_city" name="address_city" 
+                               value="<?= htmlspecialchars($tenant['address_city'] ?? '') ?>" 
+                               placeholder="Nome da cidade"
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div>
+                        <label for="address_state" style="display: block; margin-bottom: 5px; font-weight: 600;">Estado (UF)</label>
+                        <input type="text" id="address_state" name="address_state" 
+                               value="<?= htmlspecialchars($tenant['address_state'] ?? '') ?>" 
+                               placeholder="SP"
+                               maxlength="2"
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; text-transform: uppercase;">
+                    </div>
                 </div>
             </div>
 
@@ -253,6 +359,180 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Inicializa na carga da página
     toggleGroups();
+});
+
+// Busca automática no Asaas
+let asaasCustomerData = null;
+let canCreateClient = true;
+
+function checkClientExistsInAsaas() {
+    const personType = document.getElementById('person_type').value;
+    const cpfInput = document.getElementById('cpf_pf');
+    const cnpjInput = document.getElementById('cnpj');
+    const resultDiv = document.getElementById('asaas-check-result');
+    const checkingPf = document.getElementById('cpf-checking');
+    const checkingPj = document.getElementById('cnpj-checking');
+    
+    // Limpa resultado anterior
+    resultDiv.innerHTML = '';
+    resultDiv.style.display = 'none';
+    asaasCustomerData = null;
+    canCreateClient = true;
+    
+    let cpfCnpj = '';
+    if (personType === 'pf') {
+        cpfCnpj = cpfInput.value.replace(/\D/g, '');
+        if (cpfCnpj.length < 11) {
+            return; // CPF incompleto, não faz busca
+        }
+        checkingPf.style.display = 'inline-block';
+        checkingPj.style.display = 'none';
+    } else {
+        cpfCnpj = cnpjInput.value.replace(/\D/g, '');
+        if (cpfCnpj.length < 14) {
+            return; // CNPJ incompleto, não faz busca
+        }
+        checkingPj.style.display = 'inline-block';
+        checkingPf.style.display = 'none';
+    }
+    
+    if (cpfCnpj.length < 11) {
+        checkingPf.style.display = 'none';
+        checkingPj.style.display = 'none';
+        return;
+    }
+    
+    // Busca no sistema e no Asaas
+    fetch('<?= pixelhub_url('/tenants/check-asaas') ?>', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+            cpf_cnpj: cpfCnpj
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        checkingPf.style.display = 'none';
+        checkingPj.style.display = 'none';
+        
+        resultDiv.style.display = 'block';
+        
+        if (data.error) {
+            resultDiv.className = 'alert alert-warning';
+            resultDiv.innerHTML = '<strong>Erro:</strong> ' + data.error;
+            canCreateClient = false;
+            return;
+        }
+        
+        // Cliente já existe no sistema
+        if (data.exists_in_system) {
+            resultDiv.className = 'alert alert-warning';
+            resultDiv.style.background = '#f8d7da';
+            resultDiv.style.border = '1px solid #f5c6cb';
+            resultDiv.style.color = '#721c24';
+            let message = '<strong>⚠️ Cliente já cadastrado no sistema!</strong><br>';
+            message += 'Nome: <strong>' + (data.system_name || 'N/A') + '</strong><br>';
+            if (data.asaas_customer_id) {
+                message += '<small>Já vinculado ao Asaas</small>';
+            }
+            message += '<br><br><small><a href="<?= pixelhub_url('/tenants/view?id=') ?>' + data.system_id + '">Ver cliente existente</a></small>';
+            resultDiv.innerHTML = message;
+            canCreateClient = false;
+            return;
+        }
+        
+        // Cliente existe no Asaas mas não no sistema
+        if (data.exists_in_asaas) {
+            asaasCustomerData = data.asaas_data;
+            resultDiv.className = 'alert alert-warning';
+            resultDiv.style.background = '#fff3cd';
+            resultDiv.style.border = '1px solid #ffeaa7';
+            resultDiv.style.color = '#856404';
+            
+            let message = '<strong>⚠️ Cliente encontrado no Asaas!</strong><br>';
+            message += 'Nome: <strong>' + (data.asaas_data.name || 'N/A') + '</strong><br>';
+            if (data.asaas_data.email) {
+                message += 'Email: ' + data.asaas_data.email + '<br>';
+            }
+            if (data.asaas_data.phone) {
+                message += 'Telefone: ' + data.asaas_data.phone + '<br>';
+            }
+            message += '<br><button type="button" onclick="importFromAsaas()" style="background: #023A8D; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; margin-top: 10px;">';
+            message += 'Importar Dados do Asaas';
+            message += '</button>';
+            message += '<br><small style="display: block; margin-top: 10px;">Ou continue preenchendo manualmente (não recomendado)</small>';
+            resultDiv.innerHTML = message;
+            
+            canCreateClient = true;
+            return;
+        }
+        
+        // Cliente não existe - OK para criar
+        resultDiv.className = 'alert alert-info';
+        resultDiv.style.background = '#d4edda';
+        resultDiv.style.border = '1px solid #c3e6cb';
+        resultDiv.style.color = '#155724';
+        resultDiv.innerHTML = '<strong>✅ Cliente não encontrado</strong><br><small>Pode prosseguir com o cadastro normalmente.</small>';
+        canCreateClient = true;
+    })
+    .catch(error => {
+        checkingPf.style.display = 'none';
+        checkingPj.style.display = 'none';
+        console.error('Erro ao verificar cliente:', error);
+    });
+}
+
+function importFromAsaas() {
+    if (!asaasCustomerData) {
+        return;
+    }
+    
+    const data = asaasCustomerData;
+    const personType = document.getElementById('person_type').value;
+    
+    // Preenche campos automaticamente
+    if (personType === 'pf') {
+        document.getElementById('nome_pf').value = data.name || '';
+    } else {
+        document.getElementById('razao_social').value = data.companyName || data.name || '';
+        if (data.name && data.name !== data.companyName) {
+            document.getElementById('nome_fantasia').value = data.name;
+        }
+    }
+    
+    if (data.email) {
+        document.getElementById('email').value = data.email;
+    }
+    
+    if (data.phone || data.mobilePhone) {
+        document.getElementById('phone').value = data.phone || data.mobilePhone;
+    }
+    
+    // Cria campo hidden para asaas_customer_id
+    if (!document.getElementById('asaas_customer_id_hidden')) {
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.id = 'asaas_customer_id_hidden';
+        hiddenInput.name = 'asaas_customer_id';
+        hiddenInput.value = data.id;
+        document.getElementById('tenantForm').appendChild(hiddenInput);
+    } else {
+        document.getElementById('asaas_customer_id_hidden').value = data.id;
+    }
+    
+    // Esconde mensagem de aviso e mostra sucesso
+    const resultDiv = document.getElementById('asaas-check-result');
+    resultDiv.style.background = '#d4edda';
+    resultDiv.style.border = '1px solid #c3e6cb';
+    resultDiv.style.color = '#155724';
+    resultDiv.innerHTML = '<strong>✅ Dados importados do Asaas!</strong><br><small>Revise os dados e clique em "Salvar" para continuar.</small>';
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
     
     // Validação antes de enviar
     form.addEventListener('submit', function(e) {
@@ -278,6 +558,82 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+});
+
+// Integração ViaCEP
+function formatarCEP(cep) {
+    cep = cep.replace(/\D/g, '');
+    if (cep.length === 8) {
+        return cep.substring(0, 5) + '-' + cep.substring(5);
+    }
+    return cep;
+}
+
+function buscarCep() {
+    const cepInput = document.getElementById('address_cep');
+    const cep = cepInput.value.replace(/\D/g, '');
+    const loadingSpan = document.getElementById('cep-loading');
+    const errorSpan = document.getElementById('cep-error');
+    const btnBuscar = document.getElementById('btn-buscar-cep');
+    
+    if (cep.length !== 8) {
+        errorSpan.textContent = 'CEP deve ter 8 dígitos';
+        errorSpan.style.display = 'inline';
+        setTimeout(() => { errorSpan.style.display = 'none'; }, 3000);
+        return;
+    }
+    
+    loadingSpan.style.display = 'inline';
+    errorSpan.style.display = 'none';
+    btnBuscar.disabled = true;
+    
+    fetch(`https://viacep.com.br/ws/${cep}/json/`)
+        .then(response => response.json())
+        .then(data => {
+            loadingSpan.style.display = 'none';
+            btnBuscar.disabled = false;
+            
+            if (data.erro) {
+                errorSpan.textContent = 'CEP não encontrado';
+                errorSpan.style.display = 'inline';
+                setTimeout(() => { errorSpan.style.display = 'none'; }, 3000);
+                return;
+            }
+            
+            // Preenche campos automaticamente
+            document.getElementById('address_street').value = data.logradouro || '';
+            document.getElementById('address_neighborhood').value = data.bairro || '';
+            document.getElementById('address_city').value = data.localidade || '';
+            document.getElementById('address_state').value = data.uf || '';
+            
+            // Foca no campo número para o usuário preencher
+            document.getElementById('address_number').focus();
+        })
+        .catch(error => {
+            loadingSpan.style.display = 'none';
+            btnBuscar.disabled = false;
+            errorSpan.textContent = 'Erro ao buscar CEP. Tente novamente.';
+            errorSpan.style.display = 'inline';
+            setTimeout(() => { errorSpan.style.display = 'none'; }, 3000);
+        });
+}
+
+// Formata CEP ao digitar
+document.addEventListener('DOMContentLoaded', function() {
+    const cepInput = document.getElementById('address_cep');
+    if (cepInput) {
+        cepInput.addEventListener('input', function(e) {
+            e.target.value = formatarCEP(e.target.value);
+        });
+        
+        // Busca CEP ao pressionar Enter
+        cepInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                buscarCep();
+            }
+        });
+    }
 });
 </script>
 

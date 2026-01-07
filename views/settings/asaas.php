@@ -128,7 +128,7 @@ $baseUrl = pixelhub_url('');
             </div>
         </div>
 
-        <div style="display: flex; gap: 10px; margin-top: 30px;">
+        <div style="display: flex; gap: 10px; margin-top: 30px; flex-wrap: wrap;">
             <button 
                 type="submit" 
                 style="padding: 12px 24px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px;"
@@ -136,6 +136,17 @@ $baseUrl = pixelhub_url('');
                 onmouseout="this.style.background='#023A8D'"
             >
                 Salvar Configurações
+            </button>
+            <button 
+                type="button" 
+                id="test-connection-btn"
+                onclick="testAsaasConnection()"
+                style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 8px;"
+                onmouseover="this.style.background='#218838'"
+                onmouseout="this.style.background='#28a745'"
+            >
+                <span id="test-btn-icon">🔍</span>
+                <span id="test-btn-text">Testar Conexão</span>
             </button>
             <a 
                 href="<?= pixelhub_url('/billing/overview') ?>" 
@@ -145,6 +156,21 @@ $baseUrl = pixelhub_url('');
             </a>
         </div>
     </form>
+</div>
+
+<!-- Resultado do Teste -->
+<div id="test-result-container" style="display: none; margin-top: 25px;">
+    <div class="card" id="test-result-card">
+        <h3 style="margin-bottom: 15px; color: #333; font-size: 16px; display: flex; align-items: center; gap: 10px;">
+            <span id="test-result-icon">📊</span>
+            <span id="test-result-title">Resultado do Teste</span>
+        </h3>
+        <div id="test-result-message" style="margin-bottom: 15px; padding: 12px; border-radius: 4px; font-weight: 600;"></div>
+        <div id="test-result-logs" style="background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6; max-height: 500px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;"></div>
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
+            <strong>Dica:</strong> Os logs acima mostram detalhes técnicos da conexão. Em caso de erro, verifique cada etapa do processo.
+        </div>
+    </div>
 </div>
 
 <!-- Informações Adicionais -->
@@ -198,6 +224,105 @@ document.getElementById('asaas-settings-form').addEventListener('submit', functi
         return false;
     }
 });
+
+// Função para testar conexão com Asaas
+function testAsaasConnection() {
+    const btn = document.getElementById('test-connection-btn');
+    const btnIcon = document.getElementById('test-btn-icon');
+    const btnText = document.getElementById('test-btn-text');
+    const resultContainer = document.getElementById('test-result-container');
+    const resultCard = document.getElementById('test-result-card');
+    const resultIcon = document.getElementById('test-result-icon');
+    const resultTitle = document.getElementById('test-result-title');
+    const resultMessage = document.getElementById('test-result-message');
+    const resultLogs = document.getElementById('test-result-logs');
+
+    // Desabilita botão e mostra loading
+    btn.disabled = true;
+    btn.style.opacity = '0.7';
+    btn.style.cursor = 'not-allowed';
+    btnIcon.textContent = '⏳';
+    btnText.textContent = 'Testando...';
+
+    // Limpa resultados anteriores
+    resultContainer.style.display = 'block';
+    resultMessage.innerHTML = '⏳ Testando conexão com Asaas...';
+    resultMessage.style.background = '#fff3cd';
+    resultMessage.style.color = '#856404';
+    resultMessage.style.borderLeft = '4px solid #ffc107';
+    resultLogs.textContent = 'Aguardando resposta do servidor...\n';
+    resultCard.style.borderLeft = '4px solid #ffc107';
+
+    // Faz requisição AJAX
+    fetch('<?= pixelhub_url('/settings/asaas/test') ?>', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => {
+        return response.json().then(data => ({
+            status: response.status,
+            data: data
+        }));
+    })
+    .then(({status, data}) => {
+        // Restaura botão
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btnIcon.textContent = '🔍';
+        btnText.textContent = 'Testar Conexão';
+
+        // Atualiza resultado
+        if (data.success) {
+            resultIcon.textContent = '✅';
+            resultTitle.textContent = 'Teste Concluído com Sucesso';
+            resultMessage.innerHTML = '<strong>✅ ' + data.message + '</strong><br><small>Código HTTP: ' + (data.http_code || 'N/A') + ' | Tempo: ' + (data.duration_ms || 'N/A') + 'ms</small>';
+            resultMessage.style.background = '#d4edda';
+            resultMessage.style.color = '#155724';
+            resultMessage.style.borderLeft = '4px solid #28a745';
+            resultCard.style.borderLeft = '4px solid #28a745';
+        } else {
+            resultIcon.textContent = '❌';
+            resultTitle.textContent = 'Teste Falhou';
+            resultMessage.innerHTML = '<strong>❌ ' + data.message + '</strong><br><small>Código HTTP: ' + (data.http_code || 'N/A') + '</small>';
+            resultMessage.style.background = '#f8d7da';
+            resultMessage.style.color = '#721c24';
+            resultMessage.style.borderLeft = '4px solid #dc3545';
+            resultCard.style.borderLeft = '4px solid #dc3545';
+        }
+
+        // Exibe logs
+        if (data.logs && Array.isArray(data.logs)) {
+            resultLogs.textContent = data.logs.join('\n');
+        } else {
+            resultLogs.textContent = JSON.stringify(data, null, 2);
+        }
+
+        // Scroll para o resultado
+        resultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    })
+    .catch(error => {
+        // Restaura botão
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btnIcon.textContent = '🔍';
+        btnText.textContent = 'Testar Conexão';
+
+        // Exibe erro
+        resultIcon.textContent = '❌';
+        resultTitle.textContent = 'Erro no Teste';
+        resultMessage.innerHTML = '<strong>❌ Erro ao realizar teste</strong><br><small>' + error.message + '</small>';
+        resultMessage.style.background = '#f8d7da';
+        resultMessage.style.color = '#721c24';
+        resultMessage.style.borderLeft = '4px solid #dc3545';
+        resultCard.style.borderLeft = '4px solid #dc3545';
+        resultLogs.textContent = 'Erro: ' + error.message + '\n\nDetalhes técnicos:\n' + error.stack;
+    });
+}
 </script>
 
 <?php

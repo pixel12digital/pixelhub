@@ -389,6 +389,100 @@ class TenantsController extends Controller
     /**
      * Salva novo cliente
      */
+    /**
+     * Verifica se cliente existe no sistema ou no Asaas (AJAX)
+     */
+    public function checkAsaas(): void
+    {
+        Auth::requireInternal();
+        
+        $input = json_decode(file_get_contents('php://input'), true);
+        $cpfCnpj = preg_replace('/[^0-9]/', '', $input['cpf_cnpj'] ?? '');
+        
+        if (empty($cpfCnpj)) {
+            $this->json(['error' => 'CPF/CNPJ não informado'], 400);
+            return;
+        }
+        
+        $db = DB::getConnection();
+        
+        // Verifica se já existe no sistema
+        $stmt = $db->prepare("
+            SELECT id, name, asaas_customer_id 
+            FROM tenants 
+            WHERE cpf_cnpj = ? OR document = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$cpfCnpj, $cpfCnpj]);
+        $existingTenant = $stmt->fetch();
+        
+        if ($existingTenant) {
+            $this->json([
+                'exists_in_system' => true,
+                'system_name' => $existingTenant['name'],
+                'system_id' => $existingTenant['id'],
+                'asaas_customer_id' => $existingTenant['asaas_customer_id']
+            ]);
+            return;
+        }
+        
+        // Verifica se existe no Asaas
+        try {
+            $asaasCustomer = \PixelHub\Services\AsaasClient::findCustomerByCpfCnpj($cpfCnpj);
+            
+            if ($asaasCustomer) {
+                // Verifica se este customer_id já está vinculado a outro tenant
+                $stmt = $db->prepare("SELECT id, name FROM tenants WHERE asaas_customer_id = ?");
+                $stmt->execute([$asaasCustomer['id']]);
+                $linkedTenant = $stmt->fetch();
+                
+                if ($linkedTenant) {
+                    $this->json([
+                        'exists_in_system' => true,
+                        'system_name' => $linkedTenant['name'],
+                        'system_id' => $linkedTenant['id'],
+                        'asaas_customer_id' => $asaasCustomer['id'],
+                        'message' => 'Este cliente do Asaas já está vinculado a outro cliente no sistema'
+                    ]);
+                    return;
+                }
+                
+                $this->json([
+                    'exists_in_asaas' => true,
+                    'exists_in_system' => false,
+                    'asaas_data' => $asaasCustomer
+                ]);
+                return;
+            }
+            
+            // Não existe em nenhum lugar
+            $this->json([
+                'exists_in_asaas' => false,
+                'exists_in_system' => false
+            ]);
+            
+        } catch (\Exception $e) {
+            error_log("Erro ao verificar cliente no Asaas: " . $e->getMessage());
+            
+            $errorMessage = 'Erro ao verificar cliente no Asaas';
+            
+            // Mensagens mais amigáveis para erros comuns
+            if (strpos($e->getMessage(), '401') !== false || strpos($e->getMessage(), 'inválida') !== false) {
+                $errorMessage = 'Chave de API do Asaas inválida ou não configurada. Verifique as configurações em Configurações → Configurações Asaas.';
+            } elseif (strpos($e->getMessage(), '403') !== false) {
+                $errorMessage = 'Acesso negado ao Asaas. Verifique se sua chave de API tem permissões necessárias.';
+            } elseif (strpos($e->getMessage(), 'não está configurado') !== false) {
+                $errorMessage = 'Asaas não está configurado. Configure a chave de API em Configurações → Configurações Asaas.';
+            } else {
+                $errorMessage = 'Erro ao conectar com Asaas: ' . $e->getMessage();
+            }
+            
+            $this->json([
+                'error' => $errorMessage
+            ], 500);
+        }
+    }
+
     public function store(): void
     {
         Auth::requireInternal();
@@ -399,8 +493,18 @@ class TenantsController extends Controller
         $personType = $_POST['person_type'] ?? '';
         $email = trim($_POST['email'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
+        $phoneFixed = trim($_POST['phone_fixed'] ?? '');
         $status = $_POST['status'] ?? 'active';
         $createHosting = isset($_POST['create_hosting']) && $_POST['create_hosting'] == '1';
+        
+        // Campos de endereço
+        $addressCep = trim($_POST['address_cep'] ?? '');
+        $addressStreet = trim($_POST['address_street'] ?? '');
+        $addressNumber = trim($_POST['address_number'] ?? '');
+        $addressComplement = trim($_POST['address_complement'] ?? '');
+        $addressNeighborhood = trim($_POST['address_neighborhood'] ?? '');
+        $addressCity = trim($_POST['address_city'] ?? '');
+        $addressState = strtoupper(trim($_POST['address_state'] ?? ''));
 
         // Validações
         if (!in_array($personType, ['pf', 'pj'])) {
@@ -445,13 +549,19 @@ class TenantsController extends Controller
             }
         }
 
+        // Verifica se veio asaas_customer_id do formulário (importação do Asaas)
+        $asaasCustomerId = trim($_POST['asaas_customer_id'] ?? '') ?: null;
+
         // Insere no banco
         try {
             $stmt = $db->prepare("
                 INSERT INTO tenants 
                 (person_type, name, cpf_cnpj, razao_social, nome_fantasia, 
-                 responsavel_nome, responsavel_cpf, email, phone, document, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                 responsavel_nome, responsavel_cpf, email, phone, phone_fixed, 
+                 address_cep, address_street, address_number, address_complement, 
+                 address_neighborhood, address_city, address_state,
+                 document, asaas_customer_id, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             ");
 
             $stmt->execute([
@@ -464,13 +574,40 @@ class TenantsController extends Controller
                 $responsavelCpf,
                 $email ?: null,
                 $phone ?: null,
+                $phoneFixed ?: null,
+                $addressCep ?: null,
+                $addressStreet ?: null,
+                $addressNumber ?: null,
+                $addressComplement ?: null,
+                $addressNeighborhood ?: null,
+                $addressCity ?: null,
+                $addressState ?: null,
                 $cpfCnpj, // Mantém document para compatibilidade
+                $asaasCustomerId,
                 $status,
             ]);
 
             $tenantId = (int) $db->lastInsertId();
 
-            // Fluxo pós-salvar
+            // Se for requisição AJAX (criação inline do kanban), retorna JSON
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+                      strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            
+            if ($isAjax) {
+                // Busca dados do tenant criado
+                $stmt = $db->prepare("SELECT id, name FROM tenants WHERE id = ?");
+                $stmt->execute([$tenantId]);
+                $tenant = $stmt->fetch();
+                
+                $this->json([
+                    'success' => true,
+                    'id' => $tenantId,
+                    'name' => $tenant['name'] ?? $name
+                ]);
+                return;
+            }
+
+            // Fluxo pós-salvar (não AJAX)
             if ($createHosting) {
                 // Já vai direto para criação de hospedagem desse cliente
                 $this->redirect('/hosting/create?tenant_id=' . $tenantId . '&redirect_to=tenant');
@@ -480,6 +617,16 @@ class TenantsController extends Controller
             }
         } catch (\Exception $e) {
             error_log("Erro ao criar tenant: " . $e->getMessage());
+            
+            // Se for AJAX, retorna JSON com erro
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+                      strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            
+            if ($isAjax) {
+                $this->json(['error' => 'Erro ao criar cliente: ' . $e->getMessage()], 500);
+                return;
+            }
+            
             $this->redirect('/tenants/create?error=database_error' . ($createHosting ? '&create_hosting=1' : ''));
         }
     }
@@ -527,8 +674,18 @@ class TenantsController extends Controller
         $personType = $_POST['person_type'] ?? '';
         $email = trim($_POST['email'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
+        $phoneFixed = trim($_POST['phone_fixed'] ?? '');
         $status = $_POST['status'] ?? 'active';
         $internalNotes = trim($_POST['internal_notes'] ?? '');
+        
+        // Campos de endereço
+        $addressCep = trim($_POST['address_cep'] ?? '');
+        $addressStreet = trim($_POST['address_street'] ?? '');
+        $addressNumber = trim($_POST['address_number'] ?? '');
+        $addressComplement = trim($_POST['address_complement'] ?? '');
+        $addressNeighborhood = trim($_POST['address_neighborhood'] ?? '');
+        $addressCity = trim($_POST['address_city'] ?? '');
+        $addressState = strtoupper(trim($_POST['address_state'] ?? ''));
 
         if (!$tenantId) {
             $this->redirect('/tenants?error=missing_id');
@@ -627,7 +784,9 @@ class TenantsController extends Controller
                 $stmt = $db->prepare("
                     UPDATE tenants 
                     SET person_type = ?, razao_social = ?, nome_fantasia = ?,
-                        responsavel_nome = ?, responsavel_cpf = ?, phone = ?, 
+                        responsavel_nome = ?, responsavel_cpf = ?, phone = ?, phone_fixed = ?,
+                        address_cep = ?, address_street = ?, address_number = ?, address_complement = ?,
+                        address_neighborhood = ?, address_city = ?, address_state = ?,
                         internal_notes = ?, status = ?, updated_at = NOW()
                     WHERE id = ?
                 ");
@@ -639,6 +798,14 @@ class TenantsController extends Controller
                     $responsavelNome,
                     $responsavelCpf,
                     $phone ?: null,
+                    $phoneFixed ?: null,
+                    $addressCep ?: null,
+                    $addressStreet ?: null,
+                    $addressNumber ?: null,
+                    $addressComplement ?: null,
+                    $addressNeighborhood ?: null,
+                    $addressCity ?: null,
+                    $addressState ?: null,
                     $internalNotes ?: null,
                     $status,
                     $tenantId,
@@ -648,6 +815,9 @@ class TenantsController extends Controller
                 $stmt = $db->prepare("
                     UPDATE tenants 
                     SET person_type = ?, name = ?, cpf_cnpj = ?, razao_social = ?, nome_fantasia = ?,
+                        responsavel_nome = ?, responsavel_cpf = ?, email = ?, phone = ?, phone_fixed = ?,
+                        address_cep = ?, address_street = ?, address_number = ?, address_complement = ?,
+                        address_neighborhood = ?, address_city = ?, address_state = ?,
                         responsavel_nome = ?, responsavel_cpf = ?, email = ?, phone = ?, 
                         document = ?, internal_notes = ?, status = ?, updated_at = NOW()
                     WHERE id = ?
@@ -663,6 +833,14 @@ class TenantsController extends Controller
                     $responsavelCpf,
                     $email ?: null,
                     $phone ?: null,
+                    $phoneFixed ?: null,
+                    $addressCep ?: null,
+                    $addressStreet ?: null,
+                    $addressNumber ?: null,
+                    $addressComplement ?: null,
+                    $addressNeighborhood ?: null,
+                    $addressCity ?: null,
+                    $addressState ?: null,
                     $cpfCnpj, // Mantém document para compatibilidade
                     $internalNotes ?: null,
                     $status,
@@ -670,6 +848,23 @@ class TenantsController extends Controller
                 ]);
             }
 
+            // Se cliente tem asaas_customer_id, atualiza dados no Asaas também
+            if ($hasAsaasCustomerId && !empty($currentTenant['asaas_customer_id'])) {
+                try {
+                    $updatedTenant = $db->prepare("SELECT * FROM tenants WHERE id = ?");
+                    $updatedTenant->execute([$tenantId]);
+                    $tenantData = $updatedTenant->fetch();
+                    
+                    if ($tenantData) {
+                        // Atualiza customer no Asaas com dados atualizados
+                        \PixelHub\Services\AsaasBillingService::syncCustomerDataToAsaas($tenantData);
+                    }
+                } catch (\Exception $e) {
+                    // Log erro mas não bloqueia atualização local
+                    error_log("Erro ao atualizar cliente no Asaas: " . $e->getMessage());
+                }
+            }
+            
             $this->redirect('/tenants/view?id=' . $tenantId . '&success=updated');
         } catch (\Exception $e) {
             error_log("Erro ao atualizar tenant: " . $e->getMessage());

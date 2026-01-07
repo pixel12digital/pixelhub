@@ -327,7 +327,8 @@ $router->get('/dashboard', 'DashboardController@index');
 // Rotas de tenants (clientes)
 $router->get('/tenants', 'TenantsController@index');
 $router->get('/tenants/create', 'TenantsController@create');
-$router->post('/tenants/store', 'TenantsController@store');
+    $router->post('/tenants/store', 'TenantsController@store');
+    $router->post('/tenants/check-asaas', 'TenantsController@checkAsaas');
 $router->get('/tenants/edit', 'TenantsController@edit');
 $router->post('/tenants/update', 'TenantsController@update');
 $router->post('/tenants/delete', 'TenantsController@delete');
@@ -402,6 +403,18 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/billing/service-types/update', 'BillingServiceTypesController@update');
     $router->post('/billing/service-types/toggle-status', 'BillingServiceTypesController@toggleStatus');
 
+    // Rotas de Catálogo de Serviços (Pontuais)
+    $router->get('/services', 'ServicesController@index');
+    $router->get('/services/create', 'ServicesController@create');
+    $router->post('/services/store', 'ServicesController@store');
+    $router->get('/services/edit', 'ServicesController@edit');
+    $router->post('/services/update', 'ServicesController@update');
+    $router->post('/services/toggle-status', 'ServicesController@toggleStatus');
+
+    // Rotas do Assistente de Cadastramento (Wizard)
+    $router->get('/wizard/new-project', 'WizardController@newProject');
+    $router->post('/wizard/create-project', 'WizardController@createProject');
+
     // Configurações de Infraestrutura — Provedores de Hospedagem
     $router->get('/settings/hosting-providers', 'HostingProvidersController@index');
     $router->get('/settings/hosting-providers/create', 'HostingProvidersController@create');
@@ -428,6 +441,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Rotas de Configurações do Asaas
     $router->get('/settings/asaas', 'AsaasSettingsController@index');
     $router->post('/settings/asaas', 'AsaasSettingsController@update');
+    $router->post('/settings/asaas/test', 'AsaasSettingsController@testConnection');
 
     // Rotas de acessos e links de infraestrutura (apenas internos)
     $router->get('/owner/shortcuts', 'OwnerShortcutsController@index');
@@ -439,6 +453,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
 
     // Rotas de Projetos & Tarefas (apenas internos)
     $router->get('/projects', 'ProjectController@index');
+    $router->get('/projects/show', 'ProjectController@show');
     $router->post('/projects/store', 'ProjectController@store');
     $router->post('/projects/update', 'ProjectController@update');
     $router->post('/projects/archive', 'ProjectController@archive');
