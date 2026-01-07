@@ -211,14 +211,18 @@ ob_start();
                         <strong><?= htmlspecialchars($shortcut['label']) ?></strong>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <a href="<?= htmlspecialchars($shortcut['url']) ?>" target="_blank" 
-                           style="color: #023A8D; text-decoration: none;">
-                            <?= htmlspecialchars($shortcut['url']) ?>
-                        </a>
-                        <a href="<?= htmlspecialchars($shortcut['url']) ?>" target="_blank" 
-                           style="background: #023A8D; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 12px; margin-left: 5px;">
-                            Abrir
-                        </a>
+                        <?php if (!empty($shortcut['url'])): ?>
+                            <a href="<?= htmlspecialchars($shortcut['url']) ?>" target="_blank" 
+                               style="color: #023A8D; text-decoration: none;">
+                                <?= htmlspecialchars($shortcut['url']) ?>
+                            </a>
+                            <a href="<?= htmlspecialchars($shortcut['url']) ?>" target="_blank" 
+                               style="background: #023A8D; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 12px; margin-left: 5px;">
+                                Abrir
+                            </a>
+                        <?php else: ?>
+                            <span style="color: #999; font-style: italic;">Sem URL</span>
+                        <?php endif; ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?= $shortcut['username'] ? htmlspecialchars($shortcut['username']) : '-' ?>
@@ -244,7 +248,7 @@ ob_start();
                                     data-id="<?= $shortcut['id'] ?>"
                                     data-category="<?= htmlspecialchars($shortcut['category']) ?>"
                                     data-label="<?= htmlspecialchars($shortcut['label']) ?>"
-                                    data-url="<?= htmlspecialchars($shortcut['url']) ?>"
+                                    data-url="<?= htmlspecialchars($shortcut['url'] ?? '') ?>"
                                     data-username="<?= htmlspecialchars($shortcut['username'] ?? '') ?>"
                                     data-notes="<?= htmlspecialchars($shortcut['notes'] ?? '') ?>">
                                 Editar
@@ -289,8 +293,8 @@ ob_start();
             </div>
 
             <div class="form-group">
-                <label for="url">URL *</label>
-                <input type="url" name="url" id="url" required>
+                <label for="url">URL</label>
+                <input type="url" name="url" id="url" placeholder="Opcional - deixe em branco se não houver URL">
             </div>
 
             <div class="form-group">

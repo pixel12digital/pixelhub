@@ -240,6 +240,33 @@ class AsaasSettingsController extends Controller
                 } elseif ($startsWithAsaas) {
                     $logs[] = "✅ Chave Asaas detectada em formato texto plano - pronta para uso!";
                 }
+            } catch (\RuntimeException $e) {
+                // Erro específico de descriptografia (INFRA_SECRET_KEY diferente)
+                $errorMsg = $e->getMessage();
+                $logs[] = "❌ ERRO CRÍTICO: " . $errorMsg;
+                $logs[] = "";
+                $logs[] = "🔍 DIAGNÓSTICO:";
+                $logs[] = "   A chave de API foi criptografada em outro ambiente (produção)";
+                $logs[] = "   com uma INFRA_SECRET_KEY diferente da usada localmente.";
+                $logs[] = "";
+                $logs[] = "💡 SOLUÇÃO:";
+                $logs[] = "   1. Acesse o painel do Asaas e copie sua chave de API";
+                $logs[] = "   2. Volte para esta página de configurações";
+                $logs[] = "   3. Cole a chave de API novamente no campo 'Chave de API'";
+                $logs[] = "   4. Clique em 'Salvar Configurações'";
+                $logs[] = "   5. A chave será criptografada com a INFRA_SECRET_KEY local";
+                $logs[] = "";
+                $logs[] = "⚠️ IMPORTANTE: Não compartilhe a chave de API. Ela será criptografada automaticamente.";
+                
+                $this->json([
+                    'success' => false,
+                    'message' => 'Chave de API não pode ser descriptografada. INFRA_SECRET_KEY diferente entre ambientes.',
+                    'logs' => $logs,
+                    'http_code' => null,
+                    'response' => null,
+                    'requires_reconfig' => true
+                ], 400);
+                return;
             } catch (\Exception $e) {
                 $logs[] = "❌ Erro ao carregar configuração: " . $e->getMessage();
                 $logs[] = "";

@@ -15,6 +15,107 @@ ob_start();
         padding: 15px;
         min-height: 500px;
         transition: background-color 0.2s;
+        display: flex;
+        flex-direction: column;
+    }
+    .kanban-column-tasks {
+        flex: 1;
+        min-height: 0;
+    }
+    /* Quick Add Styles */
+    .quick-add-container {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #ddd;
+    }
+    .quick-add-button {
+        width: 100%;
+        padding: 8px 12px;
+        background: transparent;
+        border: 1px dashed #999;
+        border-radius: 4px;
+        color: #666;
+        cursor: pointer;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+    .quick-add-button:hover {
+        background: #e8e8e8;
+        border-color: #023A8D;
+        color: #023A8D;
+    }
+    .quick-add-form {
+        display: none;
+        background: white;
+        border-radius: 4px;
+        padding: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .quick-add-form.active {
+        display: block;
+    }
+    .quick-add-input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        margin-bottom: 8px;
+    }
+    .quick-add-input:focus {
+        outline: none;
+        border-color: #023A8D;
+    }
+    .quick-add-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+    .quick-add-actions button {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+    }
+    .quick-add-save {
+        background: #023A8D;
+        color: white;
+    }
+    .quick-add-save:hover {
+        background: #022a6d;
+    }
+    .quick-add-cancel {
+        background: transparent;
+        color: #666;
+    }
+    .quick-add-cancel:hover {
+        background: #f0f0f0;
+    }
+    .quick-add-project-select {
+        width: 100%;
+        padding: 6px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 13px;
+        margin-bottom: 8px;
+    }
+    .quick-add-loading {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid #f3f3f3;
+        border-top: 2px solid #023A8D;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
     }
     .kanban-column.kanban-column-droptarget {
         background: #e3f2fd;
@@ -27,6 +128,14 @@ ob_start();
         padding-bottom: 10px;
         border-bottom: 2px solid #ddd;
         color: #023A8D;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .column-count {
+        font-weight: 400;
+        font-size: 14px;
+        color: #666;
     }
     .kanban-task {
         background: white;
@@ -509,41 +618,169 @@ ob_start();
 <div class="kanban-board">
     <!-- Backlog -->
     <div class="kanban-column" data-status="backlog" id="kanban-column-backlog">
-        <div class="kanban-column-header">Backlog</div>
+        <div class="kanban-column-header">
+            <span>Backlog</span>
+            <span class="column-count" id="count-backlog">(<?= count($tasks['backlog']) ?>)</span>
+        </div>
         <div id="column-backlog" class="kanban-column-tasks">
             <?php foreach ($tasks['backlog'] as $task): ?>
                 <?php include __DIR__ . '/_task_card.php'; ?>
             <?php endforeach; ?>
         </div>
+        <div class="quick-add-container">
+            <button class="quick-add-button" onclick="openQuickAdd('backlog')">
+                <span>+</span>
+                <span>Adicionar tarefa</span>
+            </button>
+            <div class="quick-add-form" id="quick-add-backlog">
+                <input type="text" class="quick-add-input" id="quick-add-input-backlog" 
+                       placeholder="Digite o título da tarefa..." 
+                       onkeydown="handleQuickAddKeydown(event, 'backlog')">
+                <select class="quick-add-project-select" id="quick-add-project-backlog">
+                    <option value="">Selecione o projeto...</option>
+                    <?php foreach ($projects as $project): ?>
+                        <option value="<?= $project['id'] ?>" <?= ($selectedProjectId == $project['id']) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($project['name']) ?>
+                            <?php if ($project['tenant_name']): ?>
+                                (<?= htmlspecialchars($project['tenant_name']) ?>)
+                            <?php else: ?>
+                                (Interno)
+                            <?php endif; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="quick-add-actions">
+                    <button class="quick-add-save" onclick="saveQuickAdd('backlog')">Adicionar</button>
+                    <button class="quick-add-cancel" onclick="cancelQuickAdd('backlog')">Cancelar</button>
+                    <button class="quick-add-cancel" onclick="openFullModalFromQuickAdd('backlog')" style="margin-left: auto; font-size: 12px;">Mais opções</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Em Andamento -->
     <div class="kanban-column" data-status="em_andamento" id="kanban-column-em-andamento">
-        <div class="kanban-column-header">Em Andamento</div>
+        <div class="kanban-column-header">
+            <span>Em Andamento</span>
+            <span class="column-count" id="count-em_andamento">(<?= count($tasks['em_andamento']) ?>)</span>
+        </div>
         <div id="column-em_andamento" class="kanban-column-tasks">
             <?php foreach ($tasks['em_andamento'] as $task): ?>
                 <?php include __DIR__ . '/_task_card.php'; ?>
             <?php endforeach; ?>
         </div>
+        <div class="quick-add-container">
+            <button class="quick-add-button" onclick="openQuickAdd('em_andamento')">
+                <span>+</span>
+                <span>Adicionar tarefa</span>
+            </button>
+            <div class="quick-add-form" id="quick-add-em_andamento">
+                <input type="text" class="quick-add-input" id="quick-add-input-em_andamento" 
+                       placeholder="Digite o título da tarefa..." 
+                       onkeydown="handleQuickAddKeydown(event, 'em_andamento')">
+                <select class="quick-add-project-select" id="quick-add-project-em_andamento">
+                    <option value="">Selecione o projeto...</option>
+                    <?php foreach ($projects as $project): ?>
+                        <option value="<?= $project['id'] ?>" <?= ($selectedProjectId == $project['id']) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($project['name']) ?>
+                            <?php if ($project['tenant_name']): ?>
+                                (<?= htmlspecialchars($project['tenant_name']) ?>)
+                            <?php else: ?>
+                                (Interno)
+                            <?php endif; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="quick-add-actions">
+                    <button class="quick-add-save" onclick="saveQuickAdd('em_andamento')">Adicionar</button>
+                    <button class="quick-add-cancel" onclick="cancelQuickAdd('em_andamento')">Cancelar</button>
+                    <button class="quick-add-cancel" onclick="openFullModalFromQuickAdd('em_andamento')" style="margin-left: auto; font-size: 12px;">Mais opções</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Aguardando Cliente -->
     <div class="kanban-column" data-status="aguardando_cliente" id="kanban-column-aguardando-cliente">
-        <div class="kanban-column-header">Aguardando Cliente</div>
+        <div class="kanban-column-header">
+            <span>Aguardando Cliente</span>
+            <span class="column-count" id="count-aguardando_cliente">(<?= count($tasks['aguardando_cliente']) ?>)</span>
+        </div>
         <div id="column-aguardando_cliente" class="kanban-column-tasks">
             <?php foreach ($tasks['aguardando_cliente'] as $task): ?>
                 <?php include __DIR__ . '/_task_card.php'; ?>
             <?php endforeach; ?>
         </div>
+        <div class="quick-add-container">
+            <button class="quick-add-button" onclick="openQuickAdd('aguardando_cliente')">
+                <span>+</span>
+                <span>Adicionar tarefa</span>
+            </button>
+            <div class="quick-add-form" id="quick-add-aguardando_cliente">
+                <input type="text" class="quick-add-input" id="quick-add-input-aguardando_cliente" 
+                       placeholder="Digite o título da tarefa..." 
+                       onkeydown="handleQuickAddKeydown(event, 'aguardando_cliente')">
+                <select class="quick-add-project-select" id="quick-add-project-aguardando_cliente">
+                    <option value="">Selecione o projeto...</option>
+                    <?php foreach ($projects as $project): ?>
+                        <option value="<?= $project['id'] ?>" <?= ($selectedProjectId == $project['id']) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($project['name']) ?>
+                            <?php if ($project['tenant_name']): ?>
+                                (<?= htmlspecialchars($project['tenant_name']) ?>)
+                            <?php else: ?>
+                                (Interno)
+                            <?php endif; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="quick-add-actions">
+                    <button class="quick-add-save" onclick="saveQuickAdd('aguardando_cliente')">Adicionar</button>
+                    <button class="quick-add-cancel" onclick="cancelQuickAdd('aguardando_cliente')">Cancelar</button>
+                    <button class="quick-add-cancel" onclick="openFullModalFromQuickAdd('aguardando_cliente')" style="margin-left: auto; font-size: 12px;">Mais opções</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Concluída -->
     <div class="kanban-column" data-status="concluida" id="kanban-column-concluida">
-        <div class="kanban-column-header">Concluída</div>
+        <div class="kanban-column-header">
+            <span>Concluída</span>
+            <span class="column-count" id="count-concluida">(<?= count($tasks['concluida']) ?>)</span>
+        </div>
         <div id="column-concluida" class="kanban-column-tasks">
             <?php foreach ($tasks['concluida'] as $task): ?>
                 <?php include __DIR__ . '/_task_card.php'; ?>
             <?php endforeach; ?>
+        </div>
+        <div class="quick-add-container">
+            <button class="quick-add-button" onclick="openQuickAdd('concluida')">
+                <span>+</span>
+                <span>Adicionar tarefa</span>
+            </button>
+            <div class="quick-add-form" id="quick-add-concluida">
+                <input type="text" class="quick-add-input" id="quick-add-input-concluida" 
+                       placeholder="Digite o título da tarefa..." 
+                       onkeydown="handleQuickAddKeydown(event, 'concluida')">
+                <select class="quick-add-project-select" id="quick-add-project-concluida">
+                    <option value="">Selecione o projeto...</option>
+                    <?php foreach ($projects as $project): ?>
+                        <option value="<?= $project['id'] ?>" <?= ($selectedProjectId == $project['id']) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($project['name']) ?>
+                            <?php if ($project['tenant_name']): ?>
+                                (<?= htmlspecialchars($project['tenant_name']) ?>)
+                            <?php else: ?>
+                                (Interno)
+                            <?php endif; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="quick-add-actions">
+                    <button class="quick-add-save" onclick="saveQuickAdd('concluida')">Adicionar</button>
+                    <button class="quick-add-cancel" onclick="cancelQuickAdd('concluida')">Cancelar</button>
+                    <button class="quick-add-cancel" onclick="openFullModalFromQuickAdd('concluida')" style="margin-left: auto; font-size: 12px;">Mais opções</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -560,7 +797,8 @@ ob_start();
             
             <div class="form-group">
                 <label for="task_project_id">Projeto *</label>
-                <select name="project_id" id="task_project_id" required>
+                <div style="display: flex; gap: 8px; align-items: flex-start;">
+                    <select name="project_id" id="task_project_id" required style="flex: 1;">
                     <option value="">Selecione...</option>
                     <?php foreach ($projects as $project): ?>
                         <option value="<?= $project['id'] ?>" <?= ($selectedProjectId == $project['id']) ? 'selected' : '' ?>>
@@ -573,6 +811,108 @@ ob_start();
                         </option>
                     <?php endforeach; ?>
                 </select>
+                    <button type="button" id="btn-create-project-inline" 
+                            style="padding: 8px 14px; background: #e3f2fd; color: #023A8D; border: 1px solid #023A8D; border-radius: 4px; cursor: pointer; white-space: nowrap; font-size: 13px; font-weight: 500; transition: all 0.2s;"
+                            onclick="openCreateProjectInline()"
+                            onmouseover="this.style.background='#023A8D'; this.style.color='white';"
+                            onmouseout="this.style.background='#e3f2fd'; this.style.color='#023A8D';"
+                            title="Criar novo projeto sem sair desta tela">
+                        <span style="font-weight: 600;">+</span> Novo Projeto
+                    </button>
+                </div>
+                <div id="create-project-inline-form" style="display: none; margin-top: 12px; padding: 12px; background: #f0f7ff; border-radius: 6px; border: 2px solid #023A8D;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="font-size: 13px; font-weight: 600; color: #023A8D;">Criar Novo Projeto</span>
+                        <button type="button" onclick="cancelCreateProjectInline()" 
+                                style="background: none; border: none; color: #666; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; width: 20px; height: 20px;"
+                                title="Fechar">
+                            ×
+                        </button>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 10px;">
+                        <input type="text" id="new_project_name" placeholder="Digite o nome do projeto..." 
+                               style="padding: 8px 12px; border: 1px solid #023A8D; border-radius: 4px; font-size: 14px; width: 100%;"
+                               onkeydown="if(event.key === 'Enter') { event.preventDefault(); saveNewProjectInline(); }">
+                        <select id="new_project_type" onchange="handleProjectTypeChange()" style="padding: 8px 12px; border: 1px solid #023A8D; border-radius: 4px; font-size: 14px; min-width: 120px;">
+                            <option value="interno">Interno</option>
+                            <option value="cliente">Cliente</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Campo Cliente (condicional - aparece só quando tipo = cliente) -->
+                    <div id="new-project-client-field" style="display: none; margin-bottom: 10px;">
+                        <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #333;">
+                            Cliente <span style="color: #c33;">*</span>
+                            <small style="font-weight: 400; color: #666; font-size: 12px;">(obrigatório para projetos de cliente)</small>
+                        </label>
+                        <div style="position: relative;">
+                            <input type="text" id="new_project_tenant_search" 
+                                   placeholder="Digite pelo menos 3 caracteres para buscar ou selecione..." 
+                                   autocomplete="off"
+                                   oninput="filterTenantList(this.value)"
+                                   onfocus="showTenantDropdown()"
+                                   style="width: 100%; padding: 8px 12px; border: 1px solid #023A8D; border-radius: 4px; font-size: 14px; box-sizing: border-box;">
+                            <input type="hidden" id="new_project_tenant_id" value="">
+                            <div id="tenant-dropdown-list" 
+                                 style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #023A8D; border-top: none; border-radius: 0 0 4px 4px; max-height: 300px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                                <div class="tenant-option" onclick="selectTenantOption('new', '+ Adicionar Novo Cliente', true)" 
+                                     style="padding: 10px 12px; cursor: pointer; font-weight: 600; color: #023A8D; border-bottom: 1px solid #eee; background: #f0f7ff;">
+                                    + Adicionar Novo Cliente
+                                </div>
+                                <div id="tenant-list-container">
+                                    <!-- Lista de clientes será preenchida aqui -->
+                                </div>
+                            </div>
+                        </div>
+                        <div id="new-project-client-error" style="display: none; color: #c33; font-size: 12px; margin-top: 4px;">
+                            Selecione um cliente ou crie um novo usando "+ Adicionar Novo Cliente"
+                        </div>
+                    </div>
+                    
+                    <!-- Formulário inline para criar cliente -->
+                    <div id="new-client-inline-form" style="display: none; margin-top: 12px; padding: 12px; background: #fff3cd; border-radius: 6px; border: 2px solid #ffc107;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                            <span style="font-size: 13px; font-weight: 600; color: #856404;">Criar Novo Cliente</span>
+                            <button type="button" onclick="cancelCreateClientInline()" 
+                                    style="background: none; border: none; color: #666; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; width: 20px; height: 20px;"
+                                    title="Fechar">
+                                ×
+                            </button>
+                        </div>
+                        <div style="display: grid; gap: 8px; margin-bottom: 10px;">
+                            <select id="new_client_person_type" style="padding: 8px 12px; border: 1px solid #ffc107; border-radius: 4px; font-size: 14px;">
+                                <option value="pf">Pessoa Física</option>
+                                <option value="pj">Pessoa Jurídica</option>
+                            </select>
+                            <input type="text" id="new_client_name" placeholder="Nome completo / Razão Social *" 
+                                   style="padding: 8px 12px; border: 1px solid #ffc107; border-radius: 4px; font-size: 14px; width: 100%;">
+                            <input type="text" id="new_client_cpf_cnpj" placeholder="CPF / CNPJ *" 
+                                   style="padding: 8px 12px; border: 1px solid #ffc107; border-radius: 4px; font-size: 14px; width: 100%;">
+                            <input type="email" id="new_client_email" placeholder="E-mail (opcional)" 
+                                   style="padding: 8px 12px; border: 1px solid #ffc107; border-radius: 4px; font-size: 14px; width: 100%;">
+                        </div>
+                        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                            <button type="button" onclick="cancelCreateClientInline()" 
+                                    style="padding: 8px 16px; background: transparent; color: #666; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                                Cancelar
+                            </button>
+                            <button type="button" onclick="saveNewClientInline()" 
+                                    style="padding: 8px 16px; background: #856404; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                                Criar Cliente
+                            </button>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                        <button type="button" onclick="cancelCreateProjectInline()" 
+                                style="padding: 8px 16px; background: transparent; color: #666; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                            Cancelar
+                        </button>
+                        <button type="button" onclick="saveNewProjectInline()" 
+                                style="padding: 8px 16px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                            Criar Projeto
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <div class="form-group">
@@ -611,7 +951,7 @@ ob_start();
                 <input type="date" name="due_date" id="task_due_date">
             </div>
 
-            <div class="form-group">
+            <div class="form-group" id="task-form-advanced-fields" style="display: none;">
                 <label for="task_type">Tipo de tarefa</label>
                 <select name="task_type" id="task_type" required>
                     <option value="internal">Tarefa interna</option>
@@ -619,8 +959,21 @@ ob_start();
                 </select>
             </div>
 
+            <div id="task-form-quick-mode" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
+                <button type="button" class="btn btn-secondary" onclick="expandTaskForm()" style="font-size: 13px; width: 100%;">
+                    + Adicionar mais detalhes
+                </button>
+            </div>
+            
+            <div id="task-form-full-mode" style="display: none;">
             <div class="form-actions">
                 <button type="button" class="btn btn-secondary" id="btn-cancel-task-modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </div>
+            
+            <div id="task-form-quick-actions" class="form-actions" style="margin-top: 15px;">
+                <button type="button" class="btn btn-secondary" id="btn-cancel-task-modal-quick">Cancelar</button>
                 <button type="submit" class="btn btn-primary">Salvar</button>
             </div>
         </form>
@@ -656,6 +1009,147 @@ ob_start();
         window.location.href = '<?= pixelhub_url('/projects/board') ?>?' + params.toString();
     }
 
+    // ===== QUICK ADD FUNCTIONS =====
+    function openQuickAdd(status) {
+        const form = document.getElementById('quick-add-' + status);
+        const button = form.previousElementSibling;
+        const input = document.getElementById('quick-add-input-' + status);
+        
+        if (form && button) {
+            button.style.display = 'none';
+            form.classList.add('active');
+            
+            // Foca no input após um pequeno delay para garantir que está visível
+            setTimeout(() => {
+                if (input) {
+                    input.focus();
+                }
+            }, 50);
+        }
+    }
+    
+    function cancelQuickAdd(status) {
+        const form = document.getElementById('quick-add-' + status);
+        const button = form.previousElementSibling;
+        const input = document.getElementById('quick-add-input-' + status);
+        const projectSelect = document.getElementById('quick-add-project-' + status);
+        
+        if (form && button) {
+            form.classList.remove('active');
+            button.style.display = 'flex';
+            
+            // Limpa os campos
+            if (input) input.value = '';
+            if (projectSelect) projectSelect.value = '';
+        }
+    }
+    
+    function handleQuickAddKeydown(event, status) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            saveQuickAdd(status);
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            cancelQuickAdd(status);
+        }
+    }
+    
+    function saveQuickAdd(status) {
+        const input = document.getElementById('quick-add-input-' + status);
+        const projectSelect = document.getElementById('quick-add-project-' + status);
+        const saveButton = document.querySelector('#quick-add-' + status + ' .quick-add-save');
+        
+        if (!input || !projectSelect) return;
+        
+        const title = input.value.trim();
+        const projectId = projectSelect.value;
+        
+        if (!title) {
+            alert('Por favor, digite o título da tarefa.');
+            input.focus();
+            return;
+        }
+        
+        if (!projectId) {
+            alert('Por favor, selecione um projeto.');
+            projectSelect.focus();
+            return;
+        }
+        
+        // Desabilita botão e mostra loading
+        if (saveButton) {
+            saveButton.disabled = true;
+            const originalText = saveButton.textContent;
+            saveButton.innerHTML = '<span class="quick-add-loading"></span> Salvando...';
+            
+            // Cria FormData
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('project_id', projectId);
+            formData.append('status', status);
+            
+            // Envia requisição
+            fetch('<?= pixelhub_url('/tasks/store') ?>', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Erro: ' + data.error);
+                    saveButton.disabled = false;
+                    saveButton.textContent = originalText;
+                    return;
+                }
+                
+                // Sucesso - recarrega a página para mostrar a nova tarefa
+                location.reload();
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('Erro ao criar tarefa. Tente novamente.');
+                saveButton.disabled = false;
+                saveButton.textContent = originalText;
+            });
+        }
+    }
+    
+    function openFullModalFromQuickAdd(status) {
+        const input = document.getElementById('quick-add-input-' + status);
+        const projectSelect = document.getElementById('quick-add-project-' + status);
+        
+        // Preenche o modal com os dados já digitados
+        if (input && input.value.trim()) {
+            document.getElementById('task_title').value = input.value.trim();
+        }
+        
+        if (projectSelect && projectSelect.value) {
+            document.getElementById('task_project_id').value = projectSelect.value;
+        }
+        
+        // Define o status
+        document.getElementById('task_status').value = status;
+        
+        // Abre o modal completo
+        openCreateTaskModal();
+        
+        // Fecha o quick add
+        cancelQuickAdd(status);
+    }
+    
+    // Atualiza contadores das colunas
+    function updateColumnCounters() {
+        const statuses = ['backlog', 'em_andamento', 'aguardando_cliente', 'concluida'];
+        statuses.forEach(status => {
+            const column = document.getElementById('column-' + status);
+            const counter = document.getElementById('count-' + status);
+            if (column && counter) {
+                const count = column.querySelectorAll('.kanban-task').length;
+                counter.textContent = '(' + count + ')';
+            }
+        });
+    }
+
     function openCreateTaskModal() {
         document.getElementById('modalTaskTitle').textContent = 'Nova Tarefa';
         document.getElementById('taskForm').reset();
@@ -672,7 +1166,429 @@ ob_start();
         // Define tipo padrão como 'internal'
         document.getElementById('task_type').value = 'internal';
         
+        // Modo rápido por padrão
+        resetTaskFormToQuickMode();
+        
         document.getElementById('taskModal').style.display = 'block';
+    }
+    
+    function resetTaskFormToQuickMode() {
+        // Esconde campos avançados
+        document.getElementById('task-form-advanced-fields').style.display = 'none';
+        document.getElementById('task_description').closest('.form-group').style.display = 'none';
+        document.getElementById('task_assignee').closest('.form-group').style.display = 'none';
+        document.getElementById('task_start_date').closest('.form-group').style.display = 'none';
+        document.getElementById('task_due_date').closest('.form-group').style.display = 'none';
+        
+        // Mostra botão de expandir
+        document.getElementById('task-form-quick-mode').style.display = 'block';
+        document.getElementById('task-form-full-mode').style.display = 'none';
+        document.getElementById('task-form-quick-actions').style.display = 'flex';
+    }
+    
+    function expandTaskForm() {
+        // Mostra campos avançados
+        document.getElementById('task-form-advanced-fields').style.display = 'block';
+        document.getElementById('task_description').closest('.form-group').style.display = 'block';
+        document.getElementById('task_assignee').closest('.form-group').style.display = 'block';
+        document.getElementById('task_start_date').closest('.form-group').style.display = 'block';
+        document.getElementById('task_due_date').closest('.form-group').style.display = 'block';
+        
+        // Esconde botão de expandir, mostra ações completas
+        document.getElementById('task-form-quick-mode').style.display = 'none';
+        document.getElementById('task-form-full-mode').style.display = 'block';
+        document.getElementById('task-form-quick-actions').style.display = 'none';
+    }
+    
+    // Funções para criar projeto inline
+    function openCreateProjectInline() {
+        const form = document.getElementById('create-project-inline-form');
+        if (form) {
+            form.style.display = 'block';
+            document.getElementById('new_project_name').focus();
+        }
+    }
+    
+    function cancelCreateProjectInline() {
+        const form = document.getElementById('create-project-inline-form');
+        if (form) {
+            form.style.display = 'none';
+            document.getElementById('new_project_name').value = '';
+            document.getElementById('new_project_type').value = 'interno';
+        }
+    }
+    
+    // ===== FUNÇÕES PARA GERENCIAR CAMPO CLIENTE =====
+    function handleProjectTypeChange() {
+        const type = document.getElementById('new_project_type').value;
+        const clientField = document.getElementById('new-project-client-field');
+        const tenantSelect = document.getElementById('new_project_tenant_id');
+        
+        if (type === 'cliente') {
+            // Mostra campo cliente e torna obrigatório
+            clientField.style.display = 'block';
+            tenantSelect.required = true;
+            
+            // Carrega lista de clientes se ainda não carregou
+            if (tenantSelect.options.length <= 2) {
+                loadTenantsList();
+            }
+        } else {
+            // Oculta campo cliente
+            clientField.style.display = 'none';
+            tenantSelect.required = false;
+            tenantSelect.value = '';
+            document.getElementById('new-project-client-error').style.display = 'none';
+            cancelCreateClientInline();
+        }
+    }
+    
+    // Lista global de tenants
+    const allTenants = <?= json_encode($tenants) ?>;
+    let filteredTenants = [];
+    
+    function showTenantDropdown() {
+        const dropdown = document.getElementById('tenant-dropdown-list');
+        const container = document.getElementById('tenant-list-container');
+        const searchInput = document.getElementById('new_project_tenant_search');
+        const searchValue = searchInput.value.trim().toLowerCase();
+        
+        // Carrega lista completa se ainda não carregou
+        if (container.children.length === 0) {
+            loadTenantsIntoDropdown();
+        }
+        
+        // Filtra e mostra
+        filterTenantList(searchValue);
+        dropdown.style.display = 'block';
+    }
+    
+    function loadTenantsIntoDropdown() {
+        const container = document.getElementById('tenant-list-container');
+        container.innerHTML = '';
+        
+        allTenants.forEach(tenant => {
+            const div = document.createElement('div');
+            div.className = 'tenant-option';
+            div.setAttribute('data-tenant-id', tenant.id);
+            div.setAttribute('data-tenant-name', tenant.name.toLowerCase());
+            div.innerHTML = tenant.name;
+            div.style.cssText = 'padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0;';
+            div.onmouseover = function() { this.style.background = '#f5f5f5'; };
+            div.onmouseout = function() { this.style.background = 'white'; };
+            div.onclick = function() { selectTenantOption(tenant.id, tenant.name, false); };
+            container.appendChild(div);
+        });
+    }
+    
+    function filterTenantList(searchValue) {
+        const dropdown = document.getElementById('tenant-dropdown-list');
+        const container = document.getElementById('tenant-list-container');
+        const options = container.querySelectorAll('.tenant-option');
+        
+        // Se busca tem menos de 3 caracteres, mostra todos
+        if (searchValue.length < 3) {
+            options.forEach(option => {
+                option.style.display = 'block';
+            });
+            if (searchValue.length > 0) {
+                dropdown.style.display = 'block';
+            }
+            return;
+        }
+        
+        // Filtra opções
+        let hasMatches = false;
+        options.forEach(option => {
+            const tenantName = option.getAttribute('data-tenant-name') || '';
+            if (tenantName.includes(searchValue)) {
+                option.style.display = 'block';
+                hasMatches = true;
+            } else {
+                option.style.display = 'none';
+            }
+        });
+        
+        // Mostra dropdown se houver matches ou se estiver digitando
+        if (hasMatches || searchValue.length >= 3) {
+            dropdown.style.display = 'block';
+            
+            // Se não há matches, mostra mensagem
+            if (!hasMatches && searchValue.length >= 3) {
+                const noResults = container.querySelector('.no-results-message');
+                if (!noResults) {
+                    const msg = document.createElement('div');
+                    msg.className = 'no-results-message';
+                    msg.style.cssText = 'padding: 15px; text-align: center; color: #666; font-style: italic;';
+                    msg.textContent = 'Nenhum cliente encontrado. Use "+ Adicionar Novo Cliente" para criar.';
+                    container.appendChild(msg);
+                }
+            } else {
+                const noResults = container.querySelector('.no-results-message');
+                if (noResults) noResults.remove();
+            }
+        }
+    }
+    
+    function selectTenantOption(tenantId, tenantName, isNew) {
+        const searchInput = document.getElementById('new_project_tenant_search');
+        const hiddenInput = document.getElementById('new_project_tenant_id');
+        const dropdown = document.getElementById('tenant-dropdown-list');
+        const clientForm = document.getElementById('new-client-inline-form');
+        const errorDiv = document.getElementById('new-project-client-error');
+        
+        if (isNew) {
+            // Mostra formulário de criar cliente
+            searchInput.value = '';
+            hiddenInput.value = 'new';
+            dropdown.style.display = 'none';
+            clientForm.style.display = 'block';
+            errorDiv.style.display = 'none';
+            document.getElementById('new_client_name').focus();
+        } else {
+            // Seleciona cliente existente
+            searchInput.value = tenantName;
+            hiddenInput.value = tenantId;
+            dropdown.style.display = 'none';
+            clientForm.style.display = 'none';
+            errorDiv.style.display = 'none';
+        }
+    }
+    
+    // Fecha dropdown ao clicar fora
+    document.addEventListener('click', function(event) {
+        const tenantField = document.getElementById('new-project-client-field');
+        const dropdown = document.getElementById('tenant-dropdown-list');
+        const searchInput = document.getElementById('new_project_tenant_search');
+        
+        if (tenantField && dropdown && !tenantField.contains(event.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+    
+    // Enter no campo de busca seleciona primeira opção visível
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('new_project_tenant_search');
+        if (searchInput) {
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const dropdown = document.getElementById('tenant-dropdown-list');
+                    if (dropdown && dropdown.style.display !== 'none') {
+                        const firstOption = dropdown.querySelector('.tenant-option[style*="block"], .tenant-option:not([style*="none"])');
+                        if (firstOption) {
+                            firstOption.click();
+                        }
+                    }
+                } else if (e.key === 'Escape') {
+                    document.getElementById('tenant-dropdown-list').style.display = 'none';
+                }
+            });
+        }
+    });
+    
+    function cancelCreateClientInline() {
+        const clientForm = document.getElementById('new-client-inline-form');
+        const hiddenInput = document.getElementById('new_project_tenant_id');
+        const searchInput = document.getElementById('new_project_tenant_search');
+        
+        clientForm.style.display = 'none';
+        
+        // Limpa campos
+        document.getElementById('new_client_name').value = '';
+        document.getElementById('new_client_cpf_cnpj').value = '';
+        document.getElementById('new_client_email').value = '';
+        document.getElementById('new_client_person_type').value = 'pf';
+        
+        // Se estava com "new" selecionado, volta para vazio
+        if (hiddenInput.value === 'new') {
+            hiddenInput.value = '';
+            if (searchInput) searchInput.value = '';
+        }
+    }
+    
+    function saveNewClientInline() {
+        const name = document.getElementById('new_client_name').value.trim();
+        const cpfCnpj = document.getElementById('new_client_cpf_cnpj').value.trim();
+        const email = document.getElementById('new_client_email').value.trim();
+        const personType = document.getElementById('new_client_person_type').value;
+        const btn = event.target;
+        
+        if (!name) {
+            alert('Por favor, digite o nome completo ou razão social.');
+            document.getElementById('new_client_name').focus();
+            return;
+        }
+        
+        if (!cpfCnpj) {
+            alert('Por favor, digite o CPF ou CNPJ.');
+            document.getElementById('new_client_cpf_cnpj').focus();
+            return;
+        }
+        
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Criando...';
+        
+        const formData = new FormData();
+        formData.append('person_type', personType);
+        if (personType === 'pf') {
+            formData.append('nome_pf', name);
+            formData.append('cpf_pf', cpfCnpj);
+        } else {
+            formData.append('razao_social', name);
+            formData.append('cnpj_pj', cpfCnpj);
+        }
+        if (email) {
+            formData.append('email', email);
+        }
+        formData.append('status', 'active');
+        
+        fetch('<?= pixelhub_url('/tenants/store') ?>', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert('Erro: ' + data.error);
+                btn.disabled = false;
+                btn.textContent = originalText;
+                return;
+            }
+            
+            // Adiciona o novo cliente à lista global e ao dropdown
+            allTenants.push({ id: data.id, name: data.name });
+            
+            // Adiciona ao dropdown visual
+            const container = document.getElementById('tenant-list-container');
+            const div = document.createElement('div');
+            div.className = 'tenant-option';
+            div.setAttribute('data-tenant-id', data.id);
+            div.setAttribute('data-tenant-name', data.name.toLowerCase());
+            div.innerHTML = data.name;
+            div.style.cssText = 'padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0;';
+            div.onmouseover = function() { this.style.background = '#f5f5f5'; };
+            div.onmouseout = function() { this.style.background = 'white'; };
+            div.onclick = function() { selectTenantOption(data.id, data.name, false); };
+            container.insertBefore(div, container.firstChild);
+            
+            // Seleciona automaticamente o novo cliente
+            selectTenantOption(data.id, data.name, false);
+            
+            // Fecha o formulário inline
+            cancelCreateClientInline();
+            
+            // Remove erro se existir
+            document.getElementById('new-project-client-error').style.display = 'none';
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro ao criar cliente. Tente novamente.');
+            btn.disabled = false;
+            btn.textContent = originalText;
+        });
+    }
+    
+    function saveNewProjectInline() {
+        const name = document.getElementById('new_project_name').value.trim();
+        const type = document.getElementById('new_project_type').value;
+        const tenantId = document.getElementById('new_project_tenant_id')?.value;
+        
+        if (!name) {
+            alert('Por favor, digite o nome do projeto.');
+            document.getElementById('new_project_name').focus();
+            return;
+        }
+        
+        // Validação: se tipo é "cliente", tenant_id é obrigatório
+        if (type === 'cliente') {
+            const hiddenTenantId = document.getElementById('new_project_tenant_id').value;
+            if (!hiddenTenantId || hiddenTenantId === '' || hiddenTenantId === 'new') {
+                document.getElementById('new-project-client-error').style.display = 'block';
+                document.getElementById('new_project_tenant_search').focus();
+                return;
+            }
+            tenantId = hiddenTenantId;
+        }
+        
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('type', type);
+        formData.append('status', 'ativo');
+        
+        // Adiciona tenant_id apenas se for tipo "cliente"
+        if (type === 'cliente' && tenantId) {
+            formData.append('tenant_id', tenantId);
+        }
+        
+        const btn = event.target.closest('.quick-add-form').querySelector('.quick-add-save') || event.target;
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Criando...';
+        
+        fetch('<?= pixelhub_url('/projects/store') ?>', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert('Erro: ' + data.error);
+                btn.disabled = false;
+                btn.textContent = originalText;
+                return;
+            }
+            
+            // Adiciona o novo projeto ao select
+            const select = document.getElementById('task_project_id');
+            const option = document.createElement('option');
+            option.value = data.id;
+            const tenantName = data.tenant_name || 'Interno';
+            option.textContent = name + ' (' + tenantName + ')';
+            option.selected = true;
+            select.appendChild(option);
+            
+            // Fecha o formulário inline
+            cancelCreateProjectInline();
+            
+            // Foca no próximo campo
+            document.getElementById('task_title').focus();
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro ao criar projeto. Tente novamente.');
+            btn.disabled = false;
+            btn.textContent = originalText;
+        });
+    }
+    
+    // Carrega lista de tenants quando o formulário é aberto
+    function openCreateProjectInline() {
+        const form = document.getElementById('create-project-inline-form');
+        const button = form.previousElementSibling;
+        
+        if (form && button) {
+            button.style.display = 'none';
+            form.style.display = 'block';
+            
+            // Reset do formulário
+            document.getElementById('new_project_name').value = '';
+            document.getElementById('new_project_type').value = 'interno';
+            document.getElementById('new-project-client-field').style.display = 'none';
+            cancelCreateClientInline();
+            
+            // Foca no input
+            setTimeout(() => {
+                document.getElementById('new_project_name').focus();
+            }, 50);
+        }
     }
 
     function openEditTaskModal(task) {

@@ -6,6 +6,7 @@ use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
 use PixelHub\Services\ProjectService;
+use PixelHub\Services\ServiceService;
 
 /**
  * Controller para gerenciar projetos
@@ -38,19 +39,41 @@ class ProjectController extends Controller
         // Filtros
         $tenantId = isset($_GET['tenant_id']) && $_GET['tenant_id'] !== '' ? (int) $_GET['tenant_id'] : null;
         $status = isset($_GET['status']) && $_GET['status'] !== '' ? $_GET['status'] : null;
+        $type = isset($_GET['type']) && $_GET['type'] !== '' ? $_GET['type'] : null;
         
         // Busca projetos
-        $projects = ProjectService::getAllProjects($tenantId, $status);
+        $projects = ProjectService::getAllProjects($tenantId, $status, $type);
         
         // Busca lista de tenants para o filtro
         $stmt = $db->query("SELECT id, name FROM tenants ORDER BY name ASC");
         $tenants = $stmt->fetchAll();
         
+        // Busca lista de serviços ativos para o formulário
+        $services = ServiceService::getAllServices(null, true);
+        
+        // Separa projetos por tipo (apenas se não houver filtro de tipo)
+        $internalProjects = [];
+        $clientProjects = [];
+        if ($type === null) {
+            foreach ($projects as $project) {
+                $projectType = $project['type'] ?? 'interno';
+                if ($projectType === 'interno') {
+                    $internalProjects[] = $project;
+                } else {
+                    $clientProjects[] = $project;
+                }
+            }
+        }
+        
         $this->view('projects.index', [
             'projects' => $projects,
+            'internalProjects' => $internalProjects,
+            'clientProjects' => $clientProjects,
             'tenants' => $tenants,
+            'services' => $services,
             'selectedTenantId' => $tenantId,
             'selectedStatus' => $status,
+            'selectedType' => $type,
         ]);
     }
 
@@ -69,11 +92,45 @@ class ProjectController extends Controller
             }
             
             $id = ProjectService::createProject($data);
+            
+            // Se for requisição AJAX (criação inline do kanban), retorna JSON
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+                      strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            
+            if ($isAjax) {
+                $project = ProjectService::findProject($id);
+                $this->json([
+                    'success' => true,
+                    'id' => $id,
+                    'name' => $project['name'] ?? '',
+                    'type' => $project['type'] ?? 'interno',
+                    'tenant_name' => $project['tenant_name'] ?? null
+                ]);
+                return;
+            }
+            
             $this->redirect('/projects?success=created');
         } catch (\InvalidArgumentException $e) {
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+                      strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            
+            if ($isAjax) {
+                $this->json(['error' => $e->getMessage()], 400);
+                return;
+            }
+            
             $this->redirect('/projects?error=' . urlencode($e->getMessage()));
         } catch (\Exception $e) {
             error_log("Erro ao criar projeto: " . $e->getMessage());
+            
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+                      strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            
+            if ($isAjax) {
+                $this->json(['error' => 'Erro ao criar projeto'], 500);
+                return;
+            }
+            
             $this->redirect('/projects?error=database_error');
         }
     }
@@ -109,6 +166,35 @@ class ProjectController extends Controller
             error_log("Erro ao atualizar projeto: " . $e->getMessage());
             $this->redirect('/projects?error=database_error');
         }
+    }
+
+    /**
+     * Visualiza detalhes de um projeto
+     */
+    public function show(): void
+    {
+        Auth::requireInternal();
+
+        $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+
+        if ($id <= 0) {
+            $this->redirect('/projects?error=missing_id');
+            return;
+        }
+
+        $project = ProjectService::findProject($id);
+        
+        if (!$project) {
+            $this->redirect('/projects?error=not_found');
+            return;
+        }
+
+        // Busca acessos relacionados (se houver link com owner_shortcuts no futuro)
+        $db = DB::getConnection();
+        
+        $this->view('projects.show', [
+            'project' => $project,
+        ]);
     }
 
     /**

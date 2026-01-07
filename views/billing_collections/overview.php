@@ -53,7 +53,7 @@ $baseUrl = pixelhub_url('');
 
 <!-- Filtros -->
 <div class="card">
-    <form method="GET" action="<?= pixelhub_url('/billing/overview') ?>" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; align-items: end;">
+    <form method="GET" action="<?= pixelhub_url('/billing/overview') ?>" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end;">
         <div>
             <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Status Geral:</label>
             <select name="status_geral" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
@@ -61,6 +61,17 @@ $baseUrl = pixelhub_url('');
                 <option value="em_atraso" <?= $statusGeral === 'em_atraso' ? 'selected' : '' ?>>Em atraso</option>
                 <option value="vencendo_hoje" <?= $statusGeral === 'vencendo_hoje' ? 'selected' : '' ?>>Vencendo hoje</option>
                 <option value="vencendo_7d" <?= $statusGeral === 'vencendo_7d' ? 'selected' : '' ?>>Vencendo até 7 dias</option>
+            </select>
+        </div>
+        <div>
+            <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Ordenar por:</label>
+            <select name="ordenacao" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <option value="mais_vencidas" <?= ($ordenacao ?? 'mais_vencidas') === 'mais_vencidas' ? 'selected' : '' ?>>Mais faturas vencidas</option>
+                <option value="menos_vencidas" <?= ($ordenacao ?? '') === 'menos_vencidas' ? 'selected' : '' ?>>Menos faturas vencidas</option>
+                <option value="maior_valor" <?= ($ordenacao ?? '') === 'maior_valor' ? 'selected' : '' ?>>Maior valor em atraso</option>
+                <option value="menor_valor" <?= ($ordenacao ?? '') === 'menor_valor' ? 'selected' : '' ?>>Menor valor em atraso</option>
+                <option value="mais_antigo" <?= ($ordenacao ?? '') === 'mais_antigo' ? 'selected' : '' ?>>Mais antigo (mais dias em atraso)</option>
+                <option value="mais_recente" <?= ($ordenacao ?? '') === 'mais_recente' ? 'selected' : '' ?>>Mais recente (menos dias em atraso)</option>
             </select>
         </div>
         <div>
@@ -83,8 +94,22 @@ $baseUrl = pixelhub_url('');
         <thead>
             <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
                 <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Cliente</th>
-                <th style="padding: 12px; text-align: right; font-weight: 600; color: #495057;">Valor em Atraso</th>
-                <th style="padding: 12px; text-align: center; font-weight: 600; color: #495057;">Qtd Faturas Vencidas</th>
+                <th style="padding: 12px; text-align: right; font-weight: 600; color: #495057;">
+                    Valor em Atraso
+                    <?php if (($ordenacao ?? '') === 'maior_valor'): ?>
+                        <span style="color: #023A8D;">▼</span>
+                    <?php elseif (($ordenacao ?? '') === 'menor_valor'): ?>
+                        <span style="color: #023A8D;">▲</span>
+                    <?php endif; ?>
+                </th>
+                <th style="padding: 12px; text-align: center; font-weight: 600; color: #495057;">
+                    Qtd Faturas Vencidas
+                    <?php if (($ordenacao ?? 'mais_vencidas') === 'mais_vencidas'): ?>
+                        <span style="color: #023A8D;">▼</span>
+                    <?php elseif (($ordenacao ?? '') === 'menos_vencidas'): ?>
+                        <span style="color: #023A8D;">▲</span>
+                    <?php endif; ?>
+                </th>
                 <th style="padding: 12px; text-align: right; font-weight: 600; color: #495057;">Vencendo Hoje</th>
                 <th style="padding: 12px; text-align: right; font-weight: 600; color: #495057;">Vencendo 7 dias</th>
                 <th style="padding: 12px; text-align: center; font-weight: 600; color: #495057;">Último Contato</th>

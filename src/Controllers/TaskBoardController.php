@@ -48,8 +48,9 @@ class TaskBoardController extends Controller
         // Busca tarefas agrupadas por status
         $tasks = TaskService::getAllTasks($projectId, $tenantId, $clientQuery, $agendaFilter);
         
-        // Busca lista de projetos para o filtro (com filtro de tipo se aplicável)
-        $projects = ProjectService::getAllProjects($tenantId, 'ativo', $type);
+        // Busca lista de projetos para o filtro (excluindo projetos concluídos para não poluir o seletor)
+        // Projetos concluídos são aqueles sem tarefas/tickets pendentes ou em andamento
+        $projects = ProjectService::getActiveNonCompletedProjects($tenantId, $type);
         
         // Busca lista de tenants para o filtro
         $stmt = $db->query("SELECT id, name FROM tenants ORDER BY name ASC");

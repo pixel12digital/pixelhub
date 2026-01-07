@@ -61,21 +61,41 @@ class AsaasConfig
                     // Tenta descriptografar
                     $decrypted = CryptoHelper::decrypt($apiKeyEncrypted);
                     if (!empty($decrypted)) {
-                        $apiKey = $decrypted;
+                        // Verifica se a chave descriptografada parece válida (chaves Asaas começam com $aact_)
+                        if (strpos($decrypted, '$aact_') === 0) {
+                            $apiKey = $decrypted;
+                        } else {
+                            // Descriptografou mas não parece uma chave válida do Asaas
+                            error_log('[ASAAS WARNING] Chave descriptografada mas não parece válida (não começa com $aact_)');
+                            error_log('[ASAAS WARNING] Possível causa: INFRA_SECRET_KEY diferente entre ambientes');
+                            // Tenta usar mesmo assim, mas loga o problema
+                            $apiKey = $decrypted;
+                        }
                     } else {
-                        // Se retornou vazio após descriptografar, algo está errado
-                        // Mas pode ser que a chave real do Asaas seja curta, então tentamos usar direto
-                        error_log('[ASAAS WARNING] Chave parece criptografada mas descriptografia retornou vazio');
-                        $apiKey = $apiKeyEncrypted;
+                        // Se retornou vazio após descriptografar, a INFRA_SECRET_KEY está errada
+                        error_log('[ASAAS ERROR] Chave parece criptografada mas descriptografia retornou vazio');
+                        error_log('[ASAAS ERROR] A INFRA_SECRET_KEY local é diferente da usada para criptografar a chave.');
+                        error_log('[ASAAS ERROR] SOLUÇÃO: Cole a chave de API do Asaas novamente no ambiente local.');
+                        throw new \RuntimeException(
+                            'A chave de API está criptografada mas não pode ser descriptografada. ' .
+                            'Isso geralmente acontece quando a INFRA_SECRET_KEY é diferente entre ambientes. ' .
+                            'SOLUÇÃO: Acesse as configurações do Asaas e cole a chave de API novamente para que ela seja criptografada com a chave local.'
+                        );
                     }
+                } catch (\RuntimeException $e) {
+                    // Re-lança RuntimeExceptions (erros de descriptografia)
+                    throw $e;
                 } catch (\Exception $e) {
                     // Se falhar ao descriptografar, pode ser problema com INFRA_SECRET_KEY
                     error_log('[ASAAS ERROR] Falha ao descriptografar chave: ' . $e->getMessage());
                     error_log('[ASAAS ERROR] A chave no .env está criptografada mas não pode ser descriptografada.');
                     error_log('[ASAAS ERROR] Possível causa: INFRA_SECRET_KEY foi alterada após criptografar a chave.');
-                    // Usa a chave criptografada mesmo assim - isso resultará em erro 401 claro
-                    // que será tratado pelo teste de conexão
-                    $apiKey = $apiKeyEncrypted;
+                    error_log('[ASAAS ERROR] SOLUÇÃO: Cole a chave de API do Asaas novamente no ambiente local.');
+                    throw new \RuntimeException(
+                        'A chave de API está criptografada mas não pode ser descriptografada. ' .
+                        'Isso geralmente acontece quando a INFRA_SECRET_KEY é diferente entre ambientes. ' .
+                        'SOLUÇÃO: Acesse as configurações do Asaas e cole a chave de API novamente para que ela seja criptografada com a chave local.'
+                    );
                 }
             } else {
                 // Não parece criptografada, usa como texto plano

@@ -256,3 +256,5 @@ A query usa `CURDATE()` e `TIME(NOW())` que respeitam o timezone do servidor MyS
 
 
 
+
+

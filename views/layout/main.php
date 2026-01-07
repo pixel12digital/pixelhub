@@ -245,6 +245,15 @@
             <!-- Dashboard (sem subitens) -->
             <a href="<?= pixelhub_url('/dashboard') ?>" class="sidebar-top-link <?= ($currentUri === '/' || strpos($currentUri, '/dashboard') !== false) ? 'active' : '' ?>">Dashboard</a>
             
+            <!-- Assistente de Cadastramento (Destaque) -->
+            <a href="<?= pixelhub_url('/wizard/new-project') ?>" 
+               class="sidebar-top-link" 
+               style="background: #023A8D; color: white; font-weight: 600; border-radius: 6px; margin: 5px 15px; padding: 12px 20px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s;"
+               onmouseover="this.style.background='#022a70'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';"
+               onmouseout="this.style.background='#023A8D'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
+                Novo Projeto (Assistente)
+            </a>
+            
             <!-- Clientes (sem subitens) -->
             <a href="<?= pixelhub_url('/tenants') ?>" class="sidebar-top-link <?= (strpos($currentUri, '/tenants') !== false) ? 'active' : '' ?>">Clientes</a>
             
@@ -285,15 +294,16 @@
             
             <!-- Serviços -->
             <?php
-            $servicosActive = $isActive(['/hosting', '/hosting-plans']);
-            $servicosExpanded = $shouldExpand(['/hosting', '/hosting-plans']);
+            $servicosActive = $isActive(['/services', '/hosting', '/hosting-plans']);
+            $servicosExpanded = $shouldExpand(['/services', '/hosting', '/hosting-plans']);
             ?>
             <div class="sidebar-module" data-module="servicos">
                 <div class="sidebar-module-header has-children <?= $servicosActive ? 'active' : '' ?> <?= $servicosExpanded ? 'is-open' : '' ?>">
                     Serviços
                 </div>
                 <div class="sidebar-module-content <?= $servicosExpanded ? 'is-open' : '' ?>">
-                    <a href="<?= pixelhub_url('/hosting') ?>" class="sub-item <?= (strpos($currentUri, '/hosting') !== false && strpos($currentUri, '/hosting-plans') === false) ? 'active' : '' ?>">Hospedagem & Cobranças</a>
+                    <a href="<?= pixelhub_url('/services') ?>" class="sub-item <?= (strpos($currentUri, '/services') !== false) ? 'active' : '' ?>">Catálogo de Serviços</a>
+                    <a href="<?= pixelhub_url('/hosting') ?>" class="sub-item <?= (strpos($currentUri, '/hosting') !== false && strpos($currentUri, '/hosting-plans') === false && strpos($currentUri, '/services') === false) ? 'active' : '' ?>">Hospedagem & Cobranças</a>
                     <a href="<?= pixelhub_url('/hosting-plans') ?>" class="sub-item <?= (strpos($currentUri, '/hosting-plans') !== false) ? 'active' : '' ?>">Planos de Hospedagem</a>
                 </div>
             </div>

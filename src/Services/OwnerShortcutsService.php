@@ -66,9 +66,9 @@ class OwnerShortcutsService
         if (empty($label)) {
             throw new \InvalidArgumentException('Nome do acesso é obrigatório');
         }
-        if (empty($url)) {
-            throw new \InvalidArgumentException('URL é obrigatória');
-        }
+        
+        // URL é opcional - pode ser null
+        $url = !empty($url) ? $url : null;
 
         // Criptografa senha se fornecida
         $passwordEncrypted = !empty($password) ? CryptoHelper::encrypt($password) : null;
@@ -115,7 +115,7 @@ class OwnerShortcutsService
 
         // Processa dados
         $label = trim($data['label'] ?? $current['label']);
-        $url = trim($data['url'] ?? $current['url']);
+        $url = isset($data['url']) ? (trim($data['url']) ?: null) : ($current['url'] ?? null);
         $username = trim($data['username'] ?? $current['username'] ?? '') ?: null;
         $password = trim($data['password'] ?? '');
         $notes = trim($data['notes'] ?? $current['notes'] ?? '') ?: null;
@@ -124,9 +124,6 @@ class OwnerShortcutsService
         // Validações
         if (empty($label)) {
             throw new \InvalidArgumentException('Nome do acesso é obrigatório');
-        }
-        if (empty($url)) {
-            throw new \InvalidArgumentException('URL é obrigatória');
         }
 
         // Se senha foi fornecida, criptografa; senão mantém a anterior

@@ -17,9 +17,10 @@ class ProjectService
         $db = DB::getConnection();
         
         $sql = "
-            SELECT p.*, t.name as tenant_name
+            SELECT p.*, t.name as tenant_name, s.name as service_name
             FROM projects p
             LEFT JOIN tenants t ON p.tenant_id = t.id
+            LEFT JOIN services s ON p.service_id = s.id
             WHERE 1=1
         ";
         
@@ -60,9 +61,10 @@ class ProjectService
     {
         $db = DB::getConnection();
         $stmt = $db->prepare("
-            SELECT p.*, t.name as tenant_name
+            SELECT p.*, t.name as tenant_name, s.name as service_name
             FROM projects p
             LEFT JOIN tenants t ON p.tenant_id = t.id
+            LEFT JOIN services s ON p.service_id = s.id
             WHERE p.id = ?
         ");
         $stmt->execute([$id]);
@@ -110,26 +112,51 @@ class ProjectService
         
         // Processa dados
         $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
+        $serviceId = !empty($data['service_id']) ? (int) $data['service_id'] : null;
+        
+        // Validação: Se tipo é "cliente", tenant_id é obrigatório
+        if ($type === 'cliente' && empty($tenantId)) {
+            throw new \InvalidArgumentException(
+                'Projetos do tipo "cliente" requerem um cliente vinculado. ' .
+                'Selecione um cliente existente ou crie um novo.'
+            );
+        }
         $description = trim($data['description'] ?? '') ?: null;
         $dueDate = !empty($data['due_date']) ? $data['due_date'] : null;
         $createdBy = !empty($data['created_by']) ? (int) $data['created_by'] : null;
         $isCustomerVisible = isset($data['is_customer_visible']) ? (int) $data['is_customer_visible'] : 0;
+        
+        // Campos para projetos satélites
+        $slug = !empty($data['slug']) ? trim($data['slug']) : null;
+        $baseUrl = !empty($data['base_url']) ? trim($data['base_url']) : null;
+        $externalProjectId = !empty($data['external_project_id']) ? trim($data['external_project_id']) : null;
         
         // Se type = 'interno', força is_customer_visible = 0 por padrão
         if ($type === 'interno' && !isset($data['is_customer_visible'])) {
             $isCustomerVisible = 0;
         }
         
+        // Gera slug automático se não fornecido
+        if (empty($slug) && !empty($name)) {
+            $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $name)));
+            $slug = preg_replace('/-+/', '-', $slug);
+            $slug = trim($slug, '-');
+        }
+        
         // Insere no banco
         $stmt = $db->prepare("
             INSERT INTO projects 
-            (tenant_id, name, description, status, priority, type, is_customer_visible, template, due_date, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NOW(), NOW())
+            (tenant_id, service_id, name, slug, external_project_id, base_url, description, status, priority, type, is_customer_visible, template, due_date, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NOW(), NOW())
         ");
         
         $stmt->execute([
             $tenantId,
+            $serviceId,
             $name,
+            $slug,
+            $externalProjectId,
+            $baseUrl,
             $description,
             $status,
             $priority,
@@ -188,10 +215,23 @@ class ProjectService
         
         // Processa dados
         $tenantId = isset($data['tenant_id']) ? (!empty($data['tenant_id']) ? (int) $data['tenant_id'] : null) : $project['tenant_id'];
+        $serviceId = isset($data['service_id']) ? (!empty($data['service_id']) ? (int) $data['service_id'] : null) : ($project['service_id'] ?? null);
         $description = isset($data['description']) ? (trim($data['description']) ?: null) : $project['description'];
         $dueDate = isset($data['due_date']) ? (!empty($data['due_date']) ? $data['due_date'] : null) : $project['due_date'];
         $updatedBy = !empty($data['updated_by']) ? (int) $data['updated_by'] : null;
         $isCustomerVisible = isset($data['is_customer_visible']) ? (int) $data['is_customer_visible'] : ($project['is_customer_visible'] ?? 0);
+        
+        // Campos para projetos satélites
+        $slug = isset($data['slug']) ? (!empty($data['slug']) ? trim($data['slug']) : null) : ($project['slug'] ?? null);
+        $baseUrl = isset($data['base_url']) ? (!empty($data['base_url']) ? trim($data['base_url']) : null) : ($project['base_url'] ?? null);
+        $externalProjectId = isset($data['external_project_id']) ? (!empty($data['external_project_id']) ? trim($data['external_project_id']) : null) : ($project['external_project_id'] ?? null);
+        
+        // Gera slug automático se não fornecido e nome mudou
+        if (empty($slug) && !empty($name) && $name !== ($project['name'] ?? '')) {
+            $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $name)));
+            $slug = preg_replace('/-+/', '-', $slug);
+            $slug = trim($slug, '-');
+        }
         
         // Se type = 'interno', força is_customer_visible = 0
         if ($type === 'interno') {
@@ -201,13 +241,17 @@ class ProjectService
         // Atualiza no banco
         $stmt = $db->prepare("
             UPDATE projects 
-            SET tenant_id = ?, name = ?, description = ?, status = ?, priority = ?, type = ?, is_customer_visible = ?, template = NULL, due_date = ?, updated_by = ?, updated_at = NOW()
+            SET tenant_id = ?, service_id = ?, name = ?, slug = ?, external_project_id = ?, base_url = ?, description = ?, status = ?, priority = ?, type = ?, is_customer_visible = ?, template = NULL, due_date = ?, updated_by = ?, updated_at = NOW()
             WHERE id = ?
         ");
         
         $stmt->execute([
             $tenantId,
+            $serviceId,
             $name,
+            $slug,
+            $externalProjectId,
+            $baseUrl,
             $description,
             $status,
             $priority,
@@ -269,6 +313,133 @@ class ProjectService
         }
         
         return $options;
+    }
+
+    /**
+     * Verifica se um projeto está concluído
+     * Um projeto é considerado concluído quando:
+     * - Possui tarefas E todas estão concluídas (sem tarefas pendentes ou em andamento)
+     * - Possui tickets E todos estão resolvidos (sem tickets pendentes ou em atendimento)
+     * - Se não tem tarefas nem tickets, não é considerado concluído (é apenas um projeto novo/vazio)
+     * 
+     * @param int $projectId ID do projeto
+     * @return bool True se o projeto está concluído, False caso contrário
+     */
+    public static function isProjectCompleted(int $projectId): bool
+    {
+        $db = DB::getConnection();
+        
+        // Verifica total de tarefas e quantas estão pendentes
+        try {
+            $stmt = $db->prepare("
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status != 'concluida' AND deleted_at IS NULL THEN 1 ELSE 0 END) as pending
+                FROM tasks
+                WHERE project_id = ?
+                  AND deleted_at IS NULL
+            ");
+            $stmt->execute([$projectId]);
+        } catch (\PDOException $e) {
+            // Se deleted_at não existe, tenta sem essa condição
+            $stmt = $db->prepare("
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status != 'concluida' THEN 1 ELSE 0 END) as pending
+                FROM tasks
+                WHERE project_id = ?
+            ");
+            $stmt->execute([$projectId]);
+        }
+        
+        $result = $stmt->fetch();
+        $totalTasks = (int) ($result['total'] ?? 0);
+        $pendingTasks = (int) ($result['pending'] ?? 0);
+        
+        // Verifica total de tickets e quantos estão pendentes
+        $totalTickets = 0;
+        $pendingTickets = 0;
+        try {
+            $stmt = $db->prepare("
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status NOT IN ('resolvido', 'fechado', 'cancelado') THEN 1 ELSE 0 END) as pending
+                FROM tickets
+                WHERE project_id = ?
+            ");
+            $stmt->execute([$projectId]);
+            $result = $stmt->fetch();
+            $totalTickets = (int) ($result['total'] ?? 0);
+            $pendingTickets = (int) ($result['pending'] ?? 0);
+        } catch (\PDOException $e) {
+            // Se a tabela tickets não existir, ignora
+        }
+        
+        // Se há tarefas ou tickets pendentes, o projeto não está concluído
+        if ($pendingTasks > 0 || $pendingTickets > 0) {
+            return false;
+        }
+        
+        // Projeto está concluído apenas se TEM tarefas/tickets E todos estão concluídos
+        // Se não tem nenhuma tarefa nem ticket, não é considerado concluído (projeto vazio)
+        return ($totalTasks > 0 || $totalTickets > 0);
+    }
+
+    /**
+     * Lista projetos ativos excluindo os que estão concluídos
+     * Usado para filtrar projetos concluídos do seletor do kanban
+     * 
+     * @param int|null $tenantId Filtro por tenant/cliente
+     * @param string|null $type Filtro por tipo ('interno' ou 'cliente')
+     * @return array Lista de projetos não concluídos
+     */
+    public static function getActiveNonCompletedProjects(?int $tenantId = null, ?string $type = null): array
+    {
+        $projects = self::getAllProjects($tenantId, 'ativo', $type);
+        
+        // Filtra projetos concluídos
+        $nonCompletedProjects = [];
+        foreach ($projects as $project) {
+            if (!self::isProjectCompleted((int) $project['id'])) {
+                $nonCompletedProjects[] = $project;
+            }
+        }
+        
+        return $nonCompletedProjects;
+    }
+
+    /**
+     * Arquivar automaticamente projetos concluídos
+     * Verifica todos os projetos ativos e arquiva aqueles que estão concluídos
+     * 
+     * @return array Array com informações sobre projetos arquivados
+     */
+    public static function autoArchiveCompletedProjects(): array
+    {
+        $db = DB::getConnection();
+        
+        // Busca todos os projetos ativos
+        $projects = self::getAllProjects(null, 'ativo', null);
+        
+        $archived = [];
+        foreach ($projects as $project) {
+            $projectId = (int) $project['id'];
+            
+            // Verifica se está concluído
+            if (self::isProjectCompleted($projectId)) {
+                try {
+                    self::archiveProject($projectId);
+                    $archived[] = [
+                        'id' => $projectId,
+                        'name' => $project['name'],
+                    ];
+                } catch (\Exception $e) {
+                    error_log("Erro ao arquivar projeto {$projectId}: " . $e->getMessage());
+                }
+            }
+        }
+        
+        return $archived;
     }
 }
 

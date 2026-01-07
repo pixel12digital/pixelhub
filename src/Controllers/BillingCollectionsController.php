@@ -320,6 +320,7 @@ class BillingCollectionsController extends Controller
         $statusGeral = $_GET['status_geral'] ?? 'all';
         $semContatoRecente = isset($_GET['sem_contato_recente']) && $_GET['sem_contato_recente'] == '1';
         $diasSemContato = (int) ($_GET['dias_sem_contato'] ?? 7);
+        $ordenacao = $_GET['ordenacao'] ?? 'mais_vencidas';
 
         // Query base agregada por tenant
         // CORREÇÃO: Usa subquery para notificações para evitar multiplicação de linhas no JOIN
@@ -352,7 +353,14 @@ class BillingCollectionsController extends Controller
                 MAX(bi.whatsapp_last_at) as last_whatsapp_contact,
                 
                 -- Último contato via billing_notifications (usando subquery para evitar JOIN multiplicador)
-                (SELECT MAX(sent_at) FROM billing_notifications WHERE tenant_id = t.id AND status = 'sent_manual') as last_notification_sent
+                (SELECT MAX(sent_at) FROM billing_notifications WHERE tenant_id = t.id AND status = 'sent_manual') as last_notification_sent,
+                
+                -- Dias em atraso (da fatura mais antiga vencida) - usando subquery para evitar problema no ORDER BY
+                (SELECT MAX(DATEDIFF(CURDATE(), bi2.due_date)) 
+                 FROM billing_invoices bi2 
+                 WHERE bi2.tenant_id = t.id 
+                   AND bi2.status = 'overdue' 
+                   AND (bi2.is_deleted IS NULL OR bi2.is_deleted = 0)) as max_days_overdue
                 
             FROM tenants t
             LEFT JOIN billing_invoices bi ON t.id = bi.tenant_id
@@ -385,7 +393,36 @@ class BillingCollectionsController extends Controller
             $sql .= " HAVING " . implode(' AND ', $having);
         }
 
-        $sql .= " ORDER BY total_overdue DESC, qtd_invoices_overdue DESC, total_due_next_7d DESC";
+        // Ordenação
+        switch ($ordenacao) {
+            case 'mais_vencidas':
+                // Mais faturas vencidas primeiro
+                $sql .= " ORDER BY qtd_invoices_overdue DESC, total_overdue DESC, COALESCE(max_days_overdue, 0) DESC";
+                break;
+            case 'menos_vencidas':
+                // Menos faturas vencidas primeiro
+                $sql .= " ORDER BY qtd_invoices_overdue ASC, total_overdue ASC, COALESCE(max_days_overdue, 0) ASC";
+                break;
+            case 'maior_valor':
+                // Maior valor em atraso primeiro
+                $sql .= " ORDER BY total_overdue DESC, qtd_invoices_overdue DESC, COALESCE(max_days_overdue, 0) DESC";
+                break;
+            case 'menor_valor':
+                // Menor valor em atraso primeiro
+                $sql .= " ORDER BY total_overdue ASC, qtd_invoices_overdue ASC, COALESCE(max_days_overdue, 0) ASC";
+                break;
+            case 'mais_antigo':
+                // Mais dias em atraso primeiro (mais antigo)
+                $sql .= " ORDER BY COALESCE(max_days_overdue, 0) DESC, qtd_invoices_overdue DESC, total_overdue DESC";
+                break;
+            case 'mais_recente':
+                // Menos dias em atraso primeiro (mais recente)
+                $sql .= " ORDER BY COALESCE(max_days_overdue, 0) ASC, qtd_invoices_overdue ASC, total_overdue ASC";
+                break;
+            default:
+                // Padrão: mais vencidas
+                $sql .= " ORDER BY qtd_invoices_overdue DESC, total_overdue DESC, COALESCE(max_days_overdue, 0) DESC";
+        }
 
         $stmt = $db->prepare($sql);
         $stmt->execute();
@@ -396,6 +433,7 @@ class BillingCollectionsController extends Controller
             'statusGeral' => $statusGeral,
             'semContatoRecente' => $semContatoRecente,
             'diasSemContato' => $diasSemContato,
+            'ordenacao' => $ordenacao,
         ]);
     }
 

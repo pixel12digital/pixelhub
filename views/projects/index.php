@@ -108,6 +108,12 @@ ob_start();
         margin-top: 4px;
         margin-left: 24px;
     }
+    .help-text {
+        font-size: 12px;
+        color: #666;
+        margin-top: 4px;
+        display: block;
+    }
     .form-actions {
         display: flex;
         gap: 10px;
@@ -215,6 +221,14 @@ ob_start();
 <!-- Filtros -->
 <div class="filters">
     <div class="form-group">
+        <label for="filter_type">Tipo de Projeto</label>
+        <select id="filter_type" onchange="applyFilters()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            <option value="">Todos</option>
+            <option value="interno" <?= ($selectedType === 'interno') ? 'selected' : '' ?>>Projetos Internos (Pixel12)</option>
+            <option value="cliente" <?= ($selectedType === 'cliente') ? 'selected' : '' ?>>Projetos de Clientes</option>
+        </select>
+    </div>
+    <div class="form-group">
         <label for="filter_tenant">Cliente</label>
         <select id="filter_tenant" onchange="applyFilters()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             <option value="">Todos</option>
@@ -235,14 +249,170 @@ ob_start();
     </div>
 </div>
 
-<div class="card">
+<?php 
+// Garante que as variáveis existam
+$selectedType = $selectedType ?? null;
+$internalProjects = $internalProjects ?? [];
+$clientProjects = $clientProjects ?? [];
+$projects = $projects ?? [];
+
+// Se não há filtro de tipo específico, mostra separado por seções
+$showSeparated = empty($selectedType);
+?>
+
+<?php if ($showSeparated && !empty($internalProjects)): ?>
+<!-- Seção: Projetos Internos Pixel12 -->
+<div class="card" style="margin-bottom: 30px; border-left: 4px solid #666;">
+    <div style="background: #f8f8f8; padding: 15px; border-bottom: 2px solid #ddd; margin: -20px -20px 20px -20px;">
+        <h3 style="margin: 0; color: #666; font-size: 18px; display: flex; align-items: center; gap: 10px;">
+            <span>Projetos Internos Pixel12 Digital</span>
+            <span style="background: #666; color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                <?= count($internalProjects) ?>
+            </span>
+        </h3>
+    </div>
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="background: #f5f5f5;">
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Projeto</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Prioridade</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Prazo</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Status</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($internalProjects as $project): ?>
+            <tr style="background: #fafafa;">
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <strong><?= htmlspecialchars($project['name']) ?></strong>
+                    <?php if (!empty($project['base_url'])): ?>
+                        <br><small style="color: #666;"><a href="<?= htmlspecialchars($project['base_url']) ?>" target="_blank" style="color: #023A8D;"><?= htmlspecialchars($project['base_url']) ?></a></small>
+                    <?php endif; ?>
+                </td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <?php
+                    $priorityLabels = ['baixa' => 'Baixa', 'media' => 'Média', 'alta' => 'Alta', 'critica' => 'Crítica'];
+                    $priority = $project['priority'] ?? 'media';
+                    $label = $priorityLabels[$priority] ?? 'Média';
+                    ?>
+                    <span class="priority-badge priority-<?= $priority ?>"><?= $label ?></span>
+                </td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <?php if ($project['due_date']): ?>
+                        <?= date('d/m/Y', strtotime($project['due_date'])) ?>
+                    <?php else: ?>
+                        -
+                    <?php endif; ?>
+                </td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <?php
+                    $statusColor = $project['status'] === 'ativo' ? '#3c3' : '#666';
+                    $statusLabel = $project['status'] === 'ativo' ? 'Ativo' : 'Arquivado';
+                    echo '<span style="color: ' . $statusColor . '; font-weight: 600;">' . $statusLabel . '</span>';
+                    ?>
+                </td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <?php include __DIR__ . '/_project_actions.php'; ?>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+<?php endif; ?>
+
+<?php if ($showSeparated && !empty($clientProjects)): ?>
+<!-- Seção: Projetos de Clientes -->
+<div class="card" style="border-left: 4px solid #023A8D;">
+    <div style="background: #f0f4ff; padding: 15px; border-bottom: 2px solid #ddd; margin: -20px -20px 20px -20px;">
+        <h3 style="margin: 0; color: #023A8D; font-size: 18px; display: flex; align-items: center; gap: 10px;">
+            <span>Projetos de Clientes</span>
+            <span style="background: #023A8D; color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                <?= count($clientProjects) ?>
+            </span>
+        </h3>
+    </div>
     <table style="width: 100%; border-collapse: collapse;">
         <thead>
             <tr style="background: #f5f5f5;">
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Projeto</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Cliente</th>
-                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Tipo</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Visível ao cliente?</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Prioridade</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Prazo</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Status</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($clientProjects as $project): ?>
+            <tr>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <strong><?= htmlspecialchars($project['name']) ?></strong>
+                    <?php if (!empty($project['service_name'])): ?>
+                        <br><small style="color: #023A8D; font-size: 12px;">Serviço: <?= htmlspecialchars($project['service_name']) ?></small>
+                    <?php endif; ?>
+                    <?php if (!empty($project['base_url'])): ?>
+                        <br><small style="color: #666;"><a href="<?= htmlspecialchars($project['base_url']) ?>" target="_blank" style="color: #023A8D;"><?= htmlspecialchars($project['base_url']) ?></a></small>
+                    <?php endif; ?>
+                </td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <?= $project['tenant_name'] ? htmlspecialchars($project['tenant_name']) : '<span style="color: #666;">-</span>' ?>
+                </td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <?php
+                    $isVisible = (int) ($project['is_customer_visible'] ?? 0);
+                    if ($isVisible) {
+                        echo '<span style="background: #023A8D; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">Pode aparecer para o cliente</span>';
+                    } else {
+                        echo '<span style="background: #666; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">Somente interno</span>';
+                    }
+                    ?>
+                </td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <?php
+                    $priorityLabels = ['baixa' => 'Baixa', 'media' => 'Média', 'alta' => 'Alta', 'critica' => 'Crítica'];
+                    $priority = $project['priority'] ?? 'media';
+                    $label = $priorityLabels[$priority] ?? 'Média';
+                    ?>
+                    <span class="priority-badge priority-<?= $priority ?>"><?= $label ?></span>
+                </td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <?php if ($project['due_date']): ?>
+                        <?= date('d/m/Y', strtotime($project['due_date'])) ?>
+                    <?php else: ?>
+                        -
+                    <?php endif; ?>
+                </td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <?php
+                    $statusColor = $project['status'] === 'ativo' ? '#3c3' : '#666';
+                    $statusLabel = $project['status'] === 'ativo' ? 'Ativo' : 'Arquivado';
+                    echo '<span style="color: ' . $statusColor . '; font-weight: 600;">' . $statusLabel . '</span>';
+                    ?>
+                </td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <?php include __DIR__ . '/_project_actions.php'; ?>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+<?php endif; ?>
+
+<?php if (!$showSeparated): ?>
+<!-- Lista unificada quando há filtro de tipo -->
+<div class="card">
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="background: #f5f5f5;">
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Projeto</th>
+                <?php if ($selectedType === 'cliente'): ?>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Cliente</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Visível ao cliente?</th>
+                <?php endif; ?>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Prioridade</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Prazo</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Status</th>
@@ -252,7 +422,7 @@ ob_start();
         <tbody>
             <?php if (empty($projects)): ?>
                 <tr>
-                    <td colspan="8" style="padding: 20px; text-align: center; color: #666;">
+                    <td colspan="<?= $selectedType === 'cliente' ? '7' : '6' ?>" style="padding: 20px; text-align: center; color: #666;">
                         Nenhum projeto cadastrado.
                     </td>
                 </tr>
@@ -261,18 +431,13 @@ ob_start();
                 <tr>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <strong><?= htmlspecialchars($project['name']) ?></strong>
+                        <?php if (!empty($project['base_url'])): ?>
+                            <br><small style="color: #666;"><a href="<?= htmlspecialchars($project['base_url']) ?>" target="_blank" style="color: #023A8D;"><?= htmlspecialchars($project['base_url']) ?></a></small>
+                        <?php endif; ?>
                     </td>
+                    <?php if ($selectedType === 'cliente'): ?>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <?= $project['tenant_name'] ? htmlspecialchars($project['tenant_name']) : '<span style="color: #666;">Interno</span>' ?>
-                    </td>
-                    <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <?php
-                        $type = $project['type'] ?? 'interno';
-                        $typeLabel = $type === 'interno' ? 'Interno' : 'Cliente';
-                        ?>
-                        <span style="font-weight: 600; color: <?= $type === 'interno' ? '#666' : '#023A8D' ?>;">
-                            <?= $typeLabel ?>
-                        </span>
+                        <?= $project['tenant_name'] ? htmlspecialchars($project['tenant_name']) : '<span style="color: #666;">-</span>' ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?php
@@ -284,6 +449,7 @@ ob_start();
                         }
                         ?>
                     </td>
+                    <?php endif; ?>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?php
                         $priorityLabels = [
@@ -312,39 +478,7 @@ ob_start();
                         ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                            <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id']) ?>" 
-                               class="btn btn-primary btn-small"
-                               style="text-decoration: none;">
-                                Ver quadro
-                            </a>
-                            <?php if (!empty($project['tenant_id'])): ?>
-                            <a href="<?= pixelhub_url('/tickets/create?project_id=' . $project['id'] . '&tenant_id=' . $project['tenant_id']) ?>" 
-                               class="btn btn-small"
-                               style="background: #28a745; color: white; text-decoration: none;">
-                                🎫 Abrir ticket
-                            </a>
-                            <?php endif; ?>
-                            <button class="btn btn-secondary btn-small btn-edit-project"
-                                    data-id="<?= $project['id'] ?>"
-                                    data-name="<?= htmlspecialchars($project['name']) ?>"
-                                    data-description="<?= htmlspecialchars($project['description'] ?? '') ?>"
-                                    data-tenant-id="<?= $project['tenant_id'] ?? '' ?>"
-                                    data-type="<?= htmlspecialchars($project['type'] ?? 'interno') ?>"
-                                    data-is-customer-visible="<?= (int) ($project['is_customer_visible'] ?? 0) ?>"
-                                    data-priority="<?= htmlspecialchars($project['priority'] ?? 'media') ?>"
-                                    data-due-date="<?= $project['due_date'] ? date('Y-m-d', strtotime($project['due_date'])) : '' ?>"
-                                    data-status="<?= htmlspecialchars($project['status'] ?? 'ativo') ?>">
-                                Editar
-                            </button>
-                            <?php if ($project['status'] === 'ativo'): ?>
-                            <button class="btn btn-danger btn-small btn-archive-project"
-                                    data-id="<?= $project['id'] ?>"
-                                    data-name="<?= htmlspecialchars($project['name']) ?>">
-                                Arquivar
-                            </button>
-                            <?php endif; ?>
-                        </div>
+                        <?php include __DIR__ . '/_project_actions.php'; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -352,6 +486,15 @@ ob_start();
         </tbody>
     </table>
 </div>
+<?php endif; ?>
+
+<?php if ($showSeparated && empty($internalProjects) && empty($clientProjects)): ?>
+<div class="card">
+    <p style="padding: 20px; text-align: center; color: #666;">
+        Nenhum projeto cadastrado.
+    </p>
+</div>
+<?php endif; ?>
 
 <!-- Modal de Criar/Editar Projeto -->
 <div id="projectModal" class="modal">
@@ -381,6 +524,26 @@ ob_start();
                 </div>
             </div>
 
+            <!-- Linha 1.5: Serviço do Catálogo (opcional) -->
+            <div class="form-group">
+                <label for="service_id">Serviço (Catálogo)</label>
+                <select name="service_id" id="service_id">
+                    <option value="">Nenhum (projeto personalizado)</option>
+                    <?php 
+                    $services = $services ?? [];
+                    foreach ($services as $service): 
+                    ?>
+                        <option value="<?= $service['id'] ?>">
+                            <?= htmlspecialchars($service['name']) ?>
+                            <?php if ($service['price']): ?>
+                                (R$ <?= number_format((float) $service['price'], 2, ',', '.') ?>)
+                            <?php endif; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <span class="help-text">Selecione um serviço do catálogo para vincular ao projeto (opcional)</span>
+            </div>
+
             <!-- Linha 2: Tipo de Projeto e Visível ao cliente (2 colunas no desktop) -->
             <div class="form-row">
                 <div class="form-group">
@@ -400,13 +563,27 @@ ob_start();
                 </div>
             </div>
 
-            <!-- Linha 3: Descrição (full width) -->
-            <div class="form-group">
-                <label for="description">Descrição</label>
-                <textarea name="description" id="description"></textarea>
+            <!-- Linha 3: Slug e Base URL (2 colunas no desktop) - Para projetos satélites -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="slug">Slug (identificador único)</label>
+                    <input type="text" name="slug" id="slug" placeholder="ex: prestadores-servicos" maxlength="100">
+                    <span class="help-text">Usado para identificar o projeto (opcional)</span>
+                </div>
+                <div class="form-group">
+                    <label for="base_url">URL Base do Projeto</label>
+                    <input type="url" name="base_url" id="base_url" placeholder="https://projeto.exemplo.com" maxlength="255">
+                    <span class="help-text">URL principal do projeto (opcional)</span>
+                </div>
             </div>
 
-            <!-- Linha 4: Prioridade e Prazo (2 colunas no desktop) -->
+            <!-- Linha 4: Descrição (full width) -->
+            <div class="form-group">
+                <label for="description">Descrição / Notas Técnicas</label>
+                <textarea name="description" id="description" placeholder="Informações importantes: banco de dados, estágio do projeto, credenciais, etc."></textarea>
+            </div>
+
+            <!-- Linha 5: Prioridade e Prazo (2 colunas no desktop) -->
             <div class="form-row">
                 <div class="form-group">
                     <label for="priority">Prioridade</label>
@@ -434,9 +611,11 @@ ob_start();
 
 <script>
     function applyFilters() {
+        const type = document.getElementById('filter_type').value;
         const tenantId = document.getElementById('filter_tenant').value;
         const status = document.getElementById('filter_status').value;
         const params = new URLSearchParams();
+        if (type) params.append('type', type);
         if (tenantId) params.append('tenant_id', tenantId);
         if (status) params.append('status', status);
         window.location.href = '<?= pixelhub_url('/projects') ?>?' + params.toString();
@@ -461,6 +640,7 @@ ob_start();
         document.getElementById('type').value = 'interno';
         document.getElementById('is_customer_visible').checked = false;
         document.getElementById('is_customer_visible').disabled = true;
+        document.getElementById('service_id').value = '';
         document.getElementById('projectModal').style.display = 'block';
     }
 
@@ -474,6 +654,9 @@ ob_start();
         document.getElementById('type').value = project.type || 'interno';
         document.getElementById('priority').value = project.priority || 'media';
         document.getElementById('due_date').value = project.due_date || '';
+        document.getElementById('slug').value = project.slug || '';
+        document.getElementById('base_url').value = project.base_url || '';
+        document.getElementById('service_id').value = project.service_id || '';
         
         const checkbox = document.getElementById('is_customer_visible');
         checkbox.checked = project.is_customer_visible == 1;
@@ -521,9 +704,14 @@ ob_start();
                     name: this.dataset.name,
                     description: this.dataset.description,
                     tenant_id: this.dataset.tenantId,
+                    type: this.dataset.type,
+                    is_customer_visible: this.dataset.isCustomerVisible,
                     priority: this.dataset.priority,
                     due_date: this.dataset.dueDate,
-                    status: this.dataset.status
+                    status: this.dataset.status,
+                    slug: this.dataset.slug,
+                    base_url: this.dataset.baseUrl,
+                    external_project_id: this.dataset.externalProjectId
                 };
                 openEditModal(project);
             });

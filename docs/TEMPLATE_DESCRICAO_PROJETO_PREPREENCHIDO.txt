@@ -1,0 +1,61 @@
+## 📊 ESTÁGIO DO PROJETO
+- Status: Desenvolvimento
+- Framework: Bolt (PHP)
+- IDE: Cursor
+- Versão Atual: Em desenvolvimento inicial
+- Última Atualização: 05/01/2026
+
+## 🗄️ BANCO DE DADOS
+- Provedor: Supabase (PostgreSQL)
+- Project Name: servico-pro
+- Host: db.servico-pro.supabase.co (verificar no painel)
+- Porta: 5432 (PostgreSQL padrão)
+- Nome do Banco: postgres (padrão Supabase)
+- Usuário: postgres.servico-pro (verificar no painel)
+- Senha: Los@ngo#081081
+- Tipo: PostgreSQL
+- ⚠️ Credenciais completas registradas em "Acessos Rápidos" (categoria: banco)
+- ⚠️ PROBLEMA: Dificuldades de conexão - verificar extensão PDO_PGSQL no PHP
+
+## 🖥️ SERVIDOR/INFRAESTRUTURA
+- Ambiente: Desenvolvimento Local
+- Servidor: Local (Cursor/XAMPP)
+- Domínio: Ainda não configurado
+- ⚠️ Pendente: Configurar domínio quando projeto estiver pronto
+
+## 🔐 CREDENCIAIS IMPORTANTES
+⚠️ NÃO coloque senhas aqui!
+- Painel Supabase: [URL do projeto no Supabase]
+- API Keys: [referência apenas]
+- Registre credenciais completas em "Acessos Rápidos" (Minha Infraestrutura)
+
+## 📝 OBSERVAÇÕES TÉCNICAS
+- Stack: Bolt Framework (PHP), Supabase (PostgreSQL)
+- IDE: Cursor
+- Dependências: [Verificar composer.json]
+- Configurações especiais: 
+  - Verificar arquivo .env para conexão Supabase
+  - Verificar se extensão PDO_PGSQL está habilitada no PHP
+  - Verificar firewall/whitelist de IPs no Supabase
+
+## 🔗 LINKS ÚTEIS
+- Repositório: [Se tiver]
+- Documentação Bolt: https://bolt.cm/docs
+- Painel Supabase: [URL do projeto]
+- API Docs: [Se tiver]
+
+## 📅 HISTÓRICO
+- Data de Criação: 05/01/2026
+- Última Manutenção: 05/01/2026
+- Próximas Tarefas: 
+  - Resolver conexão com Supabase
+  - Configurar domínio quando projeto estiver pronto
+  - Testar conexão e queries básicas
+
+## ⚠️ PROBLEMAS CONHECIDOS
+- Conexão com Supabase não está funcionando
+  - Verificar: extensão PDO_PGSQL no PHP
+  - Verificar: credenciais no .env
+  - Verificar: whitelist de IPs no Supabase
+  - Verificar: string de conexão (DSN)
+
