@@ -273,10 +273,30 @@ error_log("REQUEST_METHOD: " . ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 // Cria router e define rotas
 $router = new Router();
 
-// Rotas públicas
-$router->get('/login', 'AuthController@loginForm');
-$router->post('/login', 'AuthController@login');
-$router->get('/logout', 'AuthController@logout');
+    // Rotas públicas
+    $router->get('/login', 'AuthController@loginForm');
+    $router->post('/login', 'AuthController@login');
+    $router->get('/logout', 'AuthController@logout');
+    
+    // Rotas públicas de contratos (não requerem autenticação)
+    // Aceita tanto /contract/accept?token=XXX quanto /contract/accept/XXX
+    $router->get('/contract/accept', 'ProjectContractController@acceptPage');
+    $router->get('/contract/accept/*', 'ProjectContractController@acceptPage');
+    $router->post('/contract/accept', 'ProjectContractController@accept');
+    
+    // Rotas públicas para cliente preencher pedido de serviço
+    $router->get('/client-portal/orders/*', 'ServiceOrderController@publicForm');
+    $router->post('/client-portal/orders/save-client-data', 'ServiceOrderController@saveClientData');
+    $router->post('/client-portal/orders/save-briefing', 'ServiceOrderController@saveBriefing');
+    $router->post('/client-portal/orders/approve', 'ServiceOrderController@approve');
+    $router->post('/client-portal/orders/start-generation', 'ServiceOrderController@startGeneration');
+    $router->post('/client-portal/orders/lookup-existing-client', 'ServiceOrderController@lookupExistingClient');
+    $router->post('/client-portal/orders/ai-orchestrate', 'AIOrchestratorController@processMessage');
+    
+    // Rotas públicas para chat vinculado a pedidos
+    $router->get('/chat/order', 'ChatController@show');
+    $router->post('/chat/message', 'ChatController@sendMessage');
+    $router->get('/chat/messages', 'ChatController@getMessages');
 
 // Rota pública para compartilhar gravações (não requer autenticação)
 $router->get('/screen-recordings/share', function() {
@@ -336,6 +356,8 @@ $router->post('/tenants/archive', 'TenantsController@archive');
     $router->get('/tenants/view', 'TenantsController@show');
     $router->get('/tenants/whatsapp-history', 'TenantsController@whatsappHistory');
     $router->post('/tenants/sync-billing', 'TenantsController@syncBilling');
+    $router->post('/tenants/sync-asaas-data', 'TenantsController@syncAsaasData');
+    $router->post('/tenants/update-asaas-fields', 'TenantsController@updateAsaasFields');
     $router->post('/tenants/whatsapp-generic-log', 'TenantsController@logGenericWhatsApp');
     $router->get('/tenants/whatsapp-timeline-ajax', 'TenantsController@getWhatsAppTimelineAjax');
 
@@ -367,6 +389,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/email-accounts/edit', 'EmailAccountController@edit');
     $router->post('/email-accounts/update', 'EmailAccountController@update');
     $router->post('/email-accounts/delete', 'EmailAccountController@delete');
+    $router->get('/email-accounts/duplicate', 'EmailAccountController@duplicate');
     $router->get('/email-accounts/password', 'EmailAccountController@getPassword');
     $router->post('/email-accounts/password', 'EmailAccountController@getPassword');
 
@@ -377,9 +400,16 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/hosting-plans/edit', 'HostingPlanController@edit');
     $router->post('/hosting-plans/update', 'HostingPlanController@update');
     $router->post('/hosting-plans/toggle-status', 'HostingPlanController@toggleStatus');
+    $router->post('/hosting-plans/delete', 'HostingPlanController@delete');
 
     // Webhook do Asaas
     $router->post('/webhook/asaas', 'AsaasWebhookController@handle');
+    
+    // Webhook do WhatsApp Gateway
+    $router->post('/api/whatsapp/webhook', 'WhatsAppWebhookController@handle');
+    
+    // API de Eventos (para sistemas internos emitirem eventos)
+    $router->post('/api/events', 'EventIngestionController@handle');
 
     // Rotas de cobranças / WhatsApp
     $router->get('/billing/collections', 'BillingCollectionsController@index');
@@ -410,10 +440,24 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/services/edit', 'ServicesController@edit');
     $router->post('/services/update', 'ServicesController@update');
     $router->post('/services/toggle-status', 'ServicesController@toggleStatus');
+    
+    // Rotas de pedidos de serviço (service_orders) - Interno
+    $router->get('/service-orders', 'ServiceOrderController@index');
+    $router->get('/service-orders/create', 'ServiceOrderController@create');
+    $router->post('/service-orders/store', 'ServiceOrderController@store');
+    $router->get('/service-orders/view', 'ServiceOrderController@show');
+    $router->post('/service-orders/delete', 'ServiceOrderController@delete');
 
     // Rotas do Assistente de Cadastramento (Wizard)
     $router->get('/wizard/new-project', 'WizardController@newProject');
     $router->post('/wizard/create-project', 'WizardController@createProject');
+    $router->post('/wizard/suggest-project-name', 'WizardController@suggestProjectName');
+    $router->post('/wizard/preview-contract', 'WizardController@previewContract');
+
+    // Rotas de Configurações de IA
+    $router->get('/settings/ai', 'AISettingsController@index');
+    $router->post('/settings/ai', 'AISettingsController@update');
+    $router->post('/settings/ai/test', 'AISettingsController@testConnection');
 
     // Configurações de Infraestrutura — Provedores de Hospedagem
     $router->get('/settings/hosting-providers', 'HostingProvidersController@index');
@@ -434,6 +478,18 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/settings/whatsapp-templates/ajax-templates', 'WhatsAppTemplatesController@getTemplatesAjax');
     $router->get('/settings/whatsapp-templates/template-data', 'WhatsAppTemplatesController@getTemplateData');
 
+    // Rotas de Configurações - Cláusulas de Contrato
+    $router->get('/settings/contract-clauses', 'ContractClausesController@index');
+    $router->get('/settings/contract-clauses/create', 'ContractClausesController@create');
+    $router->post('/settings/contract-clauses/store', 'ContractClausesController@store');
+    $router->get('/settings/contract-clauses/edit', 'ContractClausesController@edit');
+    $router->post('/settings/contract-clauses/update', 'ContractClausesController@update');
+    $router->post('/settings/contract-clauses/delete', 'ContractClausesController@delete');
+
+    // Rotas de Configurações - Dados da Empresa
+    $router->get('/settings/company', 'CompanySettingsController@index');
+    $router->post('/settings/company', 'CompanySettingsController@update');
+
     // Rotas de Diagnóstico
     $router->get('/diagnostic/financial', 'DiagnosticController@financial');
     $router->get('/diagnostic/financial/errors', 'DiagnosticController@getErrorsJson');
@@ -442,6 +498,15 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/settings/asaas', 'AsaasSettingsController@index');
     $router->post('/settings/asaas', 'AsaasSettingsController@update');
     $router->post('/settings/asaas/test', 'AsaasSettingsController@testConnection');
+    
+    // Rotas de Central de Eventos de Comunicação
+    $router->get('/settings/communication-events', 'CommunicationEventsController@index');
+    $router->get('/settings/communication-events/view', 'CommunicationEventsController@show');
+    
+    // Rotas do Painel Operacional de Comunicação
+    $router->get('/communication-hub', 'CommunicationHubController@index');
+    $router->get('/communication-hub/thread', 'CommunicationHubController@thread');
+    $router->post('/communication-hub/send', 'CommunicationHubController@send');
 
     // Rotas de acessos e links de infraestrutura (apenas internos)
     $router->get('/owner/shortcuts', 'OwnerShortcutsController@index');
@@ -457,6 +522,13 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/projects/store', 'ProjectController@store');
     $router->post('/projects/update', 'ProjectController@update');
     $router->post('/projects/archive', 'ProjectController@archive');
+    
+    // Rotas de Contratos de Projetos (apenas internos)
+    $router->get('/contracts', 'ProjectContractController@index');
+    $router->get('/contracts/show', 'ProjectContractController@show');
+    $router->post('/contracts/update-value', 'ProjectContractController@updateValue');
+    $router->post('/contracts/send-whatsapp', 'ProjectContractController@sendWhatsApp');
+    $router->get('/contracts/download-pdf', 'ProjectContractController@downloadPdf');
     
     // Rotas de Quadro Kanban
     $router->get('/projects/board', 'TaskBoardController@board');

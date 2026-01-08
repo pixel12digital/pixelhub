@@ -424,9 +424,36 @@ class BillingCollectionsController extends Controller
                 $sql .= " ORDER BY qtd_invoices_overdue DESC, total_overdue DESC, COALESCE(max_days_overdue, 0) DESC";
         }
 
+        // Conta total de registros (antes da paginação)
+        // Usa subquery para contar corretamente após GROUP BY
+        $countSql = "SELECT COUNT(*) as total FROM (" . $sql . ") as counted";
+        $countStmt = $db->query($countSql);
+        $countResult = $countStmt->fetch();
+        $total = (int)($countResult['total'] ?? 0);
+
+        // Paginação
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $page = $page > 0 ? $page : 1;
+        $perPage = 25;
+        $offset = ($page - 1) * $perPage;
+
+        // Aplica LIMIT e OFFSET
+        $sql .= " LIMIT {$perPage} OFFSET {$offset}";
+
         $stmt = $db->prepare($sql);
         $stmt->execute();
         $tenants = $stmt->fetchAll();
+
+        // Calcula total de páginas
+        $totalPages = $total > 0 ? (int)ceil($total / $perPage) : 1;
+        if ($page > $totalPages && $totalPages > 0) {
+            $page = $totalPages;
+            $offset = ($page - 1) * $perPage;
+            $sql = preg_replace('/LIMIT \d+ OFFSET \d+$/', "LIMIT {$perPage} OFFSET {$offset}", $sql);
+            $stmt = $db->prepare($sql);
+            $stmt->execute();
+            $tenants = $stmt->fetchAll();
+        }
 
         $this->view('billing_collections.overview', [
             'tenants' => $tenants,
@@ -434,6 +461,10 @@ class BillingCollectionsController extends Controller
             'semContatoRecente' => $semContatoRecente,
             'diasSemContato' => $diasSemContato,
             'ordenacao' => $ordenacao,
+            'page' => $page,
+            'perPage' => $perPage,
+            'total' => $total,
+            'totalPages' => $totalPages,
         ]);
     }
 

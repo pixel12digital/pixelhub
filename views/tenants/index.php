@@ -27,14 +27,30 @@ ob_start();
                 </a>
             <?php endif; ?>
         </form>
-        <a href="<?= pixelhub_url('/tenants/create') ?>" 
-           style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; display: inline-block;">
-            Novo Cliente
-        </a>
-        <a href="<?= pixelhub_url('/tenants/create?create_hosting=1') ?>" 
-           style="background: #F7931E; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; display: inline-block;">
-            Novo Cliente + Hospedagem
-        </a>
+        <div style="position: relative; display: inline-block;" id="newClientMenuContainer">
+            <button type="button" 
+                    onclick="toggleNewClientMenu()"
+                    style="background: #023A8D; color: white; padding: 10px 20px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 14px;">
+                Novo Cliente
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 9l6 6 6-6"/>
+                </svg>
+            </button>
+            <div id="newClientMenu" style="display: none; position: absolute; right: 0; top: calc(100% + 8px); background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 220px; z-index: 1000; overflow: hidden;">
+                <a href="<?= pixelhub_url('/tenants/create') ?>" 
+                   style="display: block; padding: 12px 16px; color: #333; text-decoration: none; font-size: 14px; transition: background 0.2s;"
+                   onmouseover="this.style.background='#f0f0f0'"
+                   onmouseout="this.style.background='white'">
+                    Novo Cliente
+                </a>
+                <a href="<?= pixelhub_url('/tenants/create?create_hosting=1') ?>" 
+                   style="display: block; padding: 12px 16px; color: #333; text-decoration: none; font-size: 14px; transition: background 0.2s; border-top: 1px solid #eee;"
+                   onmouseover="this.style.background='#f0f0f0'"
+                   onmouseout="this.style.background='white'">
+                    Novo Cliente + Hospedagem
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -178,6 +194,23 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Fallback: se usuário apertar Enter, mantém comportamento normal do form (submit GET completo).
     // O onkeypress já está no HTML e funciona normalmente.
+});
+
+// Função para controlar menu dropdown de Novo Cliente
+function toggleNewClientMenu() {
+    const menu = document.getElementById('newClientMenu');
+    if (menu) {
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+// Fecha o menu ao clicar fora dele
+document.addEventListener('click', function(event) {
+    const container = document.getElementById('newClientMenuContainer');
+    const menu = document.getElementById('newClientMenu');
+    if (container && menu && !container.contains(event.target)) {
+        menu.style.display = 'none';
+    }
 });
 </script>
 

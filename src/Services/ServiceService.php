@@ -69,6 +69,11 @@ class ServiceService
         $category = !empty($data['category']) ? trim($data['category']) : null;
         $price = isset($data['price']) && $data['price'] !== '' ? (float) $data['price'] : null;
         $estimatedDuration = isset($data['estimated_duration']) && $data['estimated_duration'] !== '' ? (int) $data['estimated_duration'] : null;
+        $billingType = !empty($data['billing_type']) ? trim($data['billing_type']) : 'one_time';
+        // Valida billing_type
+        if (!in_array($billingType, ['one_time', 'recurring'])) {
+            $billingType = 'one_time';
+        }
         $isActive = isset($data['is_active']) && $data['is_active'] == '1' ? 1 : 0;
         
         // Processa templates JSON
@@ -90,8 +95,8 @@ class ServiceService
         // Insere no banco
         $stmt = $db->prepare("
             INSERT INTO services 
-            (name, description, category, price, estimated_duration, tasks_template, briefing_template, default_timeline, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            (name, description, category, price, billing_type, estimated_duration, tasks_template, briefing_template, default_timeline, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
         
         $stmt->execute([
@@ -99,6 +104,7 @@ class ServiceService
             $description,
             $category,
             $price,
+            $billingType,
             $estimatedDuration,
             $tasksTemplate,
             $briefingTemplate,
@@ -133,6 +139,11 @@ class ServiceService
         $category = isset($data['category']) ? (!empty($data['category']) ? trim($data['category']) : null) : $service['category'];
         $price = isset($data['price']) ? ($data['price'] !== '' ? (float) $data['price'] : null) : $service['price'];
         $estimatedDuration = isset($data['estimated_duration']) ? ($data['estimated_duration'] !== '' ? (int) $data['estimated_duration'] : null) : $service['estimated_duration'];
+        $billingType = isset($data['billing_type']) ? trim($data['billing_type']) : ($service['billing_type'] ?? 'one_time');
+        // Valida billing_type
+        if (!in_array($billingType, ['one_time', 'recurring'])) {
+            $billingType = 'one_time';
+        }
         $isActive = isset($data['is_active']) ? (($data['is_active'] == '1' ? 1 : 0)) : $service['is_active'];
         
         // Processa templates JSON
@@ -166,7 +177,7 @@ class ServiceService
         // Atualiza no banco
         $stmt = $db->prepare("
             UPDATE services 
-            SET name = ?, description = ?, category = ?, price = ?, estimated_duration = ?, 
+            SET name = ?, description = ?, category = ?, price = ?, billing_type = ?, estimated_duration = ?, 
                 tasks_template = ?, briefing_template = ?, default_timeline = ?, is_active = ?, updated_at = NOW()
             WHERE id = ?
         ");
@@ -176,6 +187,7 @@ class ServiceService
             $description,
             $category,
             $price,
+            $billingType,
             $estimatedDuration,
             $tasksTemplate,
             $briefingTemplate,

@@ -115,13 +115,27 @@ class TenantsController extends Controller
 
         // Busca timeline unificada de WhatsApp usando WhatsAppHistoryService
         // Limite de histórico na Visão Geral: 5 mensagens (para não poluir a tela)
-        $whatsappTimeline = WhatsAppHistoryService::getTimelineByTenant((int)$tenantId, 5);
+        // Na aba de notificações, busca mais registros (50) para exibir histórico completo
+        $timelineLimit = $activeTab === 'notifications' ? 50 : 5;
+        $whatsappTimeline = WhatsAppHistoryService::getTimelineByTenant((int)$tenantId, $timelineLimit);
         
         // Último contato WhatsApp (primeiro item da timeline, se houver)
         $lastWhatsAppContact = !empty($whatsappTimeline) ? $whatsappTimeline[0] : null;
         
-        // Mantém variável antiga para compatibilidade (pode ser removida depois)
+        // Busca billing_notifications para a aba de notificações
         $whatsappNotifications = [];
+        if ($activeTab === 'notifications') {
+            $stmt = $db->prepare("
+                SELECT bn.*, bi.due_date, bi.amount 
+                FROM billing_notifications bn 
+                LEFT JOIN billing_invoices bi ON bn.invoice_id = bi.id 
+                WHERE bn.tenant_id = ? 
+                ORDER BY bn.sent_at DESC, bn.created_at DESC 
+                LIMIT 50
+            ");
+            $stmt->execute([$tenantId]);
+            $whatsappNotifications = $stmt->fetchAll();
+        }
 
         // Busca todos os customers Asaas para o CPF/CNPJ do tenant (apenas na aba financeira)
         // Sempre inicializa as variáveis para evitar erros na view
@@ -175,6 +189,7 @@ class TenantsController extends Controller
 
         // Busca documentos gerais do tenant (apenas se necessário para a aba docs_backups)
         $tenantDocuments = [];
+        $contracts = [];
         if ($activeTab === 'docs_backups') {
             $stmt = $db->prepare("
                 SELECT * FROM tenant_documents
@@ -193,6 +208,27 @@ class TenantsController extends Controller
                 }
             }
             unset($doc);
+            
+            // Busca contratos do tenant
+            $contracts = \PixelHub\Services\ProjectContractService::getContractsByTenant($tenantId);
+        }
+
+        // Busca dados consolidados do Asaas para preencher o formulário de edição
+        $consolidatedAsaasData = [];
+        if (!empty($tenant['cpf_cnpj'])) {
+            try {
+                $cpfCnpjNormalizado = preg_replace('/[^0-9]/', '', $tenant['cpf_cnpj']);
+                if (!empty($cpfCnpjNormalizado)) {
+                    $allCustomers = \PixelHub\Services\AsaasClient::findCustomersByCpfCnpj($cpfCnpjNormalizado);
+                    if (!empty($allCustomers)) {
+                        $consolidatedAsaasRaw = \PixelHub\Services\AsaasBillingService::consolidateAsaasCustomersData($allCustomers);
+                        $consolidatedAsaasData = \PixelHub\Services\AsaasBillingService::convertConsolidatedDataToTenantFormat($consolidatedAsaasRaw);
+                    }
+                }
+            } catch (\Exception $e) {
+                // Silenciosamente ignora erros ao buscar dados consolidados
+                error_log("Aviso: Erro ao buscar dados consolidados do Asaas: " . $e->getMessage());
+            }
         }
 
         $this->view('tenants.view', [
@@ -209,8 +245,11 @@ class TenantsController extends Controller
             'activeTab' => $activeTab,
             'asaasCustomersByCpf' => $asaasCustomersByCpf,
             'asaasPrimaryCustomerId' => $asaasPrimaryCustomerId,
+            'consolidatedAsaasData' => $consolidatedAsaasData,
             'providerMap' => $providerMap,
             'tasks' => $tasks,
+            'contracts' => $contracts ?? [],
+            'tenantDocuments' => $tenantDocuments ?? [],
             'tenantDocuments' => $tenantDocuments,
         ]);
     }
@@ -964,6 +1003,452 @@ class TenantsController extends Controller
         } catch (\Exception $e) {
             error_log("Erro ao arquivar tenant: " . $e->getMessage());
             $this->redirect('/tenants/view?id=' . $tenantId . '&error=archive_failed');
+        }
+    }
+
+    /**
+     * Atualiza campos do Asaas diretamente pelo sistema
+     * POST /tenants/update-asaas-fields
+     * 
+     * Busca e consolida dados de TODOS os cadastros do Asaas para o CPF antes de atualizar.
+     */
+    public function updateAsaasFields(): void
+    {
+        Auth::requireInternal();
+
+        header('Content-Type: application/json');
+
+        $tenantId = isset($_POST['tenant_id']) ? (int) $_POST['tenant_id'] : 0;
+
+        if ($tenantId <= 0) {
+            $this->json(['success' => false, 'message' => 'ID do cliente não fornecido']);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        // Busca tenant atual
+        $stmt = $db->prepare("SELECT * FROM tenants WHERE id = ?");
+        $stmt->execute([$tenantId]);
+        $tenant = $stmt->fetch();
+
+        if (!$tenant) {
+            $this->json(['success' => false, 'message' => 'Cliente não encontrado']);
+            return;
+        }
+
+        try {
+            // Prepara dados do formulário
+            $email = trim($_POST['email'] ?? '');
+            $phone = trim($_POST['phone'] ?? '');
+            $phoneFixed = trim($_POST['phone_fixed'] ?? '');
+            $addressCep = trim($_POST['address_cep'] ?? '');
+            $addressStreet = trim($_POST['address_street'] ?? '');
+            $addressNumber = trim($_POST['address_number'] ?? '');
+            $addressComplement = trim($_POST['address_complement'] ?? '');
+            $addressNeighborhood = trim($_POST['address_neighborhood'] ?? '');
+            $addressCity = trim($_POST['address_city'] ?? '');
+            $addressState = strtoupper(trim($_POST['address_state'] ?? ''));
+
+            // Busca todos os customers do Asaas para este CPF e consolida dados
+            $consolidatedData = [];
+            $allCustomers = [];
+            
+            try {
+                $cpfCnpj = $tenant['cpf_cnpj'] ?? $tenant['document'] ?? '';
+                $cpfCnpjNormalizado = preg_replace('/[^0-9]/', '', $cpfCnpj);
+                
+                if (!empty($cpfCnpjNormalizado)) {
+                    // Busca TODOS os customers do Asaas para este CPF
+                    $allCustomers = \PixelHub\Services\AsaasClient::findCustomersByCpfCnpj($cpfCnpjNormalizado);
+                    
+                    if (!empty($allCustomers)) {
+                        // Consolida dados de todos os customers
+                        $consolidatedAsaasData = \PixelHub\Services\AsaasBillingService::consolidateAsaasCustomersData($allCustomers);
+                        
+                        // Converte para formato do tenant
+                        $consolidatedData = \PixelHub\Services\AsaasBillingService::convertConsolidatedDataToTenantFormat($consolidatedAsaasData);
+                    }
+                }
+            } catch (\Exception $e) {
+                // Se falhar ao buscar do Asaas, continua com dados do formulário
+                error_log("Aviso: Erro ao buscar customers do Asaas para consolidação: " . $e->getMessage());
+            }
+
+            // Mescla dados: prioriza dados do formulário, mas preenche vazios com dados consolidados do Asaas
+            $finalEmail = !empty($email) ? $email : ($consolidatedData['email'] ?? $tenant['email'] ?? '');
+            $finalPhone = !empty($phone) ? $phone : ($tenant['phone'] ?? '');
+            $finalPhoneFixed = !empty($phoneFixed) ? $phoneFixed : ($consolidatedData['phone_fixed'] ?? $tenant['phone_fixed'] ?? '');
+            $finalAddressCep = !empty($addressCep) ? $addressCep : ($consolidatedData['address_cep'] ?? $tenant['address_cep'] ?? '');
+            $finalAddressStreet = !empty($addressStreet) ? $addressStreet : ($consolidatedData['address_street'] ?? $tenant['address_street'] ?? '');
+            $finalAddressNumber = !empty($addressNumber) ? $addressNumber : ($consolidatedData['address_number'] ?? $tenant['address_number'] ?? '');
+            $finalAddressComplement = !empty($addressComplement) ? $addressComplement : ($consolidatedData['address_complement'] ?? $tenant['address_complement'] ?? '');
+            $finalAddressNeighborhood = !empty($addressNeighborhood) ? $addressNeighborhood : ($consolidatedData['address_neighborhood'] ?? $tenant['address_neighborhood'] ?? '');
+            $finalAddressCity = !empty($addressCity) ? $addressCity : ($consolidatedData['address_city'] ?? $tenant['address_city'] ?? '');
+            $finalAddressState = !empty($addressState) ? $addressState : ($consolidatedData['address_state'] ?? $tenant['address_state'] ?? '');
+
+            // Atualiza no banco de dados local
+            $stmt = $db->prepare("
+                UPDATE tenants 
+                SET email = ?, phone = ?, phone_fixed = ?,
+                    address_cep = ?, address_street = ?, address_number = ?, 
+                    address_complement = ?, address_neighborhood = ?, address_city = ?, address_state = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([
+                $finalEmail ?: null,
+                $finalPhone ?: null,
+                $finalPhoneFixed ?: null,
+                $finalAddressCep ?: null,
+                $finalAddressStreet ?: null,
+                $finalAddressNumber ?: null,
+                $finalAddressComplement ?: null,
+                $finalAddressNeighborhood ?: null,
+                $finalAddressCity ?: null,
+                $finalAddressState ?: null,
+                $tenantId
+            ]);
+
+            // Busca tenant atualizado
+            $stmt = $db->prepare("SELECT * FROM tenants WHERE id = ?");
+            $stmt->execute([$tenantId]);
+            $updatedTenant = $stmt->fetch();
+
+            // Sincroniza com Asaas (todos os customers encontrados)
+            try {
+                // Verifica se API está configurada
+                \PixelHub\Services\AsaasConfig::getConfig();
+
+                $syncedCount = 0;
+                $errors = [];
+
+                if (!empty($allCustomers)) {
+                    // Sincroniza com TODOS os customers encontrados
+                    foreach ($allCustomers as $customer) {
+                        try {
+                            $customerId = $customer['id'] ?? null;
+                            if (empty($customerId)) {
+                                continue;
+                            }
+
+                            // Prepara dados para atualização no Asaas
+                            $updateData = [];
+                            
+                            if (!empty($finalEmail)) {
+                                $updateData['email'] = $finalEmail;
+                            }
+                            
+                            // Prioriza telefone fixo se existir
+                            if (!empty($finalPhoneFixed)) {
+                                $phoneDigits = preg_replace('/[^0-9]/', '', $finalPhoneFixed);
+                                $updateData['phone'] = $phoneDigits;
+                            } elseif (!empty($finalPhone)) {
+                                $phoneDigits = preg_replace('/[^0-9]/', '', $finalPhone);
+                                $updateData['phone'] = $phoneDigits;
+                            }
+
+                            // Adiciona endereço se completo
+                            $addressData = \PixelHub\Services\AsaasBillingService::buildAddressData($updatedTenant);
+                            if (!empty($addressData)) {
+                                $updateData = array_merge($updateData, $addressData);
+                            }
+
+                            // Atualiza customer no Asaas
+                            if (!empty($updateData)) {
+                                \PixelHub\Services\AsaasClient::updateCustomer($customerId, $updateData);
+                                $syncedCount++;
+                            }
+                        } catch (\Exception $e) {
+                            $errors[] = "Erro ao sincronizar customer {$customerId}: " . $e->getMessage();
+                            error_log("Erro ao sincronizar customer {$customerId} do Asaas: " . $e->getMessage());
+                        }
+                    }
+                } else {
+                    // Se não encontrou customers, cria ou atualiza o principal
+                    if (empty($updatedTenant['asaas_customer_id'])) {
+                        $asaasCustomerId = \PixelHub\Services\AsaasBillingService::ensureCustomerForTenant($updatedTenant);
+                        $syncedCount = 1;
+                    } else {
+                        \PixelHub\Services\AsaasBillingService::syncCustomerDataToAsaas($updatedTenant);
+                        $syncedCount = 1;
+                    }
+                }
+
+                $message = "Campos atualizados com sucesso!";
+                if ($syncedCount > 0) {
+                    $message .= " Sincronizado com {$syncedCount} cadastro(s) no Asaas.";
+                }
+                if (!empty($errors)) {
+                    $message .= " Alguns erros ocorreram: " . implode('; ', $errors);
+                }
+
+                $this->json([
+                    'success' => true,
+                    'message' => $message
+                ]);
+            } catch (\RuntimeException $e) {
+                // Se erro no Asaas, ainda retorna sucesso (dados salvos localmente)
+                error_log("Erro ao sincronizar com Asaas: " . $e->getMessage());
+                $this->json([
+                    'success' => true,
+                    'message' => 'Campos atualizados localmente. Erro ao sincronizar com Asaas: ' . $e->getMessage()
+                ]);
+            }
+        } catch (\Exception $e) {
+            error_log("Erro ao atualizar campos do Asaas: " . $e->getMessage());
+            $this->json(['success' => false, 'message' => 'Erro ao atualizar campos: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Sincroniza dados do Asaas para o tenant (busca e consolida de todos os cadastros)
+     * POST /tenants/sync-asaas-data
+     * 
+     * Busca todos os cadastros do Asaas para o CPF, consolida os dados e atualiza o tenant local.
+     */
+    public function syncAsaasData(): void
+    {
+        Auth::requireInternal();
+
+        header('Content-Type: application/json');
+
+        $tenantId = isset($_POST['tenant_id']) ? (int) $_POST['tenant_id'] : 0;
+
+        if ($tenantId <= 0) {
+            $this->json(['success' => false, 'message' => 'ID do cliente não fornecido']);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        // Busca tenant atual
+        $stmt = $db->prepare("SELECT * FROM tenants WHERE id = ?");
+        $stmt->execute([$tenantId]);
+        $tenant = $stmt->fetch();
+
+        if (!$tenant) {
+            $this->json(['success' => false, 'message' => 'Cliente não encontrado']);
+            return;
+        }
+
+        try {
+            // Verifica se API está configurada
+            \PixelHub\Services\AsaasConfig::getConfig();
+
+            $cpfCnpj = $tenant['cpf_cnpj'] ?? $tenant['document'] ?? '';
+            $cpfCnpjNormalizado = preg_replace('/[^0-9]/', '', $cpfCnpj);
+
+            if (empty($cpfCnpjNormalizado)) {
+                $this->json(['success' => false, 'message' => 'Cliente não possui CPF/CNPJ cadastrado']);
+                return;
+            }
+
+            // Busca TODOS os customers do Asaas para este CPF
+            $allCustomers = \PixelHub\Services\AsaasClient::findCustomersByCpfCnpj($cpfCnpjNormalizado);
+
+            if (empty($allCustomers)) {
+                $this->json([
+                    'success' => true,
+                    'message' => 'Nenhum cadastro encontrado no Asaas para este CPF.',
+                    'customers_found' => 0
+                ]);
+                return;
+            }
+
+            // Consolida dados de todos os customers
+            $consolidatedAsaasRaw = \PixelHub\Services\AsaasBillingService::consolidateAsaasCustomersData($allCustomers);
+            $consolidatedData = \PixelHub\Services\AsaasBillingService::convertConsolidatedDataToTenantFormat($consolidatedAsaasRaw);
+
+            // Prepara dados para atualização: mescla dados consolidados com dados atuais (consolidados têm prioridade se campo local estiver vazio)
+            $fieldsUpdated = [];
+            
+            $finalEmail = !empty($consolidatedData['email']) ? $consolidatedData['email'] : ($tenant['email'] ?? null);
+            if ($finalEmail !== ($tenant['email'] ?? null)) {
+                $fieldsUpdated[] = 'Email';
+            }
+
+            $finalPhone = !empty($consolidatedData['phone']) ? $consolidatedData['phone'] : ($tenant['phone'] ?? null);
+            if ($finalPhone !== ($tenant['phone'] ?? null)) {
+                $fieldsUpdated[] = 'WhatsApp';
+            }
+
+            $finalPhoneFixed = !empty($consolidatedData['phone_fixed']) ? $consolidatedData['phone_fixed'] : ($tenant['phone_fixed'] ?? null);
+            if ($finalPhoneFixed !== ($tenant['phone_fixed'] ?? null)) {
+                $fieldsUpdated[] = 'Telefone Fixo';
+            }
+
+            $finalAddressCep = !empty($consolidatedData['address_cep']) ? $consolidatedData['address_cep'] : ($tenant['address_cep'] ?? null);
+            if ($finalAddressCep !== ($tenant['address_cep'] ?? null)) {
+                $fieldsUpdated[] = 'CEP';
+            }
+
+            $finalAddressStreet = !empty($consolidatedData['address_street']) ? $consolidatedData['address_street'] : ($tenant['address_street'] ?? null);
+            if ($finalAddressStreet !== ($tenant['address_street'] ?? null)) {
+                $fieldsUpdated[] = 'Rua';
+            }
+
+            $finalAddressNumber = !empty($consolidatedData['address_number']) ? $consolidatedData['address_number'] : ($tenant['address_number'] ?? null);
+            if ($finalAddressNumber !== ($tenant['address_number'] ?? null)) {
+                $fieldsUpdated[] = 'Número';
+            }
+
+            $finalAddressComplement = !empty($consolidatedData['address_complement']) ? $consolidatedData['address_complement'] : ($tenant['address_complement'] ?? null);
+            if ($finalAddressComplement !== ($tenant['address_complement'] ?? null)) {
+                $fieldsUpdated[] = 'Complemento';
+            }
+
+            $finalAddressNeighborhood = !empty($consolidatedData['address_neighborhood']) ? $consolidatedData['address_neighborhood'] : ($tenant['address_neighborhood'] ?? null);
+            if ($finalAddressNeighborhood !== ($tenant['address_neighborhood'] ?? null)) {
+                $fieldsUpdated[] = 'Bairro';
+            }
+
+            // Para cidade: sempre usa dados consolidados se disponíveis e não vazios
+            // Prioriza dados consolidados sobre valor atual do tenant
+            $finalAddressCity = null;
+            $tenantCurrentCity = $tenant['address_city'] ?? null;
+            $hasTenantCity = !empty($tenantCurrentCity);
+            
+            if (isset($consolidatedData['address_city']) && $consolidatedData['address_city'] !== '' && $consolidatedData['address_city'] !== null) {
+                $consolidatedCity = trim($consolidatedData['address_city']);
+                $isNumericOnly = preg_match('/^\d+$/', $consolidatedCity);
+                
+                // Se a cidade consolidada tem letras, sempre usa (melhor qualidade)
+                if (!$isNumericOnly) {
+                    $finalAddressCity = $consolidatedCity;
+                } elseif ($isNumericOnly && !$hasTenantCity) {
+                    // Se consolidada é apenas numérica mas tenant não tem cidade, usa a consolidada (melhor que nada)
+                    $finalAddressCity = $consolidatedCity;
+                } else {
+                    // Se consolidada é apenas numérica e tenant já tem cidade, mantém a do tenant
+                    $finalAddressCity = $tenantCurrentCity;
+                }
+            } else {
+                // Se não veio nos dados consolidados, mantém valor atual do tenant
+                $finalAddressCity = $tenantCurrentCity;
+            }
+            
+            // Normaliza para comparação
+            $tenantCityNormalized = $tenantCurrentCity;
+            if ($tenantCityNormalized !== null) {
+                $tenantCityNormalized = trim($tenantCityNormalized);
+            }
+            $finalCityNormalized = $finalAddressCity;
+            if ($finalCityNormalized !== null) {
+                $finalCityNormalized = trim($finalCityNormalized);
+            }
+            
+            // Compara: se diferentes, marca para atualização
+            if ($finalCityNormalized !== $tenantCityNormalized) {
+                $fieldsUpdated[] = 'Cidade';
+            }
+
+            $finalAddressState = !empty($consolidatedData['address_state']) ? $consolidatedData['address_state'] : ($tenant['address_state'] ?? null);
+            if ($finalAddressState !== ($tenant['address_state'] ?? null)) {
+                $fieldsUpdated[] = 'Estado';
+            }
+
+            // Atualiza no banco de dados local apenas se houver mudanças
+            if (!empty($fieldsUpdated)) {
+                $stmt = $db->prepare("
+                    UPDATE tenants 
+                    SET email = ?, phone = ?, phone_fixed = ?,
+                        address_cep = ?, address_street = ?, address_number = ?, 
+                        address_complement = ?, address_neighborhood = ?, address_city = ?, address_state = ?,
+                        updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([
+                    $finalEmail,
+                    $finalPhone,
+                    $finalPhoneFixed,
+                    $finalAddressCep,
+                    $finalAddressStreet,
+                    $finalAddressNumber,
+                    $finalAddressComplement,
+                    $finalAddressNeighborhood,
+                    $finalAddressCity,
+                    $finalAddressState,
+                    $tenantId
+                ]);
+            }
+
+            // Busca tenant atualizado
+            $stmt = $db->prepare("SELECT * FROM tenants WHERE id = ?");
+            $stmt->execute([$tenantId]);
+            $updatedTenant = $stmt->fetch();
+
+            // Sincroniza de volta com todos os customers do Asaas
+            $syncedCount = 0;
+            $errors = [];
+
+            foreach ($allCustomers as $customer) {
+                try {
+                    $customerId = $customer['id'] ?? null;
+                    if (empty($customerId)) {
+                        continue;
+                    }
+
+                    // Prepara dados para atualização no Asaas
+                    $updateData = [];
+                    
+                    if (!empty($updatedTenant['email'])) {
+                        $updateData['email'] = $updatedTenant['email'];
+                    }
+                    
+                    // Prioriza telefone fixo se existir
+                    if (!empty($updatedTenant['phone_fixed'])) {
+                        $phoneDigits = preg_replace('/[^0-9]/', '', $updatedTenant['phone_fixed']);
+                        $updateData['phone'] = $phoneDigits;
+                    } elseif (!empty($updatedTenant['phone'])) {
+                        $phoneDigits = preg_replace('/[^0-9]/', '', $updatedTenant['phone']);
+                        $updateData['phone'] = $phoneDigits;
+                    }
+
+                    // Adiciona endereço se completo
+                    $addressData = \PixelHub\Services\AsaasBillingService::buildAddressData($updatedTenant);
+                    if (!empty($addressData)) {
+                        $updateData = array_merge($updateData, $addressData);
+                    }
+
+                    // Atualiza customer no Asaas
+                    if (!empty($updateData)) {
+                        \PixelHub\Services\AsaasClient::updateCustomer($customerId, $updateData);
+                        $syncedCount++;
+                    }
+                } catch (\Exception $e) {
+                    $errors[] = "Erro ao sincronizar customer {$customerId}: " . $e->getMessage();
+                    error_log("Erro ao sincronizar customer {$customerId} do Asaas: " . $e->getMessage());
+                }
+            }
+
+            // Se não tinha asaas_customer_id, define o primeiro como principal
+            if (empty($updatedTenant['asaas_customer_id']) && !empty($allCustomers[0]['id'])) {
+                $stmt = $db->prepare("UPDATE tenants SET asaas_customer_id = ? WHERE id = ?");
+                $stmt->execute([$allCustomers[0]['id'], $tenantId]);
+            }
+
+            $this->json([
+                'success' => true,
+                'message' => 'Sincronização concluída com sucesso!',
+                'customers_found' => count($allCustomers),
+                'fields_updated' => $fieldsUpdated,
+                'customers_synced' => $syncedCount,
+                'errors' => $errors
+            ]);
+
+        } catch (\RuntimeException $e) {
+            error_log("Erro ao sincronizar dados do Asaas: " . $e->getMessage());
+            $this->json([
+                'success' => false,
+                'message' => 'Erro ao sincronizar: ' . $e->getMessage()
+            ]);
+        } catch (\Exception $e) {
+            error_log("Erro ao sincronizar dados do Asaas: " . $e->getMessage());
+            $this->json([
+                'success' => false,
+                'message' => 'Erro inesperado ao sincronizar. Verifique os logs.'
+            ]);
         }
     }
 

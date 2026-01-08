@@ -128,12 +128,251 @@ class AsaasBillingService
     }
 
     /**
+     * Consolida dados de múltiplos customers do Asaas em um único array
+     * 
+     * Prioriza dados não vazios, mesclando informações de todos os customers.
+     * Exemplo: se um customer tem endereço e outro não, usa o endereço do que tem.
+     * 
+     * @param array $customers Array de customers do Asaas
+     * @return array Dados consolidados
+     */
+    public static function consolidateAsaasCustomersData(array $customers): array
+    {
+        if (empty($customers)) {
+            return [];
+        }
+
+        $consolidated = [
+            'name' => '',
+            'email' => '',
+            'phone' => '',
+            'postalCode' => '',
+            'address' => '',
+            'addressNumber' => '',
+            'complement' => '',
+            'province' => '',
+            'city' => '',
+            'state' => '',
+        ];
+
+        // Itera sobre todos os customers e consolida dados
+        foreach ($customers as $customer) {
+            // Nome: usa o mais completo (mais longo) ou o primeiro não vazio
+            if (!empty($customer['name']) && strlen($customer['name']) > strlen($consolidated['name'])) {
+                $consolidated['name'] = $customer['name'];
+            }
+
+            // Email: usa o primeiro não vazio
+            if (empty($consolidated['email']) && !empty($customer['email'])) {
+                $consolidated['email'] = $customer['email'];
+            }
+
+            // Telefone: usa o primeiro não vazio
+            if (empty($consolidated['phone']) && !empty($customer['phone'])) {
+                $consolidated['phone'] = $customer['phone'];
+            }
+
+            // Endereço: consolida campo por campo, priorizando não vazios
+            if (empty($consolidated['postalCode']) && !empty($customer['postalCode'])) {
+                $consolidated['postalCode'] = $customer['postalCode'];
+            }
+
+            if (empty($consolidated['address']) && !empty($customer['address'])) {
+                $consolidated['address'] = $customer['address'];
+            }
+
+            if (empty($consolidated['addressNumber']) && !empty($customer['addressNumber'])) {
+                $consolidated['addressNumber'] = $customer['addressNumber'];
+            }
+
+            if (empty($consolidated['complement']) && !empty($customer['complement'])) {
+                $consolidated['complement'] = $customer['complement'];
+            }
+
+            if (empty($consolidated['province']) && !empty($customer['province'])) {
+                $consolidated['province'] = $customer['province'];
+            }
+
+            // Cidade: prioriza valores mais completos (que contêm letras, não apenas números)
+            // Se já temos uma cidade, só substitui se a nova for mais completa (mais longa e com letras)
+            if (!empty($customer['city'])) {
+                $currentCity = $consolidated['city'] ?? '';
+                $newCityOriginal = trim($customer['city']);
+                
+                // Remove código IBGE do início para análise/comparação
+                $currentCityProcessed = !empty($currentCity) ? preg_replace('/^\d+\s*-\s*/', '', $currentCity) : '';
+                $currentCityProcessed = trim($currentCityProcessed);
+                
+                $newCityProcessed = preg_replace('/^\d+\s*-\s*/', '', $newCityOriginal);
+                $newCityProcessed = trim($newCityProcessed);
+                
+                // Análise: verifica se são apenas numéricos ou têm letras
+                $isCurrentNumericOnly = !empty($currentCityProcessed) && preg_match('/^\d+$/', $currentCityProcessed);
+                $isNewNumericOnly = preg_match('/^\d+$/', $newCityProcessed);
+                $currentHasLetters = !empty($currentCityProcessed) && preg_match('/[a-zA-Z]/', $currentCityProcessed);
+                $newHasLetters = preg_match('/[a-zA-Z]/', $newCityProcessed);
+                
+                // DECISÃO: Prioriza cidades com letras sobre apenas numéricas
+                // SEMPRE salva o valor original (não processado) quando encontrar um melhor
+                $shouldUpdate = false;
+                $bestCity = $currentCity;
+                
+                if (empty($currentCity)) {
+                    // Primeiro customer: usa o original (pode ser processado depois)
+                    $bestCity = $newCityOriginal;
+                    $shouldUpdate = true;
+                } elseif ($isCurrentNumericOnly && $newHasLetters) {
+                    // Atual é apenas numérica, nova tem letras: SUBSTITUI pela original
+                    $bestCity = $newCityOriginal;
+                    $shouldUpdate = true;
+                } elseif ($currentHasLetters && $isNewNumericOnly) {
+                    // Atual tem letras, nova é apenas numérica: MANTÉM a atual
+                    $shouldUpdate = false;
+                } elseif ($newHasLetters && !$currentHasLetters) {
+                    // Nova tem letras, atual não tem: SUBSTITUI
+                    $bestCity = $newCityOriginal;
+                    $shouldUpdate = true;
+                } elseif ($newHasLetters && $currentHasLetters && strlen($newCityProcessed) > strlen($currentCityProcessed)) {
+                    // Ambos têm letras, nova é mais completa: SUBSTITUI
+                    $bestCity = $newCityOriginal;
+                    $shouldUpdate = true;
+                } elseif ($isCurrentNumericOnly && $isNewNumericOnly && strlen($newCityProcessed) > strlen($currentCityProcessed)) {
+                    // Ambos são apenas numéricos, nova é mais longa: SUBSTITUI (melhor que nada)
+                    $bestCity = $newCityOriginal;
+                    $shouldUpdate = true;
+                }
+                
+                if ($shouldUpdate) {
+                    $consolidated['city'] = $bestCity;
+                }
+            }
+
+            if (empty($consolidated['state']) && !empty($customer['state'])) {
+                $consolidated['state'] = $customer['state'];
+            }
+        }
+
+        // Remove campos vazios do resultado final, mas sempre preserva cidade se foi processada (mesmo que vazia após remover código IBGE)
+        // Se cidade consolidada for apenas numérica, ainda mantém para que possa ser substituída por valores melhores
+        $filtered = [];
+        foreach ($consolidated as $key => $value) {
+            // Preserva cidade sempre (pode ter sido processada mas ainda ser válida)
+            if ($key === 'city' && isset($consolidated['city'])) {
+                $filtered[$key] = $consolidated['city']; // Sempre preserva cidade consolidada
+            } elseif ($value !== '') {
+                $filtered[$key] = $value;
+            }
+        }
+        return $filtered;
+    }
+
+    /**
+     * Converte dados consolidados do Asaas para formato do tenant local
+     * 
+     * @param array $consolidatedData Dados consolidados do Asaas
+     * @return array Dados no formato do tenant
+     */
+    public static function convertConsolidatedDataToTenantFormat(array $consolidatedData): array
+    {
+        $tenantData = [];
+
+        if (!empty($consolidatedData['email'])) {
+            $tenantData['email'] = $consolidatedData['email'];
+        }
+
+        // Telefone: o Asaas tem apenas um campo 'phone', então vamos usar para phone (celular)
+        // phone_fixed será preenchido apenas se vier explicitamente ou se o tenant já tiver
+        if (!empty($consolidatedData['phone'])) {
+            $tenantData['phone'] = $consolidatedData['phone'];
+        }
+
+        if (!empty($consolidatedData['postalCode'])) {
+            $cep = preg_replace('/[^0-9]/', '', $consolidatedData['postalCode']);
+            if (strlen($cep) === 8) {
+                $tenantData['address_cep'] = substr($cep, 0, 5) . '-' . substr($cep, 5);
+            } else {
+                $tenantData['address_cep'] = $consolidatedData['postalCode'];
+            }
+        }
+
+        if (!empty($consolidatedData['address'])) {
+            $tenantData['address_street'] = $consolidatedData['address'];
+        }
+
+        if (!empty($consolidatedData['addressNumber'])) {
+            $tenantData['address_number'] = $consolidatedData['addressNumber'];
+        }
+
+        if (!empty($consolidatedData['complement'])) {
+            $tenantData['address_complement'] = $consolidatedData['complement'];
+        }
+
+        if (!empty($consolidatedData['province'])) {
+            $tenantData['address_neighborhood'] = $consolidatedData['province'];
+        }
+
+        // Cidade: processa e salva se presente no consolidado
+        // Se vier como número (código IBGE), tenta buscar nome via CEP
+        if (isset($consolidatedData['city']) && $consolidatedData['city'] !== '') {
+            $city = $consolidatedData['city'];
+            
+            // Se a cidade é um número (código IBGE), tenta buscar nome via CEP
+            if (is_numeric($city) && !empty($consolidatedData['postalCode'])) {
+                $cep = preg_replace('/[^0-9]/', '', $consolidatedData['postalCode']);
+                if (strlen($cep) === 8) {
+                    // Busca cidade via ViaCEP
+                    try {
+                        $viaCepUrl = "https://viacep.com.br/ws/{$cep}/json/";
+                        $ch = curl_init($viaCepUrl);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+                        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+                        $viaCepResponse = curl_exec($ch);
+                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
+                        
+                        if ($httpCode === 200 && $viaCepResponse) {
+                            $viaCepData = json_decode($viaCepResponse, true);
+                            if (!empty($viaCepData['localidade']) && !isset($viaCepData['erro'])) {
+                                $city = $viaCepData['localidade'];
+                                // Se tiver UF, adiciona para ficar completo
+                                if (!empty($viaCepData['uf'])) {
+                                    $city .= ' - ' . $viaCepData['uf'];
+                                }
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        // Se falhar, continua com código IBGE
+                        error_log("Erro ao buscar cidade via CEP: " . $e->getMessage());
+                    }
+                }
+            }
+            
+            // Processa cidade (remove código IBGE do início se presente)
+            $city = trim((string)$city);
+            $city = preg_replace('/^\d+\s*-\s*/', '', $city);
+            $city = trim($city);
+            
+            // Só salva se tiver conteúdo e não for apenas numérica
+            if ($city !== '' && !preg_match('/^\d+$/', $city)) {
+                $tenantData['address_city'] = $city;
+            }
+        }
+
+        if (!empty($consolidatedData['state'])) {
+            $tenantData['address_state'] = strtoupper($consolidatedData['state']);
+        }
+
+        return $tenantData;
+    }
+
+    /**
      * Monta dados de endereço no formato do Asaas
      * 
      * @param array $tenant Dados do tenant
      * @return array Dados de endereço ou array vazio se não houver endereço completo
      */
-    private static function buildAddressData(array $tenant): array
+    public static function buildAddressData(array $tenant): array
     {
         $cep = preg_replace('/[^0-9]/', '', $tenant['address_cep'] ?? '');
         $street = trim($tenant['address_street'] ?? '');

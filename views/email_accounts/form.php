@@ -4,6 +4,7 @@ ob_start();
 $emailAccount = $emailAccount ?? null;
 $tenant = $tenant ?? null;
 $hostingAccounts = $hostingAccounts ?? [];
+$providers = $providers ?? [];
 $redirectTo = $redirectTo ?? 'tenant';
 ?>
 
@@ -51,15 +52,6 @@ $redirectTo = $redirectTo ?? 'tenant';
         </div>
 
         <div style="margin-bottom: 20px;">
-            <label for="description" style="display: block; margin-bottom: 5px; font-weight: 600;">Descrição</label>
-            <input type="text" id="description" name="description" 
-                   value="<?= $emailAccount ? htmlspecialchars($emailAccount['description'] ?? '') : '' ?>"
-                   placeholder="ex: Email comercial, Email de suporte" 
-                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-            <small style="color: #666;">Descrição opcional para identificar a finalidade do email</small>
-        </div>
-
-        <div style="margin-bottom: 20px;">
             <label for="hosting_account_id" style="display: block; margin-bottom: 5px; font-weight: 600;">Vincular a Domínio (Opcional)</label>
             <select id="hosting_account_id" name="hosting_account_id" 
                     style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
@@ -79,10 +71,25 @@ $redirectTo = $redirectTo ?? 'tenant';
             
             <div style="margin-bottom: 15px;">
                 <label for="provider" style="display: block; margin-bottom: 5px; font-weight: 600;">Provedor</label>
-                <input type="text" id="provider" name="provider" 
-                       value="<?= $emailAccount ? htmlspecialchars($emailAccount['provider'] ?? '') : '' ?>"
-                       placeholder="ex: Google Workspace, Microsoft 365, cPanel" 
-                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <select id="provider" name="provider" 
+                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="">Selecione um provedor...</option>
+                    <?php if (!empty($providers)): ?>
+                        <?php foreach ($providers as $provider): ?>
+                            <option value="<?= htmlspecialchars($provider['slug'] ?? '') ?>" 
+                                    <?= ($emailAccount && ($emailAccount['provider'] ?? '') === ($provider['slug'] ?? '')) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($provider['name'] ?? 'Sem nome') ?>
+                            </option>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <option value="" disabled>Nenhum provedor disponível</option>
+                    <?php endif; ?>
+                </select>
+                <?php if (empty($providers)): ?>
+                    <small style="color: #856404; font-size: 12px; display: block; margin-top: 5px;">
+                        ⚠️ Nenhum provedor configurado. Configure em <strong>Configurações > Provedores de Hospedagem</strong>.
+                    </small>
+                <?php endif; ?>
             </div>
             
             <div style="margin-bottom: 15px;">
@@ -109,8 +116,11 @@ $redirectTo = $redirectTo ?? 'tenant';
                            placeholder="<?= $emailAccount && !empty($emailAccount['password_encrypted']) ? '•••••••• (deixe em branco para manter)' : 'Digite a senha' ?>" 
                            style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                     <button type="button" onclick="togglePassword('password', this)" 
-                            style="background: #666; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                        👁️
+                            style="background: #666; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; justify-content: center;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
                     </button>
                 </div>
                 <small style="color: #666; font-size: 12px;"><?= $emailAccount ? 'Deixe em branco para manter a senha atual' : 'Digite a senha da conta de email' ?></small>
@@ -142,10 +152,10 @@ function togglePassword(inputId, button) {
     var input = document.getElementById(inputId);
     if (input.type === 'password') {
         input.type = 'text';
-        button.textContent = '🙈';
+        button.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
     } else {
         input.type = 'password';
-        button.textContent = '👁️';
+        button.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
     }
 }
 </script>
@@ -155,6 +165,3 @@ $content = ob_get_clean();
 $title = $emailAccount ? 'Editar Conta de Email' : 'Nova Conta de Email';
 require __DIR__ . '/../layout/main.php';
 ?>
-
-
-

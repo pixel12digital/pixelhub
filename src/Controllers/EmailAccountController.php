@@ -6,6 +6,7 @@ use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
 use PixelHub\Core\CryptoHelper;
+use PixelHub\Services\HostingProviderService;
 use PDO;
 
 /**
@@ -95,11 +96,22 @@ class EmailAccountController extends Controller
         $stmt->execute([$tenantId]);
         $hostingAccounts = $stmt->fetchAll();
 
+        // Busca provedores de hospedagem ativos
+        try {
+            $providers = HostingProviderService::getAllActive();
+        } catch (\Throwable $e) {
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log("EmailAccountController@create: Erro ao buscar provedores: " . $e->getMessage());
+            }
+            $providers = [];
+        }
+
         $this->view('email_accounts.form', [
             'tenant' => $tenant,
             'hostingAccounts' => $hostingAccounts,
             'emailAccount' => null,
             'redirectTo' => $redirectTo,
+            'providers' => $providers,
         ]);
     }
 
@@ -115,7 +127,6 @@ class EmailAccountController extends Controller
         $tenantId = $_POST['tenant_id'] ?? null;
         $hostingAccountId = !empty($_POST['hosting_account_id']) ? (int) $_POST['hosting_account_id'] : null;
         $email = trim($_POST['email'] ?? '');
-        $description = trim($_POST['description'] ?? '');
         $provider = trim($_POST['provider'] ?? '');
         $accessUrl = trim($_POST['access_url'] ?? '');
         $username = trim($_POST['username'] ?? '');
@@ -168,15 +179,14 @@ class EmailAccountController extends Controller
         try {
             $stmt = $db->prepare("
                 INSERT INTO tenant_email_accounts 
-                (tenant_id, hosting_account_id, email, description, provider, access_url, username, password_encrypted, notes, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                (tenant_id, hosting_account_id, email, provider, access_url, username, password_encrypted, notes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             ");
 
             $stmt->execute([
                 $tenantId,
                 $hostingAccountId ?: null,
                 $email,
-                $description ?: null,
                 $provider ?: null,
                 $accessUrl ?: null,
                 $username ?: null,
@@ -245,11 +255,22 @@ class EmailAccountController extends Controller
         $stmt->execute([$tenantId]);
         $hostingAccounts = $stmt->fetchAll();
 
+        // Busca provedores de hospedagem ativos
+        try {
+            $providers = HostingProviderService::getAllActive();
+        } catch (\Throwable $e) {
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log("EmailAccountController@edit: Erro ao buscar provedores: " . $e->getMessage());
+            }
+            $providers = [];
+        }
+
         $this->view('email_accounts.form', [
             'tenant' => $tenant,
             'hostingAccounts' => $hostingAccounts,
             'emailAccount' => $emailAccount,
             'redirectTo' => $redirectTo,
+            'providers' => $providers,
         ]);
     }
 
@@ -266,7 +287,6 @@ class EmailAccountController extends Controller
         $tenantId = $_POST['tenant_id'] ?? null;
         $hostingAccountId = !empty($_POST['hosting_account_id']) ? (int) $_POST['hosting_account_id'] : null;
         $email = trim($_POST['email'] ?? '');
-        $description = trim($_POST['description'] ?? '');
         $provider = trim($_POST['provider'] ?? '');
         $accessUrl = trim($_POST['access_url'] ?? '');
         $username = trim($_POST['username'] ?? '');
@@ -311,7 +331,7 @@ class EmailAccountController extends Controller
         try {
             $stmt = $db->prepare("
                 UPDATE tenant_email_accounts 
-                SET hosting_account_id = ?, email = ?, description = ?, provider = ?, 
+                SET hosting_account_id = ?, email = ?, provider = ?, 
                     access_url = ?, username = ?, password_encrypted = ?, notes = ?, updated_at = NOW()
                 WHERE id = ?
             ");
@@ -319,7 +339,6 @@ class EmailAccountController extends Controller
             $stmt->execute([
                 $hostingAccountId ?: null,
                 $email,
-                $description ?: null,
                 $provider ?: null,
                 $accessUrl ?: null,
                 $username ?: null,
@@ -393,23 +412,36 @@ class EmailAccountController extends Controller
     {
         Auth::requireInternal();
 
-        header('Content-Type: application/json; charset=utf-8');
-
-        $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
-        $pin = isset($_POST['pin']) ? trim($_POST['pin']) : (isset($_GET['pin']) ? trim($_GET['pin']) : '');
+        // Aceita tanto POST quanto GET, mas prioriza POST
+        $id = isset($_POST['id']) ? (int) $_POST['id'] : (isset($_GET['id']) ? (int) $_GET['id'] : 0);
+        $providedPin = trim($_POST['view_pin'] ?? $_GET['view_pin'] ?? '');
 
         if ($id <= 0) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'ID inválido']);
+            error_log("getPassword: ID inválido recebido - " . ($_POST['id'] ?? $_GET['id'] ?? 'não fornecido'));
+            $this->json(['error' => 'ID inválido'], 400);
             return;
         }
 
-        // Verifica PIN de visualização (opcional, mas recomendado)
-        $requiredPin = \PixelHub\Core\Env::get('INFRA_VIEW_PIN');
-        if (!empty($requiredPin) && $pin !== $requiredPin) {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'message' => 'PIN incorreto']);
-            return;
+        // Valida o PIN de visualização
+        $expectedPin = \PixelHub\Core\Env::get('INFRA_VIEW_PIN') ?: '';
+        
+        // Se INFRA_VIEW_PIN não estiver configurado, permite visualização sem PIN
+        if (empty($expectedPin)) {
+            error_log("getPassword: INFRA_VIEW_PIN não configurado - permitindo acesso sem PIN para ID {$id}");
+            // Continua o fluxo sem validar PIN
+        } else {
+            // PIN configurado: valida o PIN fornecido
+            if (empty($providedPin)) {
+                error_log("getPassword: PIN de visualização não fornecido para ID {$id}");
+                $this->json(['error' => 'PIN de visualização não fornecido'], 400);
+                return;
+            }
+
+            if ($providedPin !== $expectedPin) {
+                error_log("getPassword: PIN de visualização incorreto para ID {$id}");
+                $this->json(['error' => 'PIN incorreto. Tente novamente.'], 403);
+                return;
+            }
         }
 
         $db = DB::getConnection();
@@ -420,23 +452,130 @@ class EmailAccountController extends Controller
         $account = $stmt->fetch();
 
         if (!$account) {
-            http_response_code(404);
-            echo json_encode(['success' => false, 'message' => 'Conta de email não encontrada']);
+            $this->json(['error' => 'Conta de email não encontrada'], 404);
             return;
         }
 
         if (empty($account['password_encrypted'])) {
-            echo json_encode(['success' => true, 'password' => '']);
+            $this->json(['password' => '']);
             return;
         }
 
         try {
             $decryptedPassword = CryptoHelper::decrypt($account['password_encrypted']);
-            echo json_encode(['success' => true, 'password' => $decryptedPassword]);
+            $this->json(['password' => $decryptedPassword]);
         } catch (\Exception $e) {
-            error_log("Erro ao descriptografar senha: " . $e->getMessage());
-            http_response_code(500);
-            echo json_encode(['success' => false, 'message' => 'Erro ao descriptografar senha']);
+            error_log("Erro ao descriptografar senha (ID {$id}): " . $e->getMessage());
+            $this->json(['error' => 'Erro ao descriptografar senha'], 500);
+        }
+    }
+
+    /**
+     * Duplica uma conta de email (cria uma nova conta com todos os dados copiados)
+     */
+    public function duplicate(): void
+    {
+        Auth::requireInternal();
+
+        $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+        $redirectTo = $_GET['redirect_to'] ?? 'tenant';
+
+        if ($id <= 0) {
+            $this->redirect('/tenants?error=missing_id');
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        // Busca conta de email original
+        $stmt = $db->prepare("SELECT * FROM tenant_email_accounts WHERE id = ?");
+        $stmt->execute([$id]);
+        $emailAccount = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$emailAccount) {
+            $this->redirect('/tenants?error=email_account_not_found');
+            return;
+        }
+
+        $tenantId = $emailAccount['tenant_id'];
+
+        // Gera email único para a cópia
+        $originalEmail = $emailAccount['email'];
+        $newEmail = $originalEmail;
+        
+        // Tenta adicionar sufixo -copia, -copia2, etc até encontrar um email disponível
+        $counter = 1;
+        do {
+            if ($counter === 1) {
+                // Primeira tentativa: adiciona -copia
+                if (strpos($originalEmail, '@') !== false) {
+                    $parts = explode('@', $originalEmail);
+                    $newEmail = $parts[0] . '-copia@' . $parts[1];
+                } else {
+                    $newEmail = $originalEmail . '-copia';
+                }
+            } else {
+                // Tentativas seguintes: adiciona número
+                if (strpos($originalEmail, '@') !== false) {
+                    $parts = explode('@', $originalEmail);
+                    $newEmail = $parts[0] . '-copia' . $counter . '@' . $parts[1];
+                } else {
+                    $newEmail = $originalEmail . '-copia' . $counter;
+                }
+            }
+            
+            // Verifica se o email já existe
+            $stmt = $db->prepare("SELECT id FROM tenant_email_accounts WHERE email = ?");
+            $stmt->execute([$newEmail]);
+            $exists = $stmt->fetch();
+            
+            if (!$exists) {
+                break; // Email disponível
+            }
+            
+            $counter++;
+            
+            // Limite de segurança para evitar loop infinito
+            if ($counter > 100) {
+                $newEmail = $originalEmail . '-copia-' . time();
+                break;
+            }
+        } while (true);
+
+        // Copia todos os dados da conta original
+        try {
+            $stmt = $db->prepare("
+                INSERT INTO tenant_email_accounts 
+                (tenant_id, hosting_account_id, email, provider, access_url, username, password_encrypted, notes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ");
+            
+            $stmt->execute([
+                $emailAccount['tenant_id'],
+                $emailAccount['hosting_account_id'],
+                $newEmail,
+                $emailAccount['provider'],
+                $emailAccount['access_url'],
+                $emailAccount['username'],
+                $emailAccount['password_encrypted'], // Copia a senha criptografada
+                $emailAccount['notes'],
+            ]);
+
+            $newId = $db->lastInsertId();
+
+            // Redireciona com mensagem de sucesso
+            if ($redirectTo === 'tenant') {
+                $this->redirect('/tenants/view?id=' . $tenantId . '&tab=hosting&success=email_duplicated');
+            } else {
+                $this->redirect('/email-accounts?tenant_id=' . $tenantId . '&redirect_to=' . $redirectTo . '&success=duplicated');
+            }
+        } catch (\Exception $e) {
+            error_log("Erro ao duplicar conta de email: " . $e->getMessage());
+            if ($redirectTo === 'tenant') {
+                $this->redirect('/tenants/view?id=' . $tenantId . '&tab=hosting&error=duplicate_failed');
+            } else {
+                $this->redirect('/email-accounts?tenant_id=' . $tenantId . '&redirect_to=' . $redirectTo . '&error=duplicate_failed');
+            }
         }
     }
 }

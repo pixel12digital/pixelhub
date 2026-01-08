@@ -27,11 +27,17 @@ $baseUrl = pixelhub_url('');
 <?php if (isset($_GET['success'])): ?>
     <?php if ($_GET['success'] === 'reminder_sent'): ?>
         <div style="background: #d4edda; color: #155724; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #c3e6cb;">
-            ✓ Cobrança marcada como enviada com sucesso!
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Cobrança marcada como enviada com sucesso!
         </div>
     <?php elseif ($_GET['success'] === 'sync_completed'): ?>
         <div style="background: #d4edda; color: #155724; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #c3e6cb;">
-            ✓ <?= isset($_GET['message']) ? htmlspecialchars(urldecode($_GET['message'])) : 'Sincronização concluída com sucesso!' ?>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <?= isset($_GET['message']) ? htmlspecialchars(urldecode($_GET['message'])) : 'Sincronização concluída com sucesso!' ?>
             <?php if (isset($_GET['message']) && strpos(urldecode($_GET['message']), 'erro') !== false): ?>
                 <br><br>
                 <a href="<?= pixelhub_url('/billing/sync-errors') ?>" style="color: #155724; text-decoration: underline; font-weight: 500;">
@@ -44,7 +50,12 @@ $baseUrl = pixelhub_url('');
 
 <?php if (isset($_GET['error'])): ?>
     <div style="background: #f8d7da; color: #721c24; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #f5c6cb;">
-        ✗ Erro: <?= htmlspecialchars($_GET['error']) ?>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        Erro: <?= htmlspecialchars($_GET['error']) ?>
         <?php if (isset($_GET['message'])): ?>
             <br><small><?= htmlspecialchars(urldecode($_GET['message'])) ?></small>
         <?php endif; ?>
@@ -187,6 +198,24 @@ $baseUrl = pixelhub_url('');
             <?php endif; ?>
         </tbody>
     </table>
+</div>
+
+<!-- Paginação -->
+<div class="d-flex justify-content-between align-items-center mt-2" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding: 12px 0;">
+    <div class="text-muted small" style="color: #666; font-size: 14px;">
+        <?php if (($total ?? 0) > 0): ?>
+            Exibindo <?= (($page ?? 1) - 1) * ($perPage ?? 25) + 1 ?>
+            –
+            <?= min(($page ?? 1) * ($perPage ?? 25), ($total ?? 0)) ?>
+            de <?= $total ?? 0 ?> clientes
+        <?php else: ?>
+            Nenhum cliente encontrado.
+        <?php endif; ?>
+    </div>
+
+    <div id="billing-pagination-controls">
+        <?php include __DIR__ . '/_pagination.php'; ?>
+    </div>
 </div>
 
 <!-- Container para o modal -->

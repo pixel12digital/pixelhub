@@ -107,6 +107,56 @@ class AsaasClient
     }
 
     /**
+     * Busca um customer pelo email
+     *
+     * @param string $email Email
+     * @return array|null Customer encontrado ou null
+     */
+    public static function findCustomerByEmail(string $email): ?array
+    {
+        $email = strtolower(trim($email));
+
+        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return null;
+        }
+
+        $response = self::request('GET', '/customers?email=' . urlencode($email), null);
+
+        if (isset($response['data']) && is_array($response['data']) && !empty($response['data'])) {
+            return $response['data'][0];
+        }
+
+        return null;
+    }
+
+    /**
+     * Busca um customer por CPF/CNPJ ou email (helper)
+     *
+     * @param string $identifier Email ou CPF/CNPJ
+     * @return array|null
+     */
+    public static function findCustomerByCpfCnpjOrEmail(string $identifier): ?array
+    {
+        $identifier = trim($identifier);
+        if (empty($identifier)) {
+            return null;
+        }
+
+        // Email
+        if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
+            return self::findCustomerByEmail($identifier);
+        }
+
+        // CPF/CNPJ
+        $digits = preg_replace('/[^0-9]/', '', $identifier);
+        if (in_array(strlen($digits), [11, 14], true)) {
+            return self::findCustomerByCpfCnpj($digits);
+        }
+
+        return null;
+    }
+
+    /**
      * Busca todos os customers pelo CPF/CNPJ
      * 
      * Pode retornar múltiplos customers caso existam duplicidades no Asaas.

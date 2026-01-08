@@ -15,12 +15,21 @@ $emailAccounts = $emailAccounts ?? [];
     </div>
     <div style="display: flex; gap: 10px;">
         <button onclick="openWhatsAppModal(<?= $tenant['id'] ?>)" 
-                style="background: #25D366; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px;">
-            📱 WhatsApp
+                style="background: #023A8D; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+            WhatsApp
         </button>
         <a href="<?= pixelhub_url('/tickets/create?tenant_id=' . $tenant['id']) ?>" 
-           style="background: #28a745; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
-            🎫 Novo Ticket
+           style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            Novo Ticket
         </a>
         <a href="<?= pixelhub_url('/tenants/edit?id=' . $tenant['id']) ?>" 
            style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
@@ -41,8 +50,13 @@ $emailAccounts = $emailAccounts ?? [];
                 <input type="hidden" name="id" value="<?= htmlspecialchars($tenant['id']) ?>">
                 <input type="hidden" name="action" value="unarchive">
                 <button type="submit" 
-                        style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px;">
-                    📂 Desarquivar Cliente
+                        style="background: #023A8D; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                        <line x1="12" y1="22.08" x2="12" y2="12"/>
+                    </svg>
+                    Desarquivar Cliente
                 </button>
             </form>
         <?php else: ?>
@@ -52,8 +66,11 @@ $emailAccounts = $emailAccounts ?? [];
                 <input type="hidden" name="id" value="<?= htmlspecialchars($tenant['id']) ?>">
                 <input type="hidden" name="action" value="archive">
                 <button type="submit" 
-                        style="background: #6c757d; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px;">
-                    📦 Arquivar Cliente (Somente Financeiro)
+                        style="background: #6c757d; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    </svg>
+                    Arquivar Cliente (Somente Financeiro)
                 </button>
             </form>
         <?php endif; ?>
@@ -62,8 +79,13 @@ $emailAccounts = $emailAccounts ?? [];
 
 <?php if (!empty($tenant['is_archived'])): ?>
     <div class="card" style="background: #fff3cd; border-left: 4px solid #ffc107; margin-bottom: 20px;">
-        <p style="color: #856404; margin: 0;">
-            ⚠️ Este cliente está <strong>arquivado</strong> e não aparece na lista de clientes. 
+        <p style="color: #856404; margin: 0; display: flex; align-items: center; gap: 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            Este cliente está <strong>arquivado</strong> e não aparece na lista de clientes. 
             Ele permanece acessível para consultas financeiras e na Central de Cobrança.
         </p>
     </div>
@@ -134,6 +156,8 @@ $emailAccounts = $emailAccounts ?? [];
                 echo 'Documento não encontrado para exclusão.';
             } elseif ($error === 'doc_delete_database_error') {
                 echo 'Erro ao excluir documento do banco de dados.';
+            } elseif ($error === 'duplicate_failed') {
+                echo 'Erro ao duplicar conta de email. Tente novamente.';
             }
             ?>
         </p>
@@ -148,7 +172,7 @@ $emailAccounts = $emailAccounts ?? [];
     </a>
     <a href="<?= pixelhub_url('/tenants/view?id=' . $tenant['id'] . '&tab=hosting') ?>" 
        style="display: inline-block; padding: 12px 20px; text-decoration: none; color: <?= $activeTab === 'hosting' ? '#023A8D' : '#666' ?>; border-bottom: 2px solid <?= $activeTab === 'hosting' ? '#023A8D' : 'transparent' ?>; margin-right: 10px; font-weight: <?= $activeTab === 'hosting' ? '600' : '400' ?>;">
-        Hospedagem & Sites
+        Serviços Ativos
     </a>
     <a href="<?= pixelhub_url('/tenants/view?id=' . $tenant['id'] . '&tab=docs_backups') ?>" 
        style="display: inline-block; padding: 12px 20px; text-decoration: none; color: <?= $activeTab === 'docs_backups' ? '#023A8D' : '#666' ?>; border-bottom: 2px solid <?= $activeTab === 'docs_backups' ? '#023A8D' : 'transparent' ?>; margin-right: 10px; font-weight: <?= $activeTab === 'docs_backups' ? '600' : '400' ?>;">
@@ -159,8 +183,12 @@ $emailAccounts = $emailAccounts ?? [];
         Tarefas & Projetos
     </a>
     <a href="<?= pixelhub_url('/tenants/view?id=' . $tenant['id'] . '&tab=financial') ?>" 
-       style="display: inline-block; padding: 12px 20px; text-decoration: none; color: <?= $activeTab === 'financial' ? '#023A8D' : '#666' ?>; border-bottom: 2px solid <?= $activeTab === 'financial' ? '#023A8D' : 'transparent' ?>; font-weight: <?= $activeTab === 'financial' ? '600' : '400' ?>;">
+       style="display: inline-block; padding: 12px 20px; text-decoration: none; color: <?= $activeTab === 'financial' ? '#023A8D' : '#666' ?>; border-bottom: 2px solid <?= $activeTab === 'financial' ? '#023A8D' : 'transparent' ?>; margin-right: 10px; font-weight: <?= $activeTab === 'financial' ? '600' : '400' ?>;">
         Financeiro
+    </a>
+    <a href="<?= pixelhub_url('/tenants/view?id=' . $tenant['id'] . '&tab=notifications') ?>" 
+       style="display: inline-block; padding: 12px 20px; text-decoration: none; color: <?= $activeTab === 'notifications' ? '#023A8D' : '#666' ?>; border-bottom: 2px solid <?= $activeTab === 'notifications' ? '#023A8D' : 'transparent' ?>; font-weight: <?= $activeTab === 'notifications' ? '600' : '400' ?>;">
+        Notificações
     </a>
 </div>
 
@@ -168,207 +196,472 @@ $emailAccounts = $emailAccounts ?? [];
 <?php if ($activeTab === 'overview'): ?>
     <!-- ABA: Visão Geral -->
     <div class="card">
-        <h3 style="margin-bottom: 20px;">Informações do Cliente</h3>
-        <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-                <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600; width: 200px;">Nome:</td>
-                <td style="padding: 12px; border-bottom: 1px solid #eee;"><?= htmlspecialchars($tenant['name']) ?></td>
-            </tr>
-            <tr>
-                <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">Tipo de Pessoa:</td>
-                <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                    <?= ($tenant['person_type'] ?? 'pf') === 'pj' ? 'Pessoa Jurídica' : 'Pessoa Física' ?>
-                </td>
-            </tr>
-            <tr>
-                <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">CPF/CNPJ:</td>
-                <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                    <?= htmlspecialchars($tenant['cpf_cnpj'] ?? ($tenant['document'] ?? '-')) ?>
-                </td>
-            </tr>
-            <?php if (($tenant['person_type'] ?? 'pf') === 'pj'): ?>
-                <?php if ($tenant['razao_social']): ?>
-                <tr>
-                    <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">Razão Social:</td>
-                    <td style="padding: 12px; border-bottom: 1px solid #eee;"><?= htmlspecialchars($tenant['razao_social']) ?></td>
-                </tr>
-                <?php endif; ?>
-                <?php if ($tenant['nome_fantasia']): ?>
-                <tr>
-                    <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">Nome Fantasia:</td>
-                    <td style="padding: 12px; border-bottom: 1px solid #eee;"><?= htmlspecialchars($tenant['nome_fantasia']) ?></td>
-                </tr>
-                <?php endif; ?>
-                <?php if ($tenant['responsavel_nome']): ?>
-                <tr>
-                    <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">Responsável:</td>
-                    <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <?= htmlspecialchars($tenant['responsavel_nome']) ?>
-                        <?php if ($tenant['responsavel_cpf']): ?>
-                            <span style="color: #666; margin-left: 10px;">(CPF: <?= htmlspecialchars($tenant['responsavel_cpf']) ?>)</span>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-                <?php endif; ?>
-            <?php endif; ?>
-            <?php if ($tenant['email']): ?>
-            <tr>
-                <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">Email:</td>
-                <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                    <a href="mailto:<?= htmlspecialchars($tenant['email']) ?>"><?= htmlspecialchars($tenant['email']) ?></a>
-                </td>
-            </tr>
-            <?php endif; ?>
-            <?php if ($tenant['phone']): ?>
-            <tr>
-                <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">WhatsApp:</td>
-                <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                    <a href="https://wa.me/55<?= preg_replace('/[^0-9]/', '', $tenant['phone']) ?>" target="_blank" rel="noopener noreferrer">
-                        <?= htmlspecialchars($tenant['phone']) ?>
-                    </a>
-                </td>
-            </tr>
-            <?php endif; ?>
-            <tr>
-                <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">Último contato WhatsApp:</td>
-                <td id="last-whatsapp-contact" style="padding: 12px; border-bottom: 1px solid #eee;">
-                    <?php if (!empty($lastWhatsAppContact)): ?>
-                        <?php
-                        $sentAt = $lastWhatsAppContact['sent_at'] ?? null;
-                        $sentAtFormatted = $sentAt ? date('d/m/Y H:i', strtotime($sentAt)) : '-';
-                        $source = $lastWhatsAppContact['source'] ?? 'generic';
-                        $sourceLabel = $source === 'billing' ? 'Financeiro' : 'Visão Geral';
-                        $templateName = $lastWhatsAppContact['template_name'] ?? null;
-                        $templateId = $lastWhatsAppContact['template_id'] ?? null;
-                        
-                        if ($templateId === null && $source === 'generic') {
-                            $templateInfo = 'Sem template (mensagem livre)';
-                        } elseif ($templateName) {
-                            $templateInfo = htmlspecialchars($templateName);
-                        } else {
-                            $templateInfo = 'Sem template';
-                        }
-                        ?>
-                        <?= htmlspecialchars($sentAtFormatted) ?> – Origem: <?= htmlspecialchars($sourceLabel) ?> – Template: <?= $templateInfo ?>
-                    <?php else: ?>
-                        <span style="color: #999;">Nenhum contato registrado</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #e0e0e0;">
+            <h3 style="margin: 0; color: #333; font-size: 18px; font-weight: 600;">Informações do Cliente</h3>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="syncAsaasData()" id="sync-asaas-btn"
+                        style="background: #F7931E; color: white; padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(247, 147, 30, 0.2);"
+                        onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(247, 147, 30, 0.3)'"
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(247, 147, 30, 0.2)'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                    </svg>
+                    <span id="sync-asaas-text">Sincronizar com Asaas</span>
+                </button>
+                <button onclick="openEditAsaasFieldsModal()" 
+                        style="background: #023A8D; color: white; padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(2, 58, 141, 0.2);"
+                        onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(2, 58, 141, 0.3)'"
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(2, 58, 141, 0.2)'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    Editar Campos do Asaas
+                </button>
+            </div>
+        </div>
+        <div id="sync-asaas-message" style="display: none; margin-bottom: 20px; padding: 14px; border-radius: 6px; font-size: 14px; line-height: 1.6;"></div>
+        
+        <!-- Informações Básicas -->
+        <div style="margin-bottom: 30px; padding-bottom: 25px; border-bottom: 1px solid #e0e0e0;">
+            <h4 style="margin: 0 0 20px 0; color: #333; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Dados Pessoais</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Nome</div>
+                    <div style="font-size: 14px; color: #333; font-weight: 400;"><?= htmlspecialchars($tenant['name']) ?></div>
+                </div>
+                <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Tipo de Pessoa</div>
+                    <div style="font-size: 14px; color: #333; font-weight: 400;">
+                        <?= ($tenant['person_type'] ?? 'pf') === 'pj' ? 'Pessoa Jurídica' : 'Pessoa Física' ?>
+                    </div>
+                </div>
+                <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">CPF/CNPJ</div>
+                    <div style="font-size: 14px; color: #333; font-weight: 400; font-family: 'Courier New', monospace;">
+                        <?= htmlspecialchars($tenant['cpf_cnpj'] ?? ($tenant['document'] ?? '-')) ?>
+                    </div>
+                </div>
+                <?php if (($tenant['person_type'] ?? 'pf') === 'pj'): ?>
+                    <?php if ($tenant['razao_social']): ?>
+                    <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Razão Social</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;"><?= htmlspecialchars($tenant['razao_social']) ?></div>
+                    </div>
                     <?php endif; ?>
-                </td>
-            </tr>
-            <tr>
-                <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">Status:</td>
-                <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                    <?php
-                    $statusColor = $tenant['status'] === 'active' ? '#3c3' : '#c33';
-                    $statusLabel = $tenant['status'] === 'active' ? 'Ativo' : 'Inativo';
-                    echo '<span style="color: ' . $statusColor . '; font-weight: 600;">' . $statusLabel . '</span>';
-                    ?>
-                </td>
-            </tr>
-        </table>
+                    <?php if ($tenant['nome_fantasia']): ?>
+                    <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Nome Fantasia</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;"><?= htmlspecialchars($tenant['nome_fantasia']) ?></div>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ($tenant['responsavel_nome']): ?>
+                    <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Responsável</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;">
+                            <?= htmlspecialchars($tenant['responsavel_nome']) ?>
+                            <?php if ($tenant['responsavel_cpf']): ?>
+                                <span style="color: #666; margin-left: 8px; font-size: 13px;">(CPF: <?= htmlspecialchars($tenant['responsavel_cpf']) ?>)</span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Informações de Contato -->
+        <div style="margin-bottom: 30px; padding-bottom: 25px; border-bottom: 1px solid #e0e0e0;">
+            <h4 style="margin: 0 0 20px 0; color: #333; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Contato</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Email</div>
+                    <div style="font-size: 14px; color: #333; font-weight: 400;">
+                        <?php if ($tenant['email']): ?>
+                            <a href="mailto:<?= htmlspecialchars($tenant['email']) ?>" style="color: #333; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; border-bottom: 1px solid transparent; transition: border-color 0.2s;" onmouseover="this.style.borderBottomColor='#999'" onmouseout="this.style.borderBottomColor='transparent'">
+                                <?= htmlspecialchars($tenant['email']) ?>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.6;">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                    <polyline points="15 3 21 3 21 9"></polyline>
+                                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                                </svg>
+                            </a>
+                        <?php else: ?>
+                            <span style="color: #999; font-style: italic;">Não informado</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">WhatsApp</div>
+                    <div style="font-size: 14px; color: #333; font-weight: 400;">
+                        <?php if ($tenant['phone']): ?>
+                            <a href="https://wa.me/55<?= preg_replace('/[^0-9]/', '', $tenant['phone']) ?>" target="_blank" rel="noopener noreferrer" style="color: #333; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; border-bottom: 1px solid transparent; transition: border-color 0.2s;" onmouseover="this.style.borderBottomColor='#999'" onmouseout="this.style.borderBottomColor='transparent'">
+                                <?= htmlspecialchars($tenant['phone']) ?>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.6;">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                    <polyline points="15 3 21 3 21 9"></polyline>
+                                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                                </svg>
+                            </a>
+                        <?php else: ?>
+                            <span style="color: #999; font-style: italic;">Não informado</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Telefone Fixo</div>
+                    <div style="font-size: 14px; color: #333; font-weight: 400;">
+                        <?= $tenant['phone_fixed'] ? htmlspecialchars($tenant['phone_fixed']) : '<span style="color: #999; font-style: italic;">Não informado</span>' ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Endereço -->
+        <?php 
+        $hasAddress = !empty($tenant['address_cep']) || !empty($tenant['address_street']) || !empty($tenant['address_city']);
+        if ($hasAddress):
+        // Processa cidade: remove códigos numéricos no início (ex: "12533 - São Paulo" vira "São Paulo")
+        $cityName = $tenant['address_city'] ?? '';
+        if ($cityName) {
+            // Remove padrões como "12533 - " ou "12533 -" do início
+            $cityName = preg_replace('/^\d+\s*-\s*/', '', $cityName);
+            $cityName = trim($cityName);
+            // Se for apenas números (código IBGE), não exibe como cidade válida
+            // Será corrigido na próxima sincronização que prioriza valores com letras
+            if (preg_match('/^\d+$/', $cityName)) {
+                $cityName = ''; // Vazio força exibição de "Não informado"
+            }
+        }
+        ?>
+        <div style="margin-bottom: 30px; padding-bottom: 25px; border-bottom: 1px solid #e0e0e0;">
+            <h4 style="margin: 0 0 20px 0; color: #333; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Endereço</h4>
+            <div style="border: 1px solid #e0e0e0; padding: 20px; background: #fff;">
+                <!-- Linha 1: Rua + Número -->
+                <div style="display: grid; grid-template-columns: 1fr auto; gap: 20px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #e0e0e0;">
+                    <div>
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Rua</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;">
+                            <?= $tenant['address_street'] ? htmlspecialchars($tenant['address_street']) : '<span style="color: #999; font-style: italic;">Não informado</span>' ?>
+                        </div>
+                    </div>
+                    <div style="min-width: 80px;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Número</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;">
+                            <?= $tenant['address_number'] ? htmlspecialchars($tenant['address_number']) : '<span style="color: #999; font-style: italic;">S/N</span>' ?>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Linha 2: Bairro + Cidade + UF -->
+                <div style="display: grid; grid-template-columns: 1fr 1.5fr auto; gap: 20px; margin-bottom: 20px;">
+                    <div>
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Bairro</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;">
+                            <?= $tenant['address_neighborhood'] ? htmlspecialchars($tenant['address_neighborhood']) : '<span style="color: #999; font-style: italic;">Não informado</span>' ?>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Cidade</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;">
+                            <?= $cityName ? htmlspecialchars($cityName) : '<span style="color: #999; font-style: italic;">Não informado</span>' ?>
+                        </div>
+                    </div>
+                    <div style="min-width: 50px;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">UF</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;">
+                            <?= $tenant['address_state'] ? htmlspecialchars($tenant['address_state']) : '<span style="color: #999; font-style: italic;">-</span>' ?>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Meta info: CEP e Complemento -->
+                <div style="display: flex; gap: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                    <div>
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">CEP</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400; font-family: 'Courier New', monospace;">
+                            <?= $tenant['address_cep'] ? htmlspecialchars($tenant['address_cep']) : '<span style="color: #999; font-style: italic;">Não informado</span>' ?>
+                        </div>
+                    </div>
+                    <?php if ($tenant['address_complement']): ?>
+                    <div>
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Complemento</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;">
+                            <?= htmlspecialchars($tenant['address_complement']) ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Informações do Asaas e Status -->
+        <div style="margin-bottom: 30px;">
+            <h4 style="margin: 0 0 20px 0; color: #333; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Informações do Asaas</h4>
+            
+            <!-- ID Asaas -->
+            <?php if ($tenant['asaas_customer_id']): ?>
+            <div style="margin-bottom: 30px; padding-bottom: 25px; border-bottom: 1px solid #e0e0e0;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                    <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">ID Asaas</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400; font-family: 'Courier New', monospace;">
+                            <?php
+                            $asaasUrl = \PixelHub\Core\AsaasHelper::buildCustomerPanelUrl($tenant['asaas_customer_id']);
+                            if (!empty($asaasUrl)):
+                            ?>
+                                <a href="<?= htmlspecialchars($asaasUrl) ?>" target="_blank" rel="noopener noreferrer" 
+                                   style="color: #333; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; border-bottom: 1px solid transparent; transition: border-color 0.2s;" onmouseover="this.style.borderBottomColor='#999'" onmouseout="this.style.borderBottomColor='transparent'">
+                                    <?= htmlspecialchars($tenant['asaas_customer_id']) ?>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.6;">
+                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                        <polyline points="15 3 21 3 21 9"></polyline>
+                                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                                    </svg>
+                                </a>
+                            <?php else: ?>
+                                <span><?= htmlspecialchars($tenant['asaas_customer_id']) ?></span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+            
+            <!-- Status & Atividade -->
+            <div style="margin-bottom: 20px; padding-bottom: 25px; border-bottom: 1px solid #e0e0e0;">
+                <h5 style="margin: 0 0 20px 0; color: #333; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Status & Atividade</h5>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                <?php if ($tenant['billing_status']): ?>
+                <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Status Financeiro</div>
+                    <div style="font-size: 14px; color: #333; font-weight: 400;">
+                        <?php
+                        $billingStatusLabels = [
+                            'sem_cobranca' => 'Sem Cobrança',
+                            'em_dia' => 'Em Dia',
+                            'atrasado_parcial' => 'Atrasado Parcial',
+                            'atrasado_total' => 'Atrasado Total'
+                        ];
+                        $status = $tenant['billing_status'];
+                        $label = $billingStatusLabels[$status] ?? $status;
+                        ?>
+                        <span style="color: #333; font-weight: 400;">
+                            <?= htmlspecialchars($label) ?>
+                        </span>
+                    </div>
+                </div>
+                <?php endif; ?>
+                
+                <?php if ($tenant['billing_last_check_at']): ?>
+                <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Última Verificação Financeira</div>
+                    <div style="font-size: 14px; color: #333; font-weight: 400; margin-bottom: 4px;">
+                        <?= date('d/m/Y H:i', strtotime($tenant['billing_last_check_at'])) ?>
+                    </div>
+                    <div style="font-size: 11px; color: #999; font-style: italic; margin-top: 4px;">
+                        Atualizado automaticamente via Asaas
+                    </div>
+                </div>
+                <?php endif; ?>
+                
+                <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Último Contato WhatsApp</div>
+                    <div id="last-whatsapp-contact" style="font-size: 14px; color: #333; font-weight: 400;">
+                        <?php if (!empty($lastWhatsAppContact)): ?>
+                            <?php
+                            $sentAt = $lastWhatsAppContact['sent_at'] ?? null;
+                            $sentAtFormatted = $sentAt ? date('d/m/Y H:i', strtotime($sentAt)) : '-';
+                            $source = $lastWhatsAppContact['source'] ?? 'generic';
+                            $sourceLabel = $source === 'billing' ? 'Financeiro' : 'Visão Geral';
+                            $templateName = $lastWhatsAppContact['template_name'] ?? null;
+                            $templateId = $lastWhatsAppContact['template_id'] ?? null;
+                            
+                            if ($templateId === null && $source === 'generic') {
+                                $templateInfo = 'Sem template (mensagem livre)';
+                            } elseif ($templateName) {
+                                $templateInfo = htmlspecialchars($templateName);
+                            } else {
+                                $templateInfo = 'Sem template';
+                            }
+                            ?>
+                            <div style="margin-bottom: 4px;"><?= htmlspecialchars($sentAtFormatted) ?></div>
+                            <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                                Origem: <?= htmlspecialchars($sourceLabel) ?> • Template: <?= $templateInfo ?>
+                            </div>
+                        <?php else: ?>
+                            <span style="color: #999; font-style: italic;">Nenhum contato registrado</span>
+                        <?php endif; ?>
+                    </div>
+                    <div style="font-size: 11px; color: #999; font-style: italic; margin-top: 6px;">
+                        Registro automático de mensagens enviadas
+                    </div>
+                </div>
+                
+                <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Status do Cliente</div>
+                    <div style="font-size: 14px; color: #333; font-weight: 400;">
+                        <?php
+                        $statusLabel = $tenant['status'] === 'active' ? 'Ativo' : 'Inativo';
+                        ?>
+                        <span style="color: #333; font-weight: 400;">
+                            <?= $statusLabel ?>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <!-- Observações Internas -->
+        <?php if ($tenant['internal_notes']): ?>
+        <div style="margin-bottom: 20px; padding-bottom: 25px; border-bottom: 1px solid #e0e0e0;">
+            <h4 style="margin: 0 0 20px 0; color: #333; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Observações Internas</h4>
+            <div style="border: 1px solid #e0e0e0; padding: 15px; background: #fff;">
+                <div style="font-size: 14px; color: #333; white-space: pre-wrap; line-height: 1.6; font-weight: 400;"><?= htmlspecialchars($tenant['internal_notes']) ?></div>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 
-    <!-- Card: Histórico WhatsApp -->
-    <div class="card" style="margin-top: 20px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 style="margin: 0;">Histórico WhatsApp</h3>
-            <a href="<?= pixelhub_url('/tenants/whatsapp-history?id=' . $tenant['id']) ?>" 
-               style="color: #023A8D; text-decoration: none; font-size: 14px; font-weight: 600;">
-                Ver histórico completo →
-            </a>
+    <!-- Modal de Edição dos Campos do Asaas -->
+    <div id="edit-asaas-fields-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+        <div style="max-width: 800px; margin: 50px auto; background: white; border-radius: 8px; padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); position: relative;">
+            <button onclick="closeEditAsaasFieldsModal()" 
+                    style="position: absolute; top: 15px; right: 15px; background: #c33; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; line-height: 1;">×</button>
+            
+            <h2 style="margin: 0 0 20px 0; color: #023A8D;">Editar Campos do Asaas</h2>
+            <p style="color: #666; margin-bottom: 20px;">Atualize os campos que serão sincronizados com o Asaas. Se o cliente não estiver vinculado ao Asaas, será criado automaticamente.</p>
+            
+            <?php
+            // Prepara dados para o formulário: prioriza dados locais, mas preenche com consolidados se vazio
+            $formEmail = $tenant['email'] ?? ($consolidatedAsaasData['email'] ?? '');
+            $formPhone = $tenant['phone'] ?? '';
+            $formPhoneFixed = $tenant['phone_fixed'] ?? ($consolidatedAsaasData['phone_fixed'] ?? '');
+            $formAddressCep = $tenant['address_cep'] ?? ($consolidatedAsaasData['address_cep'] ?? '');
+            $formAddressStreet = $tenant['address_street'] ?? ($consolidatedAsaasData['address_street'] ?? '');
+            $formAddressNumber = $tenant['address_number'] ?? ($consolidatedAsaasData['address_number'] ?? '');
+            $formAddressComplement = $tenant['address_complement'] ?? ($consolidatedAsaasData['address_complement'] ?? '');
+            $formAddressNeighborhood = $tenant['address_neighborhood'] ?? ($consolidatedAsaasData['address_neighborhood'] ?? '');
+            $formAddressCity = $tenant['address_city'] ?? ($consolidatedAsaasData['address_city'] ?? '');
+            $formAddressState = $tenant['address_state'] ?? ($consolidatedAsaasData['address_state'] ?? '');
+            
+            // Mostra aviso se houver dados consolidados sendo usados
+            $hasConsolidatedData = !empty($consolidatedAsaasData);
+            $usingConsolidatedData = false;
+            if ($hasConsolidatedData) {
+                $usingConsolidatedData = (
+                    (empty($tenant['email']) && !empty($consolidatedAsaasData['email'])) ||
+                    (empty($tenant['phone_fixed']) && !empty($consolidatedAsaasData['phone_fixed'])) ||
+                    (empty($tenant['address_cep']) && !empty($consolidatedAsaasData['address_cep'])) ||
+                    (empty($tenant['address_street']) && !empty($consolidatedAsaasData['address_street']))
+                );
+            }
+            ?>
+            
+            <?php if ($usingConsolidatedData): ?>
+            <div style="margin-bottom: 20px; padding: 12px; background: #e3f2fd; border-left: 4px solid #2196f3; border-radius: 4px;">
+                <p style="margin: 0; color: #1976d2; font-size: 14px;">
+                    <strong>ℹ️ Dados consolidados do Asaas:</strong> Alguns campos foram preenchidos automaticamente com dados consolidados de múltiplos cadastros do Asaas para este CPF.
+                </p>
+            </div>
+            <?php endif; ?>
+            
+            <form id="edit-asaas-fields-form" onsubmit="saveAsaasFields(event)">
+                <input type="hidden" name="tenant_id" value="<?= $tenant['id'] ?>">
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">Email:</label>
+                    <input type="email" name="email" value="<?= htmlspecialchars($formEmail) ?>" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">WhatsApp:</label>
+                    <input type="text" name="phone" value="<?= htmlspecialchars($formPhone) ?>" 
+                           placeholder="(00) 00000-0000"
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">Telefone Fixo:</label>
+                    <input type="text" name="phone_fixed" value="<?= htmlspecialchars($formPhoneFixed) ?>" 
+                           placeholder="(00) 0000-0000"
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee;">
+                    <h3 style="margin: 0 0 15px 0; font-size: 16px;">Endereço</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">CEP:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="modal-address_cep" name="address_cep" value="<?= htmlspecialchars($formAddressCep) ?>" 
+                                   placeholder="00000-000" maxlength="9"
+                                   style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <button type="button" onclick="buscarCepModal()" 
+                                    style="background: #023A8D; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;">
+                                Buscar CEP
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">Rua / Logradouro:</label>
+                            <input type="text" name="address_street" value="<?= htmlspecialchars($formAddressStreet) ?>" 
+                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">Número:</label>
+                            <input type="text" name="address_number" value="<?= htmlspecialchars($formAddressNumber) ?>" 
+                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">Complemento:</label>
+                        <input type="text" name="address_complement" value="<?= htmlspecialchars($formAddressComplement) ?>" 
+                               placeholder="Apto, Sala, etc."
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">Bairro:</label>
+                            <input type="text" name="address_neighborhood" value="<?= htmlspecialchars($formAddressNeighborhood) ?>" 
+                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">Cidade:</label>
+                            <input type="text" name="address_city" value="<?= htmlspecialchars($formAddressCity) ?>" 
+                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">Estado (UF):</label>
+                            <input type="text" name="address_state" value="<?= htmlspecialchars($formAddressState) ?>" 
+                                   placeholder="SP" maxlength="2" style="text-transform: uppercase; width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="asaas-fields-message" style="margin-bottom: 20px; display: none;"></div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" onclick="closeEditAsaasFieldsModal()" 
+                            style="background: #666; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                        Cancelar
+                    </button>
+                    <button type="submit" 
+                            style="background: #023A8D; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                        Salvar e Sincronizar com Asaas
+                    </button>
+                </div>
+            </form>
         </div>
-        <div id="whatsapp-timeline-container">
-            <?php if (empty($whatsappTimeline)): ?>
-                <p style="color: #666; text-align: center; padding: 20px;">Nenhum histórico de WhatsApp registrado.</p>
-            <?php else: ?>
-                <table style="width: 100%; border-collapse: collapse;">
-                    <thead>
-                        <tr style="background: #f5f5f5;">
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Data/Hora</th>
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Origem</th>
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Template</th>
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Observação</th>
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody id="whatsapp-timeline-tbody">
-                        <?php foreach ($whatsappTimeline as $index => $item): ?>
-                        <tr>
-                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                                <?php
-                                $sentAt = $item['sent_at'] ?? null;
-                                echo $sentAt ? htmlspecialchars(date('d/m/Y H:i', strtotime($sentAt))) : '-';
-                                ?>
-                            </td>
-                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                                <?php
-                                $source = $item['source'] ?? 'generic';
-                                $sourceLabel = $source === 'billing' ? 'Financeiro' : 'Visão Geral';
-                                echo htmlspecialchars($sourceLabel);
-                                ?>
-                            </td>
-                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                                <?php
-                                $templateId = $item['template_id'] ?? null;
-                                $templateName = $item['template_name'] ?? null;
-                                
-                                if ($templateId === null && $source === 'generic') {
-                                    echo '<span style="color: #999;">Sem template / mensagem livre</span>';
-                                } elseif ($templateName) {
-                                    echo htmlspecialchars($templateName);
-                                } else {
-                                    echo '<span style="color: #999;">-</span>';
-                                }
-                                ?>
-                            </td>
-                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                                <?php
-                                $message = $item['message'] ?? $item['message_full'] ?? '';
-                                $messageFull = $item['message_full'] ?? $message;
-                                
-                                // Preview de 100-120 caracteres
-                                $preview = mb_substr($message, 0, 120);
-                                if (mb_strlen($message) > 120) {
-                                    $preview .= '...';
-                                }
-                                
-                                if ($source === 'billing') {
-                                    // Para billing, mostra descrição + preview da mensagem se houver
-                                    $description = $item['description'] ?? '';
-                                    echo htmlspecialchars($description);
-                                    if (!empty($message)) {
-                                        echo '<br><span style="color: #666; font-size: 12px;">' . htmlspecialchars($preview) . '</span>';
-                                    }
-                                } else {
-                                    // Para generic, mostra preview da mensagem
-                                    echo '<span style="color: #666; font-size: 13px;">' . htmlspecialchars($preview) . '</span>';
-                                }
-                                ?>
-                            </td>
-                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                                <?php if (!empty($messageFull)): ?>
-                                    <button onclick="openMessageModal(<?= $index ?>)" 
-                                            style="background: #023A8D; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">
-                                        Ver mensagem
-                                    </button>
-                                    <!-- Dados da mensagem completa (ocultos) -->
-                                    <div id="message-data-<?= $index ?>" style="display: none;" 
-                                         data-sent-at="<?= htmlspecialchars($item['sent_at'] ?? '', ENT_QUOTES) ?>"
-                                         data-source="<?= htmlspecialchars($source, ENT_QUOTES) ?>"
-                                         data-source-label="<?= htmlspecialchars($sourceLabel, ENT_QUOTES) ?>"
-                                         data-template-name="<?= htmlspecialchars($templateName ?? ($templateId === null && $source === 'generic' ? 'Sem template / mensagem livre' : 'Sem template'), ENT_QUOTES) ?>"
-                                         data-phone="<?= htmlspecialchars($item['phone'] ?? '', ENT_QUOTES) ?>"
-                                         data-message-full="<?= htmlspecialchars($messageFull, ENT_QUOTES) ?>">
-                                    </div>
-                                <?php else: ?>
-                                    <span style="color: #999; font-size: 13px;">-</span>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        <?php endif; ?>
     </div>
 
     <!-- Modal de Detalhes da Mensagem -->
@@ -609,8 +902,208 @@ $emailAccounts = $emailAccounts ?? [];
     window.currentTenantId = <?= $tenant['id'] ?? 0 ?>;
     </script>
 
+    <!-- Scripts para modal de edição dos campos do Asaas -->
+    <script>
+    function openEditAsaasFieldsModal() {
+        document.getElementById('edit-asaas-fields-modal').style.display = 'block';
+    }
+
+    function closeEditAsaasFieldsModal() {
+        document.getElementById('edit-asaas-fields-modal').style.display = 'none';
+        const messageDiv = document.getElementById('asaas-fields-message');
+        messageDiv.style.display = 'none';
+        messageDiv.innerHTML = '';
+    }
+
+    // Fecha modal ao clicar fora
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('edit-asaas-fields-modal');
+        if (modal) {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeEditAsaasFieldsModal();
+                }
+            });
+        }
+
+        // Formata CEP ao digitar no modal
+        const cepInput = document.getElementById('modal-address_cep');
+        if (cepInput) {
+            cepInput.addEventListener('input', function(e) {
+                let cep = e.target.value.replace(/\D/g, '');
+                if (cep.length === 8) {
+                    cep = cep.substring(0, 5) + '-' + cep.substring(5);
+                }
+                e.target.value = cep;
+            });
+        }
+    });
+
+    function saveAsaasFields(event) {
+        event.preventDefault();
+        
+        const form = document.getElementById('edit-asaas-fields-form');
+        const formData = new FormData(form);
+        const messageDiv = document.getElementById('asaas-fields-message');
+        
+        // Mostra loading
+        messageDiv.style.display = 'block';
+        messageDiv.style.background = '#e3f2fd';
+        messageDiv.style.border = '1px solid #2196f3';
+        messageDiv.style.color = '#1976d2';
+        messageDiv.style.padding = '10px';
+        messageDiv.style.borderRadius = '4px';
+        messageDiv.innerHTML = 'Salvando e sincronizando com Asaas...';
+        
+        fetch('<?= pixelhub_url('/tenants/update-asaas-fields') ?>', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                messageDiv.style.background = '#d4edda';
+                messageDiv.style.border = '1px solid #c3e6cb';
+                messageDiv.style.color = '#155724';
+                messageDiv.innerHTML = '<strong>✅ Sucesso!</strong> ' + (data.message || 'Campos atualizados e sincronizados com o Asaas.');
+                
+                // Recarrega a página após 1.5 segundos
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                messageDiv.style.background = '#f8d7da';
+                messageDiv.style.border = '1px solid #f5c6cb';
+                messageDiv.style.color = '#721c24';
+                messageDiv.innerHTML = '<strong>❌ Erro:</strong> ' + (data.message || 'Erro ao atualizar campos.');
+            }
+        })
+        .catch(error => {
+            messageDiv.style.background = '#f8d7da';
+            messageDiv.style.border = '1px solid #f5c6cb';
+            messageDiv.style.color = '#721c24';
+            messageDiv.innerHTML = '<strong>❌ Erro:</strong> Erro ao comunicar com o servidor.';
+            console.error('Erro:', error);
+        });
+    }
+
+    function buscarCepModal() {
+        const cepInput = document.getElementById('modal-address_cep');
+        const cep = cepInput.value.replace(/\D/g, '');
+        
+        if (cep.length !== 8) {
+            alert('CEP deve ter 8 dígitos');
+            return;
+        }
+        
+        fetch(`https://viacep.com.br/ws/${cep}/json/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.erro) {
+                    alert('CEP não encontrado');
+                    return;
+                }
+                
+                // Preenche campos automaticamente
+                document.querySelector('input[name="address_street"]').value = data.logradouro || '';
+                document.querySelector('input[name="address_neighborhood"]').value = data.bairro || '';
+                document.querySelector('input[name="address_city"]').value = data.localidade || '';
+                document.querySelector('input[name="address_state"]').value = data.uf || '';
+                
+                // Foca no campo número
+                document.querySelector('input[name="address_number"]').focus();
+            })
+            .catch(error => {
+                alert('Erro ao buscar CEP. Tente novamente.');
+                console.error('Erro:', error);
+            });
+    }
+
+    function syncAsaasData() {
+        const tenantId = <?= $tenant['id'] ?>;
+        const btn = document.getElementById('sync-asaas-btn');
+        const btnText = document.getElementById('sync-asaas-text');
+        const messageDiv = document.getElementById('sync-asaas-message');
+        
+        // Desabilita botão e mostra loading
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+        btn.style.cursor = 'not-allowed';
+        btnText.textContent = 'Sincronizando...';
+        
+        // Mostra mensagem de loading
+        messageDiv.style.display = 'block';
+        messageDiv.style.background = '#e3f2fd';
+        messageDiv.style.border = '1px solid #2196f3';
+        messageDiv.style.color = '#1976d2';
+        messageDiv.style.padding = '12px';
+        messageDiv.style.borderRadius = '4px';
+        messageDiv.innerHTML = '<strong>🔄 Sincronizando...</strong> Buscando e consolidando dados de todos os cadastros do Asaas para este CPF...';
+        
+        fetch('<?= pixelhub_url('/tenants/sync-asaas-data') ?>', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'tenant_id=' + tenantId
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Reabilita botão
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+            btnText.textContent = 'Sincronizar com Asaas';
+            
+            if (data.success) {
+                messageDiv.style.background = '#d4edda';
+                messageDiv.style.border = '1px solid #c3e6cb';
+                messageDiv.style.color = '#155724';
+                
+                let message = '<strong>✅ Sincronização concluída!</strong><br>';
+                if (data.customers_found) {
+                    message += `Foram encontrados <strong>${data.customers_found} cadastro(s)</strong> no Asaas para este CPF.<br>`;
+                }
+                if (data.fields_updated && data.fields_updated.length > 0) {
+                    message += `Campos atualizados: <strong>${data.fields_updated.join(', ')}</strong>.<br>`;
+                }
+                if (data.customers_synced) {
+                    message += `Dados sincronizados com <strong>${data.customers_synced} cadastro(s)</strong> no Asaas.`;
+                } else {
+                    message += data.message || 'Dados atualizados com sucesso.';
+                }
+                
+                messageDiv.innerHTML = message;
+                
+                // Recarrega a página após 2 segundos para mostrar dados atualizados
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                messageDiv.style.background = '#f8d7da';
+                messageDiv.style.border = '1px solid #f5c6cb';
+                messageDiv.style.color = '#721c24';
+                messageDiv.innerHTML = '<strong>❌ Erro:</strong> ' + (data.message || 'Erro ao sincronizar dados.');
+            }
+        })
+        .catch(error => {
+            // Reabilita botão
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+            btnText.textContent = 'Sincronizar com Asaas';
+            
+            messageDiv.style.background = '#f8d7da';
+            messageDiv.style.border = '1px solid #f5c6cb';
+            messageDiv.style.color = '#721c24';
+            messageDiv.innerHTML = '<strong>❌ Erro:</strong> Erro ao comunicar com o servidor.';
+            console.error('Erro:', error);
+        });
+    }
+    </script>
+
 <?php elseif ($activeTab === 'hosting'): ?>
-    <!-- ABA: Hospedagem & Sites -->
+    <!-- ABA: Serviços Ativos -->
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3 style="margin: 0;">Sites e Hospedagens</h3>
@@ -628,6 +1121,11 @@ $emailAccounts = $emailAccounts ?? [];
         <?php if (isset($_GET['success']) && $_GET['success'] === 'updated'): ?>
             <div style="background: #efe; color: #3c3; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
                 Conta de hospedagem atualizada com sucesso!
+            </div>
+        <?php endif; ?>
+        <?php if (isset($_GET['success']) && $_GET['success'] === 'email_duplicated'): ?>
+            <div class="card" style="background: #efe; border-left: 4px solid #3c3; margin-bottom: 20px;">
+                <p style="color: #3c3; margin: 0;">Conta de email duplicada com sucesso!</p>
             </div>
         <?php endif; ?>
         <?php if (isset($_GET['success']) && $_GET['success'] === 'email_created'): ?>
@@ -823,7 +1321,8 @@ $emailAccounts = $emailAccounts ?? [];
                 <thead>
                     <tr style="background: #f5f5f5;">
                         <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Email</th>
-                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Descrição</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Usuário</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Senha</th>
                         <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Provedor</th>
                         <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Domínio Vinculado</th>
                         <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>
@@ -836,7 +1335,25 @@ $emailAccounts = $emailAccounts ?? [];
                             <strong style="color: #023A8D;"><?= htmlspecialchars($account['email']) ?></strong>
                         </td>
                         <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                            <?= htmlspecialchars($account['description'] ?? '-') ?>
+                            <?= htmlspecialchars($account['username'] ?? '-') ?>
+                        </td>
+                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                <span id="email_password_<?= $account['id'] ?>" style="font-family: monospace; color: #666;">
+                                    <?= !empty($account['password_encrypted']) ? '••••••••' : '-' ?>
+                                </span>
+                                <?php if (!empty($account['password_encrypted'])): ?>
+                                <button type="button" 
+                                        onclick="toggleEmailPassword(<?= $account['id'] ?>, this)" 
+                                        style="background: #666; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; justify-content: center;"
+                                        title="Mostrar/Ocultar senha">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                </button>
+                                <?php endif; ?>
+                            </div>
                         </td>
                         <td style="padding: 12px; border-bottom: 1px solid #eee;">
                             <?= htmlspecialchars($account['provider'] ?? '-') ?>
@@ -845,20 +1362,27 @@ $emailAccounts = $emailAccounts ?? [];
                             <?= htmlspecialchars($account['hosting_domain'] ?? '-') ?>
                         </td>
                         <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                            <a href="<?= pixelhub_url('/email-accounts/edit?id=' . $account['id'] . '&redirect_to=tenant') ?>" 
-                               style="background: #F7931E; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-block; margin-right: 5px;">
-                                Editar
-                            </a>
-                            <form method="POST" action="<?= pixelhub_url('/email-accounts/delete') ?>" 
-                                  onsubmit="return confirm('Tem certeza que deseja excluir a conta de email <?= htmlspecialchars($account['email']) ?>?');" 
-                                  style="display: inline-block; margin: 0;">
-                                <input type="hidden" name="id" value="<?= htmlspecialchars($account['id']) ?>">
-                                <input type="hidden" name="redirect_to" value="tenant">
-                                <button type="submit" 
-                                        style="background: #c33; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                                    Excluir
-                                </button>
-                            </form>
+                            <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                                <a href="<?= pixelhub_url('/email-accounts/duplicate?id=' . $account['id'] . '&redirect_to=tenant') ?>" 
+                                   style="background: #28a745; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-block;"
+                                   title="Duplicar conta de email">
+                                    Duplicar
+                                </a>
+                                <a href="<?= pixelhub_url('/email-accounts/edit?id=' . $account['id'] . '&redirect_to=tenant') ?>" 
+                                   style="background: #F7931E; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-block;">
+                                    Editar
+                                </a>
+                                <form method="POST" action="<?= pixelhub_url('/email-accounts/delete') ?>" 
+                                      onsubmit="return confirm('Tem certeza que deseja excluir a conta de email <?= htmlspecialchars($account['email']) ?>?');" 
+                                      style="display: inline-block; margin: 0;">
+                                    <input type="hidden" name="id" value="<?= htmlspecialchars($account['id']) ?>">
+                                    <input type="hidden" name="redirect_to" value="tenant">
+                                    <button type="submit" 
+                                            style="background: #c33; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                                        Excluir
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -968,8 +1492,104 @@ $emailAccounts = $emailAccounts ?? [];
     </div>
     </div>
     
+    <!-- Seção 2: Contratos de Projetos -->
+    <div class="card" style="margin-bottom: 20px;">
+        <h3 style="margin-bottom: 20px;">Contratos de Projetos</h3>
+        
+        <?php if (empty($contracts ?? [])): ?>
+            <div style="text-align: center; padding: 40px; color: #666;">
+                <p style="font-size: 16px; margin-bottom: 10px;">Nenhum contrato encontrado para este cliente.</p>
+                <p style="font-size: 14px;">Os contratos são gerados automaticamente ao criar projetos através do Assistente de Cadastramento.</p>
+            </div>
+        <?php else: ?>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f5f5f5;">
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600;">Projeto</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600;">Serviço</th>
+                            <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd; font-weight: 600;">Valor</th>
+                            <th style="padding: 12px; text-align: center; border-bottom: 2px solid #ddd; font-weight: 600;">Status</th>
+                            <th style="padding: 12px; text-align: center; border-bottom: 2px solid #ddd; font-weight: 600;">Criado em</th>
+                            <th style="padding: 12px; text-align: center; border-bottom: 2px solid #ddd; font-weight: 600;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($contracts as $contract): ?>
+                            <?php
+                            $statusLabels = [
+                                'draft' => ['label' => 'Rascunho', 'color' => '#6c757d', 'bg' => '#e9ecef'],
+                                'sent' => ['label' => 'Enviado', 'color' => '#856404', 'bg' => '#fff3cd'],
+                                'accepted' => ['label' => 'Aceito', 'color' => '#155724', 'bg' => '#d4edda'],
+                                'rejected' => ['label' => 'Rejeitado', 'color' => '#721c24', 'bg' => '#f8d7da']
+                            ];
+                            $statusInfo = $statusLabels[$contract['status']] ?? ['label' => $contract['status'], 'color' => '#666', 'bg' => '#f0f0f0'];
+                            $canEdit = $contract['status'] !== 'accepted' && $contract['status'] !== 'rejected';
+                            $publicLink = \PixelHub\Services\ProjectContractService::generatePublicLink($contract['contract_token']);
+                            ?>
+                            <tr style="border-bottom: 1px solid #eee;">
+                                <td style="padding: 12px;">
+                                    <?php if ($contract['project_name']): ?>
+                                        <a href="<?= pixelhub_url('/projects/board?project_id=' . $contract['project_id']) ?>" style="color: #023A8D; text-decoration: none; font-weight: 600;">
+                                            <?= htmlspecialchars($contract['project_name']) ?>
+                                        </a>
+                                    <?php else: ?>
+                                        <span style="color: #999;">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="padding: 12px;">
+                                    <?= htmlspecialchars($contract['service_name'] ?? '-') ?>
+                                </td>
+                                <td style="padding: 12px; text-align: right; font-weight: 600;">
+                                    R$ <?= number_format((float) $contract['contract_value'], 2, ',', '.') ?>
+                                </td>
+                                <td style="padding: 12px; text-align: center;">
+                                    <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; background: <?= $statusInfo['bg'] ?>; color: <?= $statusInfo['color'] ?>;">
+                                        <?= htmlspecialchars($statusInfo['label']) ?>
+                                    </span>
+                                </td>
+                                <td style="padding: 12px; text-align: center; color: #666; font-size: 13px;">
+                                    <?= date('d/m/Y H:i', strtotime($contract['created_at'])) ?>
+                                </td>
+                                <td style="padding: 12px; text-align: center;">
+                                    <div style="display: flex; gap: 6px; justify-content: center;">
+                                        <a href="<?= $publicLink ?>" target="_blank" 
+                                           style="padding: 6px 12px; background: #023A8D; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 600;">
+                                            Ver
+                                        </a>
+                                        <a href="<?= pixelhub_url('/contracts/download-pdf?id=' . $contract['id']) ?>" 
+                                           style="padding: 6px 12px; background: #dc3545; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                                <polyline points="14 2 14 8 20 8"/>
+                                                <line x1="16" y1="13" x2="8" y2="13"/>
+                                                <line x1="16" y1="17" x2="8" y2="17"/>
+                                                <polyline points="10 9 9 9 8 9"/>
+                                            </svg>
+                                            PDF
+                                        </a>
+                                        <?php if ($canEdit): ?>
+                                            <button onclick="editContract(<?= $contract['id'] ?>)" 
+                                                    style="padding: 6px 12px; background: #ffc107; color: #333; border: none; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer;">
+                                                Editar
+                                            </button>
+                                        <?php else: ?>
+                                            <span style="padding: 6px 12px; background: #e9ecef; color: #6c757d; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: not-allowed;" title="Contrato não pode ser editado após <?= $contract['status'] === 'accepted' ? 'aceito' : 'rejeitado' ?>">
+                                                Bloqueado
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </div>
+    
     <div id="tenant-documents">
-    <!-- Seção 2: Documentos Gerais -->
+    <!-- Seção 3: Documentos Gerais -->
     <div class="card">
         <h3 style="margin-bottom: 20px;">Documentos Gerais</h3>
         
@@ -1032,6 +1652,55 @@ $emailAccounts = $emailAccounts ?? [];
     <!-- Script para AJAX na aba Docs & Backups -->
     <?php if ($activeTab === 'docs_backups'): ?>
     <script src="<?= pixelhub_url('/assets/js/tenant_docs_backups.js') ?>"></script>
+    <script>
+    function editContract(id) {
+        // Busca dados do contrato
+        fetch('<?= pixelhub_url('/contracts/show') ?>?id=' + id)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.contract) {
+                    const contract = data.contract;
+                    const newValue = prompt('Digite o novo valor do contrato:', contract.contract_value);
+                    
+                    if (newValue === null) return;
+                    
+                    const value = parseFloat(newValue.replace(/\./g, '').replace(',', '.'));
+                    if (isNaN(value) || value <= 0) {
+                        alert('Valor inválido');
+                        return;
+                    }
+                    
+                    // Atualiza valor
+                    fetch('<?= pixelhub_url('/contracts/update-value') ?>', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: 'id=' + id + '&contract_value=' + value.toFixed(2).replace('.', ',')
+                    })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success) {
+                            alert('Contrato atualizado com sucesso!');
+                            location.reload();
+                        } else {
+                            alert('Erro: ' + (result.error || 'Erro desconhecido'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro:', error);
+                        alert('Erro ao atualizar contrato');
+                    });
+                } else {
+                    alert('Erro ao carregar contrato');
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('Erro ao carregar contrato');
+            });
+    }
+    </script>
     <?php endif; ?>
 
 <?php elseif ($activeTab === 'financial'): ?>
@@ -1045,7 +1714,12 @@ $emailAccounts = $emailAccounts ?? [];
                     <input type="hidden" name="tenant_id" value="<?= htmlspecialchars($tenant['id']) ?>">
                     <button type="submit" 
                             style="background: #023A8D; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
-                        🔄 Sincronizar com Asaas
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <polyline points="1 20 1 14 7 14"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                        Sincronizar com Asaas
                     </button>
                 </form>
                 <div style="margin-top: 8px; font-size: 13px; color: #666;">
@@ -1077,8 +1751,11 @@ $emailAccounts = $emailAccounts ?? [];
     
     <?php if (isset($_GET['success']) && $_GET['success'] === 'whatsapp_sent'): ?>
         <div class="card" style="background: #d4edda; border-left: 4px solid #28a745; margin-bottom: 20px;">
-            <p style="color: #155724; margin: 0;">
-                ✓ Cobrança via WhatsApp marcada como enviada com sucesso!
+            <p style="color: #155724; margin: 0; display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Cobrança via WhatsApp marcada como enviada com sucesso!
             </p>
         </div>
     <?php endif; ?>
@@ -1337,8 +2014,11 @@ $emailAccounts = $emailAccounts ?? [];
                                     </a>
                                 <?php endif; ?>
                                 <a href="<?= pixelhub_url('/billing/whatsapp-modal?invoice_id=' . $invoice['id'] . '&redirect_to=tenant') ?>" 
-                                   style="background: #25D366; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-block;">
-                                    📱 Cobrar
+                                   style="background: #023A8D; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                                    </svg>
+                                    Cobrar
                                 </a>
                             </div>
                         </td>
@@ -1348,8 +2028,114 @@ $emailAccounts = $emailAccounts ?? [];
             </table>
         <?php endif; ?>
     </div>
+
+<?php elseif ($activeTab === 'notifications'): ?>
+    <!-- ABA: Notificações -->
     
-    <!-- Histórico de Cobranças WhatsApp -->
+    <!-- Histórico WhatsApp Unificado -->
+    <div class="card" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0;">Histórico de Comunicações WhatsApp</h3>
+            <a href="<?= pixelhub_url('/tenants/whatsapp-history?id=' . $tenant['id']) ?>" 
+               style="color: #023A8D; text-decoration: none; font-size: 14px; font-weight: 600;">
+                Ver histórico completo →
+            </a>
+        </div>
+        <div id="whatsapp-timeline-container">
+            <?php if (empty($whatsappTimeline)): ?>
+                <p style="color: #666; text-align: center; padding: 20px;">Nenhum histórico de WhatsApp registrado.</p>
+            <?php else: ?>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f5f5f5;">
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Data/Hora</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Origem</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Template</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Observação</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="whatsapp-timeline-tbody">
+                        <?php foreach ($whatsappTimeline as $index => $item): ?>
+                        <tr>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php
+                                $sentAt = $item['sent_at'] ?? null;
+                                echo $sentAt ? htmlspecialchars(date('d/m/Y H:i', strtotime($sentAt))) : '-';
+                                ?>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php
+                                $source = $item['source'] ?? 'generic';
+                                $sourceLabel = $source === 'billing' ? 'Financeiro' : 'Visão Geral';
+                                echo htmlspecialchars($sourceLabel);
+                                ?>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php
+                                $templateId = $item['template_id'] ?? null;
+                                $templateName = $item['template_name'] ?? null;
+                                
+                                if ($templateId === null && $source === 'generic') {
+                                    echo '<span style="color: #999;">Sem template / mensagem livre</span>';
+                                } elseif ($templateName) {
+                                    echo htmlspecialchars($templateName);
+                                } else {
+                                    echo '<span style="color: #999;">-</span>';
+                                }
+                                ?>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php
+                                $message = $item['message'] ?? $item['message_full'] ?? '';
+                                $messageFull = $item['message_full'] ?? $message;
+                                
+                                // Preview de 100-120 caracteres
+                                $preview = mb_substr($message, 0, 120);
+                                if (mb_strlen($message) > 120) {
+                                    $preview .= '...';
+                                }
+                                
+                                if ($source === 'billing') {
+                                    // Para billing, mostra descrição + preview da mensagem se houver
+                                    $description = $item['description'] ?? '';
+                                    echo htmlspecialchars($description);
+                                    if (!empty($message)) {
+                                        echo '<br><span style="color: #666; font-size: 12px;">' . htmlspecialchars($preview) . '</span>';
+                                    }
+                                } else {
+                                    // Para generic, mostra preview da mensagem
+                                    echo '<span style="color: #666; font-size: 13px;">' . htmlspecialchars($preview) . '</span>';
+                                }
+                                ?>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php if (!empty($messageFull)): ?>
+                                    <button onclick="openMessageModal(<?= $index ?>)" 
+                                            style="background: #023A8D; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                                        Ver mensagem
+                                    </button>
+                                    <!-- Dados da mensagem completa (ocultos) -->
+                                    <div id="message-data-<?= $index ?>" style="display: none;" 
+                                         data-sent-at="<?= htmlspecialchars($item['sent_at'] ?? '', ENT_QUOTES) ?>"
+                                         data-source="<?= htmlspecialchars($source, ENT_QUOTES) ?>"
+                                         data-source-label="<?= htmlspecialchars($sourceLabel, ENT_QUOTES) ?>"
+                                         data-template-name="<?= htmlspecialchars($templateName ?? ($templateId === null && $source === 'generic' ? 'Sem template / mensagem livre' : 'Sem template'), ENT_QUOTES) ?>"
+                                         data-phone="<?= htmlspecialchars($item['phone'] ?? '', ENT_QUOTES) ?>"
+                                         data-message-full="<?= htmlspecialchars($messageFull, ENT_QUOTES) ?>">
+                                    </div>
+                                <?php else: ?>
+                                    <span style="color: #999; font-size: 13px;">-</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </div>
+
+    <!-- Últimas Cobranças por WhatsApp -->
     <div class="card" style="margin-top: 20px;">
         <h3 style="margin-bottom: 20px;">Últimas Cobranças por WhatsApp</h3>
         
@@ -1374,6 +2160,7 @@ $emailAccounts = $emailAccounts ?? [];
                             'pre_due' => 'Pré-vencimento',
                             'overdue_3d' => 'Cobrança 1 (+3d)',
                             'overdue_7d' => 'Cobrança 2 (+7d)',
+                            'bulk_reminder' => 'Lembrete em Massa',
                         ];
                         $templateLabel = $templateLabels[$notification['template']] ?? $notification['template'];
                         
@@ -1411,8 +2198,11 @@ $emailAccounts = $emailAccounts ?? [];
                             <td style="padding: 12px; border-bottom: 1px solid #eee;">
                                 <?php if ($notification['invoice_id']): ?>
                                     <a href="<?= pixelhub_url('/billing/whatsapp-modal?invoice_id=' . $notification['invoice_id']) ?>" 
-                                       style="background: #25D366; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-block;">
-                                        📱 Cobrar Novamente
+                                       style="background: #023A8D; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                                        </svg>
+                                        Cobrar Novamente
                                     </a>
                                 <?php else: ?>
                                     <span style="color: #999;">-</span>
@@ -1424,6 +2214,215 @@ $emailAccounts = $emailAccounts ?? [];
             </table>
         <?php endif; ?>
     </div>
+
+    <!-- Modal de Detalhes da Mensagem -->
+    <div id="message-detail-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+        <div style="max-width: 700px; margin: 50px auto; background: white; border-radius: 8px; padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); position: relative;">
+            <button onclick="closeMessageModal()" 
+                    style="position: absolute; top: 15px; right: 15px; background: #c33; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; line-height: 1;">×</button>
+            
+            <h2 style="margin: 0 0 20px 0; color: #023A8D;">Detalhes da Mensagem</h2>
+            
+            <div id="message-detail-content" style="color: #666;">
+                <!-- Conteúdo será preenchido via JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // Função para atualizar timeline via AJAX
+    function updateWhatsAppTimeline(tenantId) {
+        if (!tenantId) {
+            console.error('tenantId não fornecido para atualizar timeline');
+            return;
+        }
+
+        fetch('<?= pixelhub_url('/tenants/whatsapp-timeline-ajax') ?>?tenant_id=' + tenantId)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Atualiza timeline
+                    updateTimelineTable(data.timeline);
+                } else {
+                    console.error('Erro ao atualizar timeline:', data.message);
+                }
+            })
+            .catch(err => {
+                console.error('Erro ao buscar timeline:', err);
+            });
+    }
+
+    function updateTimelineTable(timeline) {
+        const container = document.getElementById('whatsapp-timeline-container');
+        if (!container) return;
+
+        if (!timeline || timeline.length === 0) {
+            container.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">Nenhum histórico de WhatsApp registrado.</p>';
+            return;
+        }
+
+        let html = '<table style="width: 100%; border-collapse: collapse;">';
+        html += '<thead>';
+        html += '<tr style="background: #f5f5f5;">';
+        html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Data/Hora</th>';
+        html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Origem</th>';
+        html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Template</th>';
+        html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Observação</th>';
+        html += '<th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>';
+        html += '</tr>';
+        html += '</thead>';
+        html += '<tbody id="whatsapp-timeline-tbody">';
+
+        timeline.forEach((item, index) => {
+            const sentAt = item.sent_at || null;
+            const sentAtFormatted = sentAt ? formatDateTime(sentAt) : '-';
+            const source = item.source || 'generic';
+            const sourceLabel = source === 'billing' ? 'Financeiro' : 'Visão Geral';
+            const templateId = item.template_id || null;
+            const templateName = item.template_name || null;
+
+            let templateHtml = '<span style="color: #999;">-</span>';
+            if (templateId === null && source === 'generic') {
+                templateHtml = '<span style="color: #999;">Sem template / mensagem livre</span>';
+            } else if (templateName) {
+                templateHtml = escapeHtml(templateName);
+            }
+
+            const message = item.message || item.message_full || '';
+            const messageFull = item.message_full || message;
+            const preview = message.length > 120 ? message.substring(0, 120) + '...' : message;
+
+            let observationHtml = '';
+            if (source === 'billing') {
+                observationHtml = escapeHtml(item.description || '');
+                if (message) {
+                    observationHtml += '<br><span style="color: #666; font-size: 12px;">' + escapeHtml(preview) + '</span>';
+                }
+            } else {
+                observationHtml = `<span style="color: #666; font-size: 13px;">${escapeHtml(preview)}</span>`;
+            }
+
+            const actionsHtml = messageFull ? 
+                `<button onclick="openMessageModal(${index})" style="background: #023A8D; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">Ver mensagem</button>
+                 <div id="message-data-${index}" style="display: none;" 
+                      data-sent-at="${escapeHtml(sentAt || '')}"
+                      data-source="${escapeHtml(source)}"
+                      data-source-label="${escapeHtml(sourceLabel)}"
+                      data-template-name="${escapeHtml(templateName || (templateId === null && source === 'generic' ? 'Sem template / mensagem livre' : 'Sem template'))}"
+                      data-phone="${escapeHtml(item.phone || '')}"
+                      data-message-full="${escapeHtml(messageFull)}"></div>` :
+                '<span style="color: #999; font-size: 13px;">-</span>';
+
+            html += '<tr>';
+            html += `<td style="padding: 12px; border-bottom: 1px solid #eee;">${escapeHtml(sentAtFormatted)}</td>`;
+            html += `<td style="padding: 12px; border-bottom: 1px solid #eee;">${escapeHtml(sourceLabel)}</td>`;
+            html += `<td style="padding: 12px; border-bottom: 1px solid #eee;">${templateHtml}</td>`;
+            html += `<td style="padding: 12px; border-bottom: 1px solid #eee;">${observationHtml}</td>`;
+            html += `<td style="padding: 12px; border-bottom: 1px solid #eee;">${actionsHtml}</td>`;
+            html += '</tr>';
+        });
+
+        html += '</tbody>';
+        html += '</table>';
+
+        container.innerHTML = html;
+    }
+
+    // Funções do modal de detalhes da mensagem
+    function openMessageModal(index) {
+        const dataDiv = document.getElementById('message-data-' + index);
+        if (!dataDiv) {
+            console.error('Dados da mensagem não encontrados para índice:', index);
+            return;
+        }
+
+        const sentAt = dataDiv.getAttribute('data-sent-at') || '';
+        const sourceLabel = dataDiv.getAttribute('data-source-label') || '';
+        const templateName = dataDiv.getAttribute('data-template-name') || 'Sem template';
+        const phone = dataDiv.getAttribute('data-phone') || '';
+        const messageFull = dataDiv.getAttribute('data-message-full') || '';
+
+        // Formata data/hora
+        let sentAtFormatted = '-';
+        if (sentAt) {
+            try {
+                const date = new Date(sentAt);
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const year = date.getFullYear();
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                sentAtFormatted = `${day}/${month}/${year} ${hours}:${minutes}`;
+            } catch (e) {
+                sentAtFormatted = sentAt;
+            }
+        }
+
+        // Formata telefone (se houver)
+        let phoneFormatted = phone;
+        if (phone && phone.length >= 10) {
+            // Formata como (XX) XXXXX-XXXX ou (XX) XXXX-XXXX
+            const digits = phone.replace(/\D/g, '');
+            if (digits.length === 11) {
+                phoneFormatted = `(${digits.substring(0, 2)}) ${digits.substring(2, 7)}-${digits.substring(7)}`;
+            } else if (digits.length === 10) {
+                phoneFormatted = `(${digits.substring(0, 2)}) ${digits.substring(2, 6)}-${digits.substring(6)}`;
+            }
+        }
+
+        // Monta conteúdo do modal
+        let content = '<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">';
+        content += '<tr><td style="padding: 8px; font-weight: 600; width: 150px; border-bottom: 1px solid #eee;">Data/Hora:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(sentAtFormatted) + '</td></tr>';
+        content += '<tr><td style="padding: 8px; font-weight: 600; border-bottom: 1px solid #eee;">Origem:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(sourceLabel) + '</td></tr>';
+        content += '<tr><td style="padding: 8px; font-weight: 600; border-bottom: 1px solid #eee;">Template:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(templateName) + '</td></tr>';
+        if (phoneFormatted) {
+            content += '<tr><td style="padding: 8px; font-weight: 600; border-bottom: 1px solid #eee;">Telefone:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(phoneFormatted) + '</td></tr>';
+        }
+        content += '</table>';
+
+        content += '<div style="margin-top: 20px;">';
+        content += '<h3 style="margin: 0 0 10px 0; font-size: 16px; color: #023A8D;">Mensagem Completa:</h3>';
+        // Preserva quebras de linha usando <pre> ou nl2br
+        const messageEscaped = escapeHtml(messageFull);
+        const messageWithBreaks = messageEscaped.replace(/\n/g, '<br>');
+        content += '<div style="background: #f9f9f9; padding: 15px; border-radius: 4px; border-left: 4px solid #023A8D; white-space: pre-wrap; word-wrap: break-word; font-family: inherit; line-height: 1.6;">' + messageWithBreaks + '</div>';
+        content += '</div>';
+
+        document.getElementById('message-detail-content').innerHTML = content;
+        document.getElementById('message-detail-modal').style.display = 'block';
+    }
+
+    function closeMessageModal() {
+        document.getElementById('message-detail-modal').style.display = 'none';
+    }
+
+    // Fecha modal ao clicar fora
+    document.getElementById('message-detail-modal')?.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeMessageModal();
+        }
+    });
+
+    function formatDateTime(dateTimeString) {
+        if (!dateTimeString) return '-';
+        const date = new Date(dateTimeString);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Armazena tenant_id globalmente para uso no modal
+    window.currentTenantId = <?= $tenant['id'] ?? 0 ?>;
+    </script>
 
 <?php elseif ($activeTab === 'tasks'): ?>
     <!-- ABA: Tarefas & Projetos -->
@@ -1911,7 +2910,7 @@ function openHostingDetailsModal(hostingId) {
             if (hostingPanelPassword) {
                 html += '<p style="margin: 5px 0;"><strong>Senha:</strong> ';
                 html += '<input type="password" id="hosting_panel_password_display" value="' + escapeHtml(hostingPanelPassword) + '" readonly style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5; width: 200px;"> ';
-                html += '<button type="button" onclick="togglePasswordDisplay(\'hosting_panel_password_display\', this)" style="background: #666; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">👁️</button>';
+                html += '<button type="button" onclick="togglePasswordDisplay(\'hosting_panel_password_display\', this)" style="background: #666; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>';
                 html += '</p>';
             } else {
                 html += '<p style="margin: 5px 0; color: #999;"><strong>Senha:</strong> Não informado</p>';
@@ -1938,7 +2937,7 @@ function openHostingDetailsModal(hostingId) {
             if (siteAdminPassword) {
                 html += '<p style="margin: 5px 0;"><strong>Senha:</strong> ';
                 html += '<input type="password" id="site_admin_password_display" value="' + escapeHtml(siteAdminPassword) + '" readonly style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5; width: 200px;"> ';
-                html += '<button type="button" onclick="togglePasswordDisplay(\'site_admin_password_display\', this)" style="background: #666; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">👁️</button>';
+                html += '<button type="button" onclick="togglePasswordDisplay(\'site_admin_password_display\', this)" style="background: #666; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>';
                 html += '</p>';
             } else {
                 html += '<p style="margin: 5px 0; color: #999;"><strong>Senha:</strong> Não informado</p>';
@@ -1980,11 +2979,190 @@ function togglePasswordDisplay(inputId, button) {
     var input = document.getElementById(inputId);
     if (input.type === 'password') {
         input.type = 'text';
-        button.textContent = '🙈';
+        button.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
     } else {
         input.type = 'password';
-        button.textContent = '👁️';
+        button.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
     }
+}
+
+// Armazena senhas descriptografadas em memória (não persiste após recarregar)
+var emailPasswordsCache = {};
+var pendingEmailPasswordId = null;
+
+function toggleEmailPassword(accountId, button) {
+    var passwordSpan = document.getElementById('email_password_' + accountId);
+    var isVisible = passwordSpan.dataset.visible === 'true';
+    
+    if (isVisible) {
+        // Ocultar senha
+        passwordSpan.textContent = '••••••••';
+        passwordSpan.dataset.visible = 'false';
+        passwordSpan.style.color = '#666';
+        passwordSpan.style.fontWeight = 'normal';
+        button.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+    } else {
+        // Mostrar senha
+        if (emailPasswordsCache[accountId]) {
+            // Usa senha do cache
+            passwordSpan.textContent = emailPasswordsCache[accountId];
+            passwordSpan.dataset.visible = 'true';
+            passwordSpan.style.color = '#023A8D';
+            passwordSpan.style.fontWeight = '600';
+            button.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+        } else {
+            // Tenta buscar senha do servidor (sem PIN primeiro)
+            fetchEmailPassword(accountId, button, passwordSpan, '');
+        }
+    }
+}
+
+function fetchEmailPassword(accountId, button, passwordSpan, viewPin) {
+    button.disabled = true;
+    button.style.opacity = '0.6';
+    passwordSpan.textContent = 'Carregando...';
+    
+    var formData = new FormData();
+    formData.append('id', accountId);
+    if (viewPin) {
+        formData.append('view_pin', viewPin);
+    }
+    
+    fetch('<?= pixelhub_url('/email-accounts/password') ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        // Lê o texto da resposta primeiro
+        return response.text().then(text => {
+            let data = null;
+            const status = response.status;
+            
+            // Tenta parsear JSON
+            if (text) {
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    console.error('Erro ao parsear JSON:', e, 'Texto:', text);
+                }
+            }
+            
+            return { status: status, data: data, ok: response.ok };
+        });
+    })
+    .then(result => {
+        const { status, data, ok } = result;
+        
+        button.disabled = false;
+        button.style.opacity = '1';
+        
+        // PRIORIDADE 1: Verifica se precisa de PIN (erro 400 com mensagem sobre PIN)
+        if (status === 400 && data && data.error) {
+            const errorMsg = (data.error || '').toLowerCase();
+            if (errorMsg.includes('pin') || errorMsg.includes('visualização') || errorMsg.includes('visualizacao')) {
+                // Mostra modal de PIN
+                pendingEmailPasswordId = accountId;
+                
+                // Aguarda um pouco para garantir que o DOM está pronto
+                setTimeout(function() {
+                    var pinModal = document.getElementById('emailPasswordPinModal');
+                    var pinInput = document.getElementById('emailPasswordPinInput');
+                    var pinError = document.getElementById('emailPasswordError');
+                    
+                    if (pinModal && pinInput && pinError) {
+                        pinInput.value = '';
+                        pinError.style.display = 'none';
+                        pinError.textContent = '';
+                        pinModal.style.display = 'block';
+                        pinInput.focus();
+                        passwordSpan.textContent = '••••••••';
+                    } else {
+                        console.error('Modal não encontrado!', {
+                            modal: !!pinModal,
+                            input: !!pinInput,
+                            error: !!pinError
+                        });
+                        passwordSpan.textContent = 'Erro';
+                        passwordSpan.style.color = '#c33';
+                        alert('Erro: Modal de PIN não encontrado. Recarregue a página.');
+                    }
+                }, 100);
+                return;
+            }
+        }
+        
+        // PRIORIDADE 2: Outros erros
+        if (!ok) {
+            passwordSpan.textContent = 'Erro';
+            passwordSpan.style.color = '#c33';
+            var errorMsg = (data && data.error) ? data.error : 'Erro desconhecido';
+            alert('Erro ao buscar senha: ' + errorMsg);
+            return;
+        }
+        
+        // PRIORIDADE 3: Sucesso
+        if (data && data.password !== undefined) {
+            var password = data.password || '';
+            emailPasswordsCache[accountId] = password;
+            passwordSpan.textContent = password || '-';
+            passwordSpan.dataset.visible = 'true';
+            passwordSpan.style.color = '#023A8D';
+            passwordSpan.style.fontWeight = '600';
+            button.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+        } else {
+            passwordSpan.textContent = 'Erro';
+            passwordSpan.style.color = '#c33';
+            alert('Erro: resposta inválida do servidor');
+        }
+    })
+    .catch(error => {
+        button.disabled = false;
+        button.style.opacity = '1';
+        passwordSpan.textContent = 'Erro';
+        passwordSpan.style.color = '#c33';
+        console.error('Erro na requisição:', error);
+        alert('Erro ao buscar senha. Verifique o console para mais detalhes.');
+    });
+}
+
+function confirmEmailPasswordPin() {
+    var viewPin = document.getElementById('emailPasswordPinInput').value.trim();
+    var errorDiv = document.getElementById('emailPasswordError');
+    
+    if (!viewPin) {
+        errorDiv.textContent = 'Por favor, digite o PIN de visualização';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    
+    if (!pendingEmailPasswordId || pendingEmailPasswordId <= 0) {
+        errorDiv.textContent = 'Erro: ID da conta não identificado';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    
+    var currentPendingId = pendingEmailPasswordId;
+    
+    // Fecha o modal de confirmação
+    document.getElementById('emailPasswordPinModal').style.display = 'none';
+    document.getElementById('emailPasswordPinInput').value = '';
+    errorDiv.style.display = 'none';
+    errorDiv.textContent = '';
+    
+    // Busca a senha com o PIN
+    var passwordSpan = document.getElementById('email_password_' + currentPendingId);
+    var button = passwordSpan.nextElementSibling;
+    fetchEmailPassword(currentPendingId, button, passwordSpan, viewPin);
+    
+    pendingEmailPasswordId = null;
+}
+
+function closeEmailPasswordPinModal() {
+    document.getElementById('emailPasswordPinModal').style.display = 'none';
+    document.getElementById('emailPasswordPinInput').value = '';
+    document.getElementById('emailPasswordError').style.display = 'none';
+    document.getElementById('emailPasswordError').textContent = '';
+    pendingEmailPasswordId = null;
 }
 
 function escapeHtml(text) {
@@ -2011,6 +3189,39 @@ document.addEventListener('click', function(event) {
 });
 </script>
 
+<!-- Modal de Confirmação do PIN para Senha de Email -->
+<div id="emailPasswordPinModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+    <div style="position: relative; background: white; margin: 50px auto; max-width: 500px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div style="padding: 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; color: #023A8D;">Confirmação de Segurança</h3>
+            <button onclick="closeEmailPasswordPinModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+        </div>
+        <div style="padding: 20px;">
+            <p style="margin-bottom: 15px; color: #666;">
+                Para visualizar a senha, digite o PIN de visualização:
+            </p>
+            <div style="margin-bottom: 15px;">
+                <label for="emailPasswordPinInput" style="display: block; margin-bottom: 5px; font-weight: 600;">PIN de Visualização *</label>
+                <input type="password" id="emailPasswordPinInput" name="view_pin" autocomplete="off" 
+                       inputmode="numeric" pattern="[0-9]*"
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box;" 
+                       placeholder="Informe o PIN configurado no sistema" autofocus required>
+            </div>
+            <div id="emailPasswordError" style="color: #c33; margin-bottom: 15px; display: none;"></div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" onclick="closeEmailPasswordPinModal()" 
+                        style="background: #666; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Cancelar
+                </button>
+                <button type="button" onclick="confirmEmailPasswordPin()" 
+                        style="background: #023A8D; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php
 $content = ob_get_clean();
 $title = 'Cliente - ' . htmlspecialchars($tenant['name']);
@@ -2023,4 +3234,6 @@ $content .= $modalContent;
 
 require __DIR__ . '/../layout/main.php';
 ?>
+
+
 

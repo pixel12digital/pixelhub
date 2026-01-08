@@ -105,31 +105,42 @@ $providers = $providers ?? [];
                 </small>
             </div>
 
-            <div style="margin-bottom: 15px;">
-                <label for="plan_name" style="display: block; margin-bottom: 5px; font-weight: 600;">Nome do Plano</label>
-                <input type="text" id="plan_name" name="plan_name" 
-                       value="<?= htmlspecialchars($hostingAccount['plan_name'] ?? '') ?>"
-                       placeholder="ex: Hospedagem WP, HostWeb Plano X" 
-                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <div>
-                    <label for="amount" style="display: block; margin-bottom: 5px; font-weight: 600;">Valor (R$)</label>
-                    <input type="number" id="amount" name="amount" step="0.01" min="0" 
-                           value="<?= $hostingAccount ? number_format($hostingAccount['amount'] ?? 0, 2, '.', '') : '' ?>"
-                           placeholder="0.00" 
+            <!-- Campos ocultos que serão preenchidos automaticamente quando um plano for selecionado -->
+            <input type="hidden" id="plan_name" name="plan_name" 
+                   value="<?= htmlspecialchars($hostingAccount['plan_name'] ?? '') ?>">
+            <input type="hidden" id="amount" name="amount" 
+                   value="<?= $hostingAccount ? number_format($hostingAccount['amount'] ?? 0, 2, '.', '') : '' ?>">
+            <input type="hidden" id="billing_cycle" name="billing_cycle" 
+                   value="<?= htmlspecialchars($hostingAccount['billing_cycle'] ?? 'mensal') ?>">
+            
+            <!-- Campos visíveis apenas quando NENHUM plano é selecionado (para valores customizados) -->
+            <div id="custom-plan-fields" style="display: none;">
+                <div style="margin-bottom: 15px;">
+                    <label for="plan_name_manual" style="display: block; margin-bottom: 5px; font-weight: 600;">Nome do Plano</label>
+                    <input type="text" id="plan_name_manual" 
+                           value="<?= htmlspecialchars($hostingAccount['plan_name'] ?? '') ?>"
+                           placeholder="ex: Hospedagem WP, HostWeb Plano X" 
                            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                 </div>
-                <div>
-                    <label for="billing_cycle" style="display: block; margin-bottom: 5px; font-weight: 600;">Ciclo de Cobrança</label>
-                    <select id="billing_cycle" name="billing_cycle" 
-                            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                        <option value="mensal" <?= ($hostingAccount['billing_cycle'] ?? 'mensal') === 'mensal' ? 'selected' : '' ?>>Mensal</option>
-                        <option value="trimestral" <?= ($hostingAccount['billing_cycle'] ?? '') === 'trimestral' ? 'selected' : '' ?>>Trimestral</option>
-                        <option value="semestral" <?= ($hostingAccount['billing_cycle'] ?? '') === 'semestral' ? 'selected' : '' ?>>Semestral</option>
-                        <option value="anual" <?= ($hostingAccount['billing_cycle'] ?? '') === 'anual' ? 'selected' : '' ?>>Anual</option>
-                    </select>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <label for="amount_manual" style="display: block; margin-bottom: 5px; font-weight: 600;">Valor (R$)</label>
+                        <input type="number" id="amount_manual" step="0.01" min="0" 
+                               value="<?= $hostingAccount ? number_format($hostingAccount['amount'] ?? 0, 2, '.', '') : '' ?>"
+                               placeholder="0.00" 
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div>
+                        <label for="billing_cycle_manual" style="display: block; margin-bottom: 5px; font-weight: 600;">Ciclo de Cobrança</label>
+                        <select id="billing_cycle_manual" 
+                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="mensal" <?= ($hostingAccount['billing_cycle'] ?? 'mensal') === 'mensal' ? 'selected' : '' ?>>Mensal</option>
+                            <option value="trimestral" <?= ($hostingAccount['billing_cycle'] ?? '') === 'trimestral' ? 'selected' : '' ?>>Trimestral</option>
+                            <option value="semestral" <?= ($hostingAccount['billing_cycle'] ?? '') === 'semestral' ? 'selected' : '' ?>>Semestral</option>
+                            <option value="anual" <?= ($hostingAccount['billing_cycle'] ?? '') === 'anual' ? 'selected' : '' ?>>Anual</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
@@ -205,10 +216,20 @@ $providers = $providers ?? [];
 
         <div style="margin-bottom: 20px;">
             <label for="hostinger_expiration_date" style="display: block; margin-bottom: 5px; font-weight: 600;">Vencimento da Hospedagem</label>
-            <input type="date" id="hostinger_expiration_date" name="hostinger_expiration_date" 
-                   value="<?php echo ($hostingAccount && !empty($hostingAccount['hostinger_expiration_date'])) ? htmlspecialchars($hostingAccount['hostinger_expiration_date']) : ''; ?>"
-                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-            <small style="color: #666;">Data de vencimento do plano de hospedagem. Deixe em branco se não quiser controlar essa informação aqui.</small>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                <input type="date" id="hostinger_expiration_date" name="hostinger_expiration_date" 
+                       value="<?php echo ($hostingAccount && !empty($hostingAccount['hostinger_expiration_date'])) ? htmlspecialchars($hostingAccount['hostinger_expiration_date']) : ''; ?>"
+                       style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                <input type="checkbox" id="has_no_hosting_expiration" name="has_no_hosting_expiration" value="1"
+                       <?php echo ($hostingAccount && !empty($hostingAccount['has_no_hosting_expiration'])) ? 'checked' : ''; ?>
+                       style="width: 18px; height: 18px; cursor: pointer;">
+                <label for="has_no_hosting_expiration" style="margin: 0; font-weight: normal; cursor: pointer; color: #333;">
+                    Plano recorrente sem vencimento (renovação automática)
+                </label>
+            </div>
+            <small style="color: #666;">Data de vencimento do plano de hospedagem. Marque a opção acima para planos recorrentes mensais ou anuais que não têm data de vencimento.</small>
         </div>
 
         <div style="margin-bottom: 20px;">
@@ -250,8 +271,11 @@ $providers = $providers ?? [];
                                placeholder="<?= $hostingAccount && !empty($hostingAccount['hosting_panel_password']) ? '•••••••• (deixe em branco para manter)' : '••••••••' ?>" 
                                style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                         <button type="button" onclick="togglePassword('hosting_panel_password', this)" 
-                                style="background: #666; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                            👁️
+                                style="background: #666; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; justify-content: center;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
                         </button>
                     </div>
                     <small style="color: #666; font-size: 12px;"><?= $hostingAccount ? 'Deixe em branco para manter a senha atual' : 'Digite a senha do painel de hospedagem' ?></small>
@@ -285,8 +309,11 @@ $providers = $providers ?? [];
                                placeholder="<?= $hostingAccount && !empty($hostingAccount['site_admin_password']) ? '•••••••• (deixe em branco para manter)' : '••••••••' ?>" 
                                style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                         <button type="button" onclick="togglePassword('site_admin_password', this)" 
-                                style="background: #666; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                            👁️
+                                style="background: #666; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; justify-content: center;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
                         </button>
                     </div>
                     <small style="color: #666; font-size: 12px;"><?= $hostingAccount ? 'Deixe em branco para manter a senha atual' : 'Digite a senha do admin do site' ?></small>
@@ -321,10 +348,10 @@ function togglePassword(inputId, button) {
     var input = document.getElementById(inputId);
     if (input.type === 'password') {
         input.type = 'text';
-        button.textContent = '🙈';
+        button.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
     } else {
         input.type = 'password';
-        button.textContent = '👁️';
+        button.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
     }
 }
 
@@ -408,6 +435,24 @@ function toggleNenhumBackupInfo() {
     }
 }
 
+function toggleHostingExpiration() {
+    var checkbox = document.getElementById('has_no_hosting_expiration');
+    var dateInput = document.getElementById('hostinger_expiration_date');
+    
+    if (!checkbox || !dateInput) return;
+    
+    if (checkbox.checked) {
+        dateInput.disabled = true;
+        dateInput.value = '';
+        dateInput.style.background = '#f5f5f5';
+        dateInput.style.cursor = 'not-allowed';
+    } else {
+        dateInput.disabled = false;
+        dateInput.style.background = '';
+        dateInput.style.cursor = '';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     // Toggle DNS do HostWeb e info de nenhum_backup
     var providerSelect = document.getElementById('current_provider');
@@ -423,49 +468,102 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
     
+    // Toggle campo de vencimento de hospedagem
+    var expirationCheckbox = document.getElementById('has_no_hosting_expiration');
+    if (expirationCheckbox) {
+        // Verifica valor inicial
+        toggleHostingExpiration();
+        
+        // Adiciona listener para mudanças
+        expirationCheckbox.addEventListener('change', toggleHostingExpiration);
+    }
+    
     // Preenchimento automático de planos
     var select = document.getElementById('hostingPlanSelect');
-    if (!select) return;
+    var customFields = document.getElementById('custom-plan-fields');
+    var planNameInput = document.getElementById('plan_name');
+    var amountInput = document.getElementById('amount');
+    var billingCycleInput = document.getElementById('billing_cycle');
+    var planNameManual = document.getElementById('plan_name_manual');
+    var amountManual = document.getElementById('amount_manual');
+    var billingCycleManual = document.getElementById('billing_cycle_manual');
 
-    select.addEventListener('change', function () {
-        var option = select.options[select.selectedIndex];
-        var amount = option.getAttribute('data-amount');
-        var cycle = option.getAttribute('data-billing-cycle');
-        var fullText = option.text;
+    function updatePlanFields() {
+        if (!select) return;
         
-        // Extrai o nome do plano (tudo antes do " — ")
-        var name = '';
-        if (fullText.indexOf(' — ') !== -1) {
-            name = fullText.split(' — ')[0];
+        var selectedValue = select.value;
+        var option = select.options[select.selectedIndex];
+        
+        if (selectedValue && option) {
+            // Plano selecionado: oculta campos customizados e preenche campos hidden
+            if (customFields) customFields.style.display = 'none';
+            
+            var amount = option.getAttribute('data-amount');
+            var cycle = option.getAttribute('data-billing-cycle');
+            var fullText = option.text;
+            
+            // Extrai o nome do plano (tudo antes do " — ")
+            var name = '';
+            if (fullText.indexOf(' — ') !== -1) {
+                name = fullText.split(' — ')[0];
+            } else {
+                name = fullText;
+            }
+
+            // Preenche campos hidden
+            if (planNameInput && name) {
+                planNameInput.value = name;
+            }
+            if (amountInput && amount) {
+                amountInput.value = parseFloat(amount).toFixed(2);
+            }
+            if (billingCycleInput && cycle) {
+                billingCycleInput.value = cycle;
+            }
         } else {
-            name = fullText;
-        }
-
-        // Preenche nome do plano
-        var planNameInput = document.querySelector('input[name="plan_name"]');
-        if (planNameInput && name) {
-            planNameInput.value = name;
-        }
-
-        // Preenche valor
-        var amountInput = document.querySelector('input[name="amount"]');
-        if (amountInput && amount) {
-            amountInput.value = parseFloat(amount).toFixed(2);
-        }
-
-        // Preenche ciclo de cobrança
-        if (cycle) {
-            var billingSelect = document.querySelector('select[name="billing_cycle"]');
-            if (billingSelect) {
-                for (var i = 0; i < billingSelect.options.length; i++) {
-                    if (billingSelect.options[i].value === cycle) {
-                        billingSelect.selectedIndex = i;
-                        break;
-                    }
-                }
+            // Nenhum plano selecionado: mostra campos customizados
+            if (customFields) customFields.style.display = 'block';
+            
+            // Sincroniza valores dos campos manual com os hidden
+            if (planNameManual && planNameInput) {
+                planNameInput.value = planNameManual.value;
+            }
+            if (amountManual && amountInput) {
+                amountInput.value = amountManual.value || '0.00';
+            }
+            if (billingCycleManual && billingCycleInput) {
+                billingCycleInput.value = billingCycleManual.value;
             }
         }
-    });
+    }
+
+    // Sincroniza campos manual com hidden quando editados
+    if (planNameManual) {
+        planNameManual.addEventListener('input', function() {
+            if (planNameInput) planNameInput.value = this.value;
+        });
+    }
+    if (amountManual) {
+        amountManual.addEventListener('input', function() {
+            if (amountInput) amountInput.value = this.value || '0.00';
+        });
+    }
+    if (billingCycleManual) {
+        billingCycleManual.addEventListener('change', function() {
+            if (billingCycleInput) billingCycleInput.value = this.value;
+        });
+    }
+
+    if (select) {
+        // Atualiza campos ao mudar seleção
+        select.addEventListener('change', updatePlanFields);
+        
+        // Atualiza campos no carregamento inicial
+        // Aguarda um pouco para garantir que o DOM está totalmente carregado
+        setTimeout(function() {
+            updatePlanFields();
+        }, 100);
+    }
 });
 </script>
 

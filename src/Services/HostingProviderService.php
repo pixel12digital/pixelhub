@@ -19,14 +19,37 @@ class HostingProviderService
      */
     public static function getAllActive(): array
     {
-        $db = DB::getConnection();
-        $stmt = $db->query("
-            SELECT id, name, slug, is_active, sort_order
-            FROM hosting_providers
-            WHERE is_active = 1
-            ORDER BY sort_order ASC, name ASC
-        ");
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $db = DB::getConnection();
+            $stmt = $db->query("
+                SELECT id, name, slug, is_active, sort_order
+                FROM hosting_providers
+                WHERE is_active = 1
+                ORDER BY sort_order ASC, name ASC
+            ");
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Garante que sempre retorna um array
+            if (!is_array($result)) {
+                return [];
+            }
+            
+            // Filtra resultados caso algum venha com is_active != 1 (proteção adicional)
+            $filtered = array_filter($result, function($provider) {
+                return isset($provider['is_active']) && 
+                       ($provider['is_active'] === 1 || $provider['is_active'] === '1' || $provider['is_active'] === true);
+            });
+            
+            return array_values($filtered);
+        } catch (\Throwable $e) {
+            // Log erro mas retorna array vazio para não quebrar a aplicação
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log("HostingProviderService::getAllActive: Erro ao buscar provedores: " . $e->getMessage() . "\nStack trace: " . $e->getTraceAsString());
+            } else {
+                @error_log("HostingProviderService::getAllActive: Erro ao buscar provedores: " . $e->getMessage());
+            }
+            return [];
+        }
     }
 
     /**

@@ -47,6 +47,85 @@
         .header-user a:hover {
             background: rgba(255,255,255,0.1);
         }
+        .header-user-menu {
+            position: relative;
+            display: inline-block;
+        }
+        .header-user-menu-toggle {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.3s;
+        }
+        .header-user-menu-toggle:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .header-user-menu-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 8px);
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 220px;
+            z-index: 1000;
+            overflow: hidden;
+        }
+        .header-user-menu-dropdown.show {
+            display: block;
+        }
+        .header-user-menu-dropdown .user-info {
+            padding: 16px;
+            border-bottom: 1px solid #eee;
+            background: #f8f9fa;
+        }
+        .header-user-menu-dropdown .user-info .user-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .header-user-menu-dropdown .user-info .user-email {
+            font-size: 12px;
+            color: #666;
+        }
+        .header-user-menu-dropdown .menu-item {
+            display: block;
+            padding: 12px 16px;
+            color: #333;
+            text-decoration: none;
+            font-size: 14px;
+            transition: background 0.2s;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+        }
+        .header-user-menu-dropdown .menu-item:hover {
+            background: #f0f0f0;
+        }
+        .header-user-menu-dropdown .menu-item.danger {
+            color: #dc3545;
+        }
+        .header-user-menu-dropdown .menu-item.danger:hover {
+            background: #fee;
+            color: #c82333;
+        }
+        .header-user-menu-dropdown .menu-divider {
+            height: 1px;
+            background: #eee;
+            margin: 4px 0;
+        }
         .container {
             display: flex;
             min-height: calc(100vh - 60px);
@@ -56,6 +135,11 @@
             background: white;
             box-shadow: 2px 0 4px rgba(0,0,0,0.05);
             padding: 20px 0;
+        }
+        .sidebar-divider {
+            height: 1px;
+            background: #e0e0e0;
+            margin: 12px 20px;
         }
         .sidebar a {
             display: block;
@@ -201,19 +285,53 @@
     </style>
 </head>
 <body>
+    <?php
+    // Obtém o usuário logado se não estiver disponível
+    if (!isset($user)) {
+        $user = \PixelHub\Core\Auth::user();
+    }
+    ?>
     <header class="header">
         <h1>Pixel Hub</h1>
         <div class="header-user">
+            <a href="<?= pixelhub_url('/wizard/new-project') ?>" 
+               style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; font-weight: 600; margin-right: 10px; transition: background 0.3s; display: inline-flex; align-items: center; gap: 6px;"
+               onmouseover="this.style.background='rgba(255,255,255,0.3)'"
+               onmouseout="this.style.background='rgba(255,255,255,0.2)'"
+               title="Criar novo projeto">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v20M2 12h20"/>
+                </svg>
+                Novo Projeto
+            </a>
             <button type="button"
                     onclick="startGlobalScreenRecording()"
-                    style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; margin-right: 10px; transition: background 0.3s;"
+                    style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; margin-right: 10px; transition: background 0.3s; display: inline-flex; align-items: center; gap: 6px;"
                     onmouseover="this.style.background='rgba(255,255,255,0.3)'"
                     onmouseout="this.style.background='rgba(255,255,255,0.2)'"
                     title="Gravar tela (contexto inteligente)">
-                🎥 Gravar tela
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2"/>
+                    <path d="M10 4v4M14 4v4M4 8h16"/>
+                </svg>
+                Gravar tela
             </button>
-            <span><?= htmlspecialchars($user['name'] ?? 'Usuário') ?></span>
-            <a href="<?= pixelhub_url('/logout') ?>">Sair</a>
+            <div class="header-user-menu">
+                <button type="button" class="header-user-menu-toggle" onclick="toggleUserMenu()">
+                    <span><?= htmlspecialchars($user['name'] ?? 'Usuário') ?></span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 9l6 6 6-6"/>
+                    </svg>
+                </button>
+                <div class="header-user-menu-dropdown" id="userMenuDropdown">
+                    <div class="user-info">
+                        <div class="user-name"><?= htmlspecialchars($user['name'] ?? 'Usuário') ?></div>
+                        <div class="user-email"><?= htmlspecialchars($user['email'] ?? '') ?></div>
+                    </div>
+                    <div class="menu-divider"></div>
+                    <a href="<?= pixelhub_url('/logout') ?>" class="menu-item danger">Sair</a>
+                </div>
+            </div>
         </div>
     </header>
     
@@ -245,20 +363,22 @@
             <!-- Dashboard (sem subitens) -->
             <a href="<?= pixelhub_url('/dashboard') ?>" class="sidebar-top-link <?= ($currentUri === '/' || strpos($currentUri, '/dashboard') !== false) ? 'active' : '' ?>">Dashboard</a>
             
-            <!-- Assistente de Cadastramento (Destaque) -->
-            <a href="<?= pixelhub_url('/wizard/new-project') ?>" 
-               class="sidebar-top-link" 
-               style="background: #023A8D; color: white; font-weight: 600; border-radius: 6px; margin: 5px 15px; padding: 12px 20px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s;"
-               onmouseover="this.style.background='#022a70'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';"
-               onmouseout="this.style.background='#023A8D'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
-                Novo Projeto (Assistente)
-            </a>
+            <!-- Clientes -->
+            <?php
+            $clientesActive = $isActive(['/tenants', '/communication-hub']);
+            $clientesExpanded = $shouldExpand(['/tenants', '/communication-hub']);
+            ?>
+            <div class="sidebar-module" data-module="clientes">
+                <div class="sidebar-module-header has-children <?= $clientesActive ? 'active' : '' ?> <?= $clientesExpanded ? 'is-open' : '' ?>">
+                    Clientes
+                </div>
+                <div class="sidebar-module-content <?= $clientesExpanded ? 'is-open' : '' ?>">
+                    <a href="<?= pixelhub_url('/tenants') ?>" class="sub-item <?= (strpos($currentUri, '/tenants') !== false) ? 'active' : '' ?>">Lista de Clientes</a>
+                    <a href="<?= pixelhub_url('/communication-hub') ?>" class="sub-item <?= (strpos($currentUri, '/communication-hub') !== false) ? 'active' : '' ?>">Painel de Comunicação</a>
+                </div>
+            </div>
             
-            <!-- Clientes (sem subitens) -->
-            <a href="<?= pixelhub_url('/tenants') ?>" class="sidebar-top-link <?= (strpos($currentUri, '/tenants') !== false) ? 'active' : '' ?>">Clientes</a>
-            
-            <!-- Tickets (sem subitens) -->
-            <a href="<?= pixelhub_url('/tickets') ?>" class="sidebar-top-link <?= (strpos($currentUri, '/tickets') !== false) ? 'active' : '' ?>">Tickets</a>
+            <div class="sidebar-divider"></div>
             
             <!-- Agenda -->
             <?php
@@ -294,24 +414,25 @@
             
             <!-- Serviços -->
             <?php
-            $servicosActive = $isActive(['/services', '/hosting', '/hosting-plans']);
-            $servicosExpanded = $shouldExpand(['/services', '/hosting', '/hosting-plans']);
+            $servicosActive = $isActive(['/services', '/hosting', '/hosting-plans', '/service-orders']);
+            $servicosExpanded = $shouldExpand(['/services', '/hosting', '/hosting-plans', '/service-orders']);
             ?>
             <div class="sidebar-module" data-module="servicos">
                 <div class="sidebar-module-header has-children <?= $servicosActive ? 'active' : '' ?> <?= $servicosExpanded ? 'is-open' : '' ?>">
                     Serviços
                 </div>
                 <div class="sidebar-module-content <?= $servicosExpanded ? 'is-open' : '' ?>">
-                    <a href="<?= pixelhub_url('/services') ?>" class="sub-item <?= (strpos($currentUri, '/services') !== false) ? 'active' : '' ?>">Catálogo de Serviços</a>
-                    <a href="<?= pixelhub_url('/hosting') ?>" class="sub-item <?= (strpos($currentUri, '/hosting') !== false && strpos($currentUri, '/hosting-plans') === false && strpos($currentUri, '/services') === false) ? 'active' : '' ?>">Hospedagem & Cobranças</a>
+                    <a href="<?= pixelhub_url('/services') ?>" class="sub-item <?= (strpos($currentUri, '/services') !== false && strpos($currentUri, '/service-orders') === false) ? 'active' : '' ?>">Catálogo de Serviços</a>
+                    <a href="<?= pixelhub_url('/service-orders') ?>" class="sub-item <?= (strpos($currentUri, '/service-orders') !== false) ? 'active' : '' ?>">Pedidos de Serviço</a>
+                    <a href="<?= pixelhub_url('/hosting') ?>" class="sub-item <?= (strpos($currentUri, '/hosting') !== false && strpos($currentUri, '/hosting-plans') === false && strpos($currentUri, '/services') === false && strpos($currentUri, '/service-orders') === false) ? 'active' : '' ?>">Hospedagem & Cobranças</a>
                     <a href="<?= pixelhub_url('/hosting-plans') ?>" class="sub-item <?= (strpos($currentUri, '/hosting-plans') !== false) ? 'active' : '' ?>">Planos de Hospedagem</a>
                 </div>
             </div>
             
             <!-- Projetos & Tarefas -->
             <?php
-            $projetosActive = $isActive(['/projects/board', '/projects', '/screen-recordings']);
-            $projetosExpanded = $shouldExpand(['/projects/board', '/projects', '/screen-recordings']);
+            $projetosActive = $isActive(['/projects/board', '/projects', '/screen-recordings', '/contracts', '/tickets']);
+            $projetosExpanded = $shouldExpand(['/projects/board', '/projects', '/screen-recordings', '/contracts', '/tickets']);
             ?>
             <div class="sidebar-module" data-module="projetos">
                 <div class="sidebar-module-header has-children <?= $projetosActive ? 'active' : '' ?> <?= $projetosExpanded ? 'is-open' : '' ?>">
@@ -319,29 +440,19 @@
                 </div>
                 <div class="sidebar-module-content <?= $projetosExpanded ? 'is-open' : '' ?>">
                     <a href="<?= pixelhub_url('/projects/board') ?>" class="sub-item <?= (strpos($currentUri, '/projects/board') !== false) ? 'active' : '' ?>">Quadro Kanban</a>
-                    <a href="<?= pixelhub_url('/projects') ?>" class="sub-item <?= (strpos($currentUri, '/projects') !== false && strpos($currentUri, '/projects/board') === false) ? 'active' : '' ?>">Lista de Projetos</a>
+                    <a href="<?= pixelhub_url('/projects') ?>" class="sub-item <?= (strpos($currentUri, '/projects') !== false && strpos($currentUri, '/projects/board') === false && strpos($currentUri, '/contracts') === false && strpos($currentUri, '/tickets') === false) ? 'active' : '' ?>">Lista de Projetos</a>
+                    <a href="<?= pixelhub_url('/tickets') ?>" class="sub-item <?= (strpos($currentUri, '/tickets') !== false) ? 'active' : '' ?>">Tickets</a>
+                    <a href="<?= pixelhub_url('/contracts') ?>" class="sub-item <?= (strpos($currentUri, '/contracts') !== false) ? 'active' : '' ?>">Contratos de Projetos</a>
                     <a href="<?= pixelhub_url('/screen-recordings') ?>" class="sub-item <?= (strpos($currentUri, '/screen-recordings') !== false) ? 'active' : '' ?>">Gravações de Tela</a>
                 </div>
             </div>
             
-            <!-- Minha Infraestrutura -->
-            <?php
-            $infraestruturaActive = $isActive(['/owner/shortcuts']);
-            $infraestruturaExpanded = $shouldExpand(['/owner/shortcuts']);
-            ?>
-            <div class="sidebar-module" data-module="infraestrutura">
-                <div class="sidebar-module-header has-children <?= $infraestruturaActive ? 'active' : '' ?> <?= $infraestruturaExpanded ? 'is-open' : '' ?>">
-                    Minha Infraestrutura
-                </div>
-                <div class="sidebar-module-content <?= $infraestruturaExpanded ? 'is-open' : '' ?>">
-                    <a href="<?= pixelhub_url('/owner/shortcuts') ?>" class="sub-item <?= (strpos($currentUri, '/owner/shortcuts') !== false) ? 'active' : '' ?>">Acessos & Links</a>
-                </div>
-            </div>
+            <div class="sidebar-divider"></div>
             
             <!-- Configurações -->
             <?php
-            $configuracoesActive = $isActive(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates', '/diagnostic/financial', '/settings/asaas']);
-            $configuracoesExpanded = $shouldExpand(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates', '/diagnostic/financial', '/settings/asaas']);
+            $configuracoesActive = $isActive(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates', '/settings/contract-clauses', '/settings/company', '/diagnostic/financial', '/settings/asaas', '/settings/ai', '/settings/communication-events', '/owner/shortcuts']);
+            $configuracoesExpanded = $shouldExpand(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates', '/settings/contract-clauses', '/settings/company', '/diagnostic/financial', '/settings/asaas', '/settings/ai', '/settings/communication-events', '/owner/shortcuts']);
             ?>
             <div class="sidebar-module" data-module="configuracoes">
                 <div class="sidebar-module-header has-children <?= $configuracoesActive ? 'active' : '' ?> <?= $configuracoesExpanded ? 'is-open' : '' ?>">
@@ -350,13 +461,21 @@
                 <div class="sidebar-module-content <?= $configuracoesExpanded ? 'is-open' : '' ?>">
                     <div class="sidebar-internal-title">Diagnóstico</div>
                     <a href="<?= pixelhub_url('/diagnostic/financial') ?>" class="sub-item <?= (strpos($currentUri, '/diagnostic/financial') !== false) ? 'active' : '' ?>">Financeiro</a>
+                    <div class="sidebar-internal-title">Empresa</div>
+                    <a href="<?= pixelhub_url('/settings/company') ?>" class="sub-item <?= (strpos($currentUri, '/settings/company') !== false) ? 'active' : '' ?>">Dados da Empresa</a>
                     <div class="sidebar-internal-title">Financeiro</div>
                     <a href="<?= pixelhub_url('/billing/service-types') ?>" class="sub-item <?= (strpos($currentUri, '/billing/service-types') !== false) ? 'active' : '' ?>">Categorias de Contratos</a>
                     <a href="<?= pixelhub_url('/settings/asaas') ?>" class="sub-item <?= (strpos($currentUri, '/settings/asaas') !== false) ? 'active' : '' ?>">Configurações Asaas</a>
+                    <div class="sidebar-internal-title">Integrações</div>
+                    <a href="<?= pixelhub_url('/settings/ai') ?>" class="sub-item <?= (strpos($currentUri, '/settings/ai') !== false) ? 'active' : '' ?>">Configurações IA</a>
                     <div class="sidebar-internal-title">Mensagens</div>
                     <a href="<?= pixelhub_url('/settings/whatsapp-templates') ?>" class="sub-item <?= (strpos($currentUri, '/settings/whatsapp-templates') !== false) ? 'active' : '' ?>">Mensagens WhatsApp</a>
+                    <a href="<?= pixelhub_url('/settings/communication-events') ?>" class="sub-item <?= (strpos($currentUri, '/settings/communication-events') !== false) ? 'active' : '' ?>">Central de Eventos</a>
+                    <div class="sidebar-internal-title">Contratos</div>
+                    <a href="<?= pixelhub_url('/settings/contract-clauses') ?>" class="sub-item <?= (strpos($currentUri, '/settings/contract-clauses') !== false) ? 'active' : '' ?>">Cláusulas de Contrato</a>
                     <div class="sidebar-internal-title">Infraestrutura</div>
                     <a href="<?= pixelhub_url('/settings/hosting-providers') ?>" class="sub-item <?= (strpos($currentUri, '/settings/hosting-providers') !== false) ? 'active' : '' ?>">Provedores de Hospedagem</a>
+                    <a href="<?= pixelhub_url('/owner/shortcuts') ?>" class="sub-item <?= (strpos($currentUri, '/owner/shortcuts') !== false) ? 'active' : '' ?>">Acessos & Links</a>
                 </div>
             </div>
         </nav>
@@ -421,6 +540,32 @@
                 }
             });
         })();
+    </script>
+    
+    <!-- Script do menu dropdown do usuário -->
+    <script>
+        function toggleUserMenu() {
+            const dropdown = document.getElementById('userMenuDropdown');
+            if (dropdown) {
+                dropdown.classList.toggle('show');
+            }
+        }
+        
+        function closeUserMenu() {
+            const dropdown = document.getElementById('userMenuDropdown');
+            if (dropdown) {
+                dropdown.classList.remove('show');
+            }
+        }
+        
+        // Fecha o menu ao clicar fora dele
+        document.addEventListener('click', function(event) {
+            const menu = document.querySelector('.header-user-menu');
+            const dropdown = document.getElementById('userMenuDropdown');
+            if (menu && dropdown && !menu.contains(event.target)) {
+                dropdown.classList.remove('show');
+            }
+        });
     </script>
     
     <!-- Script do gravador de tela (global) -->

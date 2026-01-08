@@ -62,3 +62,4 @@ Após reconfigurar a chave localmente:
 - Cada ambiente (local, staging, produção) deve ter sua própria configuração
 - A `INFRA_SECRET_KEY` deve ser **única e segura** em cada ambiente
 
+

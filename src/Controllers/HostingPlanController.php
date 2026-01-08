@@ -248,5 +248,53 @@ class HostingPlanController extends Controller
             $this->redirect('/hosting-plans?error=toggle_failed');
         }
     }
+
+    /**
+     * Exclui plano de hospedagem
+     */
+    public function delete(): void
+    {
+        Auth::requireInternal();
+
+        $planId = isset($_POST['id']) ? (int) $_POST['id'] : 0;
+
+        if ($planId <= 0) {
+            $this->redirect('/hosting-plans?error=missing_id');
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        // Verificar se há contas de hospedagem usando este plano
+        $stmt = $db->prepare("SELECT COUNT(*) FROM hosting_accounts WHERE hosting_plan_id = ?");
+        $stmt->execute([$planId]);
+        $hostingCount = (int) $stmt->fetchColumn();
+
+        if ($hostingCount > 0) {
+            $this->redirect('/hosting-plans?error=cannot_delete_has_hosting');
+            return;
+        }
+
+        // Verificar se há contratos usando este plano
+        $stmt = $db->prepare("SELECT COUNT(*) FROM billing_contracts WHERE hosting_plan_id = ?");
+        $stmt->execute([$planId]);
+        $contractCount = (int) $stmt->fetchColumn();
+
+        if ($contractCount > 0) {
+            $this->redirect('/hosting-plans?error=cannot_delete_has_contracts');
+            return;
+        }
+
+        // Se estiver tudo ok, excluir
+        try {
+            $stmt = $db->prepare("DELETE FROM hosting_plans WHERE id = ?");
+            $stmt->execute([$planId]);
+
+            $this->redirect('/hosting-plans?success=deleted');
+        } catch (\Exception $e) {
+            error_log("Erro ao excluir plano: " . $e->getMessage());
+            $this->redirect('/hosting-plans?error=delete_failed');
+        }
+    }
 }
 

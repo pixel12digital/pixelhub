@@ -23,6 +23,8 @@ ob_start();
                 echo 'Plano atualizado com sucesso!';
             } elseif ($_GET['success'] === 'toggled') {
                 echo 'Status do plano alterado com sucesso!';
+            } elseif ($_GET['success'] === 'deleted') {
+                echo 'Plano excluído com sucesso!';
             }
             ?>
         </p>
@@ -36,6 +38,14 @@ ob_start();
             $error = $_GET['error'];
             if ($error === 'toggle_failed') {
                 echo 'Erro ao alterar status do plano.';
+            } elseif ($error === 'delete_failed') {
+                echo 'Erro ao excluir o plano.';
+            } elseif ($error === 'cannot_delete_has_hosting') {
+                echo 'Não é possível excluir o plano pois existem contas de hospedagem vinculadas a ele.';
+            } elseif ($error === 'cannot_delete_has_contracts') {
+                echo 'Não é possível excluir o plano pois existem contratos vinculados a ele.';
+            } elseif ($error === 'missing_id') {
+                echo 'ID do plano não informado.';
             }
             ?>
         </p>
@@ -101,6 +111,15 @@ ob_start();
                                 <button type="submit" 
                                         style="background: <?= $plan['is_active'] ? '#f93' : '#3c3' ?>; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
                                     <?= $plan['is_active'] ? 'Desativar' : 'Ativar' ?>
+                                </button>
+                            </form>
+                            <form method="POST" action="<?= pixelhub_url('/hosting-plans/delete') ?>" 
+                                  style="display: inline-block; margin: 0;"
+                                  onsubmit="return confirm('Tem certeza que deseja excluir este plano? Esta ação não pode ser desfeita.');">
+                                <input type="hidden" name="id" value="<?= $plan['id'] ?>">
+                                <button type="submit" 
+                                        style="background: #c33; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                                    Excluir
                                 </button>
                             </form>
                         </div>

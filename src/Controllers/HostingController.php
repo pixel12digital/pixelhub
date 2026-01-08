@@ -99,7 +99,8 @@ class HostingController extends Controller
         $rawAmount = $_POST['amount'] ?? '0';
         $billingCycle = $_POST['billing_cycle'] ?? 'mensal';
         $currentProvider = $_POST['current_provider'] ?? 'hostinger';
-        $hostingerExpirationDate = !empty($_POST['hostinger_expiration_date']) ? $_POST['hostinger_expiration_date'] : null;
+        $hasNoHostingExpiration = isset($_POST['has_no_hosting_expiration']) && $_POST['has_no_hosting_expiration'] == '1' ? 1 : 0;
+        $hostingerExpirationDate = !empty($_POST['hostinger_expiration_date']) && !$hasNoHostingExpiration ? $_POST['hostinger_expiration_date'] : null;
         $domainExpirationDate = !empty($_POST['domain_expiration_date']) ? $_POST['domain_expiration_date'] : null;
         $notes = trim($_POST['notes'] ?? '');
         $redirectTo = $_POST['redirect_to'] ?? 'hosting';
@@ -131,6 +132,20 @@ class HostingController extends Controller
             return;
         }
 
+        // Se um plano foi selecionado, busca dados do plano para preencher automaticamente
+        if ($hostingPlanId) {
+            $stmt = $db->prepare("SELECT name, amount, billing_cycle FROM hosting_plans WHERE id = ?");
+            $stmt->execute([$hostingPlanId]);
+            $plan = $stmt->fetch();
+            
+            if ($plan) {
+                // Preenche automaticamente com dados do plano
+                $planName = $plan['name'];
+                $rawAmount = (string) $plan['amount'];
+                $billingCycle = $plan['billing_cycle'];
+            }
+        }
+
         // Normaliza amount (aceita formato BR ou decimal)
         $amount = MoneyHelper::normalizeAmount($rawAmount);
 
@@ -143,11 +158,11 @@ class HostingController extends Controller
             $stmt = $db->prepare("
                 INSERT INTO hosting_accounts 
                 (tenant_id, domain, hosting_plan_id, plan_name, amount, billing_cycle, current_provider, 
-                 hostinger_expiration_date, domain_expiration_date, decision, migration_status, notes, 
+                 hostinger_expiration_date, has_no_hosting_expiration, domain_expiration_date, decision, migration_status, notes, 
                  hosting_panel_url, hosting_panel_username, hosting_panel_password,
                  site_admin_url, site_admin_username, site_admin_password,
                  backup_status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'nenhum', NOW(), NOW())
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'nenhum', NOW(), NOW())
             ");
 
             $stmt->execute([
@@ -159,6 +174,7 @@ class HostingController extends Controller
                 $billingCycle,
                 $currentProvider,
                 $hostingerExpirationDate ?: null,
+                $hasNoHostingExpiration,
                 $domainExpirationDate ?: null,
                 $decision,
                 $migrationStatus,
@@ -314,7 +330,8 @@ class HostingController extends Controller
         $rawAmount = $_POST['amount'] ?? '0';
         $billingCycle = $_POST['billing_cycle'] ?? 'mensal';
         $currentProvider = $_POST['current_provider'] ?? 'hostinger';
-        $hostingerExpirationDate = !empty($_POST['hostinger_expiration_date']) ? $_POST['hostinger_expiration_date'] : null;
+        $hasNoHostingExpiration = isset($_POST['has_no_hosting_expiration']) && $_POST['has_no_hosting_expiration'] == '1' ? 1 : 0;
+        $hostingerExpirationDate = !empty($_POST['hostinger_expiration_date']) && !$hasNoHostingExpiration ? $_POST['hostinger_expiration_date'] : null;
         $domainExpirationDate = !empty($_POST['domain_expiration_date']) ? $_POST['domain_expiration_date'] : null;
         $notes = trim($_POST['notes'] ?? '');
         $redirectTo = $_POST['redirect_to'] ?? 'hosting';
@@ -351,6 +368,20 @@ class HostingController extends Controller
             return;
         }
 
+        // Se um plano foi selecionado, busca dados do plano para preencher automaticamente
+        if ($hostingPlanId) {
+            $stmt = $db->prepare("SELECT name, amount, billing_cycle FROM hosting_plans WHERE id = ?");
+            $stmt->execute([$hostingPlanId]);
+            $plan = $stmt->fetch();
+            
+            if ($plan) {
+                // Preenche automaticamente com dados do plano
+                $planName = $plan['name'];
+                $rawAmount = (string) $plan['amount'];
+                $billingCycle = $plan['billing_cycle'];
+            }
+        }
+
         // Normaliza amount (aceita formato BR ou decimal)
         $amount = MoneyHelper::normalizeAmount($rawAmount);
 
@@ -368,7 +399,7 @@ class HostingController extends Controller
                 UPDATE hosting_accounts 
                 SET tenant_id = ?, domain = ?, hosting_plan_id = ?, plan_name = ?, amount = ?, 
                     billing_cycle = ?, current_provider = ?, hostinger_expiration_date = ?, 
-                    domain_expiration_date = ?, notes = ?, 
+                    has_no_hosting_expiration = ?, domain_expiration_date = ?, notes = ?, 
                     hosting_panel_url = ?, hosting_panel_username = ?, hosting_panel_password = ?,
                     site_admin_url = ?, site_admin_username = ?, site_admin_password = ?,
                     updated_at = NOW()
@@ -384,6 +415,7 @@ class HostingController extends Controller
                 $billingCycle,
                 $currentProvider,
                 $hostingerExpirationDate ?: null,
+                $hasNoHostingExpiration,
                 $domainExpirationDate ?: null,
                 $notes ?: null,
                 $hostingPanelUrl ?: null,

@@ -1371,8 +1371,338 @@ public function index(): void
 
 ---
 
+## 🎯 Fluxo Otimizado: Pedido/Contrato com Cadastro Integrado
+
+**Objetivo:** Cliente preenche TODOS os dados diretamente no sistema, evitando WhatsApp para coleta de informações.
+
+### **Estrutura: `project_contracts` (Pedidos/Contratos)**
+
+```sql
+CREATE TABLE project_contracts (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    service_id INT UNSIGNED NOT NULL,
+    tenant_id INT UNSIGNED NULL COMMENT 'NULL = cliente ainda não cadastrado',
+    status VARCHAR(50) NOT NULL DEFAULT 'draft' COMMENT 'draft, pending_approval, approved, rejected, converted',
+    
+    -- Dados do Pedido
+    contract_value DECIMAL(10,2) NULL,
+    payment_condition VARCHAR(100) NULL COMMENT 'à vista, parcelado 2x, etc.',
+    payment_method VARCHAR(50) NULL COMMENT 'pix, boleto, cartao',
+    
+    -- Dados do Cliente (temporários, até criar tenant)
+    client_data JSON NULL COMMENT 'Dados do cliente se ainda não cadastrado',
+    
+    -- Briefing
+    briefing_data JSON NULL COMMENT 'Respostas do briefing_template',
+    briefing_status VARCHAR(20) NULL DEFAULT 'pending' COMMENT 'pending, completed',
+    briefing_completed_at DATETIME NULL,
+    
+    -- Link Público
+    token VARCHAR(64) NOT NULL UNIQUE COMMENT 'Token para link público',
+    expires_at DATETIME NULL COMMENT 'Link expira em X dias',
+    
+    -- Conversão
+    project_id INT UNSIGNED NULL COMMENT 'FK para projects quando convertido',
+    converted_at DATETIME NULL,
+    
+    -- Metadados
+    created_by INT UNSIGNED NULL COMMENT 'FK para users (quem criou o pedido)',
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    
+    INDEX idx_service_id (service_id),
+    INDEX idx_tenant_id (tenant_id),
+    INDEX idx_status (status),
+    INDEX idx_token (token),
+    INDEX idx_project_id (project_id),
+    FOREIGN KEY (service_id) REFERENCES services(id),
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE SET NULL,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### **Fluxo Completo Otimizado**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. CLIENTE DEMONSTRA INTERESSE (WhatsApp/Reunião)          │
+│    "Quero fazer um cartão de visita"                       │
+└─────────────────────────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 2. VOCÊ CRIA PEDIDO NO SISTEMA                              │
+│    - Seleciona serviço: "Cartão de Visitas"                │
+│    - Define preço (pode variar do catálogo)                 │
+│    - Define condição de pagamento                           │
+│    - Sistema gera TOKEN único                              │
+│    - Status: "pending_approval"                            │
+└─────────────────────────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 3. SISTEMA GERA LINK PÚBLICO                                │
+│    Link: /client-portal/contracts/{token}                  │
+│    Exemplo:                                                 │
+│    https://painel.pixel12digital.com/client-portal/contracts/abc123xyz
+└─────────────────────────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 4. CLIENTE ACESSA O LINK (PÚBLICO, SEM LOGIN)               │
+│    ┌─────────────────────────────────────────────────────┐ │
+│    │ 📋 PEDIDO: Cartão de Visitas Profissional           │ │
+│    │ 💰 Valor: R$ 150,00                                  │ │
+│    │ ⏱️ Prazo: 5 dias úteis                              │ │
+│    │                                                       │ │
+│    │ [ETAPA 1/3] Dados Cadastrais                        │ │
+│    │ [ETAPA 2/3] Briefing do Serviço                     │ │
+│    │ [ETAPA 3/3] Aprovação e Pagamento                   │ │
+│    └─────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 5. ETAPA 1: DADOS CADASTRAIS (Wizard)                       │
+│    ┌─────────────────────────────────────────────────────┐ │
+│    │ Se cliente NÃO está cadastrado:                     │ │
+│    │   - Tipo de Pessoa (PF/PJ)                          │ │
+│    │   - Nome Completo / Razão Social                     │ │
+│    │   - CPF/CNPJ                                        │ │
+│    │   - Email                                           │ │
+│    │   - Telefone/WhatsApp                               │ │
+│    │   - Endereço Completo (CEP, rua, número, etc.)      │ │
+│    │                                                       │ │
+│    │ Se cliente JÁ está cadastrado (tenant_id existe):  │ │
+│    │   - Mostra dados atuais                             │ │
+│    │   - Permite atualizar campos incompletos            │ │
+│    │   - Valida se CPF/CNPJ já existe no sistema         │ │
+│    └─────────────────────────────────────────────────────┘ │
+│    → Salva em: project_contracts.client_data (JSON)        │
+│    → Se tenant_id NULL, cria tenant automaticamente       │
+└─────────────────────────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 6. ETAPA 2: BRIEFING GUIADO (Formulário Conversacional)     │
+│    ┌─────────────────────────────────────────────────────┐ │
+│    │ Carrega briefing_template do serviço                │ │
+│    │                                                       │ │
+│    │ Pergunta 1/5: "Qual o nome da empresa?"            │ │
+│    │ [________________________]                           │ │
+│    │                                                       │ │
+│    │ Pergunta 2/5: "Descreva o negócio"                  │ │
+│    │ [________________________]                           │ │
+│    │                                                       │ │
+│    │ Pergunta 3/5: "Envie referências visuais"           │ │
+│    │ [📎 Upload de arquivos]                             │ │
+│    │                                                       │ │
+│    │ ... (uma pergunta por vez, tipo quiz)               │ │
+│    └─────────────────────────────────────────────────────┘ │
+│    → Salva em: project_contracts.briefing_data (JSON)      │
+│    → Atualiza: briefing_status = 'completed'              │
+└─────────────────────────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 7. ETAPA 3: APROVAÇÃO E CONDIÇÕES DE PAGAMENTO              │
+│    ┌─────────────────────────────────────────────────────┐ │
+│    │ ✅ Resumo do Pedido                                  │ │
+│    │    - Serviço: Cartão de Visitas                    │ │
+│    │    - Valor: R$ 150,00                                │ │
+│    │    - Prazo: 5 dias úteis                            │ │
+│    │                                                       │ │
+│    │ 💳 Condição de Pagamento:                            │ │
+│    │    ( ) À vista (desconto 5%)                        │ │
+│    │    ( ) Parcelado 2x sem juros                       │ │
+│    │    ( ) Parcelado 3x com juros                        │ │
+│    │                                                       │ │
+│    │ 📋 Termos e Condições                                │ │
+│    │    ☑ Li e aceito os termos                          │ │
+│    │                                                       │ │
+│    │ [Cancelar] [Aprovar e Finalizar]                   │ │
+│    └─────────────────────────────────────────────────────┘ │
+│    → Atualiza: status = 'approved'                        │
+└─────────────────────────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 8. SISTEMA AUTOMATIZA CONVERSÃO                              │
+│    ✅ Cria/Atualiza TENANT (se não existia)                  │
+│    ✅ Cria PROJETO vinculado ao serviço                      │
+│    ✅ Aplica tasks_template (gera tarefas com checklist)     │
+│    ✅ Salva briefing_data no projeto                         │
+│    ✅ Gera FATURA no Asaas (vinculada ao projeto)            │
+│    ✅ Envia notificação para você                            │
+│    ✅ Envia email de confirmação para cliente               │
+│    → Atualiza: status = 'converted', project_id preenchido  │
+└─────────────────────────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 9. EXECUÇÃO (se pagamento à vista) ou                        │
+│    AGUARDA PAGAMENTO (se parcelado/sinal)                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### **Campos do Cliente (client_data JSON)**
+
+```json
+{
+  "person_type": "pf",
+  "name": "João Silva",
+  "cpf_cnpj": "123.456.789-00",
+  "email": "joao@email.com",
+  "phone": "(11) 98765-4321",
+  "address": {
+    "cep": "01234-567",
+    "street": "Rua Exemplo",
+    "number": "123",
+    "complement": "Apto 45",
+    "neighborhood": "Centro",
+    "city": "São Paulo",
+    "state": "SP"
+  },
+  "is_new_client": true
+}
+```
+
+### **Validação Inteligente de Cliente**
+
+**Cenário 1: Cliente Novo (não cadastrado)**
+- `tenant_id = NULL` no pedido
+- Cliente preenche todos os dados na Etapa 1
+- Sistema valida CPF/CNPJ único
+- Ao aprovar, cria `tenant` automaticamente
+- Vincula `tenant_id` ao pedido
+
+**Cenário 2: Cliente Existente (já cadastrado)**
+- Você já vincula `tenant_id` ao criar pedido
+- Cliente acessa link e vê dados atuais
+- Permite atualizar campos incompletos
+- Não permite alterar CPF/CNPJ (já validado)
+
+**Cenário 3: Cliente Parcial (dados incompletos)**
+- `tenant_id` existe mas faltam dados (endereço, etc.)
+- Sistema detecta campos vazios
+- Força preenchimento na Etapa 1
+- Atualiza `tenant` automaticamente
+
+### **Interface do Link Público**
+
+**URL:** `/client-portal/contracts/{token}`
+
+**Características:**
+- ✅ Acesso público (sem login necessário)
+- ✅ Token único e seguro (64 caracteres)
+- ✅ Link expira em X dias (configurável)
+- ✅ Responsivo (mobile-friendly)
+- ✅ Progresso visual (1/3, 2/3, 3/3)
+- ✅ Salva rascunho automaticamente
+- ✅ Validação em tempo real
+
+**Segurança:**
+- Token gerado com `bin2hex(random_bytes(32))`
+- Link expira após 30 dias (configurável)
+- Validação de token a cada requisição
+- Rate limiting (evita spam)
+
+### **Vantagens do Fluxo Integrado**
+
+1. ✅ **Zero WhatsApp para dados** - Cliente preenche tudo no sistema
+2. ✅ **Cadastro automático** - Cria tenant se não existir
+3. ✅ **Atualização inteligente** - Completa dados faltantes
+4. ✅ **Briefing centralizado** - Tudo no mesmo lugar
+5. ✅ **Conversão automática** - Pedido vira projeto automaticamente
+6. ✅ **Rastreabilidade** - Histórico completo de interações
+7. ✅ **Experiência fluida** - Cliente não precisa criar conta/login
+
+### **Exemplo Prático: "Cartão de Visitas"**
+
+**1. Você cria pedido:**
+```
+Serviço: Cartão de Visitas (ID: 1)
+Preço: R$ 150,00
+Condição: À vista ou 2x
+Token gerado: abc123xyz789
+Link: /client-portal/contracts/abc123xyz789
+```
+
+**2. Cliente acessa link:**
+- Vê resumo do pedido
+- Preenche dados cadastrais (se novo)
+- Preenche briefing (5 perguntas)
+- Aprova condições
+
+**3. Sistema converte:**
+- Cria tenant "João Silva"
+- Cria projeto "Cartão de Visitas - João Silva"
+- Gera 8 tarefas com checklist
+- Cria fatura R$ 150,00 no Asaas
+- Envia notificações
+
+**4. Você recebe:**
+- Notificação: "Novo pedido aprovado e convertido"
+- Projeto já aparece no Kanban
+- Fatura gerada automaticamente
+- Cliente cadastrado completo
+
+### **Implementação Técnica**
+
+**Service: `ProjectContractService`**
+
+```php
+class ProjectContractService
+{
+    // Cria pedido e gera token
+    public static function createContract(int $serviceId, ?int $tenantId, array $data): int
+    
+    // Busca pedido por token (público)
+    public static function findByToken(string $token): ?array
+    
+    // Salva dados do cliente (Etapa 1)
+    public static function saveClientData(int $contractId, array $clientData): bool
+    
+    // Salva briefing (Etapa 2)
+    public static function saveBriefing(int $contractId, array $briefingData): bool
+    
+    // Aprova pedido (Etapa 3)
+    public static function approveContract(int $contractId, array $paymentData): bool
+    
+    // Converte pedido em projeto (automático após aprovação)
+    public static function convertToProject(int $contractId): int
+}
+```
+
+**Controller: `ProjectContractController`**
+
+```php
+// Público (sem autenticação)
+public function show(string $token): void  // Exibe pedido
+public function saveClientData(): void     // AJAX - Etapa 1
+public function saveBriefing(): void       // AJAX - Etapa 2
+public function approve(): void            // AJAX - Etapa 3
+
+// Interno (requer autenticação)
+public function index(): void              // Lista pedidos
+public function create(): void            // Cria pedido
+public function view(int $id): void       // Ver detalhes
+```
+
+### **Checklist de Implementação**
+
+- [ ] Criar tabela `project_contracts`
+- [ ] Service `ProjectContractService` com métodos principais
+- [ ] Controller `ProjectContractController` (público + interno)
+- [ ] View pública `/client-portal/contracts/{token}` (wizard 3 etapas)
+- [ ] Integração com `TenantService` (cria/atualiza cliente)
+- [ ] Integração com `ProjectService` (conversão automática)
+- [ ] Integração com `TaskService` (aplica tasks_template)
+- [ ] Integração com `AsaasBillingService` (gera fatura)
+- [ ] Geração de token seguro
+- [ ] Validação de expiração do link
+- [ ] Salvar rascunho automaticamente
+- [ ] Notificações (email + sistema)
+- [ ] Validação de CPF/CNPJ único
+- [ ] Upload de arquivos (referências do briefing)
+
+---
+
 **Documento atualizado em:** 2025-01-07  
 **Revisão:** 
 - Adicionados requisitos críticos (briefing guiado, bloqueio financeiro, tarefas pré-definidas, fluxo completo)
 - Adicionada seção completa de Dashboard e Métricas para Gestão
+- Adicionado fluxo otimizado com cadastro integrado (evita WhatsApp)
 
