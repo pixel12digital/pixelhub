@@ -64,9 +64,9 @@ class EventIngestionService
 
         // Prepara dados
         $tenantId = !empty($eventData['tenant_id']) ? (int) $eventData['tenant_id'] : null;
-        $payloadJson = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        $payloadJson = json_encode($payload, \JSON_UNESCAPED_UNICODE);
         $metadataJson = !empty($eventData['metadata']) 
-            ? json_encode($eventData['metadata'], JSON_UNESCAPED_UNICODE) 
+            ? json_encode($eventData['metadata'], \JSON_UNESCAPED_UNICODE) 
             : null;
 
         // Insere evento
@@ -127,7 +127,7 @@ class EventIngestionService
         }
 
         // Senão, usa hash do payload
-        $payloadHash = md5(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_SORT_KEYS));
+        $payloadHash = md5(json_encode($payload, \JSON_UNESCAPED_UNICODE | \JSON_SORT_KEYS));
         return sprintf('%s:%s:%s', $sourceSystem, $eventType, $payloadHash);
     }
 
