@@ -381,7 +381,15 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             body: formData
         })
-        .then(r => r.json())
+        .then(async r => {
+            // Verifica se o Content-Type é JSON
+            const contentType = r.headers.get('Content-Type') || '';
+            if (!contentType.includes('application/json')) {
+                const text = await r.text();
+                throw new Error(`Servidor retornou ${r.status}: ${contentType}. Resposta: ${text.substring(0, 200)}`);
+            }
+            return r.json();
+        })
         .then(data => {
             if (data.success) {
                 resultDiv.style.background = '#d4edda';
@@ -402,7 +410,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultDiv.style.border = '1px solid #f5c6cb';
                 resultDiv.style.padding = '12px';
                 resultDiv.style.borderRadius = '4px';
-                resultDiv.innerHTML = `<strong>Erro:</strong> ${data.error || 'Erro desconhecido'}`;
+                const errorCode = data.code ? ` <small style="color: #999;">(${data.code})</small>` : '';
+                resultDiv.innerHTML = `<strong>Erro:</strong> ${data.error || data.message || 'Erro desconhecido'}${errorCode}`;
             }
         })
         .catch(err => {
@@ -411,7 +420,13 @@ document.addEventListener('DOMContentLoaded', function() {
             resultDiv.style.border = '1px solid #f5c6cb';
             resultDiv.style.padding = '12px';
             resultDiv.style.borderRadius = '4px';
-            resultDiv.innerHTML = `<strong>Erro:</strong> ${err.message}`;
+            let errorMessage = err.message || 'Erro desconhecido';
+            // Detecta erros de parse JSON
+            if (err.message && err.message.includes('JSON')) {
+                errorMessage = 'Erro técnico: Servidor retornou resposta inválida (não é JSON). Verifique os logs do servidor.';
+            }
+            resultDiv.innerHTML = `<strong>Erro:</strong> ${errorMessage}`;
+            console.error('Erro ao simular webhook:', err);
         });
     });
 

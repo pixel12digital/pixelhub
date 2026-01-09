@@ -25,12 +25,20 @@ abstract class Controller
 
     /**
      * Retorna JSON
+     * 
+     * Garante que sempre retorna JSON válido, mesmo em caso de erro.
+     * Limpa output buffer antes de enviar para evitar corrupção.
      */
     protected function json(array $data, int $statusCode = 200): void
     {
+        // Limpa qualquer output anterior que possa corromper o JSON
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+
         http_response_code($statusCode);
-        header('Content-Type: application/json');
-        echo json_encode($data);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
 

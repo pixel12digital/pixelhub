@@ -696,25 +696,53 @@ class WhatsAppGatewayTestController extends Controller
      * Simula recebimento de webhook (para testes)
      * 
      * POST /settings/whatsapp-gateway/test/webhook
+     * 
+     * IMPORTANTE: Este endpoint NÃO valida assinatura real do gateway.
+     * Apenas valida payload mínimo e insere evento fake na tabela de eventos.
+     * Usado apenas para testes internos do sistema.
      */
     public function simulateWebhook(): void
     {
-        Auth::requireInternal();
-        header('Content-Type: application/json');
-
-        $eventType = $_POST['event_type'] ?? 'message';
-        $channelId = trim($_POST['channel_id'] ?? '');
-        $from = trim($_POST['from'] ?? '');
-        $text = trim($_POST['text'] ?? '');
-        $tenantId = isset($_POST['tenant_id']) ? (int) $_POST['tenant_id'] : null;
-
-        if (empty($channelId) || empty($from)) {
-            $this->json(['success' => false, 'error' => 'channel_id e from são obrigatórios'], 400);
-            return;
+        // Limpa qualquer output anterior que possa corromper o JSON
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
         }
 
         try {
-            // Simula payload do webhook
+            Auth::requireInternal();
+        } catch (\Exception $e) {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => false,
+                'error' => 'Não autorizado',
+                'code' => 'UNAUTHORIZED'
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        // Sempre retorna JSON, mesmo em erro
+        header('Content-Type: application/json; charset=utf-8');
+
+        try {
+            // Valida payload mínimo (não valida assinatura real do gateway)
+            $eventType = $_POST['event_type'] ?? 'message';
+            $channelId = trim($_POST['channel_id'] ?? '');
+            $from = trim($_POST['from'] ?? '');
+            $text = trim($_POST['text'] ?? '');
+            $tenantId = isset($_POST['tenant_id']) ? (int) $_POST['tenant_id'] : null;
+
+            if (empty($channelId) || empty($from)) {
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'channel_id e from são obrigatórios',
+                    'code' => 'VALIDATION_ERROR'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            // Simula payload do webhook (não precisa validar assinatura real)
             $payload = [
                 'event' => $eventType,
                 'channel_id' => $channelId,
@@ -732,10 +760,10 @@ class WhatsAppGatewayTestController extends Controller
                 ];
             }
 
-            // Ingere evento como se fosse um webhook real
+            // Ingere evento fake na tabela de eventos
             $eventId = EventIngestionService::ingest([
                 'event_type' => 'whatsapp.inbound.message',
-                'source_system' => 'wpp_gateway',
+                'source_system' => 'pixelhub_test',
                 'payload' => $payload,
                 'tenant_id' => $tenantId,
                 'metadata' => [
@@ -744,17 +772,51 @@ class WhatsAppGatewayTestController extends Controller
                 ]
             ]);
 
-            $this->json([
+            http_response_code(200);
+            echo json_encode([
                 'success' => true,
                 'event_id' => $eventId,
-                'message' => 'Webhook simulado com sucesso. Evento ingerido no sistema.'
-            ]);
-        } catch (\Exception $e) {
-            error_log("[WhatsAppGatewayTest] Erro ao simular webhook: " . $e->getMessage());
-            $this->json([
+                'message' => 'Webhook simulado com sucesso. Evento ingerido no sistema.',
+                'code' => 'SUCCESS'
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+
+        } catch (\RuntimeException $e) {
+            error_log("[WhatsAppGatewayTest::simulateWebhook] RuntimeException: " . $e->getMessage());
+            error_log("[WhatsAppGatewayTest::simulateWebhook] Stack trace: " . $e->getTraceAsString());
+            
+            http_response_code(500);
+            echo json_encode([
                 'success' => false,
-                'error' => $e->getMessage()
-            ], 500);
+                'error' => 'Erro interno do servidor',
+                'code' => 'INTERNAL_ERROR',
+                'message' => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        } catch (\Exception $e) {
+            error_log("[WhatsAppGatewayTest::simulateWebhook] Exception: " . $e->getMessage());
+            error_log("[WhatsAppGatewayTest::simulateWebhook] Stack trace: " . $e->getTraceAsString());
+            
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Erro interno do servidor',
+                'code' => 'INTERNAL_ERROR',
+                'message' => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        } catch (\Throwable $e) {
+            error_log("[WhatsAppGatewayTest::simulateWebhook] Throwable: " . $e->getMessage());
+            error_log("[WhatsAppGatewayTest::simulateWebhook] Stack trace: " . $e->getTraceAsString());
+            
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Erro interno do servidor',
+                'code' => 'INTERNAL_ERROR',
+                'message' => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
         }
     }
 }

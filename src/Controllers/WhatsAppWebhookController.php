@@ -21,63 +21,76 @@ class WhatsAppWebhookController extends Controller
      */
     public function handle(): void
     {
-        header('Content-Type: application/json');
+        // Limpa qualquer output anterior que possa corromper o JSON
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
 
-        // Valida secret se configurado
-        $expectedSecret = Env::get('PIXELHUB_WHATSAPP_WEBHOOK_SECRET');
-        if (!empty($expectedSecret)) {
-            $secretHeader = $_SERVER['HTTP_X_WEBHOOK_SECRET'] ?? $_SERVER['HTTP_X_GATEWAY_SECRET'] ?? null;
-            if ($secretHeader !== $expectedSecret) {
-                http_response_code(403);
+        // Sempre retorna JSON, mesmo em erro
+        header('Content-Type: application/json; charset=utf-8');
+
+        try {
+            // Valida secret se configurado
+            $expectedSecret = Env::get('PIXELHUB_WHATSAPP_WEBHOOK_SECRET');
+            if (!empty($expectedSecret)) {
+                $secretHeader = $_SERVER['HTTP_X_WEBHOOK_SECRET'] ?? $_SERVER['HTTP_X_GATEWAY_SECRET'] ?? null;
+                if ($secretHeader !== $expectedSecret) {
+                    http_response_code(403);
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'Invalid webhook secret',
+                        'code' => 'INVALID_SECRET'
+                    ], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+            }
+
+            // Lê payload JSON
+            $rawPayload = file_get_contents('php://input');
+            $payload = json_decode($rawPayload, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                http_response_code(400);
                 echo json_encode([
                     'success' => false,
-                    'message' => 'Invalid webhook secret'
-                ]);
-                return;
+                    'error' => 'Invalid JSON payload',
+                    'code' => 'INVALID_JSON'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
             }
-        }
 
-        // Lê payload JSON
-        $rawPayload = file_get_contents('php://input');
-        $payload = json_decode($rawPayload, true);
+            // Extrai tipo de evento
+            $eventType = $payload['event'] ?? $payload['type'] ?? null;
+            if (empty($eventType)) {
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Event type is required',
+                    'code' => 'MISSING_EVENT_TYPE'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
 
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            http_response_code(400);
-            echo json_encode([
-                'success' => false,
-                'message' => 'Invalid JSON payload'
-            ]);
-            return;
-        }
+            // Mapeia evento do gateway para evento interno
+            $internalEventType = $this->mapEventType($eventType);
+            if (empty($internalEventType)) {
+                // Evento desconhecido, mas responde 200 para não causar retry
+                http_response_code(200);
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Event type not handled',
+                    'code' => 'EVENT_NOT_HANDLED'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
 
-        // Extrai tipo de evento
-        $eventType = $payload['event'] ?? $payload['type'] ?? null;
-        if (empty($eventType)) {
-            http_response_code(400);
-            echo json_encode([
-                'success' => false,
-                'message' => 'Event type is required'
-            ]);
-            return;
-        }
+            // Extrai channel (para identificar tenant)
+            $channelId = $payload['channel'] ?? $payload['channelId'] ?? null;
 
-        // Mapeia evento do gateway para evento interno
-        $internalEventType = $this->mapEventType($eventType);
-        if (empty($internalEventType)) {
-            // Evento desconhecido, mas responde 200 para não causar retry
-            http_response_code(200);
-            echo json_encode(['success' => true, 'message' => 'Event type not handled']);
-            return;
-        }
+            // Tenta resolver tenant_id pelo channel
+            $tenantId = $this->resolveTenantByChannel($channelId);
 
-        // Extrai channel (para identificar tenant)
-        $channelId = $payload['channel'] ?? $payload['channelId'] ?? null;
-
-        // Tenta resolver tenant_id pelo channel
-        $tenantId = $this->resolveTenantByChannel($channelId);
-
-        // Cria evento normalizado
-        try {
+            // Cria evento normalizado
             $eventId = EventIngestionService::ingest([
                 'event_type' => $internalEventType,
                 'source_system' => 'wpp_gateway',
@@ -103,15 +116,47 @@ class WhatsAppWebhookController extends Controller
             http_response_code(200);
             echo json_encode([
                 'success' => true,
-                'event_id' => $eventId
-            ]);
-        } catch (\Exception $e) {
-            error_log("[WhatsAppWebhook] Erro ao processar evento: " . $e->getMessage());
+                'event_id' => $eventId,
+                'code' => 'SUCCESS'
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+
+        } catch (\RuntimeException $e) {
+            error_log("[WhatsAppWebhook::handle] RuntimeException: " . $e->getMessage());
+            error_log("[WhatsAppWebhook::handle] Stack trace: " . $e->getTraceAsString());
+            
             http_response_code(500);
             echo json_encode([
                 'success' => false,
-                'message' => 'Error processing event'
-            ]);
+                'error' => 'Erro interno do servidor',
+                'code' => 'INTERNAL_ERROR',
+                'message' => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        } catch (\Exception $e) {
+            error_log("[WhatsAppWebhook::handle] Exception: " . $e->getMessage());
+            error_log("[WhatsAppWebhook::handle] Stack trace: " . $e->getTraceAsString());
+            
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Erro interno do servidor',
+                'code' => 'INTERNAL_ERROR',
+                'message' => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        } catch (\Throwable $e) {
+            error_log("[WhatsAppWebhook::handle] Throwable: " . $e->getMessage());
+            error_log("[WhatsAppWebhook::handle] Stack trace: " . $e->getTraceAsString());
+            
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Erro interno do servidor',
+                'code' => 'INTERNAL_ERROR',
+                'message' => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
         }
     }
 
