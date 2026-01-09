@@ -255,9 +255,108 @@ class CommunicationHubController extends Controller
     }
 
     /**
-     * Busca threads de WhatsApp (via eventos)
+     * Busca threads de WhatsApp (via tabela conversations - fonte de verdade)
      */
     private function getWhatsAppThreads(PDO $db, ?int $tenantId, string $status): array
+    {
+        // 1. Tenta ler da tabela conversations (fonte de verdade)
+        try {
+            $checkStmt = $db->query("SHOW TABLES LIKE 'conversations'");
+            if ($checkStmt->rowCount() > 0) {
+                return $this->getWhatsAppThreadsFromConversations($db, $tenantId, $status);
+            }
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao verificar tabela conversations: " . $e->getMessage());
+        }
+
+        // 2. Fallback: lê de communication_events (compatibilidade com versão antiga)
+        return $this->getWhatsAppThreadsFromEvents($db, $tenantId, $status);
+    }
+
+    /**
+     * Busca threads de WhatsApp da tabela conversations (fonte de verdade)
+     */
+    private function getWhatsAppThreadsFromConversations(PDO $db, ?int $tenantId, string $status): array
+    {
+        $where = ["c.channel_type = 'whatsapp'"];
+        $params = [];
+
+        if ($tenantId) {
+            $where[] = "c.tenant_id = ?";
+            $params[] = $tenantId;
+        }
+
+        // Filtro de status
+        if ($status === 'active') {
+            $where[] = "c.status NOT IN ('closed', 'archived')";
+        } elseif ($status === 'closed') {
+            $where[] = "c.status IN ('closed', 'archived')";
+        }
+        // Se status = 'all', não filtra
+
+        $whereClause = "WHERE " . implode(" AND ", $where);
+
+        try {
+            $stmt = $db->prepare("
+                SELECT 
+                    c.id,
+                    c.conversation_key,
+                    c.channel_type,
+                    c.contact_external_id,
+                    c.contact_name,
+                    c.tenant_id,
+                    c.status,
+                    c.assigned_to,
+                    c.last_message_at,
+                    c.last_message_direction,
+                    c.message_count,
+                    c.unread_count,
+                    c.created_at,
+                    t.name as tenant_name,
+                    u.name as assigned_to_name
+                FROM conversations c
+                LEFT JOIN tenants t ON c.tenant_id = t.id
+                LEFT JOIN users u ON c.assigned_to = u.id
+                {$whereClause}
+                ORDER BY c.last_message_at DESC, c.created_at DESC
+                LIMIT 100
+            ");
+            $stmt->execute($params);
+            $conversations = $stmt->fetchAll() ?: [];
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro na query conversations: " . $e->getMessage());
+            return [];
+        }
+
+        // Formata para o formato esperado pela UI
+        $threads = [];
+        foreach ($conversations as $conv) {
+            $threads[] = [
+                'thread_id' => "whatsapp_{$conv['id']}",
+                'conversation_id' => $conv['id'],
+                'conversation_key' => $conv['conversation_key'],
+                'tenant_id' => $conv['tenant_id'] ?: null,
+                'tenant_name' => $conv['tenant_name'],
+                'contact' => $conv['contact_external_id'],
+                'contact_name' => $conv['contact_name'],
+                'last_activity' => $conv['last_message_at'] ?: $conv['created_at'],
+                'message_count' => (int) $conv['message_count'],
+                'inbound_count' => $conv['last_message_direction'] === 'inbound' ? 1 : 0, // Aproximação
+                'channel' => 'whatsapp',
+                'status' => $conv['status'],
+                'unread_count' => (int) $conv['unread_count'],
+                'assigned_to' => $conv['assigned_to'],
+                'assigned_to_name' => $conv['assigned_to_name']
+            ];
+        }
+
+        return $threads;
+    }
+
+    /**
+     * Busca threads de WhatsApp via eventos (fallback para compatibilidade)
+     */
+    private function getWhatsAppThreadsFromEvents(PDO $db, ?int $tenantId, string $status): array
     {
         // Verifica se a tabela existe
         try {
@@ -272,7 +371,8 @@ class CommunicationHubController extends Controller
         $where = ["ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')"];
         $params = [];
 
-        if ($tenantId) {
+        // IMPORTANTE: Não filtra por tenant_id se for NULL (mostra todas)
+        if ($tenantId !== null) {
             $where[] = "ce.tenant_id = ?";
             $params[] = $tenantId;
         }
@@ -306,17 +406,17 @@ class CommunicationHubController extends Controller
         $threadsMap = [];
         foreach ($events as $event) {
             $payload = json_decode($event['payload'], true);
-            $from = $payload['from'] ?? $payload['to'] ?? null;
+            $from = $payload['from'] ?? $payload['message']['from'] ?? $payload['to'] ?? null;
             
             if (!$from) continue;
             
-            $tenantId = $event['tenant_id'] ?? 0;
-            $threadKey = "{$tenantId}_{$from}";
+            $eventTenantId = $event['tenant_id'] ?? 0;
+            $threadKey = "{$eventTenantId}_{$from}";
             
             if (!isset($threadsMap[$threadKey])) {
                 $threadsMap[$threadKey] = [
-                    'thread_id' => "whatsapp_{$tenantId}_{$from}",
-                    'tenant_id' => $tenantId,
+                    'thread_id' => "whatsapp_{$eventTenantId}_{$from}",
+                    'tenant_id' => $eventTenantId ?: null,
                     'tenant_name' => $event['tenant_name'],
                     'contact' => $from,
                     'last_activity' => $event['created_at'],
@@ -411,64 +511,218 @@ class CommunicationHubController extends Controller
 
     /**
      * Busca mensagens WhatsApp
+     * 
+     * Suporta dois formatos de thread_id:
+     * - whatsapp_{conversation_id} (nova forma, via tabela conversations)
+     * - whatsapp_{tenant_id}_{from} (forma antiga, via eventos)
      */
     private function getWhatsAppMessages(PDO $db, string $threadId): array
     {
-        // Extrai tenant_id e from do thread_id (formato: whatsapp_{tenant_id}_{from})
+        // 1. Tenta formato novo: whatsapp_{conversation_id}
+        if (preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
+            $conversationId = (int) $matches[1];
+            return $this->getWhatsAppMessagesFromConversation($db, $conversationId);
+        }
+
+        // 2. Formato antigo: whatsapp_{tenant_id}_{from}
         if (preg_match('/whatsapp_(\d+)_(.+)/', $threadId, $matches)) {
             $tenantId = (int) $matches[1];
             $from = $matches[2];
-
-            // Busca todos os eventos e filtra em PHP (mais compatível)
-            $stmt = $db->prepare("
-                SELECT 
-                    ce.event_id,
-                    ce.event_type,
-                    ce.created_at,
-                    ce.payload,
-                    ce.metadata
-                FROM communication_events ce
-                WHERE ce.tenant_id = ?
-                AND ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
-                ORDER BY ce.created_at ASC
-            ");
-            $stmt->execute([$tenantId]);
-            $events = $stmt->fetchAll();
-
-            // Filtra e formata mensagens
-            $messages = [];
-            foreach ($events as $event) {
-                $payload = json_decode($event['payload'], true);
-                $eventFrom = $payload['from'] ?? null;
-                $eventTo = $payload['to'] ?? null;
-                
-                // Verifica se é desta conversa
-                if ($eventFrom !== $from && $eventTo !== $from) {
-                    continue;
-                }
-                
-                $direction = $event['event_type'] === 'whatsapp.inbound.message' ? 'inbound' : 'outbound';
-                
-                $messages[] = [
-                    'id' => $event['event_id'],
-                    'direction' => $direction,
-                    'content' => $payload['body'] ?? $payload['text'] ?? '',
-                    'timestamp' => $event['created_at'],
-                    'metadata' => json_decode($event['metadata'] ?? '{}', true)
-                ];
-            }
-
-            return $messages;
+            return $this->getWhatsAppMessagesFromEvents($db, $tenantId, $from);
         }
 
         return [];
     }
 
     /**
+     * Busca mensagens de uma conversa específica (nova forma)
+     */
+    private function getWhatsAppMessagesFromConversation(PDO $db, int $conversationId): array
+    {
+        // Busca a conversa para pegar o contact_external_id
+        $convStmt = $db->prepare("
+            SELECT conversation_key, contact_external_id, tenant_id, channel_type
+            FROM conversations
+            WHERE id = ?
+        ");
+        $convStmt->execute([$conversationId]);
+        $conversation = $convStmt->fetch();
+
+        if (!$conversation) {
+            return [];
+        }
+
+        $contactExternalId = $conversation['contact_external_id'];
+        $tenantId = $conversation['tenant_id'];
+
+        // Busca eventos relacionados a esta conversa
+        $where = [
+            "ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')"
+        ];
+        $params = [];
+
+        // Filtra por tenant se existir, senão busca por contact_external_id
+        if ($tenantId) {
+            $where[] = "ce.tenant_id = ?";
+            $params[] = $tenantId;
+        }
+
+        $whereClause = "WHERE " . implode(" AND ", $where);
+
+        $stmt = $db->prepare("
+            SELECT 
+                ce.event_id,
+                ce.event_type,
+                ce.created_at,
+                ce.payload,
+                ce.metadata
+            FROM communication_events ce
+            {$whereClause}
+            ORDER BY ce.created_at ASC
+        ");
+        $stmt->execute($params);
+        $events = $stmt->fetchAll();
+
+        // Filtra eventos desta conversa pelo contact_external_id
+        $messages = [];
+        foreach ($events as $event) {
+            $payload = json_decode($event['payload'], true);
+            $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
+            $eventTo = $payload['to'] ?? $payload['message']['to'] ?? null;
+            
+            // Normaliza para comparar (remove @c.us, @lid, etc)
+            $normalizeContact = function($contact) {
+                return preg_replace('/@[^.]+$/', '', $contact);
+            };
+            
+            $normalizedContact = $normalizeContact($contactExternalId);
+            $normalizedFrom = $eventFrom ? $normalizeContact($eventFrom) : null;
+            $normalizedTo = $eventTo ? $normalizeContact($eventTo) : null;
+            
+            // Verifica se é desta conversa
+            if ($normalizedFrom !== $normalizedContact && $normalizedTo !== $normalizedContact) {
+                continue;
+            }
+            
+            $direction = $event['event_type'] === 'whatsapp.inbound.message' ? 'inbound' : 'outbound';
+            
+            $messages[] = [
+                'id' => $event['event_id'],
+                'direction' => $direction,
+                'content' => $payload['body'] ?? $payload['text'] ?? $payload['message']['text'] ?? '',
+                'timestamp' => $event['created_at'],
+                'metadata' => json_decode($event['metadata'] ?? '{}', true)
+            ];
+        }
+
+        return $messages;
+    }
+
+    /**
+     * Busca mensagens via eventos (forma antiga, fallback)
+     */
+    private function getWhatsAppMessagesFromEvents(PDO $db, int $tenantId, string $from): array
+    {
+        // Busca todos os eventos e filtra em PHP (mais compatível)
+        $where = ["ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')"];
+        $params = [];
+
+        if ($tenantId > 0) {
+            $where[] = "ce.tenant_id = ?";
+            $params[] = $tenantId;
+        }
+
+        $whereClause = "WHERE " . implode(" AND ", $where);
+
+        $stmt = $db->prepare("
+            SELECT 
+                ce.event_id,
+                ce.event_type,
+                ce.created_at,
+                ce.payload,
+                ce.metadata
+            FROM communication_events ce
+            {$whereClause}
+            ORDER BY ce.created_at ASC
+        ");
+        $stmt->execute($params);
+        $events = $stmt->fetchAll();
+
+        // Filtra e formata mensagens
+        $messages = [];
+        foreach ($events as $event) {
+            $payload = json_decode($event['payload'], true);
+            $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
+            $eventTo = $payload['to'] ?? $payload['message']['to'] ?? null;
+            
+            // Verifica se é desta conversa
+            if ($eventFrom !== $from && $eventTo !== $from) {
+                continue;
+            }
+            
+            $direction = $event['event_type'] === 'whatsapp.inbound.message' ? 'inbound' : 'outbound';
+            
+            $messages[] = [
+                'id' => $event['event_id'],
+                'direction' => $direction,
+                'content' => $payload['body'] ?? $payload['text'] ?? $payload['message']['text'] ?? '',
+                'timestamp' => $event['created_at'],
+                'metadata' => json_decode($event['metadata'] ?? '{}', true)
+            ];
+        }
+
+        return $messages;
+    }
+
+    /**
      * Busca informações do thread WhatsApp
+     * 
+     * Suporta dois formatos:
+     * - whatsapp_{conversation_id} (nova forma)
+     * - whatsapp_{tenant_id}_{from} (forma antiga)
      */
     private function getWhatsAppThreadInfo(PDO $db, string $threadId): ?array
     {
+        // 1. Tenta formato novo: whatsapp_{conversation_id}
+        if (preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
+            $conversationId = (int) $matches[1];
+            
+            $stmt = $db->prepare("
+                SELECT 
+                    c.*,
+                    t.name as tenant_name,
+                    tmc.channel_id,
+                    u.name as assigned_to_name
+                FROM conversations c
+                LEFT JOIN tenants t ON c.tenant_id = t.id
+                LEFT JOIN tenant_message_channels tmc ON c.tenant_id = tmc.tenant_id AND tmc.provider = 'wpp_gateway' AND tmc.is_enabled = 1
+                LEFT JOIN users u ON c.assigned_to = u.id
+                WHERE c.id = ?
+            ");
+            $stmt->execute([$conversationId]);
+            $conversation = $stmt->fetch();
+
+            if ($conversation) {
+                return [
+                    'thread_id' => $threadId,
+                    'conversation_id' => $conversationId,
+                    'conversation_key' => $conversation['conversation_key'],
+                    'tenant_id' => $conversation['tenant_id'],
+                    'tenant_name' => $conversation['tenant_name'],
+                    'contact' => $conversation['contact_external_id'],
+                    'contact_name' => $conversation['contact_name'],
+                    'channel' => 'whatsapp',
+                    'channel_id' => $conversation['channel_id'],
+                    'status' => $conversation['status'],
+                    'assigned_to' => $conversation['assigned_to'],
+                    'assigned_to_name' => $conversation['assigned_to_name'],
+                    'message_count' => (int) $conversation['message_count'],
+                    'unread_count' => (int) $conversation['unread_count']
+                ];
+            }
+        }
+
+        // 2. Formato antigo: whatsapp_{tenant_id}_{from}
         if (preg_match('/whatsapp_(\d+)_(.+)/', $threadId, $matches)) {
             $tenantId = (int) $matches[1];
             $from = $matches[2];
