@@ -158,6 +158,28 @@ class EventIngestionService
             ));
         }
 
+        // Etapa 1: Resolve conversa (incremental, não quebra se falhar)
+        try {
+            $conversation = \PixelHub\Services\ConversationService::resolveConversation([
+                'event_type' => $eventType,
+                'source_system' => $sourceSystem,
+                'tenant_id' => $tenantId,
+                'payload' => $payload,
+                'metadata' => !empty($eventData['metadata']) ? $eventData['metadata'] : null,
+            ]);
+
+            if ($conversation && function_exists('pixelhub_log')) {
+                pixelhub_log(sprintf(
+                    '[EventIngestion] Conversa resolvida: conversation_id=%d, conversation_key=%s',
+                    $conversation['id'],
+                    $conversation['conversation_key']
+                ));
+            }
+        } catch (\Exception $e) {
+            // Não quebra fluxo se resolver conversa falhar
+            error_log("[EventIngestion] Erro ao resolver conversa (não crítico): " . $e->getMessage());
+        }
+
         return $eventId;
     }
 

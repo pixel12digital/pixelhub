@@ -224,22 +224,26 @@ Decide o que fazer com cada evento baseado em regras configuráveis.
 - [x] Migration `tenant_message_channels`
 - [x] Integração com WhatsAppGatewayClient
 
-### ⏳ Checkpoint 6: Testes End-to-End
-- [ ] Teste conexão: listChannels() e createChannel()
-- [ ] Teste QR: getQr() e validar conexão
-- [ ] Teste outbound: sendText()
-- [ ] Teste inbound: webhook do gateway → evento → roteamento
-- [ ] Teste idempotência: re-enviar mesmo evento
+### ✅ Checkpoint 6: Testes End-to-End
+- [x] Teste conexão: listChannels() e createChannel()
+- [x] Teste QR: getQr() e validar conexão
+- [x] Teste outbound: sendText()
+- [x] Teste inbound: webhook do gateway → evento → roteamento
+- [x] Teste idempotência: re-enviar mesmo evento
+
+**Validação Completa:** Ver [VALIDACAO_COMPLETA_WPP_GATEWAY_VPS_WRAPPER.md](./VALIDACAO_COMPLETA_WPP_GATEWAY_VPS_WRAPPER.md)
 
 ---
 
 ## Próximos Passos
 
-1. Executar migrations
-2. Configurar variáveis de ambiente
-3. Testar integração com gateway
-4. Configurar webhooks
-5. Testar fluxo completo (outbound + inbound)
+✅ **Infraestrutura Validada** — VPS, Docker, Gateway e WPPConnect estão 100% funcionais.
+
+**Foco Atual:** Configurações e melhorias exclusivamente no PixelHub:
+1. Processamento interno de eventos
+2. Regras de negócio e roteamento
+3. Filas e processamento assíncrono
+4. Interface e visualização de eventos
 
 ---
 
