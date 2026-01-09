@@ -117,9 +117,10 @@ class ConversationService
                 $contactExternalId = $payload['to'] ?? $payload['message']['to'] ?? null;
             }
             
-            // Remove sufixo @c.us se existir
+            // Remove sufixo @c.us, @lid, etc. se existir
+            // CORRIGIDO: remove tudo após @ (incluindo @c.us, @lid, etc)
             if ($contactExternalId && strpos($contactExternalId, '@') !== false) {
-                $contactExternalId = explode('@', $contactExternalId)[0];
+                $contactExternalId = preg_replace('/@.*$/', '', $contactExternalId);
             }
         } elseif ($channelType === 'email') {
             $direction = strpos($eventType, 'inbound') !== false ? 'inbound' : 'outbound';

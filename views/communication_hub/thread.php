@@ -64,7 +64,13 @@ $baseUrl = pixelhub_url('');
                                 <?= htmlspecialchars($msg['content'] ?? '') ?>
                             </div>
                             <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: right;">
-                                <?= date('d/m H:i', strtotime($msg['timestamp'] ?? $msg['created_at'] ?? 'now')) ?>
+                                <?php
+                                // Converte UTC para timezone local (-03:00)
+                                $msgTimestamp = $msg['timestamp'] ?? $msg['created_at'] ?? 'now';
+                                $msgDateTime = new DateTime($msgTimestamp, new DateTimeZone('UTC'));
+                                $msgDateTime->setTimezone(new DateTimeZone('America/Sao_Paulo')); // UTC-3
+                                echo $msgDateTime->format('d/m H:i');
+                                ?>
                             </div>
                         </div>
                     </div>

@@ -94,21 +94,34 @@ $baseUrl = pixelhub_url('');
                         <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                             <div style="flex: 1;">
                                 <div style="font-weight: 600; font-size: 14px; color: #333; margin-bottom: 4px;">
-                                    <?= htmlspecialchars($thread['tenant_name'] ?? 'Cliente') ?>
+                                    <?= htmlspecialchars($thread['contact_name'] ?? $thread['tenant_name'] ?? 'Cliente') ?>
                                 </div>
-                                <div style="font-size: 12px; color: #666; display: flex; align-items: center; gap: 6px;">
+                                <div style="font-size: 12px; color: #666; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                                     <?php if ($thread['channel'] === 'whatsapp'): ?>
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
                                         </svg>
-                                        <?= htmlspecialchars($thread['contact'] ?? 'Número não identificado') ?>
+                                        <span><?= htmlspecialchars($thread['contact'] ?? 'Número não identificado') ?></span>
+                                        <?php if (isset($thread['channel_type'])): ?>
+                                            <span style="opacity: 0.7;">• <?= strtoupper($thread['channel_type']) ?></span>
+                                        <?php endif; ?>
                                     <?php else: ?>
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                                         </svg>
-                                        Chat Interno
+                                        <span>Chat Interno</span>
+                                    <?php endif; ?>
+                                    <?php if (isset($thread['tenant_name']) && $thread['tenant_name'] !== 'Sem tenant'): ?>
+                                        <span style="opacity: 0.7;">• <?= htmlspecialchars($thread['tenant_name']) ?></span>
+                                    <?php elseif (!isset($thread['tenant_name']) || $thread['tenant_id'] === null): ?>
+                                        <span style="opacity: 0.7; font-size: 10px;">• Sem tenant</span>
                                     <?php endif; ?>
                                 </div>
+                                <?php if (isset($thread['conversation_key']) && defined('APP_DEBUG') && APP_DEBUG): ?>
+                                    <div style="font-size: 10px; color: #999; margin-top: 2px; opacity: 0.6;">
+                                        <?= htmlspecialchars($thread['conversation_key']) ?>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                             <div style="text-align: right;">
                                 <?php if (($thread['unread_count'] ?? 0) > 0): ?>
@@ -120,7 +133,13 @@ $baseUrl = pixelhub_url('');
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #999;">
                             <span><?= $thread['message_count'] ?? 0 ?> mensagens</span>
-                            <span><?= date('d/m H:i', strtotime($thread['last_activity'] ?? 'now')) ?></span>
+                            <?php
+                            // Converte UTC para timezone local (-03:00)
+                            $lastActivity = $thread['last_activity'] ?? 'now';
+                            $dateTime = new DateTime($lastActivity, new DateTimeZone('UTC'));
+                            $dateTime->setTimezone(new DateTimeZone('America/Sao_Paulo')); // UTC-3
+                            ?>
+                            <span><?= $dateTime->format('d/m H:i') ?></span>
                         </div>
                     </a>
                 <?php endforeach; ?>

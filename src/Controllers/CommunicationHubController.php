@@ -146,6 +146,11 @@ class CommunicationHubController extends Controller
             // Busca mensagens WhatsApp via eventos
             $messages = $this->getWhatsAppMessages($db, $threadId);
             $thread = $this->getWhatsAppThreadInfo($db, $threadId);
+            
+            // Marca conversa como lida ao abrir (mark as read)
+            if ($thread && isset($thread['conversation_id'])) {
+                $this->markConversationAsRead($db, (int) $thread['conversation_id']);
+            }
         } else {
             // Busca mensagens de chat interno
             $messages = $this->getChatMessages($db, $threadId);
@@ -160,9 +165,29 @@ class CommunicationHubController extends Controller
     }
 
     /**
+     * Marca conversa como lida
+     */
+    private function markConversationAsRead(PDO $db, int $conversationId): void
+    {
+        try {
+            $stmt = $db->prepare("
+                UPDATE conversations 
+                SET unread_count = 0,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$conversationId]);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao marcar conversa como lida: " . $e->getMessage());
+            // Não quebra fluxo se falhar
+        }
+    }
+
+    /**
      * Envia mensagem
      * 
      * POST /communication-hub/send
+     * CORRIGIDO: tenant_id agora é opcional (pode ser inferido da conversa)
      */
     public function send(): void
     {
@@ -173,7 +198,7 @@ class CommunicationHubController extends Controller
         $threadId = $_POST['thread_id'] ?? null;
         $to = $_POST['to'] ?? null; // phone, email, etc
         $message = trim($_POST['message'] ?? '');
-        $tenantId = isset($_POST['tenant_id']) ? (int) $_POST['tenant_id'] : null;
+        $tenantId = isset($_POST['tenant_id']) && $_POST['tenant_id'] !== '' ? (int) $_POST['tenant_id'] : null;
 
         if (empty($channel) || empty($message)) {
             $this->json(['success' => false, 'error' => 'Canal e mensagem são obrigatórios'], 400);
@@ -182,27 +207,59 @@ class CommunicationHubController extends Controller
 
         try {
             if ($channel === 'whatsapp') {
-                if (empty($tenantId) || empty($to)) {
-                    $this->json(['success' => false, 'error' => 'tenant_id e to são obrigatórios para WhatsApp'], 400);
+                if (empty($to)) {
+                    $this->json(['success' => false, 'error' => 'to (telefone) é obrigatório para WhatsApp'], 400);
                     return;
                 }
-
-                // Busca channel do tenant
+                
+                // Se tenant_id não foi fornecido, tenta inferir da conversa (thread_id)
                 $db = DB::getConnection();
-                $channelStmt = $db->prepare("
-                    SELECT channel_id 
-                    FROM tenant_message_channels 
-                    WHERE tenant_id = ? 
-                    AND provider = 'wpp_gateway' 
-                    AND is_enabled = 1
-                    LIMIT 1
-                ");
-                $channelStmt->execute([$tenantId]);
-                $channelData = $channelStmt->fetch();
+                if (!$tenantId && !empty($threadId) && preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
+                    $conversationId = (int) $matches[1];
+                    $convStmt = $db->prepare("SELECT tenant_id FROM conversations WHERE id = ?");
+                    $convStmt->execute([$conversationId]);
+                    $conv = $convStmt->fetch();
+                    if ($conv && $conv['tenant_id']) {
+                        $tenantId = (int) $conv['tenant_id'];
+                    }
+                }
 
-                if (!$channelData) {
-                    $this->json(['success' => false, 'error' => 'Channel WhatsApp não configurado para este tenant'], 400);
-                    return;
+                // Busca channel do tenant (ou canal compartilhado se tenant_id for NULL)
+                if ($tenantId) {
+                    $channelStmt = $db->prepare("
+                        SELECT channel_id 
+                        FROM tenant_message_channels 
+                        WHERE tenant_id = ? 
+                        AND provider = 'wpp_gateway' 
+                        AND is_enabled = 1
+                        LIMIT 1
+                    ");
+                    $channelStmt->execute([$tenantId]);
+                    $channelData = $channelStmt->fetch();
+
+                    if (!$channelData) {
+                        $this->json(['success' => false, 'error' => 'Channel WhatsApp não configurado para este tenant'], 400);
+                        return;
+                    }
+                    $channelId = $channelData['channel_id'];
+                } else {
+                    // Se não tem tenant, tenta usar canal compartilhado/default (qualquer canal habilitado)
+                    // TODO: Implementar configuração de canal compartilhado/default explícito
+                    $channelStmt = $db->prepare("
+                        SELECT channel_id 
+                        FROM tenant_message_channels 
+                        WHERE provider = 'wpp_gateway' 
+                        AND is_enabled = 1
+                        LIMIT 1
+                    ");
+                    $channelStmt->execute();
+                    $channelData = $channelStmt->fetch();
+
+                    if (!$channelData) {
+                        $this->json(['success' => false, 'error' => 'Nenhum canal WhatsApp configurado no sistema'], 400);
+                        return;
+                    }
+                    $channelId = $channelData['channel_id'];
                 }
 
                 // Normaliza telefone
@@ -214,7 +271,7 @@ class CommunicationHubController extends Controller
 
                 // Envia via gateway
                 $gateway = new WhatsAppGatewayClient();
-                $result = $gateway->sendText($channelData['channel_id'], $phoneNormalized, $message, [
+                $result = $gateway->sendText($channelId, $phoneNormalized, $message, [
                     'sent_by' => Auth::user()['id'] ?? null,
                     'sent_by_name' => Auth::user()['name'] ?? null
                 ]);
@@ -227,7 +284,7 @@ class CommunicationHubController extends Controller
                         'payload' => [
                             'to' => $phoneNormalized,
                             'text' => $message,
-                            'channel_id' => $channelData['channel_id']
+                            'channel_id' => $channelId
                         ],
                         'tenant_id' => $tenantId,
                         'metadata' => [
@@ -312,7 +369,7 @@ class CommunicationHubController extends Controller
                     c.message_count,
                     c.unread_count,
                     c.created_at,
-                    t.name as tenant_name,
+                    COALESCE(t.name, 'Sem tenant') as tenant_name,
                     u.name as assigned_to_name
                 FROM conversations c
                 LEFT JOIN tenants t ON c.tenant_id = t.id
@@ -331,23 +388,24 @@ class CommunicationHubController extends Controller
         // Formata para o formato esperado pela UI
         $threads = [];
         foreach ($conversations as $conv) {
-            $threads[] = [
-                'thread_id' => "whatsapp_{$conv['id']}",
-                'conversation_id' => $conv['id'],
-                'conversation_key' => $conv['conversation_key'],
-                'tenant_id' => $conv['tenant_id'] ?: null,
-                'tenant_name' => $conv['tenant_name'],
-                'contact' => $conv['contact_external_id'],
-                'contact_name' => $conv['contact_name'],
-                'last_activity' => $conv['last_message_at'] ?: $conv['created_at'],
-                'message_count' => (int) $conv['message_count'],
-                'inbound_count' => $conv['last_message_direction'] === 'inbound' ? 1 : 0, // Aproximação
-                'channel' => 'whatsapp',
-                'status' => $conv['status'],
-                'unread_count' => (int) $conv['unread_count'],
-                'assigned_to' => $conv['assigned_to'],
-                'assigned_to_name' => $conv['assigned_to_name']
-            ];
+                    $threads[] = [
+                        'thread_id' => "whatsapp_{$conv['id']}",
+                        'conversation_id' => $conv['id'],
+                        'conversation_key' => $conv['conversation_key'],
+                        'tenant_id' => $conv['tenant_id'] ?: null,
+                        'tenant_name' => $conv['tenant_name'] ?: 'Sem tenant',
+                        'contact' => $conv['contact_external_id'],
+                        'contact_name' => $conv['contact_name'],
+                        'last_activity' => $conv['last_message_at'] ?: $conv['created_at'],
+                        'message_count' => (int) $conv['message_count'],
+                        'inbound_count' => $conv['last_message_direction'] === 'inbound' ? 1 : 0, // Aproximação
+                        'channel' => 'whatsapp',
+                        'channel_type' => $conv['channel_type'], // Adiciona contexto
+                        'status' => $conv['status'],
+                        'unread_count' => (int) $conv['unread_count'],
+                        'assigned_to' => $conv['assigned_to'],
+                        'assigned_to_name' => $conv['assigned_to_name']
+                    ];
         }
 
         return $threads;
@@ -536,6 +594,8 @@ class CommunicationHubController extends Controller
 
     /**
      * Busca mensagens de uma conversa específica (nova forma)
+     * 
+     * CORRIGIDO: Agora busca corretamente mesmo quando tenant_id é NULL
      */
     private function getWhatsAppMessagesFromConversation(PDO $db, int $conversationId): array
     {
@@ -555,61 +615,81 @@ class CommunicationHubController extends Controller
         $contactExternalId = $conversation['contact_external_id'];
         $tenantId = $conversation['tenant_id'];
 
-        // Busca eventos relacionados a esta conversa
-        $where = [
-            "ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')"
-        ];
-        $params = [];
+        // Normaliza contact_external_id (remove sufixos @c.us, @lid, etc)
+        // CORRIGIDO: Regex agora remove tudo após @ (incluindo @c.us, @lid, etc)
+        $normalizeContact = function($contact) {
+            if (empty($contact)) return null;
+            // Remove tudo após @ (ex: 554796164699@c.us -> 554796164699)
+            return preg_replace('/@.*$/', '', (string) $contact);
+        };
+        $normalizedContactExternalId = $normalizeContact($contactExternalId);
 
-        // Filtra por tenant se existir, senão busca por contact_external_id
-        if ($tenantId) {
-            $where[] = "ce.tenant_id = ?";
-            $params[] = $tenantId;
-        }
-
-        $whereClause = "WHERE " . implode(" AND ", $where);
-
+        // Busca TODOS os eventos WhatsApp (tenant_id pode ser NULL)
+        // Filtra em PHP para garantir que pega todas as variações do contato
         $stmt = $db->prepare("
             SELECT 
                 ce.event_id,
                 ce.event_type,
                 ce.created_at,
                 ce.payload,
-                ce.metadata
+                ce.metadata,
+                ce.tenant_id
             FROM communication_events ce
-            {$whereClause}
+            WHERE ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
             ORDER BY ce.created_at ASC
         ");
-        $stmt->execute($params);
-        $events = $stmt->fetchAll();
+        $stmt->execute();
+        $allEvents = $stmt->fetchAll();
 
-        // Filtra eventos desta conversa pelo contact_external_id
+        // Filtra eventos desta conversa pelo contact_external_id (normalizado)
         $messages = [];
-        foreach ($events as $event) {
+        foreach ($allEvents as $event) {
             $payload = json_decode($event['payload'], true);
             $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
             $eventTo = $payload['to'] ?? $payload['message']['to'] ?? null;
             
-            // Normaliza para comparar (remove @c.us, @lid, etc)
-            $normalizeContact = function($contact) {
-                return preg_replace('/@[^.]+$/', '', $contact);
-            };
-            
-            $normalizedContact = $normalizeContact($contactExternalId);
+            // Normaliza para comparar
             $normalizedFrom = $eventFrom ? $normalizeContact($eventFrom) : null;
             $normalizedTo = $eventTo ? $normalizeContact($eventTo) : null;
             
-            // Verifica se é desta conversa
-            if ($normalizedFrom !== $normalizedContact && $normalizedTo !== $normalizedContact) {
+            // Verifica se é desta conversa (inbound ou outbound)
+            // CORRIGIDO: Verificação mais robusta (compara strings normalizadas)
+            $isFromThisContact = !empty($normalizedFrom) && $normalizedFrom === $normalizedContactExternalId;
+            $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContactExternalId;
+            
+            if (!$isFromThisContact && !$isToThisContact) {
                 continue;
             }
             
+            // Verifica se tenant_id bate (se ambos tiverem tenant_id definido)
+            if ($tenantId && $event['tenant_id'] && $event['tenant_id'] != $tenantId) {
+                continue;
+            }
+            
+            // Se conversation tem tenant_id mas evento não tem, aceita (fallback)
+            // Se evento tem tenant_id mas conversation não, aceita (atualização)
+            
             $direction = $event['event_type'] === 'whatsapp.inbound.message' ? 'inbound' : 'outbound';
+            
+            // Extrai conteúdo da mensagem (suporta diferentes formatos de payload)
+            $content = $payload['text'] 
+                ?? $payload['body'] 
+                ?? $payload['message']['text'] 
+                ?? $payload['message']['body'] 
+                ?? '';
+            
+            // Se for mídia, mostra tipo
+            if (empty($content)) {
+                if (isset($payload['type']) || isset($payload['message']['type'])) {
+                    $mediaType = $payload['type'] ?? $payload['message']['type'] ?? 'media';
+                    $content = "[{$mediaType}]";
+                }
+            }
             
             $messages[] = [
                 'id' => $event['event_id'],
                 'direction' => $direction,
-                'content' => $payload['body'] ?? $payload['text'] ?? $payload['message']['text'] ?? '',
+                'content' => $content,
                 'timestamp' => $event['created_at'],
                 'metadata' => json_decode($event['metadata'] ?? '{}', true)
             ];
