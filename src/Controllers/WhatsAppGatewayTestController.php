@@ -781,6 +781,26 @@ class WhatsAppGatewayTestController extends Controller
             ], JSON_UNESCAPED_UNICODE);
             exit;
 
+        } catch (\PDOException $e) {
+            error_log("[WhatsAppGatewayTest::simulateWebhook] PDOException: " . $e->getMessage());
+            error_log("[WhatsAppGatewayTest::simulateWebhook] SQL State: " . $e->getCode());
+            error_log("[WhatsAppGatewayTest::simulateWebhook] Stack trace: " . $e->getTraceAsString());
+            
+            // Verifica se é erro de tabela não encontrada
+            if ($e->getCode() == '42S02') {
+                $errorMessage = 'Tabela communication_events não encontrada. Execute a migration primeiro.';
+            } else {
+                $errorMessage = 'Erro no banco de dados: ' . $e->getMessage();
+            }
+            
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Erro interno do servidor',
+                'code' => 'INTERNAL_ERROR',
+                'message' => $errorMessage
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
         } catch (\RuntimeException $e) {
             error_log("[WhatsAppGatewayTest::simulateWebhook] RuntimeException: " . $e->getMessage());
             error_log("[WhatsAppGatewayTest::simulateWebhook] Stack trace: " . $e->getTraceAsString());

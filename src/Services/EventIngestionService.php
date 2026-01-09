@@ -27,6 +27,20 @@ class EventIngestionService
     {
         $db = DB::getConnection();
 
+        // Verifica se a tabela existe
+        try {
+            $checkStmt = $db->query("SHOW TABLES LIKE 'communication_events'");
+            if ($checkStmt->rowCount() === 0) {
+                throw new \RuntimeException(
+                    'Tabela communication_events não existe. Execute a migration: 20250201_create_communication_events_table'
+                );
+            }
+        } catch (\PDOException $e) {
+            throw new \RuntimeException(
+                'Erro ao verificar se tabela communication_events existe: ' . $e->getMessage()
+            );
+        }
+
         // Valida campos obrigatórios
         $eventType = $eventData['event_type'] ?? null;
         $sourceSystem = $eventData['source_system'] ?? null;
@@ -64,30 +78,74 @@ class EventIngestionService
 
         // Prepara dados
         $tenantId = !empty($eventData['tenant_id']) ? (int) $eventData['tenant_id'] : null;
+        
+        // Valida tenant_id se fornecido (verifica se existe na tabela tenants)
+        if ($tenantId !== null) {
+            try {
+                $checkTenantStmt = $db->prepare("SELECT id FROM tenants WHERE id = ? LIMIT 1");
+                $checkTenantStmt->execute([$tenantId]);
+                if ($checkTenantStmt->rowCount() === 0) {
+                    // Se tenant não existe, permite continuar mas loga aviso (foreign key permitirá NULL)
+                    error_log("[EventIngestionService::ingest] AVISO: tenant_id {$tenantId} não encontrado na tabela tenants. Continuando com tenant_id=NULL.");
+                    $tenantId = null; // Define como null para evitar erro de foreign key
+                }
+            } catch (\PDOException $e) {
+                // Se erro ao verificar tenant, loga mas continua (pode ser problema temporário)
+                error_log("[EventIngestionService::ingest] AVISO: Erro ao verificar tenant_id {$tenantId}: " . $e->getMessage() . ". Continuando...");
+                $tenantId = null;
+            }
+        }
+        
+        // Converte payload para JSON com validação
         $payloadJson = json_encode($payload, \JSON_UNESCAPED_UNICODE);
-        $metadataJson = !empty($eventData['metadata']) 
-            ? json_encode($eventData['metadata'], \JSON_UNESCAPED_UNICODE) 
-            : null;
+        if ($payloadJson === false) {
+            $jsonError = json_last_error_msg();
+            throw new \InvalidArgumentException("Erro ao serializar payload para JSON: {$jsonError}");
+        }
+        
+        // Converte metadata para JSON com validação (pode ser null)
+        $metadataJson = null;
+        if (!empty($eventData['metadata'])) {
+            $metadataJson = json_encode($eventData['metadata'], \JSON_UNESCAPED_UNICODE);
+            if ($metadataJson === false) {
+                $jsonError = json_last_error_msg();
+                throw new \InvalidArgumentException("Erro ao serializar metadata para JSON: {$jsonError}");
+            }
+        }
 
         // Insere evento
-        $stmt = $db->prepare("
-            INSERT INTO communication_events 
-            (event_id, idempotency_key, event_type, source_system, tenant_id, 
-             trace_id, correlation_id, payload, metadata, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', NOW(), NOW())
-        ");
+        try {
+            $stmt = $db->prepare("
+                INSERT INTO communication_events 
+                (event_id, idempotency_key, event_type, source_system, tenant_id, 
+                 trace_id, correlation_id, payload, metadata, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', NOW(), NOW())
+            ");
 
-        $stmt->execute([
-            $eventId,
-            $idempotencyKey,
-            $eventType,
-            $sourceSystem,
-            $tenantId,
-            $traceId,
-            $correlationId,
-            $payloadJson,
-            $metadataJson
-        ]);
+            $stmt->execute([
+                $eventId,
+                $idempotencyKey,
+                $eventType,
+                $sourceSystem,
+                $tenantId,
+                $traceId,
+                $correlationId,
+                $payloadJson,
+                $metadataJson
+            ]);
+        } catch (\PDOException $e) {
+            // Log detalhado do erro do banco de dados
+            error_log("[EventIngestionService::ingest] PDOException: " . $e->getMessage());
+            error_log("[EventIngestionService::ingest] SQL State: " . $e->getCode());
+            error_log("[EventIngestionService::ingest] Payload JSON: " . substr($payloadJson, 0, 200));
+            error_log("[EventIngestionService::ingest] Metadata JSON: " . ($metadataJson ? substr($metadataJson, 0, 200) : 'NULL'));
+            
+            // Re-lança como RuntimeException com mensagem mais clara
+            throw new \RuntimeException(
+                "Erro ao inserir evento no banco de dados: " . $e->getMessage() . 
+                " (SQL State: " . $e->getCode() . ")"
+            );
+        }
 
         // Log
         if (function_exists('pixelhub_log')) {
@@ -127,8 +185,27 @@ class EventIngestionService
         }
 
         // Senão, usa hash do payload
-        $payloadHash = md5(json_encode($payload, \JSON_UNESCAPED_UNICODE | \JSON_SORT_KEYS));
+        // Ordena as chaves do payload recursivamente para garantir hash consistente
+        $payloadSorted = self::sortArrayKeysRecursive($payload);
+        $payloadHash = md5(json_encode($payloadSorted, \JSON_UNESCAPED_UNICODE));
         return sprintf('%s:%s:%s', $sourceSystem, $eventType, $payloadHash);
+    }
+
+    /**
+     * Ordena recursivamente as chaves de um array para garantir hash consistente
+     * 
+     * @param array $array Array para ordenar
+     * @return array Array com chaves ordenadas
+     */
+    private static function sortArrayKeysRecursive(array $array): array
+    {
+        ksort($array);
+        foreach ($array as $key => $value) {
+            if (is_array($value)) {
+                $array[$key] = self::sortArrayKeysRecursive($value);
+            }
+        }
+        return $array;
     }
 
     /**
