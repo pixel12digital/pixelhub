@@ -509,6 +509,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/settings/whatsapp-gateway', 'WhatsAppGatewaySettingsController@index');
     $router->post('/settings/whatsapp-gateway', 'WhatsAppGatewaySettingsController@update');
     $router->post('/settings/whatsapp-gateway/test-connection', 'WhatsAppGatewaySettingsController@testConnection');
+    $router->get('/settings/whatsapp-gateway/check', 'WhatsAppGatewaySettingsController@checkProduction');
     
     // Testes do WhatsApp Gateway
     $router->get('/settings/whatsapp-gateway/test', 'WhatsAppGatewayTestController@index');

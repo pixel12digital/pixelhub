@@ -441,5 +441,239 @@ class WhatsAppGatewaySettingsController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Verifica se todos os arquivos necessários estão presentes em produção
+     * 
+     * GET /settings/whatsapp-gateway/check
+     */
+    public function checkProduction(): void
+    {
+        // Permite acesso sem autenticação para verificação rápida
+        // Mas idealmente só deve ser usado em ambiente de desenvolvimento/staging
+        
+        header('Content-Type: text/html; charset=utf-8');
+        
+        echo "<!DOCTYPE html>
+<html>
+<head>
+    <title>Verificação WhatsApp Gateway - Produção</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            color: #023A8D; 
+            border-bottom: 3px solid #023A8D;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #333;
+            margin-top: 30px;
+            border-left: 4px solid #023A8D;
+            padding-left: 10px;
+        }
+        .ok { 
+            color: green; 
+            font-weight: bold;
+        }
+        .error { 
+            color: red; 
+            font-weight: bold;
+        }
+        .warning {
+            color: orange;
+            font-weight: bold;
+        }
+        .info { 
+            color: blue; 
+        }
+        pre { 
+            background: #f5f5f5; 
+            padding: 15px; 
+            border-radius: 5px;
+            border-left: 4px solid #023A8D;
+            overflow-x: auto;
+        }
+        .check-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 4px solid #ddd;
+            padding-left: 15px;
+        }
+        .check-item.ok { border-left-color: green; }
+        .check-item.error { border-left-color: red; }
+        .check-item.warning { border-left-color: orange; }
+        .summary {
+            background: #e8f4f8;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #023A8D;
+        }
+        .summary h3 {
+            margin-top: 0;
+            color: #023A8D;
+        }
+        code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+<div class=\"container\">";
+
+        echo "<h1>🔍 Verificação WhatsApp Gateway - Produção</h1>\n";
+        echo "<p>Este script verifica se todos os arquivos e configurações necessários para o WhatsApp Gateway estão presentes.</p>\n";
+
+        $checks = [];
+        $errors = [];
+        $warnings = [];
+
+        // 1. Verificar arquivos essenciais
+        echo "<h2>1. Arquivos Essenciais</h2>\n";
+
+        $requiredFiles = [
+            'src/Controllers/WhatsAppGatewaySettingsController.php' => 'Controller principal de configurações',
+            'src/Controllers/WhatsAppGatewayTestController.php' => 'Controller de testes',
+            'src/Integrations/WhatsAppGateway/WhatsAppGatewayClient.php' => 'Cliente do gateway',
+            'views/settings/whatsapp_gateway.php' => 'View de configurações',
+            'views/settings/whatsapp_gateway_test.php' => 'View de testes',
+        ];
+
+        foreach ($requiredFiles as $file => $description) {
+            $fullPath = __DIR__ . '/../../' . $file;
+            $exists = file_exists($fullPath);
+            
+            if ($exists) {
+                $checks[] = ['type' => 'ok', 'message' => "✅ {$description}: <code>{$file}</code>"];
+                echo "<div class=\"check-item ok\">✅ {$description}: <code>{$file}</code></div>\n";
+            } else {
+                $error = "❌ {$description}: <code>{$file}</code> NÃO ENCONTRADO";
+                $checks[] = ['type' => 'error', 'message' => $error];
+                $errors[] = $error;
+                echo "<div class=\"check-item error\">{$error}</div>\n";
+            }
+        }
+
+        // 2. Verificar rotas no index.php
+        echo "<h2>2. Rotas Registradas</h2>\n";
+
+        $indexPath = __DIR__ . '/../../public/index.php';
+        if (file_exists($indexPath)) {
+            $indexContent = file_get_contents($indexPath);
+            
+            $requiredRoutes = [
+                '/settings/whatsapp-gateway' => 'Rota principal de configurações',
+                '/settings/whatsapp-gateway/test' => 'Rota de testes',
+                'WhatsAppGatewaySettingsController' => 'Controller de configurações referenciado',
+                'WhatsAppGatewayTestController' => 'Controller de testes referenciado',
+            ];
+            
+            foreach ($requiredRoutes as $search => $description) {
+                if (strpos($indexContent, $search) !== false) {
+                    $checks[] = ['type' => 'ok', 'message' => "✅ {$description}: encontrada em index.php"];
+                    echo "<div class=\"check-item ok\">✅ {$description}: encontrada em <code>index.php</code></div>\n";
+                } else {
+                    $error = "❌ {$description}: NÃO encontrada em index.php";
+                    $checks[] = ['type' => 'error', 'message' => $error];
+                    $errors[] = $error;
+                    echo "<div class=\"check-item error\">{$error}</div>\n";
+                }
+            }
+        } else {
+            $error = "❌ Arquivo index.php não encontrado!";
+            $checks[] = ['type' => 'error', 'message' => $error];
+            $errors[] = $error;
+            echo "<div class=\"check-item error\">{$error}</div>\n";
+        }
+
+        // 3. Verificar menu no layout
+        echo "<h2>3. Menu de Navegação</h2>\n";
+
+        $layoutPath = __DIR__ . '/../../views/layout/main.php';
+        if (file_exists($layoutPath)) {
+            $layoutContent = file_get_contents($layoutPath);
+            
+            if (strpos($layoutContent, '/settings/whatsapp-gateway') !== false) {
+                $checks[] = ['type' => 'ok', 'message' => '✅ Link do WhatsApp Gateway encontrado no menu'];
+                echo "<div class=\"check-item ok\">✅ Link do WhatsApp Gateway encontrado no menu (main.php)</div>\n";
+            } else {
+                $error = "❌ Link do WhatsApp Gateway NÃO encontrado no menu!";
+                $checks[] = ['type' => 'error', 'message' => $error];
+                $errors[] = $error;
+                echo "<div class=\"check-item error\">{$error}</div>\n";
+            }
+            
+            if (strpos($layoutContent, 'WhatsApp Gateway') !== false) {
+                $checks[] = ['type' => 'ok', 'message' => '✅ Texto "WhatsApp Gateway" encontrado no menu'];
+                echo "<div class=\"check-item ok\">✅ Texto \"WhatsApp Gateway\" encontrado no menu</div>\n";
+            } else {
+                $warning = "⚠️ Texto \"WhatsApp Gateway\" não encontrado no menu (pode estar usando outra descrição)";
+                $checks[] = ['type' => 'warning', 'message' => $warning];
+                $warnings[] = $warning;
+                echo "<div class=\"check-item warning\">{$warning}</div>\n";
+            }
+        } else {
+            $error = "❌ Arquivo views/layout/main.php não encontrado!";
+            $checks[] = ['type' => 'error', 'message' => $error];
+            $errors[] = $error;
+            echo "<div class=\"check-item error\">{$error}</div>\n";
+        }
+
+        // Resumo
+        echo "<div class=\"summary\">";
+        echo "<h3>📊 Resumo da Verificação</h3>\n";
+
+        $okCount = count(array_filter($checks, fn($c) => $c['type'] === 'ok'));
+        $errorCount = count($errors);
+        $warningCount = count($warnings);
+
+        echo "<p><strong>Total de verificações:</strong> " . count($checks) . "</p>\n";
+        echo "<p class=\"ok\">✅ Sucesso: {$okCount}</p>\n";
+        if ($warningCount > 0) {
+            echo "<p class=\"warning\">⚠️ Avisos: {$warningCount}</p>\n";
+        }
+        if ($errorCount > 0) {
+            echo "<p class=\"error\">❌ Erros: {$errorCount}</p>\n";
+        }
+
+        if ($errorCount === 0) {
+            echo "<p class=\"ok\" style=\"font-size: 18px; margin-top: 20px;\">✅ <strong>Todos os arquivos essenciais estão presentes!</strong></p>\n";
+            echo "<p>Se ainda não estiver vendo o WhatsApp Gateway no menu, pode ser:</p>\n";
+            echo "<ul>\n";
+            echo "<li>Cache do navegador - limpe o cache ou use Ctrl+F5</li>\n";
+            echo "<li>Cache do servidor - reinicie o servidor web ou limpe opcache do PHP</li>\n";
+            echo "<li>Permissões de arquivo - verifique se os arquivos têm permissões corretas</li>\n";
+            echo "</ul>\n";
+        } else {
+            echo "<p class=\"error\" style=\"font-size: 18px; margin-top: 20px;\">❌ <strong>Encontrados {$errorCount} erro(s) que precisam ser corrigidos!</strong></p>\n";
+            echo "<p><strong>Arquivos faltando:</strong></p>\n";
+            echo "<ul>\n";
+            foreach ($errors as $error) {
+                echo "<li class=\"error\">" . strip_tags($error) . "</li>\n";
+            }
+            echo "</ul>\n";
+            echo "<p><strong>Ação necessária:</strong> Faça upload dos arquivos faltantes do ambiente local para produção.</p>\n";
+        }
+
+        echo "</div>";
+
+        echo "</div></body></html>";
+        exit;
+    }
 }
 
