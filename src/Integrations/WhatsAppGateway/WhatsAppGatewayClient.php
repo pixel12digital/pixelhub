@@ -99,6 +99,15 @@ class WhatsAppGatewayClient
         if ($response['success'] && isset($response['raw'])) {
             $raw = $response['raw'];
             $response['message_id'] = $raw['id'] ?? $raw['messageId'] ?? $raw['message_id'] ?? null;
+            
+            // Extrai correlationId (referência principal para rastreamento assíncrono)
+            $response['correlationId'] = $raw['correlationId'] 
+                ?? $raw['correlation_id'] 
+                ?? $raw['trace_id'] 
+                ?? $raw['traceId']
+                ?? $raw['request_id']
+                ?? $raw['requestId']
+                ?? null;
         }
 
         return $response;
@@ -150,6 +159,12 @@ class WhatsAppGatewayClient
     private function request(string $method, string $endpoint, ?array $data = null): array
     {
         $url = $this->baseUrl . $endpoint;
+        
+        // LOG TEMPORÁRIO: URL e header (sem expor secret completo)
+        $secretPreview = !empty($this->secret) ? (substr($this->secret, 0, 4) . '...' . substr($this->secret, -4) . ' (len=' . strlen($this->secret) . ')') : 'VAZIO';
+        $headerSet = !empty($this->secret) ? 'SIM' : 'NÃO';
+        error_log("[WhatsAppGateway::request] URL: {$url}");
+        error_log("[WhatsAppGateway::request] Header X-Gateway-Secret configurado: {$headerSet} - Preview: {$secretPreview}");
 
         $ch = curl_init($url);
         
@@ -158,6 +173,17 @@ class WhatsAppGatewayClient
             'Content-Type: application/json',
             'Accept: application/json'
         ];
+        
+        // LOG TEMPORÁRIO: headers montados (sem secret completo)
+        $headersForLog = array_map(function($h) {
+            if (strpos($h, 'X-Gateway-Secret:') === 0) {
+                $secretValue = substr($h, 17); // Remove "X-Gateway-Secret: "
+                $preview = !empty($secretValue) ? (substr($secretValue, 0, 4) . '...' . substr($secretValue, -4)) : 'VAZIO';
+                return 'X-Gateway-Secret: ' . $preview . ' (len=' . strlen($secretValue) . ')';
+            }
+            return $h;
+        }, $headers);
+        error_log("[WhatsAppGateway::request] Headers: " . json_encode($headersForLog, JSON_UNESCAPED_UNICODE));
 
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -176,6 +202,15 @@ class WhatsAppGatewayClient
         $error = curl_error($ch);
         curl_close($ch);
 
+        // LOG TEMPORÁRIO: status code e body bruto
+        error_log("[WhatsAppGateway::request] Response HTTP Status: {$httpCode}");
+        if ($error) {
+            error_log("[WhatsAppGateway::request] cURL Error: {$error}");
+        } else {
+            $bodyPreview = strlen($response) > 500 ? (substr($response, 0, 500) . '... (truncated)') : $response;
+            error_log("[WhatsAppGateway::request] Response body (primeiros 500 chars): " . $bodyPreview);
+        }
+
         // Log (sem expor secret)
         if (function_exists('pixelhub_log')) {
             pixelhub_log(sprintf(
@@ -191,17 +226,19 @@ class WhatsAppGatewayClient
             return [
                 'success' => false,
                 'error' => "Erro de conexão: {$error}",
-                'raw' => null
+                'raw' => null,
+                'status' => 0
             ];
         }
 
         $decoded = json_decode($response, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log("[WhatsAppGateway] JSON Error: " . json_last_error_msg());
+            error_log("[WhatsAppGateway] JSON Error: " . json_last_error_msg() . " - Response: " . substr($response, 0, 200));
             return [
                 'success' => false,
-                'error' => 'Resposta inválida do gateway',
-                'raw' => $response
+                'error' => 'Resposta inválida do gateway: ' . json_last_error_msg(),
+                'raw' => $response,
+                'status' => $httpCode
             ];
         }
 

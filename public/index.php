@@ -45,6 +45,12 @@ use PixelHub\Core\Router;
 $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
 $scriptDir = rtrim(str_replace('\\', '/', dirname($scriptName)), '/');
 
+// Remove '/public' do scriptDir se estiver presente
+// Isso garante que BASE_PATH seja /painel.pixel12digital e não /painel.pixel12digital/public
+if (substr($scriptDir, -7) === '/public') {
+    $scriptDir = substr($scriptDir, 0, -7);
+}
+
 // Se o SCRIPT_NAME não é index.php, assume que estamos em um subdiretório
 // e calcula o BASE_PATH a partir do diretório do index.php
 if (basename($scriptName) !== 'index.php' && strpos($scriptName, '/index.php') === false) {
@@ -52,14 +58,14 @@ if (basename($scriptName) !== 'index.php' && strpos($scriptName, '/index.php') =
     // deve ser calculado a partir do diretório public/
     // Remove o caminho do arquivo atual e adiciona o caminho até public/
     $currentDir = dirname($scriptName);
-    // Se estamos em /screen-recordings/debug-share.php, o currentDir é /screen-recordings
-    // Precisamos voltar até public/, então BASE_PATH deve ser o diretório pai
-    // Mas na verdade, se estamos em public/screen-recordings/, o BASE_PATH deve ser /public
-    // Vamos usar uma abordagem diferente: sempre usar o diretório do index.php
-    $scriptDir = '/'; // Reset para calcular corretamente
+    // Remove '/public' se estiver presente
+    if (substr($currentDir, -7) === '/public') {
+        $currentDir = substr($currentDir, 0, -7);
+    }
+    $scriptDir = $currentDir;
 }
 
-// Ex: /painel.pixel12digital/public ou /
+// Ex: /painel.pixel12digital ou /
 if (!defined('BASE_PATH')) {
     if ($scriptDir === '/' || $scriptDir === '\\' || $scriptDir === '') {
         define('BASE_PATH', '');
@@ -498,6 +504,19 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/settings/asaas', 'AsaasSettingsController@index');
     $router->post('/settings/asaas', 'AsaasSettingsController@update');
     $router->post('/settings/asaas/test', 'AsaasSettingsController@testConnection');
+    
+    // Configurações do WhatsApp Gateway
+    $router->get('/settings/whatsapp-gateway', 'WhatsAppGatewaySettingsController@index');
+    $router->post('/settings/whatsapp-gateway', 'WhatsAppGatewaySettingsController@update');
+    $router->post('/settings/whatsapp-gateway/test-connection', 'WhatsAppGatewaySettingsController@testConnection');
+    
+    // Testes do WhatsApp Gateway
+    $router->get('/settings/whatsapp-gateway/test', 'WhatsAppGatewayTestController@index');
+    $router->post('/settings/whatsapp-gateway/test/send', 'WhatsAppGatewayTestController@sendTest');
+    $router->get('/settings/whatsapp-gateway/test/channels', 'WhatsAppGatewayTestController@listChannels');
+    $router->get('/settings/whatsapp-gateway/test/events', 'WhatsAppGatewayTestController@getEvents');
+    $router->get('/settings/whatsapp-gateway/test/logs', 'WhatsAppGatewayTestController@getLogs');
+    $router->post('/settings/whatsapp-gateway/test/webhook', 'WhatsAppGatewayTestController@simulateWebhook');
     
     // Rotas de Central de Eventos de Comunicação
     $router->get('/settings/communication-events', 'CommunicationEventsController@index');
