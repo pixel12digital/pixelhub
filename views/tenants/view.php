@@ -8,40 +8,187 @@ $providerMap = $providerMap ?? [];
 $emailAccounts = $emailAccounts ?? [];
 ?>
 
+<style>
+/* Tooltips para botões de ação */
+[data-tooltip] {
+    position: relative;
+}
+
+[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    margin-bottom: 5px;
+    padding: 6px 10px;
+    background: #333;
+    color: white;
+    font-size: 12px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0;
+    animation: tooltipFadeIn 0.2s ease forwards;
+    /* Largura: mínima suficiente, máxima controlada */
+    min-width: 120px;
+    max-width: 220px;
+    /* Controle de quebra de palavras: evita quebra agressiva */
+    white-space: normal;
+    word-break: normal;
+    word-wrap: break-word;
+    hyphens: none;
+    /* Layout e espaçamento */
+    text-align: center;
+    line-height: 1.3;
+    /* Posicionamento padrão: centralizado */
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Para botões no final da linha (último botão), alinha à direita */
+.content-header > div:last-child [data-tooltip]:last-of-type:hover::after,
+.content-header > div:last-child [data-tooltip]:last-child:hover::after {
+    left: auto;
+    right: 0;
+    transform: none;
+}
+
+[data-tooltip]:hover::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    margin-bottom: -1px;
+    border: 5px solid transparent;
+    border-top-color: #333;
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0;
+    animation: tooltipFadeIn 0.2s ease forwards;
+    /* Posicionamento padrão: centralizado */
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.content-header > div:last-child [data-tooltip]:last-of-type:hover::before,
+.content-header > div:last-child [data-tooltip]:last-child:hover::before {
+    left: auto;
+    right: 8px;
+    transform: none;
+}
+
+@keyframes tooltipFadeIn {
+    to {
+        opacity: 1;
+    }
+}
+
+/* Botões compactos de ação */
+.btn-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    min-width: 32px;
+    height: 32px;
+}
+
+.btn-action svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.btn-action-primary {
+    background: #023A8D;
+    color: white;
+}
+
+.btn-action-primary:hover {
+    background: #022a6d;
+}
+
+.btn-action-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-action-secondary:hover {
+    background: #555;
+}
+
+.btn-action-danger {
+    background: #c33;
+    color: white;
+}
+
+.btn-action-danger:hover {
+    background: #a22;
+}
+
+.btn-action-success {
+    background: #28a745;
+    color: white;
+}
+
+.btn-action-success:hover {
+    background: #218838;
+}
+</style>
+
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center;">
     <div>
         <h2><?= htmlspecialchars($tenant['name']) ?></h2>
         <p>Painel do Cliente</p>
     </div>
-    <div style="display: flex; gap: 10px;">
+    <div style="display: flex; gap: 5px; flex-wrap: wrap;">
         <button onclick="openWhatsAppModal(<?= $tenant['id'] ?>)" 
-                style="background: #023A8D; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                class="btn-action btn-action-success"
+                data-tooltip="WhatsApp"
+                aria-label="WhatsApp">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
             </svg>
-            WhatsApp
         </button>
         <a href="<?= pixelhub_url('/tickets/create?tenant_id=' . $tenant['id']) ?>" 
-           style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+           class="btn-action btn-action-primary"
+           data-tooltip="Novo Ticket"
+           aria-label="Novo Ticket">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                 <line x1="16" y1="2" x2="16" y2="6"/>
                 <line x1="8" y1="2" x2="8" y2="6"/>
                 <line x1="3" y1="10" x2="21" y2="10"/>
             </svg>
-            Novo Ticket
         </a>
         <a href="<?= pixelhub_url('/tenants/edit?id=' . $tenant['id']) ?>" 
-           style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
-            Editar Cliente
+           class="btn-action btn-action-secondary"
+           data-tooltip="Editar Cliente"
+           aria-label="Editar Cliente">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
         </a>
         <form method="POST" action="<?= pixelhub_url('/tenants/delete') ?>" 
               onsubmit="return confirm('Tem certeza que deseja excluir este cliente? Esta ação não poderá ser desfeita.');" 
               style="display: inline-block; margin: 0;">
             <input type="hidden" name="id" value="<?= htmlspecialchars($tenant['id']) ?>">
             <button type="submit" 
-                    style="background: #c33; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px;">
-                Excluir Cliente
+                    class="btn-action btn-action-danger"
+                    data-tooltip="Excluir Cliente"
+                    aria-label="Excluir Cliente">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    <line x1="10" y1="11" x2="10" y2="17"/>
+                    <line x1="14" y1="11" x2="14" y2="17"/>
+                </svg>
             </button>
         </form>
         <?php if (!empty($tenant['is_archived'])): ?>
@@ -50,13 +197,14 @@ $emailAccounts = $emailAccounts ?? [];
                 <input type="hidden" name="id" value="<?= htmlspecialchars($tenant['id']) ?>">
                 <input type="hidden" name="action" value="unarchive">
                 <button type="submit" 
-                        style="background: #023A8D; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        class="btn-action btn-action-primary"
+                        data-tooltip="Desarquivar Cliente"
+                        aria-label="Desarquivar Cliente">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
                         <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
                         <line x1="12" y1="22.08" x2="12" y2="12"/>
                     </svg>
-                    Desarquivar Cliente
                 </button>
             </form>
         <?php else: ?>
@@ -66,11 +214,12 @@ $emailAccounts = $emailAccounts ?? [];
                 <input type="hidden" name="id" value="<?= htmlspecialchars($tenant['id']) ?>">
                 <input type="hidden" name="action" value="archive">
                 <button type="submit" 
-                        style="background: #6c757d; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        class="btn-action btn-action-secondary"
+                        data-tooltip="Arquivar Cliente (Somente Financeiro)"
+                        aria-label="Arquivar Cliente">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
                     </svg>
-                    Arquivar Cliente (Somente Financeiro)
                 </button>
             </form>
         <?php endif; ?>
@@ -198,27 +347,26 @@ $emailAccounts = $emailAccounts ?? [];
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #e0e0e0;">
             <h3 style="margin: 0; color: #333; font-size: 18px; font-weight: 600;">Informações do Cliente</h3>
-            <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 5px;">
                 <button onclick="syncAsaasData()" id="sync-asaas-btn"
-                        style="background: #F7931E; color: white; padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(247, 147, 30, 0.2);"
-                        onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(247, 147, 30, 0.3)'"
-                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(247, 147, 30, 0.2)'">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        class="btn-action btn-action-secondary"
+                        data-tooltip="Sincronizar com Asaas"
+                        aria-label="Sincronizar com Asaas">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="23 4 23 10 17 10"></polyline>
                         <polyline points="1 20 1 14 7 14"></polyline>
                         <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                     </svg>
-                    <span id="sync-asaas-text">Sincronizar com Asaas</span>
+                    <span id="sync-asaas-text" style="display: none;">Sincronizar com Asaas</span>
                 </button>
                 <button onclick="openEditAsaasFieldsModal()" 
-                        style="background: #023A8D; color: white; padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(2, 58, 141, 0.2);"
-                        onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(2, 58, 141, 0.3)'"
-                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(2, 58, 141, 0.2)'">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        class="btn-action btn-action-secondary"
+                        data-tooltip="Editar Campos do Asaas"
+                        aria-label="Editar Campos do Asaas">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                     </svg>
-                    Editar Campos do Asaas
                 </button>
             </div>
         </div>
@@ -565,7 +713,7 @@ $emailAccounts = $emailAccounts ?? [];
             <?php if ($usingConsolidatedData): ?>
             <div style="margin-bottom: 20px; padding: 12px; background: #e3f2fd; border-left: 4px solid #2196f3; border-radius: 4px;">
                 <p style="margin: 0; color: #1976d2; font-size: 14px;">
-                    <strong>ℹ️ Dados consolidados do Asaas:</strong> Alguns campos foram preenchidos automaticamente com dados consolidados de múltiplos cadastros do Asaas para este CPF.
+                    <strong><span class="icon-info" style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg></span> Dados consolidados do Asaas:</strong> Alguns campos foram preenchidos automaticamente com dados consolidados de múltiplos cadastros do Asaas para este CPF.
                 </p>
             </div>
             <?php endif; ?>
@@ -965,7 +1113,7 @@ $emailAccounts = $emailAccounts ?? [];
                 messageDiv.style.background = '#d4edda';
                 messageDiv.style.border = '1px solid #c3e6cb';
                 messageDiv.style.color = '#155724';
-                messageDiv.innerHTML = '<strong>✅ Sucesso!</strong> ' + (data.message || 'Campos atualizados e sincronizados com o Asaas.');
+                messageDiv.innerHTML = '<strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span> Sucesso!</strong> ' + (data.message || 'Campos atualizados e sincronizados com o Asaas.');
                 
                 // Recarrega a página após 1.5 segundos
                 setTimeout(() => {
@@ -975,7 +1123,7 @@ $emailAccounts = $emailAccounts ?? [];
                 messageDiv.style.background = '#f8d7da';
                 messageDiv.style.border = '1px solid #f5c6cb';
                 messageDiv.style.color = '#721c24';
-                messageDiv.innerHTML = '<strong>❌ Erro:</strong> ' + (data.message || 'Erro ao atualizar campos.');
+                messageDiv.innerHTML = '<strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></span> Erro:</strong> ' + (data.message || 'Erro ao atualizar campos.');
             }
         })
         .catch(error => {
@@ -1030,6 +1178,7 @@ $emailAccounts = $emailAccounts ?? [];
         btn.style.opacity = '0.6';
         btn.style.cursor = 'not-allowed';
         btnText.textContent = 'Sincronizando...';
+        btn.setAttribute('data-tooltip', 'Sincronizando...');
         
         // Mostra mensagem de loading
         messageDiv.style.display = 'block';
@@ -1054,13 +1203,14 @@ $emailAccounts = $emailAccounts ?? [];
             btn.style.opacity = '1';
             btn.style.cursor = 'pointer';
             btnText.textContent = 'Sincronizar com Asaas';
+            btn.setAttribute('data-tooltip', 'Sincronizar com Asaas');
             
             if (data.success) {
                 messageDiv.style.background = '#d4edda';
                 messageDiv.style.border = '1px solid #c3e6cb';
                 messageDiv.style.color = '#155724';
                 
-                let message = '<strong>✅ Sincronização concluída!</strong><br>';
+                let message = '<strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span> Sincronização concluída!</strong><br>';
                 if (data.customers_found) {
                     message += `Foram encontrados <strong>${data.customers_found} cadastro(s)</strong> no Asaas para este CPF.<br>`;
                 }
@@ -1092,6 +1242,7 @@ $emailAccounts = $emailAccounts ?? [];
             btn.style.opacity = '1';
             btn.style.cursor = 'pointer';
             btnText.textContent = 'Sincronizar com Asaas';
+            btn.setAttribute('data-tooltip', 'Sincronizar com Asaas');
             
             messageDiv.style.background = '#f8d7da';
             messageDiv.style.border = '1px solid #f5c6cb';
@@ -2426,12 +2577,128 @@ $emailAccounts = $emailAccounts ?? [];
 
 <?php elseif ($activeTab === 'tasks'): ?>
     <!-- ABA: Tarefas & Projetos -->
+    
+    <?php
+    // Busca projetos do cliente
+    $clientProjects = $clientProjects ?? [];
+    ?>
+    
+    <!-- Seção: Projetos do Cliente -->
+    <div class="card" style="margin-bottom: 30px; border-left: 4px solid #023A8D;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div>
+                <h3 style="margin: 0; color: #023A8D; font-size: 18px; display: flex; align-items: center; gap: 10px;">
+                    <span>Projetos do Cliente</span>
+                    <span style="background: #023A8D; color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                        <?= count($clientProjects) ?>
+                    </span>
+                </h3>
+                <p style="margin: 5px 0 0 0; color: #999; font-size: 13px;">Projetos ativos vinculados a este cliente</p>
+            </div>
+            <a href="<?= pixelhub_url('/projects?type=cliente&tenant_id=' . $tenant['id']) ?>" 
+               class="btn-action btn-action-primary"
+               data-tooltip="Ver Todos os Projetos"
+               aria-label="Ver Todos os Projetos">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
+            </a>
+        </div>
+        
+        <?php if (empty($clientProjects)): ?>
+            <p style="color: #666; text-align: center; padding: 40px 20px;">
+                Nenhum projeto cadastrado para este cliente até o momento.
+            </p>
+        <?php else: ?>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; background: white;">
+                    <thead>
+                        <tr style="background: #f5f5f5;">
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600;">Projeto</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600;">Serviço</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600;">Prioridade</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600;">Prazo</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600;">Status</th>
+                            <th style="padding: 12px; text-align: center; border-bottom: 2px solid #ddd; font-weight: 600; width: 150px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($clientProjects as $project): ?>
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <strong><?= htmlspecialchars($project['name']) ?></strong>
+                                <?php if (!empty($project['base_url'])): ?>
+                                    <br><small style="color: #666;"><a href="<?= htmlspecialchars($project['base_url']) ?>" target="_blank" style="color: #023A8D;"><?= htmlspecialchars($project['base_url']) ?></a></small>
+                                <?php endif; ?>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?= !empty($project['service_name']) ? htmlspecialchars($project['service_name']) : '<span style="color: #999;">—</span>' ?>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php
+                                $priorityLabels = ['baixa' => 'Baixa', 'media' => 'Média', 'alta' => 'Alta', 'critica' => 'Crítica'];
+                                $priority = $project['priority'] ?? 'media';
+                                $label = $priorityLabels[$priority] ?? 'Média';
+                                $priorityColors = [
+                                    'baixa' => 'background: #e8f5e9; color: #2e7d32;',
+                                    'media' => 'background: #fff3e0; color: #e65100;',
+                                    'alta' => 'background: #ffebee; color: #c62828;',
+                                    'critica' => 'background: #fce4ec; color: #880e4f;'
+                                ];
+                                $priorityStyle = $priorityColors[$priority] ?? $priorityColors['media'];
+                                ?>
+                                <span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; <?= $priorityStyle ?>"><?= $label ?></span>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php if (!empty($project['due_date'])): ?>
+                                    <?= date('d/m/Y', strtotime($project['due_date'])) ?>
+                                <?php else: ?>
+                                    <span style="color: #999;">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                <?php
+                                $statusColor = $project['status'] === 'ativo' ? '#3c3' : '#666';
+                                $statusLabel = $project['status'] === 'ativo' ? 'Ativo' : 'Arquivado';
+                                ?>
+                                <span style="color: <?= $statusColor ?>; font-weight: 600;"><?= $statusLabel ?></span>
+                            </td>
+                            <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">
+                                <a href="<?= pixelhub_url('/projects/board?tenant_id=' . $tenant['id'] . '&project_id=' . $project['id']) ?>" 
+                                   class="btn-action btn-action-primary"
+                                   data-tooltip="Ver Projeto"
+                                   aria-label="Ver Projeto">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </div>
+    
+    <!-- Seção: Tarefas do Cliente -->
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3 style="margin: 0;">Resumo de Tarefas do Cliente</h3>
             <a href="<?= pixelhub_url('/projects/board?tenant_id=' . $tenant['id']) ?>" 
-               style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
-                Ver no Quadro Kanban
+               class="btn-action btn-action-primary"
+               data-tooltip="Ver no Quadro Kanban"
+               aria-label="Ver no Quadro Kanban">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
             </a>
         </div>
         
@@ -2593,8 +2860,15 @@ $emailAccounts = $emailAccounts ?? [];
                                 </td>
                                 <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">
                                     <a href="<?= pixelhub_url('/projects/board?tenant_id=' . $tenant['id'] . '&project_id=' . ($task['project_id'] ?? '')) ?>" 
-                                       style="background: #023A8D; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-block; font-weight: 600;">
-                                        Ver no Kanban
+                                       class="btn-action btn-action-primary"
+                                       data-tooltip="Ver no Kanban"
+                                       aria-label="Ver no Kanban">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="3" y="3" width="7" height="7"></rect>
+                                            <rect x="14" y="3" width="7" height="7"></rect>
+                                            <rect x="14" y="14" width="7" height="7"></rect>
+                                            <rect x="3" y="14" width="7" height="7"></rect>
+                                        </svg>
                                     </a>
                                 </td>
                             </tr>
@@ -2673,8 +2947,13 @@ $emailAccounts = $emailAccounts ?? [];
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3 style="margin: 0;">Tickets do Cliente</h3>
             <a href="<?= pixelhub_url('/tickets/create?tenant_id=' . $tenant['id']) ?>" 
-               style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
-                Criar Novo Ticket
+               class="btn-action btn-action-primary"
+               data-tooltip="Criar Novo Ticket"
+               aria-label="Criar Novo Ticket">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
             </a>
         </div>
         
@@ -2762,8 +3041,13 @@ $emailAccounts = $emailAccounts ?? [];
                                 </td>
                                 <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">
                                     <a href="<?= pixelhub_url('/tickets/show?id=' . $ticket['id']) ?>" 
-                                       style="background: #023A8D; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-block; font-weight: 600;">
-                                        Ver Detalhes
+                                       class="btn-action btn-action-primary"
+                                       data-tooltip="Ver Detalhes"
+                                       aria-label="Ver Detalhes">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
                                     </a>
                                 </td>
                             </tr>

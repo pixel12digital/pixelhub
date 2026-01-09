@@ -10,6 +10,7 @@ use PixelHub\Services\HostingProviderService;
 use PixelHub\Services\TaskService;
 use PixelHub\Services\TicketService;
 use PixelHub\Services\WhatsAppHistoryService;
+use PixelHub\Services\ProjectService;
 
 /**
  * Controller para gerenciar tenants (clientes)
@@ -165,6 +166,12 @@ class TenantsController extends Controller
         // Busca mapa de provedores para exibir nomes
         $providerMap = HostingProviderService::getSlugToNameMap();
 
+        // Busca projetos do tenant (apenas se necessário para a aba de tarefas)
+        $clientProjects = [];
+        if ($activeTab === 'tasks') {
+            $clientProjects = ProjectService::getAllProjects((int) $tenantId, 'ativo', 'cliente');
+        }
+        
         // Busca tarefas do tenant (apenas se necessário para a aba de tarefas)
         $tasks = [];
         if ($activeTab === 'tasks') {
@@ -248,6 +255,7 @@ class TenantsController extends Controller
             'consolidatedAsaasData' => $consolidatedAsaasData,
             'providerMap' => $providerMap,
             'tasks' => $tasks,
+            'clientProjects' => $clientProjects ?? [],
             'contracts' => $contracts ?? [],
             'tenantDocuments' => $tenantDocuments ?? [],
             'tenantDocuments' => $tenantDocuments,
@@ -1667,6 +1675,203 @@ class TenantsController extends Controller
             'timeline' => $whatsappTimeline,
             'lastContact' => $lastWhatsAppContact,
         ]);
+    }
+
+    /**
+     * Busca clientes dinamicamente via AJAX para autocomplete
+     * 
+     * Agrupa tenants por CPF/CNPJ (seguindo padrão do financeiro) para evitar duplicatas.
+     * Retorna apenas o tenant principal de cada grupo, mas indica quando há duplicatas.
+     * 
+     * GET /tenants/search-ajax?q=termo
+     * Retorna JSON com lista de clientes que correspondem ao termo de busca
+     */
+    public function searchAjax(): void
+    {
+        Auth::requireInternal();
+
+        // Limpa qualquer output anterior
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+
+        header('Content-Type: application/json; charset=utf-8');
+
+        $query = isset($_GET['q']) ? trim($_GET['q']) : '';
+        
+        // Requer pelo menos 3 caracteres
+        if (strlen($query) < 3) {
+            http_response_code(200);
+            echo json_encode([
+                'success' => true,
+                'clients' => []
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
+        $db = DB::getConnection();
+        
+        // Busca clientes que correspondem ao termo (busca no nome)
+        // Seguindo padrão do financeiro: filtra arquivados e busca dados para agrupamento
+        $searchTerm = '%' . $query . '%';
+        $stmt = $db->prepare("
+            SELECT 
+                t.id, 
+                t.name,
+                t.cpf_cnpj,
+                t.document,
+                t.is_archived,
+                t.is_financial_only,
+                t.asaas_customer_id,
+                -- Conta relacionamentos para priorizar (seguindo padrão do financeiro)
+                (SELECT COUNT(*) FROM projects WHERE tenant_id = t.id AND status = 'ativo') as projects_count,
+                (SELECT COUNT(*) FROM hosting_accounts WHERE tenant_id = t.id) as hosting_count,
+                CASE 
+                    WHEN t.is_archived = 0 AND t.is_financial_only = 0 THEN 1
+                    ELSE 0
+                END as is_active
+            FROM tenants t
+            WHERE t.name LIKE ?
+            ORDER BY 
+                is_active DESC,  -- Não arquivados primeiro
+                projects_count DESC,  -- Com mais projetos primeiro
+                hosting_count DESC,   -- Com mais hospedagens primeiro
+                (CASE WHEN t.asaas_customer_id IS NOT NULL THEN 1 ELSE 0 END) DESC,  -- Com Asaas vinculado
+                t.id DESC  -- Mais recente
+            LIMIT 30  -- Busca mais para ter dados suficientes para agrupar
+        ");
+        $stmt->execute([$searchTerm]);
+        $allClients = $stmt->fetchAll();
+
+        // Agrupa por CPF/CNPJ normalizado (seguindo padrão do financeiro)
+        // O financeiro busca todos os customers do Asaas por CPF e agrupa - aqui fazemos o mesmo com tenants
+        $groupedByCpf = [];
+        $clientsWithoutCpf = [];
+        
+        foreach ($allClients as $client) {
+            // Normaliza CPF/CNPJ (mesmo padrão do AsaasClient)
+            $cpfCnpj = preg_replace('/[^0-9]/', '', $client['cpf_cnpj'] ?? $client['document'] ?? '');
+            
+            if (empty($cpfCnpj)) {
+                // Sem CPF/CNPJ: adiciona direto (não agrupa, mas ainda filtra arquivados)
+                if ((int)($client['is_active'] ?? 0) === 1) {
+                    $clientsWithoutCpf[] = [
+                        'id' => $client['id'],
+                        'name' => $client['name'],
+                        'has_duplicates' => false,
+                        'duplicates_count' => 0
+                    ];
+                }
+            } else {
+                // Com CPF/CNPJ: agrupa
+                if (!isset($groupedByCpf[$cpfCnpj])) {
+                    // Primeiro tenant deste CPF/CNPJ
+                    $groupedByCpf[$cpfCnpj] = [
+                        'primary' => $client,
+                        'duplicates' => [],
+                        'has_duplicates' => false
+                    ];
+                } else {
+                    // Já existe tenant com este CPF/CNPJ - é duplicata
+                    $groupedByCpf[$cpfCnpj]['duplicates'][] = $client;
+                    $groupedByCpf[$cpfCnpj]['has_duplicates'] = true;
+                    
+                    // Se este cliente é melhor que o principal atual, troca (seguindo lógica de priorização)
+                    $currentPrimary = $groupedByCpf[$cpfCnpj]['primary'];
+                    if ($this->isClientBetterThan($client, $currentPrimary)) {
+                        // Move o atual principal para duplicatas
+                        $groupedByCpf[$cpfCnpj]['duplicates'][] = $currentPrimary;
+                        // Define o novo como principal
+                        $groupedByCpf[$cpfCnpj]['primary'] = $client;
+                    }
+                }
+            }
+        }
+
+        // Prepara resultado final (apenas principais, seguindo padrão do financeiro)
+        $clients = [];
+        
+        // Adiciona grupos por CPF/CNPJ (apenas o principal, mas com flag de duplicatas)
+        foreach ($groupedByCpf as $group) {
+            $primary = $group['primary'];
+            
+            // Só adiciona se não estiver arquivado (já está ordenado, mas garante)
+            if ((int)($primary['is_active'] ?? 0) === 1) {
+                $duplicatesCount = count($group['duplicates'] ?? []);
+                
+                $clientData = [
+                    'id' => $primary['id'],
+                    'name' => $primary['name'],
+                    'has_duplicates' => $group['has_duplicates'] ?? false,
+                    'duplicates_count' => $duplicatesCount
+                ];
+                
+                $clients[] = $clientData;
+            }
+        }
+        
+        // Adiciona clientes sem CPF/CNPJ (já filtrados por arquivados)
+        foreach ($clientsWithoutCpf as $client) {
+            $clients[] = $client;
+        }
+
+        // Limita a 10 resultados finais
+        $clients = array_slice($clients, 0, 10);
+
+        echo json_encode([
+            'success' => true,
+            'clients' => $clients
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    /**
+     * Compara dois clientes e retorna true se client1 é "melhor" que client2
+     * Usado para escolher o tenant principal quando há duplicatas com mesmo CPF/CNPJ
+     * 
+     * Lógica de priorização (seguindo padrão do financeiro):
+     * 1. Não arquivado é melhor que arquivado
+     * 2. Com mais projetos é melhor
+     * 3. Com mais hospedagens é melhor
+     * 4. Com asaas_customer_id vinculado é melhor
+     * 5. Mais recente (maior ID) é melhor
+     * 
+     * @param array $client1 Primeiro cliente
+     * @param array $client2 Segundo cliente
+     * @return bool True se client1 é melhor que client2
+     */
+    private function isClientBetterThan(array $client1, array $client2): bool
+    {
+        // 1. Não arquivado é melhor que arquivado
+        $active1 = (int)($client1['is_active'] ?? 0);
+        $active2 = (int)($client2['is_active'] ?? 0);
+        if ($active1 !== $active2) {
+            return $active1 > $active2;
+        }
+
+        // 2. Com mais projetos é melhor
+        $projects1 = (int)($client1['projects_count'] ?? 0);
+        $projects2 = (int)($client2['projects_count'] ?? 0);
+        if ($projects1 !== $projects2) {
+            return $projects1 > $projects2;
+        }
+
+        // 3. Com mais hospedagens é melhor
+        $hosting1 = (int)($client1['hosting_count'] ?? 0);
+        $hosting2 = (int)($client2['hosting_count'] ?? 0);
+        if ($hosting1 !== $hosting2) {
+            return $hosting1 > $hosting2;
+        }
+
+        // 4. Com asaas_customer_id é melhor (importante para sincronização)
+        $hasAsaas1 = !empty($client1['asaas_customer_id']);
+        $hasAsaas2 = !empty($client2['asaas_customer_id']);
+        if ($hasAsaas1 !== $hasAsaas2) {
+            return $hasAsaas1;
+        }
+
+        // 5. Mais recente (maior ID) é melhor
+        return (int)($client1['id'] ?? 0) > (int)($client2['id'] ?? 0);
     }
 
     /**

@@ -48,9 +48,78 @@ class TaskBoardController extends Controller
         // Busca tarefas agrupadas por status
         $tasks = TaskService::getAllTasks($projectId, $tenantId, $clientQuery, $agendaFilter);
         
-        // Busca lista de projetos para o filtro (excluindo projetos concluídos para não poluir o seletor)
-        // Projetos concluídos são aqueles sem tarefas/tickets pendentes ou em andamento
-        $projects = ProjectService::getActiveNonCompletedProjects($tenantId, $type);
+        // Define effectiveTenantId: prioriza tenant_id da URL, senão tenta identificar pelo client_query
+        $effectiveTenantId = $tenantId;
+        if (!$effectiveTenantId && $clientQuery) {
+            // Busca tenant_ids que correspondem ao client_query
+            // Remove caracteres especiais e faz busca mais flexível
+            $searchTerm = '%' . str_replace(['|', '+'], '%', $clientQuery) . '%';
+            $stmt = $db->prepare("SELECT id FROM tenants WHERE name LIKE ? ORDER BY 
+                CASE WHEN name = ? THEN 1 
+                     WHEN name LIKE ? THEN 2 
+                     ELSE 3 END
+                LIMIT 1");
+            $exactMatch = $clientQuery;
+            $startsWith = $clientQuery . '%';
+            $stmt->execute([$searchTerm, $exactMatch, $startsWith]);
+            $tenantMatch = $stmt->fetch();
+            if ($tenantMatch) {
+                $effectiveTenantId = (int) $tenantMatch['id'];
+            } else {
+                // Tenta buscar por partes do nome (para casos como "Robson Wagner | CFC Bom Conselho")
+                $parts = explode('|', $clientQuery);
+                if (count($parts) > 1) {
+                    // Tenta com a primeira parte (nome do cliente)
+                    $firstPart = trim($parts[0]);
+                    $stmt = $db->prepare("SELECT id FROM tenants WHERE name LIKE ? LIMIT 1");
+                    $stmt->execute(['%' . $firstPart . '%']);
+                    $tenantMatch = $stmt->fetch();
+                    if ($tenantMatch) {
+                        $effectiveTenantId = (int) $tenantMatch['id'];
+                    }
+                }
+            }
+        }
+        
+        // Busca lista de projetos para o filtro
+        // IMPORTANTE: Mostra TODOS os projetos ativos, mesmo os concluídos
+        // Isso permite que o usuário filtre por qualquer projeto ativo, independente do status de conclusão
+        // Se um projeto está ativo mas concluído, ainda deve aparecer no select para permitir filtro/visualização
+        $projects = ProjectService::getAllProjects($effectiveTenantId, 'ativo', $type);
+        
+        // Para o modal de criação, SEMPRE busca TODOS os projetos ativos (igual ao /projects)
+        // IMPORTANTE: O modal deve mostrar TODOS os projetos ativos, independente de filtros
+        // Isso garante consistência com a tela /projects onde o usuário vê todos os projetos
+        // 
+        // Não aplica NENHUM filtro (tenant, tipo, etc) - mostra tudo que está ativo
+        // Isso resolve problemas de unificação de clientes e garante que todos os projetos apareçam
+        $allActiveProjects = ProjectService::getAllProjects(null, 'ativo', null);
+        
+        // Debug temporário - remover depois
+        // error_log("[KANBAN MODAL] Total de projetos encontrados: " . count($allActiveProjects));
+        // foreach ($allActiveProjects as $proj) {
+        //     if (stripos($proj['name'], 'CFC') !== false || stripos($proj['name'], 'Bom Conselho') !== false) {
+        //         error_log("[KANBAN MODAL] Projeto encontrado: ID=" . $proj['id'] . ", Name=" . $proj['name'] . ", Status=" . ($proj['status'] ?? 'N/A') . ", TenantID=" . ($proj['tenant_id'] ?? 'NULL'));
+        //     }
+        // }
+        
+        // Calcula contexto para simplificar criação de tarefas
+        // Se há um projeto selecionado OU apenas um projeto válido no contexto, podemos ocultar o campo
+        $contextProjectId = $projectId; // Projeto já selecionado no filtro
+        $availableProjectsCount = count($projects);
+        $shouldHideProjectField = false;
+        
+        if ($projectId) {
+            // Se já tem projeto selecionado, não precisa mostrar o campo
+            $shouldHideProjectField = true;
+        } elseif ($availableProjectsCount === 1) {
+            // Se há apenas um projeto válido, usa ele automaticamente
+            $contextProjectId = $projects[0]['id'];
+            $shouldHideProjectField = true;
+        } elseif ($availableProjectsCount === 0) {
+            // Se não há projetos, precisa mostrar para criar (ou mostrar mensagem)
+            $shouldHideProjectField = false;
+        }
         
         // Busca lista de tenants para o filtro
         $stmt = $db->query("SELECT id, name FROM tenants ORDER BY name ASC");
@@ -64,7 +133,8 @@ class TaskBoardController extends Controller
         
         $this->view('tasks.board', [
             'tasks' => $tasks,
-            'projects' => $projects,
+            'projects' => $projects, // Projetos para filtro (sem concluídos)
+            'allActiveProjects' => $allActiveProjects, // Todos os projetos ativos para o modal
             'tenants' => $tenants,
             'selectedProjectId' => $projectId,
             'selectedTenantId' => $tenantId,
@@ -72,6 +142,9 @@ class TaskBoardController extends Controller
             'selectedClientQuery' => $clientQuery,
             'selectedAgendaFilter' => $agendaFilter,
             'projectSummary' => $projectSummary,
+            'contextProjectId' => $contextProjectId, // Projeto inferido do contexto
+            'shouldHideProjectField' => $shouldHideProjectField, // Se deve ocultar campo projeto
+            'availableProjectsCount' => $availableProjectsCount, // Quantidade de projetos disponíveis
         ]);
     }
 

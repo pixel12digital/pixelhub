@@ -11,13 +11,21 @@ class ProjectService
 {
     /**
      * Lista todos os projetos com filtros opcionais
+     * 
+     * Lógica de tipo:
+     * - Projeto de Cliente: tem tenant_id não nulo E type = 'cliente'
+     * - Projeto Interno: tenant_id é nulo OU type = 'interno'
      */
     public static function getAllProjects(?int $tenantId = null, ?string $status = null, ?string $type = null, ?int $customerVisible = null): array
     {
         $db = DB::getConnection();
         
         $sql = "
-            SELECT p.*, t.name as tenant_name, s.name as service_name
+            SELECT p.*, t.name as tenant_name, s.name as service_name,
+                   CASE 
+                       WHEN p.tenant_id IS NOT NULL THEN 'cliente'
+                       ELSE 'interno'
+                   END as effective_type
             FROM projects p
             LEFT JOIN tenants t ON p.tenant_id = t.id
             LEFT JOIN services s ON p.service_id = s.id
@@ -37,8 +45,14 @@ class ProjectService
         }
         
         if ($type !== null) {
-            $sql .= " AND p.type = ?";
-            $params[] = $type;
+            // Se filtro por tipo 'cliente', busca projetos com tenant_id não nulo (projetos de cliente)
+            // Se filtro por tipo 'interno', busca projetos sem tenant_id (projetos internos)
+            // IMPORTANTE: Um projeto com tenant_id não nulo é sempre considerado projeto de cliente
+            if ($type === 'cliente') {
+                $sql .= " AND p.tenant_id IS NOT NULL";
+            } else {
+                $sql .= " AND p.tenant_id IS NULL";
+            }
         }
         
         if ($customerVisible !== null) {
@@ -46,12 +60,24 @@ class ProjectService
             $params[] = $customerVisible;
         }
         
-        $sql .= " ORDER BY p.created_at DESC";
+        // Ordena por nome para facilitar localização (mais intuitivo que created_at)
+        $sql .= " ORDER BY p.name ASC";
         
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
         
-        return $stmt->fetchAll();
+        $results = $stmt->fetchAll();
+        
+        // Debug temporário - remover depois
+        // if ($status === 'ativo' && $tenantId === null && $type === null) {
+        //     foreach ($results as $proj) {
+        //         if (stripos($proj['name'], 'CFC') !== false || stripos($proj['name'], 'Bom Conselho') !== false) {
+        //             error_log("[ProjectService] Projeto encontrado: ID=" . $proj['id'] . ", Name=" . $proj['name'] . ", Status=" . ($proj['status'] ?? 'N/A') . ", TenantID=" . ($proj['tenant_id'] ?? 'NULL'));
+        //         }
+        //     }
+        // }
+        
+        return $results;
     }
 
     /**
@@ -103,23 +129,17 @@ class ProjectService
             $priority = 'media';
         }
         
-        // Valida type
-        $allowedTypes = ['interno', 'cliente'];
-        $type = trim($data['type'] ?? 'interno');
-        if (!in_array($type, $allowedTypes)) {
-            $type = 'interno';
-        }
-        
-        // Processa dados
+        // Processa dados primeiro
         $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
         $serviceId = !empty($data['service_id']) ? (int) $data['service_id'] : null;
         
-        // Validação: Se tipo é "cliente", tenant_id é obrigatório
-        if ($type === 'cliente' && empty($tenantId)) {
-            throw new \InvalidArgumentException(
-                'Projetos do tipo "cliente" requerem um cliente vinculado. ' .
-                'Selecione um cliente existente ou crie um novo.'
-            );
+        // IMPORTANTE: Se tem tenant_id, o tipo deve ser 'cliente'
+        // Se não tem tenant_id, o tipo deve ser 'interno'
+        // O tipo é determinado pelo tenant_id, não pelo campo type do formulário
+        if (!empty($tenantId)) {
+            $type = 'cliente';
+        } else {
+            $type = 'interno';
         }
         $description = trim($data['description'] ?? '') ?: null;
         $dueDate = !empty($data['due_date']) ? $data['due_date'] : null;
@@ -220,6 +240,14 @@ class ProjectService
         $dueDate = isset($data['due_date']) ? (!empty($data['due_date']) ? $data['due_date'] : null) : $project['due_date'];
         $updatedBy = !empty($data['updated_by']) ? (int) $data['updated_by'] : null;
         $isCustomerVisible = isset($data['is_customer_visible']) ? (int) $data['is_customer_visible'] : ($project['is_customer_visible'] ?? 0);
+        
+        // IMPORTANTE: Se tem tenant_id, o tipo deve ser 'cliente'
+        // Se não tem tenant_id, o tipo deve ser 'interno'
+        if (!empty($tenantId)) {
+            $type = 'cliente';
+        } else {
+            $type = 'interno';
+        }
         
         // Campos para projetos satélites
         $slug = isset($data['slug']) ? (!empty($data['slug']) ? trim($data['slug']) : null) : ($project['slug'] ?? null);

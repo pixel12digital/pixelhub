@@ -4,22 +4,28 @@ if (!isset($project) || empty($project)) {
     return;
 }
 ?>
-<div style="display: flex; gap: 5px; flex-wrap: wrap;">
+<div style="display: flex; gap: 5px; flex-wrap: nowrap;">
     <a href="<?= pixelhub_url('/projects/show?id=' . $project['id']) ?>" 
        class="btn btn-small"
-       style="background: #6c757d; color: white; text-decoration: none;">
-        📋 Detalhes
+       style="background: #6c757d; color: white; text-decoration: none;"
+       data-tooltip="Detalhes"
+       aria-label="Detalhes">
+        Detalhes
     </a>
     <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id']) ?>" 
        class="btn btn-primary btn-small"
-       style="text-decoration: none;">
+       style="text-decoration: none;"
+       data-tooltip="Ver quadro"
+       aria-label="Ver quadro">
         Ver quadro
     </a>
     <?php if (!empty($project['tenant_id'])): ?>
     <a href="<?= pixelhub_url('/tickets/create?project_id=' . $project['id'] . '&tenant_id=' . $project['tenant_id']) ?>" 
        class="btn btn-small"
-       style="background: #28a745; color: white; text-decoration: none;">
-        🎫 Abrir ticket
+       style="background: #28a745; color: white; text-decoration: none;"
+       data-tooltip="Abrir ticket"
+       aria-label="Abrir ticket">
+        Abrir ticket
     </a>
     <?php endif; ?>
     <button class="btn btn-secondary btn-small btn-edit-project"
@@ -34,13 +40,17 @@ if (!isset($project) || empty($project)) {
             data-status="<?= htmlspecialchars($project['status'] ?? 'ativo') ?>"
             data-slug="<?= htmlspecialchars($project['slug'] ?? '') ?>"
             data-base-url="<?= htmlspecialchars($project['base_url'] ?? '') ?>"
-            data-external-project-id="<?= htmlspecialchars($project['external_project_id'] ?? '') ?>">
+            data-external-project-id="<?= htmlspecialchars($project['external_project_id'] ?? '') ?>"
+            data-tooltip="Editar"
+            aria-label="Editar">
         Editar
     </button>
     <?php if (($project['status'] ?? 'ativo') === 'ativo'): ?>
     <button class="btn btn-danger btn-small btn-archive-project"
             data-id="<?= $project['id'] ?>"
-            data-name="<?= htmlspecialchars($project['name'] ?? '') ?>">
+            data-name="<?= htmlspecialchars($project['name'] ?? '') ?>"
+            data-tooltip="Arquivar"
+            aria-label="Arquivar">
         Arquivar
     </button>
     <?php endif; ?>

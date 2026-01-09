@@ -52,15 +52,27 @@ class ProjectController extends Controller
         $services = ServiceService::getAllServices(null, true);
         
         // Separa projetos por tipo (apenas se não houver filtro de tipo)
+        // IMPORTANTE: Um projeto com tenant_id não nulo é sempre considerado projeto de cliente
+        // Um projeto é "interno" apenas se tenant_id é nulo
         $internalProjects = [];
         $clientProjects = [];
         if ($type === null) {
             foreach ($projects as $project) {
-                $projectType = $project['type'] ?? 'interno';
-                if ($projectType === 'interno') {
-                    $internalProjects[] = $project;
-                } else {
+                // Usa effective_type se disponível (calculado na query), senão calcula aqui
+                $effectiveType = $project['effective_type'] ?? null;
+                if ($effectiveType === null) {
+                    // Um projeto com tenant_id não nulo é sempre cliente, independente do campo type
+                    if (!empty($project['tenant_id'])) {
+                        $effectiveType = 'cliente';
+                    } else {
+                        $effectiveType = 'interno';
+                    }
+                }
+                
+                if ($effectiveType === 'cliente') {
                     $clientProjects[] = $project;
+                } else {
+                    $internalProjects[] = $project;
                 }
             }
         }

@@ -224,9 +224,10 @@ ob_start();
         <label for="filter_type">Tipo de Projeto</label>
         <select id="filter_type" onchange="applyFilters()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             <option value="">Todos</option>
-            <option value="interno" <?= ($selectedType === 'interno') ? 'selected' : '' ?>>Projetos Internos (Pixel12)</option>
+            <option value="interno" <?= ($selectedType === 'interno') ? 'selected' : '' ?>>Meus Projetos</option>
             <option value="cliente" <?= ($selectedType === 'cliente') ? 'selected' : '' ?>>Projetos de Clientes</option>
         </select>
+        <small style="display: block; color: #666; margin-top: 4px; font-size: 12px;">Meus Projetos: projetos internos sem cliente vinculado</small>
     </div>
     <div class="form-group">
         <label for="filter_tenant">Cliente</label>
@@ -261,15 +262,16 @@ $showSeparated = empty($selectedType);
 ?>
 
 <?php if ($showSeparated && !empty($internalProjects)): ?>
-<!-- Seção: Projetos Internos Pixel12 -->
+<!-- Seção: Meus Projetos -->
 <div class="card" style="margin-bottom: 30px; border-left: 4px solid #666;">
     <div style="background: #f8f8f8; padding: 15px; border-bottom: 2px solid #ddd; margin: -20px -20px 20px -20px;">
         <h3 style="margin: 0; color: #666; font-size: 18px; display: flex; align-items: center; gap: 10px;">
-            <span>Projetos Internos Pixel12 Digital</span>
+            <span>Meus Projetos</span>
             <span style="background: #666; color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">
                 <?= count($internalProjects) ?>
             </span>
         </h3>
+        <p style="margin: 5px 0 0 0; color: #999; font-size: 13px;">Projetos internos da Pixel12 Digital</p>
     </div>
     <table style="width: 100%; border-collapse: collapse;">
         <thead>
@@ -515,12 +517,13 @@ $showSeparated = empty($selectedType);
 
                 <div class="form-group">
                     <label for="tenant_id">Cliente</label>
-                    <select name="tenant_id" id="tenant_id">
-                        <option value="">Interno</option>
+                    <select name="tenant_id" id="tenant_id" onchange="handleTenantChange()">
+                        <option value="">Sem cliente (projeto interno)</option>
                         <?php foreach ($tenants as $tenant): ?>
                             <option value="<?= $tenant['id'] ?>"><?= htmlspecialchars($tenant['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
+                    <span class="help-text">Selecione um cliente para vincular o projeto. Projetos sem cliente são considerados internos.</span>
                 </div>
             </div>
 
@@ -631,6 +634,23 @@ $showSeparated = empty($selectedType);
             checkbox.disabled = false;
         }
     }
+    
+    function handleTenantChange() {
+        const tenantId = document.getElementById('tenant_id').value;
+        const typeSelect = document.getElementById('type');
+        const checkbox = document.getElementById('is_customer_visible');
+        
+        // Se um cliente é selecionado, o tipo deve ser 'cliente'
+        // Se nenhum cliente é selecionado, o tipo deve ser 'interno'
+        if (tenantId && tenantId !== '') {
+            typeSelect.value = 'cliente';
+            checkbox.disabled = false;
+        } else {
+            typeSelect.value = 'interno';
+            checkbox.checked = false;
+            checkbox.disabled = true;
+        }
+    }
 
     function openCreateModal() {
         document.getElementById('modalTitle').textContent = 'Novo Projeto';
@@ -651,7 +671,12 @@ $showSeparated = empty($selectedType);
         document.getElementById('name').value = project.name || '';
         document.getElementById('description').value = project.description || '';
         document.getElementById('tenant_id').value = project.tenant_id || '';
-        document.getElementById('type').value = project.type || 'interno';
+        
+        // Determina o tipo baseado no tenant_id (se tem tenant_id, é cliente)
+        const tenantId = project.tenant_id || '';
+        const effectiveType = tenantId && tenantId !== '' ? 'cliente' : 'interno';
+        document.getElementById('type').value = effectiveType;
+        
         document.getElementById('priority').value = project.priority || 'media';
         document.getElementById('due_date').value = project.due_date || '';
         document.getElementById('slug').value = project.slug || '';
@@ -660,7 +685,7 @@ $showSeparated = empty($selectedType);
         
         const checkbox = document.getElementById('is_customer_visible');
         checkbox.checked = project.is_customer_visible == 1;
-        if (project.type === 'interno') {
+        if (effectiveType === 'interno') {
             checkbox.disabled = true;
             checkbox.checked = false;
         } else {
@@ -741,6 +766,20 @@ $showSeparated = empty($selectedType);
                 closeModal();
             }
         };
+
+        // Remove tooltips nativos do navegador (title) dos botões de ação
+        // Garante que apenas o tooltip customizado (data-tooltip) apareça
+        document.querySelectorAll('td:last-child .btn, .acoes .btn, .actions .btn').forEach(function(btn) {
+            if (btn.hasAttribute('title')) {
+                btn.removeAttribute('title');
+            }
+            // Previne que tooltip nativo apareça mesmo se title for adicionado dinamicamente
+            btn.addEventListener('mouseenter', function(e) {
+                if (this.hasAttribute('title')) {
+                    this.removeAttribute('title');
+                }
+            });
+        });
     });
 </script>
 

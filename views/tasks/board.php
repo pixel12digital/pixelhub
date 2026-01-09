@@ -3,6 +3,51 @@ ob_start();
 ?>
 
 <style>
+    /* Correção global de tooltips - evita quebras excessivas */
+    /* Tooltip customizado para elementos com data-tooltip */
+    [data-tooltip] {
+        position: relative;
+        cursor: help;
+    }
+    [data-tooltip]:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #333;
+        color: white;
+        padding: 6px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        white-space: normal;
+        word-wrap: break-word;
+        max-width: 250px;
+        min-width: 120px;
+        z-index: 1000;
+        pointer-events: none;
+        margin-bottom: 5px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        line-height: 1.4;
+    }
+    [data-tooltip]:hover::before {
+        content: '';
+        position: absolute;
+        bottom: 95%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 5px solid transparent;
+        border-top-color: #333;
+        z-index: 1001;
+        pointer-events: none;
+    }
+    /* Tooltips nativos do browser - melhorados com CSS */
+    [title]:not([data-tooltip]) {
+        /* Mantém tooltip nativo mas com melhor quebra de linha */
+        word-break: normal;
+        white-space: normal;
+    }
+    
     .kanban-board {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -12,21 +57,105 @@ ob_start();
     .kanban-column {
         background: #f5f5f5;
         border-radius: 8px;
-        padding: 15px;
+        padding: 0;
         min-height: 500px;
         transition: background-color 0.2s;
         display: flex;
         flex-direction: column;
+        height: calc(100vh - 250px);
+        max-height: calc(100vh - 250px);
+        overflow: hidden;
+    }
+    .kanban-column-header-wrapper {
+        flex-shrink: 0;
+        background: #f5f5f5;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-radius: 8px 8px 0 0;
+        padding: 15px 15px 10px 15px;
+    }
+    .kanban-column-header {
+        margin-bottom: 0;
+    }
+    /* Botão e formulário quick-add no topo ficam dentro do header fixo */
+    .quick-add-button-top {
+        flex-shrink: 0;
+        margin: 10px 0 0 0;
+    }
+    .quick-add-form-top-container {
+        flex-shrink: 0;
+        margin: 10px 0 0 0;
     }
     .kanban-column-tasks {
         flex: 1;
         min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 0 15px 15px 15px;
+        padding-right: 20px; /* Espaço para scrollbar */
+    }
+    /* Scrollbar personalizada para as colunas */
+    .kanban-column-tasks::-webkit-scrollbar {
+        width: 8px;
+    }
+    .kanban-column-tasks::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+    .kanban-column-tasks::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+    }
+    .kanban-column-tasks::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+    /* Botão Carregar mais */
+    .load-more-container {
+        text-align: center;
+        padding: 10px;
+        margin-top: 10px;
+    }
+    .load-more-button {
+        background: transparent;
+        border: 1px dashed #999;
+        border-radius: 4px;
+        color: #666;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+    }
+    .load-more-button:hover {
+        background: #e8e8e8;
+        border-color: #023A8D;
+        color: #023A8D;
+    }
+    /* Cards ocultos */
+    .kanban-task.hidden-task {
+        display: none;
+    }
+    /* Wrapper dos cards para controle de visibilidade */
+    .kanban-task-wrapper {
+        margin-bottom: 10px;
+    }
+    /* Container do formulário no topo (inicialmente oculto) */
+    .quick-add-form-top-container {
+        display: none;
+        margin-bottom: 10px;
+    }
+    .quick-add-form-top-container.active {
+        display: block;
     }
     /* Quick Add Styles */
     .quick-add-container {
         margin-top: 10px;
         padding-top: 10px;
         border-top: 1px solid #ddd;
+    }
+    /* Oculta apenas o botão do rodapé, mas mantém o formulário acessível */
+    .quick-add-container .quick-add-button {
+        display: none !important; /* Oculta o botão do rodapé */
     }
     .quick-add-button {
         width: 100%;
@@ -53,9 +182,14 @@ ob_start();
         border-radius: 4px;
         padding: 10px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-top: 10px;
     }
     .quick-add-form.active {
-        display: block;
+        display: block !important; /* Força exibição mesmo se container pai estiver oculto */
+    }
+    /* Quando o formulário está ativo, mostra o container também */
+    .quick-add-container .quick-add-form.active {
+        display: block !important;
     }
     .quick-add-input {
         width: 100%;
@@ -124,24 +258,46 @@ ob_start();
     .kanban-column-header {
         font-weight: 600;
         font-size: 16px;
-        margin-bottom: 15px;
         padding-bottom: 10px;
         border-bottom: 2px solid #ddd;
         color: #023A8D;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        margin-bottom: 0;
     }
     .column-count {
         font-weight: 400;
         font-size: 14px;
         color: #666;
     }
+    /* Botão de adicionar tarefa no topo da coluna */
+    .quick-add-button-top {
+        width: 100%;
+        padding: 6px 10px;
+        background: transparent;
+        border: 1px dashed #999;
+        border-radius: 4px;
+        color: #666;
+        cursor: pointer;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        transition: all 0.2s;
+        margin-bottom: 10px;
+    }
+    .quick-add-button-top:hover {
+        background: #e8e8e8;
+        border-color: #023A8D;
+        color: #023A8D;
+    }
     .kanban-task {
         background: white;
         border-radius: 6px;
         padding: 12px;
-        margin-bottom: 10px;
+        margin-bottom: 0; /* Margin movido para o wrapper */
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         cursor: pointer;
         transition: transform 0.2s;
@@ -476,6 +632,84 @@ ob_start();
     .filters .form-group label {
         margin-bottom: 5px;
     }
+    /* Autocomplete Styles */
+    .autocomplete-item {
+        padding: 10px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #f0f0f0;
+        transition: background 0.2s;
+    }
+    .autocomplete-item:hover,
+    .autocomplete-item.selected {
+        background: #e3f2fd !important;
+        color: #023A8D;
+    }
+    .autocomplete-item:last-child {
+        border-bottom: none;
+    }
+    #client-autocomplete-results {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-top: none;
+        border-radius: 0 0 4px 4px;
+        max-height: 250px;
+        overflow-y: auto;
+        z-index: 1000;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin-top: -1px;
+    }
+    #client-autocomplete-results::-webkit-scrollbar {
+        width: 8px;
+    }
+    #client-autocomplete-results::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+    #client-autocomplete-results::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+    }
+    #client-autocomplete-results::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+    /* Botões compactos de ação */
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        min-width: 32px;
+        height: 32px;
+    }
+    .btn-action svg {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+    }
+    .btn-action-primary {
+        background: #023A8D;
+        color: white;
+    }
+    .btn-action-primary:hover {
+        background: #022a6d;
+    }
+    .btn-action-secondary {
+        background: #6c757d;
+        color: white;
+    }
+    .btn-action-secondary:hover {
+        background: #555;
+    }
 </style>
 
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -483,7 +717,7 @@ ob_start();
         <h2>Quadro de Tarefas</h2>
         <p>Gerenciamento visual de tarefas em formato Kanban</p>
     </div>
-    <div style="display: flex; gap: 10px;">
+    <div style="display: flex; gap: 5px;">
         <?php
         $ticketUrl = pixelhub_url('/tickets/create');
         $ticketParams = [];
@@ -503,12 +737,26 @@ ob_start();
         }
         ?>
         <a href="<?= $ticketUrl ?>" 
-           style="background: #f57c00; color: white; padding: 10px 20px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; font-size: 14px; text-decoration: none; display: inline-block;">
-            🎫 Novo Ticket
+           class="btn-action btn-action-secondary"
+           style="gap: 6px; padding: 6px 12px; font-size: 13px; min-width: auto; height: auto;"
+           data-tooltip="Novo Ticket"
+           aria-label="Novo Ticket">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Novo Ticket</span>
         </a>
         <button id="btn-new-task" 
-                style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; font-size: 14px;">
-            Nova tarefa
+                class="btn-action btn-action-primary"
+                style="gap: 6px; padding: 6px 12px; font-size: 13px; min-width: auto; height: auto;"
+                data-tooltip="Nova tarefa"
+                aria-label="Nova tarefa">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Nova tarefa</span>
         </button>
     </div>
 </div>
@@ -517,10 +765,12 @@ ob_start();
 <div class="filters">
     <div class="form-group">
         <label for="filter_project">Projeto</label>
-        <select id="filter_project" onchange="applyFilters()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <select id="filter_project" onchange="handleProjectChange()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             <option value="">Todos</option>
             <?php foreach ($projects as $project): ?>
-                <option value="<?= $project['id'] ?>" <?= ($selectedProjectId == $project['id']) ? 'selected' : '' ?>>
+                <option value="<?= $project['id'] ?>" 
+                        data-tenant-id="<?= $project['tenant_id'] ?? '' ?>"
+                        <?= ($selectedProjectId == $project['id']) ? 'selected' : '' ?>>
                     <?= htmlspecialchars($project['name']) ?>
                     <?php if ($project['tenant_name']): ?>
                         (<?= htmlspecialchars($project['tenant_name']) ?>)
@@ -533,7 +783,9 @@ ob_start();
     </div>
     <div class="form-group">
         <label for="filter_tenant">Cliente</label>
-        <select id="filter_tenant" onchange="applyFilters()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <select id="filter_tenant" onchange="handleTenantChange()" 
+                title="Cliente é ajustado automaticamente quando um projeto é selecionado"
+                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             <option value="">Todos</option>
             <?php foreach ($tenants as $tenant): ?>
                 <option value="<?= $tenant['id'] ?>" <?= ($selectedTenantId == $tenant['id']) ? 'selected' : '' ?>>
@@ -542,13 +794,17 @@ ob_start();
             <?php endforeach; ?>
         </select>
     </div>
-    <div class="form-group">
+    <div class="form-group" style="position: relative;">
         <label for="filter_client_query">Pesquisar por cliente</label>
-        <input type="text" id="filter_client_query" name="client_query" 
-               placeholder="Digite parte do nome do cliente..." 
-               value="<?= htmlspecialchars($selectedClientQuery ?? '') ?>"
-               onchange="applyFilters()" 
-               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <div style="position: relative;">
+            <input type="text" id="filter_client_query" name="client_query" 
+                   placeholder="Digite parte do nome do cliente..." 
+                   value="<?= htmlspecialchars($selectedClientQuery ?? '') ?>"
+                   autocomplete="off"
+                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            <input type="hidden" id="filter_client_query_id" name="client_query_id" value="">
+            <div id="client-autocomplete-results"></div>
+        </div>
     </div>
     <div class="form-group">
         <label for="filter_type">Tipo</label>
@@ -565,6 +821,18 @@ ob_start();
             <option value="with" <?= ($selectedAgendaFilter === 'with') ? 'selected' : '' ?>>Com Agenda</option>
             <option value="without" <?= ($selectedAgendaFilter === 'without') ? 'selected' : '' ?>>Sem Agenda</option>
         </select>
+    </div>
+    <div class="form-group" style="display: flex; align-items: flex-end; margin-left: 10px;">
+        <button onclick="clearFilters()" 
+                style="padding: 8px 16px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; white-space: nowrap; font-size: 14px; color: #666;"
+                onmouseover="this.style.background='#e8e8e8'" 
+                onmouseout="this.style.background='#f5f5f5'"
+                title="Limpar todos os filtros e voltar ao estado padrão">
+            <svg style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px; display: inline-block;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+            Limpar filtros
+        </button>
     </div>
 </div>
 
@@ -618,14 +886,37 @@ ob_start();
 <div class="kanban-board">
     <!-- Backlog -->
     <div class="kanban-column" data-status="backlog" id="kanban-column-backlog">
-        <div class="kanban-column-header">
-            <span>Backlog</span>
-            <span class="column-count" id="count-backlog">(<?= count($tasks['backlog']) ?>)</span>
+        <div class="kanban-column-header-wrapper">
+            <div class="kanban-column-header">
+                <span>Backlog</span>
+                <span class="column-count" id="count-backlog">(<?= count($tasks['backlog']) ?>)</span>
+            </div>
+            <button class="quick-add-button-top" onclick="openQuickAdd('backlog')" id="quick-add-button-top-backlog">
+                <span>+</span>
+                <span>Adicionar tarefa</span>
+            </button>
+            <!-- Container do formulário no topo (aparece quando ativo) -->
+            <div class="quick-add-form-top-container" id="quick-add-form-top-backlog"></div>
         </div>
-        <div id="column-backlog" class="kanban-column-tasks">
-            <?php foreach ($tasks['backlog'] as $task): ?>
-                <?php include __DIR__ . '/_task_card.php'; ?>
+        <div id="column-backlog" class="kanban-column-tasks" data-column="backlog">
+            <?php 
+            $maxVisible = 20; // Limite inicial de cards visíveis
+            $taskIndex = 0;
+            foreach ($tasks['backlog'] as $task): 
+                $taskIndex++;
+                $isHidden = $taskIndex > $maxVisible;
+            ?>
+                <div class="kanban-task-wrapper" data-task-index="<?= $taskIndex ?>" <?= $isHidden ? 'style="display: none;"' : '' ?>>
+                    <?php include __DIR__ . '/_task_card.php'; ?>
+                </div>
             <?php endforeach; ?>
+            <?php if (count($tasks['backlog']) > $maxVisible): ?>
+                <div class="load-more-container" id="load-more-backlog">
+                    <button class="load-more-button" onclick="loadMoreTasks('backlog')">
+                        Carregar mais (<?= count($tasks['backlog']) - $maxVisible ?> restantes)
+                    </button>
+                </div>
+            <?php endif; ?>
         </div>
         <div class="quick-add-container">
             <button class="quick-add-button" onclick="openQuickAdd('backlog')">
@@ -636,10 +927,14 @@ ob_start();
                 <input type="text" class="quick-add-input" id="quick-add-input-backlog" 
                        placeholder="Digite o título da tarefa..." 
                        onkeydown="handleQuickAddKeydown(event, 'backlog')">
-                <select class="quick-add-project-select" id="quick-add-project-backlog">
+                <!-- Campo projeto oculto quando contexto já define -->
+                <select class="quick-add-project-select" id="quick-add-project-backlog" 
+                        data-context-project="<?= $contextProjectId ?? '' ?>"
+                        <?= $shouldHideProjectField ? 'style="display: none;"' : '' ?>>
                     <option value="">Selecione o projeto...</option>
                     <?php foreach ($projects as $project): ?>
-                        <option value="<?= $project['id'] ?>" <?= ($selectedProjectId == $project['id']) ? 'selected' : '' ?>>
+                        <option value="<?= $project['id'] ?>" 
+                                <?= ($contextProjectId == $project['id']) ? 'selected' : '' ?>>
                             <?= htmlspecialchars($project['name']) ?>
                             <?php if ($project['tenant_name']): ?>
                                 (<?= htmlspecialchars($project['tenant_name']) ?>)
@@ -649,6 +944,10 @@ ob_start();
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <?php if ($shouldHideProjectField && $contextProjectId): ?>
+                    <!-- Campo hidden para garantir que o projeto seja enviado -->
+                    <input type="hidden" id="quick-add-project-backlog-hidden" value="<?= $contextProjectId ?>">
+                <?php endif; ?>
                 <div class="quick-add-actions">
                     <button class="quick-add-save" onclick="saveQuickAdd('backlog')">Adicionar</button>
                     <button class="quick-add-cancel" onclick="cancelQuickAdd('backlog')">Cancelar</button>
@@ -660,14 +959,37 @@ ob_start();
 
     <!-- Em Andamento -->
     <div class="kanban-column" data-status="em_andamento" id="kanban-column-em-andamento">
-        <div class="kanban-column-header">
-            <span>Em Andamento</span>
-            <span class="column-count" id="count-em_andamento">(<?= count($tasks['em_andamento']) ?>)</span>
+        <div class="kanban-column-header-wrapper">
+            <div class="kanban-column-header">
+                <span>Em Andamento</span>
+                <span class="column-count" id="count-em_andamento">(<?= count($tasks['em_andamento']) ?>)</span>
+            </div>
+            <button class="quick-add-button-top" onclick="openQuickAdd('em_andamento')" id="quick-add-button-top-em_andamento">
+                <span>+</span>
+                <span>Adicionar tarefa</span>
+            </button>
+            <!-- Container do formulário no topo (aparece quando ativo) -->
+            <div class="quick-add-form-top-container" id="quick-add-form-top-em_andamento"></div>
         </div>
-        <div id="column-em_andamento" class="kanban-column-tasks">
-            <?php foreach ($tasks['em_andamento'] as $task): ?>
-                <?php include __DIR__ . '/_task_card.php'; ?>
+        <div id="column-em_andamento" class="kanban-column-tasks" data-column="em_andamento">
+            <?php 
+            $maxVisible = 20;
+            $taskIndex = 0;
+            foreach ($tasks['em_andamento'] as $task): 
+                $taskIndex++;
+                $isHidden = $taskIndex > $maxVisible;
+            ?>
+                <div class="kanban-task-wrapper" data-task-index="<?= $taskIndex ?>" <?= $isHidden ? 'style="display: none;"' : '' ?>>
+                    <?php include __DIR__ . '/_task_card.php'; ?>
+                </div>
             <?php endforeach; ?>
+            <?php if (count($tasks['em_andamento']) > $maxVisible): ?>
+                <div class="load-more-container" id="load-more-em_andamento">
+                    <button class="load-more-button" onclick="loadMoreTasks('em_andamento')">
+                        Carregar mais (<?= count($tasks['em_andamento']) - $maxVisible ?> restantes)
+                    </button>
+                </div>
+            <?php endif; ?>
         </div>
         <div class="quick-add-container">
             <button class="quick-add-button" onclick="openQuickAdd('em_andamento')">
@@ -678,10 +1000,14 @@ ob_start();
                 <input type="text" class="quick-add-input" id="quick-add-input-em_andamento" 
                        placeholder="Digite o título da tarefa..." 
                        onkeydown="handleQuickAddKeydown(event, 'em_andamento')">
-                <select class="quick-add-project-select" id="quick-add-project-em_andamento">
+                <!-- Campo projeto oculto quando contexto já define -->
+                <select class="quick-add-project-select" id="quick-add-project-em_andamento" 
+                        data-context-project="<?= $contextProjectId ?? '' ?>"
+                        <?= $shouldHideProjectField ? 'style="display: none;"' : '' ?>>
                     <option value="">Selecione o projeto...</option>
                     <?php foreach ($projects as $project): ?>
-                        <option value="<?= $project['id'] ?>" <?= ($selectedProjectId == $project['id']) ? 'selected' : '' ?>>
+                        <option value="<?= $project['id'] ?>" 
+                                <?= ($contextProjectId == $project['id']) ? 'selected' : '' ?>>
                             <?= htmlspecialchars($project['name']) ?>
                             <?php if ($project['tenant_name']): ?>
                                 (<?= htmlspecialchars($project['tenant_name']) ?>)
@@ -691,6 +1017,9 @@ ob_start();
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <?php if ($shouldHideProjectField && $contextProjectId): ?>
+                    <input type="hidden" id="quick-add-project-em_andamento-hidden" value="<?= $contextProjectId ?>">
+                <?php endif; ?>
                 <div class="quick-add-actions">
                     <button class="quick-add-save" onclick="saveQuickAdd('em_andamento')">Adicionar</button>
                     <button class="quick-add-cancel" onclick="cancelQuickAdd('em_andamento')">Cancelar</button>
@@ -702,14 +1031,37 @@ ob_start();
 
     <!-- Aguardando Cliente -->
     <div class="kanban-column" data-status="aguardando_cliente" id="kanban-column-aguardando-cliente">
-        <div class="kanban-column-header">
-            <span>Aguardando Cliente</span>
-            <span class="column-count" id="count-aguardando_cliente">(<?= count($tasks['aguardando_cliente']) ?>)</span>
+        <div class="kanban-column-header-wrapper">
+            <div class="kanban-column-header">
+                <span>Aguardando Cliente</span>
+                <span class="column-count" id="count-aguardando_cliente">(<?= count($tasks['aguardando_cliente']) ?>)</span>
+            </div>
+            <button class="quick-add-button-top" onclick="openQuickAdd('aguardando_cliente')" id="quick-add-button-top-aguardando_cliente">
+                <span>+</span>
+                <span>Adicionar tarefa</span>
+            </button>
+            <!-- Container do formulário no topo (aparece quando ativo) -->
+            <div class="quick-add-form-top-container" id="quick-add-form-top-aguardando_cliente"></div>
         </div>
-        <div id="column-aguardando_cliente" class="kanban-column-tasks">
-            <?php foreach ($tasks['aguardando_cliente'] as $task): ?>
-                <?php include __DIR__ . '/_task_card.php'; ?>
+        <div id="column-aguardando_cliente" class="kanban-column-tasks" data-column="aguardando_cliente">
+            <?php 
+            $maxVisible = 20;
+            $taskIndex = 0;
+            foreach ($tasks['aguardando_cliente'] as $task): 
+                $taskIndex++;
+                $isHidden = $taskIndex > $maxVisible;
+            ?>
+                <div class="kanban-task-wrapper" data-task-index="<?= $taskIndex ?>" <?= $isHidden ? 'style="display: none;"' : '' ?>>
+                    <?php include __DIR__ . '/_task_card.php'; ?>
+                </div>
             <?php endforeach; ?>
+            <?php if (count($tasks['aguardando_cliente']) > $maxVisible): ?>
+                <div class="load-more-container" id="load-more-aguardando_cliente">
+                    <button class="load-more-button" onclick="loadMoreTasks('aguardando_cliente')">
+                        Carregar mais (<?= count($tasks['aguardando_cliente']) - $maxVisible ?> restantes)
+                    </button>
+                </div>
+            <?php endif; ?>
         </div>
         <div class="quick-add-container">
             <button class="quick-add-button" onclick="openQuickAdd('aguardando_cliente')">
@@ -720,10 +1072,14 @@ ob_start();
                 <input type="text" class="quick-add-input" id="quick-add-input-aguardando_cliente" 
                        placeholder="Digite o título da tarefa..." 
                        onkeydown="handleQuickAddKeydown(event, 'aguardando_cliente')">
-                <select class="quick-add-project-select" id="quick-add-project-aguardando_cliente">
+                <!-- Campo projeto oculto quando contexto já define -->
+                <select class="quick-add-project-select" id="quick-add-project-aguardando_cliente" 
+                        data-context-project="<?= $contextProjectId ?? '' ?>"
+                        <?= $shouldHideProjectField ? 'style="display: none;"' : '' ?>>
                     <option value="">Selecione o projeto...</option>
                     <?php foreach ($projects as $project): ?>
-                        <option value="<?= $project['id'] ?>" <?= ($selectedProjectId == $project['id']) ? 'selected' : '' ?>>
+                        <option value="<?= $project['id'] ?>" 
+                                <?= ($contextProjectId == $project['id']) ? 'selected' : '' ?>>
                             <?= htmlspecialchars($project['name']) ?>
                             <?php if ($project['tenant_name']): ?>
                                 (<?= htmlspecialchars($project['tenant_name']) ?>)
@@ -733,6 +1089,9 @@ ob_start();
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <?php if ($shouldHideProjectField && $contextProjectId): ?>
+                    <input type="hidden" id="quick-add-project-aguardando_cliente-hidden" value="<?= $contextProjectId ?>">
+                <?php endif; ?>
                 <div class="quick-add-actions">
                     <button class="quick-add-save" onclick="saveQuickAdd('aguardando_cliente')">Adicionar</button>
                     <button class="quick-add-cancel" onclick="cancelQuickAdd('aguardando_cliente')">Cancelar</button>
@@ -744,14 +1103,59 @@ ob_start();
 
     <!-- Concluída -->
     <div class="kanban-column" data-status="concluida" id="kanban-column-concluida">
-        <div class="kanban-column-header">
-            <span>Concluída</span>
-            <span class="column-count" id="count-concluida">(<?= count($tasks['concluida']) ?>)</span>
+        <div class="kanban-column-header-wrapper">
+            <div class="kanban-column-header">
+                <span>Concluída</span>
+                <span class="column-count" id="count-concluida">(<?= count($tasks['concluida']) ?>)</span>
+            </div>
+            <button class="quick-add-button-top" onclick="openQuickAdd('concluida')" id="quick-add-button-top-concluida">
+                <span>+</span>
+                <span>Adicionar tarefa</span>
+            </button>
+            <!-- Container do formulário no topo (aparece quando ativo) -->
+            <div class="quick-add-form-top-container" id="quick-add-form-top-concluida"></div>
         </div>
-        <div id="column-concluida" class="kanban-column-tasks">
-            <?php foreach ($tasks['concluida'] as $task): ?>
-                <?php include __DIR__ . '/_task_card.php'; ?>
+        <div id="column-concluida" class="kanban-column-tasks" data-column="concluida">
+            <?php 
+            // Separa tarefas concluídas recentes (últimos 30 dias) das antigas
+            $recentTasks = [];
+            $oldTasks = [];
+            $thirtyDaysAgo = date('Y-m-d H:i:s', strtotime('-30 days'));
+            
+            foreach ($tasks['concluida'] as $task) {
+                $completedAt = $task['completed_at'] ?? null;
+                if ($completedAt && $completedAt >= $thirtyDaysAgo) {
+                    $recentTasks[] = $task;
+                } else {
+                    $oldTasks[] = $task;
+                }
+            }
+            
+            // Mostra tarefas recentes primeiro
+            $taskIndex = 0;
+            foreach ($recentTasks as $task): 
+                $taskIndex++;
+            ?>
+                <div class="kanban-task-wrapper" data-task-index="<?= $taskIndex ?>" data-task-recent="true">
+                    <?php include __DIR__ . '/_task_card.php'; ?>
+                </div>
             <?php endforeach; ?>
+            
+            <!-- Tarefas antigas (ocultas por padrão) -->
+            <?php if (!empty($oldTasks)): ?>
+                <?php foreach ($oldTasks as $task): 
+                    $taskIndex++;
+                ?>
+                    <div class="kanban-task-wrapper" data-task-index="<?= $taskIndex ?>" data-task-recent="false" style="display: none;">
+                        <?php include __DIR__ . '/_task_card.php'; ?>
+                    </div>
+                <?php endforeach; ?>
+                <div class="load-more-container" id="load-more-concluida">
+                    <button class="load-more-button" onclick="loadMoreTasks('concluida')">
+                        Ver tarefas concluídas antigas (<?= count($oldTasks) ?>)
+                    </button>
+                </div>
+            <?php endif; ?>
         </div>
         <div class="quick-add-container">
             <button class="quick-add-button" onclick="openQuickAdd('concluida')">
@@ -762,10 +1166,14 @@ ob_start();
                 <input type="text" class="quick-add-input" id="quick-add-input-concluida" 
                        placeholder="Digite o título da tarefa..." 
                        onkeydown="handleQuickAddKeydown(event, 'concluida')">
-                <select class="quick-add-project-select" id="quick-add-project-concluida">
+                <!-- Campo projeto oculto quando contexto já define -->
+                <select class="quick-add-project-select" id="quick-add-project-concluida" 
+                        data-context-project="<?= $contextProjectId ?? '' ?>"
+                        <?= $shouldHideProjectField ? 'style="display: none;"' : '' ?>>
                     <option value="">Selecione o projeto...</option>
                     <?php foreach ($projects as $project): ?>
-                        <option value="<?= $project['id'] ?>" <?= ($selectedProjectId == $project['id']) ? 'selected' : '' ?>>
+                        <option value="<?= $project['id'] ?>" 
+                                <?= ($contextProjectId == $project['id']) ? 'selected' : '' ?>>
                             <?= htmlspecialchars($project['name']) ?>
                             <?php if ($project['tenant_name']): ?>
                                 (<?= htmlspecialchars($project['tenant_name']) ?>)
@@ -775,6 +1183,9 @@ ob_start();
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <?php if ($shouldHideProjectField && $contextProjectId): ?>
+                    <input type="hidden" id="quick-add-project-concluida-hidden" value="<?= $contextProjectId ?>">
+                <?php endif; ?>
                 <div class="quick-add-actions">
                     <button class="quick-add-save" onclick="saveQuickAdd('concluida')">Adicionar</button>
                     <button class="quick-add-cancel" onclick="cancelQuickAdd('concluida')">Cancelar</button>
@@ -800,7 +1211,20 @@ ob_start();
                 <div style="display: flex; gap: 8px; align-items: flex-start;">
                     <select name="project_id" id="task_project_id" required style="flex: 1;">
                     <option value="">Selecione...</option>
-                    <?php foreach ($projects as $project): ?>
+                    <?php 
+                    // Usa todos os projetos ativos para o modal (igual ao /projects)
+                    // Garante que todos os projetos ativos apareçam, independente de filtros
+                    $projectsForModal = isset($allActiveProjects) && !empty($allActiveProjects) ? $allActiveProjects : [];
+                    if (empty($projectsForModal)) {
+                        // Fallback: busca todos os projetos ativos sem filtro (igual ao /projects)
+                        $projectsForModal = \PixelHub\Services\ProjectService::getAllProjects(null, 'ativo', null);
+                    }
+                    // Garante que sempre busca todos os projetos ativos (última garantia)
+                    if (empty($projectsForModal)) {
+                        $projectsForModal = \PixelHub\Services\ProjectService::getAllProjects(null, 'ativo', null);
+                    }
+                    foreach ($projectsForModal as $project): 
+                    ?>
                         <option value="<?= $project['id'] ?>" <?= ($selectedProjectId == $project['id']) ? 'selected' : '' ?>>
                             <?= htmlspecialchars($project['name']) ?>
                             <?php if ($project['tenant_name']): ?>
@@ -994,6 +1418,159 @@ ob_start();
 </div>
 
 <script>
+    // Armazena todos os projetos disponíveis para filtro dinâmico
+    const allProjects = [
+        <?php foreach ($projects as $project): ?>
+        {
+            id: <?= $project['id'] ?>,
+            name: <?= json_encode($project['name']) ?>,
+            tenantId: <?= $project['tenant_id'] ? json_encode($project['tenant_id']) : 'null' ?>,
+            tenantName: <?= $project['tenant_name'] ? json_encode($project['tenant_name']) : 'null' ?>
+        },
+        <?php endforeach; ?>
+    ];
+
+    // Sincronização hierárquica de filtros
+    function handleProjectChange() {
+        const projectSelect = document.getElementById('filter_project');
+        const tenantSelect = document.getElementById('filter_tenant');
+        const selectedProjectId = projectSelect.value;
+        
+        if (selectedProjectId) {
+            // Busca o projeto selecionado
+            const selectedOption = projectSelect.options[projectSelect.selectedIndex];
+            const tenantId = selectedOption.getAttribute('data-tenant-id');
+            
+            if (tenantId) {
+                // Ajusta o cliente automaticamente para o cliente do projeto
+                tenantSelect.value = tenantId;
+                // Trava o select de cliente enquanto o projeto estiver selecionado
+                tenantSelect.disabled = true;
+                tenantSelect.style.opacity = '0.7';
+                tenantSelect.style.cursor = 'not-allowed';
+                tenantSelect.title = 'Cliente travado porque um projeto está selecionado. Limpe o projeto para alterar o cliente.';
+            } else {
+                // Projeto interno - limpa cliente e destrava
+                tenantSelect.value = '';
+                tenantSelect.disabled = false;
+                tenantSelect.style.opacity = '1';
+                tenantSelect.style.cursor = 'default';
+                tenantSelect.title = 'Cliente é ajustado automaticamente quando um projeto é selecionado';
+            }
+        } else {
+            // Projeto foi limpo - destrava cliente (pode manter seleção se houver)
+            tenantSelect.disabled = false;
+            tenantSelect.style.opacity = '1';
+            tenantSelect.style.cursor = 'default';
+            tenantSelect.title = 'Cliente é ajustado automaticamente quando um projeto é selecionado';
+            // Filtra projetos baseado no cliente selecionado (se houver)
+            filterProjectsByTenant();
+        }
+        
+        // Aplica os filtros
+        applyFilters();
+    }
+
+    function handleTenantChange() {
+        const tenantSelect = document.getElementById('filter_tenant');
+        const projectSelect = document.getElementById('filter_project');
+        const selectedTenantId = tenantSelect.value;
+        
+        // Se há um projeto selecionado e o cliente mudou, limpa o projeto
+        // (pois o projeto selecionado pode não ser do novo cliente)
+        if (projectSelect.value && selectedTenantId) {
+            const selectedProjectOption = projectSelect.options[projectSelect.selectedIndex];
+            const projectTenantId = selectedProjectOption.getAttribute('data-tenant-id');
+            
+            // Se o projeto selecionado não é do cliente selecionado, limpa o projeto
+            if (String(projectTenantId) !== String(selectedTenantId)) {
+                projectSelect.value = '';
+                // Destrava o select de cliente
+                tenantSelect.disabled = false;
+                tenantSelect.style.opacity = '1';
+                tenantSelect.style.cursor = 'default';
+            }
+        } else if (projectSelect.value && !selectedTenantId) {
+            // Cliente foi limpo - destrava cliente
+            tenantSelect.disabled = false;
+            tenantSelect.style.opacity = '1';
+            tenantSelect.style.cursor = 'default';
+        }
+        
+        // Filtra projetos baseado no cliente selecionado
+        filterProjectsByTenant();
+        
+        // Aplica os filtros
+        applyFilters();
+    }
+
+    function filterProjectsByTenant() {
+        const tenantSelect = document.getElementById('filter_tenant');
+        const projectSelect = document.getElementById('filter_project');
+        const selectedTenantId = tenantSelect.value;
+        const currentProjectId = projectSelect.value;
+        
+        // Limpa todas as opções exceto "Todos"
+        const allOptions = Array.from(projectSelect.options);
+        allOptions.forEach(option => {
+            if (option.value !== '') {
+                option.remove();
+            }
+        });
+        
+        // Adiciona projetos filtrados
+        let currentProjectStillAvailable = false;
+        allProjects.forEach(project => {
+            // Se não há cliente selecionado, mostra todos os projetos
+            // Se há cliente selecionado, mostra apenas projetos daquele cliente ou projetos internos (sem tenant)
+            if (!selectedTenantId || !project.tenantId || String(project.tenantId) === String(selectedTenantId)) {
+                const option = document.createElement('option');
+                option.value = project.id;
+                option.setAttribute('data-tenant-id', project.tenantId || '');
+                option.textContent = project.name + (project.tenantName ? ' (' + project.tenantName + ')' : ' (Interno)');
+                
+                if (currentProjectId && String(project.id) === String(currentProjectId)) {
+                    option.selected = true;
+                    currentProjectStillAvailable = true;
+                }
+                
+                projectSelect.appendChild(option);
+            }
+        });
+        
+        // Se o projeto atual não está mais disponível após filtrar, limpa a seleção
+        if (currentProjectId && !currentProjectStillAvailable) {
+            projectSelect.value = '';
+            // Destrava o select de cliente
+            tenantSelect.disabled = false;
+            tenantSelect.style.opacity = '1';
+            tenantSelect.style.cursor = 'default';
+        }
+    }
+
+    function clearFilters() {
+        // Limpa todos os filtros
+        document.getElementById('filter_project').value = '';
+        document.getElementById('filter_tenant').value = '';
+        document.getElementById('filter_type').value = '';
+        document.getElementById('filter_agenda').value = '';
+        document.getElementById('filter_client_query').value = '';
+        document.getElementById('filter_client_query_id').value = '';
+        
+        // Destrava cliente se estiver travado
+        const tenantSelect = document.getElementById('filter_tenant');
+        tenantSelect.disabled = false;
+        tenantSelect.style.opacity = '1';
+        tenantSelect.style.cursor = 'default';
+        tenantSelect.title = 'Cliente é ajustado automaticamente quando um projeto é selecionado';
+        
+        // Restaura todos os projetos no select
+        filterProjectsByTenant();
+        
+        // Aplica filtros (vai para estado padrão)
+        applyFilters();
+    }
+
     function applyFilters() {
         const projectId = document.getElementById('filter_project').value;
         const tenantId = document.getElementById('filter_tenant').value;
@@ -1009,70 +1586,448 @@ ob_start();
         window.location.href = '<?= pixelhub_url('/projects/board') ?>?' + params.toString();
     }
 
+    // Inicializa estado dos filtros ao carregar a página
+    document.addEventListener('DOMContentLoaded', function() {
+        const projectSelect = document.getElementById('filter_project');
+        const tenantSelect = document.getElementById('filter_tenant');
+        
+        // Se há projeto selecionado, ajusta e trava o cliente
+        if (projectSelect && projectSelect.value) {
+            const selectedOption = projectSelect.options[projectSelect.selectedIndex];
+            const tenantId = selectedOption.getAttribute('data-tenant-id');
+            if (tenantId && tenantSelect) {
+                tenantSelect.value = tenantId;
+                tenantSelect.disabled = true;
+                tenantSelect.style.opacity = '0.7';
+                tenantSelect.style.cursor = 'not-allowed';
+            }
+        }
+        
+        // Se há cliente selecionado mas não há projeto, filtra projetos
+        if (tenantSelect && tenantSelect.value && (!projectSelect || !projectSelect.value)) {
+            filterProjectsByTenant();
+        }
+    });
+
+    // ===== AUTocomplete DE CLIENTE =====
+    (function() {
+        const clientInput = document.getElementById('filter_client_query');
+        const clientIdInput = document.getElementById('filter_client_query_id');
+        const resultsContainer = document.getElementById('client-autocomplete-results');
+        let searchTimeout = null;
+        let selectedIndex = -1;
+
+        if (!clientInput || !resultsContainer) return;
+
+        // Função para buscar clientes
+        function searchClients(query) {
+            if (query.length < 3) {
+                resultsContainer.style.display = 'none';
+                resultsContainer.innerHTML = '';
+                selectedIndex = -1;
+                return;
+            }
+
+            fetch('<?= pixelhub_url('/tenants/search-ajax') ?>?q=' + encodeURIComponent(query))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.clients && data.clients.length > 0) {
+                        displayResults(data.clients);
+                    } else {
+                        resultsContainer.innerHTML = '<div style="padding: 12px; color: #666; text-align: center;">Nenhum cliente encontrado</div>';
+                        resultsContainer.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar clientes:', error);
+                    resultsContainer.style.display = 'none';
+                });
+        }
+
+        // Função para exibir resultados
+        function displayResults(clients) {
+            resultsContainer.innerHTML = '';
+            selectedIndex = -1;
+
+            clients.forEach((client, index) => {
+                const item = document.createElement('div');
+                item.className = 'autocomplete-item';
+                
+                // Cria estrutura do item: nome + badge de duplicatas (se houver)
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = client.name;
+                nameSpan.style.flex = '1';
+                
+                item.appendChild(nameSpan);
+                
+                // Adiciona badge de duplicatas se houver (seguindo padrão do financeiro)
+                if (client.has_duplicates && client.duplicates_count > 0) {
+                    const badge = document.createElement('span');
+                    badge.innerHTML = `<span class="icon-warning" style="display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg></span> ${client.duplicates_count} duplicata${client.duplicates_count > 1 ? 's' : ''}`;
+                    badge.style.cssText = 'background: #fff3cd; color: #856404; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; margin-left: 8px; white-space: nowrap;';
+                    badge.title = 'Este cliente possui duplicatas no sistema. Apenas o principal é exibido.';
+                    item.appendChild(badge);
+                    
+                    // Adiciona estilo flex para alinhar nome e badge
+                    item.style.display = 'flex';
+                    item.style.alignItems = 'center';
+                    item.style.justifyContent = 'space-between';
+                }
+                
+                item.dataset.id = client.id;
+                item.dataset.name = client.name;
+
+                item.addEventListener('mouseenter', function() {
+                    this.classList.add('selected');
+                    selectedIndex = index;
+                });
+
+                item.addEventListener('mouseleave', function() {
+                    this.classList.remove('selected');
+                });
+
+                item.addEventListener('click', function() {
+                    selectClient(client.id, client.name);
+                });
+
+                resultsContainer.appendChild(item);
+            });
+
+            resultsContainer.style.display = 'block';
+        }
+
+        // Função para selecionar um cliente
+        function selectClient(id, name) {
+            resultsContainer.style.display = 'none';
+            selectedIndex = -1;
+            
+            // Quando seleciona do autocomplete, usa o tenant_id diretamente
+            // Atualiza o select de tenant para o ID selecionado
+            const tenantSelect = document.getElementById('filter_tenant');
+            if (tenantSelect) {
+                tenantSelect.value = id;
+            }
+            
+            // Mostra o nome selecionado no campo de pesquisa
+            clientInput.value = name;
+            clientIdInput.value = id;
+            
+            // Sincroniza filtros (filtra projetos e aplica)
+            handleTenantChange();
+        }
+
+        // Event listener para digitação
+        clientInput.addEventListener('input', function(e) {
+            const query = this.value.trim();
+            clientIdInput.value = ''; // Limpa o ID quando o texto muda
+            
+            // Se o usuário está digitando e há um tenant selecionado, limpa a seleção
+            const tenantSelect = document.getElementById('filter_tenant');
+            if (tenantSelect && tenantSelect.value) {
+                tenantSelect.value = '';
+            }
+
+            // Limpa timeout anterior
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+
+            // Se tem menos de 3 caracteres, esconde os resultados
+            if (query.length < 3) {
+                resultsContainer.style.display = 'none';
+                resultsContainer.innerHTML = '';
+                selectedIndex = -1;
+                return;
+            }
+
+            // Aguarda 300ms antes de buscar (debounce)
+            searchTimeout = setTimeout(() => {
+                searchClients(query);
+            }, 300);
+        });
+
+        // Fecha o dropdown ao clicar fora
+        document.addEventListener('click', function(e) {
+            if (!clientInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+                resultsContainer.style.display = 'none';
+            }
+        });
+
+        // Navegação com teclado
+        clientInput.addEventListener('keydown', function(e) {
+            const items = resultsContainer.querySelectorAll('.autocomplete-item');
+            if (items.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                updateSelection(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, -1);
+                updateSelection(items);
+            } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                e.preventDefault();
+                const selectedItem = items[selectedIndex];
+                if (selectedItem) {
+                    selectClient(selectedItem.dataset.id, selectedItem.dataset.name);
+                }
+            } else if (e.key === 'Escape') {
+                resultsContainer.style.display = 'none';
+                selectedIndex = -1;
+            }
+        });
+
+        function updateSelection(items) {
+            items.forEach((item, index) => {
+                if (index === selectedIndex) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+
+            // Scroll para o item selecionado
+            if (selectedIndex >= 0 && items[selectedIndex]) {
+                items[selectedIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }
+    })();
+
     // ===== QUICK ADD FUNCTIONS =====
     function openQuickAdd(status) {
         const form = document.getElementById('quick-add-' + status);
-        const button = form.previousElementSibling;
+        const buttonTop = document.getElementById('quick-add-button-top-' + status); // Botão do topo
+        const formTopContainer = document.getElementById('quick-add-form-top-' + status); // Container no topo
         const input = document.getElementById('quick-add-input-' + status);
         
-        if (form && button) {
-            button.style.display = 'none';
-            form.classList.add('active');
+        if (form && formTopContainer) {
+            // Esconde apenas o botão do topo (rodapé já está oculto via CSS)
+            if (buttonTop) buttonTop.style.display = 'none';
             
-            // Foca no input após um pequeno delay para garantir que está visível
+            // Clona o formulário do rodapé para o container do topo
+            const formClone = form.cloneNode(true);
+            formClone.id = 'quick-add-' + status + '-top';
+            formClone.classList.add('active');
+            
+            // Atualiza IDs dos elementos dentro do clone para evitar conflitos
+            const clonedInput = formClone.querySelector('.quick-add-input');
+            const clonedProjectSelect = formClone.querySelector('.quick-add-project-select');
+            const clonedProjectHidden = formClone.querySelector('input[type="hidden"][id*="project"]');
+            const clonedSaveBtn = formClone.querySelector('.quick-add-save');
+            const clonedCancelBtn = formClone.querySelector('.quick-add-cancel');
+            const clonedMoreBtn = formClone.querySelector('.quick-add-cancel[onclick*="openFullModalFromQuickAdd"]');
+            
+            if (clonedInput) {
+                clonedInput.id = 'quick-add-input-' + status + '-top';
+                clonedInput.setAttribute('onkeydown', `handleQuickAddKeydown(event, '${status}')`);
+            }
+            if (clonedProjectSelect) {
+                clonedProjectSelect.id = 'quick-add-project-' + status + '-top';
+                // Herda projeto dos filtros se disponível
+                const filterProjectId = document.getElementById('filter_project')?.value;
+                if (filterProjectId && clonedProjectSelect) {
+                    clonedProjectSelect.value = filterProjectId;
+                    // Se o select está oculto, atualiza o hidden também
+                    if (clonedProjectHidden) {
+                        clonedProjectHidden.value = filterProjectId;
+                    }
+                }
+            }
+            if (clonedProjectHidden) {
+                clonedProjectHidden.id = 'quick-add-project-' + status + '-top-hidden';
+                // Herda projeto dos filtros se disponível
+                const filterProjectId = document.getElementById('filter_project')?.value;
+                if (filterProjectId) {
+                    clonedProjectHidden.value = filterProjectId;
+                }
+            }
+            if (clonedSaveBtn) {
+                clonedSaveBtn.setAttribute('onclick', `saveQuickAdd('${status}', true)`);
+            }
+            if (clonedCancelBtn && !clonedCancelBtn.getAttribute('onclick')?.includes('openFullModalFromQuickAdd')) {
+                clonedCancelBtn.setAttribute('onclick', `cancelQuickAdd('${status}')`);
+            }
+            if (clonedMoreBtn) {
+                clonedMoreBtn.setAttribute('onclick', `openFullModalFromQuickAdd('${status}', true)`);
+            }
+            
+            // Limpa o container e adiciona o clone
+            formTopContainer.innerHTML = '';
+            formTopContainer.appendChild(formClone);
+            formTopContainer.classList.add('active');
+            
+            // Foca no input sem causar scroll - usa scrollIntoView com opções
             setTimeout(() => {
-                if (input) {
-                    input.focus();
+                if (clonedInput) {
+                    // Scroll suave apenas se necessário, mantendo o contexto visual
+                    const container = formTopContainer.closest('.kanban-column');
+                    if (container) {
+                        // Verifica se o container está visível
+                        const rect = formTopContainer.getBoundingClientRect();
+                        const containerRect = container.getBoundingClientRect();
+                        
+                        // Só faz scroll se o formulário estiver fora da área visível
+                        if (rect.top < containerRect.top || rect.bottom > containerRect.bottom) {
+                            formTopContainer.scrollIntoView({ 
+                                behavior: 'smooth', 
+                                block: 'nearest',
+                                inline: 'nearest'
+                            });
+                        }
+                    }
+                    
+                    // Foca no input
+                    try {
+                        clonedInput.focus({ preventScroll: true });
+                    } catch (e) {
+                        clonedInput.focus();
+                    }
                 }
             }, 50);
         }
     }
     
     function cancelQuickAdd(status) {
-        const form = document.getElementById('quick-add-' + status);
-        const button = form.previousElementSibling;
-        const input = document.getElementById('quick-add-input-' + status);
-        const projectSelect = document.getElementById('quick-add-project-' + status);
+        const formTopContainer = document.getElementById('quick-add-form-top-' + status);
+        const buttonTop = document.getElementById('quick-add-button-top-' + status);
+        const inputTop = document.getElementById('quick-add-input-' + status + '-top');
+        const projectSelectTop = document.getElementById('quick-add-project-' + status + '-top');
         
-        if (form && button) {
-            form.classList.remove('active');
-            button.style.display = 'flex';
-            
-            // Limpa os campos
+        // Remove o formulário do topo
+        if (formTopContainer) {
+            formTopContainer.classList.remove('active');
+            formTopContainer.innerHTML = '';
+        }
+        
+        // Mostra o botão do topo novamente
+        if (buttonTop) buttonTop.style.display = 'flex';
+        
+        // Limpa os campos (tanto do topo quanto do rodapé para garantir)
+        if (inputTop) inputTop.value = '';
+        if (projectSelectTop) projectSelectTop.value = '';
+        
+        // Também limpa o formulário original do rodapé (caso tenha sido modificado)
+        const form = document.getElementById('quick-add-' + status);
+        if (form) {
+            const input = form.querySelector('.quick-add-input');
+            const projectSelect = form.querySelector('.quick-add-project-select');
             if (input) input.value = '';
             if (projectSelect) projectSelect.value = '';
         }
     }
     
     function handleQuickAddKeydown(event, status) {
+        // Detecta se é o formulário do topo verificando o ID do input
+        const isTopForm = event.target.id && event.target.id.includes('-top');
+        
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
-            saveQuickAdd(status);
+            saveQuickAdd(status, isTopForm);
         } else if (event.key === 'Escape') {
             event.preventDefault();
             cancelQuickAdd(status);
         }
     }
     
-    function saveQuickAdd(status) {
-        const input = document.getElementById('quick-add-input-' + status);
-        const projectSelect = document.getElementById('quick-add-project-' + status);
-        const saveButton = document.querySelector('#quick-add-' + status + ' .quick-add-save');
+    // ===== LOAD MORE TASKS FUNCTIONS =====
+    function loadMoreTasks(status) {
+        const columnTasks = document.getElementById('column-' + status);
+        const loadMoreContainer = document.getElementById('load-more-' + status);
         
-        if (!input || !projectSelect) return;
+        if (!columnTasks) return;
+        
+        if (status === 'concluida') {
+            // Para concluída, mostra todas as tarefas antigas
+            const oldTasks = columnTasks.querySelectorAll('.kanban-task-wrapper[data-task-recent="false"]');
+            oldTasks.forEach(task => {
+                task.style.display = 'block';
+            });
+            
+            // Remove o botão após expandir
+            if (loadMoreContainer) {
+                loadMoreContainer.remove();
+            }
+        } else {
+            // Para outras colunas, mostra mais 20 cards por vez
+            const hiddenTasks = columnTasks.querySelectorAll('.kanban-task-wrapper[style*="display: none"]');
+            const batchSize = 20;
+            let shown = 0;
+            
+            hiddenTasks.forEach(task => {
+                if (shown < batchSize) {
+                    task.style.display = 'block';
+                    shown++;
+                }
+            });
+            
+            // Remove o botão se não há mais tarefas ocultas
+            const remainingHidden = columnTasks.querySelectorAll('.kanban-task-wrapper[style*="display: none"]');
+            if (remainingHidden.length === 0 && loadMoreContainer) {
+                loadMoreContainer.remove();
+            } else if (loadMoreContainer) {
+                // Atualiza o texto do botão com a quantidade restante
+                const button = loadMoreContainer.querySelector('.load-more-button');
+                if (button) {
+                    button.textContent = 'Carregar mais (' + remainingHidden.length + ' restantes)';
+                }
+            }
+        }
+    }
+    
+    function saveQuickAdd(status, isTopForm = false) {
+        // Prioriza o formulário do topo se existir, senão usa o do rodapé
+        const inputId = isTopForm ? 'quick-add-input-' + status + '-top' : 'quick-add-input-' + status;
+        const projectSelectId = isTopForm ? 'quick-add-project-' + status + '-top' : 'quick-add-project-' + status;
+        const projectHiddenId = isTopForm ? 'quick-add-project-' + status + '-top-hidden' : 'quick-add-project-' + status + '-hidden';
+        const formId = isTopForm ? 'quick-add-' + status + '-top' : 'quick-add-' + status;
+        
+        const input = document.getElementById(inputId);
+        const projectSelect = document.getElementById(projectSelectId);
+        const projectHidden = document.getElementById(projectHiddenId);
+        const saveButton = document.querySelector('#' + formId + ' .quick-add-save');
+        
+        if (!input) return;
         
         const title = input.value.trim();
-        const projectId = projectSelect.value;
+        // Usa o campo hidden se o select estiver oculto, senão usa o select
+        let projectId;
+        if (projectHidden) {
+            projectId = projectHidden.value;
+        } else if (projectSelect) {
+            projectId = projectSelect.value;
+        } else {
+            // Tenta pegar do atributo data-context-project
+            const selectElement = document.getElementById(projectSelectId);
+            if (selectElement && selectElement.dataset.contextProject) {
+                projectId = selectElement.dataset.contextProject;
+            } else {
+                alert('Erro: Não foi possível determinar o projeto. Por favor, selecione um projeto.');
+                return;
+            }
+        }
         
         if (!title) {
             alert('Por favor, digite o título da tarefa.');
-            input.focus();
+            // Foca sem causar scroll
+            try {
+                input.focus({ preventScroll: true });
+            } catch (e) {
+                input.focus();
+            }
             return;
         }
         
         if (!projectId) {
             alert('Por favor, selecione um projeto.');
-            projectSelect.focus();
+            // Se o campo select estiver visível, foca nele
+            if (projectSelect && projectSelect.offsetParent !== null) {
+                try {
+                    projectSelect.focus({ preventScroll: true });
+                } catch (e) {
+                    projectSelect.focus();
+                }
+            }
             return;
         }
         
@@ -1114,20 +2069,40 @@ ob_start();
         }
     }
     
-    function openFullModalFromQuickAdd(status) {
-        const input = document.getElementById('quick-add-input-' + status);
-        const projectSelect = document.getElementById('quick-add-project-' + status);
+    function openFullModalFromQuickAdd(status, isTopForm = false) {
+        // Prioriza o formulário do topo se existir, senão usa o do rodapé
+        const inputId = isTopForm ? 'quick-add-input-' + status + '-top' : 'quick-add-input-' + status;
+        const projectSelectId = isTopForm ? 'quick-add-project-' + status + '-top' : 'quick-add-project-' + status;
+        const projectHiddenId = isTopForm ? 'quick-add-project-' + status + '-top-hidden' : 'quick-add-project-' + status + '-hidden';
+        
+        const input = document.getElementById(inputId);
+        const projectSelect = document.getElementById(projectSelectId);
+        const projectHidden = document.getElementById(projectHiddenId);
         
         // Preenche o modal com os dados já digitados
         if (input && input.value.trim()) {
             document.getElementById('task_title').value = input.value.trim();
         }
         
-        if (projectSelect && projectSelect.value) {
-            document.getElementById('task_project_id').value = projectSelect.value;
+        // Usa o campo hidden se existir, senão usa o select
+        let projectId = null;
+        if (projectHidden) {
+            projectId = projectHidden.value;
+        } else if (projectSelect) {
+            projectId = projectSelect.value;
+        } else {
+            // Tenta pegar do atributo data-context-project
+            const selectElement = document.getElementById(projectSelectId);
+            if (selectElement && selectElement.dataset.contextProject) {
+                projectId = selectElement.dataset.contextProject;
+            }
         }
         
-        // Define o status
+        if (projectId) {
+            document.getElementById('task_project_id').value = projectId;
+        }
+        
+        // Define o status (pré-preenchido com a coluna onde o usuário clicou)
         document.getElementById('task_status').value = status;
         
         // Abre o modal completo
@@ -1144,6 +2119,7 @@ ob_start();
             const column = document.getElementById('column-' + status);
             const counter = document.getElementById('count-' + status);
             if (column && counter) {
+                // Conta todos os cards, mesmo os ocultos (dentro de wrappers)
                 const count = column.querySelectorAll('.kanban-task').length;
                 counter.textContent = '(' + count + ')';
             }
@@ -1999,16 +2975,16 @@ ob_start();
                     if (attachment.public_url) {
                         // Botão de compartilhar via WhatsApp
                         html += '<button type="button" onclick="shareRecordingViaWhatsApp(\'' + escapeHtml(attachment.public_url) + '\', ' + taskId + ')" style="background: #25D366; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Compartilhar via WhatsApp">';
-                        html += '<span>📱</span> Compartilhar';
+                        html += '<span class="icon-mobile"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></span> Compartilhar';
                         html += '</button>';
                         // Botão de copiar link
                         html += '<button type="button" onclick="copyRecordingLink(\'' + escapeHtml(attachment.public_url) + '\')" style="background: #6c757d; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Copiar link de compartilhamento">';
-                        html += '<span>🔗</span> Copiar link';
+                        html += '<span class="icon-link"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span> Copiar link';
                         html += '</button>';
                     } else {
                         // Se não tem public_url, tenta gerar na hora
                         html += '<button type="button" onclick="generateShareLink(' + attachment.id + ', ' + taskId + ')" style="background: #6c757d; color: white; padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Gerar link de compartilhamento">';
-                        html += '<span>🔗</span> Gerar link';
+                        html += '<span class="icon-link"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span> Gerar link';
                         html += '</button>';
                     }
                 }
@@ -3398,8 +4374,10 @@ ob_start();
                     
                     draggedTaskId = this.getAttribute('data-task-id');
                     draggedTaskElement = this;
-                    originalColumn = this.closest('.kanban-column-tasks');
-                    const parentColumn = this.closest('.kanban-column');
+                    // Encontra a coluna original considerando o wrapper
+                    const wrapper = this.closest('.kanban-task-wrapper');
+                    originalColumn = wrapper ? wrapper.parentElement : this.closest('.kanban-column-tasks');
+                    const parentColumn = (wrapper || this).closest('.kanban-column');
                     originalStatus = parentColumn ? parentColumn.getAttribute('data-status') : null;
                     
                     isDragging = true;
@@ -3498,8 +4476,17 @@ ob_start();
                     console.log('[KANBAN] Movendo card de', originalStatus, 'para', newStatus);
                     
                     // Move o card visualmente para a nova coluna
-                    draggedTaskElement.remove();
-                    newColumnTasks.appendChild(draggedTaskElement);
+                    // Se o card está dentro de um wrapper, move o wrapper; caso contrário, move apenas o card
+                    const wrapper = draggedTaskElement.closest('.kanban-task-wrapper');
+                    const elementToMove = wrapper || draggedTaskElement;
+                    
+                    elementToMove.remove();
+                    newColumnTasks.appendChild(elementToMove);
+                    
+                    // Se movemos o wrapper, atualiza a referência do draggedTaskElement para o card dentro dele
+                    if (wrapper) {
+                        draggedTaskElement = wrapper.querySelector('.kanban-task');
+                    }
                     
                     // Atualiza o select dentro do card
                     const statusSelect = draggedTaskElement.querySelector('.task-status-select');
@@ -3524,9 +4511,17 @@ ob_start();
                         function(error) {
                             // Erro: reverte o card para a coluna original
                             console.error('[KANBAN] Erro ao mover tarefa:', error);
-                            draggedTaskElement.remove();
+                            const wrapper = draggedTaskElement.closest('.kanban-task-wrapper');
+                            const elementToRevert = wrapper || draggedTaskElement;
+                            
+                            elementToRevert.remove();
                             if (originalColumn) {
-                                originalColumn.appendChild(draggedTaskElement);
+                                originalColumn.appendChild(elementToRevert);
+                            }
+                            
+                            // Restaura referência se necessário
+                            if (wrapper) {
+                                draggedTaskElement = wrapper.querySelector('.kanban-task');
                             }
                             
                             // Reverte o select

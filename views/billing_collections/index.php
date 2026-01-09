@@ -145,11 +145,11 @@ $baseUrl = pixelhub_url('');
                             $daysDiff = (int) $diff->format('%r%a');
                             
                             if ($daysDiff == 0) {
-                                $dueDateBadge = '<span class="badge badge-warning" style="background: #fff3cd; color: #856404; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">Hoje</span>';
+                                $dueDateBadge = '<span class="badge badge-warning">Hoje</span>';
                             } elseif ($daysDiff == 1) {
-                                $dueDateBadge = '<span class="badge badge-info" style="background: #d1ecf1; color: #0c5460; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">Amanhã</span>';
+                                $dueDateBadge = '<span class="badge badge-info">Amanhã</span>';
                             } elseif ($daysDiff < 0) {
-                                $dueDateBadge = '<span class="badge badge-danger" style="background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">' . abs($daysDiff) . 'd atraso</span>';
+                                $dueDateBadge = '<span class="badge badge-danger">' . abs($daysDiff) . 'd atraso</span>';
                             }
                         } catch (Exception $e) {
                             // mantém N/A
@@ -258,8 +258,10 @@ $baseUrl = pixelhub_url('');
                         </td>
                         <td style="padding: 12px; text-align: center;">
                             <a href="<?= pixelhub_url('/billing/whatsapp-modal?invoice_id=' . $invoice['id']) ?>" 
-                               class="btn btn-primary btn-sm" 
-                               style="background: #023A8D; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; font-weight: 500; display: inline-block;">
+                               class="btn btn-small"
+                               style="background: #6c757d; color: white; text-decoration: none;"
+                               data-tooltip="Cobrar"
+                               aria-label="Cobrar">
                                 Cobrar
                             </a>
                         </td>
@@ -270,34 +272,7 @@ $baseUrl = pixelhub_url('');
     </table>
 </div>
 
-<style>
-.badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.badge-pending {
-    background: #f8f9fa;
-    color: #6c757d;
-    border: 1px solid #dee2e6;
-}
-
-.badge-overdue {
-    background: #fff5f5;
-    color: #c92a2a;
-    border: 1px solid #ffc9c9;
-}
-
-.badge-paid {
-    background: #f0f9ff;
-    color: #1971c2;
-    border: 1px solid #a5d8ff;
-}
+<!-- Estilos de badges removidos - usando padrão global do app-overrides.css -->
 
 .badge-default {
     background: #f8f9fa;

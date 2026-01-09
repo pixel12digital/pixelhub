@@ -57,23 +57,7 @@ ob_start();
         font-size: 12px;
         font-weight: 600;
     }
-    .prioridade-baixa { background: #e3f2fd; color: #1976d2; }
-    .prioridade-media { background: #fff3e0; color: #f57c00; }
-    .prioridade-alta { background: #ffebee; color: #d32f2f; }
-    .prioridade-critica { background: #f3e5f5; color: #7b1fa2; }
-    .ticket-status {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 12px;
-        font-weight: 600;
-        margin-left: 8px;
-    }
-    .status-aberto { background: #e3f2fd; color: #1976d2; }
-    .status-em_atendimento { background: #fff3e0; color: #f57c00; }
-    .status-aguardando_cliente { background: #fce4ec; color: #c2185b; }
-    .status-resolvido { background: #e8f5e9; color: #388e3c; }
-    .status-cancelado { background: #f5f5f5; color: #757575; }
+    /* Estilos de badges removidos - usando padrão global do app-overrides.css */
     .ticket-info {
         margin-top: 10px;
         color: #666;

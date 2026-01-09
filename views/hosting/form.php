@@ -169,14 +169,14 @@ $providers = $providers ?? [];
             </select>
             <?php if (empty($providers)): ?>
                 <small style="color: #856404; font-size: 12px; display: block; margin-top: 5px;">
-                    ⚠️ Nenhum provedor configurado. Configure em <strong>Configurações > Configurações de Infraestrutura > Provedores de Hospedagem</strong>.
+                    <span style="display: inline-block; width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg></span> Nenhum provedor configurado. Configure em <strong>Configurações > Configurações de Infraestrutura > Provedores de Hospedagem</strong>.
                 </small>
             <?php endif; ?>
             
             <!-- Mensagem informativa quando nenhum_backup estiver selecionado -->
             <div id="nenhum-backup-info" style="display: none; margin-top: 15px; padding: 15px; background: #e7f3ff; border: 1px solid #023A8D; border-radius: 4px;">
                 <p style="margin: 0; color: #023A8D; font-size: 14px;">
-                    <strong>ℹ️ Informação:</strong> Este site está sem hospedagem ativa. Use a aba <strong>Docs & Backups</strong> para ver os links de backup (Google Drive, GitHub, etc.).
+                    <strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg></span> Informação:</strong> Este site está sem hospedagem ativa. Use a aba <strong>Docs & Backups</strong> para ver os links de backup (Google Drive, GitHub, etc.).
                 </p>
             </div>
             
@@ -193,7 +193,7 @@ $providers = $providers ?? [];
                     <div style="display: flex; align-items: flex-end;">
                         <button type="button" onclick="copyToClipboard('hostweb-ns1', this)" 
                                 style="background: #023A8D; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;">
-                            📋 Copiar
+                            <span style="display: inline-block; width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></span> Copiar
                         </button>
                     </div>
                 </div>
@@ -207,7 +207,7 @@ $providers = $providers ?? [];
                     <div style="display: flex; align-items: flex-end;">
                         <button type="button" onclick="copyToClipboard('hostweb-ns2', this)" 
                                 style="background: #023A8D; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;">
-                            📋 Copiar
+                            <span style="display: inline-block; width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></span> Copiar
                         </button>
                     </div>
                 </div>

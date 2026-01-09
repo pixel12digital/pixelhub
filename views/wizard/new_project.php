@@ -559,7 +559,7 @@ ob_start();
                     <div>
                         <input type="text" 
                                id="service-search-input" 
-                               placeholder="🔍 Buscar por nome ou descrição..." 
+                               placeholder="Buscar por nome ou descrição..." 
                                oninput="filterServices()"
                                style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box;">
                     </div>
@@ -1049,7 +1049,7 @@ ob_start();
                 <div style="background: linear-gradient(135deg, #f0f7ff 0%, #e3f2fd 100%); border: 2px solid #023A8D; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(2, 58, 141, 0.1);">
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
                         <div style="width: 40px; height: 40px; background: #023A8D; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                            <span style="color: white; font-size: 20px;">🔍</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; color: white;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                         </div>
                         <div style="flex: 1;">
                             <h4 style="margin: 0 0 4px 0; font-size: 16px; font-weight: 600; color: #023A8D;">Buscar Cliente no Asaas</h4>
@@ -1083,7 +1083,7 @@ ob_start();
                             <button type="button" id="btn-search-asaas" onclick="triggerAsaasSearch()" 
                                     disabled
                                     style="white-space: nowrap; padding: 12px 24px; font-weight: 600; font-size: 14px; background: #023A8D; color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.3s; opacity: 0.5; height: 44px; display: flex; align-items: center; gap: 8px;">
-                                <span style="font-size: 16px;">🔍</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                                 <span>Buscar</span>
                             </button>
                         </div>
@@ -1399,7 +1399,7 @@ function checkClientExistsInAsaas(personType) {
         if (cpfCnpj.length < 11) {
             statusDiv.style.display = 'block';
             statusDiv.className = 'asaas-check-warning';
-            statusDiv.innerHTML = '⚠️ CPF incompleto. Digite 11 dígitos.';
+            statusDiv.innerHTML = '<span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg></span> CPF incompleto. Digite 11 dígitos.';
             return;
         }
     } else {
@@ -1407,7 +1407,7 @@ function checkClientExistsInAsaas(personType) {
         if (cpfCnpj.length < 14) {
             statusDiv.style.display = 'block';
             statusDiv.className = 'asaas-check-warning';
-            statusDiv.innerHTML = '⚠️ CNPJ incompleto. Digite 14 dígitos.';
+            statusDiv.innerHTML = '<span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg></span> CNPJ incompleto. Digite 14 dígitos.';
             return;
         }
     }
@@ -1533,10 +1533,10 @@ function checkClientExistsInAsaas(personType) {
             importFromAsaas();
             
             statusDiv.className = 'asaas-check-success';
-            statusDiv.innerHTML = '<strong>✅ Cliente encontrado no Asaas!</strong><br>Nome: <strong>' + (data.asaas_data.name || 'N/A') + '</strong>';
+            statusDiv.innerHTML = '<strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span> Cliente encontrado no Asaas!</strong><br>Nome: <strong>' + (data.asaas_data.name || 'N/A') + '</strong>';
             
             resultDiv.className = 'asaas-check-success';
-            resultDiv.innerHTML = '<strong>✅ Dados sincronizados do Asaas!</strong><br><small>Os dados foram importados automaticamente. Revise e complete os campos abaixo se necessário.</small>';
+            resultDiv.innerHTML = '<strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span> Dados sincronizados do Asaas!</strong><br><small>Os dados foram importados automaticamente. Revise e complete os campos abaixo se necessário.</small>';
             
             canCreateClient = true;
             cpfCnpjChecked = true;
@@ -1550,7 +1550,7 @@ function checkClientExistsInAsaas(personType) {
         
         // Cliente não existe em nenhum lugar - OK para criar
         statusDiv.className = 'asaas-check-success';
-        statusDiv.innerHTML = '<strong>✅ Cliente não encontrado no Asaas</strong><br>Pode prosseguir com o cadastro normalmente.';
+        statusDiv.innerHTML = '<strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span> Cliente não encontrado no Asaas</strong><br>Pode prosseguir com o cadastro normalmente.';
         
         resultDiv.className = 'asaas-check-info';
         resultDiv.innerHTML = '<small>Complete os dados abaixo para criar o novo cliente.</small>';
@@ -1573,7 +1573,7 @@ function checkClientExistsInAsaas(personType) {
         
         statusDiv.style.display = 'block';
         statusDiv.className = 'asaas-check-error';
-        statusDiv.innerHTML = '<strong>❌ Erro ao conectar com Asaas</strong><br><small>Verifique se a chave de API está configurada corretamente em Configurações → Configurações Asaas.</small>';
+        statusDiv.innerHTML = '<strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></span> Erro ao conectar com Asaas</strong><br><small>Verifique se a chave de API está configurada corretamente em Configurações → Configurações Asaas.</small>';
         
         // Esconde campos do formulário
         if (formFields) {
@@ -2254,7 +2254,7 @@ function suggestProjectNameWithAI() {
         }
         
         if (data.suggestions && data.suggestions.length > 0) {
-            let html = '<div style="font-weight: 600; margin-bottom: 10px; color: #023A8D;">💡 Sugestões de nomes:</div>';
+            let html = '<div style="font-weight: 600; margin-bottom: 10px; color: #023A8D; display: flex; align-items: center; gap: 6px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 16px; height: 16px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg> Sugestões de nomes:</div>';
             data.suggestions.forEach((suggestion, index) => {
                 html += `<div style="padding: 8px; margin-bottom: 5px; background: white; border-radius: 4px; cursor: pointer; border: 1px solid #ddd; transition: all 0.2s;" 
                               onmouseover="this.style.borderColor='#023A8D'; this.style.background='#f0f7ff';" 
@@ -2318,7 +2318,7 @@ document.getElementById('wizardForm').addEventListener('submit', function(e) {
         } else {
             // Mostra mensagem de sucesso se múltiplos projetos foram criados
             if (data.projects_count && data.projects_count > 1) {
-                const message = `✅ ${data.projects_count} projetos criados com sucesso!\n\n` +
+                const message = `${data.projects_count} projetos criados com sucesso!\n\n` +
                     data.projects_created.map(p => `• ${p.name}`).join('\n') +
                     '\n\nVocê será redirecionado para o primeiro projeto.';
                 alert(message);

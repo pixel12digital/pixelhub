@@ -283,3 +283,4 @@ public static function selectTemplate(array $intakeData): array
 - **Versionamento:** Templates podem ter versões (v1, v2) para evolução sem quebrar gerações antigas
 
 
+

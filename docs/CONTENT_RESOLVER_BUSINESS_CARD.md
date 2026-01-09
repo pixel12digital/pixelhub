@@ -500,3 +500,4 @@ O Content Resolver é executado **DEPOIS** do Template Selector:
 - **Validação rigorosa:** Antes de enviar para Canva, validar todas as regras novamente
 
 
+

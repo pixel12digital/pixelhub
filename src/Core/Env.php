@@ -11,11 +11,22 @@ class Env
 
     /**
      * Carrega o arquivo .env se ainda não foi carregado
+     * 
+     * @param string $path Caminho do arquivo .env
+     * @param bool $force Se true, força recarregar mesmo se já foi carregado
      */
-    public static function load(string $path = __DIR__ . '/../../.env'): void
+    public static function load(string $path = __DIR__ . '/../../.env', bool $force = false): void
     {
-        if (!empty(self::$loaded)) {
+        if (!empty(self::$loaded) && !$force) {
             return;
+        }
+        
+        // Se forçar recarregamento, limpa o cache
+        if ($force) {
+            self::$loaded = [];
+            $_ENV = array_filter($_ENV, function($key) {
+                return !in_array($key, ['WPP_GATEWAY_BASE_URL', 'WPP_GATEWAY_SECRET', 'PIXELHUB_WHATSAPP_WEBHOOK_URL', 'PIXELHUB_WHATSAPP_WEBHOOK_SECRET']);
+            }, ARRAY_FILTER_USE_KEY);
         }
 
         if (!file_exists($path)) {
@@ -47,8 +58,9 @@ class Env
                     }
                 }
                 
-                // Define como variável de ambiente se não existir
-                if (!isset($_ENV[$key])) {
+                // Define como variável de ambiente
+                // Se force=true, sempre atualiza. Caso contrário, só atualiza se não existir
+                if ($force || !isset($_ENV[$key])) {
                     $_ENV[$key] = $value;
                     // putenv() - armazena diretamente (o $ no valor é preservado como literal)
                     // No Windows, putenv pode ter problemas com $, mas $_ENV é confiável

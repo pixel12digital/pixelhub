@@ -20,7 +20,7 @@ $hasAsaasCustomerId = !empty($tenant['asaas_customer_id'] ?? null);
             <a href="<?= htmlspecialchars($asaasUrl) ?>" 
                target="_blank"
                style="background: #F7931E; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
-                🔗 Abrir no Asaas
+                <span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 100%; height: 100%;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span> Abrir no Asaas
             </a>
         <?php endif; ?>
     <?php endif; ?>
@@ -65,7 +65,7 @@ $hasAsaasCustomerId = !empty($tenant['asaas_customer_id'] ?? null);
                 
                 <?php if ($hasAsaasCustomerId): ?>
                     <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 13px; color: #856404;">
-                        <strong>ℹ️ Dados sincronizados do Asaas.</strong> Para alterar, edite diretamente no Asaas e depois sincronize.
+                        <strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg></span> Dados sincronizados do Asaas.</strong> Para alterar, edite diretamente no Asaas e depois sincronize.
                     </div>
                 <?php endif; ?>
                 
@@ -107,7 +107,7 @@ $hasAsaasCustomerId = !empty($tenant['asaas_customer_id'] ?? null);
                 
                 <?php if ($hasAsaasCustomerId): ?>
                     <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 13px; color: #856404;">
-                        <strong>ℹ️ Dados sincronizados do Asaas.</strong> Para alterar, edite diretamente no Asaas e depois sincronize.
+                        <strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg></span> Dados sincronizados do Asaas.</strong> Para alterar, edite diretamente no Asaas e depois sincronize.
                     </div>
                 <?php endif; ?>
                 
@@ -433,7 +433,7 @@ function checkClientExistsInAsaas() {
             resultDiv.style.background = '#f8d7da';
             resultDiv.style.border = '1px solid #f5c6cb';
             resultDiv.style.color = '#721c24';
-            let message = '<strong>⚠️ Cliente já cadastrado no sistema!</strong><br>';
+            let message = '<strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg></span> Cliente já cadastrado no sistema!</strong><br>';
             message += 'Nome: <strong>' + (data.system_name || 'N/A') + '</strong><br>';
             if (data.asaas_customer_id) {
                 message += '<small>Já vinculado ao Asaas</small>';
@@ -452,7 +452,7 @@ function checkClientExistsInAsaas() {
             resultDiv.style.border = '1px solid #ffeaa7';
             resultDiv.style.color = '#856404';
             
-            let message = '<strong>⚠️ Cliente encontrado no Asaas!</strong><br>';
+            let message = '<strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg></span> Cliente encontrado no Asaas!</strong><br>';
             message += 'Nome: <strong>' + (data.asaas_data.name || 'N/A') + '</strong><br>';
             if (data.asaas_data.email) {
                 message += 'Email: ' + data.asaas_data.email + '<br>';
@@ -475,7 +475,7 @@ function checkClientExistsInAsaas() {
         resultDiv.style.background = '#d4edda';
         resultDiv.style.border = '1px solid #c3e6cb';
         resultDiv.style.color = '#155724';
-        resultDiv.innerHTML = '<strong>✅ Cliente não encontrado</strong><br><small>Pode prosseguir com o cadastro normalmente.</small>';
+        resultDiv.innerHTML = '<strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span> Cliente não encontrado</strong><br><small>Pode prosseguir com o cadastro normalmente.</small>';
         canCreateClient = true;
     })
     .catch(error => {
@@ -528,7 +528,7 @@ function importFromAsaas() {
     resultDiv.style.background = '#d4edda';
     resultDiv.style.border = '1px solid #c3e6cb';
     resultDiv.style.color = '#155724';
-    resultDiv.innerHTML = '<strong>✅ Dados importados do Asaas!</strong><br><small>Revise os dados e clique em "Salvar" para continuar.</small>';
+    resultDiv.innerHTML = '<strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span> Dados importados do Asaas!</strong><br><small>Revise os dados e clique em "Salvar" para continuar.</small>';
 }
 
 @keyframes spin {

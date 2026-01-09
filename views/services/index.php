@@ -116,17 +116,22 @@ $baseUrl = pixelhub_url('');
                             </span>
                         </td>
                         <td style="padding: 12px; text-align: center; vertical-align: middle;">
-                            <div style="display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: nowrap;">
+                            <div style="display: flex; gap: 5px; justify-content: center; align-items: center; flex-wrap: nowrap;">
                                 <a href="<?= pixelhub_url('/services/edit?id=' . $service['id']) ?>" 
-                                   style="color: #023A8D; text-decoration: none; font-size: 13px; font-weight: 500; white-space: nowrap; display: inline-block; line-height: 1.5;">
+                                   class="btn btn-small"
+                                   style="background: #6c757d; color: white; text-decoration: none;"
+                                   data-tooltip="Editar"
+                                   aria-label="Editar">
                                     Editar
                                 </a>
-                                <span style="color: #ddd;">|</span>
                                 <form method="POST" action="<?= pixelhub_url('/services/toggle-status') ?>" 
-                                      style="display: inline-block; margin: 0; padding: 0; vertical-align: middle;">
+                                      style="display: inline-block; margin: 0; padding: 0;">
                                     <input type="hidden" name="id" value="<?= $service['id'] ?>">
                                     <button type="submit" 
-                                            style="background: none; border: none; color: #023A8D; cursor: pointer; font-size: 13px; font-weight: 500; padding: 0; white-space: nowrap; line-height: 1.5;">
+                                            class="btn btn-small"
+                                            style="background: #6c757d; color: white; border: none; cursor: pointer;"
+                                            data-tooltip="<?= $service['is_active'] ? 'Desativar' : 'Ativar' ?>"
+                                            aria-label="<?= $service['is_active'] ? 'Desativar' : 'Ativar' ?>">
                                         <?= $service['is_active'] ? 'Desativar' : 'Ativar' ?>
                                     </button>
                                 </form>
@@ -139,29 +144,7 @@ $baseUrl = pixelhub_url('');
     <?php endif; ?>
 </div>
 
-<style>
-.badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.badge-success {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-}
-
-.badge-default {
-    background: #f8f9fa;
-    color: #6c757d;
-    border: 1px solid #dee2e6;
-}
-</style>
+<!-- Estilos de badges removidos - usando padrão global do app-overrides.css -->
 
 <script>
 function applyFilters() {

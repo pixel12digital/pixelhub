@@ -63,3 +63,4 @@ Após reconfigurar a chave localmente:
 - A `INFRA_SECRET_KEY` deve ser **única e segura** em cada ambiente
 
 
+

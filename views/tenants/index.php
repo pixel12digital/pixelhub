@@ -204,7 +204,7 @@ function toggleNewClientMenu() {
     }
 }
 
-// Fecha o menu ao clicar fora dele
+    // Fecha o menu ao clicar fora dele
 document.addEventListener('click', function(event) {
     const container = document.getElementById('newClientMenuContainer');
     const menu = document.getElementById('newClientMenu');
@@ -212,6 +212,32 @@ document.addEventListener('click', function(event) {
         menu.style.display = 'none';
     }
 });
+
+    // Remove title attributes from action buttons to prevent native tooltips
+    function removeNativeTooltips() {
+        document.querySelectorAll('td:last-child .btn').forEach(function(button) {
+            if (button.hasAttribute('title')) {
+                button.removeAttribute('title');
+            }
+        });
+    }
+    
+    // Remove tooltips on initial load
+    removeNativeTooltips();
+    
+    // Remove tooltips after AJAX updates
+    const originalFetchTenants = window.fetchTenants;
+    if (typeof originalFetchTenants === 'undefined') {
+        // Observer para detectar mudanças no DOM após AJAX
+        const observer = new MutationObserver(function(mutations) {
+            removeNativeTooltips();
+        });
+        
+        const tableBody = document.getElementById('tenants-table-body');
+        if (tableBody) {
+            observer.observe(tableBody, { childList: true, subtree: true });
+        }
+    }
 </script>
 
 <?php

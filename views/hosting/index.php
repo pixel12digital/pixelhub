@@ -91,7 +91,10 @@ $providerMap = $providerMap ?? [];
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <a href="<?= pixelhub_url('/hosting/backups?hosting_id=' . $hostingAccount['id']) ?>" 
-                           style="background: #023A8D; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-block; margin-right: 5px;">
+                           class="btn btn-small"
+                           style="background: #6c757d; color: white; text-decoration: none;"
+                           data-tooltip="Backups"
+                           aria-label="Backups">
                             Backups
                         </a>
                     </td>
