@@ -314,6 +314,8 @@ async function checkForNewMessages() {
         }
     } catch (error) {
         console.error('Erro ao verificar novas mensagens:', error);
+    } finally {
+        ThreadState.isChecking = false; // Reset obrigatório para permitir próximos checks
     }
 }
 
@@ -516,11 +518,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Inicializa marcadores com mensagens existentes
     initializeMarkers();
     
-    // Auto-scroll inicial
+    // Auto-scroll inicial (aguarda renderização completa)
     const container = document.getElementById('messages-container');
     if (container) {
-        container.scrollTop = container.scrollHeight;
-        ThreadState.autoScroll = true;
+        // Usa requestAnimationFrame + setTimeout para garantir que o DOM está totalmente renderizado
+        requestAnimationFrame(() => {
+            setTimeout(() => {
+                container.scrollTop = container.scrollHeight;
+                ThreadState.autoScroll = true;
+            }, 100);
+        });
         
         // Detecta scroll manual para desabilitar auto-scroll
         container.addEventListener('scroll', function() {
