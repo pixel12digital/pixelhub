@@ -134,10 +134,9 @@ $baseUrl = pixelhub_url('');
                         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #999;">
                             <span><?= $thread['message_count'] ?? 0 ?> mensagens</span>
                             <?php
-                            // Converte UTC para timezone local (-03:00)
+                            // Formata timestamp (MySQL já armazena no timezone do sistema)
                             $lastActivity = $thread['last_activity'] ?? 'now';
-                            $dateTime = new DateTime($lastActivity, new DateTimeZone('UTC'));
-                            $dateTime->setTimezone(new DateTimeZone('America/Sao_Paulo')); // UTC-3
+                            $dateTime = new DateTime($lastActivity);
                             ?>
                             <span><?= $dateTime->format('d/m H:i') ?></span>
                         </div>

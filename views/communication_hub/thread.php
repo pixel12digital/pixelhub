@@ -65,10 +65,9 @@ $baseUrl = pixelhub_url('');
                             </div>
                             <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: right;">
                                 <?php
-                                // Converte UTC para timezone local (-03:00)
+                                // Formata timestamp (MySQL já armazena no timezone do sistema)
                                 $msgTimestamp = $msg['timestamp'] ?? $msg['created_at'] ?? 'now';
-                                $msgDateTime = new DateTime($msgTimestamp, new DateTimeZone('UTC'));
-                                $msgDateTime->setTimezone(new DateTimeZone('America/Sao_Paulo')); // UTC-3
+                                $msgDateTime = new DateTime($msgTimestamp);
                                 echo $msgDateTime->format('d/m H:i');
                                 ?>
                             </div>
