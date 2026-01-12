@@ -119,3 +119,4 @@ Análise baseada em melhores práticas de UX e comparação com sistemas de refe
 **Documento criado para embasar a decisão de reorganização.**
 
 
+

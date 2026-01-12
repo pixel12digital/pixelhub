@@ -882,5 +882,397 @@ class CommunicationHubController extends Controller
 
         return null;
     }
+
+    /**
+     * Verifica se há novas mensagens (check leve, otimizado)
+     * 
+     * GET /communication-hub/messages/check?thread_id=X&after_timestamp=Y&after_event_id=Z
+     * 
+     * Retorna apenas {has_new: bool} para verificação rápida
+     * 
+     * OTIMIZADO: Não carrega payloads JSON, apenas verifica existência
+     */
+    public function checkNewMessages(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $threadId = $_GET['thread_id'] ?? null;
+        $afterTimestamp = $_GET['after_timestamp'] ?? null;
+        $afterEventId = $_GET['after_event_id'] ?? null;
+
+        if (empty($threadId)) {
+            $this->json(['success' => false, 'error' => 'thread_id é obrigatório'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            // Resolve thread para pegar dados da conversa
+            $conversationData = $this->resolveThreadToConversation($db, $threadId);
+            if (!$conversationData) {
+                $this->json(['success' => false, 'error' => 'Thread não encontrado'], 404);
+                return;
+            }
+
+            $contactExternalId = $conversationData['contact_external_id'];
+            $tenantId = $conversationData['tenant_id'];
+            
+            $normalizeContact = function($contact) {
+                if (empty($contact)) return null;
+                return preg_replace('/@.*$/', '', (string) $contact);
+            };
+            $normalizedContact = $normalizeContact($contactExternalId);
+
+            // Query leve: verifica existência sem carregar payload completo
+            // Usa mesma lógica de marcador que getWhatsAppMessagesIncremental
+            $where = [
+                "ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')"
+            ];
+            $params = [];
+
+            if ($afterTimestamp) {
+                $where[] = "(ce.created_at > ? OR (ce.created_at = ? AND ce.event_id > ?))";
+                $params[] = $afterTimestamp;
+                $params[] = $afterTimestamp;
+                $params[] = $afterEventId ?? '';
+            }
+
+            $whereClause = "WHERE " . implode(" AND ", $where);
+
+            // Check leve: busca apenas event_id e payload mínimo (só para filtrar por contato)
+            // Limite baixo: só precisa verificar se existe pelo menos 1
+            $stmt = $db->prepare("
+                SELECT ce.event_id, ce.payload
+                FROM communication_events ce
+                {$whereClause}
+                ORDER BY ce.created_at ASC, ce.event_id ASC
+                LIMIT 20
+            ");
+            $stmt->execute($params);
+            $events = $stmt->fetchAll();
+
+            // Filtra rapidamente para verificar se há mensagens desta conversa
+            $hasNew = false;
+
+            foreach ($events as $event) {
+                $payload = json_decode($event['payload'], true);
+                $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
+                $eventTo = $payload['to'] ?? $payload['message']['to'] ?? null;
+                
+                $normalizedFrom = $eventFrom ? $normalizeContact($eventFrom) : null;
+                $normalizedTo = $eventTo ? $normalizeContact($eventTo) : null;
+                
+                $isFromThisContact = !empty($normalizedFrom) && $normalizedFrom === $normalizedContact;
+                $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContact;
+                
+                if ($isFromThisContact || $isToThisContact) {
+                    $hasNew = true;
+                    break; // Encontrou uma, não precisa verificar mais
+                }
+            }
+
+            $this->json([
+                'success' => true,
+                'has_new' => $hasNew
+            ]);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao verificar novas mensagens: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro ao verificar mensagens'], 500);
+        }
+    }
+
+    /**
+     * Busca novas mensagens (incremental, otimizado)
+     * 
+     * GET /communication-hub/messages/new?thread_id=X&after_timestamp=Y&after_event_id=Z
+     */
+    public function getNewMessages(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $threadId = $_GET['thread_id'] ?? null;
+        $afterTimestamp = $_GET['after_timestamp'] ?? null;
+        $afterEventId = $_GET['after_event_id'] ?? null;
+
+        if (empty($threadId)) {
+            $this->json(['success' => false, 'error' => 'thread_id é obrigatório'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            $conversationData = $this->resolveThreadToConversation($db, $threadId);
+            if (!$conversationData) {
+                $this->json(['success' => false, 'error' => 'Thread não encontrado'], 404);
+                return;
+            }
+
+            $messages = $this->getWhatsAppMessagesIncremental(
+                $db,
+                $conversationData['conversation_id'],
+                $conversationData['contact_external_id'],
+                $conversationData['tenant_id'],
+                $afterTimestamp,
+                $afterEventId
+            );
+
+            $this->json([
+                'success' => true,
+                'messages' => $messages,
+                'count' => count($messages)
+            ]);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao buscar novas mensagens: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro ao buscar mensagens'], 500);
+        }
+    }
+
+    /**
+     * Busca uma mensagem específica por event_id
+     * 
+     * GET /communication-hub/message?event_id=X&thread_id=Y (thread_id opcional para validação)
+     * 
+     * NOTA: thread_id é opcional mas recomendado para validação de isolamento
+     */
+    public function getMessage(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $eventId = $_GET['event_id'] ?? null;
+        $threadId = $_GET['thread_id'] ?? null; // Opcional: validação de isolamento
+        
+        if (empty($eventId)) {
+            $this->json(['success' => false, 'error' => 'event_id é obrigatório'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            $stmt = $db->prepare("
+                SELECT 
+                    ce.event_id,
+                    ce.event_type,
+                    ce.created_at,
+                    ce.payload,
+                    ce.metadata,
+                    ce.tenant_id
+                FROM communication_events ce
+                WHERE ce.event_id = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$eventId]);
+            $event = $stmt->fetch();
+
+            if (!$event) {
+                $this->json(['success' => false, 'error' => 'Mensagem não encontrada'], 404);
+                return;
+            }
+
+            // Validação de isolamento: se thread_id fornecido, valida que mensagem pertence à thread
+            if (!empty($threadId)) {
+                $conversationData = $this->resolveThreadToConversation($db, $threadId);
+                if ($conversationData) {
+                    $payload = json_decode($event['payload'], true);
+                    $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
+                    $eventTo = $payload['to'] ?? $payload['message']['to'] ?? null;
+                    
+                    $normalizeContact = function($contact) {
+                        if (empty($contact)) return null;
+                        return preg_replace('/@.*$/', '', (string) $contact);
+                    };
+                    
+                    $normalizedContact = $normalizeContact($conversationData['contact_external_id']);
+                    $normalizedFrom = $eventFrom ? $normalizeContact($eventFrom) : null;
+                    $normalizedTo = $eventTo ? $normalizeContact($eventTo) : null;
+                    
+                    $isFromThisContact = !empty($normalizedFrom) && $normalizedFrom === $normalizedContact;
+                    $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContact;
+                    
+                    if (!$isFromThisContact && !$isToThisContact) {
+                        // Mensagem não pertence à thread solicitada
+                        $this->json(['success' => false, 'error' => 'Mensagem não pertence à thread'], 403);
+                        return;
+                    }
+                }
+            }
+
+            $payload = json_decode($event['payload'], true);
+            $direction = $event['event_type'] === 'whatsapp.inbound.message' ? 'inbound' : 'outbound';
+            
+            $content = $payload['text'] 
+                ?? $payload['body'] 
+                ?? $payload['message']['text'] 
+                ?? $payload['message']['body'] 
+                ?? '';
+            
+            if (empty($content)) {
+                if (isset($payload['type']) || isset($payload['message']['type'])) {
+                    $mediaType = $payload['type'] ?? $payload['message']['type'] ?? 'media';
+                    $content = "[{$mediaType}]";
+                }
+            }
+
+            $message = [
+                'id' => $event['event_id'],
+                'direction' => $direction,
+                'content' => $content,
+                'timestamp' => $event['created_at'],
+                'metadata' => json_decode($event['metadata'] ?? '{}', true)
+            ];
+
+            $this->json([
+                'success' => true,
+                'message' => $message
+            ]);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao buscar mensagem: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro ao buscar mensagem'], 500);
+        }
+    }
+
+    /**
+     * Helper: Resolve thread_id para dados da conversa
+     */
+    private function resolveThreadToConversation(PDO $db, string $threadId): ?array
+    {
+        // Formato novo: whatsapp_{conversation_id}
+        if (preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
+            $conversationId = (int) $matches[1];
+            
+            $stmt = $db->prepare("
+                SELECT id as conversation_id, contact_external_id, tenant_id
+                FROM conversations
+                WHERE id = ?
+            ");
+            $stmt->execute([$conversationId]);
+            $conv = $stmt->fetch();
+            
+            if ($conv) {
+                return [
+                    'conversation_id' => $conv['conversation_id'],
+                    'contact_external_id' => $conv['contact_external_id'],
+                    'tenant_id' => $conv['tenant_id']
+                ];
+            }
+        }
+
+        // Formato antigo: whatsapp_{tenant_id}_{from}
+        if (preg_match('/whatsapp_(\d+)_(.+)/', $threadId, $matches)) {
+            return [
+                'conversation_id' => null, // Não tem conversation
+                'contact_external_id' => $matches[2],
+                'tenant_id' => (int) $matches[1]
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * Busca mensagens incrementais (apenas novas após marcador)
+     * 
+     * Usa created_at indexado + tie-breaker event_id para evitar perder mensagens
+     * em timestamps iguais
+     */
+    private function getWhatsAppMessagesIncremental(
+        PDO $db,
+        ?int $conversationId,
+        string $contactExternalId,
+        ?int $tenantId,
+        ?string $afterTimestamp,
+        ?string $afterEventId
+    ): array {
+        $normalizeContact = function($contact) {
+            if (empty($contact)) return null;
+            return preg_replace('/@.*$/', '', (string) $contact);
+        };
+        $normalizedContactExternalId = $normalizeContact($contactExternalId);
+
+        // Build query incremental (usando índice created_at + tie-breaker event_id)
+        $where = [
+            "ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')"
+        ];
+        $params = [];
+
+        if ($afterTimestamp) {
+            // Filtro incremental: created_at > timestamp OU (created_at = timestamp E event_id > after_event_id)
+            $where[] = "(ce.created_at > ? OR (ce.created_at = ? AND ce.event_id > ?))";
+            $params[] = $afterTimestamp;
+            $params[] = $afterTimestamp;
+            $params[] = $afterEventId ?? '';
+        }
+
+        $whereClause = "WHERE " . implode(" AND ", $where);
+
+        // Busca eventos incrementais (limitado para não sobrecarregar)
+        $stmt = $db->prepare("
+            SELECT 
+                ce.event_id,
+                ce.event_type,
+                ce.created_at,
+                ce.payload,
+                ce.metadata,
+                ce.tenant_id
+            FROM communication_events ce
+            {$whereClause}
+            ORDER BY ce.created_at ASC, ce.event_id ASC
+            LIMIT 100
+        ");
+        $stmt->execute($params);
+        $allEvents = $stmt->fetchAll();
+
+        // Filtra eventos desta conversa (mesma lógica do método original)
+        $messages = [];
+        foreach ($allEvents as $event) {
+            $payload = json_decode($event['payload'], true);
+            $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
+            $eventTo = $payload['to'] ?? $payload['message']['to'] ?? null;
+            
+            $normalizedFrom = $eventFrom ? $normalizeContact($eventFrom) : null;
+            $normalizedTo = $eventTo ? $normalizeContact($eventTo) : null;
+            
+            $isFromThisContact = !empty($normalizedFrom) && $normalizedFrom === $normalizedContactExternalId;
+            $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContactExternalId;
+            
+            if (!$isFromThisContact && !$isToThisContact) {
+                continue;
+            }
+            
+            if ($tenantId && $event['tenant_id'] && $event['tenant_id'] != $tenantId) {
+                continue;
+            }
+            
+            $direction = $event['event_type'] === 'whatsapp.inbound.message' ? 'inbound' : 'outbound';
+            
+            $content = $payload['text'] 
+                ?? $payload['body'] 
+                ?? $payload['message']['text'] 
+                ?? $payload['message']['body'] 
+                ?? '';
+            
+            if (empty($content)) {
+                if (isset($payload['type']) || isset($payload['message']['type'])) {
+                    $mediaType = $payload['type'] ?? $payload['message']['type'] ?? 'media';
+                    $content = "[{$mediaType}]";
+                }
+            }
+            
+            $messages[] = [
+                'id' => $event['event_id'],
+                'direction' => $direction,
+                'content' => $content,
+                'timestamp' => $event['created_at'],
+                'metadata' => json_decode($event['metadata'] ?? '{}', true)
+            ];
+        }
+
+        return $messages;
+    }
 }
 

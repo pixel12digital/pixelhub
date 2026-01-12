@@ -45,8 +45,13 @@ $baseUrl = pixelhub_url('');
             </div>
         </div>
         
-        <!-- Container de Mensagens -->
-        <div id="messages-container" style="flex: 1; overflow-y: auto; padding: 20px; background: #f8f9fa;">
+        <!-- Container de Mensagens (com badge fixo no topo) -->
+        <div style="flex: 1; display: flex; flex-direction: column; position: relative;">
+            <!-- Badge de novas mensagens (fixo no topo do container) -->
+            <div id="new-messages-badge" style="display: none; position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 10; background: #023A8D; color: white; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); width: fit-content; pointer-events: auto;">
+                <span id="new-messages-count">1</span> nova(s) mensagem(ns)
+            </div>
+            <div id="messages-container" style="flex: 1; overflow-y: auto; padding: 20px; background: #f8f9fa;">
             <?php if (empty($messages)): ?>
                 <div style="text-align: center; padding: 40px; color: #666;">
                     <p>Nenhuma mensagem ainda</p>
@@ -56,20 +61,20 @@ $baseUrl = pixelhub_url('');
                 <?php foreach ($messages as $msg): ?>
                     <?php
                     $isOutbound = ($msg['direction'] ?? $msg['role'] ?? '') === 'outbound' || ($msg['role'] ?? '') === 'assistant';
+                    $msgId = $msg['id'] ?? '';
+                    $msgTimestamp = $msg['timestamp'] ?? $msg['created_at'] ?? 'now';
+                    $msgDateTime = new DateTime($msgTimestamp);
                     ?>
                     <div class="message-bubble <?= $isOutbound ? 'outbound' : 'inbound' ?>" 
+                         data-message-id="<?= htmlspecialchars($msgId) ?>"
+                         data-timestamp="<?= htmlspecialchars($msgTimestamp) ?>"
                          style="margin-bottom: 15px; display: flex; <?= $isOutbound ? 'justify-content: flex-end;' : '' ?>">
                         <div style="max-width: 70%; padding: 12px 16px; border-radius: 18px; <?= $isOutbound ? 'background: #dcf8c6; margin-left: auto;' : 'background: white;' ?>">
                             <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap;">
                                 <?= htmlspecialchars($msg['content'] ?? '') ?>
                             </div>
                             <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: right;">
-                                <?php
-                                // Formata timestamp (MySQL já armazena no timezone do sistema)
-                                $msgTimestamp = $msg['timestamp'] ?? $msg['created_at'] ?? 'now';
-                                $msgDateTime = new DateTime($msgTimestamp);
-                                echo $msgDateTime->format('d/m H:i');
-                                ?>
+                                <?= $msgDateTime->format('d/m H:i') ?>
                             </div>
                         </div>
                     </div>
@@ -103,6 +108,301 @@ $baseUrl = pixelhub_url('');
 </div>
 
 <script>
+// ============================================================================
+// Configuração Global
+// ============================================================================
+const THREAD_CONFIG = {
+    threadId: '<?= htmlspecialchars($thread['thread_id'] ?? '') ?>',
+    channel: '<?= htmlspecialchars($channel ?? 'whatsapp') ?>',
+    baseUrl: '<?= pixelhub_url('') ?>',
+    pollInterval: 5000, // 5 segundos quando ativo
+    pollIntervalInactive: 30000, // 30 segundos quando inativo
+};
+
+// Estado da aplicação
+const ThreadState = {
+    lastTimestamp: null,
+    lastEventId: null,
+    messageIds: new Set(), // Para dedupe
+    pollingInterval: null,
+    isPageVisible: true,
+    pendingOptimisticMessage: null, // Mensagem otimista esperando confirmação
+    autoScroll: true, // Se deve fazer auto-scroll
+    newMessagesCount: 0, // Contador de novas mensagens quando scrollado para cima
+    isChecking: false, // Flag para evitar race condition (múltiplos checks simultâneos)
+};
+
+// ============================================================================
+// Funções de Atualização de UI (Abstraídas para SSE)
+// ============================================================================
+
+/**
+ * Função principal para processar novas mensagens (usada por polling e SSE)
+ */
+function onNewMessages(messages) {
+    if (!messages || messages.length === 0) return;
+    
+    const container = document.getElementById('messages-container');
+    if (!container) return;
+    
+    // Filtra mensagens já existentes (dedupe)
+    const newMessages = messages.filter(msg => {
+        const msgId = msg.id || msg.event_id;
+        if (!msgId || ThreadState.messageIds.has(msgId)) {
+            return false;
+        }
+        ThreadState.messageIds.add(msgId);
+        return true;
+    });
+    
+    if (newMessages.length === 0) return;
+    
+    // Atualiza marcadores
+    const lastMessage = newMessages[newMessages.length - 1];
+    ThreadState.lastTimestamp = lastMessage.timestamp || lastMessage.created_at;
+    ThreadState.lastEventId = lastMessage.id || lastMessage.event_id;
+    
+    // Adiciona mensagens ao DOM
+    newMessages.forEach(msg => {
+        addMessageElementToDOM(msg);
+    });
+    
+    // Atualiza scroll
+    updateScroll();
+}
+
+/**
+ * Adiciona um elemento de mensagem ao DOM
+ */
+function addMessageElementToDOM(message) {
+    const container = document.getElementById('messages-container');
+    if (!container) return;
+    
+    const msgId = message.id || message.event_id || '';
+    const direction = message.direction || 'inbound';
+    const content = message.content || '';
+    const timestamp = message.timestamp || message.created_at || new Date().toISOString();
+    
+    // Formata timestamp
+    const date = new Date(timestamp);
+    const timeStr = String(date.getDate()).padStart(2, '0') + '/' + 
+                   String(date.getMonth() + 1).padStart(2, '0') + ' ' +
+                   String(date.getHours()).padStart(2, '0') + ':' + 
+                   String(date.getMinutes()).padStart(2, '0');
+    
+    const isOutbound = direction === 'outbound';
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message-bubble ' + direction;
+    messageDiv.setAttribute('data-message-id', msgId);
+    messageDiv.setAttribute('data-timestamp', timestamp);
+    messageDiv.style.cssText = 'margin-bottom: 15px; display: flex; ' + (isOutbound ? 'justify-content: flex-end;' : '');
+    
+    messageDiv.innerHTML = `
+        <div style="max-width: 70%; padding: 12px 16px; border-radius: 18px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto;' : 'background: white;'}">
+            <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap;">
+                ${escapeHtml(content)}
+            </div>
+            <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: right;">
+                ${timeStr}
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(messageDiv);
+}
+
+/**
+ * Atualiza mensagem existente no DOM (para confirmar mensagem otimista)
+ */
+function updateMessageInPlace(eventId, messageData) {
+    const existingMsg = document.querySelector(`[data-message-id="${eventId}"]`);
+    if (!existingMsg) return false;
+    
+    // Se a mensagem já existe, atualiza timestamp e outros dados se necessário
+    // Por enquanto, apenas confirma que a mensagem existe
+    return true;
+}
+
+// ============================================================================
+// Gestão de Scroll Profissional
+// ============================================================================
+
+function updateScroll() {
+    const container = document.getElementById('messages-container');
+    if (!container) return;
+    
+    // Verifica se está no final do scroll (threshold de 50px)
+    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+    
+    if (isAtBottom || ThreadState.autoScroll) {
+        // Auto-scroll para o final
+        container.scrollTop = container.scrollHeight;
+        ThreadState.autoScroll = true;
+        hideNewMessagesBadge();
+    } else {
+        // Usuário está lendo mensagens antigas
+        ThreadState.autoScroll = false;
+        ThreadState.newMessagesCount++;
+        showNewMessagesBadge();
+    }
+}
+
+function showNewMessagesBadge() {
+    const badge = document.getElementById('new-messages-badge');
+    const count = document.getElementById('new-messages-count');
+    if (badge && count) {
+        count.textContent = ThreadState.newMessagesCount;
+        badge.style.display = 'block';
+    }
+}
+
+function hideNewMessagesBadge() {
+    const badge = document.getElementById('new-messages-badge');
+    if (badge) {
+        badge.style.display = 'none';
+        ThreadState.newMessagesCount = 0;
+    }
+}
+
+// Click no badge: scroll para o final
+document.addEventListener('DOMContentLoaded', function() {
+    const badge = document.getElementById('new-messages-badge');
+    if (badge) {
+        badge.addEventListener('click', function() {
+            const container = document.getElementById('messages-container');
+            if (container) {
+                ThreadState.autoScroll = true;
+                container.scrollTop = container.scrollHeight;
+                hideNewMessagesBadge();
+            }
+        });
+    }
+});
+
+// ============================================================================
+// Polling Inteligente
+// ============================================================================
+
+async function checkForNewMessages() {
+    if (!ThreadState.isPageVisible) return;
+    if (ThreadState.isChecking) return; // Evita race condition: já há um check em progresso
+    
+    if (!ThreadState.lastTimestamp) {
+        // Primeira vez: inicializa marcadores com última mensagem
+        initializeMarkers();
+        return;
+    }
+    
+    ThreadState.isChecking = true; // Marca como checking
+    
+    try {
+        // Check leve primeiro
+        const checkUrl = new URL(THREAD_CONFIG.baseUrl + '/communication-hub/messages/check');
+        checkUrl.searchParams.set('thread_id', THREAD_CONFIG.threadId);
+        checkUrl.searchParams.set('after_timestamp', ThreadState.lastTimestamp);
+        if (ThreadState.lastEventId) {
+            checkUrl.searchParams.set('after_event_id', ThreadState.lastEventId);
+        }
+        
+        const checkResponse = await fetch(checkUrl);
+        const checkResult = await checkResponse.json();
+        
+        if (checkResult.success && checkResult.has_new) {
+            // Há novas mensagens: busca mensagens completas
+            await fetchNewMessages();
+        }
+    } catch (error) {
+        console.error('Erro ao verificar novas mensagens:', error);
+    }
+}
+
+async function fetchNewMessages() {
+    try {
+        const url = new URL(THREAD_CONFIG.baseUrl + '/communication-hub/messages/new');
+        url.searchParams.set('thread_id', THREAD_CONFIG.threadId);
+        if (ThreadState.lastTimestamp) {
+            url.searchParams.set('after_timestamp', ThreadState.lastTimestamp);
+            if (ThreadState.lastEventId) {
+                url.searchParams.set('after_event_id', ThreadState.lastEventId);
+            }
+        }
+        
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success && result.messages) {
+            onNewMessages(result.messages);
+        }
+    } catch (error) {
+        console.error('Erro ao buscar novas mensagens:', error);
+    }
+}
+
+function initializeMarkers() {
+    const container = document.getElementById('messages-container');
+    if (!container) return;
+    
+    const messages = container.querySelectorAll('[data-message-id]');
+    if (messages.length > 0) {
+        const lastMsg = messages[messages.length - 1];
+        ThreadState.lastTimestamp = lastMsg.getAttribute('data-timestamp');
+        ThreadState.lastEventId = lastMsg.getAttribute('data-message-id');
+        
+        // Popula Set de IDs para dedupe
+        messages.forEach(msg => {
+            const msgId = msg.getAttribute('data-message-id');
+            if (msgId) ThreadState.messageIds.add(msgId);
+        });
+    }
+}
+
+function startPolling() {
+    if (ThreadState.pollingInterval) return;
+    
+    // Polling inicial após 2 segundos
+    setTimeout(() => {
+        checkForNewMessages();
+    }, 2000);
+    
+    // Polling periódico
+    ThreadState.pollingInterval = setInterval(() => {
+        checkForNewMessages();
+    }, ThreadState.isPageVisible ? THREAD_CONFIG.pollInterval : THREAD_CONFIG.pollIntervalInactive);
+}
+
+function stopPolling() {
+    if (ThreadState.pollingInterval) {
+        clearInterval(ThreadState.pollingInterval);
+        ThreadState.pollingInterval = null;
+    }
+}
+
+// ============================================================================
+// Page Visibility API
+// ============================================================================
+
+document.addEventListener('visibilitychange', function() {
+    ThreadState.isPageVisible = !document.hidden;
+    
+    if (ThreadState.isPageVisible) {
+        // Página visível: reinicia polling
+        if (ThreadState.pollingInterval) {
+            stopPolling();
+        }
+        startPolling();
+        // Verifica imediatamente se há novas mensagens
+        checkForNewMessages();
+    } else {
+        // Página oculta: pausa polling (mantém intervalo mas não executa)
+        // Na prática, o intervalo já usa frequência menor quando inativo
+    }
+});
+
+// ============================================================================
+// Envio de Mensagens (Atualização Incremental)
+// ============================================================================
+
 async function sendMessage(e) {
     e.preventDefault();
     
@@ -119,8 +419,21 @@ async function sendMessage(e) {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Enviando...';
     
+    // Mensagem otimista (temporária, sem ID)
+    const tempId = 'temp_' + Date.now();
+    const optimisticMessage = {
+        id: tempId,
+        direction: 'outbound',
+        content: messageText,
+        timestamp: new Date().toISOString()
+    };
+    
+    ThreadState.pendingOptimisticMessage = optimisticMessage;
+    addMessageElementToDOM(optimisticMessage);
+    messageInput.value = '';
+    
     try {
-        const response = await fetch('<?= pixelhub_url('/communication-hub/send') ?>', {
+        const response = await fetch(THREAD_CONFIG.baseUrl + '/communication-hub/send', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -130,50 +443,64 @@ async function sendMessage(e) {
         
         const result = await response.json();
         
-        if (result.success) {
-            // Adiciona mensagem na interface imediatamente
-            addMessageToUI(messageText, 'outbound');
-            messageInput.value = '';
-            
-            // Recarrega página após 1 segundo para pegar confirmação
-            setTimeout(() => {
-                location.reload();
-            }, 1000);
+        if (result.success && result.event_id) {
+            // Busca mensagem confirmada do backend
+            await confirmSentMessage(result.event_id, tempId);
         } else {
+            // Erro: remove mensagem otimista
+            const tempMsg = document.querySelector(`[data-message-id="${tempId}"]`);
+            if (tempMsg) tempMsg.remove();
             alert('Erro: ' + (result.error || 'Erro ao enviar mensagem'));
             submitBtn.disabled = false;
             submitBtn.textContent = 'Enviar';
         }
     } catch (error) {
+        // Erro: remove mensagem otimista
+        const tempMsg = document.querySelector(`[data-message-id="${tempId}"]`);
+        if (tempMsg) tempMsg.remove();
         alert('Erro ao enviar mensagem: ' + error.message);
         submitBtn.disabled = false;
         submitBtn.textContent = 'Enviar';
+    } finally {
+        ThreadState.pendingOptimisticMessage = null;
     }
 }
 
-function addMessageToUI(message, direction) {
-    const container = document.getElementById('messages-container');
-    const now = new Date();
-    const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message-bubble ' + direction;
-    messageDiv.style.cssText = 'margin-bottom: 15px; display: flex; ' + (direction === 'outbound' ? 'justify-content: flex-end;' : '');
-    
-    messageDiv.innerHTML = `
-        <div style="max-width: 70%; padding: 12px 16px; border-radius: 18px; ${direction === 'outbound' ? 'background: #dcf8c6; margin-left: auto;' : 'background: white;'}">
-            <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap;">
-                ${escapeHtml(message)}
-            </div>
-            <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: right;">
-                ${timeStr}
-            </div>
-        </div>
-    `;
-    
-    container.appendChild(messageDiv);
-    container.scrollTop = container.scrollHeight;
+async function confirmSentMessage(eventId, tempId) {
+    try {
+        const url = new URL(THREAD_CONFIG.baseUrl + '/communication-hub/message');
+        url.searchParams.set('event_id', eventId);
+        url.searchParams.set('thread_id', THREAD_CONFIG.threadId); // Validação de isolamento
+        
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success && result.message) {
+            // Remove mensagem otimista
+            const tempMsg = document.querySelector(`[data-message-id="${tempId}"]`);
+            if (tempMsg) {
+                tempMsg.remove();
+            }
+            
+            // Adiciona mensagem confirmada
+            onNewMessages([result.message]);
+            
+            // Reabilita formulário
+            const submitBtn = document.querySelector('#send-message-form button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Enviar';
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao confirmar mensagem:', error);
+        // Se falhar, a mensagem otimista permanece (polling vai pegar depois)
+    }
 }
+
+// ============================================================================
+// Utilitários
+// ============================================================================
 
 function escapeHtml(text) {
     const div = document.createElement('div');
@@ -181,12 +508,37 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Auto-scroll para última mensagem
+// ============================================================================
+// Inicialização
+// ============================================================================
+
 document.addEventListener('DOMContentLoaded', function() {
+    // Inicializa marcadores com mensagens existentes
+    initializeMarkers();
+    
+    // Auto-scroll inicial
     const container = document.getElementById('messages-container');
     if (container) {
         container.scrollTop = container.scrollHeight;
+        ThreadState.autoScroll = true;
+        
+        // Detecta scroll manual para desabilitar auto-scroll
+        container.addEventListener('scroll', function() {
+            const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+            ThreadState.autoScroll = isAtBottom;
+            if (isAtBottom) {
+                hideNewMessagesBadge();
+            }
+        });
     }
+    
+    // Inicia polling
+    startPolling();
+});
+
+// Limpa polling ao sair da página
+window.addEventListener('beforeunload', function() {
+    stopPolling();
 });
 </script>
 

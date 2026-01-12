@@ -170,3 +170,4 @@ echo "Para testar, envie uma mensagem real pelo WhatsApp e verifique se aparece\
 echo "em 'Eventos Recentes' na interface de testes.\n\n";
 
 
+

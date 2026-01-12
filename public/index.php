@@ -528,6 +528,9 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/communication-hub', 'CommunicationHubController@index');
     $router->get('/communication-hub/thread', 'CommunicationHubController@thread');
     $router->post('/communication-hub/send', 'CommunicationHubController@send');
+    $router->get('/communication-hub/messages/check', 'CommunicationHubController@checkNewMessages');
+    $router->get('/communication-hub/messages/new', 'CommunicationHubController@getNewMessages');
+    $router->get('/communication-hub/message', 'CommunicationHubController@getMessage');
 
     // Rotas de acessos e links de infraestrutura (apenas internos)
     $router->get('/owner/shortcuts', 'OwnerShortcutsController@index');

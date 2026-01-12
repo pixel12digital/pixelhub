@@ -464,3 +464,4 @@ td:last-child .btn,
 **Última atualização:** 2025-01-09
 **Status:** Planejamento completo, pronto para implementação
 
+
