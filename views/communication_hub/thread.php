@@ -309,15 +309,18 @@ async function checkForNewMessages() {
     console.log('[Thread] Verificando novas mensagens após:', ThreadState.lastTimestamp);
     
     try {
-        // Check leve primeiro
-        const checkUrl = new URL(THREAD_CONFIG.baseUrl + '/communication-hub/messages/check');
-        checkUrl.searchParams.set('thread_id', THREAD_CONFIG.threadId);
-        checkUrl.searchParams.set('after_timestamp', ThreadState.lastTimestamp);
+        // Check leve primeiro - usa URL relativa (fetch resolve automaticamente)
+        const checkPath = THREAD_CONFIG.baseUrl + '/communication-hub/messages/check';
+        const checkParams = new URLSearchParams({
+            thread_id: THREAD_CONFIG.threadId,
+            after_timestamp: ThreadState.lastTimestamp
+        });
         if (ThreadState.lastEventId) {
-            checkUrl.searchParams.set('after_event_id', ThreadState.lastEventId);
+            checkParams.set('after_event_id', ThreadState.lastEventId);
         }
+        const checkUrl = checkPath + '?' + checkParams.toString();
         
-        console.log('[Thread] Fazendo check:', checkUrl.toString());
+        console.log('[Thread] Fazendo check:', checkUrl);
         const checkResponse = await fetch(checkUrl);
         const checkResult = await checkResponse.json();
         console.log('[Thread] Resultado do check:', checkResult);
@@ -336,16 +339,20 @@ async function checkForNewMessages() {
 
 async function fetchNewMessages() {
     try {
-        const url = new URL(THREAD_CONFIG.baseUrl + '/communication-hub/messages/new');
-        url.searchParams.set('thread_id', THREAD_CONFIG.threadId);
+        // Usa URL relativa (fetch resolve automaticamente)
+        const urlPath = THREAD_CONFIG.baseUrl + '/communication-hub/messages/new';
+        const params = new URLSearchParams({
+            thread_id: THREAD_CONFIG.threadId
+        });
         if (ThreadState.lastTimestamp) {
-            url.searchParams.set('after_timestamp', ThreadState.lastTimestamp);
+            params.set('after_timestamp', ThreadState.lastTimestamp);
             if (ThreadState.lastEventId) {
-                url.searchParams.set('after_event_id', ThreadState.lastEventId);
+                params.set('after_event_id', ThreadState.lastEventId);
             }
         }
+        const url = urlPath + '?' + params.toString();
         
-        console.log('[Thread] Buscando novas mensagens:', url.toString());
+        console.log('[Thread] Buscando novas mensagens:', url);
         const response = await fetch(url);
         const result = await response.json();
         console.log('[Thread] Resultado da busca:', result);
@@ -514,9 +521,13 @@ async function sendMessage(e) {
 
 async function confirmSentMessage(eventId, tempId) {
     try {
-        const url = new URL(THREAD_CONFIG.baseUrl + '/communication-hub/message');
-        url.searchParams.set('event_id', eventId);
-        url.searchParams.set('thread_id', THREAD_CONFIG.threadId); // Validação de isolamento
+        // Usa URL relativa (fetch resolve automaticamente)
+        const urlPath = THREAD_CONFIG.baseUrl + '/communication-hub/message';
+        const params = new URLSearchParams({
+            event_id: eventId,
+            thread_id: THREAD_CONFIG.threadId // Validação de isolamento
+        });
+        const url = urlPath + '?' + params.toString();
         
         const response = await fetch(url);
         const result = await response.json();
@@ -539,7 +550,7 @@ async function confirmSentMessage(eventId, tempId) {
             }
         }
     } catch (error) {
-        console.error('Erro ao confirmar mensagem:', error);
+        console.error('[Thread] Erro ao confirmar mensagem:', error);
         // Se falhar, a mensagem otimista permanece (polling vai pegar depois)
     }
 }
