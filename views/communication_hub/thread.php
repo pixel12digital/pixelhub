@@ -310,7 +310,7 @@ async function checkForNewMessages() {
     
     try {
         // Check leve primeiro - usa URL relativa (fetch resolve automaticamente)
-        const checkPath = THREAD_CONFIG.baseUrl + '/communication-hub/messages/check';
+        const checkPath = normalizeUrlPath(THREAD_CONFIG.baseUrl + '/communication-hub/messages/check');
         const checkParams = new URLSearchParams({
             thread_id: THREAD_CONFIG.threadId,
             after_timestamp: ThreadState.lastTimestamp
@@ -340,7 +340,7 @@ async function checkForNewMessages() {
 async function fetchNewMessages() {
     try {
         // Usa URL relativa (fetch resolve automaticamente)
-        const urlPath = THREAD_CONFIG.baseUrl + '/communication-hub/messages/new';
+        const urlPath = normalizeUrlPath(THREAD_CONFIG.baseUrl + '/communication-hub/messages/new');
         const params = new URLSearchParams({
             thread_id: THREAD_CONFIG.threadId
         });
@@ -486,7 +486,8 @@ async function sendMessage(e) {
     messageInput.value = '';
     
     try {
-        const response = await fetch(THREAD_CONFIG.baseUrl + '/communication-hub/send', {
+        const sendUrl = normalizeUrlPath(THREAD_CONFIG.baseUrl + '/communication-hub/send');
+        const response = await fetch(sendUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -522,7 +523,7 @@ async function sendMessage(e) {
 async function confirmSentMessage(eventId, tempId) {
     try {
         // Usa URL relativa (fetch resolve automaticamente)
-        const urlPath = THREAD_CONFIG.baseUrl + '/communication-hub/message';
+        const urlPath = normalizeUrlPath(THREAD_CONFIG.baseUrl + '/communication-hub/message');
         const params = new URLSearchParams({
             event_id: eventId,
             thread_id: THREAD_CONFIG.threadId // Validação de isolamento
@@ -563,6 +564,26 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+/**
+ * Normaliza um caminho de URL para garantir que comece com / e não tenha // no início
+ */
+function normalizeUrlPath(path) {
+    // Remove espaços e garante que comece com /
+    path = String(path || '').trim();
+    
+    // Se começar com //, remove a primeira barra (protocol-relative)
+    if (path.startsWith('//')) {
+        path = path.substring(1);
+    }
+    
+    // Se não começar com /, adiciona
+    if (!path.startsWith('/')) {
+        path = '/' + path;
+    }
+    
+    return path;
 }
 
 // ============================================================================
