@@ -285,16 +285,28 @@ document.addEventListener('DOMContentLoaded', function() {
 // ============================================================================
 
 async function checkForNewMessages() {
-    if (!ThreadState.isPageVisible) return;
-    if (ThreadState.isChecking) return; // Evita race condition: já há um check em progresso
+    if (!ThreadState.isPageVisible) {
+        console.log('[Thread] Página não visível, pulando check');
+        return;
+    }
+    if (ThreadState.isChecking) {
+        console.log('[Thread] Check já em progresso, pulando');
+        return; // Evita race condition: já há um check em progresso
+    }
     
     if (!ThreadState.lastTimestamp) {
         // Primeira vez: inicializa marcadores com última mensagem
+        console.log('[Thread] Primeira execução, inicializando marcadores...');
         initializeMarkers();
+        // Após inicializar, agenda próximo check imediatamente
+        if (ThreadState.lastTimestamp) {
+            setTimeout(() => checkForNewMessages(), 1000);
+        }
         return;
     }
     
     ThreadState.isChecking = true; // Marca como checking
+    console.log('[Thread] Verificando novas mensagens após:', ThreadState.lastTimestamp);
     
     try {
         // Check leve primeiro
@@ -305,15 +317,18 @@ async function checkForNewMessages() {
             checkUrl.searchParams.set('after_event_id', ThreadState.lastEventId);
         }
         
+        console.log('[Thread] Fazendo check:', checkUrl.toString());
         const checkResponse = await fetch(checkUrl);
         const checkResult = await checkResponse.json();
+        console.log('[Thread] Resultado do check:', checkResult);
         
         if (checkResult.success && checkResult.has_new) {
             // Há novas mensagens: busca mensagens completas
+            console.log('[Thread] Novas mensagens detectadas, buscando...');
             await fetchNewMessages();
         }
     } catch (error) {
-        console.error('Erro ao verificar novas mensagens:', error);
+        console.error('[Thread] Erro ao verificar novas mensagens:', error);
     } finally {
         ThreadState.isChecking = false; // Reset obrigatório para permitir próximos checks
     }
@@ -330,47 +345,76 @@ async function fetchNewMessages() {
             }
         }
         
+        console.log('[Thread] Buscando novas mensagens:', url.toString());
         const response = await fetch(url);
         const result = await response.json();
+        console.log('[Thread] Resultado da busca:', result);
         
         if (result.success && result.messages) {
+            console.log('[Thread] Processando', result.messages.length, 'novas mensagens');
             onNewMessages(result.messages);
+        } else {
+            console.warn('[Thread] Nenhuma mensagem nova ou erro na resposta:', result);
         }
     } catch (error) {
-        console.error('Erro ao buscar novas mensagens:', error);
+        console.error('[Thread] Erro ao buscar novas mensagens:', error);
     }
 }
 
 function initializeMarkers() {
     const container = document.getElementById('messages-container');
-    if (!container) return;
+    if (!container) {
+        console.warn('[Thread] Container de mensagens não encontrado');
+        return;
+    }
     
     const messages = container.querySelectorAll('[data-message-id]');
+    console.log('[Thread] Inicializando marcadores:', messages.length, 'mensagens encontradas');
+    
     if (messages.length > 0) {
         const lastMsg = messages[messages.length - 1];
         ThreadState.lastTimestamp = lastMsg.getAttribute('data-timestamp');
         ThreadState.lastEventId = lastMsg.getAttribute('data-message-id');
+        
+        console.log('[Thread] Marcadores inicializados:', {
+            lastTimestamp: ThreadState.lastTimestamp,
+            lastEventId: ThreadState.lastEventId
+        });
         
         // Popula Set de IDs para dedupe
         messages.forEach(msg => {
             const msgId = msg.getAttribute('data-message-id');
             if (msgId) ThreadState.messageIds.add(msgId);
         });
+    } else {
+        // Se não há mensagens, usa timestamp atual menos 1 minuto para pegar mensagens recentes
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - 1);
+        ThreadState.lastTimestamp = now.toISOString();
+        console.log('[Thread] Nenhuma mensagem encontrada, usando timestamp atual:', ThreadState.lastTimestamp);
     }
 }
 
 function startPolling() {
-    if (ThreadState.pollingInterval) return;
+    if (ThreadState.pollingInterval) {
+        console.log('[Thread] Polling já está ativo');
+        return;
+    }
+    
+    console.log('[Thread] Iniciando polling...');
     
     // Polling inicial após 2 segundos
     setTimeout(() => {
+        console.log('[Thread] Primeiro check agendado (após 2s)');
         checkForNewMessages();
     }, 2000);
     
     // Polling periódico
+    const interval = ThreadState.isPageVisible ? THREAD_CONFIG.pollInterval : THREAD_CONFIG.pollIntervalInactive;
+    console.log('[Thread] Polling periódico configurado:', interval, 'ms');
     ThreadState.pollingInterval = setInterval(() => {
         checkForNewMessages();
-    }, ThreadState.isPageVisible ? THREAD_CONFIG.pollInterval : THREAD_CONFIG.pollIntervalInactive);
+    }, interval);
 }
 
 function stopPolling() {
@@ -515,6 +559,9 @@ function escapeHtml(text) {
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('[Thread] DOMContentLoaded - Inicializando thread...');
+    console.log('[Thread] Configuração:', THREAD_CONFIG);
+    
     // Inicializa marcadores com mensagens existentes
     initializeMarkers();
     
@@ -526,6 +573,7 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => {
                 container.scrollTop = container.scrollHeight;
                 ThreadState.autoScroll = true;
+                console.log('[Thread] Scroll inicial posicionado no final');
             }, 100);
         });
         
@@ -537,10 +585,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 hideNewMessagesBadge();
             }
         });
+    } else {
+        console.error('[Thread] Container de mensagens não encontrado!');
     }
     
     // Inicia polling
     startPolling();
+    console.log('[Thread] Inicialização completa');
 });
 
 // Limpa polling ao sair da página
