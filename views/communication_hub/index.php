@@ -239,7 +239,10 @@ $baseUrl = pixelhub_url('');
 const HubState = {
     lastUpdateTs: null,
     pollingInterval: null,
-    isPageVisible: true
+    isPageVisible: true,
+    isUserInteracting: false,
+    lastInteractionTime: null,
+    interactionTimeout: null
 };
 
 function startListPolling() {
@@ -262,17 +265,29 @@ function startListPolling() {
         console.log('[Hub] Polling iniciado com lastUpdateTs:', HubState.lastUpdateTs);
     }
     
-    // Polling a cada 3 segundos
+    // Polling a cada 12 segundos (reduzido de 3s para evitar agressividade)
+    // Só executa se:
+    // - Página está visível
+    // - Usuário não está interagindo (última interação há mais de 5s)
     HubState.pollingInterval = setInterval(() => {
-        if (HubState.isPageVisible) {
+        if (HubState.isPageVisible && !HubState.isUserInteracting) {
+            const timeSinceInteraction = HubState.lastInteractionTime 
+                ? Date.now() - HubState.lastInteractionTime 
+                : Infinity;
+            
+            // Só faz polling se não houve interação nos últimos 5 segundos
+            if (timeSinceInteraction > 5000) {
+                checkForListUpdates();
+            }
+        }
+    }, 12000); // 12 segundos ao invés de 3
+    
+    // Primeiro check após 5 segundos (ao invés de 2s)
+    setTimeout(() => {
+        if (!HubState.isUserInteracting) {
             checkForListUpdates();
         }
-    }, 3000);
-    
-    // Primeiro check após 2 segundos
-    setTimeout(() => {
-        checkForListUpdates();
-    }, 2000);
+    }, 5000);
 }
 
 async function checkForListUpdates() {
@@ -292,12 +307,28 @@ async function checkForListUpdates() {
         const result = await response.json();
         
         if (result.success && result.has_updates) {
-            console.log('[Hub] ✅ Atualizações detectadas! Recarregando página...', {
+            console.log('[Hub] ✅ Atualizações detectadas!', {
                 after_timestamp: HubState.lastUpdateTs,
                 latest_update_ts: result.latest_update_ts
             });
-            // Atualiza lista recarregando a página (simples e confiável)
-            location.reload();
+            
+            // Só recarrega se usuário não está interagindo
+            // Se estiver interagindo, agenda reload para depois
+            if (HubState.isUserInteracting) {
+                console.log('[Hub] Usuário interagindo, aguardando para recarregar...');
+                // Agenda reload para quando interação terminar
+                if (HubState.interactionTimeout) {
+                    clearTimeout(HubState.interactionTimeout);
+                }
+                HubState.interactionTimeout = setTimeout(() => {
+                    if (!HubState.isUserInteracting) {
+                        location.reload();
+                    }
+                }, 3000); // Aguarda 3s após interação terminar
+            } else {
+                // Recarrega imediatamente se não há interação
+                location.reload();
+            }
         } else if (result.success && result.latest_update_ts) {
             // Atualiza timestamp mesmo sem mudanças (para manter sincronizado)
             const oldTs = HubState.lastUpdateTs;
@@ -314,9 +345,54 @@ async function checkForListUpdates() {
     }
 }
 
+// ============================================================================
+// Detecção de Interação do Usuário
+// ============================================================================
+
+function markUserInteraction() {
+    HubState.isUserInteracting = true;
+    HubState.lastInteractionTime = Date.now();
+    
+    // Limpa timeout anterior se existir
+    if (HubState.interactionTimeout) {
+        clearTimeout(HubState.interactionTimeout);
+    }
+    
+    // Marca como não interagindo após 2 segundos de inatividade
+    HubState.interactionTimeout = setTimeout(() => {
+        HubState.isUserInteracting = false;
+    }, 2000);
+}
+
+// Detecta interações do usuário
+document.addEventListener('mousedown', markUserInteraction);
+document.addEventListener('keydown', markUserInteraction);
+document.addEventListener('click', markUserInteraction);
+document.addEventListener('focus', function(e) {
+    // Só marca interação se for em elementos interativos
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || 
+        e.target.tagName === 'BUTTON' || e.target.tagName === 'A' ||
+        e.target.closest('button') || e.target.closest('a')) {
+        markUserInteraction();
+    }
+});
+
 // Page Visibility API
 document.addEventListener('visibilitychange', function() {
     HubState.isPageVisible = !document.hidden;
+    
+    // Se página ficou oculta, pausa polling
+    if (document.hidden) {
+        if (HubState.pollingInterval) {
+            clearInterval(HubState.pollingInterval);
+            HubState.pollingInterval = null;
+        }
+    } else {
+        // Se página ficou visível, reinicia polling
+        if (!HubState.pollingInterval) {
+            startListPolling();
+        }
+    }
 });
 
 // Inicia polling quando a página carrega

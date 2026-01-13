@@ -240,16 +240,52 @@ class ConversationService
                 error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando forwardedFrom: ' . $contactExternalId);
             }
             
+            // FIX @lid: Detecta se é ID interno do WhatsApp Business (@lid)
+            $isLidId = false;
+            $originalContactId = $contactExternalId;
+            if ($contactExternalId && strpos($contactExternalId, '@lid') !== false) {
+                $isLidId = true;
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: Detectado @lid - business_id: ' . $contactExternalId);
+                
+                // Consulta mapeamento whatsapp_business_ids
+                $db = DB::getConnection();
+                $stmt = $db->prepare("
+                    SELECT phone_number 
+                    FROM whatsapp_business_ids 
+                    WHERE business_id = ? 
+                    LIMIT 1
+                ");
+                $stmt->execute([$contactExternalId]);
+                $mapping = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($mapping && !empty($mapping['phone_number'])) {
+                    $contactExternalId = $mapping['phone_number'];
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Mapeamento encontrado - phone_number: ' . $contactExternalId);
+                } else {
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Mapeamento NÃO encontrado para business_id: ' . $contactExternalId);
+                    // Continua para tentar fallback (não retorna NULL ainda)
+                }
+            }
+            
             // Normaliza contact_external_id usando PhoneNormalizer (NÃO força "9")
-            // Remove sufixo @c.us, @lid, etc. antes de normalizar
-            if ($contactExternalId && strpos($contactExternalId, '@') !== false) {
+            // Remove sufixo @c.us, @lid, etc. antes de normalizar (apenas se não foi mapeado)
+            if ($contactExternalId && !$isLidId && strpos($contactExternalId, '@') !== false) {
                 $contactExternalId = preg_replace('/@.*$/', '', $contactExternalId);
                 error_log('[CONVERSATION UPSERT] extractChannelInfo: contactExternalId após remover @: ' . $contactExternalId);
             }
             
             // Normaliza para E.164 (apenas dígitos, sem forçar "9")
-            $contactExternalId = PhoneNormalizer::toE164OrNull($contactExternalId);
-            error_log('[CONVERSATION UPSERT] extractChannelInfo: contactExternalId normalizado: ' . ($contactExternalId ?: 'NULL'));
+            // Se já foi mapeado de @lid, phone_number já está em formato E.164, não precisa normalizar
+            if (!$isLidId) {
+                $contactExternalId = PhoneNormalizer::toE164OrNull($contactExternalId);
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: contactExternalId normalizado: ' . ($contactExternalId ?: 'NULL'));
+            } else {
+                // Se foi mapeado mas phone_number está vazio, tenta normalizar o original
+                if (!$contactExternalId) {
+                    $contactExternalId = PhoneNormalizer::toE164OrNull($originalContactId);
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Mapeamento vazio, tentando normalizar original: ' . ($contactExternalId ?: 'NULL'));
+                }
+            }
             
             // Se ainda não conseguiu normalizar, tenta extrair apenas dígitos como fallback
             if (!$contactExternalId && isset($payload['from']) || isset($payload['message']['from'])) {
@@ -272,6 +308,40 @@ class ConversationService
             }
         }
 
+        // FIX @lid: Fallback quando não há mapeamento - busca conversa existente por nome
+        // Apenas para atualizar conversa existente, NÃO cria nova conversa
+        if (!$contactExternalId && $channelType === 'whatsapp' && $direction === 'inbound') {
+            $notifyName = $payload['message']['notifyName'] 
+                ?? $payload['raw']['payload']['notifyName'] 
+                ?? $payload['raw']['payload']['sender']['verifiedName'] 
+                ?? $payload['raw']['payload']['sender']['name'] 
+                ?? null;
+            
+            if ($notifyName && $tenantId) {
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: Tentando fallback por nome - notifyName: ' . $notifyName . ', tenant_id: ' . $tenantId);
+                
+                // Busca conversa existente com mesmo nome e tenant (apenas uma)
+                $db = DB::getConnection();
+                $stmt = $db->prepare("
+                    SELECT contact_external_id 
+                    FROM conversations 
+                    WHERE channel_type = 'whatsapp' 
+                    AND tenant_id = ? 
+                    AND contact_name = ?
+                    LIMIT 1
+                ");
+                $stmt->execute([$tenantId, $notifyName]);
+                $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($existing && !empty($existing['contact_external_id'])) {
+                    $contactExternalId = $existing['contact_external_id'];
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Fallback encontrou conversa existente - contact_external_id: ' . $contactExternalId);
+                } else {
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Fallback NÃO encontrou conversa existente para nome: ' . $notifyName);
+                }
+            }
+        }
+        
         if (!$contactExternalId) {
             error_log('[CONVERSATION UPSERT] ERRO: contactExternalId é NULL após extração. Channel type: ' . ($channelType ?: 'NULL') . ', Direction: ' . ($direction ?? 'NULL'));
             return null;

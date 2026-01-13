@@ -118,7 +118,7 @@ const THREAD_CONFIG = {
     threadId: '<?= htmlspecialchars($thread['thread_id'] ?? '') ?>',
     channel: '<?= htmlspecialchars($channel ?? 'whatsapp') ?>',
     baseUrl: '<?= pixelhub_url('') ?>',
-    pollInterval: 5000, // 5 segundos quando ativo
+    pollInterval: 12000, // 12 segundos quando ativo (reduzido de 5s para evitar agressividade)
     pollIntervalInactive: 30000, // 30 segundos quando inativo
 };
 
@@ -129,6 +129,9 @@ const ThreadState = {
     messageIds: new Set(), // Para dedupe
     pollingInterval: null,
     isPageVisible: true,
+    isUserInteracting: false,
+    lastInteractionTime: null,
+    interactionTimeout: null,
     pendingOptimisticMessage: null, // Mensagem otimista esperando confirmação
     autoScroll: true, // Se deve fazer auto-scroll
     newMessagesCount: 0, // Contador de novas mensagens quando scrollado para cima
@@ -420,10 +423,20 @@ function startPolling() {
     }, 2000);
     
     // Polling periódico
+    // Só executa se página está visível e usuário não está interagindo
     const interval = ThreadState.isPageVisible ? THREAD_CONFIG.pollInterval : THREAD_CONFIG.pollIntervalInactive;
     console.log('[Thread] Polling periódico configurado:', interval, 'ms');
     ThreadState.pollingInterval = setInterval(() => {
-        checkForNewMessages();
+        if (ThreadState.isPageVisible && !ThreadState.isUserInteracting) {
+            const timeSinceInteraction = ThreadState.lastInteractionTime 
+                ? Date.now() - ThreadState.lastInteractionTime 
+                : Infinity;
+            
+            // Só faz polling se não houve interação nos últimos 3 segundos
+            if (timeSinceInteraction > 3000) {
+                checkForNewMessages();
+            }
+        }
     }, interval);
 }
 
@@ -433,6 +446,38 @@ function stopPolling() {
         ThreadState.pollingInterval = null;
     }
 }
+
+// ============================================================================
+// Detecção de Interação do Usuário
+// ============================================================================
+
+function markUserInteraction() {
+    ThreadState.isUserInteracting = true;
+    ThreadState.lastInteractionTime = Date.now();
+    
+    // Limpa timeout anterior se existir
+    if (ThreadState.interactionTimeout) {
+        clearTimeout(ThreadState.interactionTimeout);
+    }
+    
+    // Marca como não interagindo após 2 segundos de inatividade
+    ThreadState.interactionTimeout = setTimeout(() => {
+        ThreadState.isUserInteracting = false;
+    }, 2000);
+}
+
+// Detecta interações do usuário
+document.addEventListener('mousedown', markUserInteraction);
+document.addEventListener('keydown', markUserInteraction);
+document.addEventListener('click', markUserInteraction);
+document.addEventListener('focus', function(e) {
+    // Só marca interação se for em elementos interativos
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || 
+        e.target.tagName === 'BUTTON' || e.target.tagName === 'A' ||
+        e.target.closest('button') || e.target.closest('a')) {
+        markUserInteraction();
+    }
+});
 
 // ============================================================================
 // Page Visibility API
@@ -447,11 +492,15 @@ document.addEventListener('visibilitychange', function() {
             stopPolling();
         }
         startPolling();
-        // Verifica imediatamente se há novas mensagens
-        checkForNewMessages();
+        // Verifica imediatamente se há novas mensagens (apenas se não estiver interagindo)
+        if (!ThreadState.isUserInteracting) {
+            setTimeout(() => checkForNewMessages(), 1000);
+        }
     } else {
-        // Página oculta: pausa polling (mantém intervalo mas não executa)
-        // Na prática, o intervalo já usa frequência menor quando inativo
+        // Página oculta: pausa polling
+        if (ThreadState.pollingInterval) {
+            stopPolling();
+        }
     }
 });
 
