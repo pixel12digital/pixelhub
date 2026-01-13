@@ -201,6 +201,9 @@ class CommunicationHubController extends Controller
         $tenantId = isset($_POST['tenant_id']) && $_POST['tenant_id'] !== '' ? (int) $_POST['tenant_id'] : null;
         $channelId = isset($_POST['channel_id']) && $_POST['channel_id'] !== '' ? (int) $_POST['channel_id'] : null;
 
+        // Log para debug
+        error_log("[CommunicationHub::send] Recebido: channel={$channel}, threadId={$threadId}, tenantId={$tenantId}, channelId={$channelId}, to={$to}");
+
         if (empty($channel) || empty($message)) {
             $this->json(['success' => false, 'error' => 'Canal e mensagem são obrigatórios'], 400);
             return;
@@ -235,19 +238,50 @@ class CommunicationHubController extends Controller
                     }
                     // channelId já está definido, continua
                 } else {
-                    // PRIORIDADE 2: Se não tem channel_id, tenta inferir da thread/conversa
-                    if (!$tenantId && !empty($threadId) && preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
+                    // PRIORIDADE 2: Se não tem channel_id, tenta buscar diretamente da conversa/thread
+                    if (!empty($threadId) && preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
                         $conversationId = (int) $matches[1];
-                        $convStmt = $db->prepare("SELECT tenant_id FROM conversations WHERE id = ?");
+                        
+                        // Busca informações da conversa incluindo tenant_id
+                        $convStmt = $db->prepare("SELECT tenant_id, conversation_key, contact_external_id FROM conversations WHERE id = ?");
                         $convStmt->execute([$conversationId]);
                         $conv = $convStmt->fetch();
-                        if ($conv && $conv['tenant_id']) {
-                            $tenantId = (int) $conv['tenant_id'];
+                        
+                        if ($conv) {
+                            if ($conv['tenant_id']) {
+                                $tenantId = (int) $conv['tenant_id'];
+                            }
+                            
+                            // Tenta buscar channel_id dos eventos da conversa usando conversation_key ou contato
+                            $contactId = $conv['contact_external_id'];
+                            $eventStmt = $db->prepare("
+                                SELECT ce.payload
+                                FROM communication_events ce
+                                WHERE ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+                                AND (
+                                    JSON_EXTRACT(ce.payload, '$.from') = ?
+                                    OR JSON_EXTRACT(ce.payload, '$.to') = ?
+                                    OR JSON_EXTRACT(ce.payload, '$.message.from') = ?
+                                    OR JSON_EXTRACT(ce.payload, '$.message.to') = ?
+                                )
+                                ORDER BY ce.created_at DESC
+                                LIMIT 1
+                            ");
+                            $eventStmt->execute([$contactId, $contactId, $contactId, $contactId]);
+                            $event = $eventStmt->fetch();
+                            
+                            if ($event && $event['payload']) {
+                                $payload = json_decode($event['payload'], true);
+                                if (isset($payload['channel_id']) && !empty($payload['channel_id'])) {
+                                    $channelId = (int) $payload['channel_id'];
+                                    error_log("[CommunicationHub::send] Channel_id encontrado nos eventos: {$channelId}");
+                                }
+                            }
                         }
                     }
 
-                    // PRIORIDADE 3: Busca channel do tenant
-                    if ($tenantId) {
+                    // PRIORIDADE 3: Busca channel do tenant (se ainda não encontrou)
+                    if (!$channelId && $tenantId) {
                         $channelStmt = $db->prepare("
                             SELECT channel_id 
                             FROM tenant_message_channels 
@@ -259,13 +293,16 @@ class CommunicationHubController extends Controller
                         $channelStmt->execute([$tenantId]);
                         $channelData = $channelStmt->fetch();
 
-                        if (!$channelData) {
-                            $this->json(['success' => false, 'error' => 'Channel WhatsApp não configurado para este tenant'], 400);
-                            return;
+                        if ($channelData) {
+                            $channelId = (int) $channelData['channel_id'];
+                            error_log("[CommunicationHub::send] Channel_id encontrado do tenant: {$channelId}");
+                        } else {
+                            error_log("[CommunicationHub::send] Nenhum canal encontrado para tenant_id: {$tenantId}");
                         }
-                        $channelId = (int) $channelData['channel_id'];
-                    } else {
-                        // PRIORIDADE 4: Fallback: tenta usar canal compartilhado/default (qualquer canal habilitado)
+                    }
+                    
+                    // PRIORIDADE 4: Fallback: tenta usar canal compartilhado/default (qualquer canal habilitado)
+                    if (!$channelId) {
                         $channelStmt = $db->prepare("
                             SELECT channel_id 
                             FROM tenant_message_channels 
@@ -276,11 +313,14 @@ class CommunicationHubController extends Controller
                         $channelStmt->execute();
                         $channelData = $channelStmt->fetch();
 
-                        if (!$channelData) {
+                        if ($channelData) {
+                            $channelId = (int) $channelData['channel_id'];
+                            error_log("[CommunicationHub::send] Channel_id encontrado (canal compartilhado): {$channelId}");
+                        } else {
+                            error_log("[CommunicationHub::send] Nenhum canal WhatsApp habilitado encontrado no sistema");
                             $this->json(['success' => false, 'error' => 'Nenhum canal WhatsApp configurado no sistema'], 400);
                             return;
                         }
-                        $channelId = (int) $channelData['channel_id'];
                     }
                 }
 
@@ -806,33 +846,55 @@ class CommunicationHubController extends Controller
 
             if ($conversation) {
                 // Busca channel_id usado nas mensagens originais da conversa (prioridade sobre tenant_channel_id)
-                $channelId = $conversation['tenant_channel_id'];
+                $channelId = $conversation['tenant_channel_id'] ?? null;
                 
                 // Tenta buscar channel_id dos eventos/mensagens da conversa
                 // Busca eventos relacionados ao contato desta conversa
                 $contactId = $conversation['contact_external_id'];
-                $eventStmt = $db->prepare("
-                    SELECT ce.payload
-                    FROM communication_events ce
-                    WHERE ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
-                    AND (
-                        JSON_EXTRACT(ce.payload, '$.from') = ?
-                        OR JSON_EXTRACT(ce.payload, '$.to') = ?
-                        OR JSON_EXTRACT(ce.payload, '$.message.from') = ?
-                        OR JSON_EXTRACT(ce.payload, '$.message.to') = ?
-                    )
-                    ORDER BY ce.created_at DESC
-                    LIMIT 1
-                ");
-                $eventStmt->execute([$contactId, $contactId, $contactId, $contactId]);
-                $event = $eventStmt->fetch();
-                
-                if ($event && $event['payload']) {
-                    $payload = json_decode($event['payload'], true);
-                    if (isset($payload['channel_id'])) {
-                        $channelId = (int) $payload['channel_id'];
+                if ($contactId) {
+                    $eventStmt = $db->prepare("
+                        SELECT ce.payload
+                        FROM communication_events ce
+                        WHERE ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+                        AND (
+                            JSON_EXTRACT(ce.payload, '$.from') = ?
+                            OR JSON_EXTRACT(ce.payload, '$.to') = ?
+                            OR JSON_EXTRACT(ce.payload, '$.message.from') = ?
+                            OR JSON_EXTRACT(ce.payload, '$.message.to') = ?
+                        )
+                        ORDER BY ce.created_at DESC
+                        LIMIT 1
+                    ");
+                    $eventStmt->execute([$contactId, $contactId, $contactId, $contactId]);
+                    $event = $eventStmt->fetch();
+                    
+                    if ($event && $event['payload']) {
+                        $payload = json_decode($event['payload'], true);
+                        if (isset($payload['channel_id']) && !empty($payload['channel_id'])) {
+                            $channelId = (int) $payload['channel_id'];
+                            error_log("[CommunicationHub::getWhatsAppThreadInfo] Channel_id encontrado nos eventos: {$channelId} para contato: {$contactId}");
+                        }
                     }
                 }
+                
+                // Se ainda não tem channel_id, tenta buscar qualquer canal habilitado (fallback)
+                if (!$channelId) {
+                    $fallbackStmt = $db->prepare("
+                        SELECT channel_id 
+                        FROM tenant_message_channels 
+                        WHERE provider = 'wpp_gateway' 
+                        AND is_enabled = 1
+                        LIMIT 1
+                    ");
+                    $fallbackStmt->execute();
+                    $fallback = $fallbackStmt->fetch();
+                    if ($fallback) {
+                        $channelId = (int) $fallback['channel_id'];
+                        error_log("[CommunicationHub::getWhatsAppThreadInfo] Usando canal fallback: {$channelId}");
+                    }
+                }
+                
+                error_log("[CommunicationHub::getWhatsAppThreadInfo] Thread {$threadId}: channel_id={$channelId}, tenant_id={$conversation['tenant_id']}, contact={$contactId}");
                 
                 return [
                     'thread_id' => $threadId,
