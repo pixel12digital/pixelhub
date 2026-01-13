@@ -793,7 +793,7 @@ class CommunicationHubController extends Controller
                 SELECT 
                     c.*,
                     t.name as tenant_name,
-                    tmc.channel_id,
+                    tmc.channel_id as tenant_channel_id,
                     u.name as assigned_to_name
                 FROM conversations c
                 LEFT JOIN tenants t ON c.tenant_id = t.id
@@ -805,6 +805,35 @@ class CommunicationHubController extends Controller
             $conversation = $stmt->fetch();
 
             if ($conversation) {
+                // Busca channel_id usado nas mensagens originais da conversa (prioridade sobre tenant_channel_id)
+                $channelId = $conversation['tenant_channel_id'];
+                
+                // Tenta buscar channel_id dos eventos/mensagens da conversa
+                // Busca eventos relacionados ao contato desta conversa
+                $contactId = $conversation['contact_external_id'];
+                $eventStmt = $db->prepare("
+                    SELECT ce.payload
+                    FROM communication_events ce
+                    WHERE ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+                    AND (
+                        JSON_EXTRACT(ce.payload, '$.from') = ?
+                        OR JSON_EXTRACT(ce.payload, '$.to') = ?
+                        OR JSON_EXTRACT(ce.payload, '$.message.from') = ?
+                        OR JSON_EXTRACT(ce.payload, '$.message.to') = ?
+                    )
+                    ORDER BY ce.created_at DESC
+                    LIMIT 1
+                ");
+                $eventStmt->execute([$contactId, $contactId, $contactId, $contactId]);
+                $event = $eventStmt->fetch();
+                
+                if ($event && $event['payload']) {
+                    $payload = json_decode($event['payload'], true);
+                    if (isset($payload['channel_id'])) {
+                        $channelId = (int) $payload['channel_id'];
+                    }
+                }
+                
                 return [
                     'thread_id' => $threadId,
                     'conversation_id' => $conversationId,
@@ -814,7 +843,7 @@ class CommunicationHubController extends Controller
                     'contact' => $conversation['contact_external_id'],
                     'contact_name' => $conversation['contact_name'],
                     'channel' => 'whatsapp',
-                    'channel_id' => $conversation['channel_id'],
+                    'channel_id' => $channelId,
                     'status' => $conversation['status'],
                     'assigned_to' => $conversation['assigned_to'],
                     'assigned_to_name' => $conversation['assigned_to_name'],
