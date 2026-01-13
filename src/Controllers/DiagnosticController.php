@@ -301,8 +301,8 @@ class DiagnosticController extends Controller
             $result = [
                 'success' => true,
                 'trace_id' => $traceId,
-                'thread_id' => $threadId,
-                'test_type' => $testType,
+                'thread_id' => $_POST['thread_id'] ?? null, // Atribuído explicitamente de $_POST
+                'test_type' => $_POST['test_type'] ?? null, // Atribuído explicitamente de $_POST
                 'timestamp' => date('Y-m-d H:i:s'),
                 'raw_request' => [
                     'post' => $rawPost,
