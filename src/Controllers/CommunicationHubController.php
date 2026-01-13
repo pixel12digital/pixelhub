@@ -388,7 +388,47 @@ class CommunicationHubController extends Controller
                         'message_id' => $result['message_id'] ?? null
                     ]);
                 } else {
-                    $this->json(['success' => false, 'error' => $result['error'] ?? 'Erro ao enviar mensagem'], 500);
+                    // Diferencia tipos de erro para mensagens mais amigáveis
+                    $error = $result['error'] ?? 'Erro ao enviar mensagem';
+                    $errorCode = $result['error_code'] ?? null;
+                    $httpStatus = $result['http_status'] ?? 500;
+                    
+                    // Log detalhado do erro
+                    error_log(sprintf(
+                        "[CommunicationHub::send] Erro ao enviar mensagem: error=%s, error_code=%s, http_status=%d, channel_id=%s, result=%s",
+                        $error,
+                        $errorCode ?? 'N/A',
+                        $httpStatus,
+                        $channelId,
+                        json_encode($result)
+                    ));
+                    
+                    // Determina código de erro amigável baseado no erro retornado
+                    $friendlyErrorCode = 'GATEWAY_ERROR';
+                    $friendlyMessage = $error;
+                    
+                    // Detecta erros específicos por padrões na mensagem
+                    $errorLower = strtolower($error);
+                    if (strpos($errorLower, 'invalid') !== false && strpos($errorLower, 'secret') !== false) {
+                        $friendlyErrorCode = 'INVALID_SECRET';
+                        $friendlyMessage = 'Erro de autenticação: secret do gateway inválido. Verifique a configuração.';
+                    } elseif (strpos($errorLower, 'session') !== false || strpos($errorLower, 'disconnected') !== false || strpos($errorLower, 'not connected') !== false) {
+                        $friendlyErrorCode = 'SESSION_DISCONNECTED';
+                        $friendlyMessage = 'Sessão do WhatsApp desconectada. Por favor, reconecte no gateway antes de enviar mensagens.';
+                    } elseif (strpos($errorLower, 'unauthorized') !== false || strpos($errorLower, '401') !== false || $httpStatus === 401) {
+                        $friendlyErrorCode = 'UNAUTHORIZED';
+                        $friendlyMessage = 'Erro de autenticação: credenciais inválidas. Verifique a configuração do gateway.';
+                    } elseif (strpos($errorLower, 'not found') !== false || strpos($errorLower, '404') !== false || $httpStatus === 404) {
+                        $friendlyErrorCode = 'CHANNEL_NOT_FOUND';
+                        $friendlyMessage = 'Canal não encontrado no gateway. Verifique se o canal está configurado corretamente.';
+                    }
+                    
+                    $this->json([
+                        'success' => false,
+                        'error' => $friendlyMessage,
+                        'error_code' => $friendlyErrorCode,
+                        'channel_id' => $channelId
+                    ], $httpStatus >= 400 && $httpStatus < 600 ? $httpStatus : 500);
                 }
             } else {
                 $this->json(['success' => false, 'error' => "Canal {$channel} não implementado ainda"], 400);

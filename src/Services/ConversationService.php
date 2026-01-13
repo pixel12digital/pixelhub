@@ -49,13 +49,28 @@ class ConversationService
             $channelInfo['contact_external_id']
         );
 
-        // Busca conversa existente
+        // Busca conversa existente (por chave exata)
         $existing = self::findByKey($conversationKey);
         
         if ($existing) {
             // Atualiza metadados básicos
             self::updateConversationMetadata($existing['id'], $eventData, $channelInfo);
             return $existing;
+        }
+
+        // Se não encontrou por chave exata, tenta encontrar conversa equivalente
+        // (para evitar duplicidade por variação do 9º dígito em números BR)
+        $equivalent = self::findEquivalentConversation($channelInfo, $channelInfo['contact_external_id']);
+        if ($equivalent) {
+            // Encontrou conversa equivalente - atualiza ao invés de criar nova
+            error_log(sprintf(
+                "[ConversationService] Conversa equivalente encontrada: conversation_id=%d (contact_external_id: %s -> %s)",
+                $equivalent['id'],
+                $equivalent['contact_external_id'],
+                $channelInfo['contact_external_id']
+            ));
+            self::updateConversationMetadata($equivalent['id'], $eventData, $channelInfo);
+            return $equivalent;
         }
 
         // Cria nova conversa
@@ -378,6 +393,63 @@ class ConversationService
             error_log("[ConversationService] Erro ao atualizar conversa: " . $e->getMessage());
             // Não quebra fluxo se falhar
         }
+    }
+
+    /**
+     * Busca conversa equivalente (para evitar duplicidade por variação do 9º dígito)
+     * 
+     * Aplica apenas para números BR (DDD 55) e apenas quando o padrão bate
+     * (55 + DDD + 8/9 dígitos). Tenta encontrar conversa removendo/adicionando o 9º dígito.
+     * 
+     * @param array $channelInfo Informações do canal
+     * @param string $contactExternalId ID externo do contato (E.164 normalizado)
+     * @return array|null Conversa equivalente ou null se não encontrada
+     */
+    private static function findEquivalentConversation(array $channelInfo, string $contactExternalId): ?array
+    {
+        // Aplica apenas para WhatsApp e números BR
+        if ($channelInfo['channel_type'] !== 'whatsapp') {
+            return null;
+        }
+
+        // Verifica se é número BR (começa com 55)
+        if (strlen($contactExternalId) < 12 || substr($contactExternalId, 0, 2) !== '55') {
+            return null;
+        }
+
+        // Extrai DDD e número
+        $ddd = substr($contactExternalId, 2, 2);
+        $number = substr($contactExternalId, 4);
+        $numberLen = strlen($number);
+
+        // Aplica apenas para números com 8 ou 9 dígitos (após DDD)
+        if ($numberLen !== 8 && $numberLen !== 9) {
+            return null;
+        }
+
+        // Gera variação do número (adiciona ou remove 9º dígito)
+        $variantContactId = null;
+        if ($numberLen === 8) {
+            // Número com 8 dígitos: tenta adicionar 9º dígito (9 + número)
+            $variantContactId = '55' . $ddd . '9' . $number;
+        } elseif ($numberLen === 9) {
+            // Número com 9 dígitos: tenta remover 9º dígito (remove primeiro dígito)
+            $variantContactId = '55' . $ddd . substr($number, 1);
+        }
+
+        if (!$variantContactId) {
+            return null;
+        }
+
+        // Gera chave de conversa equivalente
+        $variantKey = self::generateConversationKey(
+            $channelInfo['channel_type'],
+            $channelInfo['channel_account_id'],
+            $variantContactId
+        );
+
+        // Busca conversa com a chave variante
+        return self::findByKey($variantKey);
     }
 
     /**
