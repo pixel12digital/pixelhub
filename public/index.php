@@ -500,6 +500,8 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Rotas de Diagnóstico
     $router->get('/diagnostic/financial', 'DiagnosticController@financial');
     $router->get('/diagnostic/financial/errors', 'DiagnosticController@getErrorsJson');
+    $router->get('/diagnostic/communication', 'DiagnosticController@communication');
+    $router->post('/diagnostic/communication/run', 'DiagnosticController@runCommunicationDiagnostic');
 
     // Rotas de Configurações do Asaas
     $router->get('/settings/asaas', 'AsaasSettingsController@index');
