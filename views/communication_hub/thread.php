@@ -10,7 +10,7 @@ $baseUrl = pixelhub_url('');
     <div>
         <h2>
             <a href="<?= pixelhub_url('/communication-hub') ?>" style="color: #007bff; text-decoration: none; margin-right: 10px;">← Voltar</a>
-            Conversa: <?= htmlspecialchars($thread['tenant_name'] ?? 'Cliente') ?>
+            Conversa: <?= htmlspecialchars($thread['contact_name'] ?? $thread['tenant_name'] ?? 'Cliente') ?>
         </h2>
         <p style="display: flex; align-items: center; gap: 8px;">
             <?php if ($channel === 'whatsapp'): ?>
