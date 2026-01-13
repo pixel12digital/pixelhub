@@ -14,7 +14,23 @@ use PixelHub\Core\Env;
 Env::load(__DIR__ . '/../');
 $db = DB::getConnection();
 
-$eventId = '006bb2b4-d536-40e3-89ee-061679d3d068'; // Evento do teste
+// Busca o evento mais recente do ServPro
+$stmt = $db->prepare("
+    SELECT ce.event_id
+    FROM communication_events ce
+    WHERE ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+    AND ce.created_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+    AND (
+        ce.payload LIKE '%554796474223%'
+        OR ce.payload LIKE '%4796474223%'
+        OR ce.payload LIKE '%TESTE SERVPRO%'
+    )
+    ORDER BY ce.created_at DESC
+    LIMIT 1
+");
+$stmt->execute();
+$latest = $stmt->fetch(PDO::FETCH_ASSOC);
+$eventId = $latest['event_id'] ?? '006bb2b4-d536-40e3-89ee-061679d3d068'; // Fallback para evento anterior
 
 echo "=== VERIFICAÇÃO 1: Status de Processamento do Evento ===\n\n";
 
