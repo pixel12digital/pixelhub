@@ -260,9 +260,13 @@ class DiagnosticController extends Controller
      */
     public function runCommunicationDiagnostic(): void
     {
+        // Limpa qualquer output anterior que possa corromper o JSON
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+        
         Auth::requireInternal();
-        header('Content-Type: application/json');
-
+        
         $threadId = trim($_POST['thread_id'] ?? '');
         $testMessage = trim($_POST['test_message'] ?? '');
         $testType = $_POST['test_type'] ?? 'resolve_channel'; // resolve_channel, dry_run, send_real
@@ -274,10 +278,10 @@ class DiagnosticController extends Controller
 
         // Gera trace_id único para esta execução
         $traceId = 'diag_' . date('YmdHis') . '_' . uniqid();
+        $steps = [];
 
         try {
             $db = DB::getConnection();
-            $steps = [];
             $startTime = microtime(true);
 
             // Teste 1: Resolver canal
@@ -321,13 +325,22 @@ class DiagnosticController extends Controller
             error_log("[CommunicationDiagnostic] Trace ID: {$traceId} | Thread: {$threadId} | Test: {$testType}");
 
             $this->json($result);
-        } catch (\Exception $e) {
-            error_log("[CommunicationDiagnostic] Erro: " . $e->getMessage() . " | Trace: {$traceId}");
+        } catch (\Throwable $e) {
+            // Log completo do erro para debug
+            error_log("[CommunicationDiagnostic] Erro: " . $e->getMessage());
+            error_log("[CommunicationDiagnostic] Trace: " . $e->getTraceAsString());
+            
+            // Limpa output antes de retornar JSON de erro
+            while (ob_get_level() > 0) {
+                @ob_end_clean();
+            }
+            
             $this->json([
                 'success' => false,
-                'trace_id' => $traceId,
+                'trace_id' => $traceId ?? 'unknown',
                 'error' => $e->getMessage(),
-                'steps' => $steps,
+                'error_type' => get_class($e),
+                'steps' => $steps ?? [],
             ], 500);
         }
     }
@@ -411,20 +424,18 @@ class DiagnosticController extends Controller
         if ($normalized === null && !empty($threadInfo['contact_external_id'])) {
             $eventStepStart = microtime(true);
             $contactId = $threadInfo['contact_external_id'];
+            // Busca eventos que contenham o contact_id no payload (mais compatível)
             $eventStmt = $db->prepare("
                 SELECT ce.payload, ce.created_at
                 FROM communication_events ce
                 WHERE ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
-                AND (
-                    JSON_EXTRACT(ce.payload, '$.from') = ?
-                    OR JSON_EXTRACT(ce.payload, '$.to') = ?
-                    OR JSON_EXTRACT(ce.payload, '$.message.from') = ?
-                    OR JSON_EXTRACT(ce.payload, '$.message.to') = ?
-                )
+                AND ce.payload LIKE ?
                 ORDER BY ce.created_at DESC
                 LIMIT 1
             ");
-            $eventStmt->execute([$contactId, $contactId, $contactId, $contactId]);
+            // Busca o contact_id no payload (pode estar em vários formatos)
+            $contactIdPattern = '%' . $contactId . '%';
+            $eventStmt->execute([$contactIdPattern]);
             $event = $eventStmt->fetch();
 
             $steps[] = [
@@ -432,35 +443,58 @@ class DiagnosticController extends Controller
                 'description' => 'Buscar último inbound event',
                 'result' => $event ? 'found' : 'not_found',
                 'data' => $event ? [
-                    'event_id' => $event['event_id'] ?? null,
                     'created_at' => $event['created_at'] ?? null,
-                    'has_channel_id' => false,
+                    'has_payload' => !empty($event['payload']),
                 ] : null,
                 'time_ms' => round((microtime(true) - $eventStepStart) * 1000, 2),
             ];
 
-            if ($event && $event['payload']) {
+            if ($event && !empty($event['payload'])) {
                 $payload = json_decode($event['payload'], true);
-                $jsonPaths = [
-                    '$.channel_id',
-                    '$.message.channel_id',
-                    '$.channel',
-                ];
-
-                foreach ($jsonPaths as $path) {
-                    $value = $this->jsonExtract($payload, $path);
-                    if ($value !== null && $value !== '' && $value !== 0) {
-                        $result['normalized_channel_id'] = (int) $value;
-                        $result['winning_rule'] = 'buscou último inbound event';
-                        $result['details']['json_path'] = $path;
-                        $result['details']['event_created_at'] = $event['created_at'] ?? null;
-                        break;
+                
+                // Verifica se json_decode foi bem-sucedido
+                if (json_last_error() !== JSON_ERROR_NONE || !is_array($payload)) {
+                    $result['details']['json_decode_error'] = json_last_error_msg();
+                } else {
+                    // Tenta buscar session.id (formato encontrado nos payloads)
+                    $sessionId = null;
+                    if (isset($payload['session']['id'])) {
+                        $sessionId = $payload['session']['id'];
+                    } elseif (isset($payload['raw']['payload']['session'])) {
+                        $sessionId = is_string($payload['raw']['payload']['session']) 
+                            ? $payload['raw']['payload']['session'] 
+                            : ($payload['raw']['payload']['session']['id'] ?? null);
                     }
-                }
+                    
+                    if ($sessionId) {
+                        $result['normalized_channel_id'] = $sessionId;
+                        $result['winning_rule'] = 'buscou último inbound event (session.id)';
+                        $result['details']['json_path'] = 'session.id';
+                        $result['details']['event_created_at'] = $event['created_at'] ?? null;
+                    } else {
+                        // Fallback: tenta outros caminhos
+                        $jsonPaths = [
+                            '$.channel_id',
+                            '$.message.channel_id',
+                            '$.channel',
+                        ];
 
-                if ($result['normalized_channel_id'] === null) {
-                    $result['details']['json_paths_tried'] = $jsonPaths;
-                    $result['details']['payload_keys'] = array_keys($payload);
+                        foreach ($jsonPaths as $path) {
+                            $value = $this->jsonExtract($payload, $path);
+                            if ($value !== null && $value !== '' && $value !== 0) {
+                                $result['normalized_channel_id'] = is_numeric($value) ? (int) $value : $value;
+                                $result['winning_rule'] = 'buscou último inbound event';
+                                $result['details']['json_path'] = $path;
+                                $result['details']['event_created_at'] = $event['created_at'] ?? null;
+                                break;
+                            }
+                        }
+
+                        if ($result['normalized_channel_id'] === null) {
+                            $result['details']['json_paths_tried'] = $jsonPaths;
+                            $result['details']['payload_keys'] = array_keys($payload);
+                        }
+                    }
                 }
             } else {
                 $result['failure_reason'] = 'não existe inbound event';

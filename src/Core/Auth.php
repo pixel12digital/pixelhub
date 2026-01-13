@@ -85,7 +85,28 @@ class Auth
     public static function requireAuth(): void
     {
         if (!self::check()) {
-            // Usa a helper global para montar /login com BASE_PATH
+            // Verifica se é requisição AJAX/JSON (Content-Type ou Accept header)
+            $isJsonRequest = (
+                (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
+                (isset($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false) ||
+                (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+            );
+            
+            if ($isJsonRequest) {
+                // Limpa output buffer antes de enviar JSON
+                while (ob_get_level() > 0) {
+                    @ob_end_clean();
+                }
+                http_response_code(401);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Não autenticado'
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                exit;
+            }
+            
+            // Para requisições normais, redireciona para login
             $url = function_exists('pixelhub_url')
                 ? pixelhub_url('/login')
                 : '/login';
@@ -103,6 +124,28 @@ class Auth
         self::requireAuth();
         
         if (!self::isInternal()) {
+            // Verifica se é requisição AJAX/JSON (Content-Type ou Accept header)
+            $isJsonRequest = (
+                (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
+                (isset($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false) ||
+                (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+            );
+            
+            if ($isJsonRequest) {
+                // Limpa output buffer antes de enviar JSON
+                while (ob_get_level() > 0) {
+                    @ob_end_clean();
+                }
+                http_response_code(403);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Acesso negado. Apenas usuários internos podem acessar esta área.'
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                exit;
+            }
+            
+            // Para requisições normais, retorna HTML
             http_response_code(403);
             echo "Acesso negado. Apenas usuários internos podem acessar esta área.";
             exit;

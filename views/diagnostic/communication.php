@@ -137,9 +137,22 @@ function runDiagnostic(testType) {
 
     fetch('<?= pixelhub_url('/diagnostic/communication/run') ?>', {
         method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
         body: formData
     })
-    .then(response => response.json())
+    .then(async response => {
+        // Verifica Content-Type
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Resposta não é JSON:', text.substring(0, 500));
+            throw new Error('Resposta do servidor não é JSON válido. Verifique o console para detalhes.');
+        }
+        return response.json();
+    })
     .then(data => {
         currentReport = data;
         displayReport(data);
