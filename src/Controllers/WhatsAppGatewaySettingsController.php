@@ -340,7 +340,12 @@ class WhatsAppGatewaySettingsController extends Controller
                 $logs[] = "⚠️ Erro ao descriptografar, usando secret diretamente: " . $e->getMessage();
             }
 
-            $logs[] = "🔑 Secret (preview): " . substr($secret, 0, 8) . "..." . substr($secret, -4);
+            // Log do secret descriptografado (para comparação com send_real)
+            $secretPreview = !empty($secret) 
+                ? (substr($secret, 0, 4) . '...' . substr($secret, -4) . ' (len=' . strlen($secret) . ')')
+                : 'VAZIO';
+            $logs[] = "🔑 Secret (preview): {$secretPreview}";
+            error_log("[WhatsAppGatewaySettings::testConnection] test_connection -> secret (descriptografado) preview: {$secretPreview}");
             $logs[] = "";
 
             // Teste 1: Listar canais

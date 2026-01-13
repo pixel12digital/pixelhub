@@ -758,8 +758,20 @@ class DiagnosticController extends Controller
         ];
 
         try {
+            // Log do secret que será usado no envio real
+            $secretRaw = \PixelHub\Core\Env::get('WPP_GATEWAY_SECRET', '');
+            $secretPreview = !empty($secretRaw) 
+                ? (substr($secretRaw, 0, 4) . '...' . substr($secretRaw, -4) . ' (len=' . strlen($secretRaw) . ')')
+                : 'VAZIO';
+            error_log("[CommunicationDiagnostic::diagnoseRealSend] send_real -> WPP_GATEWAY_SECRET (raw do .env): {$secretPreview}");
+            
             // Envia via gateway
             $gateway = new \PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient();
+            
+            // Log do secret que o gateway está usando (vem do construtor)
+            // O gateway já loga internamente no método request(), mas vamos garantir que apareça aqui também
+            error_log("[CommunicationDiagnostic::diagnoseRealSend] Gateway instanciado, enviando mensagem...");
+            
             $sendResult = $gateway->sendText($channelId, $phoneNormalized, $testMessage, [
                 'sent_by' => Auth::user()['id'] ?? null,
                 'sent_by_name' => Auth::user()['name'] ?? null,
