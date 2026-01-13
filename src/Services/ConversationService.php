@@ -39,6 +39,12 @@ class ConversationService
         // Extrai informações do evento
         $channelInfo = self::extractChannelInfo($eventData);
         if (!$channelInfo) {
+            error_log('[CONVERSATION UPSERT] ERRO: extractChannelInfo retornou NULL. Event data: ' . json_encode([
+                'event_type' => $eventData['event_type'] ?? null,
+                'source_system' => $eventData['source_system'] ?? null,
+                'has_payload' => isset($eventData['payload']),
+                'payload_keys' => isset($eventData['payload']) ? array_keys($eventData['payload']) : [],
+            ], JSON_UNESCAPED_UNICODE));
             return null; // Não é possível identificar canal
         }
 
@@ -49,10 +55,20 @@ class ConversationService
             $channelInfo['contact_external_id']
         );
 
+        // 🔍 PASSO 2: LOG DE RESOLUÇÃO DE CONVERSA
+        error_log('[CONVERSATION UPSERT] Iniciando resolução de conversa: ' . json_encode([
+            'conversation_key' => $conversationKey,
+            'channel_type' => $channelInfo['channel_type'],
+            'channel_id' => $channelInfo['channel_id'] ?? null,
+            'contact_external_id' => $channelInfo['contact_external_id'],
+            'tenant_id' => $eventData['tenant_id'] ?? null,
+        ], JSON_UNESCAPED_UNICODE));
+
         // Busca conversa existente (por chave exata)
         $existing = self::findByKey($conversationKey);
         
         if ($existing) {
+            error_log('[CONVERSATION UPSERT] Conversa existente encontrada: conversation_id=' . $existing['id']);
             // Atualiza metadados básicos
             self::updateConversationMetadata($existing['id'], $eventData, $channelInfo);
             return $existing;
@@ -64,7 +80,7 @@ class ConversationService
         if ($equivalent) {
             // Encontrou conversa equivalente - atualiza ao invés de criar nova
             error_log(sprintf(
-                "[ConversationService] Conversa equivalente encontrada: conversation_id=%d (contact_external_id: %s -> %s)",
+                "[CONVERSATION UPSERT] Conversa equivalente encontrada: conversation_id=%d (contact_external_id: %s -> %s)",
                 $equivalent['id'],
                 $equivalent['contact_external_id'],
                 $channelInfo['contact_external_id']
@@ -74,7 +90,14 @@ class ConversationService
         }
 
         // Cria nova conversa
-        return self::createConversation($conversationKey, $eventData, $channelInfo);
+        error_log('[CONVERSATION UPSERT] Nenhuma conversa encontrada, criando nova...');
+        $newConversation = self::createConversation($conversationKey, $eventData, $channelInfo);
+        if ($newConversation) {
+            error_log('[CONVERSATION UPSERT] Nova conversa criada: conversation_id=' . $newConversation['id'] . ', conversation_key=' . $conversationKey);
+        } else {
+            error_log('[CONVERSATION UPSERT] ERRO: Falha ao criar nova conversa');
+        }
+        return $newConversation;
     }
 
     /**
@@ -104,6 +127,8 @@ class ConversationService
         $metadata = $eventData['metadata'] ?? [];
         $tenantId = $eventData['tenant_id'] ?? null;
 
+        error_log('[CONVERSATION UPSERT] extractChannelInfo: INICIANDO - event_type=' . $eventType . ', has_payload=' . (isset($eventData['payload']) ? 'SIM' : 'NÃO'));
+
         // Detecta tipo de canal
         $channelType = null;
         if (strpos($eventType, 'whatsapp.') === 0) {
@@ -114,7 +139,10 @@ class ConversationService
             $channelType = 'webchat';
         }
 
+        error_log('[CONVERSATION UPSERT] extractChannelInfo: channelType detectado=' . ($channelType ?: 'NULL'));
+
         if (!$channelType) {
+            error_log('[CONVERSATION UPSERT] extractChannelInfo: ERRO - channelType é NULL, retornando null');
             return null;
         }
 
@@ -126,20 +154,24 @@ class ConversationService
             // WhatsApp: from ou to (depende da direção)
             $direction = strpos($eventType, 'inbound') !== false ? 'inbound' : 'outbound';
             if ($direction === 'inbound') {
-                $contactExternalId = $payload['from'] ?? $payload['message']['from'] ?? null;
-                $contactName = $payload['message']['notifyName'] ?? $payload['raw']['payload']['notifyName'] ?? null;
+                $contactExternalId = $payload['from'] ?? $payload['message']['from'] ?? $payload['data']['from'] ?? null;
+                $contactName = $payload['message']['notifyName'] ?? $payload['raw']['payload']['notifyName'] ?? $payload['data']['notifyName'] ?? null;
             } else {
-                $contactExternalId = $payload['to'] ?? $payload['message']['to'] ?? null;
+                $contactExternalId = $payload['to'] ?? $payload['message']['to'] ?? $payload['data']['to'] ?? null;
             }
+            
+            error_log('[CONVERSATION UPSERT] extractChannelInfo: WhatsApp ' . $direction . ' - contactExternalId raw: ' . ($contactExternalId ?: 'NULL'));
             
             // Normaliza contact_external_id usando PhoneNormalizer (NÃO força "9")
             // Remove sufixo @c.us, @lid, etc. antes de normalizar
             if ($contactExternalId && strpos($contactExternalId, '@') !== false) {
                 $contactExternalId = preg_replace('/@.*$/', '', $contactExternalId);
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: contactExternalId após remover @: ' . $contactExternalId);
             }
             
             // Normaliza para E.164 (apenas dígitos, sem forçar "9")
             $contactExternalId = PhoneNormalizer::toE164OrNull($contactExternalId);
+            error_log('[CONVERSATION UPSERT] extractChannelInfo: contactExternalId normalizado: ' . ($contactExternalId ?: 'NULL'));
         } elseif ($channelType === 'email') {
             $direction = strpos($eventType, 'inbound') !== false ? 'inbound' : 'outbound';
             if ($direction === 'inbound') {
@@ -151,6 +183,7 @@ class ConversationService
         }
 
         if (!$contactExternalId) {
+            error_log('[CONVERSATION UPSERT] ERRO: contactExternalId é NULL após extração. Channel type: ' . ($channelType ?: 'NULL') . ', Direction: ' . ($direction ?? 'NULL'));
             return null;
         }
 
@@ -187,15 +220,31 @@ class ConversationService
     {
         // Tenta obter de metadata primeiro (já normalizado)
         if ($metadata && isset($metadata['channel_id'])) {
-            return (string) $metadata['channel_id'];
+            $channelId = (string) $metadata['channel_id'];
+            error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: encontrado em metadata: ' . $channelId);
+            return $channelId;
         }
         
         // Tenta obter do payload (session.id ou channel)
         $channelId = $payload['session']['id'] 
             ?? $payload['session']['session'] 
             ?? $payload['channel'] 
-            ?? $payload['channelId'] 
+            ?? $payload['channelId']
+            ?? ($payload['data']['session']['id'] ?? null)
+            ?? ($payload['data']['session']['session'] ?? null)
             ?? null;
+        
+        if ($channelId) {
+            error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: encontrado no payload: ' . $channelId);
+        } else {
+            error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: NÃO encontrado. Payload keys: ' . implode(', ', array_keys($payload)));
+            if (isset($payload['session'])) {
+                error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: payload[session] keys: ' . implode(', ', array_keys($payload['session'])));
+            }
+            if (isset($payload['data'])) {
+                error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: payload[data] keys: ' . implode(', ', array_keys($payload['data'])));
+            }
+        }
         
         return $channelId ? (string) $channelId : null;
     }
@@ -337,6 +386,8 @@ class ConversationService
         $direction = $channelInfo['direction'] ?? 'inbound';
         $now = date('Y-m-d H:i:s');
 
+        error_log('[CONVERSATION UPSERT] updateConversationMetadata: conversation_id=' . $conversationId . ', direction=' . $direction . ', contact=' . ($channelInfo['contact_external_id'] ?? 'NULL'));
+
         try {
             // Atualiza última mensagem e contador
             $stmt = $db->prepare("
@@ -357,6 +408,8 @@ class ConversationService
             ");
 
             $stmt->execute([$now, $direction, $direction, $now, $conversationId]);
+            
+            error_log('[CONVERSATION UPSERT] updateConversationMetadata: last_message_at atualizado para ' . $now);
 
             // Atualiza contato name se fornecido e ainda não existe
             if (!empty($channelInfo['contact_name'])) {

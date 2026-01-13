@@ -30,6 +30,38 @@ class WhatsAppWebhookController extends Controller
         header('Content-Type: application/json; charset=utf-8');
 
         try {
+            // 🔍 PASSO 1: LOG OBRIGATÓRIO NO WEBHOOK (ANTES DE QUALQUER LÓGICA)
+            $rawPayload = file_get_contents('php://input');
+            $payload = json_decode($rawPayload, true);
+            
+            // Log detalhado do payload e headers
+            $headers = [];
+            foreach ($_SERVER as $key => $value) {
+                if (strpos($key, 'HTTP_') === 0) {
+                    $headerName = str_replace(' ', '-', ucwords(str_replace('_', ' ', strtolower(substr($key, 5)))));
+                    $headers[$headerName] = $value;
+                }
+            }
+            
+            // Extrai informações críticas do payload para log
+            $from = $payload['from'] ?? $payload['message']['from'] ?? $payload['data']['from'] ?? null;
+            $sessionId = $payload['session']['id'] ?? $payload['session']['session'] ?? $payload['channel'] ?? $payload['channelId'] ?? null;
+            $eventType = $payload['event'] ?? $payload['type'] ?? null;
+            
+            error_log('[WHATSAPP INBOUND RAW] Payload recebido: ' . json_encode([
+                'event' => $eventType,
+                'from' => $from,
+                'session_id' => $sessionId,
+                'channel' => $payload['channel'] ?? $payload['channelId'] ?? null,
+                'payload_keys' => array_keys($payload),
+                'has_message' => isset($payload['message']),
+                'has_data' => isset($payload['data']),
+                'has_session' => isset($payload['session']),
+            ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            
+            error_log('[WHATSAPP INBOUND RAW] Headers: ' . json_encode($headers, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            error_log('[WHATSAPP INBOUND RAW] Payload completo (primeiros 2000 chars): ' . substr($rawPayload, 0, 2000));
+
             // Valida secret se configurado
             $expectedSecret = Env::get('PIXELHUB_WHATSAPP_WEBHOOK_SECRET');
             if (!empty($expectedSecret)) {
@@ -44,10 +76,6 @@ class WhatsAppWebhookController extends Controller
                     exit;
                 }
             }
-
-            // Lê payload JSON
-            $rawPayload = file_get_contents('php://input');
-            $payload = json_decode($rawPayload, true);
 
             if (json_last_error() !== JSON_ERROR_NONE) {
                 http_response_code(400);
@@ -84,11 +112,31 @@ class WhatsAppWebhookController extends Controller
                 exit;
             }
 
-            // Extrai channel (para identificar tenant)
-            $channelId = $payload['channel'] ?? $payload['channelId'] ?? null;
+            // Extrai channel (para identificar tenant) - tenta múltiplas localizações
+            $channelId = $payload['channel'] 
+                ?? $payload['channelId'] 
+                ?? $payload['session']['id'] 
+                ?? $payload['session']['session']
+                ?? $payload['data']['session']['id'] ?? null
+                ?? $payload['data']['session']['session'] ?? null
+                ?? $payload['data']['channel'] ?? null
+                ?? null;
+            
+            error_log('[WHATSAPP INBOUND RAW] Channel ID extraído: ' . ($channelId ?: 'NULL'));
+            if (!$channelId) {
+                error_log('[WHATSAPP INBOUND RAW] AVISO: channel_id não encontrado. Payload keys: ' . implode(', ', array_keys($payload)));
+                if (isset($payload['session'])) {
+                    error_log('[WHATSAPP INBOUND RAW] payload[session] keys: ' . implode(', ', array_keys($payload['session'])));
+                }
+                if (isset($payload['data'])) {
+                    error_log('[WHATSAPP INBOUND RAW] payload[data] keys: ' . implode(', ', array_keys($payload['data'])));
+                }
+            }
 
             // Tenta resolver tenant_id pelo channel
             $tenantId = $this->resolveTenantByChannel($channelId);
+            
+            error_log('[WHATSAPP INBOUND RAW] Tenant ID resolvido: ' . ($tenantId ?: 'NULL'));
 
             // Cria evento normalizado
             $eventId = EventIngestionService::ingest([
@@ -186,10 +234,23 @@ class WhatsAppWebhookController extends Controller
     private function resolveTenantByChannel(?string $channelId): ?int
     {
         if (empty($channelId)) {
+            error_log('[WHATSAPP INBOUND RAW] resolveTenantByChannel: channelId está vazio');
             return null;
         }
 
+        error_log('[WHATSAPP INBOUND RAW] resolveTenantByChannel: buscando tenant_id para channel_id=' . $channelId);
+
         $db = DB::getConnection();
+        
+        // Log: lista todos os channels disponíveis para debug
+        $debugStmt = $db->query("
+            SELECT id, tenant_id, provider, channel_id, is_enabled 
+            FROM tenant_message_channels 
+            WHERE provider = 'wpp_gateway'
+        ");
+        $allChannels = $debugStmt->fetchAll();
+        error_log('[WHATSAPP INBOUND RAW] Channels disponíveis no banco: ' . json_encode($allChannels, JSON_UNESCAPED_UNICODE));
+        
         $stmt = $db->prepare("
             SELECT tenant_id 
             FROM tenant_message_channels 
@@ -201,7 +262,10 @@ class WhatsAppWebhookController extends Controller
         $stmt->execute([$channelId]);
         $result = $stmt->fetch();
 
-        return $result ? (int) $result['tenant_id'] : null;
+        $tenantId = $result ? (int) $result['tenant_id'] : null;
+        error_log('[WHATSAPP INBOUND RAW] resolveTenantByChannel: resultado tenant_id=' . ($tenantId ?: 'NULL'));
+        
+        return $tenantId;
     }
 }
 
