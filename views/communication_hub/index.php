@@ -111,9 +111,12 @@ $baseUrl = pixelhub_url('');
                                         </svg>
                                         <span>Chat Interno</span>
                                     <?php endif; ?>
-                                    <?php if (isset($thread['tenant_name']) && $thread['tenant_name'] !== 'Sem tenant'): ?>
+                                    <?php 
+                                    // Mostra tenant_name apenas se não houver contact_name (nome do WhatsApp)
+                                    // Isso evita mostrar nome do cliente quando já temos o nome do contato
+                                    if (empty($thread['contact_name']) && isset($thread['tenant_name']) && $thread['tenant_name'] !== 'Sem tenant'): ?>
                                         <span style="opacity: 0.7;">• <?= htmlspecialchars($thread['tenant_name']) ?></span>
-                                    <?php elseif (!isset($thread['tenant_name']) || $thread['tenant_id'] === null): ?>
+                                    <?php elseif (empty($thread['contact_name']) && (!isset($thread['tenant_name']) || $thread['tenant_id'] === null)): ?>
                                         <span style="opacity: 0.7; font-size: 10px;">• Sem tenant</span>
                                     <?php endif; ?>
                                 </div>
@@ -245,10 +248,18 @@ function startListPolling() {
     }
     
     // Inicializa timestamp com o mais recente da lista
+    // Usa o maior timestamp entre todos os threads para garantir que detecta atualizações
     const threads = <?= json_encode($threads ?? []) ?>;
     if (threads.length > 0) {
-        const latest = threads[0];
-        HubState.lastUpdateTs = latest.last_activity || latest.updated_at || null;
+        let maxTs = null;
+        threads.forEach(thread => {
+            const ts = thread.last_activity || thread.updated_at || null;
+            if (ts && (!maxTs || new Date(ts) > new Date(maxTs))) {
+                maxTs = ts;
+            }
+        });
+        HubState.lastUpdateTs = maxTs;
+        console.log('[Hub] Polling iniciado com lastUpdateTs:', HubState.lastUpdateTs);
     }
     
     // Polling a cada 3 segundos
@@ -281,11 +292,16 @@ async function checkForListUpdates() {
         const result = await response.json();
         
         if (result.success && result.has_updates) {
+            console.log('[Hub] Atualizações detectadas! Recarregando...');
             // Atualiza lista recarregando a página (simples e confiável)
             location.reload();
         } else if (result.success && result.latest_update_ts) {
             // Atualiza timestamp mesmo sem mudanças (para manter sincronizado)
+            const oldTs = HubState.lastUpdateTs;
             HubState.lastUpdateTs = result.latest_update_ts;
+            if (oldTs !== HubState.lastUpdateTs) {
+                console.log('[Hub] Timestamp atualizado:', oldTs, '->', HubState.lastUpdateTs);
+            }
         }
     } catch (error) {
         console.error('[Hub] Erro ao verificar atualizações:', error);
