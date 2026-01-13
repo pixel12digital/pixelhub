@@ -142,9 +142,16 @@ class ConversationService
             $channelAccountId = self::resolveChannelAccountId($tenantId, $channelType);
         }
 
+        // Extrai channel_id (session.id) do payload para eventos inbound de WhatsApp
+        $channelId = null;
+        if ($channelType === 'whatsapp' && ($direction ?? 'inbound') === 'inbound') {
+            $channelId = self::extractChannelIdFromPayload($payload);
+        }
+
         return [
             'channel_type' => $channelType,
             'channel_account_id' => $channelAccountId,
+            'channel_id' => $channelId,
             'contact_external_id' => $contactExternalId,
             'contact_name' => $contactName,
             'direction' => $direction ?? 'inbound',
@@ -248,16 +255,17 @@ class ConversationService
         try {
             $stmt = $db->prepare("
                 INSERT INTO conversations 
-                (conversation_key, channel_type, channel_account_id, contact_external_id, 
+                (conversation_key, channel_type, channel_account_id, channel_id, contact_external_id, 
                  contact_name, tenant_id, status, last_message_at, last_message_direction,
                  message_count, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'new', ?, ?, 1, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, 1, ?, ?)
             ");
 
             $stmt->execute([
                 $conversationKey,
                 $channelInfo['channel_type'],
                 $channelInfo['channel_account_id'],
+                $channelInfo['channel_id'] ?? null,
                 $channelInfo['contact_external_id'],
                 $channelInfo['contact_name'],
                 $tenantId,
@@ -327,6 +335,17 @@ class ConversationService
                     WHERE id = ? AND tenant_id IS NULL
                 ");
                 $updateTenantStmt->execute([$tenantId, $conversationId]);
+            }
+
+            // Atualiza channel_id se fornecido e ainda não existe (apenas para eventos inbound)
+            $channelId = $channelInfo['channel_id'] ?? null;
+            if ($channelId && ($channelInfo['direction'] ?? 'inbound') === 'inbound') {
+                $updateChannelIdStmt = $db->prepare("
+                    UPDATE conversations 
+                    SET channel_id = ? 
+                    WHERE id = ? AND (channel_id IS NULL OR channel_id = '')
+                ");
+                $updateChannelIdStmt->execute([$channelId, $conversationId]);
             }
         } catch (\Exception $e) {
             error_log("[ConversationService] Erro ao atualizar conversa: " . $e->getMessage());
