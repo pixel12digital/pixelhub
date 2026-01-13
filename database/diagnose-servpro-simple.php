@@ -34,6 +34,7 @@ $stmt = $db->prepare("
     AND (
         ce.payload LIKE '%554796474223%'
         OR ce.payload LIKE '%4796474223%'
+        OR ce.payload LIKE '%TESTE SERVPRO%'
     )
     ORDER BY ce.created_at DESC
     LIMIT 5
@@ -182,6 +183,24 @@ echo "🔍 ENDPOINT DE UPDATES:\n";
 if ($latestUpdateTs) {
     echo "   ✅ Retornaria: has_updates = true\n";
     echo "   latest_update_ts: {$latestUpdateTs}\n";
+    
+    // Verifica se ServPro está incluído
+    $stmt = $db->prepare("
+        SELECT c.id, c.contact_external_id, c.last_message_at
+        FROM conversations c
+        WHERE c.channel_type = 'whatsapp'
+        AND (c.contact_external_id = '554796474223' OR c.contact_external_id LIKE '554796474223%')
+        AND (c.updated_at > ? OR c.last_message_at > ?)
+        LIMIT 1
+    ");
+    $stmt->execute([$afterTimestamp, $afterTimestamp]);
+    $servproInUpdate = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($servproInUpdate) {
+        echo "   ✅ Conversa do ServPro está incluída no resultado\n";
+    } else {
+        echo "   ⚠️  Conversa do ServPro NÃO está incluída no resultado\n";
+    }
 } else {
     echo "   ❌ Retornaria: has_updates = false\n";
 }
