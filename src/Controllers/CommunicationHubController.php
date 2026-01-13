@@ -331,8 +331,34 @@ class CommunicationHubController extends Controller
                     return;
                 }
 
-                // Envia via gateway
+                // Valida se a sessão está conectada antes de enviar
                 $gateway = new WhatsAppGatewayClient();
+                $channelInfo = $gateway->getChannel((string) $channelId);
+                
+                if (!$channelInfo['success']) {
+                    $this->json([
+                        'success' => false, 
+                        'error' => 'Não foi possível verificar o status do canal. Verifique se o gateway está acessível.',
+                        'error_code' => 'GATEWAY_ERROR'
+                    ], 500);
+                    return;
+                }
+                
+                $channelData = $channelInfo['raw'] ?? [];
+                $sessionStatus = $channelData['status'] ?? $channelData['connection'] ?? null;
+                $isConnected = ($sessionStatus === 'connected' || $sessionStatus === 'open' || $channelData['connected'] ?? false);
+                
+                if (!$isConnected) {
+                    $this->json([
+                        'success' => false,
+                        'error' => "Sessão do canal WhatsApp está desconectada. Por favor, reconecte no gateway antes de enviar mensagens.",
+                        'error_code' => 'SESSION_DISCONNECTED',
+                        'channel_id' => $channelId
+                    ], 400);
+                    return;
+                }
+                
+                // Envia via gateway
                 $result = $gateway->sendText($channelId, $phoneNormalized, $message, [
                     'sent_by' => Auth::user()['id'] ?? null,
                     'sent_by_name' => Auth::user()['name'] ?? null
@@ -748,6 +774,9 @@ class CommunicationHubController extends Controller
                 }
             }
             
+            // Sanitiza mensagens muito longas sem quebra (ex: base64/tokens)
+            $content = self::sanitizeLongMessage($content);
+            
             $messages[] = [
                 'id' => $event['event_id'],
                 'direction' => $direction,
@@ -997,6 +1026,77 @@ class CommunicationHubController extends Controller
     }
 
     /**
+     * Verifica se há novas mensagens ou atualizações na lista de conversas
+     * 
+     * GET /communication-hub/check-updates?after_timestamp=Y
+     * 
+     * Retorna {has_updates: bool, latest_update_ts: string|null} para polling da lista
+     */
+    public function checkUpdates(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $afterTimestamp = $_GET['after_timestamp'] ?? null;
+        $tenantId = isset($_GET['tenant_id']) && $_GET['tenant_id'] !== '' ? (int) $_GET['tenant_id'] : null;
+        $status = $_GET['status'] ?? 'active';
+
+        $db = DB::getConnection();
+
+        try {
+            // Verifica se há conversas atualizadas após o timestamp
+            $where = ["c.channel_type = 'whatsapp'"];
+            $params = [];
+
+            if ($tenantId) {
+                $where[] = "c.tenant_id = ?";
+                $params[] = $tenantId;
+            }
+
+            if ($status === 'active') {
+                $where[] = "c.status NOT IN ('closed', 'archived')";
+            } elseif ($status === 'closed') {
+                $where[] = "c.status IN ('closed', 'archived')";
+            }
+
+            if ($afterTimestamp) {
+                $where[] = "(c.updated_at > ? OR c.last_message_at > ?)";
+                $params[] = $afterTimestamp;
+                $params[] = $afterTimestamp;
+            }
+
+            $whereClause = "WHERE " . implode(" AND ", $where);
+
+            $stmt = $db->prepare("
+                SELECT MAX(GREATEST(COALESCE(c.updated_at, '1970-01-01'), COALESCE(c.last_message_at, '1970-01-01'))) as latest_update_ts
+                FROM conversations c
+                {$whereClause}
+                LIMIT 1
+            ");
+            $stmt->execute($params);
+            $result = $stmt->fetch();
+
+            $latestUpdateTs = $result['latest_update_ts'] ?? null;
+            $hasUpdates = false;
+
+            if ($latestUpdateTs) {
+                if (!$afterTimestamp || strtotime($latestUpdateTs) > strtotime($afterTimestamp)) {
+                    $hasUpdates = true;
+                }
+            }
+
+            $this->json([
+                'success' => true,
+                'has_updates' => $hasUpdates,
+                'latest_update_ts' => $latestUpdateTs
+            ]);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao verificar atualizações: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro ao verificar atualizações'], 500);
+        }
+    }
+
+    /**
      * Verifica se há novas mensagens (check leve, otimizado)
      * 
      * GET /communication-hub/messages/check?thread_id=X&after_timestamp=Y&after_event_id=Z
@@ -1230,7 +1330,10 @@ class CommunicationHubController extends Controller
                     $content = "[{$mediaType}]";
                 }
             }
-
+            
+            // Sanitiza mensagens muito longas sem quebra
+            $content = self::sanitizeLongMessage($content);
+            
             $message = [
                 'id' => $event['event_id'],
                 'direction' => $direction,
@@ -1376,6 +1479,9 @@ class CommunicationHubController extends Controller
                 }
             }
             
+            // Sanitiza mensagens muito longas sem quebra
+            $content = self::sanitizeLongMessage($content);
+            
             $messages[] = [
                 'id' => $event['event_id'],
                 'direction' => $direction,
@@ -1386,6 +1492,33 @@ class CommunicationHubController extends Controller
         }
 
         return $messages;
+    }
+
+    /**
+     * Sanitiza mensagens muito longas sem quebra (ex: base64, tokens)
+     * 
+     * Se a mensagem for suspeita (muito longa, sem espaços), retorna preview truncado
+     * 
+     * @param string $content Conteúdo original
+     * @return string Conteúdo sanitizado
+     */
+    private static function sanitizeLongMessage(string $content): string
+    {
+        // Se mensagem é muito longa (mais de 500 chars) e não tem espaços/quebras
+        if (strlen($content) > 500) {
+            $hasSpaces = strpos($content, ' ') !== false;
+            $hasNewlines = strpos($content, "\n") !== false;
+            $hasTabs = strpos($content, "\t") !== false;
+            
+            // Se não tem espaços/quebras, é suspeita (pode ser base64/token)
+            if (!$hasSpaces && !$hasNewlines && !$hasTabs) {
+                // Trunca para 500 chars e adiciona indicador
+                $truncated = substr($content, 0, 500);
+                return $truncated . "\n\n[... conteúdo truncado - mensagem muito longa sem quebras ...]";
+            }
+        }
+        
+        return $content;
     }
 }
 

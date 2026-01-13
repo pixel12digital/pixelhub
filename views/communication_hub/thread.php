@@ -70,7 +70,7 @@ $baseUrl = pixelhub_url('');
                          data-timestamp="<?= htmlspecialchars($msgTimestamp) ?>"
                          style="margin-bottom: 15px; display: flex; <?= $isOutbound ? 'justify-content: flex-end;' : '' ?>">
                         <div style="max-width: 70%; padding: 12px 16px; border-radius: 18px; <?= $isOutbound ? 'background: #dcf8c6; margin-left: auto;' : 'background: white;' ?>">
-                            <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap;">
+                            <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%;">
                                 <?= htmlspecialchars($msg['content'] ?? '') ?>
                             </div>
                             <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: right;">
@@ -203,7 +203,7 @@ function addMessageElementToDOM(message) {
     
     messageDiv.innerHTML = `
         <div style="max-width: 70%; padding: 12px 16px; border-radius: 18px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto;' : 'background: white;'}">
-            <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap;">
+            <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%;">
                 ${escapeHtml(content)}
             </div>
             <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: right;">

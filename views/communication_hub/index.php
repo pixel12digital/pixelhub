@@ -140,6 +140,11 @@ $baseUrl = pixelhub_url('');
                             ?>
                             <span><?= $dateTime->format('d/m H:i') ?></span>
                         </div>
+                        <?php
+                        // Preview da última mensagem (se disponível)
+                        // TODO: Buscar preview da última mensagem da conversa
+                        // Por enquanto, apenas mostra contador
+                        ?>
                     </a>
                 <?php endforeach; ?>
             </div>
@@ -225,6 +230,85 @@ $baseUrl = pixelhub_url('');
 </div>
 
 <script>
+// ============================================================================
+// Polling para atualização da lista de conversas
+// ============================================================================
+const HubState = {
+    lastUpdateTs: null,
+    pollingInterval: null,
+    isPageVisible: true
+};
+
+function startListPolling() {
+    if (HubState.pollingInterval) {
+        return;
+    }
+    
+    // Inicializa timestamp com o mais recente da lista
+    const threads = <?= json_encode($threads ?? []) ?>;
+    if (threads.length > 0) {
+        const latest = threads[0];
+        HubState.lastUpdateTs = latest.last_activity || latest.updated_at || null;
+    }
+    
+    // Polling a cada 3 segundos
+    HubState.pollingInterval = setInterval(() => {
+        if (HubState.isPageVisible) {
+            checkForListUpdates();
+        }
+    }, 3000);
+    
+    // Primeiro check após 2 segundos
+    setTimeout(() => {
+        checkForListUpdates();
+    }, 2000);
+}
+
+async function checkForListUpdates() {
+    try {
+        const params = new URLSearchParams({
+            status: '<?= htmlspecialchars($filters['status'] ?? 'active') ?>'
+        });
+        if (HubState.lastUpdateTs) {
+            params.set('after_timestamp', HubState.lastUpdateTs);
+        }
+        <?php if (isset($filters['tenant_id']) && $filters['tenant_id']): ?>
+        params.set('tenant_id', '<?= (int) $filters['tenant_id'] ?>');
+        <?php endif; ?>
+        
+        const url = '<?= pixelhub_url('/communication-hub/check-updates') ?>?' + params.toString();
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success && result.has_updates) {
+            // Atualiza lista recarregando a página (simples e confiável)
+            location.reload();
+        } else if (result.success && result.latest_update_ts) {
+            // Atualiza timestamp mesmo sem mudanças (para manter sincronizado)
+            HubState.lastUpdateTs = result.latest_update_ts;
+        }
+    } catch (error) {
+        console.error('[Hub] Erro ao verificar atualizações:', error);
+    }
+}
+
+// Page Visibility API
+document.addEventListener('visibilitychange', function() {
+    HubState.isPageVisible = !document.hidden;
+});
+
+// Inicia polling quando a página carrega
+document.addEventListener('DOMContentLoaded', function() {
+    startListPolling();
+});
+
+// Limpa polling ao sair
+window.addEventListener('beforeunload', function() {
+    if (HubState.pollingInterval) {
+        clearInterval(HubState.pollingInterval);
+    }
+});
+
 function openNewMessageModal() {
     document.getElementById('new-message-modal').style.display = 'flex';
 }
