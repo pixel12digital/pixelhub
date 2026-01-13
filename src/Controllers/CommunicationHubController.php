@@ -371,7 +371,13 @@ class CommunicationHubController extends Controller
                         'source_system' => 'pixelhub_operator',
                         'payload' => [
                             'to' => $phoneNormalized,
+                            'message' => [
+                                'to' => $phoneNormalized,
+                                'text' => $message,
+                                'timestamp' => time() // Adiciona timestamp Unix
+                            ],
                             'text' => $message,
+                            'timestamp' => time(), // Adiciona timestamp Unix
                             'channel_id' => $channelId
                         ],
                         'tenant_id' => $tenantId,

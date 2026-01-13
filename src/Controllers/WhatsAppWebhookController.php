@@ -220,6 +220,11 @@ class WhatsAppWebhookController extends Controller
             'message' => 'whatsapp.inbound.message',
             'message.ack' => 'whatsapp.delivery.ack',
             'connection.update' => 'whatsapp.connection.update',
+            // Eventos de mensagens enviadas (outbound)
+            'message.sent' => 'whatsapp.outbound.message',
+            'message_sent' => 'whatsapp.outbound.message',
+            'sent' => 'whatsapp.outbound.message',
+            'status' => 'whatsapp.delivery.status',
         ];
 
         return $mapping[$gatewayEventType] ?? null;
