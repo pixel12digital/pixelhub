@@ -372,12 +372,15 @@ class ConversationService
         $tenantId = $eventData['tenant_id'] ?? null;
         $direction = $channelInfo['direction'] ?? 'inbound';
         $now = date('Y-m-d H:i:s');
+        
+        // Extrai timestamp da mensagem para last_message_at
+        $messageTimestamp = self::extractMessageTimestamp($eventData);
 
         try {
             $stmt = $db->prepare("
                 INSERT INTO conversations 
                 (conversation_key, channel_type, channel_account_id, channel_id, contact_external_id, 
-                 contact_name, tenant_id, status, last_message_at, last_message_direction,
+                 contact_name, tenant_id, status, last_message_at, last_message_direction, 
                  message_count, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, 1, ?, ?)
             ");
@@ -390,7 +393,7 @@ class ConversationService
                 $channelInfo['contact_external_id'],
                 $channelInfo['contact_name'],
                 $tenantId,
-                $now,
+                $messageTimestamp, // Usa timestamp da mensagem ao invés de NOW()
                 $direction,
                 $now,
                 $now
@@ -414,9 +417,12 @@ class ConversationService
     ): void {
         $db = DB::getConnection();
         $direction = $channelInfo['direction'] ?? 'inbound';
-        $now = date('Y-m-d H:i:s');
+        
+        // Extrai timestamp da mensagem do payload, ou usa created_at do evento, ou NOW() como fallback
+        $messageTimestamp = self::extractMessageTimestamp($eventData);
+        $now = date('Y-m-d H:i:s'); // Para updated_at sempre usa NOW()
 
-        error_log('[CONVERSATION UPSERT] updateConversationMetadata: conversation_id=' . $conversationId . ', direction=' . $direction . ', contact=' . ($channelInfo['contact_external_id'] ?? 'NULL'));
+        error_log('[CONVERSATION UPSERT] updateConversationMetadata: conversation_id=' . $conversationId . ', direction=' . $direction . ', contact=' . ($channelInfo['contact_external_id'] ?? 'NULL') . ', message_timestamp=' . $messageTimestamp);
 
         try {
             // Atualiza última mensagem e contador
@@ -437,9 +443,9 @@ class ConversationService
                 WHERE id = ?
             ");
 
-            $stmt->execute([$now, $direction, $direction, $now, $conversationId]);
+            $stmt->execute([$messageTimestamp, $direction, $direction, $now, $conversationId]);
             
-            error_log('[CONVERSATION UPSERT] updateConversationMetadata: last_message_at atualizado para ' . $now);
+            error_log('[CONVERSATION UPSERT] updateConversationMetadata: last_message_at atualizado para ' . $messageTimestamp);
 
             // Atualiza contato name se fornecido e ainda não existe
             if (!empty($channelInfo['contact_name'])) {
