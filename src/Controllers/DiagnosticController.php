@@ -265,6 +265,16 @@ class DiagnosticController extends Controller
             @ob_end_clean();
         }
         
+        // Captura conteúdo bruto da requisição (para diagnóstico)
+        $rawPost = $_POST; // Array $_POST completo
+        $rawInput = file_get_contents('php://input'); // Body bruto (pode ser JSON ou form-data)
+        
+        // Log do conteúdo bruto recebido
+        error_log("[CommunicationDiagnostic] === REQUISIÇÃO BRUTA RECEBIDA ===");
+        error_log("[CommunicationDiagnostic] \$_POST: " . json_encode($rawPost, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        error_log("[CommunicationDiagnostic] php://input: " . ($rawInput ?: '(vazio)'));
+        error_log("[CommunicationDiagnostic] Content-Type: " . ($_SERVER['CONTENT_TYPE'] ?? 'N/A'));
+        
         Auth::requireInternal();
         
         $threadId = trim($_POST['thread_id'] ?? '');
@@ -294,6 +304,12 @@ class DiagnosticController extends Controller
                 'thread_id' => $threadId,
                 'test_type' => $testType,
                 'timestamp' => date('Y-m-d H:i:s'),
+                'raw_request' => [
+                    'post' => $rawPost,
+                    'php_input' => $rawInput ?: null,
+                    'content_type' => $_SERVER['CONTENT_TYPE'] ?? null,
+                    'request_method' => $_SERVER['REQUEST_METHOD'] ?? null,
+                ],
                 'steps' => $steps,
                 'channel_resolution' => $channelResolution,
                 'timings' => [
@@ -340,6 +356,12 @@ class DiagnosticController extends Controller
                 'trace_id' => $traceId ?? 'unknown',
                 'error' => $e->getMessage(),
                 'error_type' => get_class($e),
+                'raw_request' => [
+                    'post' => $rawPost ?? null,
+                    'php_input' => $rawInput ?? null,
+                    'content_type' => $_SERVER['CONTENT_TYPE'] ?? null,
+                    'request_method' => $_SERVER['REQUEST_METHOD'] ?? null,
+                ],
                 'steps' => $steps ?? [],
             ], 500);
         }

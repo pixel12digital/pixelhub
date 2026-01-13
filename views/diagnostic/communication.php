@@ -200,6 +200,28 @@ function displayReport(data) {
     html += `<strong style="color: #023A8D;">Timestamp:</strong> <span style="color: #6c757d;">${data.timestamp || 'N/A'}</span><br>`;
     html += '</div>';
 
+    // Requisição Bruta Recebida
+    if (data.raw_request) {
+        html += '<div style="margin-bottom: 25px; padding: 15px; background: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107;">';
+        html += '<h4 style="margin-top: 0; color: #856404;">📥 Requisição Bruta Recebida</h4>';
+        html += '<div style="margin-bottom: 10px;"><strong>O que exatamente chegou no backend quando clicou no botão:</strong></div>';
+        html += '<div style="margin-bottom: 8px;"><strong>Request Method:</strong> <code>' + (data.raw_request.request_method || 'N/A') + '</code></div>';
+        html += '<div style="margin-bottom: 8px;"><strong>Content-Type:</strong> <code>' + (data.raw_request.content_type || 'N/A') + '</code></div>';
+        if (data.raw_request.post && Object.keys(data.raw_request.post).length > 0) {
+            html += '<div style="margin-top: 10px; margin-bottom: 8px;"><strong>$_POST:</strong></div>';
+            html += '<div style="padding: 10px; background: #f8f9fa; border-radius: 4px; font-family: monospace; font-size: 12px; overflow-x: auto;">';
+            html += '<pre style="margin: 0; white-space: pre-wrap;">' + JSON.stringify(data.raw_request.post, null, 2) + '</pre>';
+            html += '</div>';
+        }
+        if (data.raw_request.php_input) {
+            html += '<div style="margin-top: 10px; margin-bottom: 8px;"><strong>php://input (body bruto):</strong></div>';
+            html += '<div style="padding: 10px; background: #f8f9fa; border-radius: 4px; font-family: monospace; font-size: 12px; overflow-x: auto;">';
+            html += '<pre style="margin: 0; white-space: pre-wrap;">' + (data.raw_request.php_input.length > 500 ? data.raw_request.php_input.substring(0, 500) + '... (truncado)' : data.raw_request.php_input) + '</pre>';
+            html += '</div>';
+        }
+        html += '</div>';
+    }
+
     // Channel Resolution
     if (data.channel_resolution) {
         const cr = data.channel_resolution;
