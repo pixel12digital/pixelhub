@@ -248,7 +248,7 @@ class ConversationService
                 error_log('[CONVERSATION UPSERT] extractChannelInfo: Detectado @lid - business_id: ' . $contactExternalId);
                 
                 // Consulta mapeamento whatsapp_business_ids
-                $db = DB::getConnection();
+                $db = \PixelHub\Core\DB::getConnection();
                 $stmt = $db->prepare("
                     SELECT phone_number 
                     FROM whatsapp_business_ids 
@@ -256,7 +256,7 @@ class ConversationService
                     LIMIT 1
                 ");
                 $stmt->execute([$contactExternalId]);
-                $mapping = $stmt->fetch(PDO::FETCH_ASSOC);
+                $mapping = $stmt->fetch(\PDO::FETCH_ASSOC);
                 
                 if ($mapping && !empty($mapping['phone_number'])) {
                     $contactExternalId = $mapping['phone_number'];
@@ -321,7 +321,7 @@ class ConversationService
                 error_log('[CONVERSATION UPSERT] extractChannelInfo: Tentando fallback por nome - notifyName: ' . $notifyName . ', tenant_id: ' . $tenantId);
                 
                 // Busca conversa existente com mesmo nome e tenant (apenas uma)
-                $db = DB::getConnection();
+                $db = \PixelHub\Core\DB::getConnection();
                 $stmt = $db->prepare("
                     SELECT contact_external_id 
                     FROM conversations 
@@ -331,7 +331,7 @@ class ConversationService
                     LIMIT 1
                 ");
                 $stmt->execute([$tenantId, $notifyName]);
-                $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+                $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
                 
                 if ($existing && !empty($existing['contact_external_id'])) {
                     $contactExternalId = $existing['contact_external_id'];
@@ -687,6 +687,48 @@ class ConversationService
 
         // Busca conversa com a chave variante
         return self::findByKey($variantKey);
+    }
+
+    /**
+     * Extrai timestamp da mensagem do payload
+     * 
+     * @param array $eventData Dados do evento
+     * @return string Timestamp no formato 'Y-m-d H:i:s'
+     */
+    private static function extractMessageTimestamp(array $eventData): string
+    {
+        $payload = $eventData['payload'] ?? [];
+        
+        // Tenta extrair timestamp de múltiplas fontes (ordem de prioridade)
+        $timestamp = null;
+        
+        // 1. payload.message.timestamp (Unix timestamp)
+        if (isset($payload['message']['timestamp'])) {
+            $timestamp = $payload['message']['timestamp'];
+        }
+        // 2. payload.timestamp (Unix timestamp)
+        elseif (isset($payload['timestamp'])) {
+            $timestamp = $payload['timestamp'];
+        }
+        // 3. payload.raw.payload.t (Unix timestamp do WhatsApp)
+        elseif (isset($payload['raw']['payload']['t'])) {
+            $timestamp = $payload['raw']['payload']['t'];
+        }
+        
+        // Converte Unix timestamp para formato MySQL
+        if ($timestamp !== null && is_numeric($timestamp)) {
+            // Se timestamp está em segundos (formato comum)
+            if ($timestamp < 10000000000) {
+                return date('Y-m-d H:i:s', (int) $timestamp);
+            }
+            // Se timestamp está em milissegundos (formato WhatsApp)
+            else {
+                return date('Y-m-d H:i:s', (int) ($timestamp / 1000));
+            }
+        }
+        
+        // Fallback: usa NOW() se não conseguir extrair
+        return date('Y-m-d H:i:s');
     }
 
     /**
