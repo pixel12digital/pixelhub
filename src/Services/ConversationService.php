@@ -88,6 +88,36 @@ class ConversationService
             self::updateConversationMetadata($equivalent['id'], $eventData, $channelInfo);
             return $equivalent;
         }
+        
+        // Se ainda não encontrou, tenta encontrar conversa com mesmo contato mas channel_account_id diferente
+        // (ex.: conversa "shared" vs conversa com tenant específico)
+        $equivalentByContact = self::findConversationByContactOnly($channelInfo);
+        if ($equivalentByContact) {
+            // Se a conversa encontrada é "shared" (sem channel_account_id) e temos um channel_account_id,
+            // atualiza ela ao invés de criar nova
+            if (empty($equivalentByContact['channel_account_id']) && $channelInfo['channel_account_id']) {
+                error_log(sprintf(
+                    "[CONVERSATION UPSERT] Conversa 'shared' encontrada, atualizando com channel_account_id: conversation_id=%d",
+                    $equivalentByContact['id']
+                ));
+                // Atualiza a conversa existente
+                self::updateConversationMetadata($equivalentByContact['id'], $eventData, $channelInfo);
+                // Atualiza channel_account_id e conversation_key
+                self::updateChannelAccountId($equivalentByContact['id'], $channelInfo['channel_account_id']);
+                // Busca novamente para retornar com dados atualizados
+                return self::findById($equivalentByContact['id']);
+            } elseif ($equivalentByContact['channel_account_id'] && $channelInfo['channel_account_id'] && 
+                      $equivalentByContact['channel_account_id'] == $channelInfo['channel_account_id']) {
+                // Mesma conversa com mesmo channel_account_id - apenas atualiza
+                error_log(sprintf(
+                    "[CONVERSATION UPSERT] Conversa encontrada por contato (mesmo channel_account_id): conversation_id=%d",
+                    $equivalentByContact['id']
+                ));
+                self::updateConversationMetadata($equivalentByContact['id'], $eventData, $channelInfo);
+                return $equivalentByContact;
+            }
+            // Se channel_account_id é diferente, cria nova (comportamento esperado para múltiplos tenants)
+        }
 
         // Cria nova conversa
         error_log('[CONVERSATION UPSERT] Nenhuma conversa encontrada, criando nova...');
@@ -531,6 +561,88 @@ class ConversationService
     public static function findByConversationKey(string $conversationKey): ?array
     {
         return self::findByKey($conversationKey);
+    }
+
+    /**
+     * Busca conversa apenas por contato (ignorando channel_account_id)
+     * 
+     * Usado para encontrar conversas "shared" quando uma nova conversa com tenant específico
+     * está sendo criada, ou vice-versa.
+     * 
+     * @param array $channelInfo Informações do canal
+     * @return array|null Conversa encontrada ou null
+     */
+    private static function findConversationByContactOnly(array $channelInfo): ?array
+    {
+        // Aplica apenas para WhatsApp
+        if ($channelInfo['channel_type'] !== 'whatsapp') {
+            return null;
+        }
+
+        $contactExternalId = $channelInfo['contact_external_id'] ?? null;
+        if (!$contactExternalId) {
+            return null;
+        }
+
+        $db = DB::getConnection();
+        
+        try {
+            // Busca conversa com mesmo contato e tipo de canal, independente do channel_account_id
+            $stmt = $db->prepare("
+                SELECT * FROM conversations 
+                WHERE channel_type = ? 
+                AND contact_external_id = ?
+                ORDER BY last_message_at DESC
+                LIMIT 1
+            ");
+            $stmt->execute([$channelInfo['channel_type'], $contactExternalId]);
+            $result = $stmt->fetch();
+            
+            return $result ?: null;
+        } catch (\Exception $e) {
+            error_log("[ConversationService] Erro ao buscar conversa por contato: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Atualiza channel_account_id de uma conversa
+     * 
+     * @param int $conversationId ID da conversa
+     * @param int|null $channelAccountId Novo channel_account_id
+     */
+    private static function updateChannelAccountId(int $conversationId, ?int $channelAccountId): void
+    {
+        if ($channelAccountId === null) {
+            return; // Não atualiza se for null
+        }
+
+        $db = DB::getConnection();
+        
+        try {
+            // Atualiza apenas se ainda não tiver channel_account_id
+            $stmt = $db->prepare("
+                UPDATE conversations 
+                SET channel_account_id = ?,
+                    conversation_key = ?
+                WHERE id = ? 
+                AND (channel_account_id IS NULL OR channel_account_id = 0)
+            ");
+            
+            // Gera nova chave com o channel_account_id
+            $conversation = self::findById($conversationId);
+            if ($conversation) {
+                $newKey = self::generateConversationKey(
+                    $conversation['channel_type'],
+                    $channelAccountId,
+                    $conversation['contact_external_id']
+                );
+                $stmt->execute([$channelAccountId, $newKey, $conversationId]);
+            }
+        } catch (\Exception $e) {
+            error_log("[ConversationService] Erro ao atualizar channel_account_id: " . $e->getMessage());
+            // Não quebra fluxo se falhar
+        }
     }
 }
 
