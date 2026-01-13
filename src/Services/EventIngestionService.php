@@ -159,6 +159,14 @@ class EventIngestionService
         }
 
         // Etapa 1: Resolve conversa (incremental, não quebra se falhar)
+        // 🔍 LOG TEMPORÁRIO: Rastreamento de chamada
+        error_log(sprintf(
+            '[DIAGNOSTICO] EventIngestion::ingest() - CHAMANDO resolveConversation: event_id=%s, event_type=%s, tenant_id=%s',
+            $eventId,
+            $eventType,
+            $tenantId ?: 'NULL'
+        ));
+        
         try {
             $conversation = \PixelHub\Services\ConversationService::resolveConversation([
                 'event_type' => $eventType,
@@ -167,6 +175,20 @@ class EventIngestionService
                 'payload' => $payload,
                 'metadata' => !empty($eventData['metadata']) ? $eventData['metadata'] : null,
             ]);
+            
+            // 🔍 LOG TEMPORÁRIO: Resultado da chamada
+            if ($conversation) {
+                error_log(sprintf(
+                    '[DIAGNOSTICO] EventIngestion::ingest() - resolveConversation RETORNOU: conversation_id=%d, conversation_key=%s',
+                    $conversation['id'],
+                    $conversation['conversation_key'] ?? 'NULL'
+                ));
+            } else {
+                error_log(sprintf(
+                    '[DIAGNOSTICO] EventIngestion::ingest() - resolveConversation RETORNOU NULL para event_id=%s',
+                    $eventId
+                ));
+            }
 
             if ($conversation && function_exists('pixelhub_log')) {
                 pixelhub_log(sprintf(

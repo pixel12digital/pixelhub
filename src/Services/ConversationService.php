@@ -28,9 +28,21 @@ class ConversationService
      */
     public static function resolveConversation(array $eventData): ?array
     {
+        // 🔍 LOG TEMPORÁRIO: Entrada no método
+        $payload = $eventData['payload'] ?? [];
+        $from = $payload['from'] ?? $payload['message']['from'] ?? 'NULL';
+        $to = $payload['to'] ?? $payload['message']['to'] ?? 'NULL';
+        error_log(sprintf(
+            '[DIAGNOSTICO] ConversationService::resolveConversation() - INICIADO: event_type=%s, from=%s, to=%s',
+            $eventData['event_type'] ?? 'NULL',
+            $from,
+            $to
+        ));
+        
         // Apenas eventos de mensagem geram conversas
         $eventType = $eventData['event_type'] ?? null;
         if (!$eventType || !self::isMessageEvent($eventType)) {
+            error_log('[DIAGNOSTICO] ConversationService::resolveConversation() - EARLY RETURN: não é evento de mensagem');
             return null;
         }
 
@@ -69,8 +81,25 @@ class ConversationService
         
         if ($existing) {
             error_log('[CONVERSATION UPSERT] Conversa existente encontrada: conversation_id=' . $existing['id']);
+            // 🔍 LOG TEMPORÁRIO: Antes de atualizar
+            error_log(sprintf(
+                '[DIAGNOSTICO] ConversationService::resolveConversation() - ANTES updateConversationMetadata: conversation_id=%d, last_message_at=%s, unread_count=%d',
+                $existing['id'],
+                $existing['last_message_at'] ?? 'NULL',
+                $existing['unread_count'] ?? 0
+            ));
             // Atualiza metadados básicos
             self::updateConversationMetadata($existing['id'], $eventData, $channelInfo);
+            // 🔍 LOG TEMPORÁRIO: Depois de atualizar (busca novamente para ver se mudou)
+            $afterUpdate = self::findById($existing['id']);
+            if ($afterUpdate) {
+                error_log(sprintf(
+                    '[DIAGNOSTICO] ConversationService::resolveConversation() - DEPOIS updateConversationMetadata: conversation_id=%d, last_message_at=%s, unread_count=%d',
+                    $afterUpdate['id'],
+                    $afterUpdate['last_message_at'] ?? 'NULL',
+                    $afterUpdate['unread_count'] ?? 0
+                ));
+            }
             return $existing;
         }
 
@@ -456,6 +485,15 @@ class ConversationService
         error_log('[CONVERSATION UPSERT] updateConversationMetadata: conversation_id=' . $conversationId . ', direction=' . $direction . ', contact=' . ($channelInfo['contact_external_id'] ?? 'NULL') . ', message_timestamp=' . $messageTimestamp);
 
         try {
+            // 🔍 LOG TEMPORÁRIO: Antes do UPDATE SQL
+            error_log(sprintf(
+                '[DIAGNOSTICO] ConversationService::updateConversationMetadata() - EXECUTANDO UPDATE: conversation_id=%d, direction=%s, message_timestamp=%s, now=%s',
+                $conversationId,
+                $direction,
+                $messageTimestamp,
+                $now
+            ));
+            
             // Atualiza última mensagem e contador
             $stmt = $db->prepare("
                 UPDATE conversations 
@@ -474,7 +512,16 @@ class ConversationService
                 WHERE id = ?
             ");
 
-            $stmt->execute([$messageTimestamp, $direction, $direction, $now, $conversationId]);
+            $result = $stmt->execute([$messageTimestamp, $direction, $direction, $now, $conversationId]);
+            $rowsAffected = $stmt->rowCount();
+            
+            // 🔍 LOG TEMPORÁRIO: Resultado do UPDATE
+            error_log(sprintf(
+                '[DIAGNOSTICO] ConversationService::updateConversationMetadata() - UPDATE EXECUTADO: success=%s, rows_affected=%d, last_message_at=%s',
+                $result ? 'true' : 'false',
+                $rowsAffected,
+                $messageTimestamp
+            ));
             
             error_log('[CONVERSATION UPSERT] updateConversationMetadata: last_message_at atualizado para ' . $messageTimestamp);
 
