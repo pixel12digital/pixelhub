@@ -46,12 +46,12 @@ $baseUrl = pixelhub_url('');
         </div>
         
         <!-- Container de Mensagens (com badge fixo no topo) -->
-        <div style="flex: 1; display: flex; flex-direction: column; position: relative;">
+        <div style="flex: 1; display: flex; flex-direction: column; position: relative; min-height: 0;">
             <!-- Badge de novas mensagens (fixo no topo do container) -->
             <div id="new-messages-badge" style="display: none; position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 10; background: #023A8D; color: white; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); width: fit-content; pointer-events: auto;">
                 <span id="new-messages-count">1</span> nova(s) mensagem(ns)
             </div>
-            <div id="messages-container" style="flex: 1; overflow-y: auto; padding: 20px; background: #f8f9fa;">
+            <div id="messages-container" style="flex: 1; overflow-y: auto; padding: 20px; background: #f8f9fa; min-height: 0;">
             <?php if (empty($messages)): ?>
                 <div style="text-align: center; padding: 40px; color: #666;">
                     <p>Nenhuma mensagem ainda</p>
@@ -593,6 +593,50 @@ function normalizeUrlPath(path) {
 // Inicialização
 // ============================================================================
 
+/**
+ * Função para fazer scroll ao final do container
+ * Tenta múltiplas vezes para garantir que funciona mesmo com renderização assíncrona
+ */
+function scrollToBottom(container, retries = 5) {
+    if (!container) return;
+    
+    const scroll = () => {
+        // Força scroll para o máximo possível
+        const maxScroll = container.scrollHeight - container.clientHeight;
+        container.scrollTop = maxScroll > 0 ? maxScroll : container.scrollHeight;
+        
+        // Verifica se o scroll funcionou (com tolerância de 10px)
+        const currentScroll = container.scrollTop;
+        const maxPossibleScroll = container.scrollHeight - container.clientHeight;
+        const isAtBottom = Math.abs(currentScroll - maxPossibleScroll) < 10 || currentScroll >= maxPossibleScroll;
+        
+        console.log('[Thread] Tentativa de scroll', {
+            scrollTop: currentScroll,
+            scrollHeight: container.scrollHeight,
+            clientHeight: container.clientHeight,
+            maxPossibleScroll: maxPossibleScroll,
+            isAtBottom: isAtBottom,
+            retries: retries
+        });
+        
+        if (!isAtBottom && retries > 0 && container.scrollHeight > container.clientHeight) {
+            // Se não chegou ao final e ainda tem tentativas, tenta novamente
+            setTimeout(() => {
+                scrollToBottom(container, retries - 1);
+            }, 50);
+        } else {
+            ThreadState.autoScroll = true;
+            console.log('[Thread] Scroll inicial posicionado no final', {
+                scrollTop: container.scrollTop,
+                scrollHeight: container.scrollHeight,
+                clientHeight: container.clientHeight
+            });
+        }
+    };
+    
+    scroll();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('[Thread] DOMContentLoaded - Inicializando thread...');
     console.log('[Thread] Configuração:', THREAD_CONFIG);
@@ -600,17 +644,23 @@ document.addEventListener('DOMContentLoaded', function() {
     // Inicializa marcadores com mensagens existentes
     initializeMarkers();
     
-    // Auto-scroll inicial (aguarda renderização completa)
+    // Auto-scroll inicial (múltiplas tentativas para garantir)
     const container = document.getElementById('messages-container');
     if (container) {
-        // Usa requestAnimationFrame + setTimeout para garantir que o DOM está totalmente renderizado
+        // Primeira tentativa imediata
+        scrollToBottom(container);
+        
+        // Segunda tentativa após um frame (para garantir que imagens/CSS carregaram)
         requestAnimationFrame(() => {
             setTimeout(() => {
-                container.scrollTop = container.scrollHeight;
-                ThreadState.autoScroll = true;
-                console.log('[Thread] Scroll inicial posicionado no final');
+                scrollToBottom(container, 3);
             }, 100);
         });
+        
+        // Terceira tentativa após mais tempo (para garantir que tudo renderizou)
+        setTimeout(() => {
+            scrollToBottom(container, 2);
+        }, 300);
         
         // Detecta scroll manual para desabilitar auto-scroll
         container.addEventListener('scroll', function() {
