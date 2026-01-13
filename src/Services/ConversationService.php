@@ -183,14 +183,33 @@ class ConversationService
         if ($channelType === 'whatsapp') {
             // WhatsApp: from ou to (depende da direção)
             $direction = strpos($eventType, 'inbound') !== false ? 'inbound' : 'outbound';
+            
+            // Tenta extrair de múltiplas fontes (ordem de prioridade)
             if ($direction === 'inbound') {
-                $contactExternalId = $payload['from'] ?? $payload['message']['from'] ?? $payload['data']['from'] ?? null;
-                $contactName = $payload['message']['notifyName'] ?? $payload['raw']['payload']['notifyName'] ?? $payload['data']['notifyName'] ?? null;
+                $contactExternalId = $payload['from'] 
+                    ?? $payload['message']['from'] 
+                    ?? $payload['data']['from'] 
+                    ?? $payload['raw']['from']
+                    ?? $payload['raw']['payload']['from'] ?? null;
+                $contactName = $payload['message']['notifyName'] 
+                    ?? $payload['raw']['payload']['notifyName'] 
+                    ?? $payload['data']['notifyName']
+                    ?? $payload['notifyName'] ?? null;
             } else {
-                $contactExternalId = $payload['to'] ?? $payload['message']['to'] ?? $payload['data']['to'] ?? null;
+                $contactExternalId = $payload['to'] 
+                    ?? $payload['message']['to'] 
+                    ?? $payload['data']['to']
+                    ?? $payload['raw']['to']
+                    ?? $payload['raw']['payload']['to'] ?? null;
             }
             
             error_log('[CONVERSATION UPSERT] extractChannelInfo: WhatsApp ' . $direction . ' - contactExternalId raw: ' . ($contactExternalId ?: 'NULL'));
+            
+            // Se ainda não encontrou, tenta extrair de mensagens encaminhadas
+            if (!$contactExternalId && isset($payload['message']['forwardedFrom'])) {
+                $contactExternalId = $payload['message']['forwardedFrom'];
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando forwardedFrom: ' . $contactExternalId);
+            }
             
             // Normaliza contact_external_id usando PhoneNormalizer (NÃO força "9")
             // Remove sufixo @c.us, @lid, etc. antes de normalizar
@@ -202,6 +221,18 @@ class ConversationService
             // Normaliza para E.164 (apenas dígitos, sem forçar "9")
             $contactExternalId = PhoneNormalizer::toE164OrNull($contactExternalId);
             error_log('[CONVERSATION UPSERT] extractChannelInfo: contactExternalId normalizado: ' . ($contactExternalId ?: 'NULL'));
+            
+            // Se ainda não conseguiu normalizar, tenta extrair apenas dígitos como fallback
+            if (!$contactExternalId && isset($payload['from']) || isset($payload['message']['from'])) {
+                $rawFrom = $payload['from'] ?? $payload['message']['from'] ?? '';
+                $digitsOnly = preg_replace('/[^0-9]/', '', $rawFrom);
+                if (strlen($digitsOnly) >= 10) { // Mínimo de 10 dígitos para ser um número válido
+                    $contactExternalId = PhoneNormalizer::toE164OrNull($digitsOnly);
+                    if ($contactExternalId) {
+                        error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando fallback (apenas dígitos): ' . $contactExternalId);
+                    }
+                }
+            }
         } elseif ($channelType === 'email') {
             $direction = strpos($eventType, 'inbound') !== false ? 'inbound' : 'outbound';
             if ($direction === 'inbound') {
