@@ -34,7 +34,7 @@ $baseUrl = pixelhub_url('');
         <div style="padding: 15px; border-bottom: 2px solid #dee2e6; background: #f8f9fa;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <strong><?= htmlspecialchars($thread['tenant_name'] ?? 'Cliente') ?></strong>
+                    <strong><?= htmlspecialchars($thread['contact_name'] ?? $thread['tenant_name'] ?? 'Cliente') ?></strong>
                     <?php if ($channel === 'whatsapp' && isset($thread['contact'])): ?>
                         <br><small style="color: #666;"><?= htmlspecialchars($thread['contact']) ?></small>
                     <?php endif; ?>
