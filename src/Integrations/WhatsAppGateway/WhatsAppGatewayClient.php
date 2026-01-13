@@ -3,6 +3,7 @@
 namespace PixelHub\Integrations\WhatsAppGateway;
 
 use PixelHub\Core\Env;
+use PixelHub\Services\GatewaySecret;
 
 /**
  * Cliente HTTP para comunicação com o WPP Gateway
@@ -19,7 +20,8 @@ class WhatsAppGatewayClient
     public function __construct(?string $baseUrl = null, ?string $secret = null, int $timeout = 30)
     {
         $this->baseUrl = rtrim($baseUrl ?? Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br'), '/');
-        $this->secret = $secret ?? Env::get('WPP_GATEWAY_SECRET', '');
+        // Usa GatewaySecret::getDecrypted() como fonte única do secret
+        $this->secret = $secret ?? GatewaySecret::getDecrypted();
         $this->timeout = $timeout;
 
         if (empty($this->secret)) {

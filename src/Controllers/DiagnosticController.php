@@ -759,8 +759,8 @@ class DiagnosticController extends Controller
         ];
 
         try {
-            // Obtém secret descriptografado usando o mesmo método que testConnection usa
-            $secret = WhatsAppGatewaySettingsController::getDecryptedSecret();
+            // Obtém secret descriptografado usando GatewaySecret (fonte única)
+            $secret = \PixelHub\Services\GatewaySecret::getDecrypted();
             $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
             
             // Log do secret que será usado no envio real
@@ -769,7 +769,7 @@ class DiagnosticController extends Controller
                 : 'VAZIO';
             error_log("[CommunicationDiagnostic::diagnoseRealSend] send_real -> secret (descriptografado) preview: {$secretPreview}");
             
-            // Envia via gateway usando o secret descriptografado (mesma fonte que testConnection)
+            // Envia via gateway usando o secret descriptografado (fonte única via GatewaySecret)
             $gateway = new \PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient($baseUrl, $secret);
             
             $sendResult = $gateway->sendText($channelId, $phoneNormalized, $testMessage, [

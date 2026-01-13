@@ -117,11 +117,14 @@ class ConversationService
                 $contactExternalId = $payload['to'] ?? $payload['message']['to'] ?? null;
             }
             
-            // Remove sufixo @c.us, @lid, etc. se existir
-            // CORRIGIDO: remove tudo após @ (incluindo @c.us, @lid, etc)
+            // Normaliza contact_external_id usando PhoneNormalizer (NÃO força "9")
+            // Remove sufixo @c.us, @lid, etc. antes de normalizar
             if ($contactExternalId && strpos($contactExternalId, '@') !== false) {
                 $contactExternalId = preg_replace('/@.*$/', '', $contactExternalId);
             }
+            
+            // Normaliza para E.164 (apenas dígitos, sem forçar "9")
+            $contactExternalId = PhoneNormalizer::toE164OrNull($contactExternalId);
         } elseif ($channelType === 'email') {
             $direction = strpos($eventType, 'inbound') !== false ? 'inbound' : 'outbound';
             if ($direction === 'inbound') {
@@ -145,7 +148,7 @@ class ConversationService
         // Extrai channel_id (session.id) do payload para eventos inbound de WhatsApp
         $channelId = null;
         if ($channelType === 'whatsapp' && ($direction ?? 'inbound') === 'inbound') {
-            $channelId = self::extractChannelIdFromPayload($payload);
+            $channelId = self::extractChannelIdFromPayload($payload, $metadata);
         }
 
         return [
@@ -156,6 +159,30 @@ class ConversationService
             'contact_name' => $contactName,
             'direction' => $direction ?? 'inbound',
         ];
+    }
+
+    /**
+     * Extrai channel_id (session.id) do payload
+     * 
+     * @param array $payload Payload do evento
+     * @param array|null $metadata Metadados do evento (pode conter channel_id)
+     * @return string|null Channel ID ou null se não encontrado
+     */
+    private static function extractChannelIdFromPayload(array $payload, ?array $metadata = null): ?string
+    {
+        // Tenta obter de metadata primeiro (já normalizado)
+        if ($metadata && isset($metadata['channel_id'])) {
+            return (string) $metadata['channel_id'];
+        }
+        
+        // Tenta obter do payload (session.id ou channel)
+        $channelId = $payload['session']['id'] 
+            ?? $payload['session']['session'] 
+            ?? $payload['channel'] 
+            ?? $payload['channelId'] 
+            ?? null;
+        
+        return $channelId ? (string) $channelId : null;
     }
 
     /**
