@@ -199,6 +199,7 @@ class CommunicationHubController extends Controller
         $to = $_POST['to'] ?? null; // phone, email, etc
         $message = trim($_POST['message'] ?? '');
         $tenantId = isset($_POST['tenant_id']) && $_POST['tenant_id'] !== '' ? (int) $_POST['tenant_id'] : null;
+        $channelId = isset($_POST['channel_id']) && $_POST['channel_id'] !== '' ? (int) $_POST['channel_id'] : null;
 
         if (empty($channel) || empty($message)) {
             $this->json(['success' => false, 'error' => 'Canal e mensagem são obrigatórios'], 400);
@@ -212,54 +213,75 @@ class CommunicationHubController extends Controller
                     return;
                 }
                 
-                // Se tenant_id não foi fornecido, tenta inferir da conversa (thread_id)
                 $db = DB::getConnection();
-                if (!$tenantId && !empty($threadId) && preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
-                    $conversationId = (int) $matches[1];
-                    $convStmt = $db->prepare("SELECT tenant_id FROM conversations WHERE id = ?");
-                    $convStmt->execute([$conversationId]);
-                    $conv = $convStmt->fetch();
-                    if ($conv && $conv['tenant_id']) {
-                        $tenantId = (int) $conv['tenant_id'];
-                    }
-                }
-
-                // Busca channel do tenant (ou canal compartilhado se tenant_id for NULL)
-                if ($tenantId) {
+                
+                // PRIORIDADE 1: Usa channel_id fornecido diretamente (vem da thread)
+                if ($channelId) {
+                    // Valida que o canal existe e está habilitado
                     $channelStmt = $db->prepare("
                         SELECT channel_id 
                         FROM tenant_message_channels 
-                        WHERE tenant_id = ? 
+                        WHERE channel_id = ? 
                         AND provider = 'wpp_gateway' 
                         AND is_enabled = 1
                         LIMIT 1
                     ");
-                    $channelStmt->execute([$tenantId]);
+                    $channelStmt->execute([$channelId]);
                     $channelData = $channelStmt->fetch();
-
+                    
                     if (!$channelData) {
-                        $this->json(['success' => false, 'error' => 'Channel WhatsApp não configurado para este tenant'], 400);
+                        $this->json(['success' => false, 'error' => 'Canal WhatsApp fornecido não está disponível ou habilitado'], 400);
                         return;
                     }
-                    $channelId = $channelData['channel_id'];
+                    // channelId já está definido, continua
                 } else {
-                    // Se não tem tenant, tenta usar canal compartilhado/default (qualquer canal habilitado)
-                    // TODO: Implementar configuração de canal compartilhado/default explícito
-                    $channelStmt = $db->prepare("
-                        SELECT channel_id 
-                        FROM tenant_message_channels 
-                        WHERE provider = 'wpp_gateway' 
-                        AND is_enabled = 1
-                        LIMIT 1
-                    ");
-                    $channelStmt->execute();
-                    $channelData = $channelStmt->fetch();
-
-                    if (!$channelData) {
-                        $this->json(['success' => false, 'error' => 'Nenhum canal WhatsApp configurado no sistema'], 400);
-                        return;
+                    // PRIORIDADE 2: Se não tem channel_id, tenta inferir da thread/conversa
+                    if (!$tenantId && !empty($threadId) && preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
+                        $conversationId = (int) $matches[1];
+                        $convStmt = $db->prepare("SELECT tenant_id FROM conversations WHERE id = ?");
+                        $convStmt->execute([$conversationId]);
+                        $conv = $convStmt->fetch();
+                        if ($conv && $conv['tenant_id']) {
+                            $tenantId = (int) $conv['tenant_id'];
+                        }
                     }
-                    $channelId = $channelData['channel_id'];
+
+                    // PRIORIDADE 3: Busca channel do tenant
+                    if ($tenantId) {
+                        $channelStmt = $db->prepare("
+                            SELECT channel_id 
+                            FROM tenant_message_channels 
+                            WHERE tenant_id = ? 
+                            AND provider = 'wpp_gateway' 
+                            AND is_enabled = 1
+                            LIMIT 1
+                        ");
+                        $channelStmt->execute([$tenantId]);
+                        $channelData = $channelStmt->fetch();
+
+                        if (!$channelData) {
+                            $this->json(['success' => false, 'error' => 'Channel WhatsApp não configurado para este tenant'], 400);
+                            return;
+                        }
+                        $channelId = (int) $channelData['channel_id'];
+                    } else {
+                        // PRIORIDADE 4: Fallback: tenta usar canal compartilhado/default (qualquer canal habilitado)
+                        $channelStmt = $db->prepare("
+                            SELECT channel_id 
+                            FROM tenant_message_channels 
+                            WHERE provider = 'wpp_gateway' 
+                            AND is_enabled = 1
+                            LIMIT 1
+                        ");
+                        $channelStmt->execute();
+                        $channelData = $channelStmt->fetch();
+
+                        if (!$channelData) {
+                            $this->json(['success' => false, 'error' => 'Nenhum canal WhatsApp configurado no sistema'], 400);
+                            return;
+                        }
+                        $channelId = (int) $channelData['channel_id'];
+                    }
                 }
 
                 // Normaliza telefone

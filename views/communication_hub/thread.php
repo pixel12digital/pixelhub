@@ -88,6 +88,9 @@ $baseUrl = pixelhub_url('');
                 <input type="hidden" name="channel" value="<?= htmlspecialchars($channel) ?>">
                 <input type="hidden" name="thread_id" value="<?= htmlspecialchars($thread['thread_id'] ?? '') ?>">
                 <input type="hidden" name="tenant_id" value="<?= $thread['tenant_id'] ?? '' ?>">
+                <?php if (isset($thread['channel_id'])): ?>
+                    <input type="hidden" name="channel_id" value="<?= htmlspecialchars($thread['channel_id']) ?>">
+                <?php endif; ?>
                 <?php if ($channel === 'whatsapp' && isset($thread['contact'])): ?>
                     <input type="hidden" name="to" value="<?= htmlspecialchars($thread['contact']) ?>">
                 <?php endif; ?>
