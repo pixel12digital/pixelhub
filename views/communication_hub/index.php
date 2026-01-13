@@ -292,7 +292,10 @@ async function checkForListUpdates() {
         const result = await response.json();
         
         if (result.success && result.has_updates) {
-            console.log('[Hub] Atualizações detectadas! Recarregando...');
+            console.log('[Hub] ✅ Atualizações detectadas! Recarregando página...', {
+                after_timestamp: HubState.lastUpdateTs,
+                latest_update_ts: result.latest_update_ts
+            });
             // Atualiza lista recarregando a página (simples e confiável)
             location.reload();
         } else if (result.success && result.latest_update_ts) {
@@ -302,9 +305,12 @@ async function checkForListUpdates() {
             if (oldTs !== HubState.lastUpdateTs) {
                 console.log('[Hub] Timestamp atualizado:', oldTs, '->', HubState.lastUpdateTs);
             }
+        } else {
+            // Log silencioso quando não há atualizações (para não poluir o console)
+            // console.log('[Hub] Sem atualizações');
         }
     } catch (error) {
-        console.error('[Hub] Erro ao verificar atualizações:', error);
+        console.error('[Hub] ❌ Erro ao verificar atualizações:', error);
     }
 }
 
