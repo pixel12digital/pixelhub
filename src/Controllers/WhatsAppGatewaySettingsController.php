@@ -270,6 +270,35 @@ class WhatsAppGatewaySettingsController extends Controller
     }
 
     /**
+     * Obtém o secret descriptografado do WhatsApp Gateway
+     * 
+     * Método centralizado para obter o secret (descriptografado) usado tanto no
+     * testConnection quanto no send_real do diagnóstico
+     * 
+     * @return string Secret descriptografado (ou raw se não estiver criptografado)
+     */
+    public static function getDecryptedSecret(): string
+    {
+        $secretRaw = Env::get('WPP_GATEWAY_SECRET', '');
+        
+        if (empty($secretRaw)) {
+            return '';
+        }
+        
+        try {
+            $secret = CryptoHelper::decrypt($secretRaw);
+            if (empty($secret)) {
+                // Se descriptografia retornou vazio, pode ser que não esteja criptografado
+                return $secretRaw;
+            }
+            return $secret;
+        } catch (\Exception $e) {
+            // Se falhar, tenta usar diretamente (pode não estar criptografado)
+            return $secretRaw;
+        }
+    }
+
+    /**
      * Testa a conexão com o gateway (método privado para uso interno)
      */
     private function testConnectionInternal(string $baseUrl, string $secret): array
@@ -323,21 +352,13 @@ class WhatsAppGatewaySettingsController extends Controller
                 return;
             }
 
-            // Descriptografa o secret
+            // Obtém secret descriptografado usando método centralizado
             $logs[] = "🔐 Processando secret...";
-            try {
-                $secret = CryptoHelper::decrypt($secretRaw);
-                if (empty($secret)) {
-                    // Se descriptografia retornou vazio, pode ser que não esteja criptografado
-                    $secret = $secretRaw;
-                    $logs[] = "⚠️ Secret não parece estar criptografado, usando diretamente";
-                } else {
-                    $logs[] = "✅ Secret descriptografado com sucesso";
-                }
-            } catch (\Exception $e) {
-                // Se falhar, tenta usar diretamente (pode não estar criptografado)
-                $secret = $secretRaw;
-                $logs[] = "⚠️ Erro ao descriptografar, usando secret diretamente: " . $e->getMessage();
+            $secret = self::getDecryptedSecret();
+            if ($secret === $secretRaw) {
+                $logs[] = "⚠️ Secret não parece estar criptografado, usando diretamente";
+            } else {
+                $logs[] = "✅ Secret descriptografado com sucesso";
             }
 
             // Log do secret descriptografado (para comparação com send_real)

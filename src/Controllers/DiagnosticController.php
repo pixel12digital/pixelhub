@@ -6,6 +6,7 @@ use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
 use PixelHub\Core\Env;
+use PixelHub\Controllers\WhatsAppGatewaySettingsController;
 
 /**
  * Controller para diagnóstico e logs de erros do sistema
@@ -758,19 +759,18 @@ class DiagnosticController extends Controller
         ];
 
         try {
+            // Obtém secret descriptografado usando o mesmo método que testConnection usa
+            $secret = WhatsAppGatewaySettingsController::getDecryptedSecret();
+            $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
+            
             // Log do secret que será usado no envio real
-            $secretRaw = \PixelHub\Core\Env::get('WPP_GATEWAY_SECRET', '');
-            $secretPreview = !empty($secretRaw) 
-                ? (substr($secretRaw, 0, 4) . '...' . substr($secretRaw, -4) . ' (len=' . strlen($secretRaw) . ')')
+            $secretPreview = !empty($secret) 
+                ? (substr($secret, 0, 4) . '...' . substr($secret, -4) . ' (len=' . strlen($secret) . ')')
                 : 'VAZIO';
-            error_log("[CommunicationDiagnostic::diagnoseRealSend] send_real -> WPP_GATEWAY_SECRET (raw do .env): {$secretPreview}");
+            error_log("[CommunicationDiagnostic::diagnoseRealSend] send_real -> secret (descriptografado) preview: {$secretPreview}");
             
-            // Envia via gateway
-            $gateway = new \PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient();
-            
-            // Log do secret que o gateway está usando (vem do construtor)
-            // O gateway já loga internamente no método request(), mas vamos garantir que apareça aqui também
-            error_log("[CommunicationDiagnostic::diagnoseRealSend] Gateway instanciado, enviando mensagem...");
+            // Envia via gateway usando o secret descriptografado (mesma fonte que testConnection)
+            $gateway = new \PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient($baseUrl, $secret);
             
             $sendResult = $gateway->sendText($channelId, $phoneNormalized, $testMessage, [
                 'sent_by' => Auth::user()['id'] ?? null,
