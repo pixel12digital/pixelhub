@@ -370,7 +370,7 @@ class DiagnosticController extends Controller
     /**
      * Diagnóstico: Resolver canal
      */
-    private function diagnoseChannelResolution(PDO $db, string $threadId, string $traceId, array &$steps): array
+    private function diagnoseChannelResolution(\PDO $db, string $threadId, string $traceId, array &$steps): array
     {
         $stepStart = microtime(true);
         $result = [
@@ -586,7 +586,7 @@ class DiagnosticController extends Controller
     /**
      * Diagnóstico: Dry-run do envio
      */
-    private function diagnoseDryRun(PDO $db, string $threadId, string $testMessage, array $channelResolution, string $traceId, array &$steps): array
+    private function diagnoseDryRun(\PDO $db, string $threadId, string $testMessage, array $channelResolution, string $traceId, array &$steps): array
     {
         $stepStart = microtime(true);
         $result = [
@@ -711,7 +711,7 @@ class DiagnosticController extends Controller
     /**
      * Diagnóstico: Envio real
      */
-    private function diagnoseRealSend(PDO $db, string $threadId, string $testMessage, array $channelResolution, string $traceId, array &$steps): array
+    private function diagnoseRealSend(\PDO $db, string $threadId, string $testMessage, array $channelResolution, string $traceId, array &$steps): array
     {
         $stepStart = microtime(true);
         $result = [
@@ -802,7 +802,7 @@ class DiagnosticController extends Controller
     /**
      * Busca informações da thread (reutiliza lógica do CommunicationHubController)
      */
-    private function getThreadInfo(PDO $db, string $threadId): ?array
+    private function getThreadInfo(\PDO $db, string $threadId): ?array
     {
         // Formato novo: whatsapp_{conversation_id}
         if (preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
