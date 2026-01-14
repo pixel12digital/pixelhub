@@ -529,6 +529,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Rotas do Painel Operacional de Comunicação
     $router->get('/communication-hub', 'CommunicationHubController@index');
     $router->get('/communication-hub/thread', 'CommunicationHubController@thread');
+    $router->get('/communication-hub/thread-data', 'CommunicationHubController@getThreadData');
     $router->post('/communication-hub/send', 'CommunicationHubController@send');
     $router->get('/communication-hub/check-updates', 'CommunicationHubController@checkUpdates');
     $router->get('/communication-hub/messages/check', 'CommunicationHubController@checkNewMessages');

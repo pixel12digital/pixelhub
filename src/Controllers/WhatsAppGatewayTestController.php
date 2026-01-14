@@ -137,14 +137,30 @@ class WhatsAppGatewayTestController extends Controller
                             ?? "Canal " . ($index + 1);
                         
                         // C) Garante que sempre temos id e name (não descarta nenhum item)
-                        // Verifica se já está no banco
+                        // Verifica se já está no banco e atualiza o status
                         $foundInDb = false;
-                        foreach ($dbChannels as $dbChannel) {
+                        $gatewayStatus = $gatewayChannel['status'] ?? $gatewayChannel['connected'] ?? 'unknown';
+                        
+                        // Normaliza status: se for boolean true, converte para 'connected'
+                        if ($gatewayStatus === true || $gatewayStatus === 'true') {
+                            $gatewayStatus = 'connected';
+                        } elseif ($gatewayStatus === false || $gatewayStatus === 'false') {
+                            $gatewayStatus = 'disconnected';
+                        }
+                        
+                        foreach ($dbChannels as &$dbChannel) {
                             if ($dbChannel['channel_id'] === $channelId) {
+                                // Atualiza status do canal do banco com status atual do gateway
+                                $dbChannel['status'] = $gatewayStatus;
+                                // Atualiza nome se o do gateway for mais recente/confiável
+                                if (!empty($channelName) && ($dbChannel['name'] === $channelId || empty($dbChannel['name']))) {
+                                    $dbChannel['name'] = $channelName;
+                                }
                                 $foundInDb = true;
                                 break;
                             }
                         }
+                        unset($dbChannel); // Importante: limpa referência
                         
                         // Se não está no banco, adiciona da API com campos normalizados
                         if (!$foundInDb) {
@@ -153,7 +169,7 @@ class WhatsAppGatewayTestController extends Controller
                                 'name' => $channelName,     // SEMPRE presente
                                 'tenant_id' => null,
                                 'tenant_name' => null,
-                                'status' => $gatewayChannel['status'] ?? $gatewayChannel['connected'] ?? 'unknown',
+                                'status' => $gatewayStatus,
                                 'from_gateway' => true
                             ];
                         }
@@ -165,10 +181,30 @@ class WhatsAppGatewayTestController extends Controller
             error_log("[WhatsAppGatewayTest] Erro ao buscar canais do gateway: " . $e->getMessage());
         }
 
-        // Normaliza canais do banco também (garante campos id e name sempre presentes)
+        // Normaliza canais do banco também (garante campos id, name e status sempre presentes)
         foreach ($dbChannels as &$dbChannel) {
+            // Garante campo 'id' (usado pelo frontend)
+            if (empty($dbChannel['id'])) {
+                $dbChannel['id'] = $dbChannel['channel_id'] ?? '';
+            }
+            
+            // Garante campo 'name'
             if (empty($dbChannel['name'])) {
                 $dbChannel['name'] = $dbChannel['channel_id'] ?? 'Canal sem nome';
+            }
+            
+            // Normaliza status se não foi atualizado pelo gateway
+            if (empty($dbChannel['status']) || $dbChannel['status'] === 'unknown') {
+                // Se não tem status do gateway, tenta buscar do banco ou define como 'unknown'
+                $dbChannel['status'] = $dbChannel['status'] ?? 'unknown';
+            } else {
+                // Normaliza status existente
+                $status = $dbChannel['status'];
+                if ($status === true || $status === 'true') {
+                    $dbChannel['status'] = 'connected';
+                } elseif ($status === false || $status === 'false') {
+                    $dbChannel['status'] = 'disconnected';
+                }
             }
         }
         unset($dbChannel);
@@ -249,6 +285,47 @@ class WhatsAppGatewayTestController extends Controller
 
             // Instancia cliente com secret descriptografado
             $gateway = new WhatsAppGatewayClient($baseUrl, $secretDecrypted);
+            
+            // Valida status do canal antes de enviar (não-bloqueante, mas informa se desconectado)
+            error_log("[WhatsAppGatewayTest::sendTest] Verificando status do canal: {$channelId}");
+            $channelInfo = $gateway->getChannel($channelId);
+            
+            // LOG TEMPORÁRIO: resultado da verificação de status
+            $statusCheckSuccess = $channelInfo['success'] ?? false;
+            $statusCheckHttpCode = $channelInfo['status'] ?? 'N/A';
+            $statusCheckError = $channelInfo['error'] ?? null;
+            error_log("[WhatsAppGatewayTest::sendTest] Status check - success: " . ($statusCheckSuccess ? 'SIM' : 'NÃO') . ", HTTP: {$statusCheckHttpCode}, error: " . ($statusCheckError ?? 'N/A'));
+            
+            if ($channelInfo['success']) {
+                $channelData = $channelInfo['raw'] ?? [];
+                $sessionStatus = $channelData['status'] ?? $channelData['connection'] ?? null;
+                $isConnected = ($sessionStatus === 'connected' || $sessionStatus === 'open' || $channelData['connected'] ?? false);
+                
+                // LOG TEMPORÁRIO: dados do canal
+                error_log("[WhatsAppGatewayTest::sendTest] Canal data: " . json_encode([
+                    'status' => $sessionStatus,
+                    'connected' => $channelData['connected'] ?? null,
+                    'isConnected' => $isConnected
+                ], JSON_UNESCAPED_UNICODE));
+                
+                if (!$isConnected) {
+                    // Sessão desconectada - retorna erro antes de tentar enviar
+                    error_log("[WhatsAppGatewayTest::sendTest] ERRO: Sessão desconectada - status: {$sessionStatus}");
+                    $this->json([
+                        'success' => false,
+                        'status' => 400,
+                        'error' => 'A sessão do WhatsApp não está ativa. Por favor, reconecte no gateway antes de enviar mensagens.',
+                        'error_code' => 'SESSION_DISCONNECTED',
+                        'channel_id' => $channelId
+                    ], 400);
+                    return;
+                }
+            } else {
+                // Se não conseguir verificar status, tenta enviar mesmo assim (não-bloqueante)
+                // Mas loga o aviso
+                $errorMsg = $channelInfo['error'] ?? 'Erro desconhecido ao verificar status';
+                error_log("[WhatsAppGatewayTest::sendTest] AVISO: Não foi possível verificar status do canal ({$errorMsg}), mas tentando enviar mesmo assim");
+            }
             
             // Envia via gateway
             $result = $gateway->sendText($channelId, $phoneNormalized, $message, [
@@ -387,7 +464,7 @@ class WhatsAppGatewayTestController extends Controller
             ");
             $dbChannels = $channelsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-            // Normaliza canais do banco (garante campos id e name sempre presentes)
+            // Normaliza canais do banco (garante campos id, name e status sempre presentes)
             foreach ($dbChannels as &$dbChannel) {
                 // Garante campo 'id' (conforme especificação)
                 if (!isset($dbChannel['id'])) {
@@ -396,6 +473,18 @@ class WhatsAppGatewayTestController extends Controller
                 // Garante campo 'name'
                 if (empty($dbChannel['name'])) {
                     $dbChannel['name'] = $dbChannel['channel_id'] ?? 'Canal sem nome';
+                }
+                // Normaliza status se não foi atualizado pelo gateway (será atualizado depois se encontrado)
+                if (empty($dbChannel['status']) || $dbChannel['status'] === 'unknown') {
+                    $dbChannel['status'] = $dbChannel['status'] ?? 'unknown';
+                } else {
+                    // Normaliza status existente
+                    $status = $dbChannel['status'];
+                    if ($status === true || $status === 'true') {
+                        $dbChannel['status'] = 'connected';
+                    } elseif ($status === false || $status === 'false') {
+                        $dbChannel['status'] = 'disconnected';
+                    }
                 }
             }
             unset($dbChannel);
@@ -491,15 +580,35 @@ class WhatsAppGatewayTestController extends Controller
                             ?? "Canal " . ($index + 1);
                         
                         // C) Garante que sempre temos id e name (não descarta nenhum item)
-                        // Verifica se já está no banco - mesma lógica do index()
+                        // Verifica se já está no banco e atualiza o status - mesma lógica do index()
                         $foundInDb = false;
-                        foreach ($dbChannels as $dbChannel) {
+                        $gatewayStatus = $gatewayChannel['status'] ?? $gatewayChannel['connected'] ?? 'unknown';
+                        
+                        // Normaliza status: se for boolean true, converte para 'connected'
+                        if ($gatewayStatus === true || $gatewayStatus === 'true') {
+                            $gatewayStatus = 'connected';
+                        } elseif ($gatewayStatus === false || $gatewayStatus === 'false') {
+                            $gatewayStatus = 'disconnected';
+                        }
+                        
+                        foreach ($dbChannels as &$dbChannel) {
                             $dbChannelId = $dbChannel['channel_id'] ?? $dbChannel['id'] ?? '';
                             if ($dbChannelId === $channelId) {
+                                // Atualiza status do canal do banco com status atual do gateway
+                                $dbChannel['status'] = $gatewayStatus;
+                                // Garante campo 'id' se não existir
+                                if (empty($dbChannel['id'])) {
+                                    $dbChannel['id'] = $dbChannelId;
+                                }
+                                // Atualiza nome se o do gateway for mais recente/confiável
+                                if (!empty($channelName) && ($dbChannel['name'] === $channelId || empty($dbChannel['name']))) {
+                                    $dbChannel['name'] = $channelName;
+                                }
                                 $foundInDb = true;
                                 break;
                             }
                         }
+                        unset($dbChannel); // Importante: limpa referência
                         
                         // Se não está no banco, adiciona da API com campos normalizados
                         if (!$foundInDb) {
@@ -509,7 +618,7 @@ class WhatsAppGatewayTestController extends Controller
                                 'name' => $channelName,     // SEMPRE presente
                                 'tenant_id' => null,
                                 'tenant_name' => null,
-                                'status' => $gatewayChannel['status'] ?? $gatewayChannel['connected'] ?? 'unknown',
+                                'status' => $gatewayStatus,
                                 'from_gateway' => true
                             ];
                         }
@@ -540,6 +649,14 @@ class WhatsAppGatewayTestController extends Controller
             if (!is_array($allChannels)) {
                 $allChannels = [];
             }
+            
+            // Garante que todos os canais têm campo 'id' (normalização final)
+            foreach ($allChannels as &$channel) {
+                if (empty($channel['id'])) {
+                    $channel['id'] = $channel['channel_id'] ?? '';
+                }
+            }
+            unset($channel);
             
             // Log para debug
             $totalChannels = count($allChannels);

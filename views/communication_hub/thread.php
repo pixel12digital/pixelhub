@@ -538,7 +538,8 @@ async function sendMessage(e) {
     messageInput.value = '';
     
     try {
-        const sendUrl = normalizeUrlPath(THREAD_CONFIG.baseUrl + '/communication-hub/send');
+        // CORRIGIDO: Usa pixelhub_url diretamente para garantir URL correta
+        const sendUrl = '<?= pixelhub_url('/communication-hub/send') ?>';
         const response = await fetch(sendUrl, {
             method: 'POST',
             headers: {

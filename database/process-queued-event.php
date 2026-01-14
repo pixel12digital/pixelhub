@@ -26,7 +26,22 @@ $db = DB::getConnection();
 
 echo "=== PROCESSAR EVENTO QUEUED ===\n\n";
 
-$eventId = '2d917166-7dc4-4dd6-bf35-564d18c8bce4';
+// Busca o evento mais recente em status 'queued'
+$stmt = $db->query("
+    SELECT event_id 
+    FROM communication_events 
+    WHERE event_type = 'whatsapp.inbound.message' 
+    AND status = 'queued'
+    AND (
+        payload LIKE '%554796474223%'
+        OR payload LIKE '%10523374551225@lid%'
+        OR payload LIKE '%ServPro%'
+    )
+    ORDER BY created_at DESC 
+    LIMIT 1
+");
+$latest = $stmt->fetch(PDO::FETCH_ASSOC);
+$eventId = $latest['event_id'] ?? '2d917166-7dc4-4dd6-bf35-564d18c8bce4'; // Fallback
 
 // Busca evento
 $stmt = $db->prepare("SELECT * FROM communication_events WHERE event_id = ?");

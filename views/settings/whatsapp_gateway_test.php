@@ -246,16 +246,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         option.value = channelId;
                         
                         // Usa name como label (conforme especificação: label = channel.name)
+                        // CORRIGIDO: Exibe apenas o nome do canal, sem concatenar nome do tenant
                         const channelName = channel.name || channelId || 'Canal sem nome';
                         let label = channelName;
                         
-                        // Adiciona informações adicionais se disponíveis
-                        if (channel.tenant_name) {
-                            label += ' - ' + channel.tenant_name;
-                        } else if (channel.from_gateway) {
-                            label += ' - Gateway';
-                        }
-                        
+                        // Adiciona apenas status se disponível (não adiciona tenant_name)
                         if (channel.status) {
                             label += ' [' + channel.status + ']';
                         }
@@ -309,7 +304,11 @@ document.addEventListener('DOMContentLoaded', function() {
         resultDiv.style.display = 'block';
         resultDiv.innerHTML = '<div style="color: #666;">Enviando...</div>';
         
-        fetch('<?= pixelhub_url('/settings/whatsapp-gateway/test/send') ?>', {
+        // CORRIGIDO: Usa pixelhub_url diretamente para garantir URL correta
+        const sendUrl = '<?= pixelhub_url('/settings/whatsapp-gateway/test/send') ?>';
+        console.log('[WhatsAppGatewayTest] Enviando para URL:', sendUrl);
+        
+        fetch(sendUrl, {
             method: 'POST',
             body: formData
         })

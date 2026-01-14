@@ -7,96 +7,658 @@ ob_start();
 $baseUrl = pixelhub_url('');
 ?>
 
-<div class="content-header">
-    <div>
+<style>
+/* ============================================================================
+   Layout WhatsApp-like - Comunicação Hub
+   ============================================================================ */
+
+/* Previne scroll do body na página de comunicação */
+body.communication-hub-page {
+    overflow: hidden;
+    height: 100vh;
+}
+
+/* Container principal com altura fixa (viewport) */
+.communication-hub-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 140px); /* Ajusta conforme altura do header + topbar compacto */
+    min-height: 500px;
+    max-height: calc(100vh - 140px);
+    overflow: hidden;
+    background: #f0f2f5;
+    margin: -20px -20px 0 -20px; /* Remove padding do container pai */
+    padding: 0;
+}
+
+/* Ajuste para mobile */
+@media (max-width: 767px) {
+    .communication-hub-container {
+        height: calc(100vh - 120px);
+        max-height: calc(100vh - 120px);
+    }
+    
+    /* Usa dvh no mobile quando disponível (melhor para teclado virtual) */
+    @supports (height: 100dvh) {
+        .communication-hub-container {
+            height: calc(100dvh - 120px);
+            max-height: calc(100dvh - 120px);
+        }
+    }
+}
+
+/* Topbar compacta (título + filtros) */
+.communication-topbar {
+    flex-shrink: 0;
+    background: white;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    padding: 10px 16px;
+    z-index: 10;
+}
+
+.communication-topbar h2 {
+    margin: 0 0 4px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #111b21;
+    line-height: 1.2;
+}
+
+.communication-topbar p {
+    margin: 0 0 8px 0;
+    font-size: 12px;
+    color: #667781;
+    opacity: 0.8;
+}
+
+/* Estatísticas colapsáveis */
+.communication-stats {
+    display: none; /* Oculto por padrão */
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 12px;
+    background: #f0f2f5;
+    border-radius: 8px;
+}
+
+.communication-stats.expanded {
+    display: grid;
+}
+
+.communication-stats-item {
+    text-align: center;
+    padding: 12px;
+    background: #023A8D;
+    color: white;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.communication-stats-item .number {
+    font-size: 24px;
+    font-weight: bold;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.communication-stats-toggle {
+    background: none;
+    border: none;
+    color: #667781;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 4px 8px;
+    margin-bottom: 8px;
+}
+
+.communication-stats-toggle:hover {
+    color: #023A8D;
+}
+
+/* Filtros compactos */
+.communication-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+    align-items: end;
+    padding-top: 4px;
+}
+
+.communication-filters label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 500;
+    font-size: 12px;
+    color: #667781;
+    opacity: 0.75;
+}
+
+.communication-filters select,
+.communication-filters button {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    font-size: 13px;
+    background: white;
+    height: 36px;
+}
+
+.communication-filters button {
+    background: #023A8D;
+    color: white;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.communication-filters button:hover {
+    background: #022a6d;
+}
+
+/* Corpo principal (2 colunas desktop, 1 coluna mobile) */
+.communication-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+    background: #f0f2f5;
+}
+
+/* Mobile: panes para transição */
+@media (max-width: 767px) {
+    .communication-body {
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .pane-list,
+    .pane-thread {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+        background: white;
+    }
+    
+    .pane-list {
+        transform: translateX(0);
+        z-index: 1;
+    }
+    
+    .pane-thread {
+        transform: translateX(100%);
+        z-index: 2;
+    }
+    
+    .communication-body.view-thread .pane-list {
+        transform: translateX(-100%);
+    }
+    
+    .communication-body.view-thread .pane-thread {
+        transform: translateX(0);
+    }
+    
+    .communication-stats {
+        display: none !important; /* Sempre oculto no mobile */
+    }
+}
+
+/* Desktop: 2 colunas fixas */
+@media (min-width: 768px) {
+    .communication-body {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 0;
+        border-top: 1px solid #e4e6eb;
+    }
+    
+    .pane-list,
+    .pane-thread {
+        position: relative;
+        transform: none !important;
+    }
+    
+    .communication-stats {
+        display: none; /* Oculto por padrão, pode expandir */
+    }
+}
+
+/* Lista de conversas (coluna esquerda) */
+.conversation-list-pane {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: white;
+    border-right: 1px solid rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+}
+
+.conversation-list-header {
+    flex-shrink: 0;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    background: #f0f2f5;
+}
+
+.conversation-list-header h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #111b21;
+    line-height: 1.2;
+}
+
+.conversation-list-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 6px 8px;
+    min-height: 0;
+}
+
+/* Scrollbar discreta */
+.conversation-list-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.conversation-list-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.conversation-list-scroll::-webkit-scrollbar-thumb {
+    background: #c4c4c4;
+    border-radius: 3px;
+}
+
+.conversation-list-scroll::-webkit-scrollbar-thumb:hover {
+    background: #a0a0a0;
+}
+
+/* Item de conversa */
+.conversation-item {
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-bottom: 2px;
+    border: 1px solid transparent;
+}
+
+.conversation-item:hover {
+    background: #f5f6f6;
+}
+
+.conversation-item.active {
+    background: #e7f3ff;
+    border-color: #007bff;
+}
+
+/* Painel de conversa (coluna direita) */
+.conversation-thread-pane {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #f0f2f5;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Header da conversa (fixo) */
+.conversation-thread-header {
+    flex-shrink: 0;
+    padding: 10px 14px;
+    background: #f0f2f5;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 5;
+    position: relative;
+}
+
+.conversation-thread-header.scrolled {
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.conversation-thread-header .back-button {
+    display: none; /* Só aparece no mobile */
+    background: none;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+    margin-right: 8px;
+    color: #54656f;
+    flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+    .conversation-thread-header .back-button {
+        display: block;
+    }
+}
+
+.conversation-thread-header .info {
+    flex: 1;
+    min-width: 0;
+}
+
+.conversation-thread-header .info strong {
+    display: block;
+    font-size: 14px;
+    color: #111b21;
+    margin-bottom: 1px;
+    line-height: 1.2;
+    font-weight: 600;
+}
+
+.conversation-thread-header .info small {
+    font-size: 12px;
+    color: #667781;
+    opacity: 0.75;
+}
+
+.conversation-thread-header .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.conversation-thread-header .new-message-header-btn {
+    background: transparent;
+    border: 1px solid rgba(2, 58, 141, 0.2);
+    color: #023A8D;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    min-width: 36px;
+    height: 36px;
+}
+
+.conversation-thread-header .new-message-header-btn:hover {
+    background: rgba(2, 58, 141, 0.08);
+    border-color: rgba(2, 58, 141, 0.3);
+}
+
+.conversation-thread-header .new-message-header-btn:active {
+    background: rgba(2, 58, 141, 0.12);
+}
+
+/* Ajuste mobile para botão */
+@media (max-width: 767px) {
+    .conversation-thread-header .new-message-header-btn {
+        padding: 6px 8px;
+        min-width: 40px;
+        height: 40px;
+    }
+    
+    .conversation-thread-header .new-message-header-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+}
+
+.conversation-thread-header .status {
+    font-size: 11px;
+    color: #667781;
+    opacity: 0.75;
+    flex-shrink: 0;
+}
+
+/* Container de mensagens (scrollável) */
+.conversation-messages-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px 16px;
+    min-height: 0;
+    background: #f0f2f5;
+}
+
+.conversation-messages-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.conversation-messages-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.conversation-messages-container::-webkit-scrollbar-thumb {
+    background: #c4c4c4;
+    border-radius: 3px;
+}
+
+/* Composer (fixo no rodapé) */
+.conversation-composer {
+    flex-shrink: 0;
+    padding: 10px 12px;
+    background: #f0f2f5;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    z-index: 5;
+    position: sticky;
+    bottom: 0;
+}
+
+.conversation-composer form {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.conversation-composer textarea {
+    flex: 1;
+    padding: 9px 14px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 21px;
+    font-family: inherit;
+    font-size: 14px;
+    resize: none;
+    max-height: 100px;
+    background: white;
+    line-height: 1.4;
+    min-height: 44px;
+    box-sizing: border-box;
+}
+
+.conversation-composer textarea:focus {
+    outline: none;
+    border-color: #023A8D;
+}
+
+.conversation-composer button {
+    padding: 9px 18px;
+    background: #023A8D;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    height: 44px;
+    box-sizing: border-box;
+}
+
+.conversation-composer button:hover {
+    background: #022a6d;
+}
+
+.conversation-composer button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+/* Placeholder quando não há conversa selecionada */
+.conversation-placeholder {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f2f5;
+    color: #667781;
+    text-align: center;
+    padding: 40px;
+}
+
+/* Badge de novas mensagens */
+.new-messages-badge {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    background: #023A8D;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    display: none;
+}
+
+.new-messages-badge.visible {
+    display: block;
+}
+
+/* Skeleton loading */
+.skeleton-message {
+    margin-bottom: 15px;
+    padding: 12px 16px;
+    background: white;
+    border-radius: 8px;
+    height: 60px;
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-loading {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Safe area para iPhone */
+@supports (padding: max(0px)) {
+    .conversation-composer {
+        padding-bottom: max(10px, env(safe-area-inset-bottom));
+    }
+}
+
+/* Ajuste mobile para composer e mensagens */
+@media (max-width: 767px) {
+    .conversation-composer {
+        padding: 10px 12px;
+    }
+    
+    .conversation-composer textarea {
+        font-size: 16px; /* Evita zoom no iOS */
+    }
+    
+    .conversation-messages-container {
+        padding: 10px 12px;
+    }
+    
+    /* Mensagens mais largas no mobile */
+    .message-bubble [style*="max-width: 72%"] {
+        max-width: 88% !important;
+    }
+}
+</style>
+
+<div class="communication-hub-container">
+    <!-- Topbar compacta -->
+    <div class="communication-topbar">
         <h2>Painel de Comunicação</h2>
         <p>Gerencie conversas, envie mensagens e responda clientes em tempo real</p>
-    </div>
-</div>
-
-<!-- Estatísticas Rápidas -->
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
-    <div class="card" style="text-align: center; padding: 20px; background: #023A8D; color: white;">
-        <div style="font-size: 32px; font-weight: bold;">
-            <?= $stats['whatsapp_active'] ?>
-        </div>
-        <div style="font-size: 14px; margin-top: 5px; opacity: 0.9;">Conversas WhatsApp</div>
-    </div>
-    <div class="card" style="text-align: center; padding: 20px; background: #023A8D; color: white; opacity: 0.9;">
-        <div style="font-size: 32px; font-weight: bold;">
-            <?= $stats['chat_active'] ?>
-        </div>
-        <div style="font-size: 14px; margin-top: 5px; opacity: 0.9;">Chats Internos</div>
-    </div>
-    <div class="card" style="text-align: center; padding: 20px; background: #6c757d; color: white;">
-        <div style="font-size: 32px; font-weight: bold;">
-            <?= $stats['total_unread'] ?>
-        </div>
-        <div style="font-size: 14px; margin-top: 5px; opacity: 0.9;">Não Lidas</div>
-    </div>
-</div>
-
-<!-- Filtros -->
-<div class="card" style="margin-bottom: 20px;">
-    <form method="GET" action="<?= pixelhub_url('/communication-hub') ?>" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end;">
-        <div>
-            <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Canal</label>
-            <select name="channel" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                <option value="all" <?= ($filters['channel'] === 'all') ? 'selected' : '' ?>>Todos</option>
-                <option value="whatsapp" <?= ($filters['channel'] === 'whatsapp') ? 'selected' : '' ?>>WhatsApp</option>
-                <option value="chat" <?= ($filters['channel'] === 'chat') ? 'selected' : '' ?>>Chat Interno</option>
-            </select>
-        </div>
-        <div>
-            <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Cliente</label>
-            <select name="tenant_id" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                <option value="">Todos</option>
-                <?php foreach ($tenants as $tenant): ?>
-                    <option value="<?= $tenant['id'] ?>" <?= ($filters['tenant_id'] == $tenant['id']) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($tenant['name']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <div>
-            <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Status</label>
-            <select name="status" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                <option value="active" <?= ($filters['status'] === 'active') ? 'selected' : '' ?>>Ativas</option>
-                <option value="all" <?= ($filters['status'] === 'all') ? 'selected' : '' ?>>Todas</option>
-            </select>
-        </div>
-        <div>
-            <button type="submit" style="width: 100%; padding: 10px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
-                Filtrar
-            </button>
-        </div>
-    </form>
-</div>
-
-<!-- Lista de Conversas -->
-<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px;">
-    <!-- Sidebar de Conversas -->
-    <div class="card" style="max-height: 600px; overflow-y: auto;">
-        <h3 style="margin-top: 0; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #dee2e6;">Conversas</h3>
         
-        <?php if (empty($threads)): ?>
-            <div style="padding: 40px; text-align: center; color: #666;">
-                <p>Nenhuma conversa encontrada</p>
-                <p style="font-size: 13px; margin-top: 10px;">As conversas aparecerão aqui quando houver mensagens recebidas ou enviadas.</p>
+        <!-- Estatísticas colapsáveis -->
+        <button class="communication-stats-toggle" onclick="toggleStats()" id="stats-toggle">
+            <span id="stats-toggle-text">Mostrar estatísticas</span>
+        </button>
+        <div class="communication-stats" id="communication-stats">
+            <div class="communication-stats-item">
+                <span class="number"><?= $stats['whatsapp_active'] ?></span>
+                <span>WhatsApp</span>
             </div>
-        <?php else: ?>
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-                <?php foreach ($threads as $thread): ?>
-                    <a href="<?= pixelhub_url('/communication-hub/thread?thread_id=' . urlencode($thread['thread_id']) . '&channel=' . urlencode($thread['channel'])) ?>" 
-                       style="display: block; padding: 15px; border: 1px solid #dee2e6; border-radius: 8px; text-decoration: none; color: inherit; transition: all 0.2s;"
-                       onmouseover="this.style.background='#f8f9fa'; this.style.borderColor='#007bff';"
-                       onmouseout="this.style.background='white'; this.style.borderColor='#dee2e6';">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
-                            <div style="flex: 1;">
-                                <div style="font-weight: 600; font-size: 14px; color: #333; margin-bottom: 4px;">
-                                    <?= htmlspecialchars($thread['contact_name'] ?? $thread['tenant_name'] ?? 'Cliente') ?>
-                                </div>
-                                <div style="font-size: 12px; color: #666; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <div class="communication-stats-item">
+                <span class="number"><?= $stats['chat_active'] ?></span>
+                <span>Chats</span>
+            </div>
+            <div class="communication-stats-item">
+                <span class="number"><?= $stats['total_unread'] ?></span>
+                <span>Não Lidas</span>
+            </div>
+        </div>
+        
+        <!-- Filtros compactos -->
+        <form method="GET" action="<?= pixelhub_url('/communication-hub') ?>" class="communication-filters">
+            <div>
+                <label>Canal</label>
+                <select name="channel">
+                    <option value="all" <?= ($filters['channel'] === 'all') ? 'selected' : '' ?>>Todos</option>
+                    <option value="whatsapp" <?= ($filters['channel'] === 'whatsapp') ? 'selected' : '' ?>>WhatsApp</option>
+                    <option value="chat" <?= ($filters['channel'] === 'chat') ? 'selected' : '' ?>>Chat Interno</option>
+                </select>
+            </div>
+            <div>
+                <label>Cliente</label>
+                <select name="tenant_id">
+                    <option value="">Todos</option>
+                    <?php foreach ($tenants as $tenant): ?>
+                        <option value="<?= $tenant['id'] ?>" <?= ($filters['tenant_id'] == $tenant['id']) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($tenant['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label>Status</label>
+                <select name="status">
+                    <option value="active" <?= ($filters['status'] === 'active') ? 'selected' : '' ?>>Ativas</option>
+                    <option value="all" <?= ($filters['status'] === 'all') ? 'selected' : '' ?>>Todas</option>
+                </select>
+            </div>
+            <div>
+                <button type="submit">Filtrar</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Corpo principal -->
+    <div class="communication-body" id="communication-body">
+        <!-- Pane: Lista de Conversas -->
+        <div class="pane-list conversation-list-pane">
+            <div class="conversation-list-header">
+                <h3>Conversas</h3>
+            </div>
+            <div class="conversation-list-scroll">
+                <?php if (empty($threads)): ?>
+                    <div style="padding: 40px; text-align: center; color: #667781;">
+                        <p>Nenhuma conversa encontrada</p>
+                        <p style="font-size: 13px; margin-top: 10px;">As conversas aparecerão aqui quando houver mensagens recebidas ou enviadas.</p>
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($threads as $thread): ?>
+                        <div onclick="loadConversation('<?= htmlspecialchars($thread['thread_id'], ENT_QUOTES) ?>', '<?= htmlspecialchars($thread['channel'] ?? 'whatsapp', ENT_QUOTES) ?>')" 
+                             class="conversation-item"
+                             data-thread-id="<?= htmlspecialchars($thread['thread_id'], ENT_QUOTES) ?>">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-weight: 600; font-size: 14px; color: #111b21; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                        <?= htmlspecialchars($thread['contact_name'] ?? $thread['tenant_name'] ?? 'Cliente') ?>
+                                    </div>
+                                    <div style="font-size: 12px; color: #667781; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
                                     <?php if ($thread['channel'] === 'whatsapp'): ?>
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
@@ -126,59 +688,54 @@ $baseUrl = pixelhub_url('');
                                     </div>
                                 <?php endif; ?>
                             </div>
-                            <div style="text-align: right;">
-                                <?php if (($thread['unread_count'] ?? 0) > 0): ?>
-                                    <span style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">
-                                        <?= $thread['unread_count'] ?>
-                                    </span>
-                                <?php endif; ?>
+                                <div style="text-align: right; flex-shrink: 0; margin-left: 8px;">
+                                    <?php if (($thread['unread_count'] ?? 0) > 0): ?>
+                                        <span style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; display: inline-block; min-width: 18px; text-align: center;">
+                                            <?= $thread['unread_count'] ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
                             </div>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #999;">
-                            <span><?= $thread['message_count'] ?? 0 ?> mensagens</span>
-                            <?php
-                            // Formata timestamp (MySQL já armazena no timezone do sistema)
-                            $lastActivity = $thread['last_activity'] ?? 'now';
-                            $dateTime = new DateTime($lastActivity);
-                            ?>
-                            <span><?= $dateTime->format('d/m H:i') ?></span>
-                        </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #667781;">
+                                <span><?= $thread['message_count'] ?? 0 ?> mensagens</span>
+                                <?php
+                                $lastActivity = $thread['last_activity'] ?? 'now';
+                                $dateTime = new DateTime($lastActivity);
+                                ?>
+                                <span><?= $dateTime->format('d/m H:i') ?></span>
+                            </div>
                         <?php
                         // Preview da última mensagem (se disponível)
                         // TODO: Buscar preview da última mensagem da conversa
                         // Por enquanto, apenas mostra contador
                         ?>
-                    </a>
-                <?php endforeach; ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
-        <?php endif; ?>
-    </div>
+        </div>
 
-    <!-- Área Principal (vazia até selecionar conversa) -->
-    <div class="card" style="min-height: 600px; display: flex; align-items: center; justify-content: center; background: #f8f9fa;">
-        <div style="text-align: center; color: #666;">
-            <div style="margin-bottom: 20px; display: flex; justify-content: center;">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#023A8D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                </svg>
+        <!-- Pane: Thread da Conversa -->
+        <div class="pane-thread conversation-thread-pane">
+            <!-- Placeholder inicial -->
+            <div id="conversation-placeholder" class="conversation-placeholder">
+                <div>
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#667781" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px; opacity: 0.5;">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <h3 style="color: #111b21; margin-bottom: 8px; font-size: 18px;">Selecione uma conversa</h3>
+                    <p style="font-size: 14px; color: #667781;">Escolha uma conversa na lista ao lado para começar a enviar mensagens</p>
+                </div>
             </div>
-            <h3 style="color: #333; margin-bottom: 10px;">Selecione uma conversa</h3>
-            <p style="font-size: 14px;">Escolha uma conversa na lista ao lado para começar a enviar mensagens</p>
+            
+            <!-- Área de conversa ativa (inicialmente oculta) -->
+            <div id="conversation-content" style="display: none; flex: 1; flex-direction: column; min-height: 0; height: 100%;">
+                <!-- Conteúdo será carregado via JavaScript -->
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Botão Flutuante: Nova Mensagem -->
-<button onclick="openNewMessageModal()" 
-        style="position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; border-radius: 50%; background: #023A8D; color: white; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; transition: all 0.3s; display: flex; align-items: center; justify-content: center;"
-        onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 6px 20px rgba(0,0,0,0.2)';"
-        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';"
-        title="Nova Mensagem">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-        <polyline points="22,6 12,13 2,6"/>
-    </svg>
-</button>
 
 <!-- Modal: Nova Mensagem -->
 <div id="new-message-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
@@ -245,10 +802,14 @@ const HubState = {
     interactionTimeout: null
 };
 
+// Guard global para evitar múltiplos inícios de polling
+let __hubPollingStarted = false;
+
 function startListPolling() {
-    if (HubState.pollingInterval) {
+    if (HubState.pollingInterval || __hubPollingStarted) {
         return;
     }
+    __hubPollingStarted = true;
     
     // Inicializa timestamp com o mais recente da lista
     // Usa o maior timestamp entre todos os threads para garantir que detecta atualizações
@@ -312,22 +873,29 @@ async function checkForListUpdates() {
                 latest_update_ts: result.latest_update_ts
             });
             
-            // Só recarrega se usuário não está interagindo
-            // Se estiver interagindo, agenda reload para depois
-            if (HubState.isUserInteracting) {
-                console.log('[Hub] Usuário interagindo, aguardando para recarregar...');
-                // Agenda reload para quando interação terminar
-                if (HubState.interactionTimeout) {
-                    clearTimeout(HubState.interactionTimeout);
-                }
-                HubState.interactionTimeout = setTimeout(() => {
-                    if (!HubState.isUserInteracting) {
+            // CRÍTICO: NUNCA recarrega a página se houver conversa ativa
+            // Atualiza apenas a lista via AJAX para preservar estado
+            if (ConversationState.currentThreadId) {
+                console.log('[Hub] Conversa ativa detectada, atualizando apenas lista (sem reload)');
+                updateConversationListOnly();
+            } else {
+                // Só recarrega se não há conversa ativa E usuário não está interagindo
+                if (HubState.isUserInteracting) {
+                    console.log('[Hub] Usuário interagindo, aguardando para recarregar...');
+                    if (HubState.interactionTimeout) {
+                        clearTimeout(HubState.interactionTimeout);
+                    }
+                    HubState.interactionTimeout = setTimeout(() => {
+                        if (!HubState.isUserInteracting && !ConversationState.currentThreadId) {
+                            location.reload();
+                        }
+                    }, 3000);
+                } else {
+                    // Recarrega apenas se não há conversa ativa
+                    if (!ConversationState.currentThreadId) {
                         location.reload();
                     }
-                }, 3000); // Aguarda 3s após interação terminar
-            } else {
-                // Recarrega imediatamente se não há interação
-                location.reload();
+                }
             }
         } else if (result.success && result.latest_update_ts) {
             // Atualiza timestamp mesmo sem mudanças (para manter sincronizado)
@@ -397,15 +965,55 @@ document.addEventListener('visibilitychange', function() {
 
 // Inicia polling quando a página carrega
 document.addEventListener('DOMContentLoaded', function() {
+    // Adiciona classe ao body para prevenir scroll
+    document.body.classList.add('communication-hub-page');
+    
     startListPolling();
+    
+    // Verifica se há conversa para reabrir (URL params ou sessionStorage)
+    const urlParams = new URLSearchParams(window.location.search);
+    const threadIdFromUrl = urlParams.get('thread_id');
+    const channelFromUrl = urlParams.get('channel') || 'whatsapp';
+    
+    // Tenta URL primeiro, depois sessionStorage
+    const threadId = threadIdFromUrl || sessionStorage.getItem('hub_selected_thread_id');
+    const channel = channelFromUrl || sessionStorage.getItem('hub_selected_channel') || 'whatsapp';
+    
+    if (threadId) {
+        console.log('[Hub] Reabrindo conversa salva:', threadId, channel);
+        // Aguarda um pouco para garantir que tudo está carregado
+        setTimeout(() => {
+            loadConversation(threadId, channel);
+        }, 500);
+    }
 });
 
 // Limpa polling ao sair
 window.addEventListener('beforeunload', function() {
     if (HubState.pollingInterval) {
         clearInterval(HubState.pollingInterval);
+        HubState.pollingInterval = null;
     }
+    __hubPollingStarted = false;
 });
+
+/**
+ * Atualiza apenas a lista de conversas via AJAX (sem recarregar página)
+ * Preserva conversa ativa
+ */
+async function updateConversationListOnly() {
+    try {
+        // Por enquanto, apenas loga que detectou atualização mas não recarrega
+        // A lista será atualizada no próximo reload natural (quando usuário fechar conversa)
+        // Ou podemos implementar atualização via AJAX completa no futuro
+        console.log('[Hub] Lista atualizada (sem reload para preservar conversa ativa)');
+        
+        // Atualiza contadores visuais se necessário (badges de não lidas, etc)
+        // Por enquanto, apenas mantém estado atual
+    } catch (error) {
+        console.error('[Hub] Erro ao atualizar lista:', error);
+    }
+}
 
 function openNewMessageModal() {
     document.getElementById('new-message-modal').style.display = 'flex';
@@ -487,6 +1095,678 @@ document.getElementById('new-message-modal')?.addEventListener('click', function
         closeNewMessageModal();
     }
 });
+
+// ============================================================================
+// Carregamento de Conversa no Painel Direito
+// ============================================================================
+
+/**
+ * Escapa HTML para prevenir XSS
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+const ConversationState = {
+    currentThreadId: null,
+    currentChannel: null,
+    pollingInterval: null,
+    lastTimestamp: null,
+    lastEventId: null,
+    messageIds: new Set(),
+    isPageVisible: true,
+    autoScroll: true,
+    newMessagesCount: 0
+};
+
+/**
+ * Carrega uma conversa no painel direito
+ */
+async function loadConversation(threadId, channel) {
+    console.log('[Hub] Carregando conversa:', threadId, channel);
+    
+    // Para polling anterior se existir (limpa completamente antes de iniciar nova)
+    stopConversationPolling();
+    
+    // Limpa estado anterior
+    ConversationState.messageIds.clear();
+    ConversationState.lastTimestamp = null;
+    ConversationState.lastEventId = null;
+    ConversationState.newMessagesCount = 0;
+    
+    // Atualiza estado
+    ConversationState.currentThreadId = threadId;
+    ConversationState.currentChannel = channel;
+    
+    // Persiste na URL (sem recarregar página)
+    const url = new URL(window.location);
+    url.searchParams.set('thread_id', threadId);
+    url.searchParams.set('channel', channel);
+    window.history.pushState({ threadId, channel }, '', url);
+    
+    // Salva também no sessionStorage como backup
+    sessionStorage.setItem('hub_selected_thread_id', threadId);
+    sessionStorage.setItem('hub_selected_channel', channel);
+    
+    // Marca conversa como ativa na lista
+    document.querySelectorAll('.conversation-item').forEach(item => {
+        item.classList.remove('active');
+        if (item.dataset.threadId === threadId) {
+            item.classList.add('active');
+            item.style.background = '#e7f3ff';
+            item.style.borderColor = '#007bff';
+        } else {
+            // Remove estilo de outras conversas
+            item.style.background = '';
+            item.style.borderColor = '';
+        }
+    });
+    
+    // Mostra loading
+    const placeholder = document.getElementById('conversation-placeholder');
+    const content = document.getElementById('conversation-content');
+    placeholder.style.display = 'none';
+    content.style.display = 'flex';
+    content.innerHTML = '<div style="flex: 1; display: flex; align-items: center; justify-content: center;"><div style="text-align: center;"><div class="spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #023A8D; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div><p>Carregando conversa...</p></div></div>';
+    
+    try {
+        // Busca dados da conversa
+        const url = '<?= pixelhub_url('/communication-hub/thread-data') ?>?' + 
+                   new URLSearchParams({ thread_id: threadId, channel: channel });
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (!result.success || !result.thread) {
+            throw new Error(result.error || 'Erro ao carregar conversa');
+        }
+        
+        // Renderiza conversa
+        renderConversation(result.thread, result.messages, result.channel);
+        
+        // Inicializa marcadores e polling
+        initializeConversationMarkers();
+        startConversationPolling();
+        
+    } catch (error) {
+        console.error('[Hub] Erro ao carregar conversa:', error);
+        content.innerHTML = '<div style="flex: 1; display: flex; align-items: center; justify-content: center;"><div style="text-align: center; color: #dc3545;"><p>Erro ao carregar conversa</p><p style="font-size: 13px;">' + escapeHtml(error.message) + '</p></div></div>';
+    }
+}
+
+/**
+ * Renderiza a conversa no painel direito
+ */
+function renderConversation(thread, messages, channel) {
+    const placeholder = document.getElementById('conversation-placeholder');
+    const content = document.getElementById('conversation-content');
+    
+    // Oculta placeholder e mostra conteúdo
+    if (placeholder) placeholder.style.display = 'none';
+    if (content) content.style.display = 'flex';
+    
+    // Ativa modo thread no mobile
+    const body = document.getElementById('communication-body');
+    if (body) {
+        body.classList.add('view-thread');
+    }
+    
+    const contactName = thread.contact_name || thread.tenant_name || 'Cliente';
+    const contact = thread.contact || 'Número não identificado';
+    
+    let html = `
+        <div class="conversation-thread-header" id="conversation-header">
+            <button class="back-button" onclick="backToConversationList()" title="Voltar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+            <div class="info">
+                <strong>${escapeHtml(contactName)}</strong>
+                ${channel === 'whatsapp' ? `<small>${escapeHtml(contact)}</small>` : ''}
+            </div>
+            <div class="header-actions">
+                <button class="new-message-header-btn" onclick="openNewMessageModal()" title="Nova Mensagem">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </button>
+                <div class="status">
+                    <span style="color: #25d366; font-weight: 600;">Ativa</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="conversation-messages-container" id="messages-container" style="position: relative;">
+            <div id="new-messages-badge" class="new-messages-badge">
+                <span id="new-messages-count">1</span> nova(s) mensagem(ns)
+            </div>
+    `;
+    
+    if (messages.length === 0) {
+        html += `
+            <div style="text-align: center; padding: 40px; color: #666;">
+                <p>Nenhuma mensagem ainda</p>
+                <p style="font-size: 13px; margin-top: 10px;">Envie a primeira mensagem abaixo</p>
+            </div>
+        `;
+    } else {
+        messages.forEach(msg => {
+            const isOutbound = msg.direction === 'outbound';
+            const msgDate = new Date(msg.timestamp);
+            const timeStr = String(msgDate.getDate()).padStart(2, '0') + '/' + 
+                          String(msgDate.getMonth() + 1).padStart(2, '0') + ' ' +
+                          String(msgDate.getHours()).padStart(2, '0') + ':' + 
+                          String(msgDate.getMinutes()).padStart(2, '0');
+            
+            html += `
+                <div class="message-bubble ${msg.direction}" 
+                     data-message-id="${escapeHtml(msg.id || '')}"
+                     data-timestamp="${escapeHtml(msg.timestamp || '')}"
+                     style="margin-bottom: 6px; display: flex; ${isOutbound ? 'justify-content: flex-end;' : 'justify-content: flex-start;'}">
+                    <div style="max-width: 72%; padding: 7px 12px; border-radius: 7.5px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto; border-bottom-right-radius: 2px;' : 'background: white; border-bottom-left-radius: 2px;'}">
+                        <div style="font-size: 14.2px; color: #111b21; line-height: 1.4; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;">
+                            ${escapeHtml(msg.content || '')}
+                        </div>
+                        <div style="font-size: 11px; color: #667781; margin-top: 3px; text-align: right; padding-top: 2px; opacity: 0.8;">
+                            ${timeStr}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    html += `
+        </div>
+        
+        <div class="conversation-composer">
+            <form id="send-message-form" onsubmit="sendMessageFromPanel(event)">
+                <input type="hidden" name="channel" value="${escapeHtml(channel)}">
+                <input type="hidden" name="thread_id" value="${escapeHtml(thread.thread_id || '')}">
+                <input type="hidden" name="tenant_id" value="${thread.tenant_id || ''}">
+                ${thread.channel_id ? `<input type="hidden" name="channel_id" value="${thread.channel_id}">` : ''}
+                ${channel === 'whatsapp' && thread.contact ? `<input type="hidden" name="to" value="${escapeHtml(thread.contact)}">` : ''}
+                
+                <textarea name="message" id="message-input" required rows="1" 
+                          placeholder="Digite sua mensagem..." 
+                          onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); document.getElementById('send-message-form').dispatchEvent(new Event('submit')); }"
+                          oninput="autoResizeTextarea(this)"></textarea>
+                <button type="submit">Enviar</button>
+            </form>
+        </div>
+    `;
+    
+    if (content) {
+        content.innerHTML = html;
+    }
+    
+    // Scroll para o final após renderizar
+    setTimeout(() => {
+        const container = document.getElementById('messages-container');
+        if (container) {
+            container.scrollTop = container.scrollHeight;
+            ConversationState.autoScroll = true;
+        }
+    }, 150);
+    
+    // Adiciona listener no badge de novas mensagens
+    const badge = document.getElementById('new-messages-badge');
+    if (badge) {
+        badge.addEventListener('click', function() {
+            const container = document.getElementById('messages-container');
+            if (container) {
+                ConversationState.autoScroll = true;
+                container.scrollTop = container.scrollHeight;
+                hideNewMessagesBadge();
+            }
+        });
+    }
+    
+    // Adiciona listener de scroll no header (sombra quando scrolla)
+    const header = document.getElementById('conversation-header');
+    const messagesContainer = document.getElementById('messages-container');
+    if (header && messagesContainer) {
+        messagesContainer.addEventListener('scroll', function() {
+            if (messagesContainer.scrollTop > 0) {
+                header.classList.add('scrolled');
+            } else {
+                header.classList.remove('scrolled');
+            }
+        });
+    }
+}
+
+/**
+ * Envia mensagem do painel
+ */
+async function sendMessageFromPanel(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const messageInput = document.getElementById('message-input');
+    const messageText = messageInput.value.trim();
+    
+    if (!messageText) {
+        return;
+    }
+    
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Enviando...';
+    
+    // Mensagem otimista
+    const tempId = 'temp_' + Date.now();
+    const optimisticMessage = {
+        id: tempId,
+        direction: 'outbound',
+        content: messageText,
+        timestamp: new Date().toISOString()
+    };
+    
+    addMessageToPanel(optimisticMessage);
+    messageInput.value = '';
+    
+    try {
+        const sendUrl = '<?= pixelhub_url('/communication-hub/send') ?>';
+        const response = await fetch(sendUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams(formData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.event_id) {
+            // Busca mensagem confirmada
+            await confirmSentMessageFromPanel(result.event_id, tempId);
+        } else {
+            // Erro: remove mensagem otimista
+            const tempMsg = document.querySelector(`[data-message-id="${tempId}"]`);
+            if (tempMsg) tempMsg.remove();
+            alert('Erro: ' + (result.error || 'Erro ao enviar mensagem'));
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Enviar';
+        }
+    } catch (error) {
+        const tempMsg = document.querySelector(`[data-message-id="${tempId}"]`);
+        if (tempMsg) tempMsg.remove();
+        alert('Erro ao enviar mensagem: ' + error.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Enviar';
+    }
+}
+
+/**
+ * Adiciona mensagem ao painel
+ */
+function addMessageToPanel(message) {
+    const container = document.getElementById('messages-container');
+    if (!container) return;
+    
+    const msgId = message.id || '';
+    const direction = message.direction || 'inbound';
+    const content = message.content || '';
+    const timestamp = message.timestamp || new Date().toISOString();
+    
+    const date = new Date(timestamp);
+    const timeStr = String(date.getDate()).padStart(2, '0') + '/' + 
+                   String(date.getMonth() + 1).padStart(2, '0') + ' ' +
+                   String(date.getHours()).padStart(2, '0') + ':' + 
+                   String(date.getMinutes()).padStart(2, '0');
+    
+    const isOutbound = direction === 'outbound';
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message-bubble ' + direction;
+    messageDiv.setAttribute('data-message-id', msgId);
+    messageDiv.setAttribute('data-timestamp', timestamp);
+    messageDiv.style.cssText = 'margin-bottom: 6px; display: flex; ' + (isOutbound ? 'justify-content: flex-end;' : 'justify-content: flex-start;');
+    
+    messageDiv.innerHTML = `
+        <div style="max-width: 72%; padding: 7px 12px; border-radius: 7.5px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto; border-bottom-right-radius: 2px;' : 'background: white; border-bottom-left-radius: 2px;'}">
+            <div style="font-size: 14.2px; color: #111b21; line-height: 1.4; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;">
+                ${escapeHtml(content)}
+            </div>
+            <div style="font-size: 11px; color: #667781; margin-top: 3px; text-align: right; padding-top: 2px; opacity: 0.8;">
+                ${timeStr}
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(messageDiv);
+    
+    // Scroll para o final
+    if (ConversationState.autoScroll) {
+        setTimeout(() => {
+            container.scrollTop = container.scrollHeight;
+        }, 50);
+    }
+}
+
+/**
+ * Confirma mensagem enviada
+ */
+async function confirmSentMessageFromPanel(eventId, tempId) {
+    try {
+        const url = '<?= pixelhub_url('/communication-hub/message') ?>?' + 
+                   new URLSearchParams({
+                       event_id: eventId,
+                       thread_id: ConversationState.currentThreadId
+                   });
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success && result.message) {
+            // Remove mensagem otimista
+            const tempMsg = document.querySelector(`[data-message-id="${tempId}"]`);
+            if (tempMsg) tempMsg.remove();
+            
+            // Adiciona mensagem confirmada
+            onNewMessagesFromPanel([result.message]);
+            
+            // Reabilita formulário
+            const submitBtn = document.querySelector('#send-message-form button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Enviar';
+            }
+        }
+    } catch (error) {
+        console.error('[Hub] Erro ao confirmar mensagem:', error);
+    }
+}
+
+/**
+ * Processa novas mensagens no painel
+ */
+function onNewMessagesFromPanel(messages) {
+    if (!messages || messages.length === 0) return;
+    
+    const container = document.getElementById('messages-container');
+    if (!container) return;
+    
+    // Filtra mensagens já existentes
+    const newMessages = messages.filter(msg => {
+        const msgId = msg.id || msg.event_id;
+        if (!msgId || ConversationState.messageIds.has(msgId)) {
+            return false;
+        }
+        ConversationState.messageIds.add(msgId);
+        return true;
+    });
+    
+    if (newMessages.length === 0) return;
+    
+    // Atualiza marcadores
+    const lastMessage = newMessages[newMessages.length - 1];
+    ConversationState.lastTimestamp = lastMessage.timestamp || lastMessage.created_at;
+    ConversationState.lastEventId = lastMessage.id || lastMessage.event_id;
+    
+    // Adiciona mensagens
+    newMessages.forEach(msg => {
+        addMessageToPanel(msg);
+    });
+    
+    // Atualiza scroll
+    updateConversationScroll();
+}
+
+/**
+ * Atualiza scroll da conversa
+ */
+function updateConversationScroll() {
+    const container = document.getElementById('messages-container');
+    if (!container) return;
+    
+    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+    
+    if (isAtBottom || ConversationState.autoScroll) {
+        container.scrollTop = container.scrollHeight;
+        ConversationState.autoScroll = true;
+        hideNewMessagesBadge();
+    } else {
+        ConversationState.autoScroll = false;
+        ConversationState.newMessagesCount++;
+        showNewMessagesBadge();
+    }
+}
+
+function showNewMessagesBadge() {
+    const badge = document.getElementById('new-messages-badge');
+    const count = document.getElementById('new-messages-count');
+    if (badge && count) {
+        count.textContent = ConversationState.newMessagesCount;
+        badge.classList.add('visible');
+    }
+}
+
+function hideNewMessagesBadge() {
+    const badge = document.getElementById('new-messages-badge');
+    if (badge) {
+        badge.classList.remove('visible');
+        ConversationState.newMessagesCount = 0;
+    }
+}
+
+/**
+ * Volta para lista de conversas (mobile)
+ */
+function backToConversationList() {
+    const body = document.getElementById('communication-body');
+    if (body) {
+        body.classList.remove('view-thread');
+    }
+    
+    // Salva scroll da lista (se necessário)
+    const listScroll = document.querySelector('.conversation-list-scroll');
+    if (listScroll) {
+        sessionStorage.setItem('hub_list_scroll', listScroll.scrollTop);
+    }
+}
+
+/**
+ * Auto-resize textarea do composer
+ */
+function autoResizeTextarea(textarea) {
+    textarea.style.height = 'auto';
+    const newHeight = Math.min(textarea.scrollHeight, 120);
+    textarea.style.height = newHeight + 'px';
+}
+
+/**
+ * Toggle estatísticas
+ */
+function toggleStats() {
+    const stats = document.getElementById('communication-stats');
+    const toggle = document.getElementById('stats-toggle-text');
+    if (stats && toggle) {
+        stats.classList.toggle('expanded');
+        toggle.textContent = stats.classList.contains('expanded') ? 'Ocultar estatísticas' : 'Mostrar estatísticas';
+    }
+}
+
+/**
+ * Inicializa marcadores da conversa
+ */
+function initializeConversationMarkers() {
+    const container = document.getElementById('messages-container');
+    if (!container) return;
+    
+    const messages = container.querySelectorAll('[data-message-id]');
+    
+    if (messages.length > 0) {
+        const lastMsg = messages[messages.length - 1];
+        ConversationState.lastTimestamp = lastMsg.getAttribute('data-timestamp');
+        ConversationState.lastEventId = lastMsg.getAttribute('data-message-id');
+        
+        messages.forEach(msg => {
+            const msgId = msg.getAttribute('data-message-id');
+            if (msgId) ConversationState.messageIds.add(msgId);
+        });
+    } else {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - 1);
+        ConversationState.lastTimestamp = now.toISOString();
+    }
+    
+    // Adiciona listener de scroll
+    container.addEventListener('scroll', function() {
+        const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+        ConversationState.autoScroll = isAtBottom;
+        if (isAtBottom) {
+            hideNewMessagesBadge();
+        }
+    });
+}
+
+// Guard global para polling da conversa
+let __conversationPollingStarted = false;
+
+/**
+ * Inicia polling da conversa
+ */
+function startConversationPolling() {
+    // Evita múltiplos inícios
+    if (ConversationState.pollingInterval || __conversationPollingStarted) {
+        console.log('[Hub] Polling da conversa já está ativo, ignorando novo início');
+        return;
+    }
+    
+    // Limpa qualquer intervalo anterior (segurança extra)
+    if (ConversationState.pollingInterval) {
+        clearInterval(ConversationState.pollingInterval);
+        ConversationState.pollingInterval = null;
+    }
+    
+    __conversationPollingStarted = true;
+    console.log('[Hub] Iniciando polling da conversa para thread:', ConversationState.currentThreadId);
+    
+    // Primeiro check após 2 segundos
+    setTimeout(() => {
+        if (ConversationState.currentThreadId) {
+            checkForNewConversationMessages();
+        }
+    }, 2000);
+    
+    // Polling periódico a cada 12 segundos
+    ConversationState.pollingInterval = setInterval(() => {
+        if (ConversationState.isPageVisible && ConversationState.currentThreadId) {
+            checkForNewConversationMessages();
+        }
+    }, 12000);
+}
+
+/**
+ * Para polling da conversa
+ */
+function stopConversationPolling() {
+    if (ConversationState.pollingInterval) {
+        console.log('[Hub] Parando polling da conversa');
+        clearInterval(ConversationState.pollingInterval);
+        ConversationState.pollingInterval = null;
+    }
+    __conversationPollingStarted = false;
+    // Limpa também timeouts pendentes se houver
+    // (não temos referência direta, mas o clearInterval já resolve)
+}
+
+/**
+ * Verifica novas mensagens da conversa
+ */
+async function checkForNewConversationMessages() {
+    if (!ConversationState.currentThreadId || !ConversationState.lastTimestamp) {
+        return;
+    }
+    
+    try {
+        const checkParams = new URLSearchParams({
+            thread_id: ConversationState.currentThreadId,
+            after_timestamp: ConversationState.lastTimestamp
+        });
+        if (ConversationState.lastEventId) {
+            checkParams.set('after_event_id', ConversationState.lastEventId);
+        }
+        const checkUrl = '<?= pixelhub_url('/communication-hub/messages/check') ?>?' + checkParams.toString();
+        
+        const response = await fetch(checkUrl);
+        const result = await response.json();
+        
+        if (result.success && result.has_new) {
+            // Busca novas mensagens
+            const fetchParams = new URLSearchParams({
+                thread_id: ConversationState.currentThreadId
+            });
+            if (ConversationState.lastTimestamp) {
+                fetchParams.set('after_timestamp', ConversationState.lastTimestamp);
+                if (ConversationState.lastEventId) {
+                    fetchParams.set('after_event_id', ConversationState.lastEventId);
+                }
+            }
+            const fetchUrl = '<?= pixelhub_url('/communication-hub/messages/new') ?>?' + fetchParams.toString();
+            
+            const fetchResponse = await fetch(fetchUrl);
+            const fetchResult = await fetchResponse.json();
+            
+            if (fetchResult.success && fetchResult.messages) {
+                onNewMessagesFromPanel(fetchResult.messages);
+            }
+        }
+    } catch (error) {
+        console.error('[Hub] Erro ao verificar novas mensagens:', error);
+    }
+}
+
+// Page Visibility API para polling
+document.addEventListener('visibilitychange', function() {
+    ConversationState.isPageVisible = !document.hidden;
+});
+
+// Limpa polling da conversa ao sair
+window.addEventListener('beforeunload', function() {
+    stopConversationPolling();
+});
+
+// Handle browser back/forward (popstate)
+window.addEventListener('popstate', function(event) {
+    if (event.state && event.state.threadId) {
+        // Reabre conversa se voltou para uma URL com thread_id
+        loadConversation(event.state.threadId, event.state.channel);
+    } else {
+        // Remove conversa se voltou para URL sem thread_id
+        const placeholder = document.getElementById('conversation-placeholder');
+        const content = document.getElementById('conversation-content');
+        if (placeholder && content) {
+            placeholder.style.display = 'flex';
+            content.style.display = 'none';
+        }
+        ConversationState.currentThreadId = null;
+        ConversationState.currentChannel = null;
+        stopConversationPolling();
+        sessionStorage.removeItem('hub_selected_thread_id');
+        sessionStorage.removeItem('hub_selected_channel');
+        
+        // Remove destaque das conversas
+        document.querySelectorAll('.conversation-item').forEach(item => {
+            item.classList.remove('active');
+            item.style.background = 'white';
+            item.style.borderColor = '#dee2e6';
+        });
+    }
+});
+
+    // Restaura scroll da lista ao voltar (mobile)
+    const listScroll = document.querySelector('.conversation-list-scroll');
+    if (listScroll) {
+        const savedScroll = sessionStorage.getItem('hub_list_scroll');
+        if (savedScroll) {
+            listScroll.scrollTop = parseInt(savedScroll, 10);
+        }
+    }
 </script>
 
 <?php
