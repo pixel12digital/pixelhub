@@ -114,6 +114,10 @@
         <div class="section">
             <h2>3. Buscando correlation_id nos Logs</h2>
             <div class="info">correlation_id: <strong><?= htmlspecialchars($correlationId) ?></strong></div>
+            <div class="info" style="font-size: 12px; margin-top: 5px;">
+                <strong>Nota:</strong> Buscando logs com padrão HUB_* que contenham o correlation_id. 
+                Linhas de roteamento/URL são ignoradas.
+            </div>
             <?php if (!empty($logs['correlation_id'])): ?>
                 <div class="success">✅ Encontradas <?= count($logs['correlation_id']) ?> linhas:</div>
                 <pre><?php
@@ -125,13 +129,21 @@
                         echo '<span class="success">' . htmlspecialchars($line) . '</span>' . "\n";
                     } elseif (stripos($line, 'HUB_MSG_DROP') !== false) {
                         echo '<span class="warning">' . htmlspecialchars($line) . '</span>' . "\n";
+                    } elseif (stripos($line, 'HUB_') !== false) {
+                        echo '<span class="info">' . htmlspecialchars($line) . '</span>' . "\n";
                     } else {
                         echo htmlspecialchars($line) . "\n";
                     }
                 }
                 ?></pre>
             <?php else: ?>
-                <div class="error">❌ Nenhuma linha encontrada com correlation_id</div>
+                <div class="error">❌ Nenhuma linha encontrada com correlation_id nos logs HUB_*</div>
+                <div class="info" style="margin-top: 10px;">
+                    <strong>Possíveis causas:</strong><br>
+                    • O webhook não chegou ao Hub no horário especificado<br>
+                    • Os logs estão em outro arquivo/local<br>
+                    • O horário está em UTC (tente 19:35 ao invés de 21:35)
+                </div>
             <?php endif; ?>
         </div>
 

@@ -936,45 +936,72 @@ class WhatsAppGatewayDiagnosticController extends Controller
                     
                     for ($i = $startIndex; $i < $totalLines; $i++) {
                         $line = $lines[$i];
+                        $lineTrimmed = trim($line);
                         
-                        // Busca correlation_id
-                        if (stripos($line, $correlationId) !== false) {
-                            $logs['correlation_id'][] = trim($line);
+                        // Ignora linhas de roteamento/URL que contêm o correlation_id
+                        if (stripos($line, 'Path calculado') !== false || 
+                            stripos($line, 'REQUEST_URI') !== false ||
+                            stripos($line, 'settings/whatsapp-gateway/diagnostic/check-logs') !== false) {
+                            continue;
                         }
                         
-                        // Busca HUB_WEBHOOK_IN próximo ao horário
-                        if (stripos($line, 'HUB_WEBHOOK_IN') !== false && 
-                            (stripos($line, $testTime) !== false || stripos($line, '21:3') !== false)) {
-                            $logs['webhook_in'][] = trim($line);
+                        // Busca correlation_id (mas não em URLs)
+                        if (stripos($line, $correlationId) !== false && 
+                            stripos($line, 'correlationId=') !== false || 
+                            stripos($line, 'correlation_id=') !== false ||
+                            stripos($line, '[HUB_') !== false) {
+                            $logs['correlation_id'][] = $lineTrimmed;
                         }
                         
-                        // Busca HUB_MSG_SAVE próximo ao horário
-                        if (stripos($line, 'HUB_MSG_SAVE') !== false && 
-                            (stripos($line, $testTime) !== false || stripos($line, '21:3') !== false)) {
-                            $logs['msg_save'][] = trim($line);
+                        // Busca HUB_WEBHOOK_IN (qualquer horário, mas filtra por padrão)
+                        if (stripos($line, 'HUB_WEBHOOK_IN') !== false) {
+                            // Aceita se tiver o horário do teste OU se tiver correlation_id OU se for próximo (21:3x)
+                            if (stripos($line, $testTime) !== false || 
+                                stripos($line, '21:3') !== false ||
+                                stripos($line, $correlationId) !== false ||
+                                stripos($line, '19:3') !== false) { // UTC pode ser 19:35
+                                $logs['webhook_in'][] = $lineTrimmed;
+                            }
                         }
                         
-                        // Busca HUB_MSG_DROP próximo ao horário
-                        if (stripos($line, 'HUB_MSG_DROP') !== false && 
-                            (stripos($line, $testTime) !== false || stripos($line, '21:3') !== false)) {
-                            $logs['msg_drop'][] = trim($line);
+                        // Busca HUB_MSG_SAVE
+                        if (stripos($line, 'HUB_MSG_SAVE') !== false) {
+                            if (stripos($line, $testTime) !== false || 
+                                stripos($line, '21:3') !== false ||
+                                stripos($line, $correlationId) !== false ||
+                                stripos($line, '19:3') !== false) {
+                                $logs['msg_save'][] = $lineTrimmed;
+                            }
                         }
                         
-                        // Busca erros próximo ao horário
+                        // Busca HUB_MSG_DROP
+                        if (stripos($line, 'HUB_MSG_DROP') !== false) {
+                            if (stripos($line, $testTime) !== false || 
+                                stripos($line, '21:3') !== false ||
+                                stripos($line, $correlationId) !== false ||
+                                stripos($line, '19:3') !== false) {
+                                $logs['msg_drop'][] = $lineTrimmed;
+                            }
+                        }
+                        
+                        // Busca erros
                         if ((stripos($line, 'Exception') !== false || 
                              stripos($line, 'Error') !== false || 
                              stripos($line, 'Fatal') !== false) &&
-                            (stripos($line, $testTime) !== false || stripos($line, '21:3') !== false)) {
-                            $logs['errors'][] = trim($line);
+                            (stripos($line, $testTime) !== false || 
+                             stripos($line, '21:3') !== false ||
+                             stripos($line, '19:3') !== false ||
+                             stripos($line, $correlationId) !== false)) {
+                            $logs['errors'][] = $lineTrimmed;
                         }
                     }
                     
-                    // Limita resultados
-                    $logs['correlation_id'] = array_slice($logs['correlation_id'], -30);
-                    $logs['webhook_in'] = array_slice($logs['webhook_in'], -20);
-                    $logs['msg_save'] = array_slice($logs['msg_save'], -20);
-                    $logs['msg_drop'] = array_slice($logs['msg_drop'], -20);
-                    $logs['errors'] = array_slice($logs['errors'], -20);
+                    // Remove duplicatas e limita resultados
+                    $logs['correlation_id'] = array_slice(array_unique($logs['correlation_id']), -30);
+                    $logs['webhook_in'] = array_slice(array_unique($logs['webhook_in']), -20);
+                    $logs['msg_save'] = array_slice(array_unique($logs['msg_save']), -20);
+                    $logs['msg_drop'] = array_slice(array_unique($logs['msg_drop']), -20);
+                    $logs['errors'] = array_slice(array_unique($logs['errors']), -20);
                 }
             } catch (\Exception $e) {
                 // Ignora erro de leitura
