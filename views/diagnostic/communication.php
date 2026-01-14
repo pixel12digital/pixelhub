@@ -13,6 +13,17 @@ $baseUrl = pixelhub_url('');
     </div>
 </div>
 
+<div style="margin-bottom: 20px;">
+    <a href="<?= pixelhub_url('/settings/whatsapp-gateway/diagnostic/check-logs') ?>" 
+       style="background: #17a2b8; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; display: inline-block; font-weight: 500; margin-right: 10px;">
+        🔍 Verificar Logs Webhook
+    </a>
+    <a href="<?= pixelhub_url('/diagnostic/financial') ?>" 
+       style="background: #6c757d; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; display: inline-block;">
+        Diagnóstico Financeiro
+    </a>
+</div>
+
 <?php if (!$diagnosticsEnabled): ?>
 <div class="card" style="max-width: 1200px; margin: 0 auto;">
     <div style="padding: 40px; text-align: center; color: #6c757d;">

@@ -16,8 +16,11 @@ ob_start();
     <a href="<?= pixelhub_url('/settings/whatsapp-gateway') ?>" style="background: #6c757d; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; display: inline-block; margin-right: 10px;">
         ← Voltar para Configurações
     </a>
-    <a href="<?= pixelhub_url('/settings/whatsapp-gateway/test') ?>" style="background: #6c757d; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; display: inline-block;">
+    <a href="<?= pixelhub_url('/settings/whatsapp-gateway/test') ?>" style="background: #6c757d; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; display: inline-block; margin-right: 10px;">
         Testes
+    </a>
+    <a href="<?= pixelhub_url('/settings/whatsapp-gateway/diagnostic/check-logs') ?>" style="background: #17a2b8; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; display: inline-block; font-weight: 500;">
+        🔍 Verificar Logs Webhook
     </a>
 </div>
 
