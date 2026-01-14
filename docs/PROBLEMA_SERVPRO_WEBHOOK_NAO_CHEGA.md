@@ -1,21 +1,36 @@
-# Problema: Webhook do ServPro não está chegando ao sistema
+# Problema: Webhook INBOUND do ServPro não está chegando ao sistema
 
 **Data:** 2026-01-14  
-**Status:** 🔴 Confirmado - Webhook não está chegando
+**Status:** 🔴 Confirmado - Webhook INBOUND não está chegando
+
+---
+
+## 📊 Contexto
+
+- **Pixel12 Digital (destino):** `554797309525` - Número que RECEBE mensagens
+- **ServPro (origem de teste):** `554796474223` - Número que ENVIA mensagens para Pixel12
+- **Charles (origem de teste):** `554796164699` - Número que ENVIA mensagens para Pixel12
+
+**Fluxo esperado:**
+1. ServPro/Charles envia mensagem → WhatsApp
+2. WhatsApp recebe → Gateway WhatsApp
+3. Gateway envia webhook INBOUND → PixelHub
+4. PixelHub ingere → Banco de dados
 
 ---
 
 ## 📊 Evidências
 
 ### ✅ O que está funcionando:
-- **Charles (554796164699):** Mensagens sendo recebidas normalmente
+- **Charles → Pixel12:** 20 mensagens INBOUND recebidas nas últimas 24h
 - **Simulador de Webhook:** Funciona perfeitamente (testado com ServPro)
 - **Sistema de ingestão:** Funcionando (mensagens simuladas são inseridas)
+- **Gateway recebe mensagens:** Confirmado (mensagens aparecem no WhatsApp)
 
 ### ❌ O que NÃO está funcionando:
-- **ServPro (554796474223):** Nenhuma mensagem nos últimos 2 horas no banco
+- **ServPro → Pixel12:** 0 mensagens INBOUND recebidas nas últimas 24h
 - **Checklist de Teste:** Mostra FAIL para webhook_received e inserted
-- **WhatsApp:** Mensagens sendo enviadas normalmente (confirmado pelo usuário)
+- **Gateway não envia webhook:** Quando ServPro envia mensagem, webhook não chega ao PixelHub
 
 ---
 
@@ -41,14 +56,19 @@ php database/check-webhook-logs-servpro.php
 
 ## 🎯 Causa Raiz Identificada
 
-**O webhook do gateway NÃO está sendo enviado para o número do ServPro.**
+**O gateway NÃO está enviando webhook INBOUND quando o ServPro envia mensagens para a Pixel12 Digital.**
 
 Isso é um problema do **Gateway WhatsApp**, não do PixelHub, porque:
 
 1. ✅ O sistema de ingestão funciona (mensagens simuladas são inseridas)
 2. ✅ O webhook endpoint está funcionando (testado com simulador)
-3. ✅ Mensagens do Charles chegam normalmente
-4. ❌ Mensagens do ServPro não chegam (não aparecem nos logs)
+3. ✅ Mensagens INBOUND do Charles chegam normalmente (20 mensagens nas últimas 24h)
+4. ❌ Mensagens INBOUND do ServPro não chegam (0 mensagens nas últimas 24h)
+5. ✅ Gateway recebe as mensagens (aparecem no WhatsApp normalmente)
+
+**Análise comparativa:**
+- **Charles (554796164699) → Pixel12 (554797309525):** ✅ Webhook chega
+- **ServPro (554796474223) → Pixel12 (554797309525):** ❌ Webhook NÃO chega
 
 ---
 
@@ -56,10 +76,12 @@ Isso é um problema do **Gateway WhatsApp**, não do PixelHub, porque:
 
 ### 1. Verificar Configuração do Gateway
 
-**Verificar no gateway:**
-- Se o número `554796474223` está configurado para enviar webhooks
-- Se há algum filtro ou regra que bloqueia este número
-- Se o webhook URL está configurado corretamente para este número
+**Verificar no gateway (wpp.pixel12digital.com.br):**
+- Se há configuração específica por número de origem
+- Se há filtros ou regras que bloqueiam webhooks do ServPro (`554796474223`)
+- Comparar configuração do Charles (funciona) com a do ServPro (não funciona)
+- Verificar se há whitelist/blacklist de números
+- Verificar configuração de webhook para mensagens INBOUND
 
 ### 2. Verificar Logs do Gateway
 
