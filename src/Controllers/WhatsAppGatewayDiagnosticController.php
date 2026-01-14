@@ -174,6 +174,99 @@ class WhatsAppGatewayDiagnosticController extends Controller
     }
 
     /**
+     * Verifica logs do servidor para webhooks do ServPro
+     * 
+     * GET /settings/whatsapp-gateway/diagnostic/check-servpro-logs
+     */
+    public function checkServproLogs(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $phone = $_GET['phone'] ?? '554796474223';
+        $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 100;
+
+        // Busca possíveis locais de log
+        $logDir = __DIR__ . '/../../logs';
+        $logFile = realpath($logDir) . '/pixelhub.log';
+        if ($logFile === false) {
+            $logFile = $logDir . '/pixelhub.log';
+        }
+
+        $phpErrorLog = ini_get('error_log');
+        $possibleLogs = [
+            $logFile,
+            $phpErrorLog ?: null,
+            'C:/xampp/php/logs/php_error_log',
+            'C:/xampp/apache/logs/error.log'
+        ];
+
+        $logs = [];
+        $foundLogs = [];
+
+        foreach ($possibleLogs as $logPath) {
+            if (empty($logPath) || !file_exists($logPath)) {
+                continue;
+            }
+
+            try {
+                // Lê últimas linhas do arquivo
+                $lines = file($logPath);
+                if ($lines === false) {
+                    continue;
+                }
+
+                // Pega últimas N linhas
+                $recentLines = array_slice($lines, -$limit);
+                
+                // Filtra linhas relacionadas ao webhook e ao número
+                foreach ($recentLines as $lineNum => $line) {
+                    if (stripos($line, 'WHATSAPP INBOUND RAW') !== false || 
+                        stripos($line, 'WEBHOOK INSTRUMENTADO') !== false ||
+                        stripos($line, $phone) !== false ||
+                        stripos($line, '4223') !== false) {
+                        $foundLogs[] = [
+                            'file' => basename($logPath),
+                            'line' => count($lines) - count($recentLines) + $lineNum + 1,
+                            'content' => trim($line),
+                            'timestamp' => $this->extractTimestamp($line)
+                        ];
+                    }
+                }
+            } catch (\Exception $e) {
+                // Ignora erros de leitura
+            }
+        }
+
+        // Ordena por timestamp (mais recente primeiro)
+        usort($foundLogs, function($a, $b) {
+            return strcmp($b['timestamp'] ?? '', $a['timestamp'] ?? '');
+        });
+
+        $this->json([
+            'success' => true,
+            'phone' => $phone,
+            'logs_found' => count($foundLogs),
+            'logs' => array_slice($foundLogs, 0, 50), // Limita a 50
+            'log_files_checked' => array_filter($possibleLogs, function($path) {
+                return !empty($path) && file_exists($path);
+            })
+        ]);
+    }
+
+    /**
+     * Extrai timestamp de uma linha de log
+     */
+    private function extractTimestamp(string $line): ?string
+    {
+        // Tenta extrair timestamp no formato [YYYY-MM-DD HH:MM:SS]
+        if (preg_match('/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]/', $line, $matches)) {
+            return $matches[1];
+        }
+        return null;
+    }
+
+    /**
      * Lista logs instrumentados (endpoint AJAX)
      * 
      * GET /settings/whatsapp-gateway/diagnostic/logs

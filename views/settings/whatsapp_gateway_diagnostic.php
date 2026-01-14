@@ -234,9 +234,14 @@ ob_start();
                        style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 12px;">
             </div>
         </div>
-        <button type="button" onclick="captureChecklist()" style="background: #023A8D; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; margin-top: 10px;">
-            Capturar Agora
-        </button>
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button type="button" onclick="captureChecklist()" style="background: #023A8D; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                Capturar Agora
+            </button>
+            <button type="button" onclick="checkServproLogs()" style="background: #dc3545; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                Verificar Logs do Servidor
+            </button>
+        </div>
     </div>
     
     <div id="checklist-result" style="display: none;">
@@ -411,6 +416,59 @@ function copyChecklistReport() {
     navigator.clipboard.writeText(content).then(() => {
         alert('Relatório copiado para a área de transferência!');
     });
+}
+
+// Verificar logs do servidor para ServPro
+async function checkServproLogs() {
+    const phone = document.getElementById('checklist-phone').value.trim() || '554796474223';
+    
+    const resultDiv = document.getElementById('checklist-result');
+    const contentDiv = document.getElementById('checklist-content');
+    
+    resultDiv.style.display = 'block';
+    contentDiv.textContent = 'Buscando logs do servidor...';
+    
+    try {
+        const response = await fetch('<?= pixelhub_url('/settings/whatsapp-gateway/diagnostic/check-servpro-logs') ?>?phone=' + encodeURIComponent(phone));
+        const data = await response.json();
+        
+        if (data.success) {
+            let report = `# Logs do Servidor - Webhook ServPro\n\n`;
+            report += `**Telefone:** ${data.phone}\n`;
+            report += `**Logs encontrados:** ${data.logs_found}\n`;
+            report += `**Arquivos verificados:** ${data.log_files_checked.join(', ')}\n\n`;
+            
+            if (data.logs_found === 0) {
+                report += `## ⚠️ NENHUM LOG ENCONTRADO\n\n`;
+                report += `Isso confirma que o webhook **NÃO está chegando** ao servidor.\n\n`;
+                report += `### Possíveis causas:\n`;
+                report += `1. Gateway não está enviando webhook para este número\n`;
+                report += `2. Webhook está sendo bloqueado antes de chegar (firewall, proxy)\n`;
+                report += `3. Formato do número no gateway é diferente\n`;
+                report += `4. Gateway não está configurado para enviar webhooks do ServPro\n\n`;
+                report += `### Ações recomendadas:\n`;
+                report += `1. Verificar configuração do gateway para o número ${data.phone}\n`;
+                report += `2. Verificar logs do gateway (não do PixelHub)\n`;
+                report += `3. Testar envio de mensagem do ServPro e verificar se gateway tenta enviar webhook\n`;
+            } else {
+                report += `## Logs Encontrados:\n\n`;
+                data.logs.forEach((log, idx) => {
+                    report += `### Log ${idx + 1} (${log.file})\n`;
+                    report += `- **Linha:** ${log.line}\n`;
+                    if (log.timestamp) {
+                        report += `- **Timestamp:** ${log.timestamp}\n`;
+                    }
+                    report += `- **Conteúdo:**\n\`\`\`\n${log.content}\n\`\`\`\n\n`;
+                });
+            }
+            
+            contentDiv.textContent = report;
+        } else {
+            contentDiv.textContent = 'Erro: ' + JSON.stringify(data, null, 2);
+        }
+    } catch (error) {
+        contentDiv.textContent = 'Erro: ' + error.message;
+    }
 }
 
 // Carrega mensagens ao carregar página

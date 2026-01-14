@@ -526,6 +526,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/settings/whatsapp-gateway/diagnostic', 'WhatsAppGatewayDiagnosticController@index');
     $router->get('/settings/whatsapp-gateway/diagnostic/messages', 'WhatsAppGatewayDiagnosticController@getMessages');
     $router->get('/settings/whatsapp-gateway/diagnostic/logs', 'WhatsAppGatewayDiagnosticController@getLogs');
+    $router->get('/settings/whatsapp-gateway/diagnostic/check-servpro-logs', 'WhatsAppGatewayDiagnosticController@checkServproLogs');
     $router->post('/settings/whatsapp-gateway/diagnostic/simulate-webhook', 'WhatsAppGatewayDiagnosticController@simulateWebhook');
     $router->post('/settings/whatsapp-gateway/diagnostic/checklist-capture', 'WhatsAppGatewayDiagnosticController@checklistCapture');
     
