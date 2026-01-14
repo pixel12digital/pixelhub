@@ -522,6 +522,13 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/settings/whatsapp-gateway/test/logs', 'WhatsAppGatewayTestController@getLogs');
     $router->post('/settings/whatsapp-gateway/test/webhook', 'WhatsAppGatewayTestController@simulateWebhook');
     
+    // Diagnóstico do WhatsApp Gateway
+    $router->get('/settings/whatsapp-gateway/diagnostic', 'WhatsAppGatewayDiagnosticController@index');
+    $router->get('/settings/whatsapp-gateway/diagnostic/messages', 'WhatsAppGatewayDiagnosticController@getMessages');
+    $router->get('/settings/whatsapp-gateway/diagnostic/logs', 'WhatsAppGatewayDiagnosticController@getLogs');
+    $router->post('/settings/whatsapp-gateway/diagnostic/simulate-webhook', 'WhatsAppGatewayDiagnosticController@simulateWebhook');
+    $router->post('/settings/whatsapp-gateway/diagnostic/checklist-capture', 'WhatsAppGatewayDiagnosticController@checklistCapture');
+    
     // Rotas de Central de Eventos de Comunicação
     $router->get('/settings/communication-events', 'CommunicationEventsController@index');
     $router->get('/settings/communication-events/view', 'CommunicationEventsController@show');

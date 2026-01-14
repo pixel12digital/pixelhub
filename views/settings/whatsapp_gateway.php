@@ -14,6 +14,22 @@ $pixelhubBaseUrl = pixelhub_url('');
     </div>
 </div>
 
+<!-- Menu de Navegação -->
+<div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; border-bottom: 2px solid #dee2e6; padding-bottom: 10px;">
+    <a href="<?= pixelhub_url('/settings/whatsapp-gateway') ?>" 
+       style="padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; font-weight: 600; background: #023A8D; color: white;">
+        Configurações
+    </a>
+    <a href="<?= pixelhub_url('/settings/whatsapp-gateway/test') ?>" 
+       style="padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; font-weight: 500; background: #6c757d; color: white;">
+        Testes
+    </a>
+    <a href="<?= pixelhub_url('/settings/whatsapp-gateway/diagnostic') ?>" 
+       style="padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; font-weight: 500; background: #6c757d; color: white;">
+        Diagnóstico (Debug)
+    </a>
+</div>
+
 <!-- Mensagens de Sucesso/Erro -->
 <?php if (isset($_GET['success'])): ?>
     <div style="background: #d4edda; color: #155724; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #c3e6cb;">

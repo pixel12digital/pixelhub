@@ -650,7 +650,7 @@ body.communication-hub-page {
                     </div>
                 <?php else: ?>
                     <?php foreach ($threads as $thread): ?>
-                        <div onclick="loadConversation('<?= htmlspecialchars($thread['thread_id'], ENT_QUOTES) ?>', '<?= htmlspecialchars($thread['channel'] ?? 'whatsapp', ENT_QUOTES) ?>')" 
+                        <div onclick="handleConversationClick('<?= htmlspecialchars($thread['thread_id'], ENT_QUOTES) ?>', '<?= htmlspecialchars($thread['channel'] ?? 'whatsapp', ENT_QUOTES) ?>')" 
                              class="conversation-item"
                              data-thread-id="<?= htmlspecialchars($thread['thread_id'], ENT_QUOTES) ?>">
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
@@ -971,6 +971,7 @@ document.addEventListener('DOMContentLoaded', function() {
     startListPolling();
     
     // Verifica se há conversa para reabrir (URL params ou sessionStorage)
+    // IMPORTANTE: Se usuário clicar em outra thread, ignora restore
     const urlParams = new URLSearchParams(window.location.search);
     const threadIdFromUrl = urlParams.get('thread_id');
     const channelFromUrl = urlParams.get('channel') || 'whatsapp';
@@ -981,9 +982,20 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (threadId) {
         console.log('[Hub] Reabrindo conversa salva:', threadId, channel);
-        // Aguarda um pouco para garantir que tudo está carregado
+        console.log('[LOG TEMPORARIO] DOMContentLoaded - Reabrindo thread_id=' + threadId);
+        
+        // VALIDA: Se thread salva ainda existe na lista atual
+        // Aguarda lista carregar primeiro
         setTimeout(() => {
-            loadConversation(threadId, channel);
+            const savedThreadExists = document.querySelector(`[data-thread-id="${threadId}"]`);
+            if (savedThreadExists) {
+                // Thread existe, pode reabrir
+                loadConversation(threadId, channel);
+            } else {
+                // Thread não existe mais ou usuário clicou em outra - não força reabertura
+                console.log('[Hub] Thread salva não encontrada na lista, não reabre automaticamente');
+                console.log('[LOG TEMPORARIO] DOMContentLoaded - Thread salva NÃO encontrada, não reabre');
+            }
         }, 500);
     }
 });
@@ -1157,7 +1169,7 @@ function renderConversationList(threads) {
         }
         
         html += `
-            <div onclick="loadConversation('${threadId}', '${channel}')" 
+            <div onclick="handleConversationClick('${threadId}', '${channel}')" 
                  class="conversation-item"
                  data-thread-id="${threadId}">
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
@@ -1324,17 +1336,47 @@ const ConversationState = {
 /**
  * Carrega uma conversa no painel direito
  */
+/**
+ * Handler para clique em conversa da lista
+ * FORÇA reset completo e carrega full (não incremental)
+ */
+function handleConversationClick(clickedThreadId, channel) {
+    console.log('[Hub] Clique em conversa:', clickedThreadId, channel);
+    console.log('[LOG TEMPORARIO] handleConversationClick() - activeThreadId ANTES=' + (ConversationState.currentThreadId || 'NULL'));
+    
+    // FORÇA: setActiveThread(clickedThreadId) - ignora qualquer thread salva
+    ConversationState.currentThreadId = clickedThreadId;
+    ConversationState.currentChannel = channel;
+    
+    console.log('[LOG TEMPORARIO] handleConversationClick() - activeThreadId DEPOIS=' + clickedThreadId);
+    
+    // FORÇA: reset completo de markers
+    ConversationState.messageIds.clear();
+    ConversationState.lastTimestamp = null;
+    ConversationState.lastEventId = null;
+    ConversationState.newMessagesCount = 0;
+    
+    console.log('[LOG TEMPORARIO] handleConversationClick() - MARKERS RESETADOS');
+    
+    // Carrega conversa (será full load, não incremental)
+    loadConversation(clickedThreadId, channel);
+}
+
 async function loadConversation(threadId, channel) {
     console.log('[Hub] Carregando conversa:', threadId, channel);
     
     // Para polling anterior se existir (limpa completamente antes de iniciar nova)
     stopConversationPolling();
     
-    // Limpa estado anterior
+    // Limpa estado anterior COMPLETAMENTE antes de carregar nova conversa
+    // Isso garante que não há preservação de estado errado entre conversas
     ConversationState.messageIds.clear();
     ConversationState.lastTimestamp = null;
     ConversationState.lastEventId = null;
     ConversationState.newMessagesCount = 0;
+    
+    // [LOG TEMPORARIO] Reset de estado
+    console.log('[LOG TEMPORARIO] loadConversation() - ESTADO RESETADO para thread_id=' + threadId);
     
     // Atualiza estado
     ConversationState.currentThreadId = threadId;
@@ -1385,8 +1427,13 @@ async function loadConversation(threadId, channel) {
         // Renderiza conversa
         renderConversation(result.thread, result.messages, result.channel);
         
-        // Inicializa marcadores e polling
+        // Inicializa marcadores baseado no último item renderizado da conversa
+        // IMPORTANTE: Deve ser chamado APÓS renderConversation para garantir que os markers
+        // sejam baseados no último item renderizado, não em estado anterior
         initializeConversationMarkers();
+        
+        // Inicia polling nessa thread e para a anterior sem preservar estado errado
+        // (stopConversationPolling já foi chamado no início da função)
         startConversationPolling();
         
     } catch (error) {
@@ -1801,9 +1848,22 @@ function initializeConversationMarkers() {
     
     if (messages.length > 0) {
         const lastMsg = messages[messages.length - 1];
-        ConversationState.lastTimestamp = lastMsg.getAttribute('data-timestamp');
-        ConversationState.lastEventId = lastMsg.getAttribute('data-message-id');
+        const lastTimestamp = lastMsg.getAttribute('data-timestamp');
+        const lastEventId = lastMsg.getAttribute('data-message-id');
         
+        // [LOG TEMPORARIO] Reset de markers baseado no último item renderizado
+        console.log('[LOG TEMPORARIO] initializeConversationMarkers() - RESETANDO MARKERS:', {
+            messages_count: messages.length,
+            lastTimestamp: lastTimestamp,
+            lastEventId: lastEventId,
+            thread_id: ConversationState.currentThreadId
+        });
+        
+        ConversationState.lastTimestamp = lastTimestamp;
+        ConversationState.lastEventId = lastEventId;
+        
+        // Limpa messageIds e adiciona apenas os da conversa atual
+        ConversationState.messageIds.clear();
         messages.forEach(msg => {
             const msgId = msg.getAttribute('data-message-id');
             if (msgId) ConversationState.messageIds.add(msgId);
@@ -1812,6 +1872,7 @@ function initializeConversationMarkers() {
         const now = new Date();
         now.setMinutes(now.getMinutes() - 1);
         ConversationState.lastTimestamp = now.toISOString();
+        console.log('[LOG TEMPORARIO] initializeConversationMarkers() - NENHUMA MENSAGEM, usando timestamp atual -1min');
     }
     
     // Adiciona listener de scroll

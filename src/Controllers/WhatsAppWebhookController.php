@@ -138,17 +138,72 @@ class WhatsAppWebhookController extends Controller
             
             error_log('[WHATSAPP INBOUND RAW] Tenant ID resolvido: ' . ($tenantId ?: 'NULL'));
 
+            // 🔍 INSTRUMENTAÇÃO COMPLETA: Log antes de ingerir
+            $timestamp = date('Y-m-d H:i:s');
+            $chatId = $from ?? 'NULL';
+            $eventIdBeforeIngest = $payload['event_id'] ?? $payload['id'] ?? 'NULL';
+            
+            error_log(sprintf(
+                '[WEBHOOK INSTRUMENTADO] ANTES DE INGERIR: timestamp=%s, from/chatId=%s, eventId=%s, tenant_id=%s, channel_id=%s, event_type=%s',
+                $timestamp,
+                $chatId,
+                $eventIdBeforeIngest,
+                $tenantId ?: 'NULL',
+                $channelId ?: 'NULL',
+                $internalEventType
+            ));
+            
             // Cria evento normalizado
-            $eventId = EventIngestionService::ingest([
-                'event_type' => $internalEventType,
-                'source_system' => 'wpp_gateway',
-                'payload' => $payload,
-                'tenant_id' => $tenantId,
-                'metadata' => [
-                    'channel_id' => $channelId,
-                    'raw_event_type' => $eventType
-                ]
-            ]);
+            try {
+                $eventId = EventIngestionService::ingest([
+                    'event_type' => $internalEventType,
+                    'source_system' => 'wpp_gateway',
+                    'payload' => $payload,
+                    'tenant_id' => $tenantId,
+                    'metadata' => [
+                        'channel_id' => $channelId,
+                        'raw_event_type' => $eventType
+                    ]
+                ]);
+                
+                // 🔍 INSTRUMENTAÇÃO: Log após ingestão bem-sucedida
+                error_log(sprintf(
+                    '[WEBHOOK INSTRUMENTADO] INSERT REALIZADO: event_id=%s, id_pk=verificar_no_banco, timestamp=%s, from=%s, tenant_id=%s, channel_id=%s',
+                    $eventId,
+                    $timestamp,
+                    $chatId,
+                    $tenantId ?: 'NULL',
+                    $channelId ?: 'NULL'
+                ));
+                
+                // Busca ID (PK) criado para log completo
+                $db = DB::getConnection();
+                $stmt = $db->prepare("SELECT id FROM communication_events WHERE event_id = ? LIMIT 1");
+                $stmt->execute([$eventId]);
+                $createdEvent = $stmt->fetch();
+                $idPk = $createdEvent ? $createdEvent['id'] : 'NULL';
+                
+                error_log(sprintf(
+                    '[WEBHOOK INSTRUMENTADO] RESULTADO FINAL: event_id=%s, id_pk=%s, from=%s, tenant_id=%s, channel_id=%s, SUCCESS=true',
+                    $eventId,
+                    $idPk,
+                    $chatId,
+                    $tenantId ?: 'NULL',
+                    $channelId ?: 'NULL'
+                ));
+                
+            } catch (\Exception $ingestException) {
+                // 🔍 INSTRUMENTAÇÃO: Log de erro na ingestão
+                error_log(sprintf(
+                    '[WEBHOOK INSTRUMENTADO] ERRO NO INSERT: exception=%s, message=%s, from=%s, tenant_id=%s, channel_id=%s, SUCCESS=false',
+                    get_class($ingestException),
+                    $ingestException->getMessage(),
+                    $chatId,
+                    $tenantId ?: 'NULL',
+                    $channelId ?: 'NULL'
+                ));
+                throw $ingestException; // Re-lança para ser tratado pelo catch externo
+            }
 
             // Log
             if (function_exists('pixelhub_log')) {

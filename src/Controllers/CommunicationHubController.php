@@ -1608,6 +1608,20 @@ class CommunicationHubController extends Controller
             error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - QUERY SQL: WHERE=' . $whereClause . ', params_count=' . count($params));
             error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - CONTACT PATTERNS: ' . json_encode($contactPatterns));
 
+            // INSTRUMENTAÇÃO: Conta total de eventos que atendem aos critérios
+            $countStmt = $db->prepare("
+                SELECT COUNT(*) as total
+                FROM communication_events ce
+                {$whereClause}
+            ");
+            $countStmt->execute($params);
+            $countResult = $countStmt->fetch(PDO::FETCH_ASSOC);
+            $totalCount = $countResult['total'] ?? 0;
+            
+            // [LOG TEMPORARIO] COUNT total
+            error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - COUNT(*) TOTAL: ' . $totalCount);
+            error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - CONDICAO EXATA: thread_id=' . $threadId . ', after_timestamp=' . ($afterTimestamp ?: 'NULL') . ', after_event_id=' . ($afterEventId ?: 'NULL') . ', normalized_contact=' . ($normalizedContact ?: 'NULL'));
+
             // Check leve: busca apenas event_id e payload mínimo (só para filtrar por contato)
             // Limite baixo: só precisa verificar se existe pelo menos 1
             $stmt = $db->prepare("
@@ -1621,7 +1635,7 @@ class CommunicationHubController extends Controller
             $events = $stmt->fetchAll();
             
             // [LOG TEMPORARIO] Resultado da query
-            error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - QUERY RETORNOU: events_count=' . count($events));
+            error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - QUERY RETORNOU: events_count=' . count($events) . ', COUNT_TOTAL=' . $totalCount);
 
             // Filtra rapidamente para verificar se há mensagens desta conversa
             $hasNew = false;
