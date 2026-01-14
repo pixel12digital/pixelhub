@@ -564,7 +564,13 @@ class ConversationService
                 $now
             ));
             
+            // CORREÇÃO: Busca unread_count atual antes de atualizar para log
+            $currentUnreadStmt = $db->prepare("SELECT unread_count FROM conversations WHERE id = ?");
+            $currentUnreadStmt->execute([$conversationId]);
+            $currentUnread = $currentUnreadStmt->fetchColumn() ?: 0;
+            
             // Atualiza última mensagem e contador
+            // CORREÇÃO: Garante que unread_count seja incrementado para inbound
             $stmt = $db->prepare("
                 UPDATE conversations 
                 SET last_message_at = ?,
@@ -585,11 +591,19 @@ class ConversationService
             $result = $stmt->execute([$messageTimestamp, $direction, $direction, $now, $conversationId]);
             $rowsAffected = $stmt->rowCount();
             
-            // 🔍 LOG TEMPORÁRIO: Resultado do UPDATE
+            // CORREÇÃO: Busca unread_count após atualização para confirmar incremento
+            $afterUnreadStmt = $db->prepare("SELECT unread_count FROM conversations WHERE id = ?");
+            $afterUnreadStmt->execute([$conversationId]);
+            $afterUnread = $afterUnreadStmt->fetchColumn() ?: 0;
+            
+            // 🔍 LOG TEMPORÁRIO: Resultado do UPDATE com unread_count
             error_log(sprintf(
-                '[DIAGNOSTICO] ConversationService::updateConversationMetadata() - UPDATE EXECUTADO: success=%s, rows_affected=%d, last_message_at=%s',
+                '[DIAGNOSTICO] ConversationService::updateConversationMetadata() - UPDATE EXECUTADO: success=%s, rows_affected=%d, direction=%s, unread_count: %d -> %d, last_message_at=%s',
                 $result ? 'true' : 'false',
                 $rowsAffected,
+                $direction,
+                $currentUnread,
+                $afterUnread,
                 $messageTimestamp
             ));
             

@@ -905,12 +905,20 @@ class CommunicationHubController extends Controller
         $contactExternalId = $conversation['contact_external_id'];
         $tenantId = $conversation['tenant_id'];
 
-        // Normaliza contact_external_id (remove sufixos @c.us, @lid, etc)
-        // CORRIGIDO: Regex agora remove tudo após @ (incluindo @c.us, @lid, etc)
+        // CORREÇÃO: Normalização robusta que lida com variações (@c.us, 9º dígito)
+        // Remove sufixos e normaliza para E.164 para comparar variações
         $normalizeContact = function($contact) {
             if (empty($contact)) return null;
             // Remove tudo após @ (ex: 554796164699@c.us -> 554796164699)
-            return preg_replace('/@.*$/', '', (string) $contact);
+            $cleaned = preg_replace('/@.*$/', '', (string) $contact);
+            // Remove caracteres não numéricos
+            $digitsOnly = preg_replace('/[^0-9]/', '', $cleaned);
+            // Se for número BR (começa com 55), normaliza para E.164
+            if (strlen($digitsOnly) >= 12 && substr($digitsOnly, 0, 2) === '55') {
+                // Retorna apenas dígitos (E.164 sem formatação)
+                return $digitsOnly;
+            }
+            return $digitsOnly;
         };
         $normalizedContactExternalId = $normalizeContact($contactExternalId);
 
@@ -925,18 +933,41 @@ class CommunicationHubController extends Controller
         ];
         $params = [];
 
-        // Filtro por contato (usando LIKE para pegar variações com @c.us, @lid, etc)
-        $contactPattern = "%{$normalizedContactExternalId}%";
-        $where[] = "(
-            JSON_EXTRACT(ce.payload, '$.from') LIKE ?
-            OR JSON_EXTRACT(ce.payload, '$.message.from') LIKE ?
-            OR JSON_EXTRACT(ce.payload, '$.to') LIKE ?
-            OR JSON_EXTRACT(ce.payload, '$.message.to') LIKE ?
-        )";
-        $params[] = $contactPattern;
-        $params[] = $contactPattern;
-        $params[] = $contactPattern;
-        $params[] = $contactPattern;
+        // CORREÇÃO: Filtro mais robusto que pega variações do telefone
+        // Usa múltiplos padrões para pegar: número puro, com @c.us, com 9º dígito, etc
+        $contactPatterns = [
+            "%{$normalizedContactExternalId}%", // Número normalizado
+        ];
+        
+        // Se for número BR (começa com 55), adiciona variação com/sem 9º dígito
+        if (strlen($normalizedContactExternalId) >= 12 && substr($normalizedContactExternalId, 0, 2) === '55') {
+            // Tenta adicionar 9º dígito (se não tiver)
+            if (strlen($normalizedContactExternalId) === 13) { // 55 + DDD + 9 dígitos
+                // Remove 9º dígito para buscar variação sem ele
+                $without9th = substr($normalizedContactExternalId, 0, 4) . substr($normalizedContactExternalId, 5);
+                $contactPatterns[] = "%{$without9th}%";
+            } elseif (strlen($normalizedContactExternalId) === 12) { // 55 + DDD + 8 dígitos
+                // Adiciona 9º dígito para buscar variação com ele
+                $with9th = substr($normalizedContactExternalId, 0, 4) . '9' . substr($normalizedContactExternalId, 4);
+                $contactPatterns[] = "%{$with9th}%";
+            }
+        }
+        
+        // Monta condições OR para cada padrão
+        $contactConditions = [];
+        foreach ($contactPatterns as $pattern) {
+            $contactConditions[] = "(
+                JSON_EXTRACT(ce.payload, '$.from') LIKE ?
+                OR JSON_EXTRACT(ce.payload, '$.message.from') LIKE ?
+                OR JSON_EXTRACT(ce.payload, '$.to') LIKE ?
+                OR JSON_EXTRACT(ce.payload, '$.message.to') LIKE ?
+            )";
+            $params[] = $pattern;
+            $params[] = $pattern;
+            $params[] = $pattern;
+            $params[] = $pattern;
+        }
+        $where[] = "(" . implode(" OR ", $contactConditions) . ")";
 
         // Filtro por tenant_id (se disponível)
         if ($tenantId) {
@@ -1438,9 +1469,19 @@ class CommunicationHubController extends Controller
             $contactExternalId = $conversationData['contact_external_id'];
             $tenantId = $conversationData['tenant_id'];
             
+            // CORREÇÃO: Normalização robusta que lida com variações (@c.us, 9º dígito)
             $normalizeContact = function($contact) {
                 if (empty($contact)) return null;
-                return preg_replace('/@.*$/', '', (string) $contact);
+                // Remove tudo após @ (ex: 554796164699@c.us -> 554796164699)
+                $cleaned = preg_replace('/@.*$/', '', (string) $contact);
+                // Remove caracteres não numéricos
+                $digitsOnly = preg_replace('/[^0-9]/', '', $cleaned);
+                // Se for número BR (começa com 55), normaliza para E.164
+                if (strlen($digitsOnly) >= 12 && substr($digitsOnly, 0, 2) === '55') {
+                    // Retorna apenas dígitos (E.164 sem formatação)
+                    return $digitsOnly;
+                }
+                return $digitsOnly;
             };
             $normalizedContact = $normalizeContact($contactExternalId);
 
@@ -1456,18 +1497,37 @@ class CommunicationHubController extends Controller
             ];
             $params = [];
 
-            // Filtro por contato (usando LIKE para pegar variações com @c.us, @lid, etc)
-            $contactPattern = "%{$normalizedContact}%";
-            $where[] = "(
-                JSON_EXTRACT(ce.payload, '$.from') LIKE ?
-                OR JSON_EXTRACT(ce.payload, '$.message.from') LIKE ?
-                OR JSON_EXTRACT(ce.payload, '$.to') LIKE ?
-                OR JSON_EXTRACT(ce.payload, '$.message.to') LIKE ?
-            )";
-            $params[] = $contactPattern;
-            $params[] = $contactPattern;
-            $params[] = $contactPattern;
-            $params[] = $contactPattern;
+            // CORREÇÃO: Filtro mais robusto que pega variações do telefone
+            $contactPatterns = [
+                "%{$normalizedContact}%", // Número normalizado
+            ];
+            
+            // Se for número BR (começa com 55), adiciona variação com/sem 9º dígito
+            if (strlen($normalizedContact) >= 12 && substr($normalizedContact, 0, 2) === '55') {
+                if (strlen($normalizedContact) === 13) { // 55 + DDD + 9 dígitos
+                    $without9th = substr($normalizedContact, 0, 4) . substr($normalizedContact, 5);
+                    $contactPatterns[] = "%{$without9th}%";
+                } elseif (strlen($normalizedContact) === 12) { // 55 + DDD + 8 dígitos
+                    $with9th = substr($normalizedContact, 0, 4) . '9' . substr($normalizedContact, 4);
+                    $contactPatterns[] = "%{$with9th}%";
+                }
+            }
+            
+            // Monta condições OR para cada padrão
+            $contactConditions = [];
+            foreach ($contactPatterns as $pattern) {
+                $contactConditions[] = "(
+                    JSON_EXTRACT(ce.payload, '$.from') LIKE ?
+                    OR JSON_EXTRACT(ce.payload, '$.message.from') LIKE ?
+                    OR JSON_EXTRACT(ce.payload, '$.to') LIKE ?
+                    OR JSON_EXTRACT(ce.payload, '$.message.to') LIKE ?
+                )";
+                $params[] = $pattern;
+                $params[] = $pattern;
+                $params[] = $pattern;
+                $params[] = $pattern;
+            }
+            $where[] = "(" . implode(" OR ", $contactConditions) . ")";
 
             // Filtro por tenant_id (se disponível)
             if ($tenantId) {
@@ -1739,9 +1799,19 @@ class CommunicationHubController extends Controller
         ?string $afterTimestamp,
         ?string $afterEventId
     ): array {
+        // CORREÇÃO: Normalização robusta que lida com variações (@c.us, 9º dígito)
         $normalizeContact = function($contact) {
             if (empty($contact)) return null;
-            return preg_replace('/@.*$/', '', (string) $contact);
+            // Remove tudo após @ (ex: 554796164699@c.us -> 554796164699)
+            $cleaned = preg_replace('/@.*$/', '', (string) $contact);
+            // Remove caracteres não numéricos
+            $digitsOnly = preg_replace('/[^0-9]/', '', $cleaned);
+            // Se for número BR (começa com 55), normaliza para E.164
+            if (strlen($digitsOnly) >= 12 && substr($digitsOnly, 0, 2) === '55') {
+                // Retorna apenas dígitos (E.164 sem formatação)
+                return $digitsOnly;
+            }
+            return $digitsOnly;
         };
         $normalizedContactExternalId = $normalizeContact($contactExternalId);
 
@@ -1756,18 +1826,37 @@ class CommunicationHubController extends Controller
         ];
         $params = [];
 
-        // Filtro por contato (usando LIKE para pegar variações com @c.us, @lid, etc)
-        $contactPattern = "%{$normalizedContactExternalId}%";
-        $where[] = "(
-            JSON_EXTRACT(ce.payload, '$.from') LIKE ?
-            OR JSON_EXTRACT(ce.payload, '$.message.from') LIKE ?
-            OR JSON_EXTRACT(ce.payload, '$.to') LIKE ?
-            OR JSON_EXTRACT(ce.payload, '$.message.to') LIKE ?
-        )";
-        $params[] = $contactPattern;
-        $params[] = $contactPattern;
-        $params[] = $contactPattern;
-        $params[] = $contactPattern;
+        // CORREÇÃO: Filtro mais robusto que pega variações do telefone (mesma lógica do método principal)
+        $contactPatterns = [
+            "%{$normalizedContactExternalId}%", // Número normalizado
+        ];
+        
+        // Se for número BR (começa com 55), adiciona variação com/sem 9º dígito
+        if (strlen($normalizedContactExternalId) >= 12 && substr($normalizedContactExternalId, 0, 2) === '55') {
+            if (strlen($normalizedContactExternalId) === 13) { // 55 + DDD + 9 dígitos
+                $without9th = substr($normalizedContactExternalId, 0, 4) . substr($normalizedContactExternalId, 5);
+                $contactPatterns[] = "%{$without9th}%";
+            } elseif (strlen($normalizedContactExternalId) === 12) { // 55 + DDD + 8 dígitos
+                $with9th = substr($normalizedContactExternalId, 0, 4) . '9' . substr($normalizedContactExternalId, 4);
+                $contactPatterns[] = "%{$with9th}%";
+            }
+        }
+        
+        // Monta condições OR para cada padrão
+        $contactConditions = [];
+        foreach ($contactPatterns as $pattern) {
+            $contactConditions[] = "(
+                JSON_EXTRACT(ce.payload, '$.from') LIKE ?
+                OR JSON_EXTRACT(ce.payload, '$.message.from') LIKE ?
+                OR JSON_EXTRACT(ce.payload, '$.to') LIKE ?
+                OR JSON_EXTRACT(ce.payload, '$.message.to') LIKE ?
+            )";
+            $params[] = $pattern;
+            $params[] = $pattern;
+            $params[] = $pattern;
+            $params[] = $pattern;
+        }
+        $where[] = "(" . implode(" OR ", $contactConditions) . ")";
 
         // Filtro por tenant_id (se disponível)
         if ($tenantId) {
