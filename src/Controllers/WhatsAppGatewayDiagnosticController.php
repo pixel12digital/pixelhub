@@ -1083,7 +1083,9 @@ class WhatsAppGatewayDiagnosticController extends Controller
                 'readable' => is_readable($foundLogFile),
                 'size' => file_exists($foundLogFile) ? filesize($foundLogFile) : 0,
                 'modified' => file_exists($foundLogFile) ? date('Y-m-d H:i:s', filemtime($foundLogFile)) : null,
-                'lines' => isset($totalLines) ? $totalLines : null
+                'lines' => isset($totalLines) ? $totalLines : null,
+                'php_error_log' => ini_get('error_log'),
+                'log_errors' => ini_get('log_errors')
             ];
         }
         

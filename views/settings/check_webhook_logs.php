@@ -320,7 +320,11 @@
                 • Legível: <?= $logFileInfo['readable'] ? '✅ Sim' : '❌ Não' ?><br>
                 • Tamanho: <?= $logFileInfo['size'] ? number_format($logFileInfo['size'] / 1024, 2) . ' KB' : '0 KB' ?><br>
                 • Modificado: <?= $logFileInfo['modified'] ?: 'N/A' ?><br>
-                • Linhas totais: <?= $logFileInfo['lines'] ?: 'N/A' ?>
+                • Linhas totais: <?= $logFileInfo['lines'] ?: 'N/A' ?><br><br>
+                <strong>Configuração PHP error_log:</strong><br>
+                • ini_get('error_log'): <?= htmlspecialchars(ini_get('error_log') ?: 'NÃO CONFIGURADO (usa padrão do sistema)') ?><br>
+                • log_errors: <?= ini_get('log_errors') ? '✅ Habilitado' : '❌ Desabilitado' ?><br>
+                • error_log está configurado: <?= ini_get('error_log') ? '✅ Sim' : '⚠️ Não (usa padrão)' ?>
             </div>
             <?php endif; ?>
         </div>
