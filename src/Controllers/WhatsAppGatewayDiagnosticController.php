@@ -279,7 +279,11 @@ class WhatsAppGatewayDiagnosticController extends Controller
         $payload = $this->buildWebhookPayload($template, $from, $to, $body, $eventId, $channelId);
 
         // Chama o endpoint real do webhook internamente
-        $webhookUrl = pixelhub_url('/api/whatsapp/webhook');
+        // Constrói URL absoluta a partir do host atual
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $webhookPath = pixelhub_url('/api/whatsapp/webhook');
+        $webhookUrl = $protocol . '://' . $host . $webhookPath;
         
         // Simula requisição POST
         $ch = curl_init($webhookUrl);
@@ -290,6 +294,10 @@ class WhatsAppGatewayDiagnosticController extends Controller
             'Content-Type: application/json',
             'X-Webhook-Secret: ' . Env::get('PIXELHUB_WHATSAPP_WEBHOOK_SECRET', '')
         ]);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Para desenvolvimento
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false); // Para desenvolvimento
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
