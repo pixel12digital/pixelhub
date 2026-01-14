@@ -28,6 +28,10 @@ $pixelhubBaseUrl = pixelhub_url('');
        style="padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; font-weight: 500; background: #6c757d; color: white;">
         Diagnóstico (Debug)
     </a>
+    <a href="<?= pixelhub_url('/settings/whatsapp-gateway/diagnostic/check-logs') ?>" 
+       style="padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; font-weight: 500; background: #17a2b8; color: white;">
+        Verificar Logs Webhook
+    </a>
 </div>
 
 <!-- Mensagens de Sucesso/Erro -->

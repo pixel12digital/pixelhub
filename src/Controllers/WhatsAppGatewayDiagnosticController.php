@@ -821,5 +821,126 @@ class WhatsAppGatewayDiagnosticController extends Controller
         return $basePayload;
     }
 
+    /**
+     * Verifica logs do webhook (página web)
+     * 
+     * GET /settings/whatsapp-gateway/diagnostic/check-logs
+     */
+    public function checkWebhookLogs(): void
+    {
+        Auth::requireInternal();
+
+        $correlationId = $_GET['correlation_id'] ?? '9858a507-cc4c-4632-8f92-462535eab504';
+        $testTime = $_GET['test_time'] ?? '21:35';
+        $containerName = $_GET['container'] ?? 'gateway-hub';
+
+        // Função para executar comando e capturar output
+        $execCommand = function($command) {
+            $output = [];
+            $returnVar = 0;
+            exec($command . ' 2>&1', $output, $returnVar);
+            return [
+                'output' => $output,
+                'return_code' => $returnVar,
+                'command' => $command
+            ];
+        };
+
+        // Verifica Docker
+        $dockerCheck = $execCommand('docker --version');
+        $dockerAvailable = $dockerCheck['return_code'] === 0;
+
+        // Lista containers
+        $containers = [];
+        $hubContainer = null;
+        if ($dockerAvailable) {
+            $containersCmd = $execCommand('docker ps -a --format "{{.Names}}\t{{.Status}}"');
+            $containers = $containersCmd['output'];
+            
+            // Tenta encontrar container do Hub
+            $allContainers = $execCommand('docker ps -a --format "{{.Names}}"');
+            foreach ($allContainers['output'] as $name) {
+                $name = trim($name);
+                if (stripos($name, 'hub') !== false || stripos($name, 'pixel') !== false) {
+                    $hubContainer = $name;
+                    break;
+                }
+            }
+            
+            if (!$hubContainer) {
+                $hubContainer = $containerName;
+            }
+        }
+
+        // Busca logs
+        $logs = [
+            'correlation_id' => [],
+            'webhook_in' => [],
+            'msg_save' => [],
+            'msg_drop' => [],
+            'errors' => []
+        ];
+
+        if ($dockerAvailable && $hubContainer) {
+            // Busca correlation_id
+            $cmd = "docker logs --since 21:30 $hubContainer 2>&1 | grep -i '$correlationId' | tail -30";
+            $result = $execCommand($cmd);
+            $logs['correlation_id'] = $result['output'];
+
+            // Busca HUB_WEBHOOK_IN
+            $cmd = "docker logs --since 21:30 $hubContainer 2>&1 | grep -i 'HUB_WEBHOOK_IN' | tail -20";
+            $result = $execCommand($cmd);
+            $logs['webhook_in'] = $result['output'];
+
+            // Busca HUB_MSG_SAVE
+            $cmd = "docker logs --since 21:30 $hubContainer 2>&1 | grep -i 'HUB_MSG_SAVE' | tail -20";
+            $result = $execCommand($cmd);
+            $logs['msg_save'] = $result['output'];
+
+            // Busca HUB_MSG_DROP
+            $cmd = "docker logs --since 21:30 $hubContainer 2>&1 | grep -i 'HUB_MSG_DROP' | tail -20";
+            $result = $execCommand($cmd);
+            $logs['msg_drop'] = $result['output'];
+
+            // Busca erros
+            $cmd = "docker logs --since 21:30 $hubContainer 2>&1 | grep -iE 'Exception|Error|Fatal' | tail -20";
+            $result = $execCommand($cmd);
+            $logs['errors'] = $result['output'];
+        }
+
+        // Verifica banco de dados
+        $db = DB::getConnection();
+        $events = [];
+        try {
+            $stmt = $db->prepare("
+                SELECT 
+                    id,
+                    event_id,
+                    correlation_id,
+                    event_type,
+                    status,
+                    created_at,
+                    JSON_EXTRACT(payload, '$.message.id') as message_id
+                FROM communication_events 
+                WHERE correlation_id = ?
+                ORDER BY created_at DESC
+            ");
+            $stmt->execute([$correlationId]);
+            $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            // Ignora erro
+        }
+
+        $this->view('settings.check_webhook_logs', [
+            'correlationId' => $correlationId,
+            'testTime' => $testTime,
+            'containerName' => $hubContainer ?: $containerName,
+            'dockerAvailable' => $dockerAvailable,
+            'containers' => $containers,
+            'logs' => $logs,
+            'events' => $events
+        ]);
+    }
+
 }
 
