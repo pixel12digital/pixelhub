@@ -881,6 +881,26 @@ class WhatsAppGatewayDiagnosticController extends Controller
             'errors' => []
         ];
 
+        // Busca em arquivos de log do Pixel Hub (fallback se Docker não disponível)
+        // Os logs que queremos são do Hub, não do gateway
+        $logFiles = [
+            __DIR__ . '/../../logs/pixelhub.log',
+            __DIR__ . '/../../storage/logs/pixelhub.log',
+            __DIR__ . '/../../var/log/pixelhub.log',
+            ini_get('error_log') ?: null,
+            '/var/log/php/error.log',
+            '/var/log/apache2/error.log',
+            '/var/log/nginx/error.log',
+        ];
+
+        $foundLogFile = null;
+        foreach ($logFiles as $logFile) {
+            if ($logFile && file_exists($logFile) && is_readable($logFile)) {
+                $foundLogFile = $logFile;
+                break;
+            }
+        }
+
         if ($dockerAvailable && $hubContainer) {
             // Busca correlation_id
             $cmd = "docker logs --since 21:30 $hubContainer 2>&1 | grep -i '$correlationId' | tail -30";
@@ -906,6 +926,59 @@ class WhatsAppGatewayDiagnosticController extends Controller
             $cmd = "docker logs --since 21:30 $hubContainer 2>&1 | grep -iE 'Exception|Error|Fatal' | tail -20";
             $result = $execCommand($cmd);
             $logs['errors'] = $result['output'];
+        } elseif ($foundLogFile) {
+            // Fallback: busca em arquivo de log
+            try {
+                $lines = file($foundLogFile);
+                if ($lines !== false) {
+                    $totalLines = count($lines);
+                    $startIndex = max(0, $totalLines - 5000); // Últimas 5000 linhas
+                    
+                    for ($i = $startIndex; $i < $totalLines; $i++) {
+                        $line = $lines[$i];
+                        
+                        // Busca correlation_id
+                        if (stripos($line, $correlationId) !== false) {
+                            $logs['correlation_id'][] = trim($line);
+                        }
+                        
+                        // Busca HUB_WEBHOOK_IN próximo ao horário
+                        if (stripos($line, 'HUB_WEBHOOK_IN') !== false && 
+                            (stripos($line, $testTime) !== false || stripos($line, '21:3') !== false)) {
+                            $logs['webhook_in'][] = trim($line);
+                        }
+                        
+                        // Busca HUB_MSG_SAVE próximo ao horário
+                        if (stripos($line, 'HUB_MSG_SAVE') !== false && 
+                            (stripos($line, $testTime) !== false || stripos($line, '21:3') !== false)) {
+                            $logs['msg_save'][] = trim($line);
+                        }
+                        
+                        // Busca HUB_MSG_DROP próximo ao horário
+                        if (stripos($line, 'HUB_MSG_DROP') !== false && 
+                            (stripos($line, $testTime) !== false || stripos($line, '21:3') !== false)) {
+                            $logs['msg_drop'][] = trim($line);
+                        }
+                        
+                        // Busca erros próximo ao horário
+                        if ((stripos($line, 'Exception') !== false || 
+                             stripos($line, 'Error') !== false || 
+                             stripos($line, 'Fatal') !== false) &&
+                            (stripos($line, $testTime) !== false || stripos($line, '21:3') !== false)) {
+                            $logs['errors'][] = trim($line);
+                        }
+                    }
+                    
+                    // Limita resultados
+                    $logs['correlation_id'] = array_slice($logs['correlation_id'], -30);
+                    $logs['webhook_in'] = array_slice($logs['webhook_in'], -20);
+                    $logs['msg_save'] = array_slice($logs['msg_save'], -20);
+                    $logs['msg_drop'] = array_slice($logs['msg_drop'], -20);
+                    $logs['errors'] = array_slice($logs['errors'], -20);
+                }
+            } catch (\Exception $e) {
+                // Ignora erro de leitura
+            }
         }
 
         // Verifica banco de dados
@@ -938,7 +1011,8 @@ class WhatsAppGatewayDiagnosticController extends Controller
             'dockerAvailable' => $dockerAvailable,
             'containers' => $containers,
             'logs' => $logs,
-            'events' => $events
+            'events' => $events,
+            'logFile' => $foundLogFile ?? null
         ]);
     }
 

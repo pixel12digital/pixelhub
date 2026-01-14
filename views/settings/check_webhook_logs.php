@@ -40,6 +40,10 @@
     <div class="container">
         <h1>🔍 Verificação de Logs - Webhook Teste</h1>
         <div class="timestamp">Executado em: <?php echo date('Y-m-d H:i:s'); ?></div>
+        <div class="info" style="margin-top: 10px; padding: 10px; background: #e7f3ff; border-left: 4px solid #17a2b8; border-radius: 4px;">
+            <strong>ℹ️ Importante:</strong> Esta página busca logs do <strong>Pixel Hub</strong> (servidor que recebe o webhook do gateway). 
+            Os logs mostram como o Hub processou o webhook recebido.
+        </div>
         
         <div class="section">
             <h2>📋 Parâmetros da Busca</h2>
@@ -62,11 +66,27 @@
 
         <!-- Status do Docker -->
         <div class="section">
-            <h2>1. Status do Docker</h2>
+            <h2>1. Status do Docker (Pixel Hub)</h2>
+            <div class="info" style="margin-bottom: 10px;">
+                <strong>Nota:</strong> Estamos buscando logs do <strong>Pixel Hub</strong> (onde o webhook é recebido), não do gateway.
+            </div>
             <?php if ($dockerAvailable): ?>
-                <div class="success">✅ Docker disponível</div>
+                <div class="success">✅ Docker disponível - Buscando logs do container do Hub</div>
             <?php else: ?>
-                <div class="error">❌ Docker não disponível (pode estar em outro servidor)</div>
+                <div class="warning">⚠️ Docker não disponível - Buscando em arquivos de log do Hub</div>
+                <?php if (isset($logFile) && $logFile): ?>
+                    <div class="info">📄 Arquivo de log encontrado: <strong><?= htmlspecialchars($logFile) ?></strong></div>
+                <?php else: ?>
+                    <div class="error">❌ Arquivo de log não encontrado. Verifique se os logs estão sendo gerados no Hub.</div>
+                    <div class="info" style="margin-top: 10px;">
+                        <strong>Locais verificados:</strong><br>
+                        • logs/pixelhub.log<br>
+                        • storage/logs/pixelhub.log<br>
+                        • error_log do PHP<br>
+                        • /var/log/php/error.log<br>
+                        • /var/log/apache2/error.log
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
 
