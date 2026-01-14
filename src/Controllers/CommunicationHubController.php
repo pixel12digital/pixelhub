@@ -963,13 +963,14 @@ class CommunicationHubController extends Controller
         error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - PADROES DE BUSCA: count=' . count($contactPatterns) . ', patterns=' . implode(', ', $contactPatterns));
         
         // Monta condições OR para cada padrão
+        // CORREÇÃO: Usa JSON_UNQUOTE para remover aspas do JSON_EXTRACT antes de fazer LIKE
         $contactConditions = [];
         foreach ($contactPatterns as $pattern) {
             $contactConditions[] = "(
-                JSON_EXTRACT(ce.payload, '$.from') LIKE ?
-                OR JSON_EXTRACT(ce.payload, '$.message.from') LIKE ?
-                OR JSON_EXTRACT(ce.payload, '$.to') LIKE ?
-                OR JSON_EXTRACT(ce.payload, '$.message.to') LIKE ?
+                JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.from')) LIKE ?
+                OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.from')) LIKE ?
+                OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.to')) LIKE ?
+                OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.to')) LIKE ?
             )";
             $params[] = $pattern;
             $params[] = $pattern;
@@ -1572,13 +1573,14 @@ class CommunicationHubController extends Controller
             }
             
             // Monta condições OR para cada padrão
+            // CORREÇÃO: Usa JSON_UNQUOTE para remover aspas do JSON_EXTRACT antes de fazer LIKE
             $contactConditions = [];
             foreach ($contactPatterns as $pattern) {
                 $contactConditions[] = "(
-                    JSON_EXTRACT(ce.payload, '$.from') LIKE ?
-                    OR JSON_EXTRACT(ce.payload, '$.message.from') LIKE ?
-                    OR JSON_EXTRACT(ce.payload, '$.to') LIKE ?
-                    OR JSON_EXTRACT(ce.payload, '$.message.to') LIKE ?
+                    JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.from')) LIKE ?
+                    OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.from')) LIKE ?
+                    OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.to')) LIKE ?
+                    OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.to')) LIKE ?
                 )";
                 $params[] = $pattern;
                 $params[] = $pattern;
@@ -1923,13 +1925,14 @@ class CommunicationHubController extends Controller
         }
         
         // Monta condições OR para cada padrão
+        // CORREÇÃO: Usa JSON_UNQUOTE para remover aspas do JSON_EXTRACT antes de fazer LIKE
         $contactConditions = [];
         foreach ($contactPatterns as $pattern) {
             $contactConditions[] = "(
-                JSON_EXTRACT(ce.payload, '$.from') LIKE ?
-                OR JSON_EXTRACT(ce.payload, '$.message.from') LIKE ?
-                OR JSON_EXTRACT(ce.payload, '$.to') LIKE ?
-                OR JSON_EXTRACT(ce.payload, '$.message.to') LIKE ?
+                JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.from')) LIKE ?
+                OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.from')) LIKE ?
+                OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.to')) LIKE ?
+                OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.to')) LIKE ?
             )";
             $params[] = $pattern;
             $params[] = $pattern;
