@@ -175,6 +175,17 @@ if (strpos($uri, '/screen-recordings/share') !== false) {
         }
     }
 
+    // Se ainda não funcionou, tenta remover /public se estiver no início
+    if ($path === $uri || strpos($path, '/public/') === 0) {
+        if (strpos($path, '/public/') === 0) {
+            $path = substr($path, 7); // Remove '/public'
+            // Garante que começa com /
+            if ($path === '' || $path[0] !== '/') {
+                $path = '/' . $path;
+            }
+        }
+    }
+
     // Se ainda não funcionou, usa a URI diretamente (sem remover nada)
     if ($path === $uri && ($path === '' || $path[0] !== '/')) {
         $path = '/' . $path;

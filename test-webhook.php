@@ -8,8 +8,20 @@
  */
 
 // Configurações
-$webhookUrl = 'http://localhost/painel.pixel12digital/public/api/whatsapp/webhook';
+// A URL deve ser: http://localhost/painel.pixel12digital/public/api/whatsapp/webhook
+// Mas o router espera a rota sem /public no path (já está no BASE_PATH)
+$basePath = '/painel.pixel12digital/public';
+// A rota está registrada como /api/whatsapp/webhook (sem /public)
+$webhookUrl = "http://localhost{$basePath}/api/whatsapp/webhook";
 $webhookSecret = getenv('PIXELHUB_WHATSAPP_WEBHOOK_SECRET') ?: '';
+
+// Se tiver arquivo .env, tenta ler de lá
+if (file_exists(__DIR__ . '/.env')) {
+    $envContent = file_get_contents(__DIR__ . '/.env');
+    if (preg_match('/PIXELHUB_WHATSAPP_WEBHOOK_SECRET=(.+)/', $envContent, $matches)) {
+        $webhookSecret = trim($matches[1]);
+    }
+}
 
 // Gera payload_hash se não fornecido
 $payloadHash = $argv[1] ?? substr(md5(time() . rand()), 0, 8);
