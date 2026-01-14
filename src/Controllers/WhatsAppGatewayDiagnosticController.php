@@ -945,12 +945,14 @@ class WhatsAppGatewayDiagnosticController extends Controller
                             continue;
                         }
                         
-                        // Busca correlation_id (mas não em URLs)
-                        if (stripos($line, $correlationId) !== false && 
-                            stripos($line, 'correlationId=') !== false || 
-                            stripos($line, 'correlation_id=') !== false ||
-                            stripos($line, '[HUB_') !== false) {
-                            $logs['correlation_id'][] = $lineTrimmed;
+                        // Busca correlation_id (mas não em URLs - apenas em logs HUB_*)
+                        if (stripos($line, $correlationId) !== false) {
+                            // Aceita se for um log HUB_* (não URL)
+                            if (stripos($line, '[HUB_') !== false || 
+                                (stripos($line, 'correlationId=') !== false && stripos($line, '[HUB_') !== false) ||
+                                (stripos($line, 'correlation_id=') !== false && stripos($line, '[HUB_') !== false)) {
+                                $logs['correlation_id'][] = $lineTrimmed;
+                            }
                         }
                         
                         // Busca HUB_WEBHOOK_IN (qualquer horário, mas filtra por padrão)
