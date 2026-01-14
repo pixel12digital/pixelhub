@@ -1001,21 +1001,42 @@ class WhatsAppGatewayDiagnosticController extends Controller
                     
                     // Busca logs HUB_* recentes (últimas 2 horas) para diagnóstico
                     $twoHoursAgo = date('Y-m-d H:i:s', strtotime('-2 hours'));
+                    $recentAnyLogs = []; // Últimos logs de qualquer tipo (para diagnóstico)
+                    
                     for ($i = $startIndex; $i < $totalLines; $i++) {
                         $line = $lines[$i];
+                        $lineTrimmed = trim($line);
+                        
+                        // Busca logs HUB_*
                         if (stripos($line, '[HUB_') !== false) {
                             // Extrai timestamp da linha (formato [YYYY-MM-DD HH:MM:SS])
                             if (preg_match('/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]/', $line, $matches)) {
                                 $lineTimestamp = $matches[1];
                                 if ($lineTimestamp >= $twoHoursAgo) {
-                                    $logs['recent_hub_logs'][] = trim($line);
+                                    $logs['recent_hub_logs'][] = $lineTrimmed;
                                 }
-                            } elseif (stripos($line, '[HUB_') !== false) {
+                            } else {
                                 // Se não tem timestamp, adiciona mesmo assim (pode ser formato diferente)
-                                $logs['recent_hub_logs'][] = trim($line);
+                                $logs['recent_hub_logs'][] = $lineTrimmed;
+                            }
+                        }
+                        
+                        // Busca qualquer log recente (últimas 50 linhas) para ver se arquivo está sendo escrito
+                        if ($i >= $totalLines - 50) {
+                            // Busca por padrões relacionados a webhook/whatsapp
+                            if (stripos($line, 'webhook') !== false || 
+                                stripos($line, 'whatsapp') !== false ||
+                                stripos($line, 'WHATSAPP') !== false ||
+                                stripos($line, 'WEBHOOK') !== false ||
+                                stripos($line, 'message') !== false ||
+                                stripos($line, 'inbound') !== false) {
+                                $recentAnyLogs[] = $lineTrimmed;
                             }
                         }
                     }
+                    
+                    // Limita logs recentes gerais
+                    $logs['recent_any_logs'] = array_slice(array_unique($recentAnyLogs), -30);
                     
                     // Remove duplicatas e limita resultados
                     $logs['correlation_id'] = array_slice(array_unique($logs['correlation_id']), -30);

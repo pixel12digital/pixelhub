@@ -288,11 +288,30 @@
             <div class="warning" style="margin-top: 10px;">
                 <strong>⚠️ Problema identificado:</strong> Os logs HUB_* não estão sendo gerados ou não estão sendo escritos no arquivo de log.<br><br>
                 <strong>Possíveis causas:</strong><br>
-                • Os logs não estão sendo gerados pelo código<br>
-                • O arquivo de log não está configurado corretamente<br>
-                • Os logs estão sendo escritos em outro local<br>
-                • O error_log do PHP não está apontando para o arquivo correto
+                • Os logs não estão sendo gerados pelo código (error_log() não está sendo chamado)<br>
+                • O arquivo de log não está configurado corretamente no PHP<br>
+                • Os logs estão sendo escritos em outro local (verificar ini_get('error_log'))<br>
+                • O error_log do PHP não está apontando para o arquivo correto<br>
+                • Os logs podem estar em outro formato (sem prefixo [HUB_*])
             </div>
+            
+            <?php if (!empty($logs['recent_any_logs'])): ?>
+            <div style="margin-top: 15px;">
+                <div class="info">📋 Últimos logs relacionados a webhook/whatsapp (últimas 50 linhas do arquivo):</div>
+                <pre style="max-height: 300px; overflow-y: auto; font-size: 11px;"><?php
+                foreach ($logs['recent_any_logs'] as $line) {
+                    echo htmlspecialchars($line) . "\n";
+                }
+                ?></pre>
+                <div class="info" style="margin-top: 10px; font-size: 12px;">
+                    <strong>Nota:</strong> Estes são logs gerais. Se não aparecerem logs HUB_*, significa que os logs instrumentados não estão sendo gerados.
+                </div>
+            </div>
+            <?php else: ?>
+            <div class="warning" style="margin-top: 15px;">
+                ❌ Também não foram encontrados logs gerais relacionados a webhook/whatsapp nas últimas 50 linhas do arquivo.
+            </div>
+            <?php endif; ?>
             <?php if (isset($logFileInfo) && $logFileInfo): ?>
             <div class="info" style="margin-top: 10px;">
                 <strong>Informações do arquivo de log:</strong><br>
