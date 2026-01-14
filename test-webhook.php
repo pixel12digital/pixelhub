@@ -8,11 +8,13 @@
  */
 
 // Configurações
-// A URL deve ser: http://localhost/painel.pixel12digital/public/api/whatsapp/webhook
-// Mas o router espera a rota sem /public no path (já está no BASE_PATH)
-$basePath = '/painel.pixel12digital/public';
-// A rota está registrada como /api/whatsapp/webhook (sem /public)
-$webhookUrl = "http://localhost{$basePath}/api/whatsapp/webhook";
+// Detecta ambiente (produção ou local)
+$isProduction = isset($argv[2]) && $argv[2] === 'prod';
+$baseUrl = $isProduction 
+    ? 'https://hub.pixel12digital.com.br'  // URL de produção
+    : 'http://localhost/painel.pixel12digital/public';  // URL local
+
+$webhookUrl = "{$baseUrl}/api/whatsapp/webhook";
 $webhookSecret = getenv('PIXELHUB_WHATSAPP_WEBHOOK_SECRET') ?: '';
 
 // Se tiver arquivo .env, tenta ler de lá
@@ -21,6 +23,12 @@ if (file_exists(__DIR__ . '/.env')) {
     if (preg_match('/PIXELHUB_WHATSAPP_WEBHOOK_SECRET=(.+)/', $envContent, $matches)) {
         $webhookSecret = trim($matches[1]);
     }
+}
+
+// Se for produção e não tiver secret, avisa
+if ($isProduction && empty($webhookSecret)) {
+    echo "⚠️  AVISO: PIXELHUB_WHATSAPP_WEBHOOK_SECRET não configurado!\n";
+    echo "   O webhook pode retornar 403 se o secret for obrigatório.\n\n";
 }
 
 // Gera payload_hash se não fornecido
@@ -67,6 +75,7 @@ curl_setopt_array($ch, [
 ]);
 
 echo "=== Disparando Webhook de Teste ===\n";
+echo "Ambiente: " . ($isProduction ? "PRODUÇÃO" : "LOCAL") . "\n";
 echo "URL: $webhookUrl\n";
 echo "Payload Hash: $payloadHash\n";
 echo "Message ID: {$payload['message']['id']}\n";
