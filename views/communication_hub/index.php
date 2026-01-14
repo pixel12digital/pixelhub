@@ -1003,16 +1003,160 @@ window.addEventListener('beforeunload', function() {
  */
 async function updateConversationListOnly() {
     try {
-        // Por enquanto, apenas loga que detectou atualização mas não recarrega
-        // A lista será atualizada no próximo reload natural (quando usuário fechar conversa)
-        // Ou podemos implementar atualização via AJAX completa no futuro
-        console.log('[Hub] Lista atualizada (sem reload para preservar conversa ativa)');
+        // [LOG TEMPORARIO] Início da atualização
+        console.log('[LOG TEMPORARIO] updateConversationListOnly() - INICIADO');
         
-        // Atualiza contadores visuais se necessário (badges de não lidas, etc)
-        // Por enquanto, apenas mantém estado atual
+        // Busca lista atualizada via endpoint JSON
+        const params = new URLSearchParams({
+            channel: '<?= htmlspecialchars($filters['channel'] ?? 'all') ?>',
+            status: '<?= htmlspecialchars($filters['status'] ?? 'active') ?>'
+        });
+        <?php if (isset($filters['tenant_id']) && $filters['tenant_id']): ?>
+        params.set('tenant_id', '<?= (int) $filters['tenant_id'] ?>');
+        <?php endif; ?>
+        
+        const url = '<?= pixelhub_url('/communication-hub/conversations-list') ?>?' + params.toString();
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (!result.success || !result.threads) {
+            console.error('[Hub] Erro ao buscar lista atualizada:', result.error || 'Resposta inválida');
+            return;
+        }
+        
+        // [LOG TEMPORARIO] Resposta recebida
+        console.log('[LOG TEMPORARIO] updateConversationListOnly() - RESPOSTA RECEBIDA: threads_count=' + (result.threads?.length || 0));
+        
+        // Preserva estado atual
+        const activeThreadId = ConversationState.currentThreadId;
+        const listScroll = document.querySelector('.conversation-list-scroll');
+        const scrollPosition = listScroll ? listScroll.scrollTop : 0;
+        
+        // Renderiza lista atualizada
+        renderConversationList(result.threads);
+        
+        // Restaura scroll
+        if (listScroll) {
+            listScroll.scrollTop = scrollPosition;
+        }
+        
+        // Restaura conversa ativa
+        if (activeThreadId) {
+            document.querySelectorAll('.conversation-item').forEach(item => {
+                if (item.dataset.threadId === activeThreadId) {
+                    item.classList.add('active');
+                    item.style.background = '#e7f3ff';
+                    item.style.borderColor = '#007bff';
+                } else {
+                    item.classList.remove('active');
+                    item.style.background = '';
+                    item.style.borderColor = '';
+                }
+            });
+        }
+        
+        // [LOG TEMPORARIO] Atualização concluída
+        console.log('[LOG TEMPORARIO] updateConversationListOnly() - CONCLUIDO: lista atualizada, conversa ativa preservada=' + (activeThreadId ? 'SIM' : 'NÃO'));
+        console.log('[Hub] Lista atualizada com sucesso (preservando conversa ativa)');
     } catch (error) {
         console.error('[Hub] Erro ao atualizar lista:', error);
+        // [LOG TEMPORARIO] Erro
+        console.error('[LOG TEMPORARIO] updateConversationListOnly() - ERRO: ' + error.message);
     }
+}
+
+/**
+ * Renderiza lista de conversas no DOM
+ */
+function renderConversationList(threads) {
+    const listContainer = document.querySelector('.conversation-list-scroll');
+    if (!listContainer) {
+        console.error('[Hub] Container da lista não encontrado');
+        return;
+    }
+    
+    if (threads.length === 0) {
+        listContainer.innerHTML = `
+            <div style="padding: 40px; text-align: center; color: #667781;">
+                <p>Nenhuma conversa encontrada</p>
+                <p style="font-size: 13px; margin-top: 10px;">As conversas aparecerão aqui quando houver mensagens recebidas ou enviadas.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    threads.forEach(thread => {
+        const threadId = escapeHtml(thread.thread_id || '');
+        const channel = escapeHtml(thread.channel || 'whatsapp');
+        const contactName = escapeHtml(thread.contact_name || thread.tenant_name || 'Cliente');
+        const contact = escapeHtml(thread.contact || 'Número não identificado');
+        const tenantName = escapeHtml(thread.tenant_name || 'Sem tenant');
+        const unreadCount = thread.unread_count || 0;
+        const messageCount = thread.message_count || 0;
+        const lastActivity = thread.last_activity || 'now';
+        
+        // Formata data
+        let dateStr = 'Agora';
+        try {
+            const dateTime = new Date(lastActivity);
+            if (!isNaN(dateTime.getTime())) {
+                const day = String(dateTime.getDate()).padStart(2, '0');
+                const month = String(dateTime.getMonth() + 1).padStart(2, '0');
+                const hours = String(dateTime.getHours()).padStart(2, '0');
+                const minutes = String(dateTime.getMinutes()).padStart(2, '0');
+                dateStr = `${day}/${month} ${hours}:${minutes}`;
+            }
+        } catch (e) {
+            // Mantém 'Agora' se erro ao formatar
+        }
+        
+        html += `
+            <div onclick="loadConversation('${threadId}', '${channel}')" 
+                 class="conversation-item"
+                 data-thread-id="${threadId}">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 600; font-size: 14px; color: #111b21; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            ${contactName}
+                        </div>
+                        <div style="font-size: 12px; color: #667781; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+                            ${channel === 'whatsapp' ? `
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                                </svg>
+                                <span>${contact}</span>
+                                ${thread.channel_type ? `<span style="opacity: 0.7;">• ${thread.channel_type.toUpperCase()}</span>` : ''}
+                            ` : `
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                </svg>
+                                <span>Chat Interno</span>
+                            `}
+                            ${!thread.contact_name && thread.tenant_name && thread.tenant_name !== 'Sem tenant' ? 
+                                `<span style="opacity: 0.7;">• ${tenantName}</span>` : 
+                                (!thread.contact_name && (!thread.tenant_name || thread.tenant_id === null) ? 
+                                    '<span style="opacity: 0.7; font-size: 10px;">• Sem tenant</span>' : '')
+                            }
+                        </div>
+                    </div>
+                    <div style="text-align: right; flex-shrink: 0; margin-left: 8px;">
+                        ${unreadCount > 0 ? `
+                            <span style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; display: inline-block; min-width: 18px; text-align: center;">
+                                ${unreadCount}
+                            </span>
+                        ` : ''}
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #667781;">
+                    <span>${messageCount} mensagens</span>
+                    <span>${dateStr}</span>
+                </div>
+            </div>
+        `;
+    });
+    
+    listContainer.innerHTML = html;
 }
 
 function openNewMessageModal() {

@@ -914,8 +914,42 @@ class CommunicationHubController extends Controller
         };
         $normalizedContactExternalId = $normalizeContact($contactExternalId);
 
-        // Busca TODOS os eventos WhatsApp (tenant_id pode ser NULL)
-        // Filtra em PHP para garantir que pega todas as variações do contato
+        if (empty($normalizedContactExternalId)) {
+            return []; // Não pode buscar sem contato
+        }
+
+        // CORREÇÃO: Filtra no SQL ao invés de buscar todos os eventos
+        // Usa LIKE para pegar variações do telefone (com @c.us, @lid, etc)
+        $where = [
+            "ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')"
+        ];
+        $params = [];
+
+        // Filtro por contato (usando LIKE para pegar variações com @c.us, @lid, etc)
+        $contactPattern = "%{$normalizedContactExternalId}%";
+        $where[] = "(
+            JSON_EXTRACT(ce.payload, '$.from') LIKE ?
+            OR JSON_EXTRACT(ce.payload, '$.message.from') LIKE ?
+            OR JSON_EXTRACT(ce.payload, '$.to') LIKE ?
+            OR JSON_EXTRACT(ce.payload, '$.message.to') LIKE ?
+        )";
+        $params[] = $contactPattern;
+        $params[] = $contactPattern;
+        $params[] = $contactPattern;
+        $params[] = $contactPattern;
+
+        // Filtro por tenant_id (se disponível)
+        if ($tenantId) {
+            $where[] = "(ce.tenant_id = ? OR ce.tenant_id IS NULL)";
+            $params[] = $tenantId;
+        }
+
+        $whereClause = "WHERE " . implode(" AND ", $where);
+
+        // Busca eventos filtrados (limitado para performance)
+        // [LOG TEMPORARIO] Query do thread
+        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - EXECUTANDO QUERY: conversation_id=' . $conversationId . ', contact=' . $normalizedContactExternalId . ', tenant_id=' . ($tenantId ?: 'NULL'));
+        
         $stmt = $db->prepare("
             SELECT 
                 ce.event_id,
@@ -925,15 +959,20 @@ class CommunicationHubController extends Controller
                 ce.metadata,
                 ce.tenant_id
             FROM communication_events ce
-            WHERE ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+            {$whereClause}
             ORDER BY ce.created_at ASC
+            LIMIT 500
         ");
-        $stmt->execute();
-        $allEvents = $stmt->fetchAll();
+        $stmt->execute($params);
+        $filteredEvents = $stmt->fetchAll();
+        
+        // [LOG TEMPORARIO] Resultado da query
+        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - QUERY RETORNOU: events_count=' . count($filteredEvents));
 
-        // Filtra eventos desta conversa pelo contact_external_id (normalizado)
+        // Validação final em PHP (garantir que mensagem pertence à conversa)
+        // A query SQL já filtra a maioria, mas validação final garante precisão
         $messages = [];
-        foreach ($allEvents as $event) {
+        foreach ($filteredEvents as $event) {
             $payload = json_decode($event['payload'], true);
             $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
             $eventTo = $payload['to'] ?? $payload['message']['to'] ?? null;
@@ -1233,6 +1272,66 @@ class CommunicationHubController extends Controller
     }
 
     /**
+     * Retorna lista de conversas em JSON (para atualização AJAX)
+     * 
+     * GET /communication-hub/conversations-list?channel=all&tenant_id=X&status=active
+     * 
+     * Retorna {success: bool, threads: array} para atualização da lista sem reload
+     */
+    public function getConversationsList(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $channel = $_GET['channel'] ?? 'all';
+        $tenantId = isset($_GET['tenant_id']) && $_GET['tenant_id'] !== '' ? (int) $_GET['tenant_id'] : null;
+        $status = $_GET['status'] ?? 'active';
+
+        // [LOG TEMPORARIO] Início da busca de lista
+        error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - INICIADO: channel=' . $channel . ', tenant_id=' . ($tenantId ?: 'NULL') . ', status=' . $status);
+
+        $db = DB::getConnection();
+
+        try {
+            // Busca threads de WhatsApp
+            $whatsappThreads = $this->getWhatsAppThreads($db, $tenantId, $status);
+            
+            // Busca threads de chat interno
+            $chatThreads = $this->getChatThreads($db, $tenantId, $status);
+
+            // Combina e ordena por última atividade
+            $allThreads = array_merge($whatsappThreads ?? [], $chatThreads ?? []);
+            
+            if (!empty($allThreads)) {
+                usort($allThreads, function($a, $b) {
+                    $timeA = strtotime($a['last_activity'] ?? '1970-01-01');
+                    $timeB = strtotime($b['last_activity'] ?? '1970-01-01');
+                    return $timeB <=> $timeA; // Mais recente primeiro
+                });
+
+                // Filtra por canal se necessário
+                if ($channel !== 'all') {
+                    $allThreads = array_filter($allThreads, function($thread) use ($channel) {
+                        return ($thread['channel'] ?? '') === $channel;
+                    });
+                    $allThreads = array_values($allThreads); // Reindexa array
+                }
+            }
+
+            // [LOG TEMPORARIO] Resultado da busca
+            error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - RETORNO: threads_count=' . count($allThreads ?? []));
+
+            $this->json([
+                'success' => true,
+                'threads' => $allThreads ?? []
+            ]);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao buscar lista de conversas: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro ao buscar conversas'], 500);
+        }
+    }
+
+    /**
      * Verifica se há novas mensagens ou atualizações na lista de conversas
      * 
      * GET /communication-hub/check-updates?after_timestamp=Y
@@ -1345,12 +1444,36 @@ class CommunicationHubController extends Controller
             };
             $normalizedContact = $normalizeContact($contactExternalId);
 
+            if (empty($normalizedContact)) {
+                $this->json(['success' => true, 'has_new' => false]);
+                return;
+            }
+
+            // CORREÇÃO: Filtra no SQL ao invés de buscar todos os eventos
             // Query leve: verifica existência sem carregar payload completo
-            // Usa mesma lógica de marcador que getWhatsAppMessagesIncremental
             $where = [
                 "ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')"
             ];
             $params = [];
+
+            // Filtro por contato (usando LIKE para pegar variações com @c.us, @lid, etc)
+            $contactPattern = "%{$normalizedContact}%";
+            $where[] = "(
+                JSON_EXTRACT(ce.payload, '$.from') LIKE ?
+                OR JSON_EXTRACT(ce.payload, '$.message.from') LIKE ?
+                OR JSON_EXTRACT(ce.payload, '$.to') LIKE ?
+                OR JSON_EXTRACT(ce.payload, '$.message.to') LIKE ?
+            )";
+            $params[] = $contactPattern;
+            $params[] = $contactPattern;
+            $params[] = $contactPattern;
+            $params[] = $contactPattern;
+
+            // Filtro por tenant_id (se disponível)
+            if ($tenantId) {
+                $where[] = "(ce.tenant_id = ? OR ce.tenant_id IS NULL)";
+                $params[] = $tenantId;
+            }
 
             if ($afterTimestamp) {
                 $where[] = "(ce.created_at > ? OR (ce.created_at = ? AND ce.event_id > ?))";
@@ -1389,9 +1512,14 @@ class CommunicationHubController extends Controller
                 
                 if ($isFromThisContact || $isToThisContact) {
                     $hasNew = true;
+                    // [LOG TEMPORARIO] Nova mensagem detectada
+                    error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - NOVA MENSAGEM DETECTADA: event_id=' . $event['event_id'] . ', contact=' . $normalizedContact);
                     break; // Encontrou uma, não precisa verificar mais
                 }
             }
+
+            // [LOG TEMPORARIO] Resultado do check
+            error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - RESULTADO: has_new=' . ($hasNew ? 'true' : 'false') . ', events_checked=' . count($events));
 
             $this->json([
                 'success' => true,
@@ -1617,11 +1745,35 @@ class CommunicationHubController extends Controller
         };
         $normalizedContactExternalId = $normalizeContact($contactExternalId);
 
+        if (empty($normalizedContactExternalId)) {
+            return []; // Não pode buscar sem contato
+        }
+
+        // CORREÇÃO: Filtra no SQL ao invés de buscar todos os eventos
         // Build query incremental (usando índice created_at + tie-breaker event_id)
         $where = [
             "ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')"
         ];
         $params = [];
+
+        // Filtro por contato (usando LIKE para pegar variações com @c.us, @lid, etc)
+        $contactPattern = "%{$normalizedContactExternalId}%";
+        $where[] = "(
+            JSON_EXTRACT(ce.payload, '$.from') LIKE ?
+            OR JSON_EXTRACT(ce.payload, '$.message.from') LIKE ?
+            OR JSON_EXTRACT(ce.payload, '$.to') LIKE ?
+            OR JSON_EXTRACT(ce.payload, '$.message.to') LIKE ?
+        )";
+        $params[] = $contactPattern;
+        $params[] = $contactPattern;
+        $params[] = $contactPattern;
+        $params[] = $contactPattern;
+
+        // Filtro por tenant_id (se disponível)
+        if ($tenantId) {
+            $where[] = "(ce.tenant_id = ? OR ce.tenant_id IS NULL)";
+            $params[] = $tenantId;
+        }
 
         if ($afterTimestamp) {
             // Filtro incremental: created_at > timestamp OU (created_at = timestamp E event_id > after_event_id)
@@ -1633,7 +1785,10 @@ class CommunicationHubController extends Controller
 
         $whereClause = "WHERE " . implode(" AND ", $where);
 
-        // Busca eventos incrementais (limitado para não sobrecarregar)
+        // Busca eventos incrementais filtrados (limitado para não sobrecarregar)
+        // [LOG TEMPORARIO] Query incremental
+        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesIncremental() - EXECUTANDO QUERY: contact=' . $normalizedContactExternalId . ', tenant_id=' . ($tenantId ?: 'NULL') . ', after_timestamp=' . ($afterTimestamp ?: 'NULL'));
+        
         $stmt = $db->prepare("
             SELECT 
                 ce.event_id,
@@ -1648,11 +1803,16 @@ class CommunicationHubController extends Controller
             LIMIT 100
         ");
         $stmt->execute($params);
-        $allEvents = $stmt->fetchAll();
+        $filteredEvents = $stmt->fetchAll();
+        
+        // [LOG TEMPORARIO] Resultado da query incremental
+        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesIncremental() - QUERY RETORNOU: events_count=' . count($filteredEvents));
 
-        // Filtra eventos desta conversa (mesma lógica do método original)
+        // Validação final em PHP (garantir que mensagem pertence à conversa)
+        // A query SQL já filtra a maioria, mas validação final garante precisão
         $messages = [];
-        foreach ($allEvents as $event) {
+        $excludedCount = 0;
+        foreach ($filteredEvents as $event) {
             $payload = json_decode($event['payload'], true);
             $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
             $eventTo = $payload['to'] ?? $payload['message']['to'] ?? null;
@@ -1664,10 +1824,14 @@ class CommunicationHubController extends Controller
             $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContactExternalId;
             
             if (!$isFromThisContact && !$isToThisContact) {
+                $excludedCount++;
                 continue;
             }
             
             if ($tenantId && $event['tenant_id'] && $event['tenant_id'] != $tenantId) {
+                $excludedCount++;
+                // [LOG TEMPORARIO] Mensagem excluída por tenant_id
+                error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesIncremental() - MENSAGEM EXCLUIDA: event_id=' . $event['event_id'] . ', motivo=tenant_id_mismatch (event_tenant=' . $event['tenant_id'] . ', conv_tenant=' . $tenantId . ')');
                 continue;
             }
             
@@ -1697,6 +1861,9 @@ class CommunicationHubController extends Controller
                 'metadata' => json_decode($event['metadata'] ?? '{}', true)
             ];
         }
+
+        // [LOG TEMPORARIO] Resultado final incremental
+        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesIncremental() - RESULTADO FINAL: messages_count=' . count($messages) . ', excluded_count=' . $excludedCount);
 
         return $messages;
     }
