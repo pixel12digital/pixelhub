@@ -1506,15 +1506,22 @@ class CommunicationHubController extends Controller
         $db = DB::getConnection();
 
         try {
+            // [LOG TEMPORARIO] Início do check
+            error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - INICIADO: thread_id=' . $threadId . ', after_timestamp=' . ($afterTimestamp ?: 'NULL') . ', after_event_id=' . ($afterEventId ?: 'NULL'));
+            
             // Resolve thread para pegar dados da conversa
             $conversationData = $this->resolveThreadToConversation($db, $threadId);
             if (!$conversationData) {
+                error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - ERRO: Thread não encontrado');
                 $this->json(['success' => false, 'error' => 'Thread não encontrado'], 404);
                 return;
             }
 
             $contactExternalId = $conversationData['contact_external_id'];
             $tenantId = $conversationData['tenant_id'];
+            
+            // [LOG TEMPORARIO] Dados da conversa
+            error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - CONVERSA: conversation_id=' . ($conversationData['conversation_id'] ?? 'NULL') . ', contact_external_id=' . ($contactExternalId ?: 'NULL') . ', tenant_id=' . ($tenantId ?: 'NULL'));
             
             // CORREÇÃO: Normalização robusta que lida com variações (@c.us, 9º dígito)
             $normalizeContact = function($contact) {
@@ -1531,8 +1538,12 @@ class CommunicationHubController extends Controller
                 return $digitsOnly;
             };
             $normalizedContact = $normalizeContact($contactExternalId);
+            
+            // [LOG TEMPORARIO] Normalização
+            error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - NORMALIZACAO: contact_external_id_original=' . ($contactExternalId ?: 'NULL') . ', normalized=' . ($normalizedContact ?: 'NULL'));
 
             if (empty($normalizedContact)) {
+                error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - ERRO: normalizedContact está vazio');
                 $this->json(['success' => true, 'has_new' => false]);
                 return;
             }
@@ -1590,6 +1601,10 @@ class CommunicationHubController extends Controller
             }
 
             $whereClause = "WHERE " . implode(" AND ", $where);
+            
+            // [LOG TEMPORARIO] Query SQL
+            error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - QUERY SQL: WHERE=' . $whereClause . ', params_count=' . count($params));
+            error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - CONTACT PATTERNS: ' . json_encode($contactPatterns));
 
             // Check leve: busca apenas event_id e payload mínimo (só para filtrar por contato)
             // Limite baixo: só precisa verificar se existe pelo menos 1
@@ -1602,9 +1617,13 @@ class CommunicationHubController extends Controller
             ");
             $stmt->execute($params);
             $events = $stmt->fetchAll();
+            
+            // [LOG TEMPORARIO] Resultado da query
+            error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - QUERY RETORNOU: events_count=' . count($events));
 
             // Filtra rapidamente para verificar se há mensagens desta conversa
             $hasNew = false;
+            $matchedEvents = [];
 
             foreach ($events as $event) {
                 $payload = json_decode($event['payload'], true);
@@ -1617,16 +1636,30 @@ class CommunicationHubController extends Controller
                 $isFromThisContact = !empty($normalizedFrom) && $normalizedFrom === $normalizedContact;
                 $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContact;
                 
+                // [LOG TEMPORARIO] Validação de cada evento
+                error_log(sprintf(
+                    '[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - VALIDANDO EVENTO: event_id=%s, from_raw=%s, from_normalized=%s, to_raw=%s, to_normalized=%s, expected=%s, isFromThisContact=%s, isToThisContact=%s',
+                    $event['event_id'] ?? 'NULL',
+                    $eventFrom ?: 'NULL',
+                    $normalizedFrom ?: 'NULL',
+                    $eventTo ?: 'NULL',
+                    $normalizedTo ?: 'NULL',
+                    $normalizedContact,
+                    $isFromThisContact ? 'true' : 'false',
+                    $isToThisContact ? 'true' : 'false'
+                ));
+                
                 if ($isFromThisContact || $isToThisContact) {
                     $hasNew = true;
+                    $matchedEvents[] = $event['event_id'];
                     // [LOG TEMPORARIO] Nova mensagem detectada
                     error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - NOVA MENSAGEM DETECTADA: event_id=' . $event['event_id'] . ', contact=' . $normalizedContact);
-                    break; // Encontrou uma, não precisa verificar mais
+                    // Não quebra aqui - continua verificando para logar todos os matches
                 }
             }
 
             // [LOG TEMPORARIO] Resultado do check
-            error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - RESULTADO: has_new=' . ($hasNew ? 'true' : 'false') . ', events_checked=' . count($events));
+            error_log('[LOG TEMPORARIO] CommunicationHub::checkNewMessages() - RESULTADO: has_new=' . ($hasNew ? 'true' : 'false') . ', events_checked=' . count($events) . ', matched_events=' . count($matchedEvents) . ', matched_ids=[' . implode(', ', $matchedEvents) . ']');
 
             $this->json([
                 'success' => true,

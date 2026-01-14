@@ -1880,8 +1880,13 @@ function stopConversationPolling() {
  */
 async function checkForNewConversationMessages() {
     if (!ConversationState.currentThreadId || !ConversationState.lastTimestamp) {
+        // [LOG TEMPORARIO] Estado inválido
+        console.log('[LOG TEMPORARIO] checkForNewConversationMessages() - ESTADO INVALIDO: thread_id=' + (ConversationState.currentThreadId || 'NULL') + ', lastTimestamp=' + (ConversationState.lastTimestamp || 'NULL'));
         return;
     }
+    
+    // [LOG TEMPORARIO] Início do check
+    console.log('[LOG TEMPORARIO] checkForNewConversationMessages() - INICIADO: thread_id=' + ConversationState.currentThreadId + ', lastTimestamp=' + ConversationState.lastTimestamp + ', lastEventId=' + (ConversationState.lastEventId || 'NULL'));
     
     try {
         const checkParams = new URLSearchParams({
@@ -1893,10 +1898,19 @@ async function checkForNewConversationMessages() {
         }
         const checkUrl = '<?= pixelhub_url('/communication-hub/messages/check') ?>?' + checkParams.toString();
         
+        // [LOG TEMPORARIO] URL do check
+        console.log('[LOG TEMPORARIO] checkForNewConversationMessages() - URL: ' + checkUrl);
+        
         const response = await fetch(checkUrl);
         const result = await response.json();
         
+        // [LOG TEMPORARIO] Resultado do check
+        console.log('[LOG TEMPORARIO] checkForNewConversationMessages() - RESULTADO: success=' + (result.success ? 'true' : 'false') + ', has_new=' + (result.has_new ? 'true' : 'false'));
+        
         if (result.success && result.has_new) {
+            // [LOG TEMPORARIO] Buscando novas mensagens
+            console.log('[LOG TEMPORARIO] checkForNewConversationMessages() - BUSCANDO NOVAS MENSAGENS');
+            
             // Busca novas mensagens
             const fetchParams = new URLSearchParams({
                 thread_id: ConversationState.currentThreadId
@@ -1909,15 +1923,31 @@ async function checkForNewConversationMessages() {
             }
             const fetchUrl = '<?= pixelhub_url('/communication-hub/messages/new') ?>?' + fetchParams.toString();
             
+            // [LOG TEMPORARIO] URL do fetch
+            console.log('[LOG TEMPORARIO] checkForNewConversationMessages() - FETCH URL: ' + fetchUrl);
+            
             const fetchResponse = await fetch(fetchUrl);
             const fetchResult = await fetchResponse.json();
             
+            // [LOG TEMPORARIO] Resultado do fetch
+            console.log('[LOG TEMPORARIO] checkForNewConversationMessages() - FETCH RESULTADO: success=' + (fetchResult.success ? 'true' : 'false') + ', messages_count=' + (fetchResult.messages?.length || 0));
+            
             if (fetchResult.success && fetchResult.messages) {
+                // [LOG TEMPORARIO] Processando mensagens
+                console.log('[LOG TEMPORARIO] checkForNewConversationMessages() - PROCESSANDO ' + fetchResult.messages.length + ' MENSAGENS');
                 onNewMessagesFromPanel(fetchResult.messages);
+            } else {
+                // [LOG TEMPORARIO] Nenhuma mensagem ou erro
+                console.warn('[LOG TEMPORARIO] checkForNewConversationMessages() - NENHUMA MENSAGEM OU ERRO: ' + (fetchResult.error || 'N/A'));
             }
+        } else {
+            // [LOG TEMPORARIO] Sem novas mensagens
+            console.log('[LOG TEMPORARIO] checkForNewConversationMessages() - SEM NOVAS MENSAGENS (has_new=false)');
         }
     } catch (error) {
         console.error('[Hub] Erro ao verificar novas mensagens:', error);
+        // [LOG TEMPORARIO] Erro
+        console.error('[LOG TEMPORARIO] checkForNewConversationMessages() - ERRO: ' + error.message);
     }
 }
 
