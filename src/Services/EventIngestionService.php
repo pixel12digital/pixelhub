@@ -62,10 +62,24 @@ class EventIngestionService
             $eventType
         );
 
-        // Verifica idempotência
+        // 🔍 PASSO 5: DEDUPLICAÇÃO - Log obrigatório quando descartar
         $existing = self::findByIdempotencyKey($idempotencyKey);
         if ($existing) {
             // Evento já processado, retorna event_id existente
+            $messageId = $eventData['payload']['id'] 
+                ?? $eventData['payload']['messageId'] 
+                ?? $eventData['payload']['message_id'] 
+                ?? $eventData['payload']['message']['id'] ?? 'NULL';
+            $payloadHash = substr(md5(json_encode($eventData['payload'], \JSON_UNESCAPED_UNICODE)), 0, 8);
+            
+            error_log(sprintf(
+                '[HUB_MSG_DROP] DROP_DUPLICATE reason=idempotency_key_match idempotency_key=%s existing_event_id=%s message_id=%s payload_hash=%s',
+                $idempotencyKey,
+                $existing['event_id'],
+                $messageId,
+                $payloadHash
+            ));
+            
             if (function_exists('pixelhub_log')) {
                 pixelhub_log(sprintf(
                     '[EventIngestion] Evento duplicado ignorado (idempotency_key: %s, event_id: %s)',
@@ -113,6 +127,43 @@ class EventIngestionService
             }
         }
 
+        // 🔍 PASSO 6: MESSAGE DIRECTION - Garantir que está correta
+        $direction = 'unknown';
+        if (strpos($eventType, 'inbound') !== false) {
+            $direction = 'received';
+        } elseif (strpos($eventType, 'outbound') !== false) {
+            $direction = 'outbound';
+        }
+        
+        // Se veio do webhook do WhatsApp, default = received (a menos que seja explicitamente outbound)
+        if ($sourceSystem === 'wpp_gateway' && $direction === 'unknown') {
+            $direction = 'received'; // Default para webhook
+        }
+        
+        error_log(sprintf(
+            '[HUB_MSG_DIRECTION] computed=%s source=%s event_type=%s',
+            $direction,
+            $sourceSystem === 'wpp_gateway' ? 'webhook' : 'send_api',
+            $eventType
+        ));
+
+        // 🔍 PASSO 7: PERSISTÊNCIA - Log antes e depois do insert
+        $messageId = $eventData['payload']['id'] 
+            ?? $eventData['payload']['messageId'] 
+            ?? $eventData['payload']['message_id'] 
+            ?? $eventData['payload']['message']['id'] ?? null;
+        $channelId = $eventData['metadata']['channel_id'] ?? null;
+        
+        error_log(sprintf(
+            '[HUB_MSG_SAVE] INSERT_ATTEMPT event_id=%s message_id=%s event_type=%s tenant_id=%s channel_id=%s direction=%s',
+            $eventId,
+            $messageId ?: 'NULL',
+            $eventType,
+            $tenantId ?: 'NULL',
+            $channelId ?: 'NULL',
+            $direction
+        ));
+        
         // Insere evento
         try {
             $stmt = $db->prepare("
@@ -133,8 +184,34 @@ class EventIngestionService
                 $payloadJson,
                 $metadataJson
             ]);
+            
+            // Busca ID (PK) criado para log completo
+            $stmt = $db->prepare("SELECT id, created_at FROM communication_events WHERE event_id = ? LIMIT 1");
+            $stmt->execute([$eventId]);
+            $createdEvent = $stmt->fetch();
+            $idPk = $createdEvent ? $createdEvent['id'] : 'NULL';
+            $createdAt = $createdEvent ? $createdEvent['created_at'] : 'NULL';
+            
+            // 🔍 PASSO 7: PERSISTÊNCIA - Log de sucesso
+            error_log(sprintf(
+                '[HUB_MSG_SAVE_OK] event_id=%s id_pk=%s message_id=%s conversation_id=verificar_no_resolve channel_id=%s created_at=%s direction=%s',
+                $eventId,
+                $idPk,
+                $messageId ?: 'NULL',
+                $channelId ?: 'NULL',
+                $createdAt,
+                $direction
+            ));
+            
         } catch (\PDOException $e) {
-            // Log detalhado do erro do banco de dados
+            // 🔍 PASSO 7: PERSISTÊNCIA - Log de erro (sem engolir)
+            error_log(sprintf(
+                '[HUB_MSG_SAVE] INSERT_FAILED event_id=%s message_id=%s error=%s sql_state=%s',
+                $eventId,
+                $messageId ?: 'NULL',
+                $e->getMessage(),
+                $e->getCode()
+            ));
             error_log("[EventIngestionService::ingest] PDOException: " . $e->getMessage());
             error_log("[EventIngestionService::ingest] SQL State: " . $e->getCode());
             error_log("[EventIngestionService::ingest] Payload JSON: " . substr($payloadJson, 0, 200));
@@ -190,11 +267,27 @@ class EventIngestionService
                 ));
             }
 
-            if ($conversation && function_exists('pixelhub_log')) {
-                pixelhub_log(sprintf(
-                    '[EventIngestion] Conversa resolvida: conversation_id=%d, conversation_key=%s',
+            if ($conversation) {
+                // 🔍 PASSO 7: PERSISTÊNCIA - Atualiza log com conversation_id
+                error_log(sprintf(
+                    '[HUB_MSG_SAVE_OK] conversation_id=%d event_id=%s message_id=%s',
                     $conversation['id'],
-                    $conversation['conversation_key']
+                    $eventId,
+                    $messageId ?: 'NULL'
+                ));
+                
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log(sprintf(
+                        '[EventIngestion] Conversa resolvida: conversation_id=%d, conversation_key=%s',
+                        $conversation['id'],
+                        $conversation['conversation_key']
+                    ));
+                }
+            } else {
+                error_log(sprintf(
+                    '[HUB_MSG_SAVE_OK] conversation_id=NULL event_id=%s message_id=%s reason=conversation_not_resolved',
+                    $eventId,
+                    $messageId ?: 'NULL'
                 ));
             }
         } catch (\Exception $e) {

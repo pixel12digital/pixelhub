@@ -31,10 +31,60 @@ class WhatsAppWebhookController extends Controller
 
         try {
             // 🔍 PASSO 1: LOG OBRIGATÓRIO NO WEBHOOK (ANTES DE QUALQUER LÓGICA)
+            // HUB_WEBHOOK_IN - Log padrão conforme checklist técnico
             $rawPayload = file_get_contents('php://input');
             $payload = json_decode($rawPayload, true);
             
-            // Log detalhado do payload e headers
+            // Extrai informações críticas do payload para log padrão
+            $eventType = $payload['event'] ?? $payload['type'] ?? null;
+            $channelId = $payload['channel'] 
+                ?? $payload['channelId'] 
+                ?? $payload['session']['id'] 
+                ?? $payload['session']['session']
+                ?? $payload['data']['session']['id'] ?? null
+                ?? $payload['data']['session']['session'] ?? null
+                ?? $payload['data']['channel'] ?? null
+                ?? null;
+            $tenantId = null; // Será resolvido depois, mas logamos se vier no payload
+            $from = $payload['from'] ?? $payload['message']['from'] ?? $payload['data']['from'] ?? null;
+            $messageId = $payload['id'] 
+                ?? $payload['messageId'] 
+                ?? $payload['message_id'] 
+                ?? $payload['message']['id'] ?? null;
+            $timestamp = $payload['timestamp'] 
+                ?? $payload['message']['timestamp'] 
+                ?? $payload['raw']['payload']['t'] ?? null;
+            $correlationId = $payload['correlation_id'] 
+                ?? $payload['correlationId'] 
+                ?? $payload['trace_id'] 
+                ?? $payload['traceId'] ?? null;
+            
+            // Normaliza from para log (antes da normalização completa)
+            $normalizedFrom = null;
+            if ($from) {
+                // Remove sufixos @c.us, @s.whatsapp.net, etc. para log
+                $fromForLog = preg_replace('/@.*$/', '', $from);
+                $normalizedFrom = \PixelHub\Services\PhoneNormalizer::toE164OrNull($fromForLog);
+            }
+            
+            // Hash curto do payload para deduplicação
+            $payloadHash = substr(md5($rawPayload), 0, 8);
+            
+            // Log padrão HUB_WEBHOOK_IN
+            error_log(sprintf(
+                '[HUB_WEBHOOK_IN] eventType=%s channel_id=%s tenant_id=%s from=%s normalized_from=%s message_id=%s timestamp=%s correlationId=%s payload_hash=%s',
+                $eventType ?: 'NULL',
+                $channelId ?: 'NULL',
+                $tenantId ?: 'NULL',
+                $from ?: 'NULL',
+                $normalizedFrom ?: 'NULL',
+                $messageId ?: 'NULL',
+                $timestamp ?: 'NULL',
+                $correlationId ?: 'NULL',
+                $payloadHash
+            ));
+            
+            // Log detalhado do payload e headers (mantido para debug)
             $headers = [];
             foreach ($_SERVER as $key => $value) {
                 if (strpos($key, 'HTTP_') === 0) {
@@ -43,16 +93,11 @@ class WhatsAppWebhookController extends Controller
                 }
             }
             
-            // Extrai informações críticas do payload para log
-            $from = $payload['from'] ?? $payload['message']['from'] ?? $payload['data']['from'] ?? null;
-            $sessionId = $payload['session']['id'] ?? $payload['session']['session'] ?? $payload['channel'] ?? $payload['channelId'] ?? null;
-            $eventType = $payload['event'] ?? $payload['type'] ?? null;
-            
             error_log('[WHATSAPP INBOUND RAW] Payload recebido: ' . json_encode([
                 'event' => $eventType,
                 'from' => $from,
-                'session_id' => $sessionId,
-                'channel' => $payload['channel'] ?? $payload['channelId'] ?? null,
+                'session_id' => $channelId,
+                'channel' => $channelId,
                 'payload_keys' => array_keys($payload),
                 'has_message' => isset($payload['message']),
                 'has_data' => isset($payload['data']),
@@ -113,24 +158,30 @@ class WhatsAppWebhookController extends Controller
             }
 
             // Extrai channel (para identificar tenant) - tenta múltiplas localizações
-            $channelId = $payload['channel'] 
-                ?? $payload['channelId'] 
-                ?? $payload['session']['id'] 
-                ?? $payload['session']['session']
-                ?? $payload['data']['session']['id'] ?? null
-                ?? $payload['data']['session']['session'] ?? null
-                ?? $payload['data']['channel'] ?? null
-                ?? null;
+            // Se já foi extraído no log inicial, reutiliza; senão, extrai novamente
+            if (!isset($channelId)) {
+                $channelId = $payload['channel'] 
+                    ?? $payload['channelId'] 
+                    ?? $payload['session']['id'] 
+                    ?? $payload['session']['session']
+                    ?? $payload['data']['session']['id'] ?? null
+                    ?? $payload['data']['session']['session'] ?? null
+                    ?? $payload['data']['channel'] ?? null
+                    ?? null;
+            }
             
-            error_log('[WHATSAPP INBOUND RAW] Channel ID extraído: ' . ($channelId ?: 'NULL'));
+            // 🔍 PASSO 3: IDENTIFICAÇÃO DO CANAL - Log obrigatório
             if (!$channelId) {
-                error_log('[WHATSAPP INBOUND RAW] AVISO: channel_id não encontrado. Payload keys: ' . implode(', ', array_keys($payload)));
+                error_log('[HUB_CHANNEL_ID] MISSING_CHANNEL_ID - channel_id não encontrado no payload. Payload keys: ' . implode(', ', array_keys($payload)));
                 if (isset($payload['session'])) {
-                    error_log('[WHATSAPP INBOUND RAW] payload[session] keys: ' . implode(', ', array_keys($payload['session'])));
+                    error_log('[HUB_CHANNEL_ID] payload[session] keys: ' . implode(', ', array_keys($payload['session'])));
                 }
                 if (isset($payload['data'])) {
-                    error_log('[WHATSAPP INBOUND RAW] payload[data] keys: ' . implode(', ', array_keys($payload['data'])));
+                    error_log('[HUB_CHANNEL_ID] payload[data] keys: ' . implode(', ', array_keys($payload['data'])));
                 }
+                // Não bloqueia, mas loga explicitamente
+            } else {
+                error_log('[HUB_CHANNEL_ID] channel_id encontrado: ' . $channelId);
             }
 
             // Tenta resolver tenant_id pelo channel

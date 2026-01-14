@@ -1737,6 +1737,9 @@ function onNewMessagesFromPanel(messages) {
     const container = document.getElementById('messages-container');
     if (!container) return;
     
+    // 🔍 PASSO 8: UI - Log antes de processar
+    const activeThreadId = ConversationState.currentThreadId;
+    
     // Filtra mensagens já existentes
     const newMessages = messages.filter(msg => {
         const msgId = msg.id || msg.event_id;
@@ -1748,6 +1751,14 @@ function onNewMessagesFromPanel(messages) {
     });
     
     if (newMessages.length === 0) return;
+    
+    // 🔍 PASSO 8: UI - Log para cada mensagem nova
+    newMessages.forEach(msg => {
+        const msgThreadId = msg.thread_id || msg.conversation_id || null;
+        const action = (msgThreadId && activeThreadId && msgThreadId.toString() === activeThreadId.toString()) ? 'append' : 'listOnly';
+        
+        console.log('[INCOMING_MSG] thread=' + (msgThreadId || 'NULL') + ' activeThread=' + (activeThreadId || 'NULL') + ' action=' + action + ' message_id=' + (msg.id || msg.event_id || 'NULL'));
+    });
     
     // Atualiza marcadores
     const lastMessage = newMessages[newMessages.length - 1];

@@ -76,11 +76,21 @@ class ConversationService
             'tenant_id' => $eventData['tenant_id'] ?? null,
         ], JSON_UNESCAPED_UNICODE));
 
+        // 🔍 PASSO 4: MATCH DE CONVERSA - Log detalhado da query
+        $queryParams = [
+            'conversation_key' => $conversationKey,
+            'channel_type' => $channelInfo['channel_type'],
+            'channel_id' => $channelInfo['channel_id'] ?? null,
+            'contact_external_id' => $channelInfo['contact_external_id'],
+            'tenant_id' => $eventData['tenant_id'] ?? null,
+        ];
+        error_log('[HUB_CONV_MATCH] Query: findByKey conversation_key=' . $conversationKey . ' channel_type=' . $channelInfo['channel_type'] . ' contact=' . $channelInfo['contact_external_id'] . ' tenant_id=' . ($eventData['tenant_id'] ?? 'NULL'));
+
         // Busca conversa existente (por chave exata)
         $existing = self::findByKey($conversationKey);
         
         if ($existing) {
-            error_log('[CONVERSATION UPSERT] Conversa existente encontrada: conversation_id=' . $existing['id']);
+            error_log('[HUB_CONV_MATCH] FOUND_CONVERSATION id=' . $existing['id'] . ' conversation_key=' . $conversationKey);
             // 🔍 LOG TEMPORÁRIO: Antes de atualizar
             error_log(sprintf(
                 '[DIAGNOSTICO] ConversationService::resolveConversation() - ANTES updateConversationMetadata: conversation_id=%d, last_message_at=%s, unread_count=%d',
@@ -105,30 +115,24 @@ class ConversationService
 
         // Se não encontrou por chave exata, tenta encontrar conversa equivalente
         // (para evitar duplicidade por variação do 9º dígito em números BR)
+        error_log('[HUB_CONV_MATCH] Query: findEquivalentConversation contact=' . $channelInfo['contact_external_id']);
         $equivalent = self::findEquivalentConversation($channelInfo, $channelInfo['contact_external_id']);
         if ($equivalent) {
             // Encontrou conversa equivalente - atualiza ao invés de criar nova
-            error_log(sprintf(
-                "[CONVERSATION UPSERT] Conversa equivalente encontrada: conversation_id=%d (contact_external_id: %s -> %s)",
-                $equivalent['id'],
-                $equivalent['contact_external_id'],
-                $channelInfo['contact_external_id']
-            ));
+            error_log('[HUB_CONV_MATCH] FOUND_EQUIVALENT_CONVERSATION id=' . $equivalent['id'] . ' original_contact=' . $equivalent['contact_external_id'] . ' new_contact=' . $channelInfo['contact_external_id'] . ' reason=9th_digit_variation');
             self::updateConversationMetadata($equivalent['id'], $eventData, $channelInfo);
             return $equivalent;
         }
         
         // Se ainda não encontrou, tenta encontrar conversa com mesmo contato mas channel_account_id diferente
         // (ex.: conversa "shared" vs conversa com tenant específico)
+        error_log('[HUB_CONV_MATCH] Query: findConversationByContactOnly contact=' . $channelInfo['contact_external_id']);
         $equivalentByContact = self::findConversationByContactOnly($channelInfo);
         if ($equivalentByContact) {
             // Se a conversa encontrada é "shared" (sem channel_account_id) e temos um channel_account_id,
             // atualiza ela ao invés de criar nova
             if (empty($equivalentByContact['channel_account_id']) && $channelInfo['channel_account_id']) {
-                error_log(sprintf(
-                    "[CONVERSATION UPSERT] Conversa 'shared' encontrada, atualizando com channel_account_id: conversation_id=%d",
-                    $equivalentByContact['id']
-                ));
+                error_log('[HUB_CONV_MATCH] FOUND_SHARED_CONVERSATION id=' . $equivalentByContact['id'] . ' reason=updating_shared_with_channel_account_id');
                 // Atualiza a conversa existente
                 self::updateConversationMetadata($equivalentByContact['id'], $eventData, $channelInfo);
                 // Atualiza channel_account_id e conversation_key
@@ -138,10 +142,7 @@ class ConversationService
             } elseif ($equivalentByContact['channel_account_id'] && $channelInfo['channel_account_id'] && 
                       $equivalentByContact['channel_account_id'] == $channelInfo['channel_account_id']) {
                 // Mesma conversa com mesmo channel_account_id - apenas atualiza
-                error_log(sprintf(
-                    "[CONVERSATION UPSERT] Conversa encontrada por contato (mesmo channel_account_id): conversation_id=%d",
-                    $equivalentByContact['id']
-                ));
+                error_log('[HUB_CONV_MATCH] FOUND_CONVERSATION id=' . $equivalentByContact['id'] . ' reason=same_contact_and_channel_account_id');
                 self::updateConversationMetadata($equivalentByContact['id'], $eventData, $channelInfo);
                 return $equivalentByContact;
             }
@@ -149,12 +150,12 @@ class ConversationService
         }
 
         // Cria nova conversa
-        error_log('[CONVERSATION UPSERT] Nenhuma conversa encontrada, criando nova...');
+        error_log('[HUB_CONV_MATCH] CREATED_CONVERSATION conversation_key=' . $conversationKey . ' channel_type=' . $channelInfo['channel_type'] . ' contact=' . $channelInfo['contact_external_id']);
         $newConversation = self::createConversation($conversationKey, $eventData, $channelInfo);
         if ($newConversation) {
-            error_log('[CONVERSATION UPSERT] Nova conversa criada: conversation_id=' . $newConversation['id'] . ', conversation_key=' . $conversationKey);
+            error_log('[HUB_CONV_MATCH] CREATED_CONVERSATION id=' . $newConversation['id'] . ' conversation_key=' . $conversationKey);
         } else {
-            error_log('[CONVERSATION UPSERT] ERRO: Falha ao criar nova conversa');
+            error_log('[HUB_CONV_MATCH] ERROR: Falha ao criar nova conversa conversation_key=' . $conversationKey);
         }
         return $newConversation;
     }
