@@ -451,7 +451,14 @@ if (result.thread.unread_count > 0) {
 - ✅ Adicionado `getNewMessages()` para buscar mensagens incrementais (linhas 1679-1829)
 - ✅ Corrigido `getWhatsAppMessagesFromConversation()` para usar normalização robusta (linhas 890-1080)
 - ✅ Corrigido `getWhatsAppMessagesIncremental()` para usar normalização robusta (linhas 1875-2069)
-- ✅ **CORRIGIDO:** Queries SQL agora usam `JSON_UNQUOTE(JSON_EXTRACT(...))` para LIKE funcionar (linhas 1579-1582, 1930-1933, 970-973)
+- ✅ **CORREÇÃO APLICADA (commit 15e9476):** Queries SQL agora usam `JSON_UNQUOTE(JSON_EXTRACT(...))` para LIKE funcionar corretamente
+  - **Problema:** `checkNewMessages()` retornava `has_new=false` mesmo com mensagens novas
+  - **Causa:** Query usando `JSON_EXTRACT()` com `LIKE`, mas o retorno vinha com aspas (ex: `"554796164699@c.us"`), quebrando o match
+  - **Solução:** Substituído por `JSON_UNQUOTE(JSON_EXTRACT(...))` nas queries com `LIKE`
+  - **Aplicado em 3 métodos:**
+    - `checkNewMessages()` (linhas 1579-1582)
+    - `getWhatsAppMessagesIncremental()` (linhas 1930-1933)
+    - `getWhatsAppMessagesFromConversation()` (linhas 970-973)
 
 **Arquivo:** `views/communication_hub/index.php`
 - ✅ Adicionado `updateConversationListOnly()` para atualizar lista sem reload (linhas 1004-1100)
@@ -520,9 +527,9 @@ if (result.thread.unread_count > 0) {
 ### D.4) O Que Ainda Está Pendente / Comportamentos Inconsistentes
 
 **Pendente #1: `checkNewMessages()` Retorna `has_new=false` Incorretamente**
-- ❌ Logs mostram `has_new=false` mesmo quando há mensagens novas
-- ❌ `lastTimestamp` pode estar desatualizado ou `null`
-- ❌ Query SQL pode não estar encontrando eventos
+- ✅ **CORRIGIDO (commit 15e9476):** Query SQL agora usa `JSON_UNQUOTE(JSON_EXTRACT(...))` para LIKE funcionar
+- ⚠️ **PENDENTE VALIDAÇÃO:** Confirmar se `has_new=true` agora funciona corretamente em produção
+- ⚠️ **POSSÍVEL CAUSA RESIDUAL:** `lastTimestamp` pode estar desatualizado ou `null` quando conversa é carregada
 
 **Pendente #2: Badge Não Aparece para Charles (4699)**
 - ❌ `unread_count` pode estar sendo incrementado no backend
@@ -820,17 +827,92 @@ if (!empty($servproThread)) {
 
 ## CONCLUSÃO
 
+### Correção Aplicada (commit 15e9476)
+
+**O que foi corrigido:**
+- ✅ Query SQL em `checkNewMessages()`, `getWhatsAppMessagesIncremental()` e `getWhatsAppMessagesFromConversation()` agora usa `JSON_UNQUOTE(JSON_EXTRACT(...))` antes de `LIKE`
+- ✅ Isso resolve o problema de `has_new=false` incorretamente quando há mensagens novas
+
+**O que essa correção resolve:**
+- ✅ Thread ativo que não atualizava porque `has_new=false` travava a chamada do `/messages/new`
+- ✅ Polling do thread agora deve detectar novas mensagens corretamente
+
+**O que essa correção NÃO resolve sozinha:**
+
+1. **Conversa não sobe ao topo / badge não aparece (4699 - Charles)**
+   - Mesmo com mensagem chegando no thread, a lista pode não refletir `last_activity` / `unread_count` da conversa ativa
+   - Causa: Comportamento de "preservar conversa ativa" no `updateConversationListOnly()` atualiza a lista sem recarregar a thread, e pode ficar com `last_activity`/badge desatualizado
+
+2. **Badge aparece, mas ao clicar não vê a mensagem (4223 - ServPro)**
+   - Se o badge incrementa (metadados de conversa atualizados), mas a thread não carrega mensagem, isso costuma cair em:
+     - `lastTimestamp` / `lastEventId` inicializados errado ao abrir a conversa (ex.: `null`/timestamp atual) → polling incremental "pula" mensagens
+     - Normalização/padrões divergentes entre o que a lista usa e o que o carregamento da thread usa
+
+---
+
+### Próximos Passos Objetivos (Ordem de Menor Risco)
+
+**Passo A — Validar imediatamente se o `has_new` virou `true` quando deve**
+- Com a conversa aberta, mandar mensagem e verificar se o endpoint `/communication-hub/messages/check` responde `has_new=true`
+- Isso confirma que o fix está "batendo" no gargalo certo (polling do thread)
+- **Validação:** Verificar logs do console: `[LOG TEMPORARIO] checkForNewConversationMessages() - RESULTADO: success=true, has_new=true`
+
+**Passo B — Garantir que `initializeConversationMarkers()` pega o "último timestamp real"**
+- Quando abre a conversa, o fluxo zera `ConversationState.lastTimestamp`/`lastEventId` e depois depende do "marker" pós-render para reiniciar polling corretamente
+- Se isso falhar, você vê exatamente o caso "badge existe, mas thread parece vazio/atrasado"
+- **Validação:** Verificar logs do console após carregar conversa: `[FIX] initializeConversationMarkers - lastTimestamp: ...` (deve ser timestamp da última mensagem, não `null` ou timestamp atual)
+
+**Passo C — Forçar atualização do "topo + badge" da conversa ativa**
+- A lista é atualizada via `updateConversationListOnly()` e ordenada por `last_activity`; se o backend retornar desatualizado ou se o frontend não refletir a conversa ativa corretamente, ela não sobe
+- **Validação:** Verificar logs do console: `[LOG TEMPORARIO] updateConversationListOnly() - ORDENACAO BACKEND: primeiro_thread_id=...` (deve ser a conversa que recebeu mensagem mais recente)
+
+**Esses 3 passos são justamente a "combinação recomendada" do Raio-X (1: markers → 2: lista/topo → 3: validar query SQL).**
+
+---
+
+### Checklist Rápido de Validação Pós-Fix
+
+**Use exatamente os 2 casos (4699 e 4223) e rode:**
+
+**(1) Conversa fechada: mensagem chega → badge aparece → sobe ao topo → clicar mostra mensagem**
+- Enviar mensagem do Charles (4699) ou ServPro (4223) para Pixel12 Digital
+- Aguardar 5 segundos (polling da lista)
+- ✅ Badge aparece na lista (`unread_count > 0`)
+- ✅ Conversa sobe ao topo (`last_activity` é o mais recente)
+- ✅ Clicar na conversa mostra mensagem no thread
+- ✅ Badge desaparece após abrir conversa
+
+**(2) Conversa aberta: mensagem chega → `/messages/check` dá `has_new=true` → `/messages/new` retorna `messages_count>=1` → DOM atualiza sem refresh**
+- Abrir conversa do Charles (4699) ou ServPro (4223)
+- Enviar mensagem para Pixel12 Digital
+- Aguardar 12 segundos (polling do thread)
+- ✅ Console mostra: `[LOG TEMPORARIO] checkForNewConversationMessages() - RESULTADO: success=true, has_new=true`
+- ✅ Console mostra: `[LOG TEMPORARIO] checkForNewConversationMessages() - FETCH RESULTADO: messages_count=1`
+- ✅ Mensagem aparece no thread automaticamente (sem reload)
+- ✅ `ConversationState.lastTimestamp` é atualizado
+
+**(3) Conversa ativa diferente: manter thread do Charles aberta, receber msg no ServPro → ServPro sobe com badge sem derrubar thread do Charles**
+- Abrir conversa do Charles (whatsapp_35)
+- Enviar mensagem do ServPro (4223) para Pixel12 Digital
+- Aguardar 5 segundos (polling da lista)
+- ✅ Badge aparece na lista do ServPro
+- ✅ ServPro sobe ao topo (acima do Charles)
+- ✅ Charles continua aberto no thread (não fecha)
+- ✅ `updateConversationListOnly()` preserva conversa ativa (Charles)
+
+---
+
 **Problemas Críticos Identificados:**
-1. ✅ `checkNewMessages()` retorna `has_new=false` incorretamente (JSON_UNQUOTE já corrigido, mas pode ter outros problemas)
-2. ✅ `lastTimestamp` pode estar `null` ou desatualizado quando conversa é carregada
-3. ✅ `unread_count` pode não estar sendo refletido no frontend quando conversa está ativa
-4. ✅ `last_activity` da conversa ativa pode não estar sendo atualizado na lista
+1. ✅ `checkNewMessages()` retorna `has_new=false` incorretamente → **CORRIGIDO (commit 15e9476)**
+2. ⚠️ `lastTimestamp` pode estar `null` ou desatualizado quando conversa é carregada → **PENDENTE (Passo B)**
+3. ⚠️ `unread_count` pode não estar sendo refletido no frontend quando conversa está ativa → **PENDENTE (Passo C)**
+4. ⚠️ `last_activity` da conversa ativa pode não estar sendo atualizado na lista → **PENDENTE (Passo C)**
 
 **Próximos Passos:**
-1. Implementar Abordagem #1 (corrigir `initializeConversationMarkers()`)
-2. Implementar Abordagem #2 (forçar atualização de `last_activity` na lista)
-3. Validar Abordagem #3 (query SQL já foi corrigida, mas validar se está funcionando)
-4. Executar checklist de testes (E.1 a E.6)
+1. ✅ Validar Passo A (confirmar que `has_new=true` funciona)
+2. Implementar Passo B (corrigir `initializeConversationMarkers()`)
+3. Implementar Passo C (forçar atualização de `last_activity` na lista)
+4. Executar checklist de validação (1, 2, 3 acima)
 5. Remover logs temporários após validação
 
 ---
