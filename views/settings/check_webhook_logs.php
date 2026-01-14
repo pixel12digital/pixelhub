@@ -258,14 +258,67 @@
             <?php endif; ?>
         </div>
 
+        <!-- Logs HUB_* Recentes (Diagnóstico) -->
+        <?php if (!empty($logs['recent_hub_logs'])): ?>
+        <div class="section">
+            <h2>9. Logs HUB_* Recentes (Últimas 2 horas) - Diagnóstico</h2>
+            <div class="info" style="margin-bottom: 10px;">
+                Mostrando logs HUB_* recentes para verificar se os logs estão sendo gerados corretamente.
+            </div>
+            <div class="success">✅ Encontrados <?= count($logs['recent_hub_logs']) ?> logs HUB_* recentes:</div>
+            <pre style="max-height: 400px; overflow-y: auto;"><?php
+            foreach ($logs['recent_hub_logs'] as $line) {
+                // Destaca por tipo
+                if (stripos($line, 'HUB_WEBHOOK_IN') !== false) {
+                    echo '<span class="success">' . htmlspecialchars($line) . '</span>' . "\n";
+                } elseif (stripos($line, 'HUB_MSG_SAVE') !== false) {
+                    echo '<span class="success">' . htmlspecialchars($line) . '</span>' . "\n";
+                } elseif (stripos($line, 'HUB_MSG_DROP') !== false) {
+                    echo '<span class="warning">' . htmlspecialchars($line) . '</span>' . "\n";
+                } else {
+                    echo htmlspecialchars($line) . "\n";
+                }
+            }
+            ?></pre>
+        </div>
+        <?php else: ?>
+        <div class="section">
+            <h2>9. Logs HUB_* Recentes (Últimas 2 horas) - Diagnóstico</h2>
+            <div class="error">❌ Nenhum log HUB_* encontrado nas últimas 2 horas</div>
+            <div class="warning" style="margin-top: 10px;">
+                <strong>⚠️ Problema identificado:</strong> Os logs HUB_* não estão sendo gerados ou não estão sendo escritos no arquivo de log.<br><br>
+                <strong>Possíveis causas:</strong><br>
+                • Os logs não estão sendo gerados pelo código<br>
+                • O arquivo de log não está configurado corretamente<br>
+                • Os logs estão sendo escritos em outro local<br>
+                • O error_log do PHP não está apontando para o arquivo correto
+            </div>
+            <?php if (isset($logFileInfo) && $logFileInfo): ?>
+            <div class="info" style="margin-top: 10px;">
+                <strong>Informações do arquivo de log:</strong><br>
+                • Caminho: <?= htmlspecialchars($logFileInfo['path']) ?><br>
+                • Existe: <?= $logFileInfo['exists'] ? '✅ Sim' : '❌ Não' ?><br>
+                • Legível: <?= $logFileInfo['readable'] ? '✅ Sim' : '❌ Não' ?><br>
+                • Tamanho: <?= $logFileInfo['size'] ? number_format($logFileInfo['size'] / 1024, 2) . ' KB' : '0 KB' ?><br>
+                • Modificado: <?= $logFileInfo['modified'] ?: 'N/A' ?><br>
+                • Linhas totais: <?= $logFileInfo['lines'] ?: 'N/A' ?>
+            </div>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
+
         <!-- Resumo -->
         <div class="section">
             <h2>📊 Resumo</h2>
             <div class="info">
                 <strong>correlation_id:</strong> <?= htmlspecialchars($correlationId) ?><br>
-                <strong>Horário do teste:</strong> ~<?= htmlspecialchars($testTime) ?><br>
+                <strong>Horário do teste:</strong> ~<?= htmlspecialchars($testTime) ?> (tente também 19:35 para UTC)<br>
                 <strong>Container:</strong> <?= htmlspecialchars($containerName) ?><br>
                 <strong>Docker:</strong> <?= $dockerAvailable ? '✅ Disponível' : '❌ Não disponível' ?><br>
+                <?php if (isset($logFileInfo) && $logFileInfo): ?>
+                <strong>Arquivo de log:</strong> <?= htmlspecialchars($logFileInfo['path']) ?><br>
+                <strong>Tamanho do log:</strong> <?= number_format($logFileInfo['size'] / 1024, 2) ?> KB<br>
+                <?php endif; ?>
             </div>
         </div>
 

@@ -878,7 +878,8 @@ class WhatsAppGatewayDiagnosticController extends Controller
             'webhook_in' => [],
             'msg_save' => [],
             'msg_drop' => [],
-            'errors' => []
+            'errors' => [],
+            'recent_hub_logs' => [] // Logs HUB_* recentes para diagnóstico
         ];
 
         // Busca em arquivos de log do Pixel Hub (fallback se Docker não disponível)
@@ -998,12 +999,31 @@ class WhatsAppGatewayDiagnosticController extends Controller
                         }
                     }
                     
+                    // Busca logs HUB_* recentes (últimas 2 horas) para diagnóstico
+                    $twoHoursAgo = date('Y-m-d H:i:s', strtotime('-2 hours'));
+                    for ($i = $startIndex; $i < $totalLines; $i++) {
+                        $line = $lines[$i];
+                        if (stripos($line, '[HUB_') !== false) {
+                            // Extrai timestamp da linha (formato [YYYY-MM-DD HH:MM:SS])
+                            if (preg_match('/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]/', $line, $matches)) {
+                                $lineTimestamp = $matches[1];
+                                if ($lineTimestamp >= $twoHoursAgo) {
+                                    $logs['recent_hub_logs'][] = trim($line);
+                                }
+                            } elseif (stripos($line, '[HUB_') !== false) {
+                                // Se não tem timestamp, adiciona mesmo assim (pode ser formato diferente)
+                                $logs['recent_hub_logs'][] = trim($line);
+                            }
+                        }
+                    }
+                    
                     // Remove duplicatas e limita resultados
                     $logs['correlation_id'] = array_slice(array_unique($logs['correlation_id']), -30);
                     $logs['webhook_in'] = array_slice(array_unique($logs['webhook_in']), -20);
                     $logs['msg_save'] = array_slice(array_unique($logs['msg_save']), -20);
                     $logs['msg_drop'] = array_slice(array_unique($logs['msg_drop']), -20);
                     $logs['errors'] = array_slice(array_unique($logs['errors']), -20);
+                    $logs['recent_hub_logs'] = array_slice(array_unique($logs['recent_hub_logs']), -50);
                 }
             } catch (\Exception $e) {
                 // Ignora erro de leitura
@@ -1033,6 +1053,19 @@ class WhatsAppGatewayDiagnosticController extends Controller
             // Ignora erro
         }
 
+        // Informações sobre o arquivo de log
+        $logFileInfo = null;
+        if ($foundLogFile) {
+            $logFileInfo = [
+                'path' => $foundLogFile,
+                'exists' => file_exists($foundLogFile),
+                'readable' => is_readable($foundLogFile),
+                'size' => file_exists($foundLogFile) ? filesize($foundLogFile) : 0,
+                'modified' => file_exists($foundLogFile) ? date('Y-m-d H:i:s', filemtime($foundLogFile)) : null,
+                'lines' => isset($totalLines) ? $totalLines : null
+            ];
+        }
+        
         $this->view('settings.check_webhook_logs', [
             'correlationId' => $correlationId,
             'testTime' => $testTime,
@@ -1041,7 +1074,8 @@ class WhatsAppGatewayDiagnosticController extends Controller
             'containers' => $containers,
             'logs' => $logs,
             'events' => $events,
-            'logFile' => $foundLogFile ?? null
+            'logFile' => $foundLogFile ?? null,
+            'logFileInfo' => $logFileInfo
         ]);
     }
 
