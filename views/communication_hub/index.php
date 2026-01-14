@@ -1027,13 +1027,47 @@ async function updateConversationListOnly() {
         // [LOG TEMPORARIO] Resposta recebida
         console.log('[LOG TEMPORARIO] updateConversationListOnly() - RESPOSTA RECEBIDA: threads_count=' + (result.threads?.length || 0));
         
+        // [LOG TEMPORARIO] Valida ordenação do backend
+        if (result.threads && result.threads.length > 0) {
+            const firstThread = result.threads[0];
+            const lastThread = result.threads[result.threads.length - 1];
+            console.log('[LOG TEMPORARIO] updateConversationListOnly() - ORDENACAO BACKEND: primeiro_thread_id=' + (firstThread.thread_id || 'N/A') + ', last_activity=' + (firstThread.last_activity || 'N/A'));
+            console.log('[LOG TEMPORARIO] updateConversationListOnly() - ORDENACAO BACKEND: ultimo_thread_id=' + (lastThread.thread_id || 'N/A') + ', last_activity=' + (lastThread.last_activity || 'N/A'));
+            
+            // Valida se está ordenado por last_activity DESC
+            let isOrdered = true;
+            for (let i = 1; i < result.threads.length; i++) {
+                const prevTime = new Date(result.threads[i-1].last_activity || '1970-01-01').getTime();
+                const currTime = new Date(result.threads[i].last_activity || '1970-01-01').getTime();
+                if (currTime > prevTime) {
+                    isOrdered = false;
+                    console.warn('[LOG TEMPORARIO] updateConversationListOnly() - ORDENACAO QUEBRADA: thread[' + (i-1) + '].last_activity=' + result.threads[i-1].last_activity + ' < thread[' + i + '].last_activity=' + result.threads[i].last_activity);
+                    break;
+                }
+            }
+            console.log('[LOG TEMPORARIO] updateConversationListOnly() - ORDENACAO VALIDADA: ' + (isOrdered ? 'CORRETA (DESC)' : 'INCORRETA'));
+        }
+        
         // Preserva estado atual
         const activeThreadId = ConversationState.currentThreadId;
         const listScroll = document.querySelector('.conversation-list-scroll');
         const scrollPosition = listScroll ? listScroll.scrollTop : 0;
         
-        // Renderiza lista atualizada
-        renderConversationList(result.threads);
+        // CRÍTICO: Garante que threads estão ordenados por last_activity DESC antes de renderizar
+        // (Backend já retorna ordenado, mas garante aqui também para segurança)
+        const sortedThreads = [...(result.threads || [])].sort((a, b) => {
+            const timeA = new Date(a.last_activity || '1970-01-01').getTime();
+            const timeB = new Date(b.last_activity || '1970-01-01').getTime();
+            return timeB - timeA; // DESC: mais recente primeiro
+        });
+        
+        // [LOG TEMPORARIO] Ordenação após sort
+        if (sortedThreads.length > 0) {
+            console.log('[LOG TEMPORARIO] updateConversationListOnly() - APOS SORT: primeiro_thread_id=' + (sortedThreads[0].thread_id || 'N/A') + ', last_activity=' + (sortedThreads[0].last_activity || 'N/A'));
+        }
+        
+        // Renderiza lista atualizada (já ordenada)
+        renderConversationList(sortedThreads);
         
         // Restaura scroll
         if (listScroll) {
@@ -1067,6 +1101,8 @@ async function updateConversationListOnly() {
 
 /**
  * Renderiza lista de conversas no DOM
+ * 
+ * IMPORTANTE: threads já devem estar ordenados por last_activity DESC
  */
 function renderConversationList(threads) {
     const listContainer = document.querySelector('.conversation-list-scroll');
@@ -1085,8 +1121,17 @@ function renderConversationList(threads) {
         return;
     }
     
+    // [LOG TEMPORARIO] Ordem antes de renderizar
+    console.log('[LOG TEMPORARIO] renderConversationList() - INICIADO: threads_count=' + threads.length);
+    if (threads.length > 0) {
+        console.log('[LOG TEMPORARIO] renderConversationList() - PRIMEIRO: thread_id=' + (threads[0].thread_id || 'N/A') + ', last_activity=' + (threads[0].last_activity || 'N/A'));
+        if (threads.length > 1) {
+            console.log('[LOG TEMPORARIO] renderConversationList() - SEGUNDO: thread_id=' + (threads[1].thread_id || 'N/A') + ', last_activity=' + (threads[1].last_activity || 'N/A'));
+        }
+    }
+    
     let html = '';
-    threads.forEach(thread => {
+    threads.forEach((thread, index) => {
         const threadId = escapeHtml(thread.thread_id || '');
         const channel = escapeHtml(thread.channel || 'whatsapp');
         const contactName = escapeHtml(thread.contact_name || thread.tenant_name || 'Cliente');
@@ -1156,7 +1201,18 @@ function renderConversationList(threads) {
         `;
     });
     
+    // [LOG TEMPORARIO] Ordem após renderizar HTML
+    console.log('[LOG TEMPORARIO] renderConversationList() - HTML GERADO: length=' + html.length);
+    
     listContainer.innerHTML = html;
+    
+    // [LOG TEMPORARIO] Valida ordem no DOM após renderizar
+    const renderedItems = listContainer.querySelectorAll('.conversation-item');
+    if (renderedItems.length > 0) {
+        const firstRendered = renderedItems[0];
+        const firstThreadId = firstRendered.dataset.threadId;
+        console.log('[LOG TEMPORARIO] renderConversationList() - DOM RENDERIZADO: primeiro_item_thread_id=' + (firstThreadId || 'N/A'));
+    }
 }
 
 function openNewMessageModal() {

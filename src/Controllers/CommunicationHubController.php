@@ -921,8 +921,12 @@ class CommunicationHubController extends Controller
             return $digitsOnly;
         };
         $normalizedContactExternalId = $normalizeContact($contactExternalId);
+        
+        // [LOG TEMPORARIO] Normalização
+        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - NORMALIZACAO: contact_external_id_original=' . ($contactExternalId ?: 'NULL') . ', normalized=' . ($normalizedContactExternalId ?: 'NULL'));
 
         if (empty($normalizedContactExternalId)) {
+            error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - ERRO: normalizedContactExternalId está vazio após normalização');
             return []; // Não pode buscar sem contato
         }
 
@@ -946,12 +950,17 @@ class CommunicationHubController extends Controller
                 // Remove 9º dígito para buscar variação sem ele
                 $without9th = substr($normalizedContactExternalId, 0, 4) . substr($normalizedContactExternalId, 5);
                 $contactPatterns[] = "%{$without9th}%";
+                error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - ADICIONADO PADRAO: without9th=' . $without9th);
             } elseif (strlen($normalizedContactExternalId) === 12) { // 55 + DDD + 8 dígitos
                 // Adiciona 9º dígito para buscar variação com ele
                 $with9th = substr($normalizedContactExternalId, 0, 4) . '9' . substr($normalizedContactExternalId, 4);
                 $contactPatterns[] = "%{$with9th}%";
+                error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - ADICIONADO PADRAO: with9th=' . $with9th);
             }
         }
+        
+        // [LOG TEMPORARIO] Padrões de busca
+        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - PADROES DE BUSCA: count=' . count($contactPatterns) . ', patterns=' . implode(', ', $contactPatterns));
         
         // Monta condições OR para cada padrão
         $contactConditions = [];
@@ -1003,6 +1012,7 @@ class CommunicationHubController extends Controller
         // Validação final em PHP (garantir que mensagem pertence à conversa)
         // A query SQL já filtra a maioria, mas validação final garante precisão
         $messages = [];
+        $excludedCount = 0;
         foreach ($filteredEvents as $event) {
             $payload = json_decode($event['payload'], true);
             $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
@@ -1018,6 +1028,9 @@ class CommunicationHubController extends Controller
             $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContactExternalId;
             
             if (!$isFromThisContact && !$isToThisContact) {
+                $excludedCount++;
+                // [LOG TEMPORARIO] Evento excluído por normalização
+                error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - EVENTO EXCLUIDO: event_id=' . ($event['event_id'] ?? 'N/A') . ', from_original=' . ($eventFrom ?: 'NULL') . ', from_normalized=' . ($normalizedFrom ?: 'NULL') . ', to_original=' . ($eventTo ?: 'NULL') . ', to_normalized=' . ($normalizedTo ?: 'NULL') . ', expected=' . $normalizedContactExternalId);
                 continue;
             }
             
@@ -1057,6 +1070,9 @@ class CommunicationHubController extends Controller
                 'metadata' => json_decode($event['metadata'] ?? '{}', true)
             ];
         }
+        
+        // [LOG TEMPORARIO] Resultado final da validação
+        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - RESULTADO FINAL: messages_count=' . count($messages) . ', excluded_count=' . $excludedCount . ', filtered_events_count=' . count($filteredEvents));
 
         return $messages;
     }
@@ -1333,12 +1349,22 @@ class CommunicationHubController extends Controller
             // Combina e ordena por última atividade
             $allThreads = array_merge($whatsappThreads ?? [], $chatThreads ?? []);
             
+            // [LOG TEMPORARIO] Antes de ordenar
+            if (!empty($allThreads)) {
+                $firstBeforeSort = $allThreads[0] ?? null;
+                error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - ANTES SORT: threads_count=' . count($allThreads) . ', primeiro_thread_id=' . ($firstBeforeSort['thread_id'] ?? 'N/A') . ', last_activity=' . ($firstBeforeSort['last_activity'] ?? 'N/A'));
+            }
+            
             if (!empty($allThreads)) {
                 usort($allThreads, function($a, $b) {
                     $timeA = strtotime($a['last_activity'] ?? '1970-01-01');
                     $timeB = strtotime($b['last_activity'] ?? '1970-01-01');
                     return $timeB <=> $timeA; // Mais recente primeiro
                 });
+                
+                // [LOG TEMPORARIO] Após ordenar
+                $firstAfterSort = $allThreads[0] ?? null;
+                error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - APOS SORT: primeiro_thread_id=' . ($firstAfterSort['thread_id'] ?? 'N/A') . ', last_activity=' . ($firstAfterSort['last_activity'] ?? 'N/A'));
 
                 // Filtra por canal se necessário
                 if ($channel !== 'all') {
@@ -1346,11 +1372,32 @@ class CommunicationHubController extends Controller
                         return ($thread['channel'] ?? '') === $channel;
                     });
                     $allThreads = array_values($allThreads); // Reindexa array
+                    
+                    // CRÍTICO: Reordena após filtrar (array_filter pode desordenar)
+                    usort($allThreads, function($a, $b) {
+                        $timeA = strtotime($a['last_activity'] ?? '1970-01-01');
+                        $timeB = strtotime($b['last_activity'] ?? '1970-01-01');
+                        return $timeB <=> $timeA; // Mais recente primeiro
+                    });
+                    
+                    // [LOG TEMPORARIO] Após filtrar e reordenar
+                    if (!empty($allThreads)) {
+                        $firstAfterFilter = $allThreads[0] ?? null;
+                        error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - APOS FILTRO: threads_count=' . count($allThreads) . ', primeiro_thread_id=' . ($firstAfterFilter['thread_id'] ?? 'N/A') . ', last_activity=' . ($firstAfterFilter['last_activity'] ?? 'N/A'));
+                    }
                 }
             }
 
-            // [LOG TEMPORARIO] Resultado da busca
-            error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - RETORNO: threads_count=' . count($allThreads ?? []));
+            // [LOG TEMPORARIO] Resultado final
+            error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - RETORNO FINAL: threads_count=' . count($allThreads ?? []));
+            if (!empty($allThreads)) {
+                $firstFinal = $allThreads[0] ?? null;
+                $secondFinal = $allThreads[1] ?? null;
+                error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - PRIMEIRO: thread_id=' . ($firstFinal['thread_id'] ?? 'N/A') . ', last_activity=' . ($firstFinal['last_activity'] ?? 'N/A') . ', unread_count=' . ($firstFinal['unread_count'] ?? 0));
+                if ($secondFinal) {
+                    error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - SEGUNDO: thread_id=' . ($secondFinal['thread_id'] ?? 'N/A') . ', last_activity=' . ($secondFinal['last_activity'] ?? 'N/A') . ', unread_count=' . ($secondFinal['unread_count'] ?? 0));
+                }
+            }
 
             $this->json([
                 'success' => true,
