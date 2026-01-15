@@ -283,12 +283,18 @@ class EventIngestionService
                         $conversation['conversation_key']
                     ));
                 }
+                
+                // Marca evento como processado quando conversa foi resolvida com sucesso
+                self::updateStatus($eventId, 'processed');
             } else {
                 error_log(sprintf(
                     '[HUB_MSG_SAVE_OK] conversation_id=NULL event_id=%s message_id=%s reason=conversation_not_resolved',
                     $eventId,
                     $messageId ?: 'NULL'
                 ));
+                
+                // Marca evento como falho quando conversa não foi resolvida
+                self::updateStatus($eventId, 'failed', 'conversation_not_resolved');
             }
         } catch (\Exception $e) {
             // Não quebra fluxo se resolver conversa falhar
