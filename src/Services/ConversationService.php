@@ -72,9 +72,17 @@ class ConversationService
             'conversation_key' => $conversationKey,
             'channel_type' => $channelInfo['channel_type'],
             'channel_id' => $channelInfo['channel_id'] ?? null,
+            'channel_account_id' => $channelInfo['channel_account_id'] ?? null,
             'contact_external_id' => $channelInfo['contact_external_id'],
             'tenant_id' => $eventData['tenant_id'] ?? null,
         ], JSON_UNESCAPED_UNICODE));
+        
+        // Log específico sobre resolução do canal
+        if (!empty($channelInfo['channel_id'])) {
+            error_log('[HUB_CHANNEL_RESOLUTION] channel_id resolvido: ' . $channelInfo['channel_id'] . ' -> channel_account_id: ' . ($channelInfo['channel_account_id'] ?? 'NULL'));
+        } else {
+            error_log('[HUB_CHANNEL_RESOLUTION] AVISO: channel_id não fornecido - usando fallback para primeiro canal');
+        }
 
         // 🔍 PASSO 4: MATCH DE CONVERSA - Log detalhado da query
         $queryParams = [
@@ -150,10 +158,10 @@ class ConversationService
         }
 
         // Cria nova conversa
-        error_log('[HUB_CONV_MATCH] CREATED_CONVERSATION conversation_key=' . $conversationKey . ' channel_type=' . $channelInfo['channel_type'] . ' contact=' . $channelInfo['contact_external_id']);
+        error_log('[HUB_CONV_MATCH] CREATED_CONVERSATION conversation_key=' . $conversationKey . ' channel_type=' . $channelInfo['channel_type'] . ' contact=' . $channelInfo['contact_external_id'] . ' channel_id=' . ($channelInfo['channel_id'] ?? 'NULL') . ' channel_account_id=' . ($channelInfo['channel_account_id'] ?? 'NULL'));
         $newConversation = self::createConversation($conversationKey, $eventData, $channelInfo);
         if ($newConversation) {
-            error_log('[HUB_CONV_MATCH] CREATED_CONVERSATION id=' . $newConversation['id'] . ' conversation_key=' . $conversationKey);
+            error_log('[HUB_CONV_MATCH] CREATED_CONVERSATION id=' . $newConversation['id'] . ' conversation_key=' . $conversationKey . ' channel_id=' . ($newConversation['channel_id'] ?? 'NULL'));
         } else {
             error_log('[HUB_CONV_MATCH] ERROR: Falha ao criar nova conversa conversation_key=' . $conversationKey);
         }
@@ -348,16 +356,18 @@ class ConversationService
             return null;
         }
 
-        // Resolve channel_account_id (se tenant_id disponível)
-        $channelAccountId = null;
-        if ($tenantId && $channelType === 'whatsapp') {
-            $channelAccountId = self::resolveChannelAccountId($tenantId, $channelType);
-        }
-
         // Extrai channel_id (session.id) do payload para eventos inbound de WhatsApp
+        // IMPORTANTE: Extrair ANTES de resolver channel_account_id para usar na busca
         $channelId = null;
         if ($channelType === 'whatsapp' && ($direction ?? 'inbound') === 'inbound') {
             $channelId = self::extractChannelIdFromPayload($payload, $metadata);
+        }
+
+        // Resolve channel_account_id usando o channel_id (sessionId) extraído
+        // CORREÇÃO: Usa channel_id para buscar o canal correto no tenant_message_channels
+        $channelAccountId = null;
+        if ($tenantId && $channelType === 'whatsapp') {
+            $channelAccountId = self::resolveChannelAccountId($tenantId, $channelType, $channelId);
         }
 
         return [
@@ -411,9 +421,17 @@ class ConversationService
     }
 
     /**
-     * Resolve channel_account_id a partir de tenant_id e channel_type
+     * Resolve channel_account_id a partir de tenant_id, channel_type e channel_id (sessionId)
+     * 
+     * CORREÇÃO: Agora usa o channel_id (sessionId) para buscar o canal correto,
+     * evitando usar o primeiro canal disponível quando há múltiplos canais.
+     * 
+     * @param int|null $tenantId ID do tenant
+     * @param string $channelType Tipo do canal (whatsapp, email, etc.)
+     * @param string|null $channelId Channel ID (sessionId) para buscar o canal específico
+     * @return int|null ID do channel_account ou null se não encontrado
      */
-    private static function resolveChannelAccountId(?int $tenantId, string $channelType): ?int
+    private static function resolveChannelAccountId(?int $tenantId, string $channelType, ?string $channelId = null): ?int
     {
         if (!$tenantId) {
             return null;
@@ -427,6 +445,38 @@ class ConversationService
         }
 
         try {
+            // CORREÇÃO: Se channel_id foi fornecido, usa ele para buscar o canal específico
+            if (!empty($channelId)) {
+                error_log('[CONVERSATION UPSERT] resolveChannelAccountId: buscando canal com channel_id=' . $channelId . ' para tenant_id=' . $tenantId);
+                
+                $stmt = $db->prepare("
+                    SELECT id 
+                    FROM tenant_message_channels 
+                    WHERE tenant_id = ? 
+                    AND provider = ? 
+                    AND channel_id = ?
+                    AND is_enabled = 1
+                    LIMIT 1
+                ");
+                $stmt->execute([$tenantId, $provider, $channelId]);
+                $result = $stmt->fetch();
+                
+                if ($result) {
+                    $channelAccountId = (int) $result['id'];
+                    error_log('[CONVERSATION UPSERT] resolveChannelAccountId: canal encontrado! id=' . $channelAccountId . ' para channel_id=' . $channelId);
+                    return $channelAccountId;
+                } else {
+                    error_log('[CONVERSATION UPSERT] resolveChannelAccountId: canal NÃO encontrado para channel_id=' . $channelId . ' tenant_id=' . $tenantId . ' (channel não mapeado ou desabilitado)');
+                    // NÃO faz fallback para primeiro canal - retorna null se não encontrou
+                    // Isso força erro explícito ao invés de usar canal errado
+                    return null;
+                }
+            }
+            
+            // Fallback: Se channel_id não foi fornecido, busca qualquer canal habilitado
+            // (mantido para compatibilidade, mas deve ser evitado)
+            error_log('[CONVERSATION UPSERT] resolveChannelAccountId: channel_id não fornecido, usando fallback (primeiro canal habilitado)');
+            
             $stmt = $db->prepare("
                 SELECT id 
                 FROM tenant_message_channels 
@@ -438,7 +488,14 @@ class ConversationService
             $stmt->execute([$tenantId, $provider]);
             $result = $stmt->fetch();
             
-            return $result ? (int) $result['id'] : null;
+            $channelAccountId = $result ? (int) $result['id'] : null;
+            if ($channelAccountId) {
+                error_log('[CONVERSATION UPSERT] resolveChannelAccountId: fallback encontrou canal id=' . $channelAccountId);
+            } else {
+                error_log('[CONVERSATION UPSERT] resolveChannelAccountId: fallback NÃO encontrou nenhum canal');
+            }
+            
+            return $channelAccountId;
         } catch (\Exception $e) {
             error_log("[ConversationService] Erro ao resolver channel_account_id: " . $e->getMessage());
             return null;
