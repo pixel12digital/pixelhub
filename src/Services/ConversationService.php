@@ -692,15 +692,21 @@ class ConversationService
                 $updateTenantStmt->execute([$tenantId, $conversationId]);
             }
 
-            // Atualiza channel_id se fornecido e ainda não existe (apenas para eventos inbound)
+            // Atualiza channel_id se fornecido (apenas para eventos inbound)
+            // CORREÇÃO: Agora atualiza mesmo se já existir, para corrigir channel_id incorreto
             $channelId = $channelInfo['channel_id'] ?? null;
             if ($channelId && ($channelInfo['direction'] ?? 'inbound') === 'inbound') {
                 $updateChannelIdStmt = $db->prepare("
                     UPDATE conversations 
                     SET channel_id = ? 
-                    WHERE id = ? AND (channel_id IS NULL OR channel_id = '')
+                    WHERE id = ? AND channel_id != ?
                 ");
-                $updateChannelIdStmt->execute([$channelId, $conversationId]);
+                $updateChannelIdStmt->execute([$channelId, $conversationId, $channelId]);
+                
+                $rowsUpdated = $updateChannelIdStmt->rowCount();
+                if ($rowsUpdated > 0) {
+                    error_log('[CONVERSATION UPSERT] updateConversationMetadata: channel_id atualizado de valor incorreto para: ' . $channelId . ' na conversation_id=' . $conversationId);
+                }
             }
         } catch (\Exception $e) {
             error_log("[ConversationService] Erro ao atualizar conversa: " . $e->getMessage());
