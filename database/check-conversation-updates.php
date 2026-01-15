@@ -1,240 +1,70 @@
 <?php
-/**
- * Verifica se conversas estão sendo atualizadas quando eventos inbound chegam
- */
 
-// Carrega autoload
-if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
-    require_once __DIR__ . '/../vendor/autoload.php';
-} else {
-    spl_autoload_register(function ($class) {
-        $prefix = 'PixelHub\\';
-        $baseDir = __DIR__ . '/../src/';
-        $len = strlen($prefix);
-        if (strncmp($prefix, $class, $len) !== 0) {
-            return;
-        }
-        $relativeClass = substr($class, $len);
-        $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
-        if (file_exists($file)) {
-            require $file;
-        }
-    });
-}
+require_once __DIR__ . '/../src/Core/Env.php';
+require_once __DIR__ . '/../src/Core/DB.php';
 
-use PixelHub\Core\DB;
+\PixelHub\Core\Env::load();
+$pdo = \PixelHub\Core\DB::getConnection();
 
-$db = DB::getConnection();
+echo "=== Conversations Atualizadas Após 18:00 ===\n\n";
 
-echo "=== VERIFICAÇÃO: Atualização de Conversas ===\n\n";
-
-// 1. Busca conversa do Charles (whatsapp_34 ou whatsapp_35)
-echo "1. Buscando conversas do Charles e ServPro:\n";
-$charlesStmt = $db->prepare("
+$stmt = $pdo->query("
     SELECT 
-        id,
-        conversation_key,
-        contact_external_id,
-        tenant_id,
-        last_message_at,
-        last_message_direction,
-        unread_count,
-        message_count,
-        updated_at
-    FROM conversations
-    WHERE channel_type = 'whatsapp'
-    AND (
-        contact_external_id LIKE '%4699%'
-        OR contact_external_id LIKE '%96164699%'
-        OR contact_external_id LIKE '%96474223%'
-        OR contact_external_id LIKE '%4223%'
-    )
-    ORDER BY last_message_at DESC
+        id, 
+        channel_id, 
+        channel_account_id, 
+        contact_external_id, 
+        message_count, 
+        last_message_at, 
+        updated_at,
+        created_at
+    FROM conversations 
+    WHERE tenant_id = 2 
+    AND updated_at >= '2026-01-15 18:00:00'
+    ORDER BY updated_at DESC
 ");
-$charlesStmt->execute();
-$conversations = $charlesStmt->fetchAll(PDO::FETCH_ASSOC);
 
-foreach ($conversations as $conv) {
-    $threadId = "whatsapp_{$conv['id']}";
-    echo sprintf(
-        "   thread_id=%s, contact=%s, last_message_at=%s, direction=%s, unread_count=%d, message_count=%d\n",
-        $threadId,
-        $conv['contact_external_id'],
-        $conv['last_message_at'],
-        $conv['last_message_direction'],
-        $conv['unread_count'],
-        $conv['message_count']
-    );
+$results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+echo "Total: " . count($results) . " conversations atualizadas\n\n";
+
+if (count($results) > 0) {
+    echo json_encode($results, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n\n";
     
-    // Busca eventos mais recentes para este contato
-    $contactId = $conv['contact_external_id'];
-    $normalizedContact = preg_replace('/[^0-9]/', '', $contactId);
-    
-    echo "      Normalizado: {$normalizedContact}\n";
-    
-    // Busca eventos com este contato (normalizando o from do evento também)
-    $eventsStmt = $db->prepare("
-        SELECT 
-            event_id,
-            event_type,
-            created_at,
-            JSON_EXTRACT(payload, '$.from') as from_raw,
-            JSON_EXTRACT(payload, '$.message.from') as message_from_raw
-        FROM communication_events
-        WHERE event_type = 'whatsapp.inbound.message'
-        AND (
-            JSON_EXTRACT(payload, '$.from') LIKE ?
-            OR JSON_EXTRACT(payload, '$.message.from') LIKE ?
-            OR REPLACE(REPLACE(JSON_EXTRACT(payload, '$.from'), '@c.us', ''), '@lid', '') LIKE ?
-            OR REPLACE(REPLACE(JSON_EXTRACT(payload, '$.message.from'), '@c.us', ''), '@lid', '') LIKE ?
-        )
-        ORDER BY created_at DESC
-        LIMIT 5
-    ");
-    $pattern1 = "%{$contactId}%";
-    $pattern2 = "%{$normalizedContact}%";
-    $eventsStmt->execute([$pattern1, $pattern1, $pattern2, $pattern2]);
-    $events = $eventsStmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    if (!empty($events)) {
-        echo "      Eventos encontrados: " . count($events) . "\n";
-        foreach ($events as $event) {
-            $fromRaw = $event['from_raw'] ?? $event['message_from_raw'] ?? 'NULL';
-            $eventTime = strtotime($event['created_at']);
-            $convTime = strtotime($conv['last_message_at']);
-            
-            if ($eventTime > $convTime) {
-                echo sprintf(
-                    "         ⚠️  EVENTO MAIS RECENTE: event_id=%s, created_at=%s (conversa last_message_at=%s, diferença: %d segundos)\n",
-                    $event['event_id'],
-                    $event['created_at'],
-                    $conv['last_message_at'],
-                    $eventTime - $convTime
-                );
-            } else {
-                echo sprintf(
-                    "         ✅ Evento processado: event_id=%s, created_at=%s\n",
-                    $event['event_id'],
-                    $event['created_at']
-                );
-            }
+    // Verificar se alguma foi atualizada mas não tem channel_id correto
+    echo "=== Análise ===\n";
+    foreach ($results as $row) {
+        if ($row['channel_account_id'] == 1 && $row['channel_id'] != 'ImobSites') {
+            echo "⚠️  Conversation ID {$row['id']} tem channel_account_id=1 (ImobSites) mas channel_id='{$row['channel_id']}'\n";
         }
-    } else {
-        echo "      ⚠️  Nenhum evento encontrado para este contato!\n";
-    }
-    
-    echo "\n";
-}
-
-// 2. Verifica eventos do Charles mais recentes que last_message_at
-echo "2. Verificando eventos do Charles (554796164699) mais recentes que last_message_at:\n";
-$charlesConv = null;
-foreach ($conversations as $conv) {
-    if (strpos($conv['contact_external_id'], '4699') !== false || strpos($conv['contact_external_id'], '96164699') !== false) {
-        $charlesConv = $conv;
-        break;
-    }
-}
-
-if ($charlesConv) {
-    $lastMessageAt = $charlesConv['last_message_at'];
-    echo "   Conversa do Charles: thread_id=whatsapp_{$charlesConv['id']}, last_message_at={$lastMessageAt}\n";
-    
-    $recentEventsStmt = $db->prepare("
-        SELECT 
-            event_id,
-            created_at,
-            JSON_EXTRACT(payload, '$.from') as from_raw,
-            JSON_EXTRACT(payload, '$.message.from') as message_from_raw
-        FROM communication_events
-        WHERE event_type = 'whatsapp.inbound.message'
-        AND created_at > ?
-        AND (
-            JSON_EXTRACT(payload, '$.from') LIKE '%4699%'
-            OR JSON_EXTRACT(payload, '$.message.from') LIKE '%4699%'
-            OR JSON_EXTRACT(payload, '$.from') LIKE '%96164699%'
-            OR JSON_EXTRACT(payload, '$.message.from') LIKE '%96164699%'
-        )
-        ORDER BY created_at DESC
-        LIMIT 10
-    ");
-    $recentEventsStmt->execute([$lastMessageAt]);
-    $recentEvents = $recentEventsStmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    if (!empty($recentEvents)) {
-        echo "   ⚠️  PROBLEMA: Existem " . count($recentEvents) . " eventos mais recentes que last_message_at!\n";
-        foreach ($recentEvents as $event) {
-            $fromRaw = $event['from_raw'] ?? $event['message_from_raw'] ?? 'NULL';
-            echo sprintf(
-                "      → event_id=%s, created_at=%s, from=%s (last_message_at=%s)\n",
-                $event['event_id'],
-                $event['created_at'],
-                $fromRaw,
-                $lastMessageAt
-            );
-        }
-        echo "\n   CONCLUSÃO: ConversationService::resolveConversation() NÃO está atualizando last_message_at!\n";
-    } else {
-        echo "   ✅ Nenhum evento mais recente encontrado (conversa está atualizada)\n";
     }
 } else {
-    echo "   ⚠️  Conversa do Charles não encontrada!\n";
+    echo "Nenhuma conversation foi atualizada após 18:00\n";
 }
 
-// 3. Verifica eventos do ServPro
-echo "\n3. Verificando eventos do ServPro (4223) mais recentes que last_message_at:\n";
-$servproConv = null;
-foreach ($conversations as $conv) {
-    if (strpos($conv['contact_external_id'], '4223') !== false || strpos($conv['contact_external_id'], '96474223') !== false) {
-        $servproConv = $conv;
-        break;
-    }
-}
+echo "\n=== Verificando se eventos estão associando a conversations existentes ===\n\n";
 
-if ($servproConv) {
-    $lastMessageAt = $servproConv['last_message_at'];
-    echo "   Conversa do ServPro: thread_id=whatsapp_{$servproConv['id']}, last_message_at={$lastMessageAt}\n";
-    
-    $recentEventsStmt = $db->prepare("
-        SELECT 
-            event_id,
-            created_at,
-            JSON_EXTRACT(payload, '$.from') as from_raw,
-            JSON_EXTRACT(payload, '$.message.from') as message_from_raw
-        FROM communication_events
-        WHERE event_type = 'whatsapp.inbound.message'
-        AND created_at > ?
-        AND (
-            JSON_EXTRACT(payload, '$.from') LIKE '%4223%'
-            OR JSON_EXTRACT(payload, '$.message.from') LIKE '%4223%'
-            OR JSON_EXTRACT(payload, '$.from') LIKE '%96474223%'
-            OR JSON_EXTRACT(payload, '$.message.from') LIKE '%96474223%'
-        )
-        ORDER BY created_at DESC
-        LIMIT 10
-    ");
-    $recentEventsStmt->execute([$lastMessageAt]);
-    $recentEvents = $recentEventsStmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    if (!empty($recentEvents)) {
-        echo "   ⚠️  PROBLEMA: Existem " . count($recentEvents) . " eventos mais recentes que last_message_at!\n";
-        foreach ($recentEvents as $event) {
-            $fromRaw = $event['from_raw'] ?? $event['message_from_raw'] ?? 'NULL';
-            echo sprintf(
-                "      → event_id=%s, created_at=%s, from=%s (last_message_at=%s)\n",
-                $event['event_id'],
-                $event['created_at'],
-                $fromRaw,
-                $lastMessageAt
-            );
-        }
-        echo "\n   CONCLUSÃO: ConversationService::resolveConversation() NÃO está atualizando last_message_at!\n";
-    } else {
-        echo "   ✅ Nenhum evento mais recente encontrado (conversa está atualizada)\n";
-    }
-} else {
-    echo "   ⚠️  Conversa do ServPro não encontrada!\n";
-}
+// Verificar contact_external_id dos eventos ImobSites recentes
+$stmt2 = $pdo->query("
+    SELECT 
+        ce.id as event_id,
+        JSON_UNQUOTE(JSON_EXTRACT(ce.metadata, '$.channel_id')) AS channel_id,
+        JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.from')) AS from_raw,
+        JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.from')) AS from_message,
+        c.id as conversation_id,
+        c.channel_id as conv_channel_id,
+        c.contact_external_id as conv_contact
+    FROM communication_events ce
+    LEFT JOIN conversations c ON (
+        c.tenant_id = ce.tenant_id 
+        AND c.contact_external_id = REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.from')), '@c.us', ''), '@s.whatsapp.net', '')
+    )
+    WHERE ce.event_type = 'whatsapp.inbound.message'
+    AND JSON_UNQUOTE(JSON_EXTRACT(ce.metadata, '$.channel_id')) = 'ImobSites'
+    AND ce.created_at >= '2026-01-15 18:00:00'
+    ORDER BY ce.id DESC
+    LIMIT 5
+");
 
-echo "\n=== FIM DA VERIFICAÇÃO ===\n";
-
+$results2 = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+echo json_encode($results2, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n";

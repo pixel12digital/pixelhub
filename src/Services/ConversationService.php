@@ -223,38 +223,98 @@ class ConversationService
             $direction = strpos($eventType, 'inbound') !== false ? 'inbound' : 'outbound';
             
             // Tenta extrair de múltiplas fontes (ordem de prioridade)
+            $rawFrom = null;
             if ($direction === 'inbound') {
-                $contactExternalId = $payload['from'] 
-                    ?? $payload['message']['from'] 
+                $rawFrom = $payload['message']['from'] 
+                    ?? $payload['from'] 
                     ?? $payload['data']['from'] 
-                    ?? $payload['raw']['from']
-                    ?? $payload['raw']['payload']['from'] ?? null;
+                    ?? $payload['raw']['payload']['from']
+                    ?? $payload['raw']['from'] ?? null;
+                    
                 $contactName = $payload['message']['notifyName'] 
                     ?? $payload['raw']['payload']['notifyName'] 
+                    ?? $payload['raw']['payload']['sender']['verifiedName']
+                    ?? $payload['raw']['payload']['sender']['name']
                     ?? $payload['data']['notifyName']
                     ?? $payload['notifyName'] ?? null;
             } else {
-                $contactExternalId = $payload['to'] 
-                    ?? $payload['message']['to'] 
+                $rawFrom = $payload['message']['to'] 
+                    ?? $payload['to'] 
                     ?? $payload['data']['to']
-                    ?? $payload['raw']['to']
-                    ?? $payload['raw']['payload']['to'] ?? null;
+                    ?? $payload['raw']['payload']['to']
+                    ?? $payload['raw']['to'] ?? null;
             }
             
-            error_log('[CONVERSATION UPSERT] extractChannelInfo: WhatsApp ' . $direction . ' - contactExternalId raw: ' . ($contactExternalId ?: 'NULL'));
+            error_log('[CONVERSATION UPSERT] extractChannelInfo: WhatsApp ' . $direction . ' - rawFrom: ' . ($rawFrom ?: 'NULL'));
+            
+            // Regra #2: Tratar grupos (@g.us)
+            // Se o from termina com @g.us, é um grupo - precisa usar author/participant
+            $isGroup = false;
+            $groupJid = null;
+            if ($rawFrom && strpos($rawFrom, '@g.us') !== false) {
+                $isGroup = true;
+                $groupJid = $rawFrom;
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: Detectado GRUPO - groupJid: ' . $groupJid);
+                
+                // Tenta extrair participant/author (remetente dentro do grupo)
+                $rawFrom = $payload['raw']['payload']['author'] 
+                    ?? $payload['raw']['payload']['participant'] 
+                    ?? $payload['message']['key']['participant']
+                    ?? $payload['data']['participant']
+                    ?? $payload['data']['author'] ?? null;
+                
+                if ($rawFrom) {
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Participant extraído do grupo: ' . $rawFrom);
+                } else {
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: ERRO - Grupo sem participant/author. GroupJid: ' . $groupJid);
+                    // Retorna erro específico para grupo sem participant
+                    return null; // Será tratado como failed_missing_participant
+                }
+            }
             
             // Se ainda não encontrou, tenta extrair de mensagens encaminhadas
-            if (!$contactExternalId && isset($payload['message']['forwardedFrom'])) {
-                $contactExternalId = $payload['message']['forwardedFrom'];
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando forwardedFrom: ' . $contactExternalId);
+            if (!$rawFrom && isset($payload['message']['forwardedFrom'])) {
+                $rawFrom = $payload['message']['forwardedFrom'];
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando forwardedFrom: ' . $rawFrom);
             }
             
-            // FIX @lid: Detecta se é ID interno do WhatsApp Business (@lid)
+            // Se não tem from válido, retorna erro específico
+            if (!$rawFrom) {
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: ERRO - Payload sem from válido. Payload keys: ' . implode(', ', array_keys($payload)));
+                return null; // Será tratado como failed_missing_from
+            }
+            
+            $contactExternalId = $rawFrom;
+            $originalContactId = $rawFrom;
+            
+            // Regra #3: Fallback por JID numérico (@c.us ou @s.whatsapp.net)
+            // Se termina com @c.us ou @s.whatsapp.net, extrai o número diretamente
+            $isNumericJid = false;
+            if (strpos($rawFrom, '@c.us') !== false || strpos($rawFrom, '@s.whatsapp.net') !== false) {
+                $isNumericJid = true;
+                // Remove sufixo e extrai apenas dígitos
+                $digitsOnly = preg_replace('/@.*$/', '', $rawFrom);
+                $digitsOnly = preg_replace('/[^0-9]/', '', $digitsOnly);
+                
+                if (strlen($digitsOnly) >= 10) {
+                    // Normaliza para E.164
+                    $contactExternalId = PhoneNormalizer::toE164OrNull($digitsOnly);
+                    if ($contactExternalId) {
+                        error_log('[CONVERSATION UPSERT] extractChannelInfo: JID numérico extraído e normalizado: ' . $contactExternalId . ' (original: ' . $rawFrom . ')');
+                    } else {
+                        error_log('[CONVERSATION UPSERT] extractChannelInfo: Falha ao normalizar JID numérico: ' . $digitsOnly);
+                        // Continua tentando mapeamento @lid se necessário
+                    }
+                } else {
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: JID numérico com poucos dígitos: ' . $digitsOnly);
+                }
+            }
+            
+            // Se não foi JID numérico, verifica se é @lid
             $isLidId = false;
-            $originalContactId = $contactExternalId;
-            if ($contactExternalId && strpos($contactExternalId, '@lid') !== false) {
+            if (!$isNumericJid && strpos($rawFrom, '@lid') !== false) {
                 $isLidId = true;
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: Detectado @lid - business_id: ' . $contactExternalId);
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: Detectado @lid - business_id: ' . $rawFrom);
                 
                 // Consulta mapeamento whatsapp_business_ids
                 $db = \PixelHub\Core\DB::getConnection();
@@ -264,49 +324,39 @@ class ConversationService
                     WHERE business_id = ? 
                     LIMIT 1
                 ");
-                $stmt->execute([$contactExternalId]);
+                $stmt->execute([$rawFrom]);
                 $mapping = $stmt->fetch(\PDO::FETCH_ASSOC);
                 
                 if ($mapping && !empty($mapping['phone_number'])) {
                     $contactExternalId = $mapping['phone_number'];
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Mapeamento encontrado - phone_number: ' . $contactExternalId);
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Mapeamento @lid encontrado - phone_number: ' . $contactExternalId);
                 } else {
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Mapeamento NÃO encontrado para business_id: ' . $contactExternalId);
-                    // Continua para tentar fallback (não retorna NULL ainda)
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Mapeamento @lid NÃO encontrado para business_id: ' . $rawFrom);
+                    // Continua tentando fallback
                 }
             }
             
-            // Normaliza contact_external_id usando PhoneNormalizer (NÃO força "9")
-            // Remove sufixo @c.us, @lid, etc. antes de normalizar (apenas se não foi mapeado)
-            if ($contactExternalId && !$isLidId && strpos($contactExternalId, '@') !== false) {
-                $contactExternalId = preg_replace('/@.*$/', '', $contactExternalId);
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: contactExternalId após remover @: ' . $contactExternalId);
-            }
-            
-            // Normaliza para E.164 (apenas dígitos, sem forçar "9")
-            // Se já foi mapeado de @lid, phone_number já está em formato E.164, não precisa normalizar
-            if (!$isLidId) {
-                $contactExternalId = PhoneNormalizer::toE164OrNull($contactExternalId);
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: contactExternalId normalizado: ' . ($contactExternalId ?: 'NULL'));
-            } else {
-                // Se foi mapeado mas phone_number está vazio, tenta normalizar o original
-                if (!$contactExternalId) {
-                    $contactExternalId = PhoneNormalizer::toE164OrNull($originalContactId);
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Mapeamento vazio, tentando normalizar original: ' . ($contactExternalId ?: 'NULL'));
-                }
-            }
-            
-            // Se ainda não conseguiu normalizar, tenta extrair apenas dígitos como fallback
-            if (!$contactExternalId && isset($payload['from']) || isset($payload['message']['from'])) {
-                $rawFrom = $payload['from'] ?? $payload['message']['from'] ?? '';
-                $digitsOnly = preg_replace('/[^0-9]/', '', $rawFrom);
-                if (strlen($digitsOnly) >= 10) { // Mínimo de 10 dígitos para ser um número válido
+            // Fallback final: tenta normalizar o que sobrou
+            if (!$contactExternalId || ($isLidId && !$contactExternalId)) {
+                // Tenta normalizar o original
+                $digitsOnly = preg_replace('/@.*$/', '', $originalContactId);
+                $digitsOnly = preg_replace('/[^0-9]/', '', $digitsOnly);
+                
+                if (strlen($digitsOnly) >= 10) {
                     $contactExternalId = PhoneNormalizer::toE164OrNull($digitsOnly);
                     if ($contactExternalId) {
-                        error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando fallback (apenas dígitos): ' . $contactExternalId);
+                        error_log('[CONVERSATION UPSERT] extractChannelInfo: Fallback final - extraído: ' . $contactExternalId . ' (original: ' . $originalContactId . ')');
                     }
                 }
             }
+            
+            // Validação final
+            if (!$contactExternalId) {
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: ERRO - Não foi possível extrair contact_external_id válido. RawFrom: ' . ($rawFrom ?: 'NULL') . ', IsGroup: ' . ($isGroup ? 'SIM' : 'NÃO'));
+                return null;
+            }
+            
+            error_log('[CONVERSATION UPSERT] extractChannelInfo: contact_external_id final: ' . $contactExternalId . ' (tipo: ' . ($isLidId ? '@lid' : ($isNumericJid ? 'JID numérico' : 'outro')) . ')');
         } elseif ($channelType === 'email') {
             $direction = strpos($eventType, 'inbound') !== false ? 'inbound' : 'outbound';
             if ($direction === 'inbound') {
@@ -923,4 +973,5 @@ class ConversationService
         }
     }
 }
+
 

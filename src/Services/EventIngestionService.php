@@ -235,6 +235,21 @@ class EventIngestionService
             ));
         }
 
+        // Regra #1: Só criar/atualizar conversation quando for "mensagem"
+        // Eventos técnicos (connection.update, status-find, etc.) não devem criar conversations
+        $shouldCreateConversation = self::shouldCreateConversation($eventType, $payload);
+        
+        if (!$shouldCreateConversation) {
+            // Evento técnico - marca como processado sem conversation
+            error_log(sprintf(
+                '[EventIngestion] Evento técnico processado sem conversation: event_type=%s, event_id=%s',
+                $eventType,
+                $eventId
+            ));
+            self::updateStatus($eventId, 'processed');
+            return $eventId;
+        }
+        
         // Etapa 1: Resolve conversa (incremental, não quebra se falhar)
         // 🔍 LOG TEMPORÁRIO: Rastreamento de chamada
         error_log(sprintf(
@@ -287,14 +302,32 @@ class EventIngestionService
                 // Marca evento como processado quando conversa foi resolvida com sucesso
                 self::updateStatus($eventId, 'processed');
             } else {
+                // Tenta extrair mais informações do payload para melhorar o erro
+                $payloadEvent = $payload['event'] ?? $payload['raw']['payload']['event'] ?? null;
+                $fromValue = $payload['message']['from'] ?? $payload['from'] ?? $payload['raw']['payload']['from'] ?? null;
+                $isGroup = $fromValue && strpos($fromValue, '@g.us') !== false;
+                
+                $errorReason = 'conversation_not_resolved';
+                if ($isGroup) {
+                    $participant = $payload['raw']['payload']['author'] ?? $payload['raw']['payload']['participant'] ?? null;
+                    if (!$participant) {
+                        $errorReason = 'group_missing_participant';
+                    }
+                } elseif (!$fromValue) {
+                    $errorReason = 'missing_contact_identifier';
+                }
+                
                 error_log(sprintf(
-                    '[HUB_MSG_SAVE_OK] conversation_id=NULL event_id=%s message_id=%s reason=conversation_not_resolved',
+                    '[HUB_MSG_SAVE_OK] conversation_id=NULL event_id=%s message_id=%s reason=%s payload_event=%s from=%s',
                     $eventId,
-                    $messageId ?: 'NULL'
+                    $messageId ?: 'NULL',
+                    $errorReason,
+                    $payloadEvent ?: 'NULL',
+                    $fromValue ?: 'NULL'
                 ));
                 
                 // Marca evento como falho quando conversa não foi resolvida
-                self::updateStatus($eventId, 'failed', 'conversation_not_resolved');
+                self::updateStatus($eventId, 'failed', $errorReason);
             }
         } catch (\Exception $e) {
             // Não quebra fluxo se resolver conversa falhar
@@ -408,6 +441,91 @@ class EventIngestionService
             WHERE event_id = ?
         ");
         return $stmt->execute([$status, $status, $errorMessage, $eventId]);
+    }
+
+    /**
+     * Verifica se o evento deve criar/atualizar uma conversation
+     * 
+     * Eventos técnicos (connection.update, status-find, etc.) não devem criar conversations.
+     * Apenas eventos de mensagem devem criar conversations.
+     * 
+     * @param string $eventType Tipo do evento
+     * @param array $payload Payload do evento
+     * @return bool True se deve criar conversation, false caso contrário
+     */
+    private static function shouldCreateConversation(string $eventType, array $payload): bool
+    {
+        // Extrai event do payload (pode estar em payload.event ou payload.raw.payload.event)
+        $payloadEvent = $payload['event'] 
+            ?? $payload['raw']['payload']['event'] 
+            ?? $payload['data']['event'] 
+            ?? null;
+        
+        // Eventos técnicos que NÃO devem criar conversation
+        $technicalEvents = [
+            'connection.update',
+            'status-find',
+            'onpresencechanged',
+            'onack',
+            'onstatechanged',
+            'connection_status',
+            'qr',
+            'qr-loaded',
+            'ready',
+            'close',
+            'authenticated',
+            'auth_failure',
+            'loading_screen',
+            'browser-close',
+            'desconnected',
+            'delete_session',
+            'change_state',
+        ];
+        
+        // Se o event do payload é um evento técnico, não cria conversation
+        if ($payloadEvent && in_array($payloadEvent, $technicalEvents, true)) {
+            return false;
+        }
+        
+        // Se o event_type contém palavras-chave de eventos técnicos, não cria conversation
+        $technicalKeywords = [
+            'connection',
+            'status',
+            'presence',
+            'ack',
+            'state',
+            'qr',
+            'authenticate',
+            'disconnect',
+        ];
+        
+        foreach ($technicalKeywords as $keyword) {
+            if (stripos($eventType, $keyword) !== false) {
+                // Mas permite eventos de mensagem que contenham essas palavras
+                if (stripos($eventType, 'message') === false) {
+                    return false;
+                }
+            }
+        }
+        
+        // Eventos de mensagem devem criar conversation
+        $messageEvents = [
+            'whatsapp.inbound.message',
+            'whatsapp.outbound.message',
+            'email.inbound.message',
+            'email.outbound.message',
+            'webchat.inbound.message',
+            'webchat.outbound.message',
+        ];
+        
+        foreach ($messageEvents as $messageEvent) {
+            if (stripos($eventType, $messageEvent) !== false || $payloadEvent === 'message' || $payloadEvent === 'onmessage') {
+                return true;
+            }
+        }
+        
+        // Por padrão, não cria conversation (mais seguro)
+        return false;
     }
 
     /**
