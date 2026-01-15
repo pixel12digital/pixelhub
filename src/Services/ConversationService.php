@@ -549,6 +549,10 @@ class ConversationService
         $db = DB::getConnection();
         $direction = $channelInfo['direction'] ?? 'inbound';
         
+        // Normaliza direction para o padrão do banco/UI
+        if ($direction === 'received') $direction = 'inbound';
+        if ($direction === 'sent') $direction = 'outbound';
+        
         // Extrai timestamp da mensagem do payload, ou usa created_at do evento, ou NOW() como fallback
         $messageTimestamp = self::extractMessageTimestamp($eventData);
         $now = date('Y-m-d H:i:s'); // Para updated_at sempre usa NOW()
