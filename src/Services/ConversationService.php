@@ -920,21 +920,28 @@ class ConversationService
                 $updateIncomingLeadStmt->execute([$conversationId]);
             }
 
-            // Atualiza channel_id se fornecido (apenas para eventos inbound)
-            // CORREÇÃO: Agora atualiza mesmo se já existir, para corrigir channel_id incorreto
+            // CORREÇÃO CRÍTICA: Atualiza channel_id SEMPRE para eventos inbound
+            // Não permite fallback - se evento trouxe channel_id, ele é a fonte da verdade
             $channelId = $channelInfo['channel_id'] ?? null;
             if ($channelId && ($channelInfo['direction'] ?? 'inbound') === 'inbound') {
+                // Sempre atualiza, mesmo se já existir (garante que está correto)
                 $updateChannelIdStmt = $db->prepare("
                     UPDATE conversations 
                     SET channel_id = ? 
-                    WHERE id = ? AND channel_id != ?
+                    WHERE id = ? AND (channel_id IS NULL OR channel_id != ?)
                 ");
                 $updateChannelIdStmt->execute([$channelId, $conversationId, $channelId]);
                 
                 $rowsUpdated = $updateChannelIdStmt->rowCount();
                 if ($rowsUpdated > 0) {
-                    error_log('[CONVERSATION UPSERT] updateConversationMetadata: channel_id atualizado de valor incorreto para: ' . $channelId . ' na conversation_id=' . $conversationId);
+                    error_log('[CONVERSATION UPSERT] updateConversationMetadata: channel_id atualizado para: ' . $channelId . ' na conversation_id=' . $conversationId);
+                } else {
+                    // Log quando channel_id já estava correto
+                    error_log('[CONVERSATION UPSERT] updateConversationMetadata: channel_id já estava correto: ' . $channelId . ' na conversation_id=' . $conversationId);
                 }
+            } elseif (($channelInfo['direction'] ?? 'inbound') === 'inbound' && empty($channelId)) {
+                // Log de aviso quando evento inbound não trouxe channel_id
+                error_log('[CONVERSATION UPSERT] updateConversationMetadata: AVISO - evento inbound sem channel_id na conversation_id=' . $conversationId);
             }
 
             // Atualiza remote_key, contact_key, thread_key se fornecidos (arquitetura nova)

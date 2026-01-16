@@ -326,8 +326,8 @@ class CommunicationHubController extends Controller
                 
                 $db = DB::getConnection();
                 
-                // HOTFIX OBRIGATÓRIO: Resolve tenant_id se thread.tenant_id estiver NULL
-                // Busca thread/conversation pelo thread_id e resolve tenant_id se necessário
+                // CORREÇÃO CRÍTICA: Sempre usa thread.channel_id como fonte da verdade
+                // Ignora channel_id do frontend quando thread_id está presente
                 if (!empty($threadId) && preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
                     $conversationId = (int) $matches[1];
                     
@@ -355,11 +355,30 @@ class CommunicationHubController extends Controller
                             }
                         }
                         
-                        // Garante que channel_id da thread seja usado (se não foi fornecido explicitamente)
-                        if (!$channelId && !empty($conv['channel_id'])) {
-                            $channelId = trim($conv['channel_id']);
-                            error_log("[CommunicationHub::send] Usando channel_id da thread: {$channelId}");
+                        // CORREÇÃO: SEMPRE usa channel_id da thread (ignora channel_id do frontend)
+                        // Se thread não tem channel_id, retorna erro explícito
+                        if (empty($conv['channel_id'])) {
+                            error_log("[CommunicationHub::send] ERRO: Thread conversation_id={$conversationId} não possui channel_id. Não é possível enviar.");
+                            $this->json([
+                                'success' => false, 
+                                'error' => 'THREAD_MISSING_CHANNEL_ID',
+                                'error_code' => 'THREAD_MISSING_CHANNEL_ID',
+                                'message' => 'A conversa não possui canal associado. Verifique se a mensagem foi recebida corretamente.'
+                            ], 400);
+                            return;
                         }
+                        
+                        // Usa channel_id da thread (fonte da verdade)
+                        $channelId = trim($conv['channel_id']);
+                        error_log("[CommunicationHub::send] Usando channel_id da thread (fonte da verdade): {$channelId} (ignorando channel_id do frontend se fornecido)");
+                    } else {
+                        error_log("[CommunicationHub::send] ERRO: Thread conversation_id={$conversationId} não encontrada.");
+                        $this->json([
+                            'success' => false, 
+                            'error' => 'THREAD_NOT_FOUND',
+                            'error_code' => 'THREAD_NOT_FOUND'
+                        ], 404);
+                        return;
                     }
                 }
                 
@@ -440,7 +459,7 @@ class CommunicationHubController extends Controller
                         // CRÍTICO: Busca o valor CANÔNICO do banco (case-sensitive, como cadastrado)
                         // Normalização APENAS para comparação WHERE, mas retorna valor original
                         $channelStmt = $db->prepare("
-                            SELECT channel_id 
+                            SELECT channel_id, gateway_secret, base_url
                             FROM tenant_message_channels 
                             WHERE provider = 'wpp_gateway' 
                             AND is_enabled = 1
@@ -455,8 +474,12 @@ class CommunicationHubController extends Controller
                         $channelData = $channelStmt->fetch();
                         
                         if (!$channelData) {
-                            error_log("[CommunicationHub::send] ERRO: Canal '{$channelId}' não encontrado ou não habilitado");
-                            $this->json(['success' => false, 'error' => "Canal WhatsApp '{$channelId}' não está disponível ou habilitado. Verifique se o nome do canal está correto."], 400);
+                            error_log("[CommunicationHub::send] ERRO: Canal '{$channelId}' não encontrado ou não habilitado em tenant_message_channels");
+                            $this->json([
+                                'success' => false, 
+                                'error' => "Canal WhatsApp '{$channelId}' não está disponível ou habilitado. Verifique se o nome do canal está correto.",
+                                'error_code' => 'CHANNEL_NOT_FOUND'
+                            ], 400);
                             return;
                         }
                         
@@ -464,7 +487,19 @@ class CommunicationHubController extends Controller
                         // Este é o valor que será enviado ao gateway
                         $foundChannelId = trim($channelData['channel_id']);
                         $targetChannels = [$foundChannelId];
-                        error_log("[CommunicationHub::send] Canal validado: solicitado='{$channelId}' → canônico='{$foundChannelId}' (será usado no gateway)");
+                        
+                        // LOG DE DIAGNÓSTICO: Informações do canal sem vazar segredos
+                        $hasCustomSecret = !empty($channelData['gateway_secret']);
+                        $hasCustomBaseUrl = !empty($channelData['base_url']);
+                        $baseUrlHost = $hasCustomBaseUrl ? parse_url($channelData['base_url'], PHP_URL_HOST) : 'NULL';
+                        error_log(sprintf(
+                            "[CommunicationHub::send] Canal validado: solicitado='%s' → canônico='%s' (será usado no gateway) | has_custom_secret=%s | has_custom_base_url=%s | base_url_host=%s",
+                            $channelId,
+                            $foundChannelId,
+                            $hasCustomSecret ? 'SIM' : 'NÃO',
+                            $hasCustomBaseUrl ? 'SIM' : 'NÃO',
+                            $baseUrlHost ?: 'NULL'
+                        ));
                     } else {
                     // PRIORIDADE 2: Se não tem channel_id, tenta buscar diretamente da conversa/thread
                     // ATENÇÃO: Esta lógica pode pegar o canal errado se a conversa tem histórico de múltiplos canais
@@ -632,13 +667,43 @@ class CommunicationHubController extends Controller
                     return;
                 }
 
-                // Carrega configurações exatamente como o teste de conexão faz
-                $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
-                $secret = GatewaySecret::getDecrypted();
+                // CORREÇÃO: Usa credenciais específicas do canal se disponíveis, senão usa globais
+                // Primeiro tenta obter do primeiro canal (se tiver credenciais customizadas)
+                $baseUrl = null;
+                $secret = null;
+                
+                if (!empty($targetChannels)) {
+                    $firstChannelId = $targetChannels[0];
+                    $channelCredsStmt = $db->prepare("
+                        SELECT base_url, gateway_secret
+                        FROM tenant_message_channels
+                        WHERE provider = 'wpp_gateway'
+                        AND channel_id = ?
+                        AND is_enabled = 1
+                        LIMIT 1
+                    ");
+                    $channelCredsStmt->execute([$firstChannelId]);
+                    $channelCreds = $channelCredsStmt->fetch();
+                    
+                    if ($channelCreds) {
+                        $baseUrl = !empty($channelCreds['base_url']) ? trim($channelCreds['base_url']) : null;
+                        $secret = !empty($channelCreds['gateway_secret']) ? trim($channelCreds['gateway_secret']) : null;
+                    }
+                }
+                
+                // Fallback para credenciais globais se canal não tem credenciais específicas
+                if (empty($baseUrl)) {
+                    $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
+                }
+                if (empty($secret)) {
+                    $secret = GatewaySecret::getDecrypted();
+                }
                 
                 // LOG: configurações do gateway
                 if ($isDev) {
-                    error_log("[CommunicationHub::send] gateway_base_url: {$baseUrl}");
+                    $baseUrlHost = parse_url($baseUrl, PHP_URL_HOST) ?: 'NULL';
+                    error_log("[CommunicationHub::send] gateway_base_url: {$baseUrl} (host: {$baseUrlHost})");
+                    error_log("[CommunicationHub::send] gateway_secret: " . (!empty($secret) ? 'CONFIGURADO' : 'VAZIO'));
                 }
 
                 // Unifica origem das configurações: usa exatamente as mesmas do módulo de configurações
@@ -653,7 +718,7 @@ class CommunicationHubController extends Controller
                     ? $baseUrl 
                     : 'https://wpp.pixel12digital.com.br';
 
-                // Cria gateway com configurações explícitas (mesmas do teste de conexão)
+                // Cria gateway com configurações (específicas do canal ou globais)
                 $gateway = new WhatsAppGatewayClient($baseUrl, $secret);
                 
                 // ===== LOG TEMPORÁRIO: Endpoint de verificação de status =====
@@ -667,7 +732,17 @@ class CommunicationHubController extends Controller
                 $errors = [];
                 
                 foreach ($targetChannels as $targetChannelId) {
-                    error_log("[CommunicationHub::send] Processando canal: {$targetChannelId}");
+                    // LOG DE DIAGNÓSTICO: Informações antes de enviar
+                    error_log(sprintf(
+                        "[CommunicationHub::send] ===== DIAGNÓSTICO ENVIO ====="
+                    ));
+                    error_log(sprintf(
+                        "[CommunicationHub::send] thread_id=%s | channel_id=%s | tenant_id=%s | base_url_host=%s",
+                        $threadId ?: 'NULL',
+                        $targetChannelId,
+                        $tenantId ?: 'NULL',
+                        parse_url($baseUrl, PHP_URL_HOST) ?: 'NULL'
+                    ));
                     
                     // Valida se a sessão está conectada antes de enviar (NÃO-BLOQUEANTE)
                     $channelInfo = $gateway->getChannel($targetChannelId);
@@ -705,7 +780,12 @@ class CommunicationHubController extends Controller
                     }
                     
                     if ($shouldBlockSend) {
-                        error_log("[CommunicationHub::send] Canal {$targetChannelId} bloqueado: {$blockReason}");
+                        error_log(sprintf(
+                            "[CommunicationHub::send] Canal bloqueado: channel_id=%s | reason=%s | status_code=%s",
+                            $targetChannelId,
+                            $blockReason,
+                            $statusCode
+                        ));
                         $sendResults[] = [
                             'channel_id' => $targetChannelId,
                             'success' => false,
@@ -725,13 +805,23 @@ class CommunicationHubController extends Controller
                         'sent_by_name' => Auth::user()['name'] ?? null
                     ]);
                     
-                    // LOG: resposta do gateway
-                    if ($isDev) {
-                        error_log("[CommunicationHub::send] Resposta do gateway: " . json_encode([
+                    // LOG DE DIAGNÓSTICO: Resposta do gateway
+                    $gatewayErrorCode = $result['error_code'] ?? null;
+                    $gatewayStatus = $result['status'] ?? null;
+                    error_log(sprintf(
+                        "[CommunicationHub::send] Resposta gateway: channel_id=%s | success=%s | error_code=%s | status=%s",
+                        $targetChannelId,
+                        $result['success'] ? 'true' : 'false',
+                        $gatewayErrorCode ?: 'NULL',
+                        $gatewayStatus ?: 'NULL'
+                    ));
+                    
+                    if ($isDev && !$result['success']) {
+                        error_log("[CommunicationHub::send] Resposta do gateway (detalhada): " . json_encode([
                             'success' => $result['success'] ?? false,
                             'error' => $result['error'] ?? null,
-                            'error_code' => $result['error_code'] ?? null,
-                            'status' => $result['status'] ?? null
+                            'error_code' => $gatewayErrorCode,
+                            'status' => $gatewayStatus
                         ]));
                     }
                     
