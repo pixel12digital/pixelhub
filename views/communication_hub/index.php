@@ -1504,6 +1504,9 @@ function handleConversationClick(clickedThreadId, channel) {
     loadConversation(clickedThreadId, channel);
 }
 
+// Garante que handleConversationClick esteja no escopo global (para onclick inline)
+window.handleConversationClick = handleConversationClick;
+
 async function loadConversation(threadId, channel) {
     console.log('[Hub] Carregando conversa:', threadId, channel);
     
@@ -1582,6 +1585,29 @@ async function loadConversation(threadId, channel) {
         console.error('[Hub] Erro ao carregar conversa:', error);
         content.innerHTML = '<div style="flex: 1; display: flex; align-items: center; justify-content: center;"><div style="text-align: center; color: #dc3545;"><p>Erro ao carregar conversa</p><p style="font-size: 13px;">' + escapeHtml(error.message) + '</p></div></div>';
     }
+}
+
+/**
+ * Inicializa event delegation global para viewer de mídia (executa uma vez)
+ */
+function initMediaViewerOnce() {
+    if (window.__mediaViewerInitialized) return;
+    window.__mediaViewerInitialized = true;
+    
+    // Event delegation global no document (funciona mesmo após re-render)
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.hub-media-open');
+        const img = e.target.closest('.hub-media-thumb');
+        const target = btn || img;
+        
+        if (target) {
+            e.preventDefault();
+            const src = target.getAttribute('data-src') || target.src;
+            if (src) {
+                openMediaViewer(src);
+            }
+        }
+    });
 }
 
 /**
@@ -1811,26 +1837,6 @@ function renderConversation(thread, messages, channel) {
         });
     }
     
-    // Event delegation para abrir viewer de mídia (imagens)
-    // Usa event delegation para funcionar com mensagens adicionadas dinamicamente
-    const messagesContainer = document.getElementById('messages-container');
-    if (messagesContainer && !messagesContainer.hasAttribute('data-media-listener-attached')) {
-        messagesContainer.setAttribute('data-media-listener-attached', 'true');
-        messagesContainer.addEventListener('click', function(e) {
-            // Detecta clique na imagem ou no botão
-            const img = e.target.closest('.hub-media-thumb');
-            const btn = e.target.closest('.hub-media-open');
-            const target = img || btn;
-            
-            if (target) {
-                const src = target.getAttribute('data-src') || target.src;
-                if (src) {
-                    openMediaViewer(src);
-                }
-            }
-        });
-    }
-    
     // Inicializa listeners do modal (uma vez, se ainda não foi inicializado)
     if (!window.hubMediaViewerInitialized) {
         window.hubMediaViewerInitialized = true;
@@ -1840,12 +1846,15 @@ function renderConversation(thread, messages, channel) {
         }, 100);
     }
     
+    // Inicializa event delegation para viewer de mídia (uma vez, global)
+    initMediaViewerOnce();
+    
     // Adiciona listener de scroll no header (sombra quando scrolla)
     const header = document.getElementById('conversation-header');
-    const messagesContainer = document.getElementById('messages-container');
-    if (header && messagesContainer) {
-        messagesContainer.addEventListener('scroll', function() {
-            if (messagesContainer.scrollTop > 0) {
+    const container = document.getElementById('messages-container');
+    if (header && container) {
+        container.addEventListener('scroll', function() {
+            if (container.scrollTop > 0) {
                 header.classList.add('scrolled');
             } else {
                 header.classList.remove('scrolled');
