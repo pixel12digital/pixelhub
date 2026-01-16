@@ -420,13 +420,106 @@ class ConversationService
             $channelAccountId = self::resolveChannelAccountId($tenantId, $channelType, $channelId);
         }
 
+        // =====================
+        // ARQUITETURA: remote_key como identidade primária
+        // =====================
+        
+        // Função canônica: remote_key (nunca tenta converter @lid em telefone)
+        $remoteKey = function($id) {
+            if (empty($id)) return null;
+            $id = trim((string)$id);
+            
+            // pnLid
+            if (preg_match('/^([0-9]+)@lid$/', $id, $m)) {
+                return 'lid:' . $m[1];
+            }
+            
+            // JIDs comuns do WA: 5547...@c.us / @s.whatsapp.net etc
+            if (strpos($id, '@') !== false) {
+                // se começa com dígitos, normaliza para tel:<digits> (para unificar "5547..." e "5547...@c.us")
+                $digits = preg_replace('/[^0-9]/', '', preg_replace('/@.*$/', '', $id));
+                if ($digits !== '') {
+                    return 'tel:' . $digits;
+                }
+                return 'jid:' . mb_strtolower($id, 'UTF-8');
+            }
+            
+            // número puro
+            $digits = preg_replace('/[^0-9]/', '', $id);
+            if ($digits !== '') return 'tel:' . $digits;
+            
+            return 'raw:' . mb_strtolower($id, 'UTF-8');
+        };
+        
+        // Calcula remote_id_raw e remote_key
+        $rawContactId = null;
+        if ($channelType === 'whatsapp') {
+            $direction = $direction ?? 'inbound';
+            if ($direction === 'inbound') {
+                $rawContactId = $payload['message']['from'] 
+                    ?? $payload['from'] 
+                    ?? $payload['data']['from'] 
+                    ?? $payload['raw']['payload']['from'] ?? null;
+            } else {
+                $rawContactId = $payload['message']['to'] 
+                    ?? $payload['to'] 
+                    ?? $payload['data']['to']
+                    ?? $payload['raw']['payload']['to'] ?? null;
+            }
+            
+            // Se for grupo, usa participant/author
+            if ($rawContactId && strpos($rawContactId, '@g.us') !== false) {
+                $rawContactId = $payload['raw']['payload']['author'] 
+                    ?? $payload['raw']['payload']['participant'] 
+                    ?? $payload['message']['key']['participant']
+                    ?? $payload['data']['participant']
+                    ?? $payload['data']['author'] ?? $rawContactId;
+            }
+        }
+        
+        $remoteIdRaw = $rawContactId ?: $contactExternalId;
+        $remoteKeyValue = $remoteKey($remoteIdRaw);
+        
+        // Calcula contact_key e thread_key
+        $provider = 'wpp_gateway'; // ou extrair de source_system se necessário
+        $sessionIdForKeys = $channelId ?: ($metadata['channel_id'] ?? null);
+        $contactKey = null;
+        $threadKey = null;
+        
+        if ($sessionIdForKeys && $remoteKeyValue) {
+            $contactKey = $provider . ':' . $sessionIdForKeys . ':' . $remoteKeyValue;
+            $threadKey = $contactKey; // Para WhatsApp, thread_key = contact_key
+        }
+        
+        // Extrai phone_e164 quando disponível (para enriquecimento, não como chave)
+        $phoneE164 = null;
+        if ($contactExternalId && strpos($contactExternalId, '@lid') === false) {
+            // Se não é @lid, tenta extrair número
+            if (preg_match('/^[0-9]+$/', $contactExternalId)) {
+                $phoneE164 = $contactExternalId; // Já é número
+            } elseif (strpos($contactExternalId, '@c.us') !== false || strpos($contactExternalId, '@s.whatsapp.net') !== false) {
+                $digits = preg_replace('/[^0-9]/', '', preg_replace('/@.*$/', '', $contactExternalId));
+                if ($digits && strlen($digits) >= 10) {
+                    $phoneE164 = $digits; // Extrai número do JID
+                }
+            }
+        }
+        
+        error_log('[CONVERSATION UPSERT] extractChannelInfo: remote_id_raw=' . ($remoteIdRaw ?: 'NULL') . ', remote_key=' . ($remoteKeyValue ?: 'NULL') . ', contact_key=' . ($contactKey ?: 'NULL') . ', phone_e164=' . ($phoneE164 ?: 'NULL'));
+
         return [
             'channel_type' => $channelType,
             'channel_account_id' => $channelAccountId,
             'channel_id' => $channelId,
-            'contact_external_id' => $contactExternalId,
+            'contact_external_id' => $contactExternalId, // Mantém para compatibilidade
             'contact_name' => $contactName,
             'direction' => $direction ?? 'inbound',
+            // NOVOS CAMPOS
+            'remote_id_raw' => $remoteIdRaw,
+            'remote_key' => $remoteKeyValue,
+            'contact_key' => $contactKey,
+            'thread_key' => $threadKey,
+            'phone_e164' => $phoneE164,
         ];
     }
 
@@ -615,12 +708,14 @@ class ConversationService
         $messageTimestamp = self::extractMessageTimestamp($eventData);
 
         try {
+            // NOVA ARQUITETURA: Usa remote_key, contact_key, thread_key como identidade primária
             $stmt = $db->prepare("
                 INSERT INTO conversations 
-                (conversation_key, channel_type, channel_account_id, channel_id, contact_external_id, 
+                (conversation_key, channel_type, channel_account_id, channel_id, session_id,
+                 contact_external_id, remote_id_raw, remote_key, contact_key, thread_key,
                  contact_name, tenant_id, status, last_message_at, last_message_direction, 
                  message_count, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, 1, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, 1, ?, ?)
             ");
 
             $stmt->execute([
@@ -628,7 +723,12 @@ class ConversationService
                 $channelInfo['channel_type'],
                 $channelInfo['channel_account_id'],
                 $channelInfo['channel_id'] ?? null,
-                $channelInfo['contact_external_id'],
+                $channelInfo['channel_id'] ?? null, // session_id = channel_id para WhatsApp
+                $channelInfo['contact_external_id'], // Mantém para compatibilidade
+                $channelInfo['remote_id_raw'] ?? null,
+                $channelInfo['remote_key'] ?? null,
+                $channelInfo['contact_key'] ?? null,
+                $channelInfo['thread_key'] ?? null,
                 $channelInfo['contact_name'],
                 $tenantId,
                 $messageTimestamp, // Usa timestamp da mensagem ao invés de NOW()

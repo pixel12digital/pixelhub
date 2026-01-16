@@ -891,7 +891,38 @@ class CommunicationHubController extends Controller
     private function getWhatsAppMessagesFromConversation(PDO $db, int $conversationId): array
     {
         // =====================
-        // pnLid (@lid) resolver
+        // ARQUITETURA: remote_key como identidade primária
+        // =====================
+        
+        // Função canônica: remote_key (nunca tenta converter @lid em telefone)
+        $remoteKey = function($id) {
+            if (empty($id)) return null;
+            $id = trim((string)$id);
+            
+            // pnLid
+            if (preg_match('/^([0-9]+)@lid$/', $id, $m)) {
+                return 'lid:' . $m[1];
+            }
+            
+            // JIDs comuns do WA: 5547...@c.us / @s.whatsapp.net etc
+            if (strpos($id, '@') !== false) {
+                // se começa com dígitos, normaliza para tel:<digits> (para unificar "5547..." e "5547...@c.us")
+                $digits = preg_replace('/[^0-9]/', '', preg_replace('/@.*$/', '', $id));
+                if ($digits !== '') {
+                    return 'tel:' . $digits;
+                }
+                return 'jid:' . mb_strtolower($id, 'UTF-8');
+            }
+            
+            // número puro
+            $digits = preg_replace('/[^0-9]/', '', $id);
+            if ($digits !== '') return 'tel:' . $digits;
+            
+            return 'raw:' . mb_strtolower($id, 'UTF-8');
+        };
+        
+        // =====================
+        // pnLid (@lid) resolver (mantido para enriquecimento opcional)
         // =====================
         
         // Normalização canônica de telefone (E.164 apenas dígitos; BR mantém 55...)
@@ -1094,9 +1125,9 @@ class CommunicationHubController extends Controller
             return $s;
         };
 
-        // Busca a conversa para pegar o contact_external_id e channel_id
+        // Busca a conversa para pegar o contact_external_id, channel_id e remote_key
         $convStmt = $db->prepare("
-            SELECT conversation_key, contact_external_id, tenant_id, channel_type, channel_id
+            SELECT conversation_key, contact_external_id, remote_key, tenant_id, channel_type, channel_id
             FROM conversations
             WHERE id = ?
         ");
@@ -1110,6 +1141,22 @@ class CommunicationHubController extends Controller
         $contactExternalId = $conversation['contact_external_id'];
         $tenantId = $conversation['tenant_id'];
         $sessionId = $conversation['channel_id'] ?? ''; // sessionId para resolver @lid
+        
+        // NOVA ARQUITETURA: Usa remote_key da conversa como identidade primária
+        $conversationRemoteKey = $conversation['remote_key'] ?? null;
+        if (empty($conversationRemoteKey) && !empty($contactExternalId)) {
+            // Fallback: cria remote_key a partir de contact_external_id (conversas antigas)
+            if (strpos($contactExternalId, '@lid') !== false) {
+                if (preg_match('/^([0-9]+)@lid$/', $contactExternalId, $m)) {
+                    $conversationRemoteKey = 'lid:' . $m[1];
+                }
+            } else {
+                $digits = preg_replace('/[^0-9]/', '', preg_replace('/@.*$/', '', $contactExternalId));
+                if ($digits !== '') {
+                    $conversationRemoteKey = 'tel:' . $digits;
+                }
+            }
+        }
 
         // Normaliza contact_external_id para E.164 (já deve estar em E.164, mas garante)
         $normalizedContactExternalId = $normalizePhoneE164($contactExternalId);
@@ -1211,26 +1258,42 @@ class CommunicationHubController extends Controller
             $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
             $eventTo = $payload['to'] ?? $payload['message']['to'] ?? null;
             
-            // Normaliza para comparar (resolve @lid -> telefone quando possível)
-            $provider = 'wpp_gateway';
-            $normalizedFrom = $eventFrom ? $normalizeSender($eventFrom, $provider, $sessionId) : null;
-            $normalizedTo = $eventTo ? $normalizeSender($eventTo, $provider, $sessionId) : null;
+            // NOVA ARQUITETURA: Compara por remote_key (não depende de resolver @lid)
+            $eventFromKey = $eventFrom ? $remoteKey($eventFrom) : null;
+            $eventToKey = $eventTo ? $remoteKey($eventTo) : null;
+            
+            // Para grupos, extrai participant/author
+            if ($eventFrom && strpos($eventFrom, '@g.us') !== false) {
+                $participant = $payload['raw']['payload']['author'] 
+                    ?? $payload['raw']['payload']['participant'] 
+                    ?? $payload['message']['key']['participant'] ?? null;
+                if ($participant) {
+                    $eventFromKey = $remoteKey($participant);
+                }
+            }
+            
+            // Compara remote_key (identidade primária)
+            $isFromThisContact = !empty($eventFromKey) && !empty($conversationRemoteKey) && $eventFromKey === $conversationRemoteKey;
+            $isToThisContact = !empty($eventToKey) && !empty($conversationRemoteKey) && $eventToKey === $conversationRemoteKey;
+            
+            // Fallback: Se remote_key não está disponível, usa telefone normalizado (compatibilidade)
+            if (!$isFromThisContact && !$isToThisContact && empty($conversationRemoteKey)) {
+                $normalizedFrom = $eventFrom ? $normalizeSender($eventFrom, $provider, $sessionId) : null;
+                $normalizedTo = $eventTo ? $normalizeSender($eventTo, $provider, $sessionId) : null;
+                $isFromThisContact = !empty($normalizedFrom) && $normalizedFrom === $normalizedContactExternalId;
+                $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContactExternalId;
+            }
             
             // LOG TEMPORÁRIO: Valores críticos para debug
-            error_log(sprintf('[MATCH_DEBUG] conversation_id=%d, eventFrom=%s, normalizedFrom=%s, eventTo=%s, normalizedTo=%s, normalizedContactExternalId=%s, sessionId=%s',
+            error_log(sprintf('[MATCH_DEBUG] conversation_id=%d, eventFrom=%s, eventFromKey=%s, eventTo=%s, eventToKey=%s, conversationRemoteKey=%s, sessionId=%s',
                 $conversationId,
                 $eventFrom ?: 'NULL',
-                $normalizedFrom ?: 'NULL',
+                $eventFromKey ?: 'NULL',
                 $eventTo ?: 'NULL',
-                $normalizedTo ?: 'NULL',
-                $normalizedContactExternalId ?: 'NULL',
+                $eventToKey ?: 'NULL',
+                $conversationRemoteKey ?: 'NULL',
                 $sessionId ?: 'NULL'
             ));
-            
-            // Verifica se é desta conversa (inbound ou outbound)
-            // CORRIGIDO: Verificação mais robusta (resolve @lid antes de comparar)
-            $isFromThisContact = !empty($normalizedFrom) && $normalizedFrom === $normalizedContactExternalId;
-            $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContactExternalId;
             
             error_log(sprintf('[MATCH_DEBUG] isFromThisContact=%s, isToThisContact=%s', $isFromThisContact ? 'true' : 'false', $isToThisContact ? 'true' : 'false'));
             
