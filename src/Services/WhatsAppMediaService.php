@@ -429,16 +429,25 @@ class WhatsAppMediaService
     
     /**
      * Gera URL pública para a mídia
+     * CORRIGIDO: Sempre usa pixelhub_url() quando disponível para garantir URL absoluta correta
      */
     private static function getMediaUrl(string $storedPath): string
     {
+        // Sempre tenta usar pixelhub_url() primeiro (mais robusto)
         if (function_exists('pixelhub_url')) {
             return pixelhub_url('/communication-hub/media?path=' . urlencode($storedPath));
         }
         
-        // Fallback: usa URL relativa (funciona melhor em diferentes ambientes)
+        // Fallback: constrói URL manualmente com BASE_PATH
         $basePath = defined('BASE_PATH') ? BASE_PATH : '';
-        return $basePath . '/communication-hub/media?path=' . urlencode($storedPath);
+        $url = $basePath . '/communication-hub/media?path=' . urlencode($storedPath);
+        
+        // Garante que começa com / se basePath estiver vazio
+        if (empty($basePath) && $url[0] !== '/') {
+            $url = '/' . $url;
+        }
+        
+        return $url;
     }
     
     /**

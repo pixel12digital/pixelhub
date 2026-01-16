@@ -75,11 +75,22 @@ $baseUrl = pixelhub_url('');
                                     <?= htmlspecialchars($msg['channel_id']) ?>
                                 </div>
                             <?php endif; ?>
-                            <?php if (!empty($msg['media']) && !empty($msg['media']['url'])): ?>
+                            <?php 
+                            // DEBUG TEMPORÁRIO: Verifica estrutura da mídia
+                            $hasMedia = !empty($msg['media']);
+                            $hasMediaUrl = $hasMedia && !empty($msg['media']['url']);
+                            if ($hasMedia && !$hasMediaUrl) {
+                                error_log("[THREAD DEBUG] Mídia presente mas sem URL: " . json_encode($msg['media']));
+                            }
+                            ?>
+                            <?php if ($hasMediaUrl): ?>
                                 <?php
                                 $media = $msg['media'];
                                 $mediaType = strtolower($media['media_type'] ?? 'unknown');
                                 $mimeType = strtolower($media['mime_type'] ?? '');
+                                
+                                // DEBUG TEMPORÁRIO
+                                error_log("[THREAD DEBUG] Renderizando mídia - Type: {$mediaType}, MIME: {$mimeType}, URL: " . ($media['url'] ?? 'N/A'));
                                 ?>
                                 <?php if (strpos($mimeType, 'image/') === 0 || in_array($mediaType, ['image', 'sticker'])): ?>
                                     <div style="margin-bottom: 8px;">
@@ -252,10 +263,21 @@ function addMessageElementToDOM(message) {
     
     // Renderiza mídia se houver
     let mediaHtml = '';
+    // DEBUG TEMPORÁRIO
+    if (message.media) {
+        console.log('[THREAD JS DEBUG] Mídia presente:', {
+            hasUrl: !!message.media.url,
+            mediaType: message.media.media_type,
+            mimeType: message.media.mime_type,
+            url: message.media.url
+        });
+    }
     if (message.media && message.media.url) {
         const media = message.media;
         const mediaType = (media.media_type || '').toLowerCase();
         const mimeType = (media.mime_type || '').toLowerCase();
+        
+        console.log('[THREAD JS DEBUG] Renderizando mídia:', { mediaType, mimeType, url: media.url });
         
         if (mimeType.startsWith('image/') || mediaType === 'image' || mediaType === 'sticker') {
             mediaHtml = `<div style="margin-bottom: 8px;">
