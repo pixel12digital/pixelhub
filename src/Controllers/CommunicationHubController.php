@@ -1328,6 +1328,24 @@ class CommunicationHubController extends Controller
         $tenantId = $conversation['tenant_id'];
         $sessionId = $conversation['channel_id'] ?? ''; // sessionId para resolver @lid
         
+        // CORREÇÃO: Se contact_external_id é um número, busca @lid mapeado para esse número
+        // Isso permite encontrar eventos que usam @lid ao invés do número direto
+        $lidBusinessIds = [];
+        if (!empty($contactExternalId) && preg_match('/^[0-9]+$/', $contactExternalId)) {
+            $lidStmt = $db->prepare("
+                SELECT business_id 
+                FROM whatsapp_business_ids 
+                WHERE phone_number = ?
+            ");
+            $lidStmt->execute([$contactExternalId]);
+            $lidMappings = $lidStmt->fetchAll(PDO::FETCH_COLUMN);
+            $lidBusinessIds = $lidMappings ?: [];
+            
+            if (!empty($lidBusinessIds)) {
+                error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - LID MAPPINGS: contact=' . $contactExternalId . ', lids=' . implode(', ', $lidBusinessIds));
+            }
+        }
+        
         // NOVA ARQUITETURA: Usa remote_key da conversa como identidade primária
         $conversationRemoteKey = $conversation['remote_key'] ?? null;
         if (empty($conversationRemoteKey) && !empty($contactExternalId)) {
@@ -1382,6 +1400,14 @@ class CommunicationHubController extends Controller
                 $contactPatterns[] = "%{$with9th}%";
                 error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - ADICIONADO PADRAO: with9th=' . $with9th);
             }
+        }
+        
+        // CORREÇÃO: Adiciona busca por @lid mapeado (se houver)
+        if (!empty($lidBusinessIds)) {
+            foreach ($lidBusinessIds as $lid) {
+                $contactPatterns[] = "%{$lid}%";
+            }
+            error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - ADICIONADOS PADROES LID: ' . implode(', ', $lidBusinessIds));
         }
         
         // [LOG TEMPORARIO] Padrões de busca
