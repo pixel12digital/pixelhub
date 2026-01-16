@@ -881,6 +881,29 @@ class ConversationService
                     error_log('[CONVERSATION UPSERT] updateConversationMetadata: channel_id atualizado de valor incorreto para: ' . $channelId . ' na conversation_id=' . $conversationId);
                 }
             }
+
+            // Atualiza remote_key, remote_id_raw, contact_key, thread_key se fornecidos (arquitetura nova)
+            // Isso garante que conversas existentes sejam atualizadas com os valores corretos
+            if (!empty($channelInfo['remote_key']) || !empty($channelInfo['contact_key']) || !empty($channelInfo['thread_key'])) {
+                $updateRemoteKeyStmt = $db->prepare("
+                    UPDATE conversations
+                    SET remote_id_raw = COALESCE(?, remote_id_raw),
+                        remote_key = COALESCE(?, remote_key),
+                        contact_key = COALESCE(?, contact_key),
+                        thread_key = COALESCE(?, thread_key),
+                        session_id = COALESCE(?, session_id)
+                    WHERE id = ?
+                ");
+                $updateRemoteKeyStmt->execute([
+                    $channelInfo['remote_id_raw'] ?? null,
+                    $channelInfo['remote_key'] ?? null,
+                    $channelInfo['contact_key'] ?? null,
+                    $channelInfo['thread_key'] ?? null,
+                    $channelInfo['channel_id'] ?? null, // session_id
+                    $conversationId
+                ]);
+                error_log('[CONVERSATION UPSERT] updateConversationMetadata: remote_key/contact_key/thread_key atualizados para conversation_id=' . $conversationId . ', remote_key=' . ($channelInfo['remote_key'] ?: 'NULL'));
+            }
         } catch (\Exception $e) {
             error_log("[ConversationService] Erro ao atualizar conversa: " . $e->getMessage());
             // Não quebra fluxo se falhar
