@@ -457,9 +457,13 @@ class ConversationService
 
         // Extrai channel_id (session.id) do payload para eventos inbound de WhatsApp
         // IMPORTANTE: Extrair ANTES de resolver channel_account_id para usar na busca
+        // CORREÇÃO: Sempre extrai para inbound, e armazena source para log
         $channelId = null;
+        $channelIdSource = null;
         if ($channelType === 'whatsapp' && ($direction ?? 'inbound') === 'inbound') {
             $channelId = self::extractChannelIdFromPayload($payload, $metadata);
+            // Armazena source para log posterior (será passado no channelInfo)
+            $channelIdSource = 'extractChannelIdFromPayload';
         }
 
         // Resolve channel_account_id usando o channel_id (sessionId) extraído
@@ -570,6 +574,7 @@ class ConversationService
             'channel_type' => $channelType,
             'channel_account_id' => $channelAccountId,
             'channel_id' => $channelId,
+            'channel_id_source' => $channelIdSource ?? null, // Para rastreamento/log
             'contact_external_id' => $contactExternalId, // Mantém para compatibilidade
             'contact_name' => $contactName,
             'direction' => $direction ?? 'inbound',
@@ -591,74 +596,105 @@ class ConversationService
      */
     private static function extractChannelIdFromPayload(array $payload, ?array $metadata = null): ?string
     {
-        // CORREÇÃO CRÍTICA: Prioridade máxima para sessionId (sessão real do gateway)
-        // Ordem de prioridade conforme especificação:
-        // 1. payload.sessionId (mais direto)
-        // 2. payload.metadata.sessionId (se metadata vier separado)
-        // 3. payload.session.id
-        // 4. payload.session.session
-        // 5. payload.data.session.id
-        // 6. payload.data.session.session
-        // 7. payload.channelId
-        // 8. payload.metadata.channel_id
-        // 9. payload.channel
-        // 10. payload.data.channel
+        // CORREÇÃO CRÍTICA: Prioridade MÁXIMA para sessionId real do gateway
+        // NUNCA usar metadata.channel_id primeiro - pode conter valor errado (ex: ImobSites)
+        // Ordem de prioridade (sessionId primeiro, sempre):
+        // 1. payload.sessionId (mais direto - sessão real do gateway)
+        // 2. payload.session.id (estrutura comum do gateway)
+        // 3. payload.session.session (alternativa)
+        // 4. payload.data.session.id
+        // 5. payload.data.session.session
+        // 6. payload.metadata.sessionId (se metadata tiver sessionId, não channel_id)
+        // 7. payload.channelId (fallback, mas ainda pode ser sessionId)
+        // 8. payload.channel (fallback)
+        // 9. payload.data.channel
+        // 10. payload.metadata.channel_id (ÚLTIMA opção - pode estar errado)
         // NÃO permite fallback para "ImobSites" ou qualquer valor arbitrário
         
         $channelId = null;
         $source = null;
         
-        // Prioridade 1: metadata (já normalizado pelo webhook)
-        if ($metadata && isset($metadata['channel_id'])) {
-            $channelId = (string) $metadata['channel_id'];
-            $source = 'metadata.channel_id';
-        }
-        
-        // Prioridade 2-6: sessionId (sessão real do gateway)
-        if (!$channelId && isset($payload['sessionId'])) {
+        // PRIORIDADE 1-5: sessionId (sessão real do gateway) - SEMPRE PRIMEIRO
+        if (isset($payload['sessionId'])) {
             $channelId = (string) $payload['sessionId'];
             $source = 'payload.sessionId';
-        }
-        if (!$channelId && isset($payload['metadata']['sessionId'])) {
-            $channelId = (string) $payload['metadata']['sessionId'];
-            $source = 'payload.metadata.sessionId';
-        }
-        if (!$channelId && isset($payload['session']['id'])) {
+        } elseif (isset($payload['session']['id'])) {
             $channelId = (string) $payload['session']['id'];
             $source = 'payload.session.id';
-        }
-        if (!$channelId && isset($payload['session']['session'])) {
+        } elseif (isset($payload['session']['session'])) {
             $channelId = (string) $payload['session']['session'];
             $source = 'payload.session.session';
-        }
-        if (!$channelId && isset($payload['data']['session']['id'])) {
+        } elseif (isset($payload['data']['session']['id'])) {
             $channelId = (string) $payload['data']['session']['id'];
             $source = 'payload.data.session.id';
-        }
-        if (!$channelId && isset($payload['data']['session']['session'])) {
+        } elseif (isset($payload['data']['session']['session'])) {
             $channelId = (string) $payload['data']['session']['session'];
             $source = 'payload.data.session.session';
         }
         
-        // Prioridade 7-10: channelId/channel (fallback, mas ainda válido)
+        // PRIORIDADE 6: metadata.sessionId (se tiver, não channel_id)
+        if (!$channelId && isset($payload['metadata']['sessionId'])) {
+            $channelId = (string) $payload['metadata']['sessionId'];
+            $source = 'payload.metadata.sessionId';
+        }
+        
+        // PRIORIDADE 7-9: channelId/channel (fallback)
         if (!$channelId && isset($payload['channelId'])) {
             $channelId = (string) $payload['channelId'];
             $source = 'payload.channelId';
-        }
-        if (!$channelId && isset($payload['metadata']['channel_id'])) {
-            $channelId = (string) $payload['metadata']['channel_id'];
-            $source = 'payload.metadata.channel_id';
-        }
-        if (!$channelId && isset($payload['channel'])) {
+        } elseif (!$channelId && isset($payload['channel'])) {
             $channelId = (string) $payload['channel'];
             $source = 'payload.channel';
-        }
-        if (!$channelId && isset($payload['data']['channel'])) {
+        } elseif (!$channelId && isset($payload['data']['channel'])) {
             $channelId = (string) $payload['data']['channel'];
             $source = 'payload.data.channel';
         }
         
+        // PRIORIDADE 10: metadata.channel_id (ÚLTIMA opção - pode estar errado)
+        // Só usa se metadata.channel_id vier de metadata separado (não do payload)
+        if (!$channelId && $metadata && isset($metadata['channel_id'])) {
+            $channelId = (string) $metadata['channel_id'];
+            $source = 'metadata.channel_id (separado)';
+        } elseif (!$channelId && isset($payload['metadata']['channel_id'])) {
+            $channelId = (string) $payload['metadata']['channel_id'];
+            $source = 'payload.metadata.channel_id';
+        }
+        
         if ($channelId) {
+            // VALIDAÇÃO: Rejeita valores conhecidos como incorretos se não parecerem sessionId real
+            $channelIdLower = strtolower(trim($channelId));
+            $knownIncorrectValues = ['imobsites']; // Valores que sabemos que são incorretos como sessionId
+            
+            // Se for um valor conhecido como incorretos, tenta buscar sessionId de outra forma
+            if (in_array($channelIdLower, $knownIncorrectValues)) {
+                error_log(sprintf(
+                    '[CONVERSATION UPSERT] extractChannelIdFromPayload: AVISO - channel_id=%s parece incorreto (valor conhecido como incorreto). Tentando buscar sessionId real...',
+                    $channelId
+                ));
+                
+                // Tenta buscar sessionId real do payload (pode estar em outro lugar)
+                $realSessionId = $payload['sessionId'] 
+                    ?? $payload['session']['id'] 
+                    ?? $payload['session']['session']
+                    ?? $payload['data']['session']['id'] ?? null;
+                
+                if ($realSessionId && strtolower(trim($realSessionId)) !== $channelIdLower) {
+                    error_log(sprintf(
+                        '[CONVERSATION UPSERT] extractChannelIdFromPayload: CORRIGIDO - channel_id incorreto=%s substituído por sessionId real=%s',
+                        $channelId,
+                        $realSessionId
+                    ));
+                    $channelId = (string) $realSessionId;
+                    $source = 'payload.sessionId (corrigido)';
+                } else {
+                    error_log(sprintf(
+                        '[CONVERSATION UPSERT] extractChannelIdFromPayload: ERRO - channel_id=%s é valor conhecido como incorreto e não foi possível encontrar sessionId real. Retornando NULL.',
+                        $channelId
+                    ));
+                    return null; // Rejeita valor incorreto
+                }
+            }
+            
             error_log(sprintf(
                 '[CONVERSATION UPSERT] extractChannelIdFromPayload: channel_id=%s | source=%s',
                 $channelId,
@@ -1006,7 +1042,25 @@ class ConversationService
                 $currentChannelId = $currentChannelIdStmt->fetchColumn() ?: null;
                 
                 if ($channelId) {
+                    // VALIDAÇÃO CRÍTICA: Rejeita valores conhecidos como incorretos
+                    $channelIdLower = strtolower(trim($channelId));
+                    $knownIncorrectValues = ['imobsites']; // Valores que sabemos que são incorretos como sessionId
+                    
+                    if (in_array($channelIdLower, $knownIncorrectValues)) {
+                        error_log(sprintf(
+                            '[CONVERSATION UPSERT] updateConversationMetadata: REJEITADO channel_id incorreto=%s na conversation_id=%d | from=%s | mantendo channel_id atual=%s (não atualiza com valor incorreto)',
+                            $channelId,
+                            $conversationId,
+                            $channelInfo['contact_external_id'] ?? 'NULL',
+                            $currentChannelId ?: 'NULL'
+                        ));
+                        // NÃO atualiza com valor incorreto - mantém o atual ou deixa NULL
+                        // Isso evita que threads sejam "corrompidas" com valores errados
+                        return; // Sai sem atualizar
+                    }
+                    
                     // Sempre atualiza, mesmo se já existir (garante que está correto)
+                    // Isso cura threads "nascidas erradas"
                     $updateChannelIdStmt = $db->prepare("
                         UPDATE conversations 
                         SET channel_id = ? 
@@ -1018,11 +1072,12 @@ class ConversationService
                     if ($currentChannelId && $currentChannelId !== $channelId) {
                         // Log quando channel_id foi corrigido (thread "curada")
                         error_log(sprintf(
-                            '[CONVERSATION UPSERT] updateConversationMetadata: THREAD_CURED conversation_id=%d | channel_id_antigo=%s | channel_id_novo=%s | from=%s',
+                            '[CONVERSATION UPSERT] updateConversationMetadata: THREAD_CURED conversation_id=%d | channel_id_antigo=%s | channel_id_novo=%s | from=%s | source=%s',
                             $conversationId,
                             $currentChannelId,
                             $channelId,
-                            $channelInfo['contact_external_id'] ?? 'NULL'
+                            $channelInfo['contact_external_id'] ?? 'NULL',
+                            $channelInfo['channel_id_source'] ?? 'unknown'
                         ));
                     } elseif ($rowsUpdated > 0) {
                         // Log quando channel_id foi definido pela primeira vez
