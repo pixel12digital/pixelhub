@@ -956,8 +956,13 @@ class CommunicationHubController extends Controller
         // Chama API do provider (WPPConnect wrapper) para resolver pnLid -> telefone
         $resolvePnLidViaProvider = function($sessionId, $pnLid) use ($normalizePhoneE164) {
             $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
-            if (!$baseUrl) return null;
+            if (!$baseUrl) {
+                error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: baseUrl vazio. sessionId=%s, pnLid=%s', $sessionId, $pnLid));
+                return null;
+            }
             $url = rtrim($baseUrl, '/') . "/api/" . rawurlencode($sessionId) . "/contact/pn-lid/" . rawurlencode($pnLid);
+            error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Chamando API. URL=%s', $url));
+            
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
@@ -968,10 +973,28 @@ class CommunicationHubController extends Controller
             ]);
             $raw = curl_exec($ch);
             $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
             curl_close($ch);
-            if ($code < 200 || $code >= 300 || !$raw) return null;
+            
+            error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Resposta. HTTP_CODE=%d, curl_error=%s, raw_response=%s', 
+                $code, 
+                $curlError ?: 'NONE',
+                substr($raw ?: 'NULL', 0, 200)
+            ));
+            
+            if ($code < 200 || $code >= 300 || !$raw) {
+                error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: FALHA HTTP. code=%d', $code));
+                return null;
+            }
+            
             $j = json_decode($raw, true);
-            if (!is_array($j)) return null;
+            if (!is_array($j)) {
+                error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: JSON inválido. raw=%s', substr($raw, 0, 200)));
+                return null;
+            }
+            
+            error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: JSON parseado. keys=%s', implode(', ', array_keys($j))));
+            
             // Tenta extrair telefone em campos comuns
             $candidates = [
                 $j['phone'] ?? null,
@@ -984,15 +1007,27 @@ class CommunicationHubController extends Controller
                 $j['data']['phone'] ?? null,
                 $j['data']['number'] ?? null,
             ];
-            foreach ($candidates as $cand) {
-                $e164 = $normalizePhoneE164($cand);
-                if ($e164) return $e164;
+            
+            foreach ($candidates as $idx => $cand) {
+                if ($cand) {
+                    $e164 = $normalizePhoneE164($cand);
+                    if ($e164) {
+                        error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Telefone encontrado no campo index %d. valor=%s, e164=%s', $idx, $cand, $e164));
+                        return $e164;
+                    }
+                }
             }
+            
             // Se vier no formato JID:
             if (!empty($j['jid'])) {
                 $e164 = $normalizePhoneE164($j['jid']);
-                if ($e164) return $e164;
+                if ($e164) {
+                    error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Telefone encontrado em jid. jid=%s, e164=%s', $j['jid'], $e164));
+                    return $e164;
+                }
             }
+            
+            error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Nenhum telefone encontrado no JSON. json=%s', json_encode($j, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
             return null;
         };
 
@@ -1002,21 +1037,35 @@ class CommunicationHubController extends Controller
         ) {
             if (empty($jidOrNumber)) return null;
             $jidOrNumber = (string)$jidOrNumber;
+            
             // Se NÃO é @lid, normaliza como telefone normal
             $pnLid = $extractPnLid($jidOrNumber);
             if (!$pnLid) {
-                return $normalizePhoneE164($jidOrNumber);
+                $normalized = $normalizePhoneE164($jidOrNumber);
+                error_log(sprintf('[PNLID_RESOLVE] normalizeSender: NÃO é @lid. jidOrNumber=%s, normalized=%s', $jidOrNumber, $normalized ?: 'NULL'));
+                return $normalized;
             }
+            
             // É @lid -> tenta cache
+            error_log(sprintf('[PNLID_RESOLVE] normalizeSender: Detectado @lid. jidOrNumber=%s, pnLid=%s, provider=%s, sessionId=%s', $jidOrNumber, $pnLid, $provider, $sessionId));
             $cached = $getPnLidCache($provider, $sessionId, $pnLid);
-            if (!empty($cached)) return $cached;
+            if (!empty($cached)) {
+                error_log(sprintf('[PNLID_RESOLVE] normalizeSender: Cache HIT. pnLid=%s, phone_e164=%s', $pnLid, $cached));
+                return $cached;
+            }
+            error_log(sprintf('[PNLID_RESOLVE] normalizeSender: Cache MISS. Tentando resolver via API... pnLid=%s, sessionId=%s', $pnLid, $sessionId));
+            
             // Resolve via API do provider
             $resolved = $resolvePnLidViaProvider($sessionId, $pnLid);
             if (!empty($resolved)) {
-                $setPnLidCache($provider, $sessionId, $pnLid, $resolved);
+                error_log(sprintf('[PNLID_RESOLVE] normalizeSender: API resolveu com sucesso! pnLid=%s, phone_e164=%s', $pnLid, $resolved));
+                $cacheSaved = $setPnLidCache($provider, $sessionId, $pnLid, $resolved);
+                error_log(sprintf('[PNLID_RESOLVE] normalizeSender: Cache salvo=%s', $cacheSaved ? 'SIM' : 'NÃO'));
                 return $resolved;
             }
+            
             // Não conseguiu resolver: retorna null para evitar falso-match
+            error_log(sprintf('[PNLID_RESOLVE] normalizeSender: FALHA - Não conseguiu resolver pnLid=%s, sessionId=%s. Retornando NULL.', $pnLid, $sessionId));
             return null;
         };
 
@@ -1150,10 +1199,23 @@ class CommunicationHubController extends Controller
             $normalizedFrom = $eventFrom ? $normalizeSender($eventFrom, $provider, $sessionId) : null;
             $normalizedTo = $eventTo ? $normalizeSender($eventTo, $provider, $sessionId) : null;
             
+            // LOG TEMPORÁRIO: Valores críticos para debug
+            error_log(sprintf('[MATCH_DEBUG] conversation_id=%d, eventFrom=%s, normalizedFrom=%s, eventTo=%s, normalizedTo=%s, normalizedContactExternalId=%s, sessionId=%s',
+                $conversationId,
+                $eventFrom ?: 'NULL',
+                $normalizedFrom ?: 'NULL',
+                $eventTo ?: 'NULL',
+                $normalizedTo ?: 'NULL',
+                $normalizedContactExternalId ?: 'NULL',
+                $sessionId ?: 'NULL'
+            ));
+            
             // Verifica se é desta conversa (inbound ou outbound)
             // CORRIGIDO: Verificação mais robusta (resolve @lid antes de comparar)
             $isFromThisContact = !empty($normalizedFrom) && $normalizedFrom === $normalizedContactExternalId;
             $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContactExternalId;
+            
+            error_log(sprintf('[MATCH_DEBUG] isFromThisContact=%s, isToThisContact=%s', $isFromThisContact ? 'true' : 'false', $isToThisContact ? 'true' : 'false'));
             
             if (!$isFromThisContact && !$isToThisContact) {
                 $excludedCount++;
