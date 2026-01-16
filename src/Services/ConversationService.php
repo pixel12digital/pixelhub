@@ -490,7 +490,17 @@ class ConversationService
             }
         }
         
+        // IMPORTANTE: remote_key deve ser calculado do ID ORIGINAL (rawContactId), 
+        // não do contactExternalId mapeado. Isso garante que @lid sempre vira lid:xxx
+        // mesmo quando há mapeamento para número em whatsapp_business_ids
         $remoteIdRaw = $rawContactId ?: $contactExternalId;
+        // Se rawContactId é @lid mas contactExternalId foi mapeado para número,
+        // usa rawContactId para remote_key (mantém identidade original)
+        if ($rawContactId && strpos($rawContactId, '@lid') !== false && $contactExternalId && strpos($contactExternalId, '@lid') === false) {
+            // Tem @lid original mas contactExternalId foi mapeado - usa @lid para remote_key
+            $remoteIdRaw = $rawContactId;
+            error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando @lid original para remote_key (rawContactId) ao invés de número mapeado: ' . $rawContactId);
+        }
         $remoteKeyValue = $remoteKey($remoteIdRaw);
         
         // Calcula contact_key e thread_key
