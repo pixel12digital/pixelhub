@@ -3126,6 +3126,45 @@ class CommunicationHubController extends Controller
         // Monta caminho absoluto
         $absolutePath = __DIR__ . '/../../storage/' . $path;
         
+        // Verifica se arquivo existe
+        if (!file_exists($absolutePath)) {
+            http_response_code(404);
+            echo "Mídia não encontrada";
+            exit;
+        }
+        
+        // Busca informações da mídia no banco (opcional, para validação)
+        try {
+            $db = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT cm.*, ce.tenant_id 
+                FROM communication_media cm
+                INNER JOIN communication_events ce ON cm.event_id = ce.event_id
+                WHERE cm.stored_path = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$path]);
+            $media = $stmt->fetch();
+            
+            // Determina Content-Type
+            $contentType = $media['mime_type'] ?? 'application/octet-stream';
+            $fileName = $media['file_name'] ?? basename($path);
+        } catch (\Exception $e) {
+            // Se não conseguir buscar no banco, tenta adivinhar MIME type
+            $contentType = mime_content_type($absolutePath) ?: 'application/octet-stream';
+            $fileName = basename($path);
+        }
+        
+        // Envia arquivo
+        header('Content-Type: ' . $contentType);
+        header('Content-Length: ' . filesize($absolutePath));
+        header('Content-Disposition: inline; filename="' . htmlspecialchars($fileName) . '"');
+        header('Cache-Control: private, max-age=31536000'); // Cache por 1 ano
+        
+        readfile($absolutePath);
+        exit;
+    }
+    
     /**
      * Normaliza channel_id para comparação (lowercase, remove espaços)
      * 
@@ -3202,45 +3241,6 @@ class CommunicationHubController extends Controller
         }
         
         return null;
-    }
-
-        // Verifica se arquivo existe
-        if (!file_exists($absolutePath)) {
-            http_response_code(404);
-            echo "Mídia não encontrada";
-            exit;
-        }
-        
-        // Busca informações da mídia no banco (opcional, para validação)
-        try {
-            $db = DB::getConnection();
-            $stmt = $db->prepare("
-                SELECT cm.*, ce.tenant_id 
-                FROM communication_media cm
-                INNER JOIN communication_events ce ON cm.event_id = ce.event_id
-                WHERE cm.stored_path = ?
-                LIMIT 1
-            ");
-            $stmt->execute([$path]);
-            $media = $stmt->fetch();
-            
-            // Determina Content-Type
-            $contentType = $media['mime_type'] ?? 'application/octet-stream';
-            $fileName = $media['file_name'] ?? basename($path);
-        } catch (\Exception $e) {
-            // Se não conseguir buscar no banco, tenta adivinhar MIME type
-            $contentType = mime_content_type($absolutePath) ?: 'application/octet-stream';
-            $fileName = basename($path);
-        }
-        
-        // Envia arquivo
-        header('Content-Type: ' . $contentType);
-        header('Content-Length: ' . filesize($absolutePath));
-        header('Content-Disposition: inline; filename="' . htmlspecialchars($fileName) . '"');
-        header('Cache-Control: private, max-age=31536000'); // Cache por 1 ano
-        
-        readfile($absolutePath);
-        exit;
     }
 }
 
