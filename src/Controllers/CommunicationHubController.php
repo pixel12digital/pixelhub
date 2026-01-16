@@ -303,8 +303,15 @@ class CommunicationHubController extends Controller
         $forwardToAll = isset($_POST['forward_to_all']) && $_POST['forward_to_all'] === '1';
         $channelIdsArray = isset($_POST['channel_ids']) && is_array($_POST['channel_ids']) ? $_POST['channel_ids'] : null;
 
-        // LOG TEMPORÁRIO: Validação do channel_id recebido
-        error_log("[CommunicationHub::send] Recebido: channel={$channel}, threadId={$threadId}, tenantId={$tenantId}, channelId=" . var_export($channelId, true) . " (tipo: " . gettype($channelId) . "), to={$to}");
+        // LOG INSTRUMENTADO (apenas em dev ou quando habilitado)
+        $isDev = Env::get('APP_ENV', 'production') === 'dev' || Env::get('APP_DEBUG', '0') === '1';
+        if ($isDev) {
+            error_log("[CommunicationHub::send] ===== LOG INSTRUMENTADO (INÍCIO) =====");
+            error_log("[CommunicationHub::send] thread_id: " . ($threadId ?: 'NULL'));
+            error_log("[CommunicationHub::send] channel_id recebido do front: " . ($channelId ?: 'NULL'));
+            error_log("[CommunicationHub::send] tenant_id recebido do front: " . ($_POST['tenant_id'] ?? 'NULL'));
+            error_log("[CommunicationHub::send] channel: {$channel}, to: {$to}");
+        }
 
         try {
             if (empty($channel) || empty($message)) {
@@ -430,8 +437,8 @@ class CommunicationHubController extends Controller
                 if (empty($targetChannels)) {
                     // PRIORIDADE 1: Usa channel_id fornecido diretamente (vem da thread ou especificado explicitamente)
                     if ($channelId) {
-                        error_log("[CommunicationHub::send] Channel_id fornecido explicitamente: {$channelId}");
-                        // Valida que o canal existe e está habilitado (busca case-insensitive e por similaridade)
+                        // CRÍTICO: Busca o valor CANÔNICO do banco (case-sensitive, como cadastrado)
+                        // Normalização APENAS para comparação WHERE, mas retorna valor original
                         $channelStmt = $db->prepare("
                             SELECT channel_id 
                             FROM tenant_message_channels 
@@ -439,13 +446,12 @@ class CommunicationHubController extends Controller
                             AND is_enabled = 1
                             AND (
                                 channel_id = ?
-                                OR LOWER(channel_id) = LOWER(?)
-                                OR LOWER(channel_id) LIKE ?
+                                OR LOWER(TRIM(channel_id)) = LOWER(TRIM(?))
+                                OR LOWER(REPLACE(channel_id, ' ', '')) = LOWER(REPLACE(?, ' ', ''))
                             )
                             LIMIT 1
                         ");
-                        $channelIdLower = strtolower(trim($channelId));
-                        $channelStmt->execute([$channelId, $channelId, "%{$channelIdLower}%"]);
+                        $channelStmt->execute([$channelId, $channelId, $channelId]);
                         $channelData = $channelStmt->fetch();
                         
                         if (!$channelData) {
@@ -454,10 +460,11 @@ class CommunicationHubController extends Controller
                             return;
                         }
                         
-                        // Usa o channel_id encontrado no banco (pode ter capitalização diferente)
+                        // CRÍTICO: Usa o channel_id CANÔNICO do banco (valor original, case-sensitive)
+                        // Este é o valor que será enviado ao gateway
                         $foundChannelId = trim($channelData['channel_id']);
                         $targetChannels = [$foundChannelId];
-                        error_log("[CommunicationHub::send] Canal validado e encontrado: '{$foundChannelId}' (solicitado: '{$channelId}')");
+                        error_log("[CommunicationHub::send] Canal validado: solicitado='{$channelId}' → canônico='{$foundChannelId}' (será usado no gateway)");
                     } else {
                     // PRIORIDADE 2: Se não tem channel_id, tenta buscar diretamente da conversa/thread
                     // ATENÇÃO: Esta lógica pode pegar o canal errado se a conversa tem histórico de múltiplos canais
@@ -625,24 +632,14 @@ class CommunicationHubController extends Controller
                     return;
                 }
 
-                // ===== LOG TEMPORÁRIO: Passo 1 - Diagnóstico =====
                 // Carrega configurações exatamente como o teste de conexão faz
                 $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
-                $secretRaw = Env::get('WPP_GATEWAY_SECRET', '');
-                // Usa GatewaySecret::getDecrypted() como fonte única (mesma do teste de conexão)
                 $secret = GatewaySecret::getDecrypted();
                 
-                $secretPreview = !empty($secret) 
-                    ? (substr($secret, 0, 4) . '...' . substr($secret, -4) . ' (len=' . strlen($secret) . ')')
-                    : 'VAZIO';
-                $hasSecret = !empty($secret);
-                
-                error_log("[CommunicationHub::send] ===== LOG DIAGNÓSTICO ENVIO =====");
-                error_log("[CommunicationHub::send] gateway_base_url: {$baseUrl}");
-                error_log("[CommunicationHub::send] canal selecionado: id={$channelId}, nome=N/A");
-                error_log("[CommunicationHub::send] secret configurado: " . ($hasSecret ? 'SIM' : 'NÃO') . " - Preview: {$secretPreview}");
-                error_log("[CommunicationHub::send] secret raw length: " . strlen($secretRaw));
-                // ===== FIM LOG TEMPORÁRIO =====
+                // LOG: configurações do gateway
+                if ($isDev) {
+                    error_log("[CommunicationHub::send] gateway_base_url: {$baseUrl}");
+                }
 
                 // Unifica origem das configurações: usa exatamente as mesmas do módulo de configurações
                 // Garante que baseUrl seja uma URL válida (não um caminho relativo)
@@ -719,15 +716,29 @@ class CommunicationHubController extends Controller
                         continue;
                     }
                     
-                    // Envia via gateway
-                    error_log("[CommunicationHub::send] Enviando para canal: {$targetChannelId}");
+                    // Envia via gateway usando valor CANÔNICO (case-sensitive)
+                    if ($isDev) {
+                        error_log("[CommunicationHub::send] Enviando para gateway com sessionId (canônico): {$targetChannelId}");
+                    }
                     $result = $gateway->sendText($targetChannelId, $phoneNormalized, $message, [
                         'sent_by' => Auth::user()['id'] ?? null,
                         'sent_by_name' => Auth::user()['name'] ?? null
                     ]);
                     
+                    // LOG: resposta do gateway
+                    if ($isDev) {
+                        error_log("[CommunicationHub::send] Resposta do gateway: " . json_encode([
+                            'success' => $result['success'] ?? false,
+                            'error' => $result['error'] ?? null,
+                            'error_code' => $result['error_code'] ?? null,
+                            'status' => $result['status'] ?? null
+                        ]));
+                    }
+                    
                     if ($result['success']) {
-                        error_log("[CommunicationHub::send] ✅ Sucesso ao enviar para {$targetChannelId}");
+                        if ($isDev) {
+                            error_log("[CommunicationHub::send] ✅ Sucesso ao enviar para {$targetChannelId}");
+                        }
                         $hasAnySuccess = true;
                         
                         // Cria evento de envio para este canal
@@ -762,13 +773,24 @@ class CommunicationHubController extends Controller
                         ];
                     } else {
                         $error = $result['error'] ?? 'Erro ao enviar mensagem';
-                        error_log("[CommunicationHub::send] ❌ Erro ao enviar para {$targetChannelId}: {$error}");
+                        $errorCode = $result['error_code'] ?? null;
+                        $gatewayStatus = $result['status'] ?? null;
+                        
+                        // Detecta SESSION_DISCONNECTED do gateway
+                        $errorLower = strtolower($error);
+                        if (strpos($errorLower, 'session') !== false && strpos($errorLower, 'disconnect') !== false) {
+                            $errorCode = 'SESSION_DISCONNECTED';
+                        } elseif ($gatewayStatus === 409 || $gatewayStatus === 400) {
+                            $errorCode = $errorCode ?: 'GATEWAY_ERROR';
+                        }
+                        
+                        error_log("[CommunicationHub::send] ❌ Erro ao enviar para {$targetChannelId}: {$error} (code: {$errorCode}, status: {$gatewayStatus})");
                         
                         $sendResults[] = [
                             'channel_id' => $targetChannelId,
                             'success' => false,
                             'error' => $error,
-                            'error_code' => $result['error_code'] ?? 'GATEWAY_ERROR'
+                            'error_code' => $errorCode ?: ($result['error_code'] ?? 'GATEWAY_ERROR')
                         ];
                         $errors[] = "{$targetChannelId}: {$error}";
                     }
@@ -785,12 +807,20 @@ class CommunicationHubController extends Controller
                             'message_id' => $singleResult['message_id']
                         ]);
                     } else {
+                        // Retorna código HTTP apropriado baseado no error_code
+                        $httpCode = 500;
+                        if ($singleResult['error_code'] === 'SESSION_DISCONNECTED') {
+                            $httpCode = 409; // Conflict
+                        } elseif ($singleResult['error_code'] === 'UNAUTHORIZED' || $singleResult['error_code'] === 'CHANNEL_NOT_FOUND') {
+                            $httpCode = 400; // Bad Request
+                        }
+                        
                         $this->json([
                             'success' => false,
                             'error' => $singleResult['error'],
                             'error_code' => $singleResult['error_code'],
                             'channel_id' => $singleResult['channel_id']
-                        ], 500);
+                        ], $httpCode);
                     }
                 } else {
                     // Novo comportamento: retorna resultado múltiplo
@@ -817,8 +847,31 @@ class CommunicationHubController extends Controller
                 $this->json(['success' => false, 'error' => "Canal {$channel} não implementado ainda"], 400);
             }
         } catch (\Exception $e) {
-            error_log("[CommunicationHub] Erro ao enviar mensagem: " . $e->getMessage());
-            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+            // Log completo do erro (stack trace) para debug
+            $errorMsg = "[CommunicationHub::send] EXCEPTION: " . $e->getMessage();
+            $errorMsg .= "\nFile: " . $e->getFile() . ":" . $e->getLine();
+            $errorMsg .= "\nStack trace:\n" . $e->getTraceAsString();
+            error_log($errorMsg);
+            
+            // Retorna JSON com error_code interno (sem vazar segredos)
+            $this->json([
+                'success' => false,
+                'error' => 'Erro interno do servidor',
+                'error_code' => 'INTERNAL_ERROR'
+            ], 500);
+        } catch (\Throwable $e) {
+            // Log completo do erro (stack trace) para debug
+            $errorMsg = "[CommunicationHub::send] THROWABLE: " . $e->getMessage();
+            $errorMsg .= "\nFile: " . $e->getFile() . ":" . $e->getLine();
+            $errorMsg .= "\nStack trace:\n" . $e->getTraceAsString();
+            error_log($errorMsg);
+            
+            // Retorna JSON com error_code interno (sem vazar segredos)
+            $this->json([
+                'success' => false,
+                'error' => 'Erro interno do servidor',
+                'error_code' => 'INTERNAL_ERROR'
+            ], 500);
         }
     }
 
@@ -3186,7 +3239,10 @@ class CommunicationHubController extends Controller
     }
     
     /**
-     * Resolve tenant_id pelo channel_id (com normalização)
+     * Resolve tenant_id pelo channel_id (com normalização APENAS para busca)
+     * 
+     * IMPORTANTE: Normalização é usada SOMENTE para comparação WHERE.
+     * O valor retornado é sempre o valor original do banco.
      * 
      * @param string|null $channelId
      * @param PDO|null $db Conexão do banco (opcional, cria nova se não fornecido)
@@ -3202,38 +3258,38 @@ class CommunicationHubController extends Controller
             $db = DB::getConnection();
         }
         
-        // Normaliza channel_id para busca
+        // Normaliza channel_id APENAS para comparação WHERE (não altera o valor original)
         $normalized = $this->normalizeChannelId($channelId);
         
-        // Tenta busca exata primeiro
+        // Tenta busca exata primeiro (case-sensitive)
         $stmt = $db->prepare("
             SELECT tenant_id 
             FROM tenant_message_channels 
             WHERE provider = 'wpp_gateway' 
             AND is_enabled = 1
-            AND (
-                channel_id = ?
-                OR LOWER(TRIM(channel_id)) = ?
-            )
+            AND channel_id = ?
             LIMIT 1
         ");
-        $stmt->execute([$channelId, $normalized]);
+        $stmt->execute([$channelId]);
         $result = $stmt->fetch();
         
         if ($result && $result['tenant_id']) {
             return (int) $result['tenant_id'];
         }
         
-        // Se não encontrou, tenta busca case-insensitive mais flexível
+        // Se não encontrou, tenta busca case-insensitive usando normalização APENAS no WHERE
         $stmt2 = $db->prepare("
             SELECT tenant_id 
             FROM tenant_message_channels 
             WHERE provider = 'wpp_gateway' 
             AND is_enabled = 1
-            AND LOWER(REPLACE(channel_id, ' ', '')) = ?
+            AND (
+                LOWER(TRIM(channel_id)) = LOWER(TRIM(?))
+                OR LOWER(REPLACE(channel_id, ' ', '')) = ?
+            )
             LIMIT 1
         ");
-        $stmt2->execute([$normalized]);
+        $stmt2->execute([$channelId, $normalized]);
         $result2 = $stmt2->fetch();
         
         if ($result2 && $result2['tenant_id']) {

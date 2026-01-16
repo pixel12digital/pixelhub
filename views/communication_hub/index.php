@@ -868,9 +868,18 @@ body.communication-hub-page {
 
 <script>
 // ============================================================================
-// Configuração Central de Polling
+// Configuração Central de Polling (com intervalos dinâmicos e backoff)
 // ============================================================================
-const HUB_POLLING_MS = 10000; // 10 segundos - Intervalo de polling configurável
+// Intervalos base (em ms):
+// - Conversa ativa: 2-4s
+// - Aba aberta sem conversa: 6-10s
+// - Aba em background: 15-30s
+const POLLING_INTERVALS = {
+    ACTIVE_CONVERSATION: 3000,      // 3s (média entre 2-4s)
+    NO_ACTIVE_CONVERSATION: 8000,   // 8s (média entre 6-10s)
+    BACKGROUND: 20000,              // 20s (média entre 15-30s)
+    MAX_BACKOFF: 30000              // Teto do backoff: 30s
+};
 
 // ============================================================================
 // Polling para atualização da lista de conversas
@@ -881,7 +890,9 @@ const HubState = {
     isPageVisible: true,
     isUserInteracting: false,
     lastInteractionTime: null,
-    interactionTimeout: null
+    interactionTimeout: null,
+    consecutiveNoUpdates: 0,  // Contador de checks sem atualizações (para backoff)
+    currentInterval: POLLING_INTERVALS.NO_ACTIVE_CONVERSATION
 };
 
 // Guard global para evitar múltiplos inícios de polling
@@ -908,22 +919,50 @@ function startListPolling() {
         console.log('[Hub] Polling iniciado com lastUpdateTs:', HubState.lastUpdateTs);
     }
     
-    // Polling configurável via HUB_POLLING_MS (padrão: 10 segundos)
-    // Só executa se:
-    // - Página está visível
-    // - Usuário não está interagindo (última interação há mais de 5s)
-    HubState.pollingInterval = setInterval(() => {
-        if (HubState.isPageVisible && !HubState.isUserInteracting) {
-            const timeSinceInteraction = HubState.lastInteractionTime 
-                ? Date.now() - HubState.lastInteractionTime 
-                : Infinity;
-            
-            // Só faz polling se não houve interação nos últimos 5 segundos
-            if (timeSinceInteraction > 5000) {
-                checkForListUpdates();
-            }
+    // Polling com intervalos dinâmicos baseado em:
+    // - Se há conversa ativa
+    // - Se página está visível
+    // - Backoff se não há atualizações
+    function scheduleNextCheck() {
+        if (HubState.pollingInterval) {
+            clearInterval(HubState.pollingInterval);
         }
-    }, HUB_POLLING_MS);
+        
+        // Calcula intervalo baseado no estado
+        let baseInterval;
+        if (document.hidden) {
+            // Aba em background
+            baseInterval = POLLING_INTERVALS.BACKGROUND;
+        } else if (ConversationState.currentThreadId) {
+            // Conversa ativa aberta
+            baseInterval = POLLING_INTERVALS.ACTIVE_CONVERSATION;
+        } else {
+            // Aba aberta sem conversa ativa
+            baseInterval = POLLING_INTERVALS.NO_ACTIVE_CONVERSATION;
+        }
+        
+        // Aplica backoff se não há atualizações consecutivas
+        const backoffMultiplier = Math.min(1 + (HubState.consecutiveNoUpdates * 0.5), 3); // Max 3x
+        const finalInterval = Math.min(baseInterval * backoffMultiplier, POLLING_INTERVALS.MAX_BACKOFF);
+        
+        HubState.currentInterval = finalInterval;
+        
+        HubState.pollingInterval = setTimeout(() => {
+            if (HubState.isPageVisible && !HubState.isUserInteracting) {
+                const timeSinceInteraction = HubState.lastInteractionTime 
+                    ? Date.now() - HubState.lastInteractionTime 
+                    : Infinity;
+                
+                // Só faz polling se não houve interação nos últimos 5 segundos
+                if (timeSinceInteraction > 5000) {
+                    checkForListUpdates();
+                }
+            }
+            scheduleNextCheck(); // Agenda próximo check
+        }, finalInterval);
+    }
+    
+    scheduleNextCheck();
     
     // Primeiro check após 5 segundos (ao invés de 2s)
     setTimeout(() => {
@@ -954,6 +993,9 @@ async function checkForListUpdates() {
                 after_timestamp: HubState.lastUpdateTs,
                 latest_update_ts: result.latest_update_ts
             });
+            
+            // Reset backoff quando há atualizações
+            HubState.consecutiveNoUpdates = 0;
             
             // CRÍTICO: NUNCA recarrega a página se houver conversa ativa
             // Atualiza apenas a lista via AJAX para preservar estado
@@ -987,8 +1029,10 @@ async function checkForListUpdates() {
                 console.log('[Hub] Timestamp atualizado:', oldTs, '->', HubState.lastUpdateTs);
             }
         } else {
+            // Sem atualizações - incrementa contador para backoff
+            HubState.consecutiveNoUpdates++;
             // Log silencioso quando não há atualizações (para não poluir o console)
-            // console.log('[Hub] Sem atualizações');
+            // console.log('[Hub] Sem atualizações (consecutivas: ' + HubState.consecutiveNoUpdates + ')');
         }
     } catch (error) {
         console.error('[Hub] ❌ Erro ao verificar atualizações:', error);
@@ -1034,13 +1078,35 @@ document.addEventListener('visibilitychange', function() {
     // Se página ficou oculta, pausa polling
     if (document.hidden) {
         if (HubState.pollingInterval) {
-            clearInterval(HubState.pollingInterval);
+            clearTimeout(HubState.pollingInterval);
             HubState.pollingInterval = null;
         }
     } else {
-        // Se página ficou visível, reinicia polling
-        if (!HubState.pollingInterval) {
-            startListPolling();
+        // Se página ficou visível, reinicia polling (reagenda com intervalo apropriado)
+        if (!HubState.pollingInterval && __hubPollingStarted) {
+            // Reagenda próximo check imediatamente
+            const baseInterval = ConversationState.currentThreadId 
+                ? POLLING_INTERVALS.ACTIVE_CONVERSATION 
+                : POLLING_INTERVALS.NO_ACTIVE_CONVERSATION;
+            const backoffMultiplier = Math.min(1 + (HubState.consecutiveNoUpdates * 0.5), 3);
+            const finalInterval = Math.min(baseInterval * backoffMultiplier, POLLING_INTERVALS.MAX_BACKOFF);
+            
+            HubState.pollingInterval = setTimeout(() => {
+                if (!HubState.isUserInteracting) {
+                    checkForListUpdates();
+                }
+                // Continua polling normalmente
+                if (__hubPollingStarted) {
+                    const nextInterval = ConversationState.currentThreadId 
+                        ? POLLING_INTERVALS.ACTIVE_CONVERSATION 
+                        : POLLING_INTERVALS.NO_ACTIVE_CONVERSATION;
+                    HubState.pollingInterval = setInterval(() => {
+                        if (HubState.isPageVisible && !HubState.isUserInteracting) {
+                            checkForListUpdates();
+                        }
+                    }, nextInterval);
+                }
+            }, 1000); // Primeiro check rápido após voltar
         }
     }
 });
@@ -2239,12 +2305,37 @@ function startConversationPolling() {
         }
     }, 2000);
     
-    // Polling periódico configurável via HUB_POLLING_MS (padrão: 10 segundos)
-    ConversationState.pollingInterval = setInterval(() => {
-        if (ConversationState.isPageVisible && ConversationState.currentThreadId) {
-            checkForNewConversationMessages();
+    // Polling periódico com intervalo dinâmico baseado em visibilidade da página
+    function scheduleNextMessageCheck() {
+        if (ConversationState.pollingInterval) {
+            clearInterval(ConversationState.pollingInterval);
         }
-    }, HUB_POLLING_MS);
+        
+        // Calcula intervalo baseado na visibilidade
+        let interval;
+        if (document.hidden) {
+            // Aba em background: 15-30s
+            interval = POLLING_INTERVALS.BACKGROUND;
+        } else {
+            // Conversa ativa aberta: 2-4s
+            interval = POLLING_INTERVALS.ACTIVE_CONVERSATION;
+        }
+        
+        ConversationState.pollingInterval = setInterval(() => {
+            if (ConversationState.isPageVisible && ConversationState.currentThreadId) {
+                checkForNewConversationMessages();
+            }
+        }, interval);
+    }
+    
+    scheduleNextMessageCheck();
+    
+    // Reagenda quando visibilidade muda
+    document.addEventListener('visibilitychange', function() {
+        if (ConversationState.currentThreadId && !document.hidden) {
+            scheduleNextMessageCheck();
+        }
+    });
 }
 
 /**
