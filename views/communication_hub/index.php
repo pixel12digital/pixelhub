@@ -643,12 +643,84 @@ body.communication-hub-page {
                 <h3>Conversas</h3>
             </div>
             <div class="conversation-list-scroll">
-                <?php if (empty($threads)): ?>
+                <!-- Seção: Incoming Leads (Leads Entrantes) -->
+                <?php if (!empty($incoming_leads)): ?>
+                    <div style="padding: 12px 8px 8px 8px; background: #fff3cd; border-radius: 8px; margin-bottom: 12px; border: 1px solid #ffc107;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <h4 style="margin: 0; font-size: 13px; font-weight: 600; color: #856404;">
+                                📥 Leads Entrantes
+                            </h4>
+                            <span style="background: #ffc107; color: #856404; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">
+                                <?= count($incoming_leads) ?>
+                            </span>
+                        </div>
+                        <p style="margin: 0; font-size: 11px; color: #856404; line-height: 1.4;">
+                            Números não cadastrados. Revise e vincule a um cliente ou crie um novo.
+                        </p>
+                    </div>
+                    
+                    <?php foreach ($incoming_leads as $lead): ?>
+                        <div class="conversation-item incoming-lead-item" 
+                             data-thread-id="<?= htmlspecialchars($lead['thread_id'], ENT_QUOTES) ?>"
+                             data-conversation-id="<?= $lead['conversation_id'] ?? 0 ?>"
+                             style="background: #fff3cd; border: 1px solid #ffc107; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-weight: 600; font-size: 14px; color: #111b21; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                        <?= htmlspecialchars($lead['contact_name'] ?? 'Contato Desconhecido') ?>
+                                    </div>
+                                    <div style="font-size: 12px; color: #667781; display: flex; align-items: center; gap: 4px;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                                        </svg>
+                                        <span><?= htmlspecialchars($lead['contact'] ?? 'Número não identificado') ?></span>
+                                    </div>
+                                </div>
+                                <?php if (($lead['unread_count'] ?? 0) > 0): ?>
+                                    <span style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600;">
+                                        <?= $lead['unread_count'] ?>
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                            <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+                                <button onclick="event.stopPropagation(); openCreateTenantModal(<?= $lead['conversation_id'] ?? 0 ?>, '<?= htmlspecialchars($lead['contact_name'] ?? '', ENT_QUOTES) ?>', '<?= htmlspecialchars($lead['contact'] ?? '', ENT_QUOTES) ?>')" 
+                                        style="flex: 1; padding: 6px 10px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;">
+                                    Criar Cliente
+                                </button>
+                                <button onclick="event.stopPropagation(); openLinkTenantModal(<?= $lead['conversation_id'] ?? 0 ?>, '<?= htmlspecialchars($lead['contact_name'] ?? '', ENT_QUOTES) ?>')" 
+                                        style="flex: 1; padding: 6px 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;">
+                                    Vincular
+                                </button>
+                                <button onclick="event.stopPropagation(); rejectIncomingLead(<?= $lead['conversation_id'] ?? 0 ?>)" 
+                                        style="padding: 6px 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600;">
+                                    Ignorar
+                                </button>
+                            </div>
+                            <div style="font-size: 11px; color: #667781; margin-top: 6px;">
+                                <?php
+                                $lastActivity = $lead['last_activity'] ?? 'now';
+                                try {
+                                    $dateTime = new DateTime($lastActivity);
+                                    $dateStr = $dateTime->format('d/m H:i');
+                                } catch (Exception $e) {
+                                    $dateStr = 'Agora';
+                                }
+                                ?>
+                                <span><?= $dateStr ?></span>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                    
+                    <div style="height: 12px; border-bottom: 2px solid #e4e6eb; margin: 12px 0;"></div>
+                <?php endif; ?>
+                
+                <!-- Seção: Conversas Normais -->
+                <?php if (empty($threads) && empty($incoming_leads)): ?>
                     <div style="padding: 40px; text-align: center; color: #667781;">
                         <p>Nenhuma conversa encontrada</p>
                         <p style="font-size: 13px; margin-top: 10px;">As conversas aparecerão aqui quando houver mensagens recebidas ou enviadas.</p>
                     </div>
-                <?php else: ?>
+                <?php elseif (!empty($threads)): ?>
                     <?php foreach ($threads as $thread): ?>
                         <div onclick="handleConversationClick('<?= htmlspecialchars($thread['thread_id'], ENT_QUOTES) ?>', '<?= htmlspecialchars($thread['channel'] ?? 'whatsapp', ENT_QUOTES) ?>')" 
                              class="conversation-item"
@@ -2074,7 +2146,296 @@ window.addEventListener('popstate', function(event) {
             listScroll.scrollTop = parseInt(savedScroll, 10);
         }
     }
+
+// ============================================================================
+// Incoming Leads - Ações (Criar Cliente, Vincular, Ignorar)
+// ============================================================================
+
+/**
+ * Abre modal para criar novo tenant a partir de incoming lead
+ */
+function openCreateTenantModal(conversationId, contactName, contactPhone) {
+    const modal = document.getElementById('create-tenant-modal');
+    if (!modal) {
+        console.error('Modal create-tenant-modal não encontrado');
+        return;
+    }
+    
+    // Preenche dados iniciais
+    document.getElementById('create-tenant-conversation-id').value = conversationId;
+    document.getElementById('create-tenant-name').value = contactName || '';
+    document.getElementById('create-tenant-phone').value = contactPhone || '';
+    document.getElementById('create-tenant-email').value = '';
+    
+    modal.style.display = 'flex';
+}
+
+/**
+ * Fecha modal de criar tenant
+ */
+function closeCreateTenantModal() {
+    const modal = document.getElementById('create-tenant-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+/**
+ * Cria tenant a partir de incoming lead
+ */
+async function createTenantFromIncomingLead(event) {
+    event.preventDefault();
+    
+    const conversationId = document.getElementById('create-tenant-conversation-id').value;
+    const name = document.getElementById('create-tenant-name').value.trim();
+    const phone = document.getElementById('create-tenant-phone').value.trim();
+    const email = document.getElementById('create-tenant-email').value.trim();
+    
+    if (!name) {
+        alert('Nome é obrigatório');
+        return;
+    }
+    
+    try {
+        const response = await fetch('<?= pixelhub_url('/communication-hub/incoming-lead/create-tenant') ?>', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                conversation_id: parseInt(conversationId),
+                name: name,
+                phone: phone,
+                email: email
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Cliente criado e conversa vinculada com sucesso!');
+            closeCreateTenantModal();
+            // Recarrega a página para atualizar a lista
+            window.location.reload();
+        } else {
+            alert('Erro: ' + (result.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao criar tenant:', error);
+        alert('Erro ao criar cliente. Tente novamente.');
+    }
+}
+
+/**
+ * Abre modal para vincular incoming lead a tenant existente
+ */
+function openLinkTenantModal(conversationId, contactName) {
+    const modal = document.getElementById('link-tenant-modal');
+    if (!modal) {
+        console.error('Modal link-tenant-modal não encontrado');
+        return;
+    }
+    
+    document.getElementById('link-tenant-conversation-id').value = conversationId;
+    document.getElementById('link-tenant-contact-name').textContent = contactName || 'Contato Desconhecido';
+    
+    modal.style.display = 'flex';
+}
+
+/**
+ * Fecha modal de vincular tenant
+ */
+function closeLinkTenantModal() {
+    const modal = document.getElementById('link-tenant-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+/**
+ * Vincula incoming lead a tenant existente
+ */
+async function linkIncomingLeadToTenant(event) {
+    event.preventDefault();
+    
+    const conversationId = document.getElementById('link-tenant-conversation-id').value;
+    const tenantId = document.getElementById('link-tenant-select').value;
+    
+    if (!tenantId) {
+        alert('Selecione um cliente');
+        return;
+    }
+    
+    try {
+        const response = await fetch('<?= pixelhub_url('/communication-hub/incoming-lead/link-tenant') ?>', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                conversation_id: parseInt(conversationId),
+                tenant_id: parseInt(tenantId)
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Conversa vinculada ao cliente com sucesso!');
+            closeLinkTenantModal();
+            // Recarrega a página para atualizar a lista
+            window.location.reload();
+        } else {
+            alert('Erro: ' + (result.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao vincular tenant:', error);
+        alert('Erro ao vincular conversa. Tente novamente.');
+    }
+}
+
+/**
+ * Rejeita/ignora incoming lead
+ */
+async function rejectIncomingLead(conversationId) {
+    if (!confirm('Tem certeza que deseja ignorar este lead? A conversa será arquivada.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('<?= pixelhub_url('/communication-hub/incoming-lead/reject') ?>', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                conversation_id: parseInt(conversationId)
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Remove o item da lista sem recarregar a página
+            const item = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+            if (item) {
+                item.style.opacity = '0.5';
+                item.style.pointerEvents = 'none';
+                setTimeout(() => {
+                    item.remove();
+                    // Atualiza contador se necessário
+                    updateIncomingLeadsCount();
+                }, 300);
+            } else {
+                window.location.reload();
+            }
+        } else {
+            alert('Erro: ' + (result.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao rejeitar incoming lead:', error);
+        alert('Erro ao ignorar lead. Tente novamente.');
+    }
+}
+
+/**
+ * Atualiza contador de incoming leads
+ */
+function updateIncomingLeadsCount() {
+    const count = document.querySelectorAll('.incoming-lead-item').length;
+    const badge = document.querySelector('.incoming-leads-badge');
+    if (badge) {
+        badge.textContent = count;
+        if (count === 0) {
+            const section = document.querySelector('.incoming-leads-section');
+            if (section) {
+                section.style.display = 'none';
+            }
+        }
+    }
+}
 </script>
+
+<!-- Modal: Criar Cliente a partir de Incoming Lead -->
+<div id="create-tenant-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Criar Novo Cliente</h2>
+            <button onclick="closeCreateTenantModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        </div>
+        
+        <form onsubmit="createTenantFromIncomingLead(event)">
+            <input type="hidden" id="create-tenant-conversation-id" value="">
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Nome *</label>
+                <input type="text" id="create-tenant-name" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Telefone</label>
+                <input type="text" id="create-tenant-phone" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;" placeholder="5511999999999">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">E-mail</label>
+                <input type="email" id="create-tenant-email" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;" placeholder="cliente@exemplo.com">
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="flex: 1; padding: 12px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Criar Cliente
+                </button>
+                <button type="button" onclick="closeCreateTenantModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Vincular a Cliente Existente -->
+<div id="link-tenant-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Vincular a Cliente Existente</h2>
+            <button onclick="closeLinkTenantModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        </div>
+        
+        <div style="margin-bottom: 20px; padding: 12px; background: #f0f2f5; border-radius: 6px;">
+            <div style="font-size: 12px; color: #667781; margin-bottom: 4px;">Contato:</div>
+            <div style="font-weight: 600; color: #111b21;" id="link-tenant-contact-name"></div>
+        </div>
+        
+        <form onsubmit="linkIncomingLeadToTenant(event)">
+            <input type="hidden" id="link-tenant-conversation-id" value="">
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Selecione o Cliente *</label>
+                <select id="link-tenant-select" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="">Selecione um cliente...</option>
+                    <?php foreach ($tenants as $tenant): ?>
+                        <option value="<?= $tenant['id'] ?>">
+                            <?= htmlspecialchars($tenant['name']) ?>
+                            <?php if (!empty($tenant['email'])): ?>
+                                (<?= htmlspecialchars($tenant['email']) ?>)
+                            <?php endif; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Vincular
+                </button>
+                <button type="button" onclick="closeLinkTenantModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <?php
 $content = ob_get_clean();

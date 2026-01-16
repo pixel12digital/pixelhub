@@ -753,14 +753,17 @@ class ConversationService
         $messageTimestamp = self::extractMessageTimestamp($eventData);
 
         try {
+            // Marca como incoming_lead se tenant_id é NULL (número não cadastrado)
+            $isIncomingLead = ($tenantId === null) ? 1 : 0;
+            
             // NOVA ARQUITETURA: Usa remote_key, contact_key, thread_key como identidade primária
             $stmt = $db->prepare("
                 INSERT INTO conversations 
                 (conversation_key, channel_type, channel_account_id, channel_id, session_id,
                  contact_external_id, remote_id_raw, remote_key, contact_key, thread_key,
-                 contact_name, tenant_id, status, last_message_at, last_message_direction, 
+                 contact_name, tenant_id, is_incoming_lead, status, last_message_at, last_message_direction, 
                  message_count, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, 1, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, 1, ?, ?)
             ");
 
             $stmt->execute([
@@ -776,6 +779,7 @@ class ConversationService
                 $channelInfo['thread_key'] ?? null,
                 $channelInfo['contact_name'],
                 $tenantId,
+                $isIncomingLead, // Marca como incoming lead se não tem tenant
                 $messageTimestamp, // Usa timestamp da mensagem ao invés de NOW()
                 $direction,
                 $now,
@@ -877,14 +881,24 @@ class ConversationService
             }
 
             // Atualiza tenant_id se fornecido e ainda não existe
+            // Também atualiza is_incoming_lead: se tenant_id é NULL, marca como incoming_lead = 1
             $tenantId = $eventData['tenant_id'] ?? null;
             if ($tenantId) {
                 $updateTenantStmt = $db->prepare("
                     UPDATE conversations 
-                    SET tenant_id = ? 
+                    SET tenant_id = ?,
+                        is_incoming_lead = 0
                     WHERE id = ? AND tenant_id IS NULL
                 ");
                 $updateTenantStmt->execute([$tenantId, $conversationId]);
+            } else {
+                // Se tenant_id é NULL, marca como incoming_lead se ainda não estiver marcado
+                $updateIncomingLeadStmt = $db->prepare("
+                    UPDATE conversations 
+                    SET is_incoming_lead = 1
+                    WHERE id = ? AND tenant_id IS NULL AND is_incoming_lead = 0
+                ");
+                $updateIncomingLeadStmt->execute([$conversationId]);
             }
 
             // Atualiza channel_id se fornecido (apenas para eventos inbound)

@@ -61,6 +61,10 @@ class CommunicationHubController extends Controller
         // Combina e ordena por última atividade
         $allThreads = array_merge($whatsappThreads ?? [], $chatThreads ?? []);
         
+        // Separa incoming leads das conversas normais
+        $incomingLeads = [];
+        $normalThreads = [];
+        
         if (!empty($allThreads)) {
             usort($allThreads, function($a, $b) {
                 $timeA = strtotime($a['last_activity'] ?? '1970-01-01');
@@ -74,6 +78,15 @@ class CommunicationHubController extends Controller
                     return ($thread['channel'] ?? '') === $channel;
                 });
                 $allThreads = array_values($allThreads); // Reindexa array
+            }
+            
+            // Separa incoming leads
+            foreach ($allThreads as $thread) {
+                if (!empty($thread['is_incoming_lead'])) {
+                    $incomingLeads[] = $thread;
+                } else {
+                    $normalThreads[] = $thread;
+                }
             }
         }
 
@@ -93,24 +106,27 @@ class CommunicationHubController extends Controller
 
         // Estatísticas
         $stats = [
-            'whatsapp_active' => count(array_filter($allThreads, function($t) {
+            'whatsapp_active' => count(array_filter($normalThreads, function($t) {
                 return ($t['channel'] ?? '') === 'whatsapp' && ($t['status'] ?? '') === 'active';
             })),
-            'chat_active' => count(array_filter($allThreads, function($t) {
+            'chat_active' => count(array_filter($normalThreads, function($t) {
                 return ($t['channel'] ?? '') === 'chat' && ($t['status'] ?? '') === 'active';
             })),
-            'total_unread' => count(array_filter($allThreads, function($t) {
+            'total_unread' => count(array_filter($normalThreads, function($t) {
                 return ($t['unread_count'] ?? 0) > 0;
-            }))
+            })),
+            'incoming_leads_count' => count($incomingLeads)
         ];
 
         // Garante que threads é sempre um array válido
-        $threadsList = is_array($allThreads) ? $allThreads : [];
+        $threadsList = is_array($normalThreads) ? $normalThreads : [];
+        $incomingLeadsList = is_array($incomingLeads) ? $incomingLeads : [];
         
         $this->view('communication_hub.index', [
             'threads' => $threadsList,
+            'incoming_leads' => $incomingLeadsList,
             'tenants' => is_array($tenants) ? $tenants : [],
-            'stats' => is_array($stats) ? $stats : ['whatsapp_active' => 0, 'chat_active' => 0, 'total_unread' => 0],
+            'stats' => is_array($stats) ? $stats : ['whatsapp_active' => 0, 'chat_active' => 0, 'total_unread' => 0, 'incoming_leads_count' => 0],
             'filters' => [
                 'channel' => $channel ?? 'all',
                 'tenant_id' => $tenantId,
@@ -820,6 +836,7 @@ class CommunicationHubController extends Controller
                     c.contact_external_id,
                     c.contact_name,
                     c.tenant_id,
+                    c.is_incoming_lead,
                     c.status,
                     c.assigned_to,
                     c.last_message_at,
@@ -862,7 +879,8 @@ class CommunicationHubController extends Controller
                         'status' => $conv['status'],
                         'unread_count' => (int) $conv['unread_count'],
                         'assigned_to' => $conv['assigned_to'],
-                        'assigned_to_name' => $conv['assigned_to_name']
+                        'assigned_to_name' => $conv['assigned_to_name'],
+                        'is_incoming_lead' => (bool) ($conv['is_incoming_lead'] ?? 0) // Flag de incoming lead
                     ];
         }
 
@@ -2525,6 +2543,218 @@ class CommunicationHubController extends Controller
         }
         
         return $content;
+    }
+
+    /**
+     * Cria tenant a partir de um incoming lead
+     * 
+     * POST /communication-hub/incoming-lead/create-tenant
+     */
+    public function createTenantFromIncomingLead(): void
+    {
+        Auth::requireInternal();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $conversationId = isset($input['conversation_id']) ? (int) $input['conversation_id'] : 0;
+        $name = trim($input['name'] ?? '');
+        $phone = trim($input['phone'] ?? '');
+        $email = trim($input['email'] ?? '');
+
+        if ($conversationId <= 0) {
+            $this->json(['success' => false, 'error' => 'conversation_id é obrigatório'], 400);
+            return;
+        }
+
+        if (empty($name)) {
+            $this->json(['success' => false, 'error' => 'Nome é obrigatório'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            $db->beginTransaction();
+
+            // Busca a conversa
+            $stmt = $db->prepare("SELECT * FROM conversations WHERE id = ?");
+            $stmt->execute([$conversationId]);
+            $conversation = $stmt->fetch();
+
+            if (!$conversation) {
+                $db->rollBack();
+                $this->json(['success' => false, 'error' => 'Conversa não encontrada'], 404);
+                return;
+            }
+
+            if (!$conversation['is_incoming_lead']) {
+                $db->rollBack();
+                $this->json(['success' => false, 'error' => 'Esta conversa não é um incoming lead'], 400);
+                return;
+            }
+
+            // Cria o tenant
+            $stmt = $db->prepare("
+                INSERT INTO tenants 
+                (name, phone, email, person_type, status, created_at, updated_at)
+                VALUES (?, ?, ?, 'pf', 'active', NOW(), NOW())
+            ");
+            $stmt->execute([
+                $name,
+                $phone ?: $conversation['contact_external_id'],
+                $email ?: null
+            ]);
+
+            $tenantId = (int) $db->lastInsertId();
+
+            // Atualiza a conversa vinculando ao tenant
+            $updateStmt = $db->prepare("
+                UPDATE conversations 
+                SET tenant_id = ?,
+                    is_incoming_lead = 0,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $updateStmt->execute([$tenantId, $conversationId]);
+
+            $db->commit();
+
+            $this->json([
+                'success' => true,
+                'tenant_id' => $tenantId,
+                'conversation_id' => $conversationId,
+                'message' => 'Cliente criado e conversa vinculada com sucesso'
+            ]);
+
+        } catch (\Exception $e) {
+            $db->rollBack();
+            error_log("[CommunicationHub] Erro ao criar tenant: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Vincula incoming lead a um tenant existente
+     * 
+     * POST /communication-hub/incoming-lead/link-tenant
+     */
+    public function linkIncomingLeadToTenant(): void
+    {
+        Auth::requireInternal();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $conversationId = isset($input['conversation_id']) ? (int) $input['conversation_id'] : 0;
+        $tenantId = isset($input['tenant_id']) ? (int) $input['tenant_id'] : 0;
+
+        if ($conversationId <= 0 || $tenantId <= 0) {
+            $this->json(['success' => false, 'error' => 'conversation_id e tenant_id são obrigatórios'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            $db->beginTransaction();
+
+            // Verifica se a conversa existe e é incoming lead
+            $stmt = $db->prepare("SELECT * FROM conversations WHERE id = ?");
+            $stmt->execute([$conversationId]);
+            $conversation = $stmt->fetch();
+
+            if (!$conversation) {
+                $db->rollBack();
+                $this->json(['success' => false, 'error' => 'Conversa não encontrada'], 404);
+                return;
+            }
+
+            if (!$conversation['is_incoming_lead']) {
+                $db->rollBack();
+                $this->json(['success' => false, 'error' => 'Esta conversa não é um incoming lead'], 400);
+                return;
+            }
+
+            // Verifica se o tenant existe
+            $tenantStmt = $db->prepare("SELECT id, name FROM tenants WHERE id = ?");
+            $tenantStmt->execute([$tenantId]);
+            $tenant = $tenantStmt->fetch();
+
+            if (!$tenant) {
+                $db->rollBack();
+                $this->json(['success' => false, 'error' => 'Cliente não encontrado'], 404);
+                return;
+            }
+
+            // Atualiza a conversa vinculando ao tenant
+            $updateStmt = $db->prepare("
+                UPDATE conversations 
+                SET tenant_id = ?,
+                    is_incoming_lead = 0,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $updateStmt->execute([$tenantId, $conversationId]);
+
+            $db->commit();
+
+            $this->json([
+                'success' => true,
+                'tenant_id' => $tenantId,
+                'tenant_name' => $tenant['name'],
+                'conversation_id' => $conversationId,
+                'message' => 'Conversa vinculada ao cliente com sucesso'
+            ]);
+
+        } catch (\Exception $e) {
+            $db->rollBack();
+            error_log("[CommunicationHub] Erro ao vincular tenant: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Rejeita/ignora um incoming lead
+     * 
+     * POST /communication-hub/incoming-lead/reject
+     */
+    public function rejectIncomingLead(): void
+    {
+        Auth::requireInternal();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $conversationId = isset($input['conversation_id']) ? (int) $input['conversation_id'] : 0;
+
+        if ($conversationId <= 0) {
+            $this->json(['success' => false, 'error' => 'conversation_id é obrigatório'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            // Marca como rejeitado (arquiva ou fecha)
+            $stmt = $db->prepare("
+                UPDATE conversations 
+                SET status = 'archived',
+                    is_incoming_lead = 0,
+                    updated_at = NOW()
+                WHERE id = ? AND is_incoming_lead = 1
+            ");
+            $stmt->execute([$conversationId]);
+
+            if ($stmt->rowCount() === 0) {
+                $this->json(['success' => false, 'error' => 'Conversa não encontrada ou não é um incoming lead'], 404);
+                return;
+            }
+
+            $this->json([
+                'success' => true,
+                'conversation_id' => $conversationId,
+                'message' => 'Incoming lead rejeitado e arquivado'
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao rejeitar incoming lead: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
     }
 }
 

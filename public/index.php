@@ -556,6 +556,10 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/communication-hub/messages/check', 'CommunicationHubController@checkNewMessages');
     $router->get('/communication-hub/messages/new', 'CommunicationHubController@getNewMessages');
     $router->get('/communication-hub/message', 'CommunicationHubController@getMessage');
+    // Incoming Leads actions
+    $router->post('/communication-hub/incoming-lead/create-tenant', 'CommunicationHubController@createTenantFromIncomingLead');
+    $router->post('/communication-hub/incoming-lead/link-tenant', 'CommunicationHubController@linkIncomingLeadToTenant');
+    $router->post('/communication-hub/incoming-lead/reject', 'CommunicationHubController@rejectIncomingLead');
 
     // Rotas de acessos e links de infraestrutura (apenas internos)
     $router->get('/owner/shortcuts', 'OwnerShortcutsController@index');
