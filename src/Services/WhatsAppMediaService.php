@@ -26,29 +26,133 @@ class WhatsAppMediaService
             return null;
         }
         
+        // NOVA DETECÇÃO: Verifica se há áudio codificado em base64 no campo "text"
+        // Alguns gateways WhatsApp enviam áudio PTT como base64 no campo text
+        $base64AudioData = null;
+        $text = $payload['text'] ?? $payload['message']['text'] ?? null;
+        
+        if ($text && strlen($text) > 100 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', $text)) {
+            // Remove espaços e quebras de linha
+            $textCleaned = preg_replace('/\s+/', '', $text);
+            
+            // Tenta decodificar base64
+            $decoded = base64_decode($textCleaned, true);
+            
+            if ($decoded !== false) {
+                // Verifica se é OGG (formato de áudio do WhatsApp)
+                if (substr($decoded, 0, 4) === 'OggS') {
+                    $base64AudioData = $decoded;
+                    error_log("[WhatsAppMediaService] Áudio OGG detectado em base64 no campo text. Tamanho: " . strlen($base64AudioData) . " bytes");
+                }
+            }
+        }
+        
         // Extrai informações de mídia do payload (suporta múltiplos formatos)
-        $mediaId = $payload['mediaId'] 
-            ?? $payload['media_id'] 
-            ?? $payload['message']['mediaId'] 
-            ?? $payload['message']['media_id']
-            ?? $payload['media']['id']
-            ?? $payload['message']['media']['id']
-            ?? null;
+        // Formato Baileys: message.message.audioMessage, message.message.imageMessage, etc.
+        $messageContent = $payload['message']['message'] ?? null;
+        
+        // Detecta tipo de mídia no formato Baileys
+        $baileysMediaType = null;
+        $baileysMediaData = null;
+        
+        if ($messageContent) {
+            // Verifica diferentes tipos de mídia Baileys
+            if (isset($messageContent['audioMessage'])) {
+                $baileysMediaType = 'audio';
+                $baileysMediaData = $messageContent['audioMessage'];
+            } elseif (isset($messageContent['imageMessage'])) {
+                $baileysMediaType = 'image';
+                $baileysMediaData = $messageContent['imageMessage'];
+            } elseif (isset($messageContent['videoMessage'])) {
+                $baileysMediaType = 'video';
+                $baileysMediaData = $messageContent['videoMessage'];
+            } elseif (isset($messageContent['documentMessage'])) {
+                $baileysMediaType = 'document';
+                $baileysMediaData = $messageContent['documentMessage'];
+            } elseif (isset($messageContent['stickerMessage'])) {
+                $baileysMediaType = 'sticker';
+                $baileysMediaData = $messageContent['stickerMessage'];
+            }
+        }
+        
+        // Se detectou áudio em base64, processa diretamente
+        if ($base64AudioData) {
+            return self::processBase64Audio($event, $base64AudioData);
+        }
+        
+        // Extrai mediaId (suporta múltiplos formatos: Baileys, WPP Connect, padrão)
+        $mediaId = null;
+        if ($baileysMediaData) {
+            // Baileys: mediaId pode estar em diferentes lugares
+            $mediaId = $baileysMediaData['mediaKey'] 
+                ?? $baileysMediaData['url'] 
+                ?? $baileysMediaData['directPath']
+                ?? $payload['message']['key']['id'] // ID da mensagem pode ser usado como mediaId
+                ?? null;
+        } else {
+            // WPP Connect: pode usar mediaUrl, media_id, ou id da mensagem
+            // Formato padrão também suportado
+            $mediaId = $payload['mediaId'] 
+                ?? $payload['media_id'] 
+                ?? $payload['mediaUrl'] // WPP Connect pode usar mediaUrl
+                ?? $payload['media_url']
+                ?? $payload['message']['mediaId'] 
+                ?? $payload['message']['media_id']
+                ?? $payload['message']['mediaUrl']
+                ?? $payload['message']['media_url']
+                ?? $payload['media']['id']
+                ?? $payload['message']['media']['id']
+                ?? $payload['message']['key']['id'] // Fallback: ID da mensagem
+                ?? $payload['id'] // ID da mensagem no WPP Connect
+                ?? $payload['messageId']
+                ?? $payload['message_id']
+                ?? null;
+        }
+        
+        // Se não encontrou mediaId, verifica se é mídia pelo tipo
+        if (!$mediaId) {
+            $typeCheck = $baileysMediaType 
+                ?? $payload['type'] 
+                ?? $payload['message']['type'] 
+                ?? null;
+            if (in_array($typeCheck, ['audio', 'ptt', 'image', 'video', 'document', 'sticker'])) {
+                // É mídia, mas sem mediaId - pode ser que o gateway forneça URL direta
+                // Usa ID da mensagem como fallback
+                $mediaId = $payload['id'] 
+                    ?? $payload['messageId'] 
+                    ?? $payload['message_id'] 
+                    ?? $payload['message']['id'] 
+                    ?? $payload['message']['key']['id']
+                    ?? null;
+            }
+        }
         
         if (!$mediaId) {
-            // Não é uma mensagem com mídia
+            // Não é uma mensagem com mídia identificável
+            $typeLog = $baileysMediaType 
+                ?? $payload['type'] 
+                ?? $payload['message']['type'] 
+                ?? 'unknown';
+            error_log("[WhatsAppMediaService] MediaId não encontrado no payload. Type: {$typeLog}");
             return null;
         }
         
         // Verifica se a mídia já foi processada
-        $db = DB::getConnection();
-        $stmt = $db->prepare("
-            SELECT * FROM communication_media 
-            WHERE event_id = ? 
-            LIMIT 1
-        ");
-        $stmt->execute([$event['event_id']]);
-        $existingMedia = $stmt->fetch();
+        try {
+            $db = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT * FROM communication_media 
+                WHERE event_id = ? 
+                LIMIT 1
+            ");
+            $stmt->execute([$event['event_id']]);
+            $existingMedia = $stmt->fetch();
+        } catch (\PDOException $e) {
+            // Se a tabela não existe, loga e retorna null
+            error_log("[WhatsAppMediaService] ERRO: Tabela communication_media não existe ou erro de acesso: " . $e->getMessage());
+            error_log("[WhatsAppMediaService] Execute a migration: 20260116_create_communication_media_table.php");
+            return null;
+        }
         
         if ($existingMedia && !empty($existingMedia['stored_path'])) {
             // Mídia já processada
@@ -65,16 +169,31 @@ class WhatsAppMediaService
         }
         
         // Extrai tipo de mídia
-        $mediaType = $payload['type'] 
-            ?? $payload['message']['type'] 
+        $mediaType = $baileysMediaType 
+            ?? $payload['type'] 
+            ?? $payload['message']['type']
+            ?? ($baileysMediaData ? 'media' : null)
             ?? 'unknown';
         
-        // Extrai mimetype
-        $mimeType = $payload['mimetype'] 
-            ?? $payload['mimeType'] 
-            ?? $payload['message']['mimetype'] 
-            ?? $payload['message']['mimeType']
-            ?? self::guessMimeType($mediaType);
+        // Extrai mimetype (Baileys, WPP Connect ou padrão)
+        $mimeType = null;
+        if ($baileysMediaData) {
+            $mimeType = $baileysMediaData['mimetype'] 
+                ?? $baileysMediaData['mimeType']
+                ?? self::guessMimeType($mediaType);
+        } else {
+            // WPP Connect usa 'mimetype' (sem camelCase)
+            $mimeType = $payload['mimetype'] 
+                ?? $payload['mimeType'] 
+                ?? $payload['message']['mimetype'] 
+                ?? $payload['message']['mimeType']
+                ?? $payload['media']['mimetype'] // WPP Connect pode ter mídia aninhada
+                ?? $payload['media']['mimeType']
+                ?? self::guessMimeType($mediaType);
+        }
+        
+        // Log para debug
+        error_log("[WhatsAppMediaService] Processando mídia - event_id: {$event['event_id']}, mediaType: {$mediaType}, mediaId: {$mediaId}, mimeType: {$mimeType}");
         
         // Extrai channel_id para baixar mídia
         $metadata = json_decode($event['metadata'] ?? '{}', true);
@@ -136,6 +255,77 @@ class WhatsAppMediaService
         } catch (\Exception $e) {
             error_log("[WhatsAppMediaService] Exception ao processar mídia: " . $e->getMessage());
             return self::saveMediaRecord($event['event_id'], $mediaId, $mediaType, $mimeType, null, null, null);
+        }
+    }
+    
+    /**
+     * Processa áudio codificado em base64 no campo text
+     * 
+     * @param array $event Evento da tabela communication_events
+     * @param string $audioData Dados binários do áudio decodificado
+     * @return array|null Dados da mídia processada
+     */
+    private static function processBase64Audio(array $event, string $audioData): ?array
+    {
+        try {
+            // Verifica se já foi processada
+            $db = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT * FROM communication_media 
+                WHERE event_id = ? 
+                LIMIT 1
+            ");
+            $stmt->execute([$event['event_id']]);
+            $existingMedia = $stmt->fetch();
+            
+            if ($existingMedia && !empty($existingMedia['stored_path'])) {
+                // Mídia já processada
+                return [
+                    'id' => $existingMedia['id'],
+                    'event_id' => $existingMedia['event_id'],
+                    'media_type' => $existingMedia['media_type'],
+                    'mime_type' => $existingMedia['mime_type'],
+                    'stored_path' => $existingMedia['stored_path'],
+                    'file_name' => $existingMedia['file_name'],
+                    'file_size' => $existingMedia['file_size'],
+                    'url' => self::getMediaUrl($existingMedia['stored_path'])
+                ];
+            }
+            
+            // Determina diretório para salvar
+            $tenantId = $event['tenant_id'] ?? null;
+            $subDir = date('Y/m/d', strtotime($event['created_at'] ?? 'now'));
+            $mediaDir = self::getMediaDir($tenantId, $subDir);
+            Storage::ensureDirExists($mediaDir);
+            
+            // Gera nome de arquivo único
+            $fileName = bin2hex(random_bytes(16)) . '.ogg';
+            $storedPath = 'whatsapp-media/' . ($tenantId ? "tenant-{$tenantId}/" : '') . $subDir . '/' . $fileName;
+            $fullPath = $mediaDir . DIRECTORY_SEPARATOR . $fileName;
+            
+            // Salva arquivo
+            if (file_put_contents($fullPath, $audioData) === false) {
+                error_log("[WhatsAppMediaService] Falha ao salvar arquivo de áudio base64: {$fullPath}");
+                return self::saveMediaRecord($event['event_id'], $event['event_id'], 'audio', 'audio/ogg', null, null, null);
+            }
+            
+            $fileSize = filesize($fullPath);
+            error_log("[WhatsAppMediaService] Áudio base64 salvo com sucesso: {$storedPath} ({$fileSize} bytes)");
+            
+            // Salva registro no banco
+            return self::saveMediaRecord(
+                $event['event_id'],
+                $event['event_id'], // Usa event_id como media_id (fallback)
+                'audio',
+                'audio/ogg',
+                $storedPath,
+                $fileName,
+                $fileSize
+            );
+            
+        } catch (\Exception $e) {
+            error_log("[WhatsAppMediaService] Exception ao processar áudio base64: " . $e->getMessage());
+            return null;
         }
     }
     

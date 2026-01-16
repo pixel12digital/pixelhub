@@ -1581,19 +1581,31 @@ class CommunicationHubController extends Controller
                 ?? $payload['message']['body'] 
                 ?? '';
             
-            // Se for mídia, mostra tipo
+            // Busca informações da mídia processada (sempre verifica, mesmo se há conteúdo)
+            // Isso permite detectar mídias que foram processadas de base64 no campo text
             $mediaInfo = null;
-            if (empty($content)) {
+            try {
+                $mediaInfo = \PixelHub\Services\WhatsAppMediaService::getMediaByEventId($event['event_id']);
+                
+                // Se encontrou mídia e o conteúdo parece ser base64 (áudio codificado), limpa o conteúdo
+                if ($mediaInfo && !empty($content) && strlen($content) > 100 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', $content)) {
+                    // Verifica se é realmente base64 de áudio
+                    $textCleaned = preg_replace('/\s+/', '', $content);
+                    $decoded = base64_decode($textCleaned, true);
+                    if ($decoded !== false && substr($decoded, 0, 4) === 'OggS') {
+                        // É áudio em base64, limpa o conteúdo para não mostrar o base64
+                        $content = '';
+                    }
+                }
+            } catch (\Exception $e) {
+                error_log("[CommunicationHub] Erro ao buscar mídia: " . $e->getMessage());
+            }
+            
+            // Se não encontrou mídia e não há conteúdo, mostra tipo de mídia
+            if (empty($content) && !$mediaInfo) {
                 if (isset($payload['type']) || isset($payload['message']['type'])) {
                     $mediaType = $payload['type'] ?? $payload['message']['type'] ?? 'media';
                     $content = "[{$mediaType}]";
-                    
-                    // Busca informações da mídia processada
-                    try {
-                        $mediaInfo = \PixelHub\Services\WhatsAppMediaService::getMediaByEventId($event['event_id']);
-                    } catch (\Exception $e) {
-                        error_log("[CommunicationHub] Erro ao buscar mídia: " . $e->getMessage());
-                    }
                 }
             }
             

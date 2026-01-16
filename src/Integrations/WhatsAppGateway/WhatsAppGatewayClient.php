@@ -151,15 +151,22 @@ class WhatsAppGatewayClient
     }
 
     /**
-     * Baixa mídia do WhatsApp Gateway
+     * Baixa mídia do WhatsApp Gateway (WPP Connect)
      * 
      * @param string $channelId ID do canal
-     * @param string $mediaId ID da mídia (vem no payload da mensagem)
+     * @param string $mediaId ID da mídia ou URL da mídia (vem no payload da mensagem)
      * @return array { success: bool, data?: string (binary), mime_type?: string, error?: string }
      */
     public function downloadMedia(string $channelId, string $mediaId): array
     {
-        $url = $this->baseUrl . "/api/channels/{$channelId}/media/{$mediaId}";
+        // WPP Connect: Se mediaId é uma URL completa, usa diretamente
+        // Caso contrário, usa o endpoint do gateway
+        if (filter_var($mediaId, FILTER_VALIDATE_URL)) {
+            $url = $mediaId;
+        } else {
+            // Tenta endpoint padrão do gateway
+            $url = $this->baseUrl . "/api/channels/{$channelId}/media/{$mediaId}";
+        }
         
         $ch = curl_init($url);
         
