@@ -104,23 +104,50 @@ class CommunicationHubController extends Controller
             }))
         ];
 
+        // Garante que threads é sempre um array válido
+        $threadsList = is_array($allThreads) ? $allThreads : [];
+        
         $this->view('communication_hub.index', [
-            'threads' => $allThreads ?? [],
-            'tenants' => $tenants ?? [],
-            'stats' => $stats ?? ['whatsapp_active' => 0, 'chat_active' => 0, 'total_unread' => 0],
+            'threads' => $threadsList,
+            'tenants' => is_array($tenants) ? $tenants : [],
+            'stats' => is_array($stats) ? $stats : ['whatsapp_active' => 0, 'chat_active' => 0, 'total_unread' => 0],
             'filters' => [
-                'channel' => $channel,
+                'channel' => $channel ?? 'all',
                 'tenant_id' => $tenantId,
-                'status' => $status
+                'status' => $status ?? 'active'
             ]
         ]);
-        } catch (\Exception $e) {
-            error_log("[CommunicationHub] Erro fatal no index: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+        
+        } catch (\Throwable $e) {
+            // Log detalhado do erro
+            $errorMsg = "[CommunicationHub] Erro fatal no index: " . $e->getMessage() . "\n";
+            $errorMsg .= "Arquivo: " . $e->getFile() . ":" . $e->getLine() . "\n";
+            $errorMsg .= "Stack trace: " . $e->getTraceAsString() . "\n";
+            
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log($errorMsg);
+            } else {
+                error_log($errorMsg);
+            }
+            
             http_response_code(500);
-            echo "<h1>Erro interno do servidor</h1>";
-            echo "<p>Ocorreu um erro ao carregar o painel de comunicação.</p>";
-            if (defined('APP_DEBUG') && APP_DEBUG) {
-                echo "<pre>" . htmlspecialchars($e->getMessage()) . "\n" . htmlspecialchars($e->getTraceAsString()) . "</pre>";
+            
+            // Sempre mostra o erro em desenvolvimento ou se APP_DEBUG estiver ativo
+            $displayErrors = ini_get('display_errors');
+            $isDebug = defined('APP_DEBUG') && APP_DEBUG;
+            
+            if ($displayErrors == '1' || $displayErrors == 'On' || $isDebug) {
+                echo "<h1>Erro interno do servidor</h1>";
+                echo "<h2>Mensagem:</h2>";
+                echo "<pre>" . htmlspecialchars($e->getMessage()) . "</pre>";
+                echo "<h2>Arquivo:</h2>";
+                echo "<pre>" . htmlspecialchars($e->getFile() . ":" . $e->getLine()) . "</pre>";
+                echo "<h2>Stack Trace:</h2>";
+                echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>";
+            } else {
+                echo "<h1>Erro interno do servidor</h1>";
+                echo "<p>Ocorreu um erro ao carregar o painel de comunicação.</p>";
+                echo "<p>Verifique os logs para mais detalhes.</p>";
             }
         }
     }
@@ -263,12 +290,11 @@ class CommunicationHubController extends Controller
         // LOG TEMPORÁRIO: Validação do channel_id recebido
         error_log("[CommunicationHub::send] Recebido: channel={$channel}, threadId={$threadId}, tenantId={$tenantId}, channelId=" . var_export($channelId, true) . " (tipo: " . gettype($channelId) . "), to={$to}");
 
-        if (empty($channel) || empty($message)) {
-            $this->json(['success' => false, 'error' => 'Canal e mensagem são obrigatórios'], 400);
-            return;
-        }
-
         try {
+            if (empty($channel) || empty($message)) {
+                $this->json(['success' => false, 'error' => 'Canal e mensagem são obrigatórios'], 400);
+                return;
+            }
             if ($channel === 'whatsapp') {
                 if (empty($to)) {
                     $this->json(['success' => false, 'error' => 'to (telefone) é obrigatório para WhatsApp'], 400);
@@ -481,6 +507,7 @@ class CommunicationHubController extends Controller
                             }
                         }
                     }
+                }
 
                     // PRIORIDADE 3: Busca channel do tenant (se ainda não encontrou)
                     if (!$channelId && $tenantId) {
@@ -806,7 +833,7 @@ class CommunicationHubController extends Controller
                 LEFT JOIN tenants t ON c.tenant_id = t.id
                 LEFT JOIN users u ON c.assigned_to = u.id
                 {$whereClause}
-                ORDER BY c.last_message_at DESC, c.created_at DESC
+                ORDER BY COALESCE(c.last_message_at, c.created_at) DESC, c.created_at DESC
                 LIMIT 100
             ");
             $stmt->execute($params);

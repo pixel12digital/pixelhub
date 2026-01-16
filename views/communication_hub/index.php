@@ -699,10 +699,15 @@ body.communication-hub-page {
                             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #667781;">
                                 <span><?= $thread['message_count'] ?? 0 ?> mensagens</span>
                                 <?php
-                                $lastActivity = $thread['last_activity'] ?? 'now';
-                                $dateTime = new DateTime($lastActivity);
+                                $lastActivity = $thread['last_activity'] ?? ($thread['created_at'] ?? 'now');
+                                try {
+                                    $dateTime = new DateTime($lastActivity);
+                                    $dateStr = $dateTime->format('d/m H:i');
+                                } catch (Exception $e) {
+                                    $dateStr = 'Agora';
+                                }
                                 ?>
-                                <span><?= $dateTime->format('d/m H:i') ?></span>
+                                <span><?= $dateStr ?></span>
                             </div>
                         <?php
                         // Preview da última mensagem (se disponível)
