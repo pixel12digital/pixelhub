@@ -1327,6 +1327,7 @@ class CommunicationHubController extends Controller
         $contactExternalId = $conversation['contact_external_id'];
         $tenantId = $conversation['tenant_id'];
         $sessionId = $conversation['channel_id'] ?? ''; // sessionId para resolver @lid
+        $provider = 'wpp_gateway'; // Provider padrão para WhatsApp
         
         // CORREÇÃO: Se contact_external_id é um número, busca @lid mapeado para esse número
         // Isso permite encontrar eventos que usam @lid ao invés do número direto
@@ -1487,6 +1488,49 @@ class CommunicationHubController extends Controller
             // Compara remote_key (identidade primária)
             $isFromThisContact = !empty($eventFromKey) && !empty($conversationRemoteKey) && $eventFromKey === $conversationRemoteKey;
             $isToThisContact = !empty($eventToKey) && !empty($conversationRemoteKey) && $eventToKey === $conversationRemoteKey;
+            
+            // CORREÇÃO: Se não bateu por remote_key, verifica se é @lid mapeado para o número da conversa
+            if (!$isFromThisContact && !$isToThisContact && !empty($conversationRemoteKey) && strpos($conversationRemoteKey, 'tel:') === 0) {
+                // Extrai número da conversa (sem prefixo tel:)
+                $conversationPhone = substr($conversationRemoteKey, 4);
+                
+                // Se o evento tem @lid, verifica se está mapeado para o número da conversa
+                if ($eventFromKey && strpos($eventFromKey, 'lid:') === 0) {
+                    $lidId = substr($eventFromKey, 4);
+                    $lidBusinessId = $lidId . '@lid';
+                    
+                    // Verifica se esse @lid está mapeado para o número da conversa
+                    $checkLidStmt = $db->prepare("
+                        SELECT phone_number 
+                        FROM whatsapp_business_ids 
+                        WHERE business_id = ? AND phone_number = ?
+                        LIMIT 1
+                    ");
+                    $checkLidStmt->execute([$lidBusinessId, $conversationPhone]);
+                    if ($checkLidStmt->fetchColumn()) {
+                        $isFromThisContact = true;
+                        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - MATCH VIA LID: eventFromKey=' . $eventFromKey . ', conversationRemoteKey=' . $conversationRemoteKey);
+                    }
+                }
+                
+                if ($eventToKey && strpos($eventToKey, 'lid:') === 0) {
+                    $lidId = substr($eventToKey, 4);
+                    $lidBusinessId = $lidId . '@lid';
+                    
+                    // Verifica se esse @lid está mapeado para o número da conversa
+                    $checkLidStmt = $db->prepare("
+                        SELECT phone_number 
+                        FROM whatsapp_business_ids 
+                        WHERE business_id = ? AND phone_number = ?
+                        LIMIT 1
+                    ");
+                    $checkLidStmt->execute([$lidBusinessId, $conversationPhone]);
+                    if ($checkLidStmt->fetchColumn()) {
+                        $isToThisContact = true;
+                        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - MATCH VIA LID: eventToKey=' . $eventToKey . ', conversationRemoteKey=' . $conversationRemoteKey);
+                    }
+                }
+            }
             
             // Fallback: Se remote_key não está disponível, usa telefone normalizado (compatibilidade)
             if (!$isFromThisContact && !$isToThisContact && empty($conversationRemoteKey)) {
