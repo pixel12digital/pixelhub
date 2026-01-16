@@ -1684,6 +1684,9 @@ function renderConversation(thread, messages, channel) {
     const placeholder = document.getElementById('conversation-placeholder');
     const content = document.getElementById('conversation-content');
     
+    // Log para debug: verifica channel_id da thread
+    console.log('[CommunicationHub] renderConversation - thread.channel_id:', thread.channel_id, 'thread:', thread);
+    
     // Oculta placeholder e mostra conteúdo
     if (placeholder) placeholder.style.display = 'none';
     if (content) content.style.display = 'flex';
@@ -1876,6 +1879,23 @@ async function sendMessageFromPanel(e) {
     if (!messageText) {
         return;
     }
+    
+    // VALIDAÇÃO: Garante que channel_id está presente para WhatsApp
+    const channel = formData.get('channel');
+    const channelId = formData.get('channel_id');
+    if (channel === 'whatsapp' && !channelId) {
+        alert('Erro: Canal não identificado. Recarregue a conversa e tente novamente.');
+        console.error('[CommunicationHub] Tentativa de envio sem channel_id. FormData:', Object.fromEntries(formData));
+        return;
+    }
+    
+    // Log para debug
+    console.log('[CommunicationHub] Enviando mensagem:', {
+        channel: channel,
+        channel_id: channelId,
+        thread_id: formData.get('thread_id'),
+        to: formData.get('to')
+    });
     
     const submitBtn = e.target.querySelector('button[type="submit"]');
     submitBtn.disabled = true;

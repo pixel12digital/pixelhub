@@ -1801,43 +1801,93 @@ class CommunicationHubController extends Controller
             $conversation = $stmt->fetch();
 
             if ($conversation) {
-                // Busca channel_id usado nas mensagens originais da conversa (prioridade sobre tenant_channel_id)
-                // CORRIGIDO: Garante que channel_id seja string (vem do banco como VARCHAR(100))
-                $channelId = isset($conversation['tenant_channel_id']) && $conversation['tenant_channel_id'] !== '' 
-                    ? trim((string) $conversation['tenant_channel_id']) 
-                    : null;
-                
-                // Tenta buscar channel_id dos eventos/mensagens da conversa
-                // Busca eventos relacionados ao contato desta conversa
+                // CORRIGIDO: Busca channel_id dos eventos/mensagens da conversa PRIMEIRO (prioridade máxima)
+                // Isso garante que sempre use o mesmo canal que recebeu/enviou as mensagens
+                $channelId = null;
+                // Prioriza mensagens recebidas (inbound) para determinar qual canal foi usado
+                // Isso garante que sempre use o mesmo canal que recebeu a mensagem
                 $contactId = $conversation['contact_external_id'];
                 if ($contactId) {
+                    // Primeiro tenta buscar de mensagens recebidas (inbound) - prioridade máxima
                     $eventStmt = $db->prepare("
-                        SELECT ce.payload
+                        SELECT ce.payload, ce.metadata
                         FROM communication_events ce
-                        WHERE ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+                        WHERE ce.event_type = 'whatsapp.inbound.message'
                         AND (
                             JSON_EXTRACT(ce.payload, '$.from') = ?
-                            OR JSON_EXTRACT(ce.payload, '$.to') = ?
                             OR JSON_EXTRACT(ce.payload, '$.message.from') = ?
-                            OR JSON_EXTRACT(ce.payload, '$.message.to') = ?
                         )
                         ORDER BY ce.created_at DESC
                         LIMIT 1
                     ");
-                    $eventStmt->execute([$contactId, $contactId, $contactId, $contactId]);
+                    $eventStmt->execute([$contactId, $contactId]);
                     $event = $eventStmt->fetch();
                     
-                    if ($event && $event['payload']) {
-                        $payload = json_decode($event['payload'], true);
-                        if (isset($payload['channel_id']) && !empty($payload['channel_id'])) {
-                            // CORRIGIDO: Mantém como string, não converte para int
-                            $channelId = trim((string) $payload['channel_id']);
-                            error_log("[CommunicationHub::getWhatsAppThreadInfo] Channel_id encontrado nos eventos: {$channelId} para contato: {$contactId}");
+                    if ($event) {
+                        // Tenta extrair channel_id do payload
+                        if ($event['payload']) {
+                            $payload = json_decode($event['payload'], true);
+                            if (isset($payload['channel_id']) && !empty($payload['channel_id'])) {
+                                $channelId = trim((string) $payload['channel_id']);
+                                error_log("[CommunicationHub::getWhatsAppThreadInfo] Channel_id encontrado em mensagem recebida: {$channelId} para contato: {$contactId}");
+                            }
+                        }
+                        
+                        // Se não encontrou no payload, tenta no metadata
+                        if (!$channelId && $event['metadata']) {
+                            $metadata = json_decode($event['metadata'], true);
+                            if (isset($metadata['channel_id']) && !empty($metadata['channel_id'])) {
+                                $channelId = trim((string) $metadata['channel_id']);
+                                error_log("[CommunicationHub::getWhatsAppThreadInfo] Channel_id encontrado no metadata: {$channelId} para contato: {$contactId}");
+                            }
+                        }
+                    }
+                    
+                    // Se ainda não encontrou, tenta buscar de qualquer mensagem da conversa (inbound ou outbound)
+                    if (!$channelId) {
+                        $eventStmt2 = $db->prepare("
+                            SELECT ce.payload, ce.metadata
+                            FROM communication_events ce
+                            WHERE ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+                            AND (
+                                JSON_EXTRACT(ce.payload, '$.from') = ?
+                                OR JSON_EXTRACT(ce.payload, '$.to') = ?
+                                OR JSON_EXTRACT(ce.payload, '$.message.from') = ?
+                                OR JSON_EXTRACT(ce.payload, '$.message.to') = ?
+                            )
+                            ORDER BY ce.created_at DESC
+                            LIMIT 1
+                        ");
+                        $eventStmt2->execute([$contactId, $contactId, $contactId, $contactId]);
+                        $event2 = $eventStmt2->fetch();
+                        
+                        if ($event2) {
+                            if ($event2['payload']) {
+                                $payload2 = json_decode($event2['payload'], true);
+                                if (isset($payload2['channel_id']) && !empty($payload2['channel_id'])) {
+                                    $channelId = trim((string) $payload2['channel_id']);
+                                    error_log("[CommunicationHub::getWhatsAppThreadInfo] Channel_id encontrado em qualquer mensagem: {$channelId} para contato: {$contactId}");
+                                }
+                            }
+                            
+                            if (!$channelId && $event2['metadata']) {
+                                $metadata2 = json_decode($event2['metadata'], true);
+                                if (isset($metadata2['channel_id']) && !empty($metadata2['channel_id'])) {
+                                    $channelId = trim((string) $metadata2['channel_id']);
+                                    error_log("[CommunicationHub::getWhatsAppThreadInfo] Channel_id encontrado no metadata de qualquer mensagem: {$channelId} para contato: {$contactId}");
+                                }
+                            }
                         }
                     }
                 }
                 
-                // Se ainda não tem channel_id, tenta buscar qualquer canal habilitado (fallback)
+                // Fallback 1: Usa tenant_channel_id se disponível (canal configurado para o tenant)
+                if (!$channelId && isset($conversation['tenant_channel_id']) && $conversation['tenant_channel_id'] !== '') {
+                    $channelId = trim((string) $conversation['tenant_channel_id']);
+                    error_log("[CommunicationHub::getWhatsAppThreadInfo] Usando tenant_channel_id como fallback: {$channelId}");
+                }
+                
+                // Fallback 2: Se ainda não tem channel_id, tenta buscar qualquer canal habilitado (último recurso)
                 if (!$channelId) {
                     $fallbackStmt = $db->prepare("
                         SELECT channel_id 
@@ -1851,7 +1901,7 @@ class CommunicationHubController extends Controller
                     if ($fallback) {
                         // CORRIGIDO: Mantém como string, não converte para int
                         $channelId = trim((string) $fallback['channel_id']);
-                        error_log("[CommunicationHub::getWhatsAppThreadInfo] Usando canal fallback: {$channelId}");
+                        error_log("[CommunicationHub::getWhatsAppThreadInfo] Usando canal fallback genérico: {$channelId}");
                     }
                 }
                 
