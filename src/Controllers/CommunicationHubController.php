@@ -1589,14 +1589,18 @@ class CommunicationHubController extends Controller
                 
                 // Se encontrou mídia processada, limpa o conteúdo para não mostrar base64 ou dados brutos
                 if ($mediaInfo && !empty($content)) {
-                    // Verifica se o conteúdo parece ser base64 (áudio codificado)
+                    // Verifica se o conteúdo parece ser base64 (áudio ou imagem codificada)
                     if (strlen($content) > 100 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', $content)) {
                         // Tenta decodificar para verificar se é base64 válido
                         $textCleaned = preg_replace('/\s+/', '', $content);
                         $decoded = base64_decode($textCleaned, true);
                         if ($decoded !== false) {
-                            // Verifica se é áudio OGG ou se o tamanho decodificado é grande (indicando mídia)
-                            if (substr($decoded, 0, 4) === 'OggS' || strlen($decoded) > 1000) {
+                            // Verifica se é áudio OGG, imagem JPEG ou PNG
+                            $isOgg = substr($decoded, 0, 4) === 'OggS';
+                            $isJpeg = substr($textCleaned, 0, 4) === '/9j/';
+                            $isPng = substr($textCleaned, 0, 12) === 'iVBORw0KGgo';
+                            
+                            if ($isOgg || $isJpeg || $isPng || strlen($decoded) > 1000) {
                                 // É mídia em base64, limpa o conteúdo
                                 $content = '';
                             }
@@ -2680,14 +2684,18 @@ class CommunicationHubController extends Controller
                 
                 // Se encontrou mídia processada, limpa o conteúdo para não mostrar base64 ou dados brutos
                 if ($mediaInfo && !empty($content)) {
-                    // Verifica se o conteúdo parece ser base64 (áudio codificado)
+                    // Verifica se o conteúdo parece ser base64 (áudio ou imagem codificada)
                     if (strlen($content) > 100 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', $content)) {
                         // Tenta decodificar para verificar se é base64 válido
                         $textCleaned = preg_replace('/\s+/', '', $content);
                         $decoded = base64_decode($textCleaned, true);
                         if ($decoded !== false) {
-                            // Verifica se é áudio OGG ou se o tamanho decodificado é grande (indicando mídia)
-                            if (substr($decoded, 0, 4) === 'OggS' || strlen($decoded) > 1000) {
+                            // Verifica se é áudio OGG, imagem JPEG ou PNG
+                            $isOgg = substr($decoded, 0, 4) === 'OggS';
+                            $isJpeg = substr($textCleaned, 0, 4) === '/9j/';
+                            $isPng = substr($textCleaned, 0, 12) === 'iVBORw0KGgo';
+                            
+                            if ($isOgg || $isJpeg || $isPng || strlen($decoded) > 1000) {
                                 // É mídia em base64, limpa o conteúdo
                                 $content = '';
                             }

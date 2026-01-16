@@ -26,9 +26,11 @@ class WhatsAppMediaService
             return null;
         }
         
-        // NOVA DETECÇÃO: Verifica se há áudio codificado em base64 no campo "text"
-        // Alguns gateways WhatsApp enviam áudio PTT como base64 no campo text
+        // NOVA DETECÇÃO: Verifica se há mídia codificada em base64 no campo "text"
+        // Alguns gateways WhatsApp enviam áudio PTT ou imagens como base64 no campo text
         $base64AudioData = null;
+        $base64ImageData = null;
+        $base64ImageType = null; // 'jpeg' ou 'png'
         $text = $payload['text'] ?? $payload['message']['text'] ?? null;
         
         if ($text && strlen($text) > 100 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', $text)) {
@@ -43,6 +45,18 @@ class WhatsAppMediaService
                 if (substr($decoded, 0, 4) === 'OggS') {
                     $base64AudioData = $decoded;
                     error_log("[WhatsAppMediaService] Áudio OGG detectado em base64 no campo text. Tamanho: " . strlen($base64AudioData) . " bytes");
+                }
+                // Verifica se é JPEG (começa com /9j/)
+                elseif (substr($textCleaned, 0, 4) === '/9j/') {
+                    $base64ImageData = $decoded;
+                    $base64ImageType = 'jpeg';
+                    error_log("[WhatsAppMediaService] Imagem JPEG detectada em base64 no campo text. Tamanho: " . strlen($base64ImageData) . " bytes");
+                }
+                // Verifica se é PNG (começa com iVBORw0KGgo)
+                elseif (substr($textCleaned, 0, 12) === 'iVBORw0KGgo') {
+                    $base64ImageData = $decoded;
+                    $base64ImageType = 'png';
+                    error_log("[WhatsAppMediaService] Imagem PNG detectada em base64 no campo text. Tamanho: " . strlen($base64ImageData) . " bytes");
                 }
             }
         }
@@ -78,6 +92,11 @@ class WhatsAppMediaService
         // Se detectou áudio em base64, processa diretamente
         if ($base64AudioData) {
             return self::processBase64Audio($event, $base64AudioData);
+        }
+        
+        // Se detectou imagem em base64, processa diretamente
+        if ($base64ImageData && $base64ImageType) {
+            return self::processBase64Image($event, $base64ImageData, $base64ImageType);
         }
         
         // Extrai mediaId (suporta múltiplos formatos: Baileys, WPP Connect, padrão)
@@ -325,6 +344,82 @@ class WhatsAppMediaService
             
         } catch (\Exception $e) {
             error_log("[WhatsAppMediaService] Exception ao processar áudio base64: " . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Processa imagem codificada em base64 no campo text
+     * 
+     * @param array $event Evento da tabela communication_events
+     * @param string $imageData Dados binários da imagem decodificada
+     * @param string $imageType Tipo da imagem: 'jpeg' ou 'png'
+     * @return array|null Dados da mídia processada
+     */
+    private static function processBase64Image(array $event, string $imageData, string $imageType): ?array
+    {
+        try {
+            // Verifica se já foi processada
+            $db = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT * FROM communication_media 
+                WHERE event_id = ? 
+                LIMIT 1
+            ");
+            $stmt->execute([$event['event_id']]);
+            $existingMedia = $stmt->fetch();
+            
+            if ($existingMedia && !empty($existingMedia['stored_path'])) {
+                // Mídia já processada
+                return [
+                    'id' => $existingMedia['id'],
+                    'event_id' => $existingMedia['event_id'],
+                    'media_type' => $existingMedia['media_type'],
+                    'mime_type' => $existingMedia['mime_type'],
+                    'stored_path' => $existingMedia['stored_path'],
+                    'file_name' => $existingMedia['file_name'],
+                    'file_size' => $existingMedia['file_size'],
+                    'url' => self::getMediaUrl($existingMedia['stored_path'])
+                ];
+            }
+            
+            // Determina mime type e extensão
+            $mimeType = $imageType === 'png' ? 'image/png' : 'image/jpeg';
+            $extension = $imageType === 'png' ? 'png' : 'jpg';
+            
+            // Determina diretório para salvar
+            $tenantId = $event['tenant_id'] ?? null;
+            $subDir = date('Y/m/d', strtotime($event['created_at'] ?? 'now'));
+            $mediaDir = self::getMediaDir($tenantId, $subDir);
+            Storage::ensureDirExists($mediaDir);
+            
+            // Gera nome de arquivo único
+            $fileName = bin2hex(random_bytes(16)) . '.' . $extension;
+            $storedPath = 'whatsapp-media/' . ($tenantId ? "tenant-{$tenantId}/" : '') . $subDir . '/' . $fileName;
+            $fullPath = $mediaDir . DIRECTORY_SEPARATOR . $fileName;
+            
+            // Salva arquivo
+            if (file_put_contents($fullPath, $imageData) === false) {
+                error_log("[WhatsAppMediaService] Falha ao salvar arquivo de imagem base64: {$fullPath}");
+                return self::saveMediaRecord($event['event_id'], $event['event_id'], 'image', $mimeType, null, null, null);
+            }
+            
+            $fileSize = filesize($fullPath);
+            error_log("[WhatsAppMediaService] Imagem base64 salva com sucesso: {$storedPath} ({$fileSize} bytes)");
+            
+            // Salva registro no banco
+            return self::saveMediaRecord(
+                $event['event_id'],
+                $event['event_id'], // Usa event_id como media_id (fallback)
+                'image',
+                $mimeType,
+                $storedPath,
+                $fileName,
+                $fileSize
+            );
+            
+        } catch (\Exception $e) {
+            error_log("[WhatsAppMediaService] Exception ao processar imagem base64: " . $e->getMessage());
             return null;
         }
     }
