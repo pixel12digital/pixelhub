@@ -1587,14 +1587,26 @@ class CommunicationHubController extends Controller
             try {
                 $mediaInfo = \PixelHub\Services\WhatsAppMediaService::getMediaByEventId($event['event_id']);
                 
-                // Se encontrou mídia e o conteúdo parece ser base64 (áudio codificado), limpa o conteúdo
-                if ($mediaInfo && !empty($content) && strlen($content) > 100 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', $content)) {
-                    // Verifica se é realmente base64 de áudio
-                    $textCleaned = preg_replace('/\s+/', '', $content);
-                    $decoded = base64_decode($textCleaned, true);
-                    if ($decoded !== false && substr($decoded, 0, 4) === 'OggS') {
-                        // É áudio em base64, limpa o conteúdo para não mostrar o base64
-                        $content = '';
+                // Se encontrou mídia processada, limpa o conteúdo para não mostrar base64 ou dados brutos
+                if ($mediaInfo && !empty($content)) {
+                    // Verifica se o conteúdo parece ser base64 (áudio codificado)
+                    if (strlen($content) > 100 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', $content)) {
+                        // Tenta decodificar para verificar se é base64 válido
+                        $textCleaned = preg_replace('/\s+/', '', $content);
+                        $decoded = base64_decode($textCleaned, true);
+                        if ($decoded !== false) {
+                            // Verifica se é áudio OGG ou se o tamanho decodificado é grande (indicando mídia)
+                            if (substr($decoded, 0, 4) === 'OggS' || strlen($decoded) > 1000) {
+                                // É mídia em base64, limpa o conteúdo
+                                $content = '';
+                            }
+                        }
+                    } else {
+                        // Se o conteúdo é muito longo e há mídia processada, provavelmente é dados brutos
+                        // Limpa para não poluir a interface
+                        if (strlen($content) > 500) {
+                            $content = '';
+                        }
                     }
                 }
             } catch (\Exception $e) {

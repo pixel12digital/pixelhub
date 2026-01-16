@@ -437,7 +437,7 @@ class WhatsAppMediaService
         }
         
         // Fallback se pixelhub_url não estiver disponível
-        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
         $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
         $basePath = defined('BASE_PATH') ? BASE_PATH : '';
         return $protocol . $domainName . $basePath . '/communication-hub/media?path=' . urlencode($storedPath);
