@@ -2,6 +2,8 @@
 
 namespace PixelHub\Services;
 
+use PixelHub\Services\PhoneNormalizer;
+
 use PixelHub\Core\DB;
 
 /**
@@ -760,10 +762,10 @@ class ConversationService
             $stmt = $db->prepare("
                 INSERT INTO conversations 
                 (conversation_key, channel_type, channel_account_id, channel_id, session_id,
-                 contact_external_id, remote_id_raw, remote_key, contact_key, thread_key,
+                 contact_external_id, remote_key, contact_key, thread_key,
                  contact_name, tenant_id, is_incoming_lead, status, last_message_at, last_message_direction, 
                  message_count, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, 1, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, 1, ?, ?)
             ");
 
             $stmt->execute([
@@ -773,7 +775,6 @@ class ConversationService
                 $channelInfo['channel_id'] ?? null,
                 $channelInfo['channel_id'] ?? null, // session_id = channel_id para WhatsApp
                 $channelInfo['contact_external_id'], // Mantém para compatibilidade
-                $channelInfo['remote_id_raw'] ?? null,
                 $channelInfo['remote_key'] ?? null,
                 $channelInfo['contact_key'] ?? null,
                 $channelInfo['thread_key'] ?? null,
@@ -918,20 +919,18 @@ class ConversationService
                 }
             }
 
-            // Atualiza remote_key, remote_id_raw, contact_key, thread_key se fornecidos (arquitetura nova)
+            // Atualiza remote_key, contact_key, thread_key se fornecidos (arquitetura nova)
             // Isso garante que conversas existentes sejam atualizadas com os valores corretos
             if (!empty($channelInfo['remote_key']) || !empty($channelInfo['contact_key']) || !empty($channelInfo['thread_key'])) {
                 $updateRemoteKeyStmt = $db->prepare("
                     UPDATE conversations
-                    SET remote_id_raw = COALESCE(?, remote_id_raw),
-                        remote_key = COALESCE(?, remote_key),
+                    SET remote_key = COALESCE(?, remote_key),
                         contact_key = COALESCE(?, contact_key),
                         thread_key = COALESCE(?, thread_key),
                         session_id = COALESCE(?, session_id)
                     WHERE id = ?
                 ");
                 $updateRemoteKeyStmt->execute([
-                    $channelInfo['remote_id_raw'] ?? null,
                     $channelInfo['remote_key'] ?? null,
                     $channelInfo['contact_key'] ?? null,
                     $channelInfo['thread_key'] ?? null,
