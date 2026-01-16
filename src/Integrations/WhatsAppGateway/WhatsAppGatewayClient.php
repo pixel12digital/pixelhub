@@ -151,6 +151,67 @@ class WhatsAppGatewayClient
     }
 
     /**
+     * Baixa mídia do WhatsApp Gateway
+     * 
+     * @param string $channelId ID do canal
+     * @param string $mediaId ID da mídia (vem no payload da mensagem)
+     * @return array { success: bool, data?: string (binary), mime_type?: string, error?: string }
+     */
+    public function downloadMedia(string $channelId, string $mediaId): array
+    {
+        $url = $this->baseUrl . "/api/channels/{$channelId}/media/{$mediaId}";
+        
+        $ch = curl_init($url);
+        
+        $headers = [
+            'X-Gateway-Secret: ' . $this->secret,
+            'Accept: */*'
+        ];
+        
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 60, // Timeout maior para download de mídias
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_CUSTOMREQUEST => 'GET',
+            CURLOPT_BINARYTRANSFER => true,
+        ]);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        if ($error) {
+            error_log("[WhatsAppGateway::downloadMedia] cURL Error: {$error}");
+            return [
+                'success' => false,
+                'error' => "Erro de conexão: {$error}",
+                'data' => null,
+                'mime_type' => null
+            ];
+        }
+        
+        if ($httpCode < 200 || $httpCode >= 300) {
+            error_log("[WhatsAppGateway::downloadMedia] HTTP Error: {$httpCode}");
+            return [
+                'success' => false,
+                'error' => "HTTP {$httpCode}",
+                'data' => null,
+                'mime_type' => null
+            ];
+        }
+        
+        return [
+            'success' => true,
+            'data' => $response,
+            'mime_type' => $contentType ?: 'application/octet-stream',
+            'error' => null
+        ];
+    }
+
+    /**
      * Faz requisição HTTP para o gateway
      * 
      * @param string $method Método HTTP

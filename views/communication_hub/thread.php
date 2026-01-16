@@ -75,6 +75,44 @@ $baseUrl = pixelhub_url('');
                                     <?= htmlspecialchars($msg['channel_id']) ?>
                                 </div>
                             <?php endif; ?>
+                            <?php if (!empty($msg['media']) && !empty($msg['media']['url'])): ?>
+                                <?php
+                                $media = $msg['media'];
+                                $mediaType = strtolower($media['media_type'] ?? 'unknown');
+                                $mimeType = strtolower($media['mime_type'] ?? '');
+                                ?>
+                                <?php if (strpos($mimeType, 'image/') === 0 || in_array($mediaType, ['image', 'sticker'])): ?>
+                                    <div style="margin-bottom: 8px;">
+                                        <img src="<?= htmlspecialchars($media['url']) ?>" 
+                                             alt="Imagem" 
+                                             style="max-width: 100%; border-radius: 8px; cursor: pointer;"
+                                             onclick="window.open('<?= htmlspecialchars($media['url']) ?>', '_blank')">
+                                    </div>
+                                <?php elseif (strpos($mimeType, 'video/') === 0 || $mediaType === 'video'): ?>
+                                    <div style="margin-bottom: 8px;">
+                                        <video controls style="max-width: 100%; border-radius: 8px;">
+                                            <source src="<?= htmlspecialchars($media['url']) ?>" type="<?= htmlspecialchars($media['mime_type']) ?>">
+                                            Seu navegador não suporta o elemento de vídeo.
+                                        </video>
+                                    </div>
+                                <?php elseif (strpos($mimeType, 'audio/') === 0 || in_array($mediaType, ['audio', 'voice'])): ?>
+                                    <div style="margin-bottom: 8px; padding: 12px; background: rgba(0,0,0,0.05); border-radius: 8px;">
+                                        <audio controls style="width: 100%;">
+                                            <source src="<?= htmlspecialchars($media['url']) ?>" type="<?= htmlspecialchars($media['mime_type']) ?>">
+                                            Seu navegador não suporta o elemento de áudio.
+                                        </audio>
+                                    </div>
+                                <?php else: ?>
+                                    <div style="margin-bottom: 8px; padding: 12px; background: rgba(0,0,0,0.05); border-radius: 8px;">
+                                        <a href="<?= htmlspecialchars($media['url']) ?>" target="_blank" style="color: #023A8D; text-decoration: none; font-weight: 600;">
+                                            📄 Download: <?= htmlspecialchars($media['file_name'] ?? 'arquivo') ?>
+                                            <?php if (!empty($media['file_size'])): ?>
+                                                <small style="color: #666;">(<?= number_format($media['file_size'] / 1024, 2) ?> KB)</small>
+                                            <?php endif; ?>
+                                        </a>
+                                    </div>
+                                <?php endif; ?>
+                            <?php endif; ?>
                             <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%;">
                                 <?= htmlspecialchars($msg['content'] ?? '') ?>
                             </div>
@@ -212,9 +250,45 @@ function addMessageElementToDOM(message) {
     const channelId = message.channel_id || '';
     const channelIdHtml = channelId ? `<div style="font-size: 10px; color: #666; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${escapeHtml(channelId)}</div>` : '';
     
+    // Renderiza mídia se houver
+    let mediaHtml = '';
+    if (message.media && message.media.url) {
+        const media = message.media;
+        const mediaType = (media.media_type || '').toLowerCase();
+        const mimeType = (media.mime_type || '').toLowerCase();
+        
+        if (mimeType.startsWith('image/') || mediaType === 'image' || mediaType === 'sticker') {
+            mediaHtml = `<div style="margin-bottom: 8px;">
+                <img src="${escapeHtml(media.url)}" alt="Imagem" style="max-width: 100%; border-radius: 8px; cursor: pointer;" onclick="window.open('${escapeHtml(media.url)}', '_blank')">
+            </div>`;
+        } else if (mimeType.startsWith('video/') || mediaType === 'video') {
+            mediaHtml = `<div style="margin-bottom: 8px;">
+                <video controls style="max-width: 100%; border-radius: 8px;">
+                    <source src="${escapeHtml(media.url)}" type="${escapeHtml(media.mime_type || 'video/mp4')}">
+                    Seu navegador não suporta o elemento de vídeo.
+                </video>
+            </div>`;
+        } else if (mimeType.startsWith('audio/') || mediaType === 'audio' || mediaType === 'voice') {
+            mediaHtml = `<div style="margin-bottom: 8px; padding: 12px; background: rgba(0,0,0,0.05); border-radius: 8px;">
+                <audio controls style="width: 100%;">
+                    <source src="${escapeHtml(media.url)}" type="${escapeHtml(media.mime_type || 'audio/ogg')}">
+                    Seu navegador não suporta o elemento de áudio.
+                </audio>
+            </div>`;
+        } else {
+            const fileSize = media.file_size ? ` <small style="color: #666;">(${Math.round(media.file_size / 1024 * 100) / 100} KB)</small>` : '';
+            mediaHtml = `<div style="margin-bottom: 8px; padding: 12px; background: rgba(0,0,0,0.05); border-radius: 8px;">
+                <a href="${escapeHtml(media.url)}" target="_blank" style="color: #023A8D; text-decoration: none; font-weight: 600;">
+                    📄 Download: ${escapeHtml(media.file_name || 'arquivo')}${fileSize}
+                </a>
+            </div>`;
+        }
+    }
+    
     messageDiv.innerHTML = `
         <div style="max-width: 70%; padding: 12px 16px; border-radius: 18px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto;' : 'background: white;'}">
             ${channelIdHtml}
+            ${mediaHtml}
             <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%;">
                 ${escapeHtml(content)}
             </div>

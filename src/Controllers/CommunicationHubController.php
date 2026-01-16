@@ -1582,10 +1582,18 @@ class CommunicationHubController extends Controller
                 ?? '';
             
             // Se for mídia, mostra tipo
+            $mediaInfo = null;
             if (empty($content)) {
                 if (isset($payload['type']) || isset($payload['message']['type'])) {
                     $mediaType = $payload['type'] ?? $payload['message']['type'] ?? 'media';
                     $content = "[{$mediaType}]";
+                    
+                    // Busca informações da mídia processada
+                    try {
+                        $mediaInfo = \PixelHub\Services\WhatsAppMediaService::getMediaByEventId($event['event_id']);
+                    } catch (\Exception $e) {
+                        error_log("[CommunicationHub] Erro ao buscar mídia: " . $e->getMessage());
+                    }
                 }
             }
             
@@ -1616,7 +1624,8 @@ class CommunicationHubController extends Controller
                 'from_e164' => $normalizedFrom,
                 'to_e164' => $normalizedTo,
                 'is_inbound' => ($direction === 'inbound'),
-                'channel_id' => $eventChannelId // Identifica qual sessão recebeu/enviou
+                'channel_id' => $eventChannelId, // Identifica qual sessão recebeu/enviou
+                'media' => $mediaInfo // Informações da mídia (se houver)
             ];
         }
         
@@ -2577,10 +2586,19 @@ class CommunicationHubController extends Controller
                 ?? $payload['message']['body'] 
                 ?? '';
             
+            // Se for mídia, busca informações
+            $mediaInfo = null;
             if (empty($content)) {
                 if (isset($payload['type']) || isset($payload['message']['type'])) {
                     $mediaType = $payload['type'] ?? $payload['message']['type'] ?? 'media';
                     $content = "[{$mediaType}]";
+                    
+                    // Busca informações da mídia processada
+                    try {
+                        $mediaInfo = \PixelHub\Services\WhatsAppMediaService::getMediaByEventId($event['event_id']);
+                    } catch (\Exception $e) {
+                        error_log("[CommunicationHub] Erro ao buscar mídia: " . $e->getMessage());
+                    }
                 }
             }
             
@@ -2592,7 +2610,8 @@ class CommunicationHubController extends Controller
                 'direction' => $direction,
                 'content' => $content,
                 'timestamp' => $event['created_at'],
-                'metadata' => json_decode($event['metadata'] ?? '{}', true)
+                'metadata' => json_decode($event['metadata'] ?? '{}', true),
+                'media' => $mediaInfo // Informações da mídia (se houver)
             ];
         }
 
@@ -2839,6 +2858,76 @@ class CommunicationHubController extends Controller
             error_log("[CommunicationHub] Erro ao rejeitar incoming lead: " . $e->getMessage());
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Serve mídia armazenada de forma segura
+     * 
+     * GET /communication-hub/media?path=whatsapp-media/...
+     */
+    public function serveMedia(): void
+    {
+        Auth::requireInternal();
+        
+        $path = $_GET['path'] ?? null;
+        
+        if (empty($path)) {
+            http_response_code(400);
+            echo "Caminho da mídia não fornecido";
+            exit;
+        }
+        
+        // Sanitiza path (previne path traversal)
+        $path = ltrim($path, '/');
+        $pathParts = explode('/', $path);
+        
+        // Garante que começa com whatsapp-media
+        if ($pathParts[0] !== 'whatsapp-media') {
+            http_response_code(403);
+            echo "Caminho inválido";
+            exit;
+        }
+        
+        // Monta caminho absoluto
+        $absolutePath = __DIR__ . '/../../storage/' . $path;
+        
+        // Verifica se arquivo existe
+        if (!file_exists($absolutePath)) {
+            http_response_code(404);
+            echo "Mídia não encontrada";
+            exit;
+        }
+        
+        // Busca informações da mídia no banco (opcional, para validação)
+        try {
+            $db = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT cm.*, ce.tenant_id 
+                FROM communication_media cm
+                INNER JOIN communication_events ce ON cm.event_id = ce.event_id
+                WHERE cm.stored_path = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$path]);
+            $media = $stmt->fetch();
+            
+            // Determina Content-Type
+            $contentType = $media['mime_type'] ?? 'application/octet-stream';
+            $fileName = $media['file_name'] ?? basename($path);
+        } catch (\Exception $e) {
+            // Se não conseguir buscar no banco, tenta adivinhar MIME type
+            $contentType = mime_content_type($absolutePath) ?: 'application/octet-stream';
+            $fileName = basename($path);
+        }
+        
+        // Envia arquivo
+        header('Content-Type: ' . $contentType);
+        header('Content-Length: ' . filesize($absolutePath));
+        header('Content-Disposition: inline; filename="' . htmlspecialchars($fileName) . '"');
+        header('Cache-Control: private, max-age=31536000'); // Cache por 1 ano
+        
+        readfile($absolutePath);
+        exit;
     }
 }
 

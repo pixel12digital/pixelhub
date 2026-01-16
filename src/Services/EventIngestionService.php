@@ -250,6 +250,20 @@ class EventIngestionService
             return $eventId;
         }
         
+        // Processa mídia se houver (apenas para mensagens do WhatsApp)
+        if ($sourceSystem === 'wpp_gateway' && $eventType === 'whatsapp.inbound.message') {
+            try {
+                // Busca evento completo para processar mídia
+                $fullEvent = self::findByEventId($eventId);
+                if ($fullEvent) {
+                    \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($fullEvent);
+                }
+            } catch (\Exception $e) {
+                // Não quebra fluxo se processamento de mídia falhar
+                error_log("[EventIngestion] Erro ao processar mídia (não crítico): " . $e->getMessage());
+            }
+        }
+        
         // Etapa 1: Resolve conversa (incremental, não quebra se falhar)
         // 🔍 LOG TEMPORÁRIO: Rastreamento de chamada
         error_log(sprintf(
