@@ -319,6 +319,43 @@ class CommunicationHubController extends Controller
                 
                 $db = DB::getConnection();
                 
+                // HOTFIX OBRIGATÓRIO: Resolve tenant_id se thread.tenant_id estiver NULL
+                // Busca thread/conversation pelo thread_id e resolve tenant_id se necessário
+                if (!empty($threadId) && preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
+                    $conversationId = (int) $matches[1];
+                    
+                    $convStmt = $db->prepare("SELECT tenant_id, channel_id, contact_external_id FROM conversations WHERE id = ?");
+                    $convStmt->execute([$conversationId]);
+                    $conv = $convStmt->fetch();
+                    
+                    if ($conv) {
+                        // Se tenant_id está NULL, tenta resolver usando channel_id
+                        if (empty($conv['tenant_id']) && !empty($conv['channel_id'])) {
+                            $resolvedTenantId = $this->resolveTenantByChannelId($conv['channel_id'], $db);
+                            if ($resolvedTenantId) {
+                                // Persiste tenant_id na thread (auto-cura)
+                                $updateStmt = $db->prepare("UPDATE conversations SET tenant_id = ? WHERE id = ?");
+                                $updateStmt->execute([$resolvedTenantId, $conversationId]);
+                                $tenantId = $resolvedTenantId;
+                                error_log("[CommunicationHub::send] AUTO-CURA: Resolvido e persistido tenant_id={$tenantId} para conversation_id={$conversationId} usando channel_id={$conv['channel_id']}");
+                            } else {
+                                error_log("[CommunicationHub::send] AVISO: Não foi possível resolver tenant_id para conversation_id={$conversationId} com channel_id={$conv['channel_id']}");
+                            }
+                        } else {
+                            // Usa tenant_id da thread se disponível
+                            if ($conv['tenant_id']) {
+                                $tenantId = (int) $conv['tenant_id'];
+                            }
+                        }
+                        
+                        // Garante que channel_id da thread seja usado (se não foi fornecido explicitamente)
+                        if (!$channelId && !empty($conv['channel_id'])) {
+                            $channelId = trim($conv['channel_id']);
+                            error_log("[CommunicationHub::send] Usando channel_id da thread: {$channelId}");
+                        }
+                    }
+                }
+                
                 // NOVO: Determina lista de canais para envio
                 $targetChannels = [];
                 
@@ -3089,6 +3126,84 @@ class CommunicationHubController extends Controller
         // Monta caminho absoluto
         $absolutePath = __DIR__ . '/../../storage/' . $path;
         
+    /**
+     * Normaliza channel_id para comparação (lowercase, remove espaços)
+     * 
+     * @param string|null $channelId
+     * @return string|null
+     */
+    private function normalizeChannelId(?string $channelId): ?string
+    {
+        if (empty($channelId)) {
+            return null;
+        }
+        
+        // Remove espaços e converte para lowercase
+        $normalized = strtolower(trim($channelId));
+        // Remove caracteres não alfanuméricos (mantém apenas letras, números e underscore)
+        $normalized = preg_replace('/[^a-z0-9_]/', '', $normalized);
+        
+        return $normalized ?: null;
+    }
+    
+    /**
+     * Resolve tenant_id pelo channel_id (com normalização)
+     * 
+     * @param string|null $channelId
+     * @param PDO|null $db Conexão do banco (opcional, cria nova se não fornecido)
+     * @return int|null
+     */
+    private function resolveTenantByChannelId(?string $channelId, ?PDO $db = null): ?int
+    {
+        if (empty($channelId)) {
+            return null;
+        }
+        
+        if (!$db) {
+            $db = DB::getConnection();
+        }
+        
+        // Normaliza channel_id para busca
+        $normalized = $this->normalizeChannelId($channelId);
+        
+        // Tenta busca exata primeiro
+        $stmt = $db->prepare("
+            SELECT tenant_id 
+            FROM tenant_message_channels 
+            WHERE provider = 'wpp_gateway' 
+            AND is_enabled = 1
+            AND (
+                channel_id = ?
+                OR LOWER(TRIM(channel_id)) = ?
+            )
+            LIMIT 1
+        ");
+        $stmt->execute([$channelId, $normalized]);
+        $result = $stmt->fetch();
+        
+        if ($result && $result['tenant_id']) {
+            return (int) $result['tenant_id'];
+        }
+        
+        // Se não encontrou, tenta busca case-insensitive mais flexível
+        $stmt2 = $db->prepare("
+            SELECT tenant_id 
+            FROM tenant_message_channels 
+            WHERE provider = 'wpp_gateway' 
+            AND is_enabled = 1
+            AND LOWER(REPLACE(channel_id, ' ', '')) = ?
+            LIMIT 1
+        ");
+        $stmt2->execute([$normalized]);
+        $result2 = $stmt2->fetch();
+        
+        if ($result2 && $result2['tenant_id']) {
+            return (int) $result2['tenant_id'];
+        }
+        
+        return null;
+    }
+
         // Verifica se arquivo existe
         if (!file_exists($absolutePath)) {
             http_response_code(404);

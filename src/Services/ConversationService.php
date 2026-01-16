@@ -751,6 +751,15 @@ class ConversationService
         $direction = $channelInfo['direction'] ?? 'inbound';
         $now = date('Y-m-d H:i:s');
         
+        // CORREÇÃO ESTRUTURAL: Se tenant_id está NULL mas temos channel_id, tenta resolver
+        if ($tenantId === null && !empty($channelInfo['channel_id'])) {
+            $resolvedTenantId = self::resolveTenantByChannelId($channelInfo['channel_id']);
+            if ($resolvedTenantId) {
+                $tenantId = $resolvedTenantId;
+                error_log("[ConversationService::createConversation] Resolvido tenant_id={$tenantId} para channel_id={$channelInfo['channel_id']}");
+            }
+        }
+        
         // Extrai timestamp da mensagem para last_message_at
         $messageTimestamp = self::extractMessageTimestamp($eventData);
 
@@ -881,9 +890,18 @@ class ConversationService
                 $updateNameStmt->execute([$channelInfo['contact_name'], $conversationId]);
             }
 
-            // Atualiza tenant_id se fornecido e ainda não existe
-            // Também atualiza is_incoming_lead: se tenant_id é NULL, marca como incoming_lead = 1
+            // CORREÇÃO ESTRUTURAL: Resolve tenant_id se estiver NULL mas temos channel_id
             $tenantId = $eventData['tenant_id'] ?? null;
+            if ($tenantId === null && !empty($channelInfo['channel_id'])) {
+                $resolvedTenantId = self::resolveTenantByChannelId($channelInfo['channel_id']);
+                if ($resolvedTenantId) {
+                    $tenantId = $resolvedTenantId;
+                    error_log("[ConversationService::updateConversationMetadata] Resolvido tenant_id={$tenantId} para channel_id={$channelInfo['channel_id']} na conversation_id={$conversationId}");
+                }
+            }
+            
+            // Atualiza tenant_id se fornecido/resolvido e ainda não existe
+            // Também atualiza is_incoming_lead: se tenant_id é NULL, marca como incoming_lead = 1
             if ($tenantId) {
                 $updateTenantStmt = $db->prepare("
                     UPDATE conversations 
@@ -1200,6 +1218,81 @@ class ConversationService
                     return $found;
                 }
             }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Normaliza channel_id para comparação (lowercase, remove espaços)
+     * 
+     * @param string|null $channelId
+     * @return string|null
+     */
+    private static function normalizeChannelId(?string $channelId): ?string
+    {
+        if (empty($channelId)) {
+            return null;
+        }
+        
+        // Remove espaços e converte para lowercase
+        $normalized = strtolower(trim($channelId));
+        // Remove caracteres não alfanuméricos (mantém apenas letras, números e underscore)
+        $normalized = preg_replace('/[^a-z0-9_]/', '', $normalized);
+        
+        return $normalized ?: null;
+    }
+    
+    /**
+     * Resolve tenant_id pelo channel_id (com normalização)
+     * 
+     * @param string|null $channelId
+     * @return int|null
+     */
+    private static function resolveTenantByChannelId(?string $channelId): ?int
+    {
+        if (empty($channelId)) {
+            return null;
+        }
+        
+        $db = DB::getConnection();
+        
+        // Normaliza channel_id para busca
+        $normalized = self::normalizeChannelId($channelId);
+        
+        // Tenta busca exata primeiro
+        $stmt = $db->prepare("
+            SELECT tenant_id 
+            FROM tenant_message_channels 
+            WHERE provider = 'wpp_gateway' 
+            AND is_enabled = 1
+            AND (
+                channel_id = ?
+                OR LOWER(TRIM(channel_id)) = ?
+            )
+            LIMIT 1
+        ");
+        $stmt->execute([$channelId, $normalized]);
+        $result = $stmt->fetch();
+        
+        if ($result && $result['tenant_id']) {
+            return (int) $result['tenant_id'];
+        }
+        
+        // Se não encontrou, tenta busca case-insensitive mais flexível
+        $stmt2 = $db->prepare("
+            SELECT tenant_id 
+            FROM tenant_message_channels 
+            WHERE provider = 'wpp_gateway' 
+            AND is_enabled = 1
+            AND LOWER(REPLACE(channel_id, ' ', '')) = ?
+            LIMIT 1
+        ");
+        $stmt2->execute([$normalized]);
+        $result2 = $stmt2->fetch();
+        
+        if ($result2 && $result2['tenant_id']) {
+            return (int) $result2['tenant_id'];
         }
         
         return null;
