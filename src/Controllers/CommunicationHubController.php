@@ -1581,6 +1581,14 @@ class CommunicationHubController extends Controller
                 ?? $payload['message']['body'] 
                 ?? '';
             
+            // Processa mídia base64 se ainda não foi processada (áudio OGG, imagens JPEG/PNG)
+            // Isso garante que mídias em base64 sejam processadas e salvas em communication_media
+            try {
+                \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($event);
+            } catch (\Exception $e) {
+                error_log("[CommunicationHub] Erro ao processar mídia do evento: " . $e->getMessage());
+            }
+            
             // Busca informações da mídia processada (sempre verifica, mesmo se há conteúdo)
             // Isso permite detectar mídias que foram processadas de base64 no campo text
             $mediaInfo = null;
@@ -1712,6 +1720,13 @@ class CommunicationHubController extends Controller
                 ?? $payload['message']['text'] 
                 ?? $payload['message']['body'] 
                 ?? '';
+            
+            // Processa mídia base64 se ainda não foi processada (áudio OGG, imagens JPEG/PNG)
+            try {
+                \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($event);
+            } catch (\Exception $e) {
+                error_log("[CommunicationHub] Erro ao processar mídia do evento: " . $e->getMessage());
+            }
             
             // Busca informações da mídia processada (sempre verifica, mesmo se há conteúdo)
             $mediaInfo = null;
@@ -2448,6 +2463,13 @@ class CommunicationHubController extends Controller
             // Sanitiza mensagens muito longas sem quebra
             $content = self::sanitizeLongMessage($content);
             
+            // Processa mídia base64 se ainda não foi processada (áudio OGG, imagens JPEG/PNG)
+            try {
+                \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($event);
+            } catch (\Exception $e) {
+                error_log("[CommunicationHub] Erro ao processar mídia do evento: " . $e->getMessage());
+            }
+            
             // Busca informações da mídia processada (se houver)
             $mediaInfo = null;
             try {
@@ -2675,6 +2697,14 @@ class CommunicationHubController extends Controller
                 ?? $payload['message']['text'] 
                 ?? $payload['message']['body'] 
                 ?? '';
+            
+            // Processa mídia base64 se ainda não foi processada (áudio OGG, imagens JPEG/PNG)
+            // Isso garante que mídias em base64 sejam processadas e salvas em communication_media
+            try {
+                \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($event);
+            } catch (\Exception $e) {
+                error_log("[CommunicationHub] Erro ao processar mídia do evento: " . $e->getMessage());
+            }
             
             // Busca informações da mídia processada (sempre verifica, mesmo se há conteúdo)
             // Isso permite detectar mídias que foram processadas de base64 no campo text
