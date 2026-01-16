@@ -960,6 +960,20 @@ class CommunicationHubController extends Controller
                 error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: baseUrl vazio. sessionId=%s, pnLid=%s', $sessionId, $pnLid));
                 return null;
             }
+            
+            // Obtém secret para autenticação
+            try {
+                $secret = \PixelHub\Services\GatewaySecret::getDecrypted();
+            } catch (\Exception $e) {
+                error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Erro ao obter secret. sessionId=%s, pnLid=%s, error=%s', $sessionId, $pnLid, $e->getMessage()));
+                return null;
+            }
+            
+            if (empty($secret)) {
+                error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Secret vazio. sessionId=%s, pnLid=%s', $sessionId, $pnLid));
+                return null;
+            }
+            
             $url = rtrim($baseUrl, '/') . "/api/" . rawurlencode($sessionId) . "/contact/pn-lid/" . rawurlencode($pnLid);
             error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Chamando API. URL=%s', $url));
             
@@ -969,7 +983,10 @@ class CommunicationHubController extends Controller
                 CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_TIMEOUT => 10,
                 CURLOPT_HTTPGET => true,
-                CURLOPT_HTTPHEADER => ["Accept: application/json"],
+                CURLOPT_HTTPHEADER => [
+                    "Accept: application/json",
+                    "X-Gateway-Secret: {$secret}"
+                ],
             ]);
             $raw = curl_exec($ch);
             $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
