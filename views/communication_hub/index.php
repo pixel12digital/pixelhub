@@ -1439,7 +1439,12 @@ function renderMediaPlayer(media) {
     if (isAudio) {
         mediaHtml = `<audio controls preload="none" src="${safeUrl}"></audio>`;
     } else if (isImage) {
-        mediaHtml = `<img src="${safeUrl}" style="max-width:240px;border-radius:8px;" alt="Imagem">`;
+        // Envolve imagem com botão clicável para abrir viewer
+        mediaHtml = `
+            <button type="button" class="hub-media-open" data-src="${safeUrl}" style="background: none; border: none; padding: 0; cursor: pointer; display: block;">
+                <img src="${safeUrl}" class="hub-media-thumb" data-src="${safeUrl}" style="max-width:240px;border-radius:8px;display:block;" alt="Imagem">
+            </button>
+        `;
     } else if (isVideo) {
         mediaHtml = `<video controls preload="metadata" src="${safeUrl}" style="max-width:240px;border-radius:8px;"></video>`;
     } else {
@@ -1580,6 +1585,73 @@ async function loadConversation(threadId, channel) {
 }
 
 /**
+ * Inicializa listeners do modal de viewer de mídia
+ */
+function initMediaViewer() {
+    const viewer = document.getElementById('hub-media-viewer');
+    const img = document.getElementById('hub-media-viewer-img');
+    const downloadBtn = document.getElementById('hub-media-download');
+    const openNewBtn = document.getElementById('hub-media-open-new');
+    const closeBtn = document.getElementById('hub-media-close');
+    
+    if (!viewer || !img || !downloadBtn || !openNewBtn || !closeBtn) {
+        return; // Modal ainda não foi criado
+    }
+    
+    // Botão fechar
+    closeBtn.addEventListener('click', function() {
+        viewer.style.display = 'none';
+    });
+    
+    // Fechar ao clicar no overlay (fora da imagem)
+    viewer.addEventListener('click', function(e) {
+        if (e.target === viewer) {
+            viewer.style.display = 'none';
+        }
+    });
+    
+    // Fechar com ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && viewer.style.display !== 'none') {
+            viewer.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * Abre o viewer de mídia com a imagem especificada
+ */
+function openMediaViewer(src) {
+    const viewer = document.getElementById('hub-media-viewer');
+    const img = document.getElementById('hub-media-viewer-img');
+    const downloadBtn = document.getElementById('hub-media-download');
+    const openNewBtn = document.getElementById('hub-media-open-new');
+    
+    if (!viewer || !img || !downloadBtn || !openNewBtn) {
+        return;
+    }
+    
+    // Define a imagem
+    img.src = src;
+    
+    // Define o link de download
+    downloadBtn.onclick = function() {
+        const a = document.createElement('a');
+        a.href = src;
+        a.download = '';
+        a.click();
+    };
+    
+    // Define o link para abrir em nova aba
+    openNewBtn.onclick = function() {
+        window.open(src, '_blank');
+    };
+    
+    // Mostra o modal
+    viewer.style.display = 'flex';
+}
+
+/**
  * Renderiza a conversa no painel direito
  */
 function renderConversation(thread, messages, channel) {
@@ -1699,6 +1771,18 @@ function renderConversation(thread, messages, channel) {
                 <button type="submit">Enviar</button>
             </form>
         </div>
+        
+        <!-- Modal Viewer de Mídia -->
+        <div id="hub-media-viewer" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10000; align-items: center; justify-content: center;">
+            <div style="position: relative; max-width: 90%; max-height: 90%; display: flex; flex-direction: column; align-items: center;">
+                <img id="hub-media-viewer-img" src="" style="max-width: 100%; max-height: 80vh; border-radius: 8px; object-fit: contain;">
+                <div style="margin-top: 20px; display: flex; gap: 12px;">
+                    <button id="hub-media-download" style="padding: 10px 20px; background: #023A8D; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">Baixar</button>
+                    <button id="hub-media-open-new" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">Abrir em Nova Aba</button>
+                    <button id="hub-media-close" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">Fechar</button>
+                </div>
+            </div>
+        </div>
     `;
     
     if (content) {
@@ -1725,6 +1809,35 @@ function renderConversation(thread, messages, channel) {
                 hideNewMessagesBadge();
             }
         });
+    }
+    
+    // Event delegation para abrir viewer de mídia (imagens)
+    // Usa event delegation para funcionar com mensagens adicionadas dinamicamente
+    const messagesContainer = document.getElementById('messages-container');
+    if (messagesContainer && !messagesContainer.hasAttribute('data-media-listener-attached')) {
+        messagesContainer.setAttribute('data-media-listener-attached', 'true');
+        messagesContainer.addEventListener('click', function(e) {
+            // Detecta clique na imagem ou no botão
+            const img = e.target.closest('.hub-media-thumb');
+            const btn = e.target.closest('.hub-media-open');
+            const target = img || btn;
+            
+            if (target) {
+                const src = target.getAttribute('data-src') || target.src;
+                if (src) {
+                    openMediaViewer(src);
+                }
+            }
+        });
+    }
+    
+    // Inicializa listeners do modal (uma vez, se ainda não foi inicializado)
+    if (!window.hubMediaViewerInitialized) {
+        window.hubMediaViewerInitialized = true;
+        // Aguarda um pouco para garantir que o modal foi criado no DOM
+        setTimeout(() => {
+            initMediaViewer();
+        }, 100);
     }
     
     // Adiciona listener de scroll no header (sombra quando scrolla)
