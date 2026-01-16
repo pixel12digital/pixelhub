@@ -886,12 +886,151 @@ class CommunicationHubController extends Controller
      * Busca mensagens de uma conversa específica (nova forma)
      * 
      * CORRIGIDO: Agora busca corretamente mesmo quando tenant_id é NULL
+     * PATCH: Resolve @lid -> E.164 via cache + API do provider
      */
     private function getWhatsAppMessagesFromConversation(PDO $db, int $conversationId): array
     {
-        // Busca a conversa para pegar o contact_external_id
+        // =====================
+        // pnLid (@lid) resolver
+        // =====================
+        
+        // Normalização canônica de telefone (E.164 apenas dígitos; BR mantém 55...)
+        // Observação: NÃO converte @lid em dígitos "como se fosse telefone".
+        // @lid será tratado via resolver próprio.
+        $normalizePhoneE164 = function($value) {
+            if (empty($value)) return null;
+            $s = (string)$value;
+            // remove sufixo tipo @c.us, @s.whatsapp.net etc
+            $s = preg_replace('/@.*$/', '', $s);
+            // apenas dígitos
+            $digits = preg_replace('/[^0-9]/', '', $s);
+            if ($digits === '') return null;
+            // mantém BR começando com 55 (E.164 "seco" sem +)
+            if (strlen($digits) >= 12 && substr($digits, 0, 2) === '55') return $digits;
+            // fallback: retorna dígitos (ex: números internacionais sem 55)
+            return $digits;
+        };
+
+        $extractPnLid = function($jid) {
+            if (empty($jid)) return null;
+            $jid = (string)$jid;
+            if (preg_match('/^([0-9]+)@lid$/', $jid, $m)) return $m[1];
+            return null;
+        };
+
+        // Lê do cache (MySQL)
+        $getPnLidCache = function($provider, $sessionId, $pnLid) use ($db) {
+            try {
+                $st = $db->prepare("SELECT phone_e164, updated_at FROM wa_pnlid_cache
+                                 WHERE provider=? AND session_id=? AND pnlid=? LIMIT 1");
+                $st->execute([$provider, $sessionId, $pnLid]);
+                $row = $st->fetch(\PDO::FETCH_ASSOC);
+                if (!$row) return null;
+                // TTL opcional (ex: 30 dias)
+                $ttlDays = 30;
+                $updatedAt = strtotime($row['updated_at'] ?? '');
+                if ($updatedAt && $updatedAt < strtotime("-{$ttlDays} days")) {
+                    return null;
+                }
+                return $row['phone_e164'] ?: null;
+            } catch (\Throwable $e) {
+                return null;
+            }
+        };
+
+        // Salva no cache (MySQL)
+        $setPnLidCache = function($provider, $sessionId, $pnLid, $phoneE164) use ($db) {
+            try {
+                $st = $db->prepare("
+                    INSERT INTO wa_pnlid_cache (provider, session_id, pnlid, phone_e164)
+                    VALUES (?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE phone_e164=VALUES(phone_e164), updated_at=NOW()
+                ");
+                $st->execute([$provider, $sessionId, $pnLid, $phoneE164]);
+                return true;
+            } catch (\Throwable $e) {
+                return false;
+            }
+        };
+
+        // Chama API do provider (WPPConnect wrapper) para resolver pnLid -> telefone
+        $resolvePnLidViaProvider = function($sessionId, $pnLid) use ($normalizePhoneE164) {
+            $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
+            if (!$baseUrl) return null;
+            $url = rtrim($baseUrl, '/') . "/api/" . rawurlencode($sessionId) . "/contact/pn-lid/" . rawurlencode($pnLid);
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_HTTPGET => true,
+                CURLOPT_HTTPHEADER => ["Accept: application/json"],
+            ]);
+            $raw = curl_exec($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            if ($code < 200 || $code >= 300 || !$raw) return null;
+            $j = json_decode($raw, true);
+            if (!is_array($j)) return null;
+            // Tenta extrair telefone em campos comuns
+            $candidates = [
+                $j['phone'] ?? null,
+                $j['number'] ?? null,
+                $j['wid'] ?? null,
+                $j['id']['user'] ?? null,
+                $j['user'] ?? null,
+                $j['contact']['number'] ?? null,
+                $j['contact']['phone'] ?? null,
+                $j['data']['phone'] ?? null,
+                $j['data']['number'] ?? null,
+            ];
+            foreach ($candidates as $cand) {
+                $e164 = $normalizePhoneE164($cand);
+                if ($e164) return $e164;
+            }
+            // Se vier no formato JID:
+            if (!empty($j['jid'])) {
+                $e164 = $normalizePhoneE164($j['jid']);
+                if ($e164) return $e164;
+            }
+            return null;
+        };
+
+        // Função principal: normalizeSender() -> retorna e164 se possível, senão null
+        $normalizeSender = function($jidOrNumber, $provider, $sessionId) use (
+            $normalizePhoneE164, $extractPnLid, $getPnLidCache, $setPnLidCache, $resolvePnLidViaProvider
+        ) {
+            if (empty($jidOrNumber)) return null;
+            $jidOrNumber = (string)$jidOrNumber;
+            // Se NÃO é @lid, normaliza como telefone normal
+            $pnLid = $extractPnLid($jidOrNumber);
+            if (!$pnLid) {
+                return $normalizePhoneE164($jidOrNumber);
+            }
+            // É @lid -> tenta cache
+            $cached = $getPnLidCache($provider, $sessionId, $pnLid);
+            if (!empty($cached)) return $cached;
+            // Resolve via API do provider
+            $resolved = $resolvePnLidViaProvider($sessionId, $pnLid);
+            if (!empty($resolved)) {
+                $setPnLidCache($provider, $sessionId, $pnLid, $resolved);
+                return $resolved;
+            }
+            // Não conseguiu resolver: retorna null para evitar falso-match
+            return null;
+        };
+
+        // Normalização de canal (case/space insensitive)
+        $normalizeChannel = function($s) {
+            $s = trim((string)$s);
+            $s = preg_replace('/\s+/', '', $s); // remove todos os espaços
+            $s = mb_strtolower($s, 'UTF-8');
+            return $s;
+        };
+
+        // Busca a conversa para pegar o contact_external_id e channel_id
         $convStmt = $db->prepare("
-            SELECT conversation_key, contact_external_id, tenant_id, channel_type
+            SELECT conversation_key, contact_external_id, tenant_id, channel_type, channel_id
             FROM conversations
             WHERE id = ?
         ");
@@ -904,23 +1043,10 @@ class CommunicationHubController extends Controller
 
         $contactExternalId = $conversation['contact_external_id'];
         $tenantId = $conversation['tenant_id'];
+        $sessionId = $conversation['channel_id'] ?? ''; // sessionId para resolver @lid
 
-        // CORREÇÃO: Normalização robusta que lida com variações (@c.us, 9º dígito)
-        // Remove sufixos e normaliza para E.164 para comparar variações
-        $normalizeContact = function($contact) {
-            if (empty($contact)) return null;
-            // Remove tudo após @ (ex: 554796164699@c.us -> 554796164699)
-            $cleaned = preg_replace('/@.*$/', '', (string) $contact);
-            // Remove caracteres não numéricos
-            $digitsOnly = preg_replace('/[^0-9]/', '', $cleaned);
-            // Se for número BR (começa com 55), normaliza para E.164
-            if (strlen($digitsOnly) >= 12 && substr($digitsOnly, 0, 2) === '55') {
-                // Retorna apenas dígitos (E.164 sem formatação)
-                return $digitsOnly;
-            }
-            return $digitsOnly;
-        };
-        $normalizedContactExternalId = $normalizeContact($contactExternalId);
+        // Normaliza contact_external_id para E.164 (já deve estar em E.164, mas garante)
+        $normalizedContactExternalId = $normalizePhoneE164($contactExternalId);
         
         // [LOG TEMPORARIO] Normalização
         error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - NORMALIZACAO: contact_external_id_original=' . ($contactExternalId ?: 'NULL') . ', normalized=' . ($normalizedContactExternalId ?: 'NULL'));
@@ -1019,12 +1145,13 @@ class CommunicationHubController extends Controller
             $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
             $eventTo = $payload['to'] ?? $payload['message']['to'] ?? null;
             
-            // Normaliza para comparar
-            $normalizedFrom = $eventFrom ? $normalizeContact($eventFrom) : null;
-            $normalizedTo = $eventTo ? $normalizeContact($eventTo) : null;
+            // Normaliza para comparar (resolve @lid -> telefone quando possível)
+            $provider = 'wpp_gateway';
+            $normalizedFrom = $eventFrom ? $normalizeSender($eventFrom, $provider, $sessionId) : null;
+            $normalizedTo = $eventTo ? $normalizeSender($eventTo, $provider, $sessionId) : null;
             
             // Verifica se é desta conversa (inbound ou outbound)
-            // CORRIGIDO: Verificação mais robusta (compara strings normalizadas)
+            // CORRIGIDO: Verificação mais robusta (resolve @lid antes de comparar)
             $isFromThisContact = !empty($normalizedFrom) && $normalizedFrom === $normalizedContactExternalId;
             $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContactExternalId;
             
@@ -1043,7 +1170,11 @@ class CommunicationHubController extends Controller
             // Se conversation tem tenant_id mas evento não tem, aceita (fallback)
             // Se evento tem tenant_id mas conversation não, aceita (atualização)
             
+            // Determina direction (robusto): usa event_type, mas garante coerência com ids normalizados
             $direction = $event['event_type'] === 'whatsapp.inbound.message' ? 'inbound' : 'outbound';
+            // Se o evento diz inbound mas o "to" é o contato, inverte (edge cases)
+            if ($direction === 'inbound' && $isToThisContact && !$isFromThisContact) $direction = 'outbound';
+            if ($direction === 'outbound' && $isFromThisContact && !$isToThisContact) $direction = 'inbound';
             
             // Extrai conteúdo da mensagem (suporta diferentes formatos de payload)
             $content = $payload['text'] 
@@ -1068,7 +1199,12 @@ class CommunicationHubController extends Controller
                 'direction' => $direction,
                 'content' => $content,
                 'timestamp' => $event['created_at'],
-                'metadata' => json_decode($event['metadata'] ?? '{}', true)
+                'metadata' => json_decode($event['metadata'] ?? '{}', true),
+                'from_raw' => $eventFrom,
+                'to_raw' => $eventTo,
+                'from_e164' => $normalizedFrom,
+                'to_e164' => $normalizedTo,
+                'is_inbound' => ($direction === 'inbound')
             ];
         }
         
