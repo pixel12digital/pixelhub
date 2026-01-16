@@ -1703,12 +1703,50 @@ class CommunicationHubController extends Controller
             
             $direction = $event['event_type'] === 'whatsapp.inbound.message' ? 'inbound' : 'outbound';
             
+            $content = $payload['body'] 
+                ?? $payload['text'] 
+                ?? $payload['message']['text'] 
+                ?? $payload['message']['body'] 
+                ?? '';
+            
+            // Busca informações da mídia processada (sempre verifica, mesmo se há conteúdo)
+            $mediaInfo = null;
+            try {
+                $mediaInfo = \PixelHub\Services\WhatsAppMediaService::getMediaByEventId($event['event_id']);
+                
+                // Se encontrou mídia, limpa conteúdo se for base64
+                if ($mediaInfo && !empty($content)) {
+                    if (strlen($content) > 100 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', $content)) {
+                        $textCleaned = preg_replace('/\s+/', '', $content);
+                        $decoded = base64_decode($textCleaned, true);
+                        if ($decoded !== false) {
+                            if (substr($decoded, 0, 4) === 'OggS' || strlen($decoded) > 1000) {
+                                $content = '';
+                            }
+                        }
+                    } else if (strlen($content) > 500) {
+                        $content = '';
+                    }
+                }
+            } catch (\Exception $e) {
+                error_log("[CommunicationHub] Erro ao buscar mídia: " . $e->getMessage());
+            }
+            
+            // Se não encontrou mídia e não há conteúdo, mostra tipo de mídia
+            if (empty($content) && !$mediaInfo) {
+                if (isset($payload['type']) || isset($payload['message']['type'])) {
+                    $mediaType = $payload['type'] ?? $payload['message']['type'] ?? 'media';
+                    $content = "[{$mediaType}]";
+                }
+            }
+            
             $messages[] = [
                 'id' => $event['event_id'],
                 'direction' => $direction,
-                'content' => $payload['body'] ?? $payload['text'] ?? $payload['message']['text'] ?? '',
+                'content' => $content,
                 'timestamp' => $event['created_at'],
-                'metadata' => json_decode($event['metadata'] ?? '{}', true)
+                'metadata' => json_decode($event['metadata'] ?? '{}', true),
+                'media' => $mediaInfo // Informações da mídia (se houver) - objeto completo
             ];
         }
 
@@ -2406,12 +2444,36 @@ class CommunicationHubController extends Controller
             // Sanitiza mensagens muito longas sem quebra
             $content = self::sanitizeLongMessage($content);
             
+            // Busca informações da mídia processada (se houver)
+            $mediaInfo = null;
+            try {
+                $mediaInfo = \PixelHub\Services\WhatsAppMediaService::getMediaByEventId($event['event_id']);
+                
+                // Se encontrou mídia, limpa conteúdo se for base64
+                if ($mediaInfo && !empty($content)) {
+                    if (strlen($content) > 100 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', $content)) {
+                        $textCleaned = preg_replace('/\s+/', '', $content);
+                        $decoded = base64_decode($textCleaned, true);
+                        if ($decoded !== false) {
+                            if (substr($decoded, 0, 4) === 'OggS' || strlen($decoded) > 1000) {
+                                $content = '';
+                            }
+                        }
+                    } else if (strlen($content) > 500) {
+                        $content = '';
+                    }
+                }
+            } catch (\Exception $e) {
+                error_log("[CommunicationHub] Erro ao buscar mídia: " . $e->getMessage());
+            }
+            
             $message = [
                 'id' => $event['event_id'],
                 'direction' => $direction,
                 'content' => $content,
                 'timestamp' => $event['created_at'],
-                'metadata' => json_decode($event['metadata'] ?? '{}', true)
+                'metadata' => json_decode($event['metadata'] ?? '{}', true),
+                'media' => $mediaInfo // Inclui objeto media completo quando existir
             ];
 
             $this->json([
@@ -2610,19 +2672,43 @@ class CommunicationHubController extends Controller
                 ?? $payload['message']['body'] 
                 ?? '';
             
-            // Se for mídia, busca informações
+            // Busca informações da mídia processada (sempre verifica, mesmo se há conteúdo)
+            // Isso permite detectar mídias que foram processadas de base64 no campo text
             $mediaInfo = null;
-            if (empty($content)) {
+            try {
+                $mediaInfo = \PixelHub\Services\WhatsAppMediaService::getMediaByEventId($event['event_id']);
+                
+                // Se encontrou mídia processada, limpa o conteúdo para não mostrar base64 ou dados brutos
+                if ($mediaInfo && !empty($content)) {
+                    // Verifica se o conteúdo parece ser base64 (áudio codificado)
+                    if (strlen($content) > 100 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', $content)) {
+                        // Tenta decodificar para verificar se é base64 válido
+                        $textCleaned = preg_replace('/\s+/', '', $content);
+                        $decoded = base64_decode($textCleaned, true);
+                        if ($decoded !== false) {
+                            // Verifica se é áudio OGG ou se o tamanho decodificado é grande (indicando mídia)
+                            if (substr($decoded, 0, 4) === 'OggS' || strlen($decoded) > 1000) {
+                                // É mídia em base64, limpa o conteúdo
+                                $content = '';
+                            }
+                        }
+                    } else {
+                        // Se o conteúdo é muito longo e há mídia processada, provavelmente é dados brutos
+                        // Limpa para não poluir a interface
+                        if (strlen($content) > 500) {
+                            $content = '';
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                error_log("[CommunicationHub] Erro ao buscar mídia: " . $e->getMessage());
+            }
+            
+            // Se não encontrou mídia e não há conteúdo, mostra tipo de mídia
+            if (empty($content) && !$mediaInfo) {
                 if (isset($payload['type']) || isset($payload['message']['type'])) {
                     $mediaType = $payload['type'] ?? $payload['message']['type'] ?? 'media';
                     $content = "[{$mediaType}]";
-                    
-                    // Busca informações da mídia processada
-                    try {
-                        $mediaInfo = \PixelHub\Services\WhatsAppMediaService::getMediaByEventId($event['event_id']);
-                    } catch (\Exception $e) {
-                        error_log("[CommunicationHub] Erro ao buscar mídia: " . $e->getMessage());
-                    }
                 }
             }
             

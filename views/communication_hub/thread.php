@@ -168,12 +168,17 @@ $baseUrl = pixelhub_url('');
 // ============================================================================
 // Configuração Global
 // ============================================================================
+// Configuração Central de Polling
+// ============================================================================
+const HUB_POLLING_MS = 10000; // 10 segundos - Intervalo de polling configurável
+
+// ============================================================================
 const THREAD_CONFIG = {
     threadId: '<?= htmlspecialchars($thread['thread_id'] ?? '') ?>',
     channel: '<?= htmlspecialchars($channel ?? 'whatsapp') ?>',
     baseUrl: '<?= pixelhub_url('') ?>',
-    pollInterval: 12000, // 12 segundos quando ativo (reduzido de 5s para evitar agressividade)
-    pollIntervalInactive: 30000, // 30 segundos quando inativo
+    pollInterval: HUB_POLLING_MS, // Intervalo quando ativo (configurável via HUB_POLLING_MS)
+    pollIntervalInactive: HUB_POLLING_MS * 3, // 3x o intervalo ativo quando inativo (30s com padrão de 10s)
 };
 
 // Estado da aplicação

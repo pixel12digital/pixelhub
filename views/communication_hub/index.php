@@ -868,6 +868,11 @@ body.communication-hub-page {
 
 <script>
 // ============================================================================
+// Configuração Central de Polling
+// ============================================================================
+const HUB_POLLING_MS = 10000; // 10 segundos - Intervalo de polling configurável
+
+// ============================================================================
 // Polling para atualização da lista de conversas
 // ============================================================================
 const HubState = {
@@ -903,7 +908,7 @@ function startListPolling() {
         console.log('[Hub] Polling iniciado com lastUpdateTs:', HubState.lastUpdateTs);
     }
     
-    // Polling a cada 12 segundos (reduzido de 3s para evitar agressividade)
+    // Polling configurável via HUB_POLLING_MS (padrão: 10 segundos)
     // Só executa se:
     // - Página está visível
     // - Usuário não está interagindo (última interação há mais de 5s)
@@ -918,7 +923,7 @@ function startListPolling() {
                 checkForListUpdates();
             }
         }
-    }, 12000); // 12 segundos ao invés de 3
+    }, HUB_POLLING_MS);
     
     // Primeiro check após 5 segundos (ao invés de 2s)
     setTimeout(() => {
@@ -2010,12 +2015,12 @@ function startConversationPolling() {
         }
     }, 2000);
     
-    // Polling periódico a cada 12 segundos
+    // Polling periódico configurável via HUB_POLLING_MS (padrão: 10 segundos)
     ConversationState.pollingInterval = setInterval(() => {
         if (ConversationState.isPageVisible && ConversationState.currentThreadId) {
             checkForNewConversationMessages();
         }
-    }, 12000);
+    }, HUB_POLLING_MS);
 }
 
 /**

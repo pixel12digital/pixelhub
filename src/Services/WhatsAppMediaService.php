@@ -519,15 +519,20 @@ class WhatsAppMediaService
             $mediaUrl = self::getMediaUrl($media['stored_path']);
         }
         
+        // Retorna objeto media completo com todos os campos necessários
+        // Formato padronizado usado em todas as respostas de mensagens com mídia
         return [
-            'id' => $media['id'],
+            'id' => (int) $media['id'],
             'event_id' => $media['event_id'],
-            'media_type' => $media['media_type'],
+            'type' => $media['media_type'], // Campo 'type' para compatibilidade
+            'media_type' => $media['media_type'], // Campo original mantido
             'mime_type' => $media['mime_type'],
-            'stored_path' => $media['stored_path'],
-            'file_name' => $media['file_name'],
-            'file_size' => $media['file_size'],
-            'url' => $mediaUrl
+            'size' => $media['file_size'] ? (int) $media['file_size'] : null, // Campo 'size' para compatibilidade
+            'file_size' => $media['file_size'] ? (int) $media['file_size'] : null, // Campo original mantido
+            'url' => $mediaUrl,
+            'path' => $media['stored_path'], // Campo 'path' para compatibilidade
+            'stored_path' => $media['stored_path'], // Campo original mantido
+            'file_name' => $media['file_name']
         ];
     }
 }
