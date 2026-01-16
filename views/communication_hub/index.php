@@ -1403,6 +1403,61 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+/**
+ * Escapa atributos HTML para prevenir XSS
+ * URLs já vêm URL-encoded do backend, então apenas escapa caracteres HTML perigosos
+ */
+function escapeAttr(value) {
+    if (!value) return '';
+    // Escapa caracteres HTML perigosos para uso em atributos
+    // A URL já vem URL-encoded do backend, então não precisa de encodeURI adicional
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+/**
+ * Renderiza player de mídia baseado no tipo
+ */
+function renderMediaPlayer(media) {
+    if (!media || !media.url) return '';
+    
+    const mimeType = (media.mime_type || '').toLowerCase();
+    const mediaType = (media.media_type || '').toLowerCase();
+    const safeUrl = escapeAttr(media.url);
+    
+    // Determina tipo de mídia
+    const isAudio = mimeType.startsWith('audio/') || mediaType === 'audio' || mediaType === 'voice';
+    const isImage = mimeType.startsWith('image/') || mediaType === 'image' || mediaType === 'sticker';
+    const isVideo = mimeType.startsWith('video/') || mediaType === 'video';
+    
+    let mediaHtml = '';
+    
+    if (isAudio) {
+        mediaHtml = `<audio controls preload="none" src="${safeUrl}"></audio>`;
+    } else if (isImage) {
+        mediaHtml = `<img src="${safeUrl}" style="max-width:240px;border-radius:8px;" alt="Imagem">`;
+    } else if (isVideo) {
+        mediaHtml = `<video controls preload="metadata" src="${safeUrl}" style="max-width:240px;border-radius:8px;"></video>`;
+    } else {
+        // Tipo desconhecido - mostra link
+        const typeLabel = mediaType || mimeType || 'arquivo';
+        mediaHtml = `<a href="${safeUrl}" target="_blank" style="color: #023A8D; text-decoration: none; font-weight: 600;">📎 ${escapeHtml(typeLabel)}</a>`;
+    }
+    
+    // Adiciona label do tipo/mime se disponível (opcional, pequeno)
+    let labelHtml = '';
+    if (mimeType || mediaType) {
+        const label = mimeType || mediaType;
+        labelHtml = `<div style="font-size: 10px; color: #667781; margin-top: 4px; opacity: 0.7;">${escapeHtml(label)}</div>`;
+    }
+    
+    return `<div style="margin-bottom: 8px;">${mediaHtml}${labelHtml}</div>`;
+}
+
 const ConversationState = {
     currentThreadId: null,
     currentChannel: null,
@@ -1593,6 +1648,21 @@ function renderConversation(thread, messages, channel) {
             const channelId = msg.channel_id || '';
             const channelIdHtml = channelId ? `<div style="font-size: 10px; color: #667781; margin-bottom: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7;">${escapeHtml(channelId)}</div>` : '';
             
+            // Renderiza mídia se existir
+            const mediaHtml = (msg.media && msg.media.url) ? renderMediaPlayer(msg.media) : '';
+            
+            // Conteúdo da mensagem (só mostra se não estiver vazio)
+            const contentHtml = (msg.content && msg.content.trim()) 
+                ? `<div style="font-size: 14.2px; color: #111b21; line-height: 1.4; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word; ${mediaHtml ? 'margin-top: 8px;' : ''}">${escapeHtml(msg.content)}</div>`
+                : '';
+            
+            // Se não há conteúdo nem mídia, mostra placeholder
+            const hasContent = (msg.content && msg.content.trim()) || mediaHtml;
+            if (!hasContent) {
+                // Pula mensagens completamente vazias
+                return;
+            }
+            
             html += `
                 <div class="message-bubble ${msg.direction}" 
                      data-message-id="${escapeHtml(msg.id || '')}"
@@ -1600,9 +1670,8 @@ function renderConversation(thread, messages, channel) {
                      style="margin-bottom: 6px; display: flex; ${isOutbound ? 'justify-content: flex-end;' : 'justify-content: flex-start;'}">
                     <div style="max-width: 72%; padding: 7px 12px; border-radius: 7.5px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto; border-bottom-right-radius: 2px;' : 'background: white; border-bottom-left-radius: 2px;'}">
                         ${channelIdHtml}
-                        <div style="font-size: 14.2px; color: #111b21; line-height: 1.4; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;">
-                            ${escapeHtml(msg.content || '')}
-                        </div>
+                        ${mediaHtml}
+                        ${contentHtml}
                         <div style="font-size: 11px; color: #667781; margin-top: 3px; text-align: right; padding-top: 2px; opacity: 0.8;">
                             ${timeStr}
                         </div>
@@ -1754,6 +1823,20 @@ function addMessageToPanel(message) {
     
     const isOutbound = direction === 'outbound';
     
+    // Renderiza mídia se existir
+    const mediaHtml = (message.media && message.media.url) ? renderMediaPlayer(message.media) : '';
+    
+    // Conteúdo da mensagem (só mostra se não estiver vazio)
+    const contentHtml = (content && content.trim()) 
+        ? `<div style="font-size: 14.2px; color: #111b21; line-height: 1.4; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word; ${mediaHtml ? 'margin-top: 8px;' : ''}">${escapeHtml(content)}</div>`
+        : '';
+    
+    // Se não há conteúdo nem mídia, não adiciona mensagem vazia
+    const hasContent = (content && content.trim()) || mediaHtml;
+    if (!hasContent) {
+        return;
+    }
+    
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message-bubble ' + direction;
     messageDiv.setAttribute('data-message-id', msgId);
@@ -1766,9 +1849,8 @@ function addMessageToPanel(message) {
     messageDiv.innerHTML = `
         <div style="max-width: 72%; padding: 7px 12px; border-radius: 7.5px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto; border-bottom-right-radius: 2px;' : 'background: white; border-bottom-left-radius: 2px;'}">
             ${channelIdHtml}
-            <div style="font-size: 14.2px; color: #111b21; line-height: 1.4; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;">
-                ${escapeHtml(content)}
-            </div>
+            ${mediaHtml}
+            ${contentHtml}
             <div style="font-size: 11px; color: #667781; margin-top: 3px; text-align: right; padding-top: 2px; opacity: 0.8;">
                 ${timeStr}
             </div>
