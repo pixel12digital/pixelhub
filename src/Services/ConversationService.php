@@ -101,6 +101,18 @@ class ConversationService
         
         if ($existing) {
             error_log('[HUB_CONV_MATCH] FOUND_CONVERSATION id=' . $existing['id'] . ' conversation_key=' . $conversationKey);
+            
+            // 🔍 LOG: Thread afetada antes de atualizar
+            $existingChannelId = $existing['channel_id'] ?? null;
+            $newChannelId = $channelInfo['channel_id'] ?? null;
+            error_log(sprintf(
+                '[HUB_THREAD_UPDATE] thread_id=%d | channel_id_atual=%s | channel_id_novo=%s | from=%s',
+                $existing['id'],
+                $existingChannelId ?: 'NULL',
+                $newChannelId ?: 'NULL',
+                $channelInfo['contact_external_id'] ?? 'NULL'
+            ));
+            
             // 🔍 LOG TEMPORÁRIO: Antes de atualizar
             error_log(sprintf(
                 '[DIAGNOSTICO] ConversationService::resolveConversation() - ANTES updateConversationMetadata: conversation_id=%d, last_message_at=%s, unread_count=%d',
@@ -579,35 +591,96 @@ class ConversationService
      */
     private static function extractChannelIdFromPayload(array $payload, ?array $metadata = null): ?string
     {
-        // Tenta obter de metadata primeiro (já normalizado)
+        // CORREÇÃO CRÍTICA: Prioridade máxima para sessionId (sessão real do gateway)
+        // Ordem de prioridade conforme especificação:
+        // 1. payload.sessionId (mais direto)
+        // 2. payload.metadata.sessionId (se metadata vier separado)
+        // 3. payload.session.id
+        // 4. payload.session.session
+        // 5. payload.data.session.id
+        // 6. payload.data.session.session
+        // 7. payload.channelId
+        // 8. payload.metadata.channel_id
+        // 9. payload.channel
+        // 10. payload.data.channel
+        // NÃO permite fallback para "ImobSites" ou qualquer valor arbitrário
+        
+        $channelId = null;
+        $source = null;
+        
+        // Prioridade 1: metadata (já normalizado pelo webhook)
         if ($metadata && isset($metadata['channel_id'])) {
             $channelId = (string) $metadata['channel_id'];
-            error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: encontrado em metadata: ' . $channelId);
+            $source = 'metadata.channel_id';
+        }
+        
+        // Prioridade 2-6: sessionId (sessão real do gateway)
+        if (!$channelId && isset($payload['sessionId'])) {
+            $channelId = (string) $payload['sessionId'];
+            $source = 'payload.sessionId';
+        }
+        if (!$channelId && isset($payload['metadata']['sessionId'])) {
+            $channelId = (string) $payload['metadata']['sessionId'];
+            $source = 'payload.metadata.sessionId';
+        }
+        if (!$channelId && isset($payload['session']['id'])) {
+            $channelId = (string) $payload['session']['id'];
+            $source = 'payload.session.id';
+        }
+        if (!$channelId && isset($payload['session']['session'])) {
+            $channelId = (string) $payload['session']['session'];
+            $source = 'payload.session.session';
+        }
+        if (!$channelId && isset($payload['data']['session']['id'])) {
+            $channelId = (string) $payload['data']['session']['id'];
+            $source = 'payload.data.session.id';
+        }
+        if (!$channelId && isset($payload['data']['session']['session'])) {
+            $channelId = (string) $payload['data']['session']['session'];
+            $source = 'payload.data.session.session';
+        }
+        
+        // Prioridade 7-10: channelId/channel (fallback, mas ainda válido)
+        if (!$channelId && isset($payload['channelId'])) {
+            $channelId = (string) $payload['channelId'];
+            $source = 'payload.channelId';
+        }
+        if (!$channelId && isset($payload['metadata']['channel_id'])) {
+            $channelId = (string) $payload['metadata']['channel_id'];
+            $source = 'payload.metadata.channel_id';
+        }
+        if (!$channelId && isset($payload['channel'])) {
+            $channelId = (string) $payload['channel'];
+            $source = 'payload.channel';
+        }
+        if (!$channelId && isset($payload['data']['channel'])) {
+            $channelId = (string) $payload['data']['channel'];
+            $source = 'payload.data.channel';
+        }
+        
+        if ($channelId) {
+            error_log(sprintf(
+                '[CONVERSATION UPSERT] extractChannelIdFromPayload: channel_id=%s | source=%s',
+                $channelId,
+                $source
+            ));
             return $channelId;
         }
         
-        // Tenta obter do payload (session.id ou channel)
-        $channelId = $payload['session']['id'] 
-            ?? $payload['session']['session'] 
-            ?? $payload['channel'] 
-            ?? $payload['channelId']
-            ?? ($payload['data']['session']['id'] ?? null)
-            ?? ($payload['data']['session']['session'] ?? null)
-            ?? null;
-        
-        if ($channelId) {
-            error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: encontrado no payload: ' . $channelId);
-        } else {
-            error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: NÃO encontrado. Payload keys: ' . implode(', ', array_keys($payload)));
-            if (isset($payload['session'])) {
-                error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: payload[session] keys: ' . implode(', ', array_keys($payload['session'])));
-            }
-            if (isset($payload['data'])) {
-                error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: payload[data] keys: ' . implode(', ', array_keys($payload['data'])));
-            }
+        // NÃO permite fallback - retorna NULL e loga erro
+        error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: INBOUND_MISSING_CHANNEL_ID - Nenhum sessionId/channelId encontrado');
+        error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: payload_keys=' . implode(', ', array_keys($payload)));
+        if (isset($payload['session'])) {
+            error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: payload[session]_keys=' . implode(', ', array_keys($payload['session'])));
+        }
+        if (isset($payload['data'])) {
+            error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: payload[data]_keys=' . implode(', ', array_keys($payload['data'])));
+        }
+        if (isset($payload['metadata'])) {
+            error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: payload[metadata]_keys=' . implode(', ', array_keys($payload['metadata'])));
         }
         
-        return $channelId ? (string) $channelId : null;
+        return null;
     }
 
     /**
@@ -921,27 +994,62 @@ class ConversationService
             }
 
             // CORREÇÃO CRÍTICA: Atualiza channel_id SEMPRE para eventos inbound
-            // Não permite fallback - se evento trouxe channel_id, ele é a fonte da verdade
+            // Regra: se channel_id extraído existir, atualizar sempre threads.channel_id (mesmo se já tiver valor)
+            // Isso resolve threads "nascidas erradas" (ex: ImobSites quando deveria ser pixel12digital)
             $channelId = $channelInfo['channel_id'] ?? null;
-            if ($channelId && ($channelInfo['direction'] ?? 'inbound') === 'inbound') {
-                // Sempre atualiza, mesmo se já existir (garante que está correto)
-                $updateChannelIdStmt = $db->prepare("
-                    UPDATE conversations 
-                    SET channel_id = ? 
-                    WHERE id = ? AND (channel_id IS NULL OR channel_id != ?)
-                ");
-                $updateChannelIdStmt->execute([$channelId, $conversationId, $channelId]);
+            $direction = $channelInfo['direction'] ?? 'inbound';
+            
+            if ($direction === 'inbound') {
+                // Busca channel_id atual da thread antes de atualizar (para log de comparação)
+                $currentChannelIdStmt = $db->prepare("SELECT channel_id FROM conversations WHERE id = ?");
+                $currentChannelIdStmt->execute([$conversationId]);
+                $currentChannelId = $currentChannelIdStmt->fetchColumn() ?: null;
                 
-                $rowsUpdated = $updateChannelIdStmt->rowCount();
-                if ($rowsUpdated > 0) {
-                    error_log('[CONVERSATION UPSERT] updateConversationMetadata: channel_id atualizado para: ' . $channelId . ' na conversation_id=' . $conversationId);
+                if ($channelId) {
+                    // Sempre atualiza, mesmo se já existir (garante que está correto)
+                    $updateChannelIdStmt = $db->prepare("
+                        UPDATE conversations 
+                        SET channel_id = ? 
+                        WHERE id = ?
+                    ");
+                    $updateChannelIdStmt->execute([$channelId, $conversationId]);
+                    
+                    $rowsUpdated = $updateChannelIdStmt->rowCount();
+                    if ($currentChannelId && $currentChannelId !== $channelId) {
+                        // Log quando channel_id foi corrigido (thread "curada")
+                        error_log(sprintf(
+                            '[CONVERSATION UPSERT] updateConversationMetadata: THREAD_CURED conversation_id=%d | channel_id_antigo=%s | channel_id_novo=%s | from=%s',
+                            $conversationId,
+                            $currentChannelId,
+                            $channelId,
+                            $channelInfo['contact_external_id'] ?? 'NULL'
+                        ));
+                    } elseif ($rowsUpdated > 0) {
+                        // Log quando channel_id foi definido pela primeira vez
+                        error_log(sprintf(
+                            '[CONVERSATION UPSERT] updateConversationMetadata: channel_id_definido conversation_id=%d | channel_id=%s | from=%s',
+                            $conversationId,
+                            $channelId,
+                            $channelInfo['contact_external_id'] ?? 'NULL'
+                        ));
+                    } else {
+                        // Log quando channel_id já estava correto
+                        error_log(sprintf(
+                            '[CONVERSATION UPSERT] updateConversationMetadata: channel_id_ok conversation_id=%d | channel_id=%s | from=%s',
+                            $conversationId,
+                            $channelId,
+                            $channelInfo['contact_external_id'] ?? 'NULL'
+                        ));
+                    }
                 } else {
-                    // Log quando channel_id já estava correto
-                    error_log('[CONVERSATION UPSERT] updateConversationMetadata: channel_id já estava correto: ' . $channelId . ' na conversation_id=' . $conversationId);
+                    // Log de aviso quando evento inbound não trouxe channel_id
+                    error_log(sprintf(
+                        '[CONVERSATION UPSERT] updateConversationMetadata: INBOUND_MISSING_CHANNEL_ID conversation_id=%d | from=%s | current_channel_id=%s',
+                        $conversationId,
+                        $channelInfo['contact_external_id'] ?? 'NULL',
+                        $currentChannelId ?: 'NULL'
+                    ));
                 }
-            } elseif (($channelInfo['direction'] ?? 'inbound') === 'inbound' && empty($channelId)) {
-                // Log de aviso quando evento inbound não trouxe channel_id
-                error_log('[CONVERSATION UPSERT] updateConversationMetadata: AVISO - evento inbound sem channel_id na conversation_id=' . $conversationId);
             }
 
             // Atualiza remote_key, contact_key, thread_key se fornecidos (arquitetura nova)

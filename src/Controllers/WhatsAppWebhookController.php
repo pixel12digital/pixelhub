@@ -167,31 +167,89 @@ class WhatsAppWebhookController extends Controller
                 exit;
             }
 
-            // Extrai channel (para identificar tenant) - tenta múltiplas localizações
-            // Se já foi extraído no log inicial, reutiliza; senão, extrai novamente
-            if (!isset($channelId)) {
-                $channelId = $payload['channel'] 
-                    ?? $payload['channelId'] 
-                    ?? $payload['session']['id'] 
-                    ?? $payload['session']['session']
-                    ?? $payload['data']['session']['id'] ?? null
-                    ?? $payload['data']['session']['session'] ?? null
-                    ?? $payload['data']['channel'] ?? null
-                    ?? null;
+            // 🔍 INSTRUMENTAÇÃO CRÍTICA: Rastreamento detalhado da origem do channel_id
+            // Extrai valores de todas as possíveis localizações para log
+            $sessionIdFromPayload = $payload['sessionId'] ?? null;
+            $sessionIdFromSession = $payload['session']['id'] ?? null;
+            $sessionIdFromSessionSession = $payload['session']['session'] ?? null;
+            $sessionIdFromData = $payload['data']['session']['id'] ?? null;
+            $sessionIdFromDataSession = $payload['data']['session']['session'] ?? null;
+            $channelIdFromPayload = $payload['channelId'] ?? null;
+            $channelIdFromChannel = $payload['channel'] ?? null;
+            $channelIdFromData = $payload['data']['channel'] ?? null;
+            $channelIdFromMetadata = $payload['metadata']['channel_id'] ?? $payload['metadata']['sessionId'] ?? null;
+            
+            // PRIORIDADE: sessionId primeiro (sessão real do gateway), depois channelId
+            // Ordem de prioridade conforme especificação
+            $channelId = null;
+            $channelIdSource = null;
+            
+            if ($sessionIdFromPayload) {
+                $channelId = (string) $sessionIdFromPayload;
+                $channelIdSource = 'payload.sessionId';
+            } elseif ($sessionIdFromSession) {
+                $channelId = (string) $sessionIdFromSession;
+                $channelIdSource = 'payload.session.id';
+            } elseif ($sessionIdFromSessionSession) {
+                $channelId = (string) $sessionIdFromSessionSession;
+                $channelIdSource = 'payload.session.session';
+            } elseif ($sessionIdFromData) {
+                $channelId = (string) $sessionIdFromData;
+                $channelIdSource = 'payload.data.session.id';
+            } elseif ($sessionIdFromDataSession) {
+                $channelId = (string) $sessionIdFromDataSession;
+                $channelIdSource = 'payload.data.session.session';
+            } elseif ($channelIdFromMetadata) {
+                $channelId = (string) $channelIdFromMetadata;
+                $channelIdSource = 'payload.metadata.channel_id/sessionId';
+            } elseif ($channelIdFromPayload) {
+                $channelId = (string) $channelIdFromPayload;
+                $channelIdSource = 'payload.channelId';
+            } elseif ($channelIdFromChannel) {
+                $channelId = (string) $channelIdFromChannel;
+                $channelIdSource = 'payload.channel';
+            } elseif ($channelIdFromData) {
+                $channelId = (string) $channelIdFromData;
+                $channelIdSource = 'payload.data.channel';
             }
             
-            // 🔍 PASSO 3: IDENTIFICAÇÃO DO CANAL - Log obrigatório
-            if (!$channelId) {
-                error_log('[HUB_CHANNEL_ID] MISSING_CHANNEL_ID - channel_id não encontrado no payload. Payload keys: ' . implode(', ', array_keys($payload)));
+            // 🔍 LOG DETALHADO: Origem do channel_id
+            $fromId = $from ?? 'NULL';
+            $toId = $payload['to'] ?? $payload['message']['to'] ?? $payload['data']['to'] ?? 'NULL';
+            
+            if ($channelId) {
+                error_log(sprintf(
+                    '[HUB_CHANNEL_ID_EXTRACTION] channel_id=%s | source=%s | from=%s | to=%s | eventType=%s',
+                    $channelId,
+                    $channelIdSource,
+                    $fromId,
+                    $toId,
+                    $eventType
+                ));
+                error_log(sprintf(
+                    '[HUB_CHANNEL_ID_EXTRACTION] valores_verificados: sessionId.payload=%s | session.id=%s | session.session=%s | data.session.id=%s | data.session.session=%s | metadata.channel_id=%s | channelId=%s | channel=%s | data.channel=%s',
+                    $sessionIdFromPayload ?: 'NULL',
+                    $sessionIdFromSession ?: 'NULL',
+                    $sessionIdFromSessionSession ?: 'NULL',
+                    $sessionIdFromData ?: 'NULL',
+                    $sessionIdFromDataSession ?: 'NULL',
+                    $channelIdFromMetadata ?: 'NULL',
+                    $channelIdFromPayload ?: 'NULL',
+                    $channelIdFromChannel ?: 'NULL',
+                    $channelIdFromData ?: 'NULL'
+                ));
+            } else {
+                error_log('[HUB_CHANNEL_ID_EXTRACTION] INBOUND_MISSING_CHANNEL_ID - Nenhum sessionId/channelId encontrado no payload');
+                error_log('[HUB_CHANNEL_ID_EXTRACTION] payload_keys: ' . implode(', ', array_keys($payload)));
                 if (isset($payload['session'])) {
-                    error_log('[HUB_CHANNEL_ID] payload[session] keys: ' . implode(', ', array_keys($payload['session'])));
+                    error_log('[HUB_CHANNEL_ID_EXTRACTION] payload[session]_keys: ' . implode(', ', array_keys($payload['session'])));
                 }
                 if (isset($payload['data'])) {
-                    error_log('[HUB_CHANNEL_ID] payload[data] keys: ' . implode(', ', array_keys($payload['data'])));
+                    error_log('[HUB_CHANNEL_ID_EXTRACTION] payload[data]_keys: ' . implode(', ', array_keys($payload['data'])));
                 }
-                // Não bloqueia, mas loga explicitamente
-            } else {
-                error_log('[HUB_CHANNEL_ID] channel_id encontrado: ' . $channelId);
+                if (isset($payload['metadata'])) {
+                    error_log('[HUB_CHANNEL_ID_EXTRACTION] payload[metadata]_keys: ' . implode(', ', array_keys($payload['metadata'])));
+                }
             }
 
             // Tenta resolver tenant_id pelo channel
