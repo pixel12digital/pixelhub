@@ -350,10 +350,23 @@ class ConversationService
                 }
             }
             
-            // Validação final
-            if (!$contactExternalId) {
+            // CORREÇÃO: Se for @lid e não encontrou mapeamento, usa o @lid como contact_external_id
+            // Isso permite criar conversa mesmo sem mapeamento (arquitetura remote_key)
+            if (!$contactExternalId && $rawFrom && strpos($rawFrom, '@lid') !== false) {
+                $contactExternalId = $rawFrom; // Usa @lid direto se não conseguiu mapear
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando @lid como contact_external_id (sem mapeamento): ' . $contactExternalId);
+            }
+            
+            // Validação final: só retorna NULL se realmente não tem nenhum identificador
+            if (!$contactExternalId && !$rawFrom) {
                 error_log('[CONVERSATION UPSERT] extractChannelInfo: ERRO - Não foi possível extrair contact_external_id válido. RawFrom: ' . ($rawFrom ?: 'NULL') . ', IsGroup: ' . ($isGroup ? 'SIM' : 'NÃO'));
                 return null;
+            }
+            
+            // Se ainda não tem contactExternalId mas tem rawFrom, usa rawFrom como fallback final
+            if (!$contactExternalId && $rawFrom) {
+                $contactExternalId = $rawFrom;
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando rawFrom como contact_external_id (fallback final): ' . $contactExternalId);
             }
             
             error_log('[CONVERSATION UPSERT] extractChannelInfo: contact_external_id final: ' . $contactExternalId . ' (tipo: ' . ($isLidId ? '@lid' : ($isNumericJid ? 'JID numérico' : 'outro')) . ')');
