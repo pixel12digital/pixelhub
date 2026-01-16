@@ -70,6 +70,11 @@ $baseUrl = pixelhub_url('');
                          data-timestamp="<?= htmlspecialchars($msgTimestamp) ?>"
                          style="margin-bottom: 15px; display: flex; <?= $isOutbound ? 'justify-content: flex-end;' : '' ?>">
                         <div style="max-width: 70%; padding: 12px 16px; border-radius: 18px; <?= $isOutbound ? 'background: #dcf8c6; margin-left: auto;' : 'background: white;' ?>">
+                            <?php if (!empty($msg['channel_id'])): ?>
+                                <div style="font-size: 10px; color: #666; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    <?= htmlspecialchars($msg['channel_id']) ?>
+                                </div>
+                            <?php endif; ?>
                             <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%;">
                                 <?= htmlspecialchars($msg['content'] ?? '') ?>
                             </div>
@@ -204,8 +209,12 @@ function addMessageElementToDOM(message) {
     messageDiv.setAttribute('data-timestamp', timestamp);
     messageDiv.style.cssText = 'margin-bottom: 15px; display: flex; ' + (isOutbound ? 'justify-content: flex-end;' : '');
     
+    const channelId = message.channel_id || '';
+    const channelIdHtml = channelId ? `<div style="font-size: 10px; color: #666; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${escapeHtml(channelId)}</div>` : '';
+    
     messageDiv.innerHTML = `
         <div style="max-width: 70%; padding: 12px 16px; border-radius: 18px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto;' : 'background: white;'}">
+            ${channelIdHtml}
             <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%;">
                 ${escapeHtml(content)}
             </div>

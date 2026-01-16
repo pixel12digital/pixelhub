@@ -1592,17 +1592,31 @@ class CommunicationHubController extends Controller
             // Sanitiza mensagens muito longas sem quebra (ex: base64/tokens)
             $content = self::sanitizeLongMessage($content);
             
+            // Extrai channel_id do payload ou metadata
+            $eventMetadata = json_decode($event['metadata'] ?? '{}', true);
+            $eventChannelId = $payload['channel_id'] 
+                ?? $payload['channel'] 
+                ?? $payload['session']['id'] 
+                ?? $payload['session']['session']
+                ?? $payload['data']['session']['id'] ?? null
+                ?? $payload['data']['session']['session'] ?? null
+                ?? $payload['data']['channel'] ?? null
+                ?? $eventMetadata['channel_id'] ?? null
+                ?? $eventMetadata['channel'] ?? null
+                ?? $sessionId; // Fallback: usa channel_id da conversa
+            
             $messages[] = [
                 'id' => $event['event_id'],
                 'direction' => $direction,
                 'content' => $content,
                 'timestamp' => $event['created_at'],
-                'metadata' => json_decode($event['metadata'] ?? '{}', true),
+                'metadata' => $eventMetadata,
                 'from_raw' => $eventFrom,
                 'to_raw' => $eventTo,
                 'from_e164' => $normalizedFrom,
                 'to_e164' => $normalizedTo,
-                'is_inbound' => ($direction === 'inbound')
+                'is_inbound' => ($direction === 'inbound'),
+                'channel_id' => $eventChannelId // Identifica qual sessão recebeu/enviou
             ];
         }
         

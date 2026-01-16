@@ -1585,12 +1585,16 @@ function renderConversation(thread, messages, channel) {
                           String(msgDate.getHours()).padStart(2, '0') + ':' + 
                           String(msgDate.getMinutes()).padStart(2, '0');
             
+            const channelId = msg.channel_id || '';
+            const channelIdHtml = channelId ? `<div style="font-size: 10px; color: #667781; margin-bottom: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7;">${escapeHtml(channelId)}</div>` : '';
+            
             html += `
                 <div class="message-bubble ${msg.direction}" 
                      data-message-id="${escapeHtml(msg.id || '')}"
                      data-timestamp="${escapeHtml(msg.timestamp || '')}"
                      style="margin-bottom: 6px; display: flex; ${isOutbound ? 'justify-content: flex-end;' : 'justify-content: flex-start;'}">
                     <div style="max-width: 72%; padding: 7px 12px; border-radius: 7.5px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto; border-bottom-right-radius: 2px;' : 'background: white; border-bottom-left-radius: 2px;'}">
+                        ${channelIdHtml}
                         <div style="font-size: 14.2px; color: #111b21; line-height: 1.4; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;">
                             ${escapeHtml(msg.content || '')}
                         </div>
@@ -1751,8 +1755,12 @@ function addMessageToPanel(message) {
     messageDiv.setAttribute('data-timestamp', timestamp);
     messageDiv.style.cssText = 'margin-bottom: 6px; display: flex; ' + (isOutbound ? 'justify-content: flex-end;' : 'justify-content: flex-start;');
     
+    const channelId = message.channel_id || '';
+    const channelIdHtml = channelId ? `<div style="font-size: 10px; color: #667781; margin-bottom: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7;">${escapeHtml(channelId)}</div>` : '';
+    
     messageDiv.innerHTML = `
         <div style="max-width: 72%; padding: 7px 12px; border-radius: 7.5px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto; border-bottom-right-radius: 2px;' : 'background: white; border-bottom-left-radius: 2px;'}">
+            ${channelIdHtml}
             <div style="font-size: 14.2px; color: #111b21; line-height: 1.4; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;">
                 ${escapeHtml(content)}
             </div>
