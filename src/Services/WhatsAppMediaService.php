@@ -436,11 +436,9 @@ class WhatsAppMediaService
             return pixelhub_url('/communication-hub/media?path=' . urlencode($storedPath));
         }
         
-        // Fallback se pixelhub_url não estiver disponível
-        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
-        $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        // Fallback: usa URL relativa (funciona melhor em diferentes ambientes)
         $basePath = defined('BASE_PATH') ? BASE_PATH : '';
-        return $protocol . $domainName . $basePath . '/communication-hub/media?path=' . urlencode($storedPath);
+        return $basePath . '/communication-hub/media?path=' . urlencode($storedPath);
     }
     
     /**
@@ -506,6 +504,12 @@ class WhatsAppMediaService
             return null;
         }
         
+        // Gera URL da mídia (sempre atualiza para garantir URL correta)
+        $mediaUrl = null;
+        if (!empty($media['stored_path'])) {
+            $mediaUrl = self::getMediaUrl($media['stored_path']);
+        }
+        
         return [
             'id' => $media['id'],
             'event_id' => $media['event_id'],
@@ -514,7 +518,7 @@ class WhatsAppMediaService
             'stored_path' => $media['stored_path'],
             'file_name' => $media['file_name'],
             'file_size' => $media['file_size'],
-            'url' => $media['stored_path'] ? self::getMediaUrl($media['stored_path']) : null
+            'url' => $mediaUrl
         ];
     }
 }
