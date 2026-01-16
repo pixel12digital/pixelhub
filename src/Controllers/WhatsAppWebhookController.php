@@ -46,7 +46,17 @@ class WhatsAppWebhookController extends Controller
                 ?? $payload['data']['channel'] ?? null
                 ?? null;
             $tenantId = null; // Será resolvido depois, mas logamos se vier no payload
-            $from = $payload['from'] ?? $payload['message']['from'] ?? $payload['data']['from'] ?? null;
+            // Extrai 'from' de múltiplos caminhos possíveis (melhorado para cobrir todos os formatos)
+            $from = $payload['from'] 
+                ?? $payload['message']['from'] 
+                ?? $payload['data']['from']
+                ?? $payload['raw']['payload']['from']
+                ?? $payload['message']['key']['remoteJid']
+                ?? $payload['data']['key']['remoteJid']
+                ?? $payload['raw']['payload']['key']['remoteJid']
+                ?? $payload['message']['key']['participant']
+                ?? $payload['data']['key']['participant']
+                ?? null;
             $messageId = $payload['id'] 
                 ?? $payload['messageId'] 
                 ?? $payload['message_id'] 

@@ -223,13 +223,25 @@ class ConversationService
             $direction = strpos($eventType, 'inbound') !== false ? 'inbound' : 'outbound';
             
             // Tenta extrair de múltiplas fontes (ordem de prioridade)
+            // IMPORTANTE: WhatsApp Web API pode usar diferentes estruturas dependendo do tipo de mensagem
             $rawFrom = null;
             if ($direction === 'inbound') {
+                // Caminhos principais (mais comuns)
                 $rawFrom = $payload['message']['from'] 
                     ?? $payload['from'] 
                     ?? $payload['data']['from'] 
                     ?? $payload['raw']['payload']['from']
-                    ?? $payload['raw']['from'] ?? null;
+                    ?? $payload['raw']['from']
+                    // Caminhos alternativos: message.key.remoteJid (comum no WhatsApp Web API)
+                    ?? $payload['message']['key']['remoteJid']
+                    ?? $payload['data']['key']['remoteJid']
+                    ?? $payload['raw']['payload']['key']['remoteJid']
+                    // Para grupos: message.key.participant
+                    ?? $payload['message']['key']['participant']
+                    ?? $payload['data']['key']['participant']
+                    ?? $payload['raw']['payload']['key']['participant']
+                    // Fallback: verifica em message.body se houver
+                    ?? null;
                     
                 $contactName = $payload['message']['notifyName'] 
                     ?? $payload['raw']['payload']['notifyName'] 
@@ -278,9 +290,19 @@ class ConversationService
                 error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando forwardedFrom: ' . $rawFrom);
             }
             
+            // ÚLTIMA TENTATIVA: Busca recursivamente campos que podem conter o número
+            // Alguns gateways/envios podem ter estrutura diferente
+            if (!$rawFrom) {
+                $rawFrom = self::findPhoneOrJidRecursively($payload);
+                if ($rawFrom) {
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Encontrado via busca recursiva: ' . $rawFrom);
+                }
+            }
+            
             // Se não tem from válido, retorna erro específico
             if (!$rawFrom) {
                 error_log('[CONVERSATION UPSERT] extractChannelInfo: ERRO - Payload sem from válido. Payload keys: ' . implode(', ', array_keys($payload)));
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: Payload completo (primeiros 800 chars): ' . substr(json_encode($payload, JSON_UNESCAPED_UNICODE), 0, 800));
                 return null; // Será tratado como failed_missing_from
             }
             
@@ -1117,6 +1139,57 @@ class ConversationService
             error_log("[ConversationService] Erro ao atualizar channel_account_id: " . $e->getMessage());
             // Não quebra fluxo se falhar
         }
+    }
+
+    /**
+     * Busca recursivamente por campos que podem conter número de telefone ou JID
+     * Útil quando o payload tem estrutura não padrão
+     * 
+     * @param array|mixed $data Dados para buscar
+     * @param int $depth Profundidade atual (evita recursão infinita)
+     * @return string|null Número/JID encontrado ou null
+     */
+    private static function findPhoneOrJidRecursively($data, int $depth = 0): ?string
+    {
+        // Limita profundidade para evitar recursão infinita
+        if ($depth > 5) {
+            return null;
+        }
+        
+        // Se não é array, verifica se é string que parece número/JID
+        if (!is_array($data)) {
+            if (is_string($data) && !empty($data)) {
+                // Verifica se parece um JID ou número de telefone
+                if (strpos($data, '@') !== false || preg_match('/^[0-9]{10,}$/', $data)) {
+                    return $data;
+                }
+            }
+            return null;
+        }
+        
+        // Procura por chaves que geralmente contêm número/JID
+        $phoneKeys = ['from', 'to', 'remoteJid', 'participant', 'author', 'jid', 'phone', 'number', 'sender'];
+        foreach ($phoneKeys as $key) {
+            if (isset($data[$key]) && is_string($data[$key]) && !empty($data[$key])) {
+                $value = $data[$key];
+                // Verifica se parece um JID ou número válido
+                if (strpos($value, '@') !== false || preg_match('/^[0-9]{10,}$/', $value)) {
+                    return $value;
+                }
+            }
+        }
+        
+        // Busca recursivamente em arrays aninhados
+        foreach ($data as $value) {
+            if (is_array($value)) {
+                $found = self::findPhoneOrJidRecursively($value, $depth + 1);
+                if ($found) {
+                    return $found;
+                }
+            }
+        }
+        
+        return null;
     }
 }
 
