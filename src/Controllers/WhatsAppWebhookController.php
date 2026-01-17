@@ -430,12 +430,15 @@ class WhatsAppWebhookController extends Controller
         $allChannels = $debugStmt->fetchAll();
         error_log('[WHATSAPP INBOUND RAW] Channels disponíveis no banco: ' . json_encode($allChannels, JSON_UNESCAPED_UNICODE));
         
+        // CORREÇÃO: ORDER BY id ASC garante ordem determinística
+        // Prioriza registro mais antigo (tenant original) se houver duplicidade futura
         $stmt = $db->prepare("
             SELECT tenant_id 
             FROM tenant_message_channels 
             WHERE provider = 'wpp_gateway' 
             AND channel_id = ? 
             AND is_enabled = 1
+            ORDER BY id ASC
             LIMIT 1
         ");
         $stmt->execute([$channelId]);

@@ -115,3 +115,4 @@ if ($stmt->rowCount() > 0) {
 
 echo "=== Fim do diagnóstico ===\n";
 
+

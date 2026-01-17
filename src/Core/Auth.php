@@ -123,6 +123,19 @@ class Auth
     {
         self::requireAuth();
         
+        // PATCH D: Marcar que Auth foi atingido
+        if (strpos($_SERVER['REQUEST_URI'] ?? '', '/communication-hub/send') !== false) {
+            header('X-PixelHub-Stage: auth-check');
+        }
+        
+        // PATCH C: Log diagnóstico antes da verificação
+        error_log('[Auth::requireInternal] CHECK');
+        error_log('[Auth::requireInternal] Accept=' . ($_SERVER['HTTP_ACCEPT'] ?? ''));
+        error_log('[Auth::requireInternal] XRW=' . ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''));
+        error_log('[Auth::requireInternal] URI=' . ($_SERVER['REQUEST_URI'] ?? ''));
+        error_log('[Auth::requireInternal] SESSION=' . session_id());
+        error_log('[Auth::requireInternal] isInternal=' . (self::isInternal() ? 'YES' : 'NO'));
+        
         if (!self::isInternal()) {
             // Verifica se é requisição AJAX/JSON (Content-Type ou Accept header)
             $isJsonRequest = (
@@ -131,7 +144,14 @@ class Auth
                 (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
             );
             
+            error_log('[Auth::requireInternal] NEGADO - isJsonRequest=' . ($isJsonRequest ? 'YES' : 'NO'));
+            
             if ($isJsonRequest) {
+                // PATCH D: Marcar que Auth negou acesso
+                if (strpos($_SERVER['REQUEST_URI'] ?? '', '/communication-hub/send') !== false) {
+                    header('X-PixelHub-Stage: auth-denied');
+                }
+                
                 // Limpa output buffer antes de enviar JSON
                 while (ob_get_level() > 0) {
                     @ob_end_clean();
@@ -140,7 +160,9 @@ class Auth
                 header('Content-Type: application/json; charset=utf-8');
                 echo json_encode([
                     'success' => false,
-                    'error' => 'Acesso negado. Apenas usuários internos podem acessar esta área.'
+                    'error' => 'Nao autorizado (requireInternal)',
+                    'error_code' => 'NOT_INTERNAL',
+                    'debug' => null
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 exit;
             }
@@ -150,6 +172,13 @@ class Auth
             echo "Acesso negado. Apenas usuários internos podem acessar esta área.";
             exit;
         }
+        
+        // PATCH D: Marcar que Auth autorizou acesso
+        if (strpos($_SERVER['REQUEST_URI'] ?? '', '/communication-hub/send') !== false) {
+            header('X-PixelHub-Stage: auth-authorized');
+        }
+        
+        error_log('[Auth::requireInternal] AUTORIZADO');
     }
 }
 

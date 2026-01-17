@@ -1,0 +1,30 @@
+========================================
+BLOCO 1: Comparar onMessage no gateway-wrapper
+(Comandos independentes - pode executar tudo de uma vez)
+========================================
+
+# 1. Comparar onMessage entre ImobSites e pixel12digital no gateway-wrapper
+docker logs gateway-wrapper --since 10m | grep -i "onmessage" | grep -iE "(ImobSites|pixel12digital)" | tail -30
+
+# 2. Verificar todos os eventos recebidos pelo gateway-wrapper (últimos 5 min)
+docker logs gateway-wrapper --since 5m | grep -iE "(Received webhook event|onmessage|onpresencechanged|onack)" | grep -iE "(ImobSites|pixel12digital)" | tail -40
+
+========================================
+BLOCO 2: Verificar emissão de onMessage no WPPConnect
+(Comandos independentes - pode executar tudo de uma vez)
+========================================
+
+# 3. Verificar se WPPConnect está emitindo onMessage para pixel12digital
+docker logs wppconnect-server --since 10m | grep -i "pixel12digital" | grep -iE "(Emitting onMessage|onMessage|message)" | tail -30
+
+# 4. Comparar emissão de onMessage: ImobSites vs pixel12digital no WPPConnect
+docker logs wppconnect-server --since 10m | grep -iE "Emitting onMessage|onMessage" | grep -iE "(ImobSites|pixel12digital)" | tail -30
+
+========================================
+BLOCO 3: Verificar configuração de listeners no WPPConnect
+(Comando independente - pode executar junto com o bloco anterior)
+========================================
+
+# 5. Verificar configuração de webhook/listeners no WPPConnect (últimas 2 horas)
+docker logs wppconnect-server --since 2h | grep -iE "(Registering onMessage|webhook|listener)" | grep -iE "(ImobSites|pixel12digital)" | tail -30
+

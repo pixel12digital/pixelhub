@@ -146,3 +146,4 @@ if (!$mediaFound) {
 
 echo "\n=== Fim da Verificação ===\n";
 
+

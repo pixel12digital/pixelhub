@@ -243,3 +243,4 @@ O WPP Connect pode usar formatos diferentes de payload. O código foi ajustado p
 
 Se o formato do WPP Connect for diferente, ajuste em `WhatsAppMediaService::processMediaFromEvent()`.
 
+

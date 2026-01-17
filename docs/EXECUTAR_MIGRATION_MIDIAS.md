@@ -109,3 +109,4 @@ echo "Reprocessamento concluído!\n";
 3. Teste enviando uma nova mídia pelo WhatsApp
 4. Verifique se a mídia aparece no Pixel Hub
 
+

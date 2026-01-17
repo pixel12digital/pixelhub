@@ -1,0 +1,16 @@
+========================================
+COMANDOS PARA EXECUTAR AGORA (após mensagem enviada)
+========================================
+
+# 1. Verificar se WPPConnect emitiu onMessage para pixel12digital (últimos 2 minutos)
+docker logs wppconnect-server --since 2m | grep -i "pixel12digital" | grep -iE "(Emitting onMessage|onMessage|message)" | tail -20
+
+# 2. Verificar se gateway-wrapper recebeu onMessage para pixel12digital (últimos 2 minutos)
+docker logs gateway-wrapper --since 2m | grep -i "pixel12digital" | grep -iE "(onmessage|Received webhook event)" | tail -20
+
+# 3. Verificar TODOS os eventos recentes para pixel12digital no WPPConnect (últimos 2 minutos)
+docker logs wppconnect-server --since 2m | grep -i "pixel12digital" | tail -30
+
+# 4. Verificar TODOS os eventos recentes para pixel12digital no gateway-wrapper (últimos 2 minutos)
+docker logs gateway-wrapper --since 2m | grep -i "pixel12digital" | tail -30
+

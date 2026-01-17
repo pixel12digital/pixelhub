@@ -255,23 +255,46 @@ class WhatsAppGatewayTestController extends Controller
         Auth::requireInternal();
         header('Content-Type: application/json');
 
+        // 🔍 LOG DETALHADO: Dados recebidos do formulário
+        error_log("[WhatsAppGatewayTest::sendTest] ===== INÍCIO VALIDAÇÃO =====");
+        error_log("[WhatsAppGatewayTest::sendTest] \$_POST completo: " . json_encode($_POST, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        
         $channelId = trim($_POST['channel_id'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
         $message = trim($_POST['message'] ?? '');
         $tenantId = isset($_POST['tenant_id']) ? (int) $_POST['tenant_id'] : null;
 
+        error_log("[WhatsAppGatewayTest::sendTest] channel_id (após trim): '{$channelId}' (vazio: " . (empty($channelId) ? 'SIM' : 'NÃO') . ")");
+        error_log("[WhatsAppGatewayTest::sendTest] phone (após trim): '{$phone}' (vazio: " . (empty($phone) ? 'SIM' : 'NÃO') . ")");
+        error_log("[WhatsAppGatewayTest::sendTest] message (após trim): '{$message}' (vazio: " . (empty($message) ? 'SIM' : 'NÃO') . ")");
+        error_log("[WhatsAppGatewayTest::sendTest] tenant_id: " . ($tenantId ?: 'NULL'));
+
         if (empty($channelId) || empty($phone) || empty($message)) {
+            $missingFields = [];
+            if (empty($channelId)) $missingFields[] = 'channel_id';
+            if (empty($phone)) $missingFields[] = 'phone';
+            if (empty($message)) $missingFields[] = 'message';
+            
+            error_log("[WhatsAppGatewayTest::sendTest] ❌ ERRO 400: Campos obrigatórios faltando: " . implode(', ', $missingFields));
+            error_log("[WhatsAppGatewayTest::sendTest] ===== FIM VALIDAÇÃO (ERRO) =====");
             $this->json(['success' => false, 'error' => 'channel_id, phone e message são obrigatórios'], 400);
             return;
         }
 
         try {
             // Normaliza telefone
+            error_log("[WhatsAppGatewayTest::sendTest] Normalizando telefone: '{$phone}'");
             $phoneNormalized = WhatsAppBillingService::normalizePhone($phone);
+            error_log("[WhatsAppGatewayTest::sendTest] Telefone normalizado: " . ($phoneNormalized ?: 'NULL'));
+            
             if (empty($phoneNormalized)) {
+                error_log("[WhatsAppGatewayTest::sendTest] ❌ ERRO 400: Telefone inválido após normalização");
+                error_log("[WhatsAppGatewayTest::sendTest] ===== FIM VALIDAÇÃO (ERRO) =====");
                 $this->json(['success' => false, 'error' => 'Telefone inválido'], 400);
                 return;
             }
+            
+            error_log("[WhatsAppGatewayTest::sendTest] ✅ Validações básicas passaram");
 
             // Obtém secret descriptografado usando helper (mesma lógica do listChannels)
             $gatewayConfig = $this->getGatewayConfig();
@@ -290,6 +313,15 @@ class WhatsAppGatewayTestController extends Controller
             error_log("[WhatsAppGatewayTest::sendTest] Verificando status do canal: {$channelId}");
             $channelInfo = $gateway->getChannel($channelId);
             
+            // 🔍 LOG DETALHADO: Estrutura completa da resposta do gateway
+            error_log("[WhatsAppGatewayTest::sendTest] ===== LOG DETALHADO STATUS CANAL =====");
+            error_log("[WhatsAppGatewayTest::sendTest] channel_id: {$channelId}");
+            error_log("[WhatsAppGatewayTest::sendTest] channelInfo completo: " . json_encode($channelInfo, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+            error_log("[WhatsAppGatewayTest::sendTest] channelInfo['success']: " . ($channelInfo['success'] ?? 'NULL'));
+            error_log("[WhatsAppGatewayTest::sendTest] channelInfo['status'] (HTTP): " . ($channelInfo['status'] ?? 'NULL'));
+            error_log("[WhatsAppGatewayTest::sendTest] channelInfo['error']: " . ($channelInfo['error'] ?? 'NULL'));
+            error_log("[WhatsAppGatewayTest::sendTest] channelInfo['raw'] existe: " . (isset($channelInfo['raw']) ? 'SIM' : 'NÃO'));
+            
             // LOG TEMPORÁRIO: resultado da verificação de status
             $statusCheckSuccess = $channelInfo['success'] ?? false;
             $statusCheckHttpCode = $channelInfo['status'] ?? 'N/A';
@@ -298,8 +330,41 @@ class WhatsAppGatewayTestController extends Controller
             
             if ($channelInfo['success']) {
                 $channelData = $channelInfo['raw'] ?? [];
-                $sessionStatus = $channelData['status'] ?? $channelData['connection'] ?? null;
+                
+                // 🔍 LOG DETALHADO: Estrutura completa do channelData (raw)
+                error_log("[WhatsAppGatewayTest::sendTest] channelData (raw) completo: " . json_encode($channelData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                error_log("[WhatsAppGatewayTest::sendTest] channelData keys: " . implode(', ', array_keys($channelData)));
+                
+                // Verifica TODOS os campos possíveis onde o status pode estar
+                $possibleStatusFields = [
+                    'status' => $channelData['status'] ?? null,
+                    'channel.status' => $channelData['channel']['status'] ?? null,
+                    'channel.connection' => $channelData['channel']['connection'] ?? null,
+                    'connection' => $channelData['connection'] ?? null,
+                    'connected' => $channelData['connected'] ?? null,
+                    'session.status' => $channelData['session']['status'] ?? null,
+                    'session.connection' => $channelData['session']['connection'] ?? null,
+                    'data.status' => $channelData['data']['status'] ?? null,
+                    'data.connection' => $channelData['data']['connection'] ?? null,
+                ];
+                
+                error_log("[WhatsAppGatewayTest::sendTest] Campos de status possíveis:");
+                foreach ($possibleStatusFields as $field => $value) {
+                    error_log("[WhatsAppGatewayTest::sendTest]   - {$field}: " . ($value !== null ? var_export($value, true) : 'NULL'));
+                }
+                
+                // Lógica corrigida: prioriza channel.status (estrutura real do gateway)
+                $sessionStatus = $channelData['channel']['status'] 
+                    ?? $channelData['channel']['connection'] 
+                    ?? $channelData['status'] 
+                    ?? $channelData['connection'] 
+                    ?? null;
                 $isConnected = ($sessionStatus === 'connected' || $sessionStatus === 'open' || $channelData['connected'] ?? false);
+                
+                // 🔍 LOG DETALHADO: Resultado da verificação
+                error_log("[WhatsAppGatewayTest::sendTest] sessionStatus extraído: " . ($sessionStatus ?? 'NULL'));
+                error_log("[WhatsAppGatewayTest::sendTest] channelData['connected'] (boolean): " . ($channelData['connected'] ?? 'NULL'));
+                error_log("[WhatsAppGatewayTest::sendTest] isConnected calculado: " . ($isConnected ? 'true' : 'false'));
                 
                 // LOG TEMPORÁRIO: dados do canal
                 error_log("[WhatsAppGatewayTest::sendTest] Canal data: " . json_encode([
@@ -310,7 +375,8 @@ class WhatsAppGatewayTestController extends Controller
                 
                 if (!$isConnected) {
                     // Sessão desconectada - retorna erro antes de tentar enviar
-                    error_log("[WhatsAppGatewayTest::sendTest] ERRO: Sessão desconectada - status: {$sessionStatus}");
+                    error_log("[WhatsAppGatewayTest::sendTest] ⚠️ ERRO: Sessão desconectada - sessionStatus={$sessionStatus}, connected=" . ($channelData['connected'] ?? 'NULL'));
+                    error_log("[WhatsAppGatewayTest::sendTest] ===== FIM LOG DETALHADO STATUS CANAL =====");
                     $this->json([
                         'success' => false,
                         'status' => 400,
@@ -319,12 +385,17 @@ class WhatsAppGatewayTestController extends Controller
                         'channel_id' => $channelId
                     ], 400);
                     return;
+                } else {
+                    error_log("[WhatsAppGatewayTest::sendTest] ✅ Sessão conectada - permitindo envio");
                 }
+                
+                error_log("[WhatsAppGatewayTest::sendTest] ===== FIM LOG DETALHADO STATUS CANAL =====");
             } else {
                 // Se não conseguir verificar status, tenta enviar mesmo assim (não-bloqueante)
                 // Mas loga o aviso
                 $errorMsg = $channelInfo['error'] ?? 'Erro desconhecido ao verificar status';
                 error_log("[WhatsAppGatewayTest::sendTest] AVISO: Não foi possível verificar status do canal ({$errorMsg}), mas tentando enviar mesmo assim");
+                error_log("[WhatsAppGatewayTest::sendTest] ===== FIM LOG DETALHADO STATUS CANAL =====");
             }
             
             // Envia via gateway
@@ -466,10 +537,11 @@ class WhatsAppGatewayTestController extends Controller
 
             // Normaliza canais do banco (garante campos id, name e status sempre presentes)
             foreach ($dbChannels as &$dbChannel) {
-                // Garante campo 'id' (conforme especificação)
-                if (!isset($dbChannel['id'])) {
-                    $dbChannel['id'] = $dbChannel['channel_id'] ?? '';
-                }
+                // CORRIGIDO: Sempre usa channel_id como 'id' (não o ID numérico do banco)
+                // O campo 'id' numérico do banco é armazenado em 'db_id' para referência
+                $dbChannel['db_id'] = $dbChannel['id'] ?? null; // Preserva ID numérico do banco
+                $dbChannel['id'] = $dbChannel['channel_id'] ?? ''; // 'id' sempre é o channel_id real
+                
                 // Garante campo 'name'
                 if (empty($dbChannel['name'])) {
                     $dbChannel['name'] = $dbChannel['channel_id'] ?? 'Canal sem nome';

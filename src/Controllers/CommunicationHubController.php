@@ -28,10 +28,17 @@ class CommunicationHubController extends Controller
      */
     public function index(): void
     {
+        // PATCH E: Log de entrada no método index
+        error_log('[CommunicationHub::index] INICIO');
+        
         try {
+            error_log('[CommunicationHub::index] ANTES Auth::requireInternal()');
             Auth::requireInternal();
+            error_log('[CommunicationHub::index] DEPOIS Auth::requireInternal()');
 
+            error_log('[CommunicationHub::index] ANTES DB::getConnection()');
             $db = DB::getConnection();
+            error_log('[CommunicationHub::index] DEPOIS DB::getConnection()');
 
         // Filtros
         $channel = $_GET['channel'] ?? 'all'; // all, whatsapp, chat, email
@@ -146,14 +153,24 @@ class CommunicationHubController extends Controller
                 error_log($errorMsg);
             }
             
+            // Limpa output buffer
+            while (ob_get_level() > 0) {
+                @ob_end_clean();
+            }
+            
+            // PATCH E: Detectar modo local
+            $isLocal = in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true);
+            
             http_response_code(500);
             
             // Sempre mostra o erro em desenvolvimento ou se APP_DEBUG estiver ativo
             $displayErrors = ini_get('display_errors');
-            $isDebug = defined('APP_DEBUG') && APP_DEBUG;
+            $isDebug = Env::get('APP_DEBUG', '0') === '1' || Env::get('APP_ENV', 'production') === 'dev';
             
-            if ($displayErrors == '1' || $displayErrors == 'On' || $isDebug) {
+            if ($displayErrors == '1' || $displayErrors == 'On' || $isDebug || $isLocal) {
                 echo "<h1>Erro interno do servidor</h1>";
+                echo "<h2>Classe:</h2>";
+                echo "<pre>" . htmlspecialchars(get_class($e)) . "</pre>";
                 echo "<h2>Mensagem:</h2>";
                 echo "<pre>" . htmlspecialchars($e->getMessage()) . "</pre>";
                 echo "<h2>Arquivo:</h2>";
@@ -165,6 +182,8 @@ class CommunicationHubController extends Controller
                 echo "<p>Ocorreu um erro ao carregar o painel de comunicação.</p>";
                 echo "<p>Verifique os logs para mais detalhes.</p>";
             }
+            
+            exit;
         }
     }
 
@@ -289,22 +308,116 @@ class CommunicationHubController extends Controller
      */
     public function send(): void
     {
-        Auth::requireInternal();
-        header('Content-Type: application/json');
+        // PATCH E: Detectar modo local/dev ANTES de qualquer coisa
+        $isLocal = in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true);
+        $stage = 'start';
+        $exceptionDebug = null;
+        
+        // PATCH E: Envolver TUDO em try/catch desde o início
+        try {
+            // PATCH D: Marcar que Controller foi atingido
+            if (!headers_sent()) {
+                header('X-PixelHub-Stage: controller-send-start');
+            }
+            
+            // PATCH E: Log entrada + POST resumido
+            error_log('[CommunicationHub::send] INICIO (E)');
+            error_log('[CommunicationHub::send] REMOTE_ADDR=' . ($_SERVER['REMOTE_ADDR'] ?? ''));
+            error_log('[CommunicationHub::send] POST=' . json_encode($_POST, JSON_UNESCAPED_UNICODE));
+            
+            // LOG DE DIAGNÓSTICO - INÍCIO (PATCH B)
+            error_log('[CommunicationHub::send] INICIO');
+            error_log('[CommunicationHub::send] POST: ' . json_encode($_POST, JSON_UNESCAPED_UNICODE));
+            
+            try {
+                error_log('[CommunicationHub::send] HEADERS: ' . json_encode(getallheaders()));
+            } catch (\Exception $e) {
+                error_log('[CommunicationHub::send] ERRO ao pegar headers: ' . $e->getMessage());
+            }
+            
+            error_log('[CommunicationHub::send] SESSION: ' . session_id());
+            
+            // PATCH E: Stage marker inicial
+            error_log('[CommunicationHub::send] STAGE=' . $stage);
+            
+            // CRÍTICO: Define header ANTES de qualquer output ou verificação
+            // Isso previne erros de "headers already sent"
+            if (!headers_sent()) {
+                header('Content-Type: application/json; charset=utf-8');
+            }
+            
+            // Limpa qualquer output buffer anterior
+            while (ob_get_level() > 0) {
+                @ob_end_clean();
+            }
+            
+            // Verifica autenticação (pode fazer exit se não autenticado)
+            $stage = 'auth_check';
+            error_log('[CommunicationHub::send] STAGE=' . $stage);
+            Auth::requireInternal();
 
-        $channel = $_POST['channel'] ?? null;
-        $threadId = $_POST['thread_id'] ?? null;
-        $to = $_POST['to'] ?? null; // phone, email, etc
-        $message = trim($_POST['message'] ?? '');
-        $tenantId = isset($_POST['tenant_id']) && $_POST['tenant_id'] !== '' ? (int) $_POST['tenant_id'] : null;
-        // CORRIGIDO: channel_id deve permanecer string (VARCHAR(100) no banco, string no gateway)
-        $channelId = isset($_POST['channel_id']) && $_POST['channel_id'] !== '' ? trim($_POST['channel_id']) : null;
-        // NOVO: Suporte para encaminhamento para múltiplos canais
-        $forwardToAll = isset($_POST['forward_to_all']) && $_POST['forward_to_all'] === '1';
-        $channelIdsArray = isset($_POST['channel_ids']) && is_array($_POST['channel_ids']) ? $_POST['channel_ids'] : null;
+            $stage = 'validate_input';
+            error_log('[CommunicationHub::send] STAGE=' . $stage);
+            
+            $channel = $_POST['channel'] ?? null;
+            $threadId = $_POST['thread_id'] ?? null;
+            $to = $_POST['to'] ?? null; // phone, email, etc
+            $message = trim($_POST['message'] ?? '');
+            $tenantIdFromPost = isset($_POST['tenant_id']) && $_POST['tenant_id'] !== '' ? (int) $_POST['tenant_id'] : null;
+            // CORRIGIDO: channel_id deve permanecer string (VARCHAR(100) no banco, string no gateway)
+            $channelId = isset($_POST['channel_id']) && $_POST['channel_id'] !== '' ? trim($_POST['channel_id']) : null;
+            // NOVO: Suporte para encaminhamento para múltiplos canais
+            $forwardToAll = isset($_POST['forward_to_all']) && $_POST['forward_to_all'] === '1';
+            $channelIdsArray = isset($_POST['channel_ids']) && is_array($_POST['channel_ids']) ? $_POST['channel_ids'] : null;
+            
+            // PATCH I: Derivar tenant_id pela conversa (thread_id) e ignorar POST tenant_id
+            // Regra de ouro: se thread_id existe, sempre usar tenant_id da conversa (fonte da verdade)
+            $tenantId = $tenantIdFromPost; // Inicializa com valor do POST (fallback para casos sem thread_id)
+            if (!empty($threadId) && preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
+                $conversationId = (int) $matches[1];
+                try {
+                    $db = DB::getConnection();
+                    $convStmt = $db->prepare("SELECT tenant_id, channel_id FROM conversations WHERE id = ? LIMIT 1");
+                    $convStmt->execute([$conversationId]);
+                    $conv = $convStmt->fetch();
+                    
+                    if ($conv && !empty($conv['tenant_id'])) {
+                        // PATCH I: Sobrescreve tenant_id do POST com o valor real da conversa
+                        $tenantId = (int) $conv['tenant_id'];
+                        error_log("[CommunicationHub::send] PATCH I: tenant_id derivado da conversa: POST={$tenantIdFromPost} → DB={$tenantId} (conversation_id={$conversationId})");
+                    } elseif ($conv && empty($conv['tenant_id']) && !empty($conv['channel_id'])) {
+                        // Se conversa não tem tenant_id mas tem channel_id, tenta resolver pelo channel_id
+                        $resolvedTenantId = $this->resolveTenantByChannelId($conv['channel_id'], $db);
+                        if ($resolvedTenantId) {
+                            // Auto-cura: persiste tenant_id na conversa
+                            $updateStmt = $db->prepare("UPDATE conversations SET tenant_id = ? WHERE id = ?");
+                            $updateStmt->execute([$resolvedTenantId, $conversationId]);
+                            $tenantId = $resolvedTenantId;
+                            error_log("[CommunicationHub::send] PATCH I + AUTO-CURA: tenant_id resolvido pelo channel_id: POST={$tenantIdFromPost} → DB={$tenantId} (conversation_id={$conversationId}, channel_id={$conv['channel_id']})");
+                        } else {
+                            error_log("[CommunicationHub::send] PATCH I: Não foi possível resolver tenant_id para conversation_id={$conversationId} (channel_id={$conv['channel_id']})");
+                        }
+                    } else {
+                        error_log("[CommunicationHub::send] PATCH I: Conversa não encontrada (conversation_id={$conversationId}), usando tenant_id do POST={$tenantIdFromPost}");
+                    }
+                } catch (\Exception $e) {
+                    error_log("[CommunicationHub::send] PATCH I: Erro ao buscar tenant_id da conversa: " . $e->getMessage() . " (usando tenant_id do POST={$tenantIdFromPost})");
+                    // Em caso de erro, mantém tenant_id do POST como fallback
+                }
+            }
 
         // LOG INSTRUMENTADO (apenas em dev ou quando habilitado)
         $isDev = Env::get('APP_ENV', 'production') === 'dev' || Env::get('APP_DEBUG', '0') === '1';
+        
+        // LOG INICIAL SEMPRE (para debug de erros 500)
+        error_log("[CommunicationHub::send] ===== INÍCIO MÉTODO =====");
+        error_log("[CommunicationHub::send] channel: " . ($channel ?: 'NULL'));
+        error_log("[CommunicationHub::send] message: " . (empty($message) ? 'VAZIO' : 'PRESENTE (len=' . strlen($message) . ')'));
+        error_log("[CommunicationHub::send] to: " . ($to ?: 'NULL'));
+        error_log("[CommunicationHub::send] threadId: " . ($threadId ?: 'NULL'));
+        error_log("[CommunicationHub::send] channelId: " . ($channelId ?: 'NULL'));
+        error_log("[CommunicationHub::send] tenantId: " . ($tenantId ?: 'NULL'));
+        
         if ($isDev) {
             error_log("[CommunicationHub::send] ===== LOG INSTRUMENTADO (INÍCIO) =====");
             error_log("[CommunicationHub::send] thread_id: " . ($threadId ?: 'NULL'));
@@ -313,46 +426,68 @@ class CommunicationHubController extends Controller
             error_log("[CommunicationHub::send] channel: {$channel}, to: {$to}");
         }
 
-        try {
-            if (empty($channel) || empty($message)) {
+        if (empty($channel) || empty($message)) {
+                error_log("[CommunicationHub::send] ❌ ERRO 400: Canal ou mensagem vazios");
                 $this->json(['success' => false, 'error' => 'Canal e mensagem são obrigatórios'], 400);
                 return;
             }
             if ($channel === 'whatsapp') {
                 if (empty($to)) {
+                    error_log("[CommunicationHub::send] ❌ ERRO 400: Telefone vazio");
                     $this->json(['success' => false, 'error' => 'to (telefone) é obrigatório para WhatsApp'], 400);
                     return;
                 }
                 
-                $db = DB::getConnection();
+                error_log("[CommunicationHub::send] ✅ Validações básicas passaram");
                 
+                $stage = 'resolve_tenant';
+                error_log('[CommunicationHub::send] STAGE=' . $stage);
+                
+                try {
+                    $db = DB::getConnection();
+                    error_log("[CommunicationHub::send] ✅ Conexão DB obtida");
+                } catch (\Exception $e) {
+                    error_log("[CommunicationHub::send] ❌ ERRO ao obter conexão DB: " . $e->getMessage());
+                    throw $e;
+                }
+                
+                // CRÍTICO: Inicializa targetChannels no início para evitar erros
+                $targetChannels = [];
+                error_log("[CommunicationHub::send] ✅ targetChannels inicializado como array vazio");
+                
+                $stage = 'resolve_thread';
+                error_log('[CommunicationHub::send] STAGE=' . $stage);
+                
+                // PATCH I: tenant_id já foi derivado da conversa no início (linha ~369)
+                // Agora apenas busca channel_id da conversa se thread_id existe
                 // CORREÇÃO CRÍTICA: Sempre usa thread.channel_id como fonte da verdade
                 // Ignora channel_id do frontend quando thread_id está presente
                 if (!empty($threadId) && preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
                     $conversationId = (int) $matches[1];
+                    error_log("[CommunicationHub::send] ✅ threadId válido detectado, conversationId={$conversationId}");
                     
-                    $convStmt = $db->prepare("SELECT tenant_id, channel_id, contact_external_id FROM conversations WHERE id = ?");
-                    $convStmt->execute([$conversationId]);
-                    $conv = $convStmt->fetch();
+                    try {
+                        $convStmt = $db->prepare("SELECT tenant_id, channel_id, contact_external_id FROM conversations WHERE id = ?");
+                        $convStmt->execute([$conversationId]);
+                        $conv = $convStmt->fetch();
+                        error_log("[CommunicationHub::send] ✅ Query executada, conv encontrada: " . ($conv ? 'SIM' : 'NÃO'));
+                    } catch (\Exception $e) {
+                        error_log("[CommunicationHub::send] ❌ ERRO ao buscar conversation: " . $e->getMessage());
+                        throw $e;
+                    }
                     
                     if ($conv) {
-                        // Se tenant_id está NULL, tenta resolver usando channel_id
-                        if (empty($conv['tenant_id']) && !empty($conv['channel_id'])) {
-                            $resolvedTenantId = $this->resolveTenantByChannelId($conv['channel_id'], $db);
-                            if ($resolvedTenantId) {
-                                // Persiste tenant_id na thread (auto-cura)
-                                $updateStmt = $db->prepare("UPDATE conversations SET tenant_id = ? WHERE id = ?");
-                                $updateStmt->execute([$resolvedTenantId, $conversationId]);
-                                $tenantId = $resolvedTenantId;
-                                error_log("[CommunicationHub::send] AUTO-CURA: Resolvido e persistido tenant_id={$tenantId} para conversation_id={$conversationId} usando channel_id={$conv['channel_id']}");
-                            } else {
-                                error_log("[CommunicationHub::send] AVISO: Não foi possível resolver tenant_id para conversation_id={$conversationId} com channel_id={$conv['channel_id']}");
-                            }
-                        } else {
-                            // Usa tenant_id da thread se disponível
-                            if ($conv['tenant_id']) {
-                                $tenantId = (int) $conv['tenant_id'];
-                            }
+                        // PATCH I: tenant_id já foi resolvido no início do método
+                        // Aqui apenas verifica consistência e faz auto-cura se necessário
+                        if (empty($conv['tenant_id']) && !empty($conv['channel_id']) && $tenantId) {
+                            // Auto-cura: persiste tenant_id na conversa se ainda não tem
+                            $updateStmt = $db->prepare("UPDATE conversations SET tenant_id = ? WHERE id = ?");
+                            $updateStmt->execute([$tenantId, $conversationId]);
+                            error_log("[CommunicationHub::send] AUTO-CURA: Persistido tenant_id={$tenantId} na conversa (conversation_id={$conversationId})");
+                        } elseif ($conv['tenant_id'] && $conv['tenant_id'] != $tenantId) {
+                            // Se há divergência, usa o valor do banco (fonte da verdade)
+                            $tenantId = (int) $conv['tenant_id'];
+                            error_log("[CommunicationHub::send] PATCH I: Corrigido tenant_id divergente → {$tenantId} (conversation_id={$conversationId})");
                         }
                         
                         // CORREÇÃO: SEMPRE usa channel_id da thread (ignora channel_id do frontend)
@@ -368,9 +503,32 @@ class CommunicationHubController extends Controller
                             return;
                         }
                         
-                        // Usa channel_id da thread (fonte da verdade)
-                        $channelId = trim($conv['channel_id']);
-                        error_log("[CommunicationHub::send] Usando channel_id da thread (fonte da verdade): {$channelId} (ignorando channel_id do frontend se fornecido)");
+                        // Usa channel_id da thread como sessionId do gateway (fonte da verdade)
+                        $sessionId = trim($conv['channel_id']);
+                        error_log("[CommunicationHub::send] Usando sessionId da thread (fonte da verdade): {$sessionId} (ignorando channel_id do frontend se fornecido)");
+                        
+                        $stage = 'resolve_channel';
+                        error_log('[CommunicationHub::send] STAGE=' . $stage);
+                        
+                        // PATCH H2: Valida sessionId do gateway (não depende de display_name)
+                        // Interpreta channel_id da thread como sessionId do gateway
+                        $validatedChannel = $this->validateGatewaySessionId($sessionId, $tenantId, $db);
+                        
+                        if ($validatedChannel) {
+                            // Usa o sessionId CANÔNICO validado
+                            $foundSessionId = trim($validatedChannel['session_id']);
+                            $targetChannels = [$foundSessionId];
+                            error_log("[CommunicationHub::send] ✅ SessionId do gateway validado e adicionado ao targetChannels: {$foundSessionId}");
+                            error_log("[CommunicationHub::send] ✅ targetChannels após validação: " . json_encode($targetChannels));
+                        } else {
+                            error_log("[CommunicationHub::send] ❌ ERRO: SessionId '{$sessionId}' do gateway não encontrado ou não habilitado para este tenant");
+                            $this->json([
+                                'success' => false, 
+                                'error' => "SessionId do gateway '{$sessionId}' não está habilitado para este tenant. Verifique se a sessão está cadastrada e habilitada.",
+                                'error_code' => 'CHANNEL_NOT_FOUND'
+                            ], 400);
+                            return;
+                        }
                     } else {
                         error_log("[CommunicationHub::send] ERRO: Thread conversation_id={$conversationId} não encontrada.");
                         $this->json([
@@ -383,7 +541,8 @@ class CommunicationHubController extends Controller
                 }
                 
                 // NOVO: Determina lista de canais para envio
-                $targetChannels = [];
+                // targetChannels já foi inicializado no início, mas pode ter sido definido no bloco do threadId acima
+                // Se ainda estiver vazio, precisa buscar canais
                 
                 // Se forward_to_all está ativo, busca todos os canais habilitados
                 if ($forwardToAll) {
@@ -456,49 +615,31 @@ class CommunicationHubController extends Controller
                 if (empty($targetChannels)) {
                     // PRIORIDADE 1: Usa channel_id fornecido diretamente (vem da thread ou especificado explicitamente)
                     if ($channelId) {
-                        // CRÍTICO: Busca o valor CANÔNICO do banco (case-sensitive, como cadastrado)
-                        // Normalização APENAS para comparação WHERE, mas retorna valor original
-                        $channelStmt = $db->prepare("
-                            SELECT channel_id, gateway_secret, base_url
-                            FROM tenant_message_channels 
-                            WHERE provider = 'wpp_gateway' 
-                            AND is_enabled = 1
-                            AND (
-                                channel_id = ?
-                                OR LOWER(TRIM(channel_id)) = LOWER(TRIM(?))
-                                OR LOWER(REPLACE(channel_id, ' ', '')) = LOWER(REPLACE(?, ' ', ''))
-                            )
-                            LIMIT 1
-                        ");
-                        $channelStmt->execute([$channelId, $channelId, $channelId]);
-                        $channelData = $channelStmt->fetch();
+                        // PATCH H2: Interpreta channelId recebido como sessionId do gateway
+                        // Valida usando a nova função que detecta schema automaticamente
+                        $validatedChannel = $this->validateGatewaySessionId($channelId, $tenantId, $db);
                         
-                        if (!$channelData) {
-                            error_log("[CommunicationHub::send] ERRO: Canal '{$channelId}' não encontrado ou não habilitado em tenant_message_channels");
+                        if (!$validatedChannel) {
+                            error_log("[CommunicationHub::send] ERRO: SessionId '{$channelId}' do gateway não encontrado ou não habilitado para este tenant");
                             $this->json([
                                 'success' => false, 
-                                'error' => "Canal WhatsApp '{$channelId}' não está disponível ou habilitado. Verifique se o nome do canal está correto.",
+                                'error' => "SessionId do gateway '{$channelId}' não está habilitado para este tenant. Verifique se a sessão está cadastrada e habilitada.",
                                 'error_code' => 'CHANNEL_NOT_FOUND'
                             ], 400);
                             return;
                         }
                         
-                        // CRÍTICO: Usa o channel_id CANÔNICO do banco (valor original, case-sensitive)
+                        // CRÍTICO: Usa o sessionId CANÔNICO validado (valor original do gateway)
                         // Este é o valor que será enviado ao gateway
-                        $foundChannelId = trim($channelData['channel_id']);
-                        $targetChannels = [$foundChannelId];
+                        $foundSessionId = trim($validatedChannel['session_id']);
+                        $targetChannels = [$foundSessionId];
                         
-                        // LOG DE DIAGNÓSTICO: Informações do canal sem vazar segredos
-                        $hasCustomSecret = !empty($channelData['gateway_secret']);
-                        $hasCustomBaseUrl = !empty($channelData['base_url']);
-                        $baseUrlHost = $hasCustomBaseUrl ? parse_url($channelData['base_url'], PHP_URL_HOST) : 'NULL';
+                        // LOG DE DIAGNÓSTICO: Informações do canal
+                        // PATCH F+G: Secret e baseUrl sempre vêm do serviço/env, não do banco
                         error_log(sprintf(
-                            "[CommunicationHub::send] Canal validado: solicitado='%s' → canônico='%s' (será usado no gateway) | has_custom_secret=%s | has_custom_base_url=%s | base_url_host=%s",
+                            "[CommunicationHub::send] SessionId validado: solicitado='%s' → canônico='%s' (será usado no gateway)",
                             $channelId,
-                            $foundChannelId,
-                            $hasCustomSecret ? 'SIM' : 'NÃO',
-                            $hasCustomBaseUrl ? 'SIM' : 'NÃO',
-                            $baseUrlHost ?: 'NULL'
+                            $foundSessionId
                         ));
                     } else {
                     // PRIORIDADE 2: Se não tem channel_id, tenta buscar diretamente da conversa/thread
@@ -518,28 +659,19 @@ class CommunicationHubController extends Controller
                                 $tenantId = (int) $conv['tenant_id'];
                             }
                             
-                            // PRIORIDADE 2.1: Usa o channel_id da própria conversa (mais confiável)
+                            // PRIORIDADE 2.1: Usa o channel_id da própria conversa como sessionId (mais confiável)
                             if (!empty($conv['channel_id'])) {
-                                $foundChannelId = trim($conv['channel_id']);
-                                error_log("[CommunicationHub::send] Channel_id encontrado na conversa: {$foundChannelId}");
+                                $sessionIdFromConv = trim($conv['channel_id']);
+                                error_log("[CommunicationHub::send] SessionId encontrado na conversa: {$sessionIdFromConv}");
                                 
-                                // Valida que o canal ainda existe e está habilitado
-                                $channelStmt = $db->prepare("
-                                    SELECT channel_id 
-                                    FROM tenant_message_channels 
-                                    WHERE channel_id = ? 
-                                    AND provider = 'wpp_gateway' 
-                                    AND is_enabled = 1
-                                    LIMIT 1
-                                ");
-                                $channelStmt->execute([$foundChannelId]);
-                                $channelData = $channelStmt->fetch();
+                                // PATCH H2: Valida sessionId usando função que detecta schema
+                                $validatedChannel = $this->validateGatewaySessionId($sessionIdFromConv, $tenantId, $db);
                                 
-                                if ($channelData) {
-                                    $targetChannels = [$foundChannelId];
-                                    error_log("[CommunicationHub::send] Canal da conversa validado: {$foundChannelId}");
+                                if ($validatedChannel) {
+                                    $targetChannels = [trim($validatedChannel['session_id'])];
+                                    error_log("[CommunicationHub::send] SessionId da conversa validado: {$validatedChannel['session_id']}");
                                 } else {
-                                    error_log("[CommunicationHub::send] AVISO: Canal da conversa '{$foundChannelId}' não está mais habilitado, tentando buscar de eventos...");
+                                    error_log("[CommunicationHub::send] AVISO: SessionId da conversa '{$sessionIdFromConv}' não está mais habilitado, tentando buscar de eventos...");
                                 }
                             }
                             
@@ -579,23 +711,14 @@ class CommunicationHubController extends Controller
                                 if ($event && $event['payload']) {
                                     $payload = json_decode($event['payload'], true);
                                     if (isset($payload['channel_id']) && !empty($payload['channel_id'])) {
-                                        $foundChannelId = trim((string) $payload['channel_id']);
-                                        error_log("[CommunicationHub::send] Channel_id encontrado nos eventos: {$foundChannelId}");
+                                        $sessionIdFromEvent = trim((string) $payload['channel_id']);
+                                        error_log("[CommunicationHub::send] SessionId encontrado nos eventos: {$sessionIdFromEvent}");
                                         
-                                        // Valida que o canal ainda existe
-                                        $channelStmt = $db->prepare("
-                                            SELECT channel_id 
-                                            FROM tenant_message_channels 
-                                            WHERE channel_id = ? 
-                                            AND provider = 'wpp_gateway' 
-                                            AND is_enabled = 1
-                                            LIMIT 1
-                                        ");
-                                        $channelStmt->execute([$foundChannelId]);
-                                        $channelData = $channelStmt->fetch();
+                                        // PATCH H2: Valida sessionId usando função que detecta schema
+                                        $validatedChannel = $this->validateGatewaySessionId($sessionIdFromEvent, $tenantId, $db);
                                         
-                                        if ($channelData) {
-                                            $targetChannels = [$foundChannelId];
+                                        if ($validatedChannel) {
+                                            $targetChannels = [trim($validatedChannel['session_id'])];
                                         }
                                     }
                                 }
@@ -604,10 +727,12 @@ class CommunicationHubController extends Controller
                     }
                 }
 
-                    // PRIORIDADE 3: Busca channel do tenant (se ainda não encontrou)
+                    // PRIORIDADE 3: Busca sessionId do tenant (se ainda não encontrou)
+                    // PATCH H2: Usa coluna correta (session_id ou channel_id) conforme schema
                     if (!$channelId && $tenantId) {
+                        $sessionIdColumn = $this->getSessionIdColumnName($db);
                         $channelStmt = $db->prepare("
-                            SELECT channel_id 
+                            SELECT {$sessionIdColumn} as session_id
                             FROM tenant_message_channels 
                             WHERE tenant_id = ? 
                             AND provider = 'wpp_gateway' 
@@ -617,19 +742,30 @@ class CommunicationHubController extends Controller
                         $channelStmt->execute([$tenantId]);
                         $channelData = $channelStmt->fetch();
 
-                        if ($channelData) {
-                            // CORRIGIDO: Mantém como string, não converte para int
-                            $channelId = trim((string) $channelData['channel_id']);
-                            error_log("[CommunicationHub::send] Channel_id encontrado do tenant: {$channelId}");
+                        if ($channelData && !empty($channelData['session_id'])) {
+                            $channelId = trim((string) $channelData['session_id']);
+                            error_log("[CommunicationHub::send] SessionId encontrado do tenant: {$channelId}");
                         } else {
                             error_log("[CommunicationHub::send] Nenhum canal encontrado para tenant_id: {$tenantId}");
                         }
                     }
                     
                     // PRIORIDADE 4: Fallback: tenta usar canal compartilhado/default (qualquer canal habilitado)
+                    // PATCH H2: Usa coluna correta (session_id ou channel_id) conforme schema
+                    if (empty($targetChannels) && $channelId) {
+                        // Valida o channelId encontrado usando a função
+                        $validatedChannel = $this->validateGatewaySessionId($channelId, $tenantId, $db);
+                        if ($validatedChannel) {
+                            $targetChannels = [trim($validatedChannel['session_id'])];
+                            error_log("[CommunicationHub::send] SessionId validado (fallback tenant): {$validatedChannel['session_id']}");
+                        }
+                    }
+                    
+                    // PRIORIDADE 5: Último fallback - qualquer canal habilitado do sistema
                     if (empty($targetChannels)) {
+                        $sessionIdColumn = $this->getSessionIdColumnName($db);
                         $channelStmt = $db->prepare("
-                            SELECT channel_id 
+                            SELECT {$sessionIdColumn} as session_id
                             FROM tenant_message_channels 
                             WHERE provider = 'wpp_gateway' 
                             AND is_enabled = 1
@@ -638,11 +774,10 @@ class CommunicationHubController extends Controller
                         $channelStmt->execute();
                         $channelData = $channelStmt->fetch();
 
-                        if ($channelData) {
-                            // CORRIGIDO: Mantém como string, não converte para int
-                            $foundChannelId = trim((string) $channelData['channel_id']);
-                            $targetChannels = [$foundChannelId];
-                            error_log("[CommunicationHub::send] Channel_id encontrado (canal compartilhado): {$foundChannelId}");
+                        if ($channelData && !empty($channelData['session_id'])) {
+                            $foundSessionId = trim((string) $channelData['session_id']);
+                            $targetChannels = [$foundSessionId];
+                            error_log("[CommunicationHub::send] SessionId encontrado (canal compartilhado/fallback): {$foundSessionId}");
                         } else {
                             error_log("[CommunicationHub::send] Nenhum canal WhatsApp habilitado encontrado no sistema");
                             $this->json(['success' => false, 'error' => 'Nenhum canal WhatsApp configurado no sistema'], 400);
@@ -652,13 +787,17 @@ class CommunicationHubController extends Controller
                 }
                 
                 // Valida que temos pelo menos um canal
+                error_log("[CommunicationHub::send] ===== VALIDAÇÃO FINAL =====");
+                error_log("[CommunicationHub::send] targetChannels antes da validação final: " . json_encode($targetChannels));
+                error_log("[CommunicationHub::send] targetChannels está vazio: " . (empty($targetChannels) ? 'SIM' : 'NÃO'));
+                
                 if (empty($targetChannels)) {
-                    error_log("[CommunicationHub::send] ERRO: Nenhum canal identificado para envio");
+                    error_log("[CommunicationHub::send] ❌ ERRO: Nenhum canal identificado para envio");
                     $this->json(['success' => false, 'error' => 'Nenhum canal WhatsApp identificado para envio'], 400);
                     return;
                 }
                 
-                error_log("[CommunicationHub::send] Canais alvo para envio: " . implode(', ', $targetChannels) . " (total: " . count($targetChannels) . ")");
+                error_log("[CommunicationHub::send] ✅ Canais alvo para envio: " . implode(', ', $targetChannels) . " (total: " . count($targetChannels) . ")");
 
                 // Normaliza telefone
                 $phoneNormalized = WhatsAppBillingService::normalizePhone($to);
@@ -667,37 +806,14 @@ class CommunicationHubController extends Controller
                     return;
                 }
 
-                // CORREÇÃO: Usa credenciais específicas do canal se disponíveis, senão usa globais
-                // Primeiro tenta obter do primeiro canal (se tiver credenciais customizadas)
-                $baseUrl = null;
-                $secret = null;
+                // CORREÇÃO: Obtém baseUrl e secret via env/config (mesmo padrão do módulo de teste)
+                // PATCH F+G: Nunca buscar base_url ou gateway_secret do banco (colunas não existem)
+                // Usa o mesmo padrão do WhatsAppGatewayTestController
+                $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
+                $baseUrl = rtrim($baseUrl, '/');
                 
-                if (!empty($targetChannels)) {
-                    $firstChannelId = $targetChannels[0];
-                    $channelCredsStmt = $db->prepare("
-                        SELECT base_url, gateway_secret
-                        FROM tenant_message_channels
-                        WHERE provider = 'wpp_gateway'
-                        AND channel_id = ?
-                        AND is_enabled = 1
-                        LIMIT 1
-                    ");
-                    $channelCredsStmt->execute([$firstChannelId]);
-                    $channelCreds = $channelCredsStmt->fetch();
-                    
-                    if ($channelCreds) {
-                        $baseUrl = !empty($channelCreds['base_url']) ? trim($channelCreds['base_url']) : null;
-                        $secret = !empty($channelCreds['gateway_secret']) ? trim($channelCreds['gateway_secret']) : null;
-                    }
-                }
-                
-                // Fallback para credenciais globais se canal não tem credenciais específicas
-                if (empty($baseUrl)) {
-                    $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
-                }
-                if (empty($secret)) {
-                    $secret = GatewaySecret::getDecrypted();
-                }
+                // PATCH F: Secret sempre obtido do serviço GatewaySecret (fonte única da verdade)
+                $secret = GatewaySecret::getDecrypted();
                 
                 // LOG: configurações do gateway
                 if ($isDev) {
@@ -718,13 +834,21 @@ class CommunicationHubController extends Controller
                     ? $baseUrl 
                     : 'https://wpp.pixel12digital.com.br';
 
+                $stage = 'build_payload';
+                error_log('[CommunicationHub::send] STAGE=' . $stage);
+                
                 // Cria gateway com configurações (específicas do canal ou globais)
                 $gateway = new WhatsAppGatewayClient($baseUrl, $secret);
                 
                 // ===== LOG TEMPORÁRIO: Endpoint de verificação de status =====
-                $statusEndpoint = "{$baseUrl}/api/channels/{$channelId}";
+                // Usa o primeiro canal de targetChannels para o log (garantido que não está vazio)
+                $logChannelId = !empty($targetChannels) ? $targetChannels[0] : ($channelId ?: 'N/A');
+                $statusEndpoint = "{$baseUrl}/api/channels/{$logChannelId}";
                 error_log("[CommunicationHub::send] endpoint verificar status: {$statusEndpoint}");
                 // ===== FIM LOG TEMPORÁRIO =====
+
+                $stage = 'call_gateway';
+                error_log('[CommunicationHub::send] STAGE=' . $stage);
 
                 // NOVO: Itera sobre todos os canais e envia para cada um
                 $sendResults = [];
@@ -746,6 +870,15 @@ class CommunicationHubController extends Controller
                     
                     // Valida se a sessão está conectada antes de enviar (NÃO-BLOQUEANTE)
                     $channelInfo = $gateway->getChannel($targetChannelId);
+                    
+                    // 🔍 LOG DETALHADO: Estrutura completa da resposta do gateway
+                    error_log("[CommunicationHub::send] ===== LOG DETALHADO STATUS CANAL =====");
+                    error_log("[CommunicationHub::send] channel_id: {$targetChannelId}");
+                    error_log("[CommunicationHub::send] channelInfo completo: " . json_encode($channelInfo, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                    error_log("[CommunicationHub::send] channelInfo['success']: " . ($channelInfo['success'] ?? 'NULL'));
+                    error_log("[CommunicationHub::send] channelInfo['status'] (HTTP): " . ($channelInfo['status'] ?? 'NULL'));
+                    error_log("[CommunicationHub::send] channelInfo['error']: " . ($channelInfo['error'] ?? 'NULL'));
+                    error_log("[CommunicationHub::send] channelInfo['raw'] existe: " . (isset($channelInfo['raw']) ? 'SIM' : 'NÃO'));
                     
                     $statusCode = $channelInfo['status'] ?? 'N/A';
                     $shouldBlockSend = false;
@@ -770,13 +903,51 @@ class CommunicationHubController extends Controller
                         }
                     } else {
                         $channelData = $channelInfo['raw'] ?? [];
-                        $sessionStatus = $channelData['status'] ?? $channelData['connection'] ?? null;
+                        
+                        // 🔍 LOG DETALHADO: Estrutura completa do channelData (raw)
+                        error_log("[CommunicationHub::send] channelData (raw) completo: " . json_encode($channelData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                        error_log("[CommunicationHub::send] channelData keys: " . implode(', ', array_keys($channelData)));
+                        
+                        // Verifica TODOS os campos possíveis onde o status pode estar
+                        $possibleStatusFields = [
+                            'status' => $channelData['status'] ?? null,
+                            'channel.status' => $channelData['channel']['status'] ?? null,
+                            'channel.connection' => $channelData['channel']['connection'] ?? null,
+                            'connection' => $channelData['connection'] ?? null,
+                            'connected' => $channelData['connected'] ?? null,
+                            'session.status' => $channelData['session']['status'] ?? null,
+                            'session.connection' => $channelData['session']['connection'] ?? null,
+                            'data.status' => $channelData['data']['status'] ?? null,
+                            'data.connection' => $channelData['data']['connection'] ?? null,
+                        ];
+                        
+                        error_log("[CommunicationHub::send] Campos de status possíveis:");
+                        foreach ($possibleStatusFields as $field => $value) {
+                            error_log("[CommunicationHub::send]   - {$field}: " . ($value !== null ? var_export($value, true) : 'NULL'));
+                        }
+                        
+                        // Lógica corrigida: prioriza channel.status (estrutura real do gateway)
+                        $sessionStatus = $channelData['channel']['status'] 
+                            ?? $channelData['channel']['connection'] 
+                            ?? $channelData['status'] 
+                            ?? $channelData['connection'] 
+                            ?? null;
                         $isConnected = ($sessionStatus === 'connected' || $sessionStatus === 'open' || $channelData['connected'] ?? false);
+                        
+                        // 🔍 LOG DETALHADO: Resultado da verificação
+                        error_log("[CommunicationHub::send] sessionStatus extraído: " . ($sessionStatus ?? 'NULL'));
+                        error_log("[CommunicationHub::send] channelData['connected'] (boolean): " . ($channelData['connected'] ?? 'NULL'));
+                        error_log("[CommunicationHub::send] isConnected calculado: " . ($isConnected ? 'true' : 'false'));
                         
                         if (!$isConnected) {
                             $shouldBlockSend = true;
                             $blockReason = "Sessão desconectada";
+                            error_log("[CommunicationHub::send] ⚠️ BLOQUEADO: Sessão não conectada - sessionStatus={$sessionStatus}, connected=" . ($channelData['connected'] ?? 'NULL'));
+                        } else {
+                            error_log("[CommunicationHub::send] ✅ Sessão conectada - permitindo envio");
                         }
+                        
+                        error_log("[CommunicationHub::send] ===== FIM LOG DETALHADO STATUS CANAL =====");
                     }
                     
                     if ($shouldBlockSend) {
@@ -830,6 +1001,9 @@ class CommunicationHubController extends Controller
                             error_log("[CommunicationHub::send] ✅ Sucesso ao enviar para {$targetChannelId}");
                         }
                         $hasAnySuccess = true;
+                        
+                        $stage = 'persist_message';
+                        error_log('[CommunicationHub::send] STAGE=' . $stage);
                         
                         // Cria evento de envio para este canal
                         $eventId = EventIngestionService::ingest([
@@ -886,6 +1060,9 @@ class CommunicationHubController extends Controller
                     }
                 }
                 
+                $stage = 'return_success';
+                error_log('[CommunicationHub::send] STAGE=' . $stage);
+                
                 // Retorna resultado agregado
                 if (count($targetChannels) === 1) {
                     // Comportamento antigo: retorna resultado único
@@ -936,32 +1113,52 @@ class CommunicationHubController extends Controller
             } else {
                 $this->json(['success' => false, 'error' => "Canal {$channel} não implementado ainda"], 400);
             }
-        } catch (\Exception $e) {
-            // Log completo do erro (stack trace) para debug
-            $errorMsg = "[CommunicationHub::send] EXCEPTION: " . $e->getMessage();
-            $errorMsg .= "\nFile: " . $e->getFile() . ":" . $e->getLine();
-            $errorMsg .= "\nStack trace:\n" . $e->getTraceAsString();
-            error_log($errorMsg);
             
-            // Retorna JSON com error_code interno (sem vazar segredos)
-            $this->json([
-                'success' => false,
-                'error' => 'Erro interno do servidor',
-                'error_code' => 'INTERNAL_ERROR'
-            ], 500);
         } catch (\Throwable $e) {
-            // Log completo do erro (stack trace) para debug
-            $errorMsg = "[CommunicationHub::send] THROWABLE: " . $e->getMessage();
-            $errorMsg .= "\nFile: " . $e->getFile() . ":" . $e->getLine();
-            $errorMsg .= "\nStack trace:\n" . $e->getTraceAsString();
-            error_log($errorMsg);
+            // PATCH D: Marcar exceção no Controller
+            if (!headers_sent()) {
+                header('X-PixelHub-Stage: controller-exception');
+            }
             
-            // Retorna JSON com error_code interno (sem vazar segredos)
-            $this->json([
+            // PATCH E: Log exceção real
+            error_log('[CommunicationHub::send] EXCEPTION (E): ' . get_class($e) . ' ' . $e->getMessage());
+            error_log('[CommunicationHub::send] FILE: ' . $e->getFile() . ':' . $e->getLine());
+            error_log('[CommunicationHub::send] TRACE: ' . $e->getTraceAsString());
+            error_log('[CommunicationHub::send] STAGE=' . ($stage ?? 'unknown'));
+            
+            // Limpa output buffer
+            while (ob_get_level() > 0) {
+                @ob_end_clean();
+            }
+            
+            // PATCH E: Retorna JSON com debug detalhado apenas em modo local
+            if (!headers_sent()) {
+                http_response_code(500);
+                header('Content-Type: application/json; charset=utf-8');
+            } else {
+                @http_response_code(500);
+            }
+            
+            // Prepara debug apenas se local
+            if ($isLocal) {
+                $exceptionDebug = [
+                    'class' => get_class($e),
+                    'message' => $e->getMessage(),
+                    'file' => basename($e->getFile()),
+                    'line' => $e->getLine(),
+                    'stage' => $stage ?? 'unknown'
+                ];
+            }
+            
+            $response = [
                 'success' => false,
                 'error' => 'Erro interno do servidor',
-                'error_code' => 'INTERNAL_ERROR'
-            ], 500);
+                'error_code' => 'CONTROLLER_EXCEPTION',
+                'debug' => $exceptionDebug
+            ];
+            
+            echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
         }
     }
 
@@ -1611,10 +1808,25 @@ class CommunicationHubController extends Controller
         }
         $where[] = "(" . implode(" OR ", $contactConditions) . ")";
 
-        // Filtro por tenant_id (se disponível)
+        // PATCH K: Filtro estrito por tenant_id (após PATCH J, todos eventos têm tenant_id)
+        // Remove OR ce.tenant_id IS NULL para evitar mistura entre tenants
         if ($tenantId) {
-            $where[] = "(ce.tenant_id = ? OR ce.tenant_id IS NULL)";
+            $where[] = "ce.tenant_id = ?";
             $params[] = $tenantId;
+        }
+        
+        // PATCH K: Filtro adicional por channel_id para garantir isolamento por sessão
+        if (!empty($sessionId)) {
+            $where[] = "(
+                JSON_EXTRACT(ce.metadata, '$.channel_id') = ?
+                OR JSON_EXTRACT(ce.payload, '$.session.id') = ?
+                OR JSON_EXTRACT(ce.payload, '$.sessionId') = ?
+                OR JSON_EXTRACT(ce.payload, '$.channelId') = ?
+            )";
+            $params[] = $sessionId;
+            $params[] = $sessionId;
+            $params[] = $sessionId;
+            $params[] = $sessionId;
         }
 
         $whereClause = "WHERE " . implode(" AND ", $where);
@@ -1981,93 +2193,146 @@ class CommunicationHubController extends Controller
             $conversation = $stmt->fetch();
 
             if ($conversation) {
-                // CORRIGIDO: Busca channel_id dos eventos/mensagens da conversa PRIMEIRO (prioridade máxima)
-                // Isso garante que sempre use o mesmo canal que recebeu/enviou as mensagens
+                // CORREÇÃO CRÍTICA: PRIORIDADE 1 - Usa channel_id da tabela conversations (fonte da verdade)
+                // Este valor foi persistido corretamente durante o recebimento usando extractChannelIdFromPayload()
+                // que prioriza sessionId e rejeita valores incorretos como "ImobSites"
                 $channelId = null;
-                // Prioriza mensagens recebidas (inbound) para determinar qual canal foi usado
-                // Isso garante que sempre use o mesmo canal que recebeu a mensagem
-                $contactId = $conversation['contact_external_id'];
-                if ($contactId) {
-                    // Primeiro tenta buscar de mensagens recebidas (inbound) - prioridade máxima
-                    $eventStmt = $db->prepare("
-                        SELECT ce.payload, ce.metadata
-                        FROM communication_events ce
-                        WHERE ce.event_type = 'whatsapp.inbound.message'
-                        AND (
-                            JSON_EXTRACT(ce.payload, '$.from') = ?
-                            OR JSON_EXTRACT(ce.payload, '$.message.from') = ?
-                        )
-                        ORDER BY ce.created_at DESC
-                        LIMIT 1
-                    ");
-                    $eventStmt->execute([$contactId, $contactId]);
-                    $event = $eventStmt->fetch();
-                    
-                    if ($event) {
-                        // Tenta extrair channel_id do payload
-                        if ($event['payload']) {
-                            $payload = json_decode($event['payload'], true);
-                            if (isset($payload['channel_id']) && !empty($payload['channel_id'])) {
-                                $channelId = trim((string) $payload['channel_id']);
-                                error_log("[CommunicationHub::getWhatsAppThreadInfo] Channel_id encontrado em mensagem recebida: {$channelId} para contato: {$contactId}");
-                            }
-                        }
-                        
-                        // Se não encontrou no payload, tenta no metadata
-                        if (!$channelId && $event['metadata']) {
-                            $metadata = json_decode($event['metadata'], true);
-                            if (isset($metadata['channel_id']) && !empty($metadata['channel_id'])) {
-                                $channelId = trim((string) $metadata['channel_id']);
-                                error_log("[CommunicationHub::getWhatsAppThreadInfo] Channel_id encontrado no metadata: {$channelId} para contato: {$contactId}");
-                            }
-                        }
-                    }
-                    
-                    // Se ainda não encontrou, tenta buscar de qualquer mensagem da conversa (inbound ou outbound)
-                    if (!$channelId) {
-                        $eventStmt2 = $db->prepare("
+                if (!empty($conversation['channel_id'])) {
+                    $channelId = trim((string) $conversation['channel_id']);
+                    error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 1: Usando channel_id da tabela conversations: {$channelId}");
+                }
+                
+                // PRIORIDADE 2: Se não tem na tabela, busca dos eventos usando mesma lógica do extractChannelIdFromPayload()
+                // Prioriza sessionId (sessão real do gateway) e nunca usa metadata.channel_id primeiro
+                if (!$channelId) {
+                    $contactId = $conversation['contact_external_id'];
+                    if ($contactId) {
+                        // Busca mensagem recebida (inbound) mais recente - prioridade máxima
+                        $eventStmt = $db->prepare("
                             SELECT ce.payload, ce.metadata
                             FROM communication_events ce
-                            WHERE ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+                            WHERE ce.event_type = 'whatsapp.inbound.message'
                             AND (
                                 JSON_EXTRACT(ce.payload, '$.from') = ?
-                                OR JSON_EXTRACT(ce.payload, '$.to') = ?
                                 OR JSON_EXTRACT(ce.payload, '$.message.from') = ?
-                                OR JSON_EXTRACT(ce.payload, '$.message.to') = ?
                             )
                             ORDER BY ce.created_at DESC
                             LIMIT 1
                         ");
-                        $eventStmt2->execute([$contactId, $contactId, $contactId, $contactId]);
-                        $event2 = $eventStmt2->fetch();
+                        $eventStmt->execute([$contactId, $contactId]);
+                        $event = $eventStmt->fetch();
                         
-                        if ($event2) {
-                            if ($event2['payload']) {
-                                $payload2 = json_decode($event2['payload'], true);
-                                if (isset($payload2['channel_id']) && !empty($payload2['channel_id'])) {
-                                    $channelId = trim((string) $payload2['channel_id']);
-                                    error_log("[CommunicationHub::getWhatsAppThreadInfo] Channel_id encontrado em qualquer mensagem: {$channelId} para contato: {$contactId}");
+                        if ($event && $event['payload']) {
+                            $payload = json_decode($event['payload'], true);
+                            $metadata = $event['metadata'] ? json_decode($event['metadata'], true) : null;
+                            
+                            // Usa mesma lógica do ConversationService::extractChannelIdFromPayload()
+                            // PRIORIDADE: sessionId primeiro (sessão real do gateway)
+                            if (isset($payload['sessionId'])) {
+                                $channelId = trim((string) $payload['sessionId']);
+                                error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2.1: sessionId encontrado (payload.sessionId): {$channelId}");
+                            } elseif (isset($payload['session']['id'])) {
+                                $channelId = trim((string) $payload['session']['id']);
+                                error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2.2: sessionId encontrado (payload.session.id): {$channelId}");
+                            } elseif (isset($payload['session']['session'])) {
+                                $channelId = trim((string) $payload['session']['session']);
+                                error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2.3: sessionId encontrado (payload.session.session): {$channelId}");
+                            } elseif (isset($payload['data']['session']['id'])) {
+                                $channelId = trim((string) $payload['data']['session']['id']);
+                                error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2.4: sessionId encontrado (payload.data.session.id): {$channelId}");
+                            } elseif (isset($payload['data']['session']['session'])) {
+                                $channelId = trim((string) $payload['data']['session']['session']);
+                                error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2.5: sessionId encontrado (payload.data.session.session): {$channelId}");
+                            } elseif (isset($payload['metadata']['sessionId'])) {
+                                $channelId = trim((string) $payload['metadata']['sessionId']);
+                                error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2.6: sessionId encontrado (payload.metadata.sessionId): {$channelId}");
+                            } elseif (isset($payload['channelId'])) {
+                                $channelId = trim((string) $payload['channelId']);
+                                error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2.7: channelId encontrado (payload.channelId): {$channelId}");
+                            } elseif (isset($payload['channel'])) {
+                                $channelId = trim((string) $payload['channel']);
+                                error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2.8: channel encontrado (payload.channel): {$channelId}");
+                            } elseif (isset($payload['data']['channel'])) {
+                                $channelId = trim((string) $payload['data']['channel']);
+                                error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2.9: channel encontrado (payload.data.channel): {$channelId}");
+                            } elseif ($metadata && isset($metadata['channel_id'])) {
+                                // ÚLTIMA opção - pode estar errado (ex: ImobSites)
+                                $channelId = trim((string) $metadata['channel_id']);
+                                // VALIDAÇÃO: Rejeita valores conhecidos como incorretos
+                                $channelIdLower = strtolower($channelId);
+                                if ($channelIdLower === 'imobsites') {
+                                    error_log("[CommunicationHub::getWhatsAppThreadInfo] AVISO: metadata.channel_id='ImobSites' rejeitado (valor incorreto). Tentando buscar de outra mensagem...");
+                                    $channelId = null; // Rejeita valor incorreto
+                                } else {
+                                    error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2.10: channel_id encontrado (metadata.channel_id): {$channelId}");
                                 }
                             }
+                        }
+                        
+                        // Se ainda não encontrou, tenta buscar de qualquer mensagem da conversa (inbound ou outbound)
+                        if (!$channelId) {
+                            $eventStmt2 = $db->prepare("
+                                SELECT ce.payload, ce.metadata
+                                FROM communication_events ce
+                                WHERE ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+                                AND (
+                                    JSON_EXTRACT(ce.payload, '$.from') = ?
+                                    OR JSON_EXTRACT(ce.payload, '$.to') = ?
+                                    OR JSON_EXTRACT(ce.payload, '$.message.from') = ?
+                                    OR JSON_EXTRACT(ce.payload, '$.message.to') = ?
+                                )
+                                ORDER BY ce.created_at DESC
+                                LIMIT 1
+                            ");
+                            $eventStmt2->execute([$contactId, $contactId, $contactId, $contactId]);
+                            $event2 = $eventStmt2->fetch();
                             
-                            if (!$channelId && $event2['metadata']) {
-                                $metadata2 = json_decode($event2['metadata'], true);
-                                if (isset($metadata2['channel_id']) && !empty($metadata2['channel_id'])) {
+                            if ($event2 && $event2['payload']) {
+                                $payload2 = json_decode($event2['payload'], true);
+                                $metadata2 = $event2['metadata'] ? json_decode($event2['metadata'], true) : null;
+                                
+                                // Mesma lógica de prioridade
+                                if (isset($payload2['sessionId'])) {
+                                    $channelId = trim((string) $payload2['sessionId']);
+                                } elseif (isset($payload2['session']['id'])) {
+                                    $channelId = trim((string) $payload2['session']['id']);
+                                } elseif (isset($payload2['session']['session'])) {
+                                    $channelId = trim((string) $payload2['session']['session']);
+                                } elseif (isset($payload2['data']['session']['id'])) {
+                                    $channelId = trim((string) $payload2['data']['session']['id']);
+                                } elseif (isset($payload2['data']['session']['session'])) {
+                                    $channelId = trim((string) $payload2['data']['session']['session']);
+                                } elseif (isset($payload2['metadata']['sessionId'])) {
+                                    $channelId = trim((string) $payload2['metadata']['sessionId']);
+                                } elseif (isset($payload2['channelId'])) {
+                                    $channelId = trim((string) $payload2['channelId']);
+                                } elseif (isset($payload2['channel'])) {
+                                    $channelId = trim((string) $payload2['channel']);
+                                } elseif (isset($payload2['data']['channel'])) {
+                                    $channelId = trim((string) $payload2['data']['channel']);
+                                } elseif ($metadata2 && isset($metadata2['channel_id'])) {
                                     $channelId = trim((string) $metadata2['channel_id']);
-                                    error_log("[CommunicationHub::getWhatsAppThreadInfo] Channel_id encontrado no metadata de qualquer mensagem: {$channelId} para contato: {$contactId}");
+                                    // Validação: rejeita valores incorretos
+                                    if (strtolower($channelId) === 'imobsites') {
+                                        $channelId = null;
+                                    }
+                                }
+                                
+                                if ($channelId) {
+                                    error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2: Channel_id encontrado em qualquer mensagem: {$channelId}");
                                 }
                             }
                         }
                     }
                 }
                 
-                // Fallback 1: Usa tenant_channel_id se disponível (canal configurado para o tenant)
+                // PRIORIDADE 3: Usa tenant_channel_id se disponível (canal configurado para o tenant)
                 if (!$channelId && isset($conversation['tenant_channel_id']) && $conversation['tenant_channel_id'] !== '') {
                     $channelId = trim((string) $conversation['tenant_channel_id']);
-                    error_log("[CommunicationHub::getWhatsAppThreadInfo] Usando tenant_channel_id como fallback: {$channelId}");
+                    error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 3: Usando tenant_channel_id como fallback: {$channelId}");
                 }
                 
-                // Fallback 2: Se ainda não tem channel_id, tenta buscar qualquer canal habilitado (último recurso)
+                // PRIORIDADE 4: Se ainda não tem channel_id, tenta buscar qualquer canal habilitado (último recurso)
                 if (!$channelId) {
                     $fallbackStmt = $db->prepare("
                         SELECT channel_id 
@@ -2079,9 +2344,8 @@ class CommunicationHubController extends Controller
                     $fallbackStmt->execute();
                     $fallback = $fallbackStmt->fetch();
                     if ($fallback) {
-                        // CORRIGIDO: Mantém como string, não converte para int
                         $channelId = trim((string) $fallback['channel_id']);
-                        error_log("[CommunicationHub::getWhatsAppThreadInfo] Usando canal fallback genérico: {$channelId}");
+                        error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 4: Usando canal fallback genérico: {$channelId}");
                     }
                 }
                 
@@ -3314,6 +3578,119 @@ class CommunicationHubController extends Controller
      * @param string|null $channelId
      * @return string|null
      */
+    /**
+     * PATCH H2: Detecta qual coluna usar para sessionId do gateway
+     * Se existir coluna session_id, usa ela. Senão, usa channel_id como fallback.
+     * 
+     * @param PDO|null $db Conexão do banco (opcional, cria se não fornecido)
+     * @return string Nome da coluna que contém o sessionId ('session_id' ou 'channel_id')
+     */
+    private function getSessionIdColumnName(?PDO $db = null): string
+    {
+        static $cachedColumnName = null;
+        
+        if ($cachedColumnName !== null) {
+            return $cachedColumnName;
+        }
+        
+        if (!$db) {
+            $db = DB::getConnection();
+        }
+        
+        // Verifica se existe coluna session_id
+        try {
+            $stmt = $db->query("SHOW COLUMNS FROM tenant_message_channels LIKE 'session_id'");
+            $column = $stmt->fetch();
+            
+            if ($column && $column['Field'] === 'session_id') {
+                $cachedColumnName = 'session_id';
+                error_log('[CommunicationHub] Usando coluna session_id para sessionId do gateway');
+                return 'session_id';
+            }
+        } catch (\Exception $e) {
+            error_log('[CommunicationHub] Erro ao verificar coluna session_id: ' . $e->getMessage());
+        }
+        
+        // Fallback: usa channel_id
+        $cachedColumnName = 'channel_id';
+        error_log('[CommunicationHub] Usando coluna channel_id como fallback para sessionId do gateway');
+        return 'channel_id';
+    }
+    
+    /**
+     * PATCH H2: Valida se um sessionId do gateway está habilitado para um tenant
+     * 
+     * @param string $sessionId SessionId do gateway (ex: "pixel12digital", "ImobSites")
+     * @param int|null $tenantId ID do tenant (opcional, valida para qualquer tenant se null)
+     * @param PDO|null $db Conexão do banco (opcional)
+     * @return array|null Dados do canal se encontrado e habilitado, null caso contrário
+     */
+    private function validateGatewaySessionId(string $sessionId, ?int $tenantId = null, ?PDO $db = null): ?array
+    {
+        if (!$db) {
+            $db = DB::getConnection();
+        }
+        
+        // PATCH H2: Usa a coluna correta (session_id ou channel_id)
+        $sessionIdColumn = $this->getSessionIdColumnName($db);
+        
+        // Query para validar sessionId
+        $where = [
+            "provider = 'wpp_gateway'",
+            "is_enabled = 1"
+        ];
+        $params = [];
+        
+        // Compara sessionId (case-sensitive primeiro, depois case-insensitive como fallback)
+        if ($sessionIdColumn === 'session_id') {
+            // Se tem coluna session_id, compara direto nela
+            $where[] = "(session_id = ? OR LOWER(TRIM(session_id)) = LOWER(TRIM(?)))";
+            $params[] = $sessionId;
+            $params[] = $sessionId;
+        } else {
+            // Fallback: usa channel_id
+            $where[] = "(channel_id = ? OR LOWER(TRIM(channel_id)) = LOWER(TRIM(?)))";
+            $params[] = $sessionId;
+            $params[] = $sessionId;
+        }
+        
+        // Filtra por tenant se fornecido
+        if ($tenantId !== null) {
+            $where[] = "(tenant_id = ? OR tenant_id IS NULL)";
+            $params[] = $tenantId;
+        }
+        
+        // PATCH H2: Seleciona apenas colunas que existem no schema atual
+        $selectColumns = $sessionIdColumn === 'session_id' 
+            ? "id, channel_id, session_id, tenant_id, is_enabled"
+            : "id, channel_id, tenant_id, is_enabled";
+        
+        $sql = "SELECT {$selectColumns} 
+                FROM tenant_message_channels 
+                WHERE " . implode(' AND ', $where) . "
+                LIMIT 1";
+        
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $channel = $stmt->fetch();
+        
+        if ($channel && $channel['is_enabled']) {
+            // Retorna o sessionId canônico (preferir session_id se existir, senão channel_id)
+            $canonicalSessionId = $sessionIdColumn === 'session_id' 
+                ? ($channel['session_id'] ?? $channel['channel_id'] ?? null)
+                : ($channel['channel_id'] ?? null);
+            
+            return [
+                'id' => $channel['id'],
+                'session_id' => trim($canonicalSessionId),
+                'tenant_id' => $channel['tenant_id'] ? (int) $channel['tenant_id'] : null,
+                'is_enabled' => (bool) $channel['is_enabled']
+            ];
+        }
+        
+        return null;
+    }
+
     private function normalizeChannelId(?string $channelId): ?string
     {
         if (empty($channelId)) {

@@ -1662,6 +1662,7 @@ function initMediaViewerOnce() {
     
     // Event delegation global no document (funciona mesmo após re-render)
     document.addEventListener('click', function(e) {
+        // Abrir modal ao clicar em mídia
         const btn = e.target.closest('.hub-media-open');
         const img = e.target.closest('.hub-media-thumb');
         const target = btn || img;
@@ -1672,42 +1673,56 @@ function initMediaViewerOnce() {
             if (src) {
                 openMediaViewer(src);
             }
+            return;
+        }
+        
+        // Fechar modal ao clicar no botão fechar
+        const closeBtn = e.target.closest('#hub-media-close');
+        if (closeBtn) {
+            e.preventDefault();
+            const viewer = document.getElementById('hub-media-viewer');
+            if (viewer) {
+                viewer.style.display = 'none';
+            }
+            return;
+        }
+        
+        // Fechar modal ao clicar no overlay (fora da imagem)
+        const viewer = document.getElementById('hub-media-viewer');
+        if (viewer && e.target === viewer) {
+            viewer.style.display = 'none';
+            return;
+        }
+    });
+    
+    // Fechar com ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const viewer = document.getElementById('hub-media-viewer');
+            if (viewer && viewer.style.display !== 'none') {
+                viewer.style.display = 'none';
+            }
         }
     });
 }
 
 /**
  * Inicializa listeners do modal de viewer de mídia
+ * Nota: Os listeners de fechar (botão, overlay, ESC) estão em initMediaViewerOnce()
+ * usando event delegation para funcionar mesmo após re-render do modal
  */
 function initMediaViewer() {
     const viewer = document.getElementById('hub-media-viewer');
     const img = document.getElementById('hub-media-viewer-img');
     const downloadBtn = document.getElementById('hub-media-download');
     const openNewBtn = document.getElementById('hub-media-open-new');
-    const closeBtn = document.getElementById('hub-media-close');
     
-    if (!viewer || !img || !downloadBtn || !openNewBtn || !closeBtn) {
+    if (!viewer || !img || !downloadBtn || !openNewBtn) {
         return; // Modal ainda não foi criado
     }
     
-    // Botão fechar
-    closeBtn.addEventListener('click', function() {
-        viewer.style.display = 'none';
-    });
-    
-    // Fechar ao clicar no overlay (fora da imagem)
-    viewer.addEventListener('click', function(e) {
-        if (e.target === viewer) {
-            viewer.style.display = 'none';
-        }
-    });
-    
-    // Fechar com ESC
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && viewer.style.display !== 'none') {
-            viewer.style.display = 'none';
-        }
-    });
+    // Os listeners de fechar estão em initMediaViewerOnce() usando event delegation
+    // Isso garante que funcionem mesmo quando o modal é recriado
 }
 
 /**
@@ -1906,17 +1921,15 @@ function renderConversation(thread, messages, channel) {
         });
     }
     
-    // Inicializa listeners do modal (uma vez, se ainda não foi inicializado)
-    if (!window.hubMediaViewerInitialized) {
-        window.hubMediaViewerInitialized = true;
-        // Aguarda um pouco para garantir que o modal foi criado no DOM
-        setTimeout(() => {
-            initMediaViewer();
-        }, 100);
-    }
-    
     // Inicializa event delegation para viewer de mídia (uma vez, global)
+    // Usa event delegation, então funciona mesmo após re-render do modal
     initMediaViewerOnce();
+    
+    // Inicializa listeners adicionais do modal (sempre que o modal é recriado)
+    // Aguarda um pouco para garantir que o modal foi criado no DOM
+    setTimeout(() => {
+        initMediaViewer();
+    }, 100);
     
     // Adiciona listener de scroll no header (sombra quando scrolla)
     const header = document.getElementById('conversation-header');
@@ -1981,15 +1994,30 @@ async function sendMessageFromPanel(e) {
     
     try {
         const sendUrl = '<?= pixelhub_url('/communication-hub/send') ?>';
+        console.log('[CommunicationHub] Enviando POST para:', sendUrl);
+        console.log('[CommunicationHub] FormData:', Object.fromEntries(formData));
+        
         const response = await fetch(sendUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
             },
             body: new URLSearchParams(formData)
         });
         
+        console.log('[CommunicationHub] Response status:', response.status);
+        console.log('[CommunicationHub] Response headers:', Object.fromEntries(response.headers.entries()));
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[CommunicationHub] Erro HTTP:', response.status, errorText);
+            throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
+        }
+        
         const result = await response.json();
+        console.log('[CommunicationHub] Response JSON:', result);
         
         if (result.success && result.event_id) {
             // Busca mensagem confirmada

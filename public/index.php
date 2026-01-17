@@ -287,6 +287,21 @@ error_log("scriptDir: " . $scriptDir);
 error_log("path calculado: " . $path);
 error_log("REQUEST_METHOD: " . ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 
+// LOG ESPECIAL: Captura TODAS as requisições POST (para debug)
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    error_log("=== 🔍 POST REQUEST DETECTADO ===");
+    error_log("Path: {$path}");
+    error_log("REQUEST_URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
+    error_log("POST data: " . json_encode($_POST, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    error_log("Content-Type: " . ($_SERVER['CONTENT_TYPE'] ?? 'N/A'));
+    error_log("Content-Length: " . ($_SERVER['CONTENT_LENGTH'] ?? 'N/A'));
+    
+    // Log especial para communication-hub/send
+    if (strpos($path, 'communication-hub/send') !== false) {
+        error_log("=== 🔍🔍 POST /communication-hub/send ESPECÍFICO DETECTADO 🔍🔍 ===");
+    }
+}
+
 // Cria router e define rotas
 $router = new Router();
 
@@ -665,6 +680,7 @@ register_shutdown_function(function() use ($path) {
         $isAjaxRoute = strpos($path, '/hosting/view') === 0 || 
                        strpos($path, '/billing/') === 0 ||
                        strpos($path, '/tasks/') === 0 ||
+                       strpos($path, '/communication-hub/') === 0 ||
                        (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
                        (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
         
@@ -690,9 +706,29 @@ register_shutdown_function(function() use ($path) {
             echo "<h2>Tipo de Erro:</h2>\n";
             echo "<pre>" . $error['type'] . "</pre>\n";
         } elseif ($isAjaxRoute) {
-            header('Content-Type: application/json', true);
+            header('Content-Type: application/json; charset=utf-8', true);
             http_response_code(500);
-            echo json_encode(['error' => 'Erro interno do servidor']);
+            
+            // PATCH E: Detectar modo local para mostrar debug
+            $isLocal = in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true);
+            
+            $response = [
+                'success' => false,
+                'error' => 'Erro interno do servidor',
+                'error_code' => 'FATAL_ERROR'
+            ];
+            
+            // Se for local e for rota de comunicação, mostra mais detalhes
+            if ($isLocal && strpos($path, '/communication-hub/') === 0) {
+                $response['debug'] = [
+                    'message' => $error['message'],
+                    'file' => basename($error['file']),
+                    'line' => $error['line'],
+                    'type' => $error['type']
+                ];
+            }
+            
+            echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         } else {
             http_response_code(500);
             echo "Erro interno do servidor.";

@@ -36,9 +36,24 @@ abstract class Controller
             @ob_end_clean();
         }
 
-        http_response_code($statusCode);
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        // Verifica se headers já foram enviados (evita erro fatal)
+        if (!headers_sent()) {
+            http_response_code($statusCode);
+            header('Content-Type: application/json; charset=utf-8');
+        } else {
+            // Se headers já foram enviados, tenta definir status code de qualquer forma
+            @http_response_code($statusCode);
+            error_log("[Controller::json] AVISO: Headers já foram enviados antes de json() ser chamado");
+        }
+
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            error_log("[Controller::json] ERRO: Falha ao codificar JSON. Erro: " . json_last_error_msg());
+            $data = ['success' => false, 'error' => 'Erro ao processar resposta'];
+            $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+        
+        echo $json;
         exit;
     }
 

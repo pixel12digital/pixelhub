@@ -312,8 +312,27 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             body: formData
         })
-        .then(r => r.json())
+        .then(async r => {
+            console.log('[WhatsAppGatewayTest] Response status:', r.status);
+            console.log('[WhatsAppGatewayTest] Response headers:', Object.fromEntries(r.headers.entries()));
+            
+            if (!r.ok) {
+                const text = await r.text();
+                console.error('[WhatsAppGatewayTest] Erro HTTP:', r.status, text);
+                throw new Error(`Erro ${r.status}: ${text.substring(0, 200)}`);
+            }
+            
+            const contentType = r.headers.get('Content-Type') || '';
+            if (!contentType.includes('application/json')) {
+                const text = await r.text();
+                console.warn('[WhatsAppGatewayTest] Resposta não é JSON:', contentType, text.substring(0, 200));
+                throw new Error(`Servidor retornou ${contentType} ao invés de JSON`);
+            }
+            
+            return r.json();
+        })
         .then(data => {
+            console.log('[WhatsAppGatewayTest] Response data:', data);
             if (data.success) {
                 resultDiv.style.background = '#d4edda';
                 resultDiv.style.color = '#155724';

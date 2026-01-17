@@ -215,3 +215,4 @@ Se precisar de ajuda:
 2. Verifique logs do PHP para erros
 3. Consulte `docs/IMPLEMENTACAO_MIDIAS_WHATSAPP.md` para detalhes técnicos
 
+
