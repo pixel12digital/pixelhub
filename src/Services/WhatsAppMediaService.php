@@ -229,14 +229,19 @@ class WhatsAppMediaService
         
         // Baixa mídia do WhatsApp Gateway
         try {
+            error_log("[WhatsAppMediaService] Iniciando download de mídia - channelId: {$channelId}, mediaId: {$mediaId}");
             $client = new WhatsAppGatewayClient();
             $downloadResult = $client->downloadMedia($channelId, $mediaId);
             
             if (!$downloadResult['success'] || empty($downloadResult['data'])) {
-                error_log("[WhatsAppMediaService] Falha ao baixar mídia: {$downloadResult['error']}");
+                $errorMsg = $downloadResult['error'] ?? 'Dados vazios ou download falhou';
+                error_log("[WhatsAppMediaService] Falha ao baixar mídia: {$errorMsg} (channelId: {$channelId}, mediaId: {$mediaId})");
                 // Salva registro sem arquivo
                 return self::saveMediaRecord($event['event_id'], $mediaId, $mediaType, $mimeType, null, null, null);
             }
+            
+            $dataSize = strlen($downloadResult['data']);
+            error_log("[WhatsAppMediaService] Download bem-sucedido: {$dataSize} bytes baixados (channelId: {$channelId}, mediaId: {$mediaId})");
             
             // Determina extensão do arquivo
             $extension = self::getExtensionFromMimeType($downloadResult['mime_type'] ?: $mimeType);
@@ -253,12 +258,27 @@ class WhatsAppMediaService
             $fullPath = $mediaDir . DIRECTORY_SEPARATOR . $fileName;
             
             // Salva arquivo
-            if (file_put_contents($fullPath, $downloadResult['data']) === false) {
+            $bytesWritten = file_put_contents($fullPath, $downloadResult['data']);
+            if ($bytesWritten === false) {
                 error_log("[WhatsAppMediaService] Falha ao salvar arquivo: {$fullPath}");
                 return self::saveMediaRecord($event['event_id'], $mediaId, $mediaType, $mimeType, null, null, null);
             }
             
+            // Validação adicional: verifica se arquivo realmente existe após salvar
+            if (!file_exists($fullPath)) {
+                error_log("[WhatsAppMediaService] ERRO CRÍTICO: file_put_contents retornou {$bytesWritten} bytes mas arquivo não existe: {$fullPath}");
+                return self::saveMediaRecord($event['event_id'], $mediaId, $mediaType, $mimeType, null, null, null);
+            }
+            
             $fileSize = filesize($fullPath);
+            if ($fileSize === false || $fileSize === 0) {
+                error_log("[WhatsAppMediaService] ERRO: Arquivo salvo mas tamanho inválido (0 bytes ou erro): {$fullPath}");
+                // Remove arquivo inválido
+                @unlink($fullPath);
+                return self::saveMediaRecord($event['event_id'], $mediaId, $mediaType, $mimeType, null, null, null);
+            }
+            
+            error_log("[WhatsAppMediaService] Arquivo salvo com sucesso: {$storedPath} ({$fileSize} bytes, escrito: {$bytesWritten} bytes)");
             
             // Salva registro no banco
             return self::saveMediaRecord(
