@@ -18,6 +18,7 @@
 /storage/uploads/
 /storage/tenants/*.wpress
 /storage/temp/
+/storage/whatsapp-media/
 
 # Backups
 *.wpress
