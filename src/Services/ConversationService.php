@@ -146,6 +146,20 @@ class ConversationService
             return $equivalent;
         }
         
+        // CORREÇÃO: Verifica duplicados por remote_key antes de criar nova conversa
+        // Isso previne criação de conversas duplicadas quando o mesmo contato aparece
+        // com identificadores diferentes (ex: 169183207809126@lid vs 169183207809126)
+        if (!empty($channelInfo['remote_key'])) {
+            error_log('[HUB_CONV_MATCH] Query: findDuplicateByRemoteKey remote_key=' . $channelInfo['remote_key']);
+            $duplicateByRemoteKey = self::findDuplicateByRemoteKey($channelInfo);
+            if ($duplicateByRemoteKey) {
+                error_log('[HUB_CONV_MATCH] FOUND_DUPLICATE_BY_REMOTE_KEY id=' . $duplicateByRemoteKey['id'] . ' remote_key=' . $channelInfo['remote_key'] . ' reason=prevent_duplication');
+                // Atualiza a conversa existente ao invés de criar nova
+                self::updateConversationMetadata($duplicateByRemoteKey['id'], $eventData, $channelInfo);
+                return $duplicateByRemoteKey;
+            }
+        }
+
         // Se ainda não encontrou, tenta encontrar conversa com mesmo contato mas channel_account_id diferente
         // (ex.: conversa "shared" vs conversa com tenant específico)
         error_log('[HUB_CONV_MATCH] Query: findConversationByContactOnly contact=' . $channelInfo['contact_external_id']);
@@ -1362,6 +1376,49 @@ class ConversationService
     public static function findByConversationKey(string $conversationKey): ?array
     {
         return self::findByKey($conversationKey);
+    }
+
+    /**
+     * Busca conversa duplicada por remote_key
+     * 
+     * CORREÇÃO: Previne criação de conversas duplicadas quando o mesmo contato aparece
+     * com identificadores diferentes (ex: 169183207809126@lid vs 169183207809126).
+     * 
+     * A função remote_key() normaliza ambos para o mesmo valor (lid:169183207809126),
+     * então podemos detectar duplicados mesmo quando contact_external_id é diferente.
+     * 
+     * @param array $channelInfo Informações do canal
+     * @return array|null Conversa duplicada encontrada ou null
+     */
+    private static function findDuplicateByRemoteKey(array $channelInfo): ?array
+    {
+        $remoteKey = $channelInfo['remote_key'] ?? null;
+        if (!$remoteKey) {
+            return null;
+        }
+
+        $db = DB::getConnection();
+        
+        try {
+            // Busca conversa com mesmo remote_key e channel_type
+            // Prioriza conversa com thread_key completo (mais completa)
+            $stmt = $db->prepare("
+                SELECT * FROM conversations 
+                WHERE channel_type = ? 
+                AND remote_key = ?
+                ORDER BY 
+                    CASE WHEN thread_key IS NOT NULL AND thread_key != '' THEN 0 ELSE 1 END,
+                    last_message_at DESC
+                LIMIT 1
+            ");
+            $stmt->execute([$channelInfo['channel_type'], $remoteKey]);
+            $result = $stmt->fetch();
+            
+            return $result ?: null;
+        } catch (\Exception $e) {
+            error_log("[ConversationService] Erro ao buscar duplicado por remote_key: " . $e->getMessage());
+            return null;
+        }
     }
 
     /**

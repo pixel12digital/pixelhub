@@ -3881,15 +3881,38 @@ class CommunicationHubController extends Controller
                 return;
             }
 
-            // Atualiza a conversa vinculando ao tenant
-            $updateStmt = $db->prepare("
-                UPDATE conversations 
-                SET tenant_id = ?,
-                    is_incoming_lead = 0,
-                    updated_at = NOW()
-                WHERE id = ?
-            ");
-            $updateStmt->execute([$tenantId, $conversationId]);
+            // CORREÇÃO: Atualiza a conversa vinculando ao tenant
+            // E também atualiza todas as conversas duplicadas (mesmo remote_key)
+            // Isso previne que conversas duplicadas fiquem com tenants diferentes
+            $remoteKey = $conversation['remote_key'] ?? null;
+            
+            if ($remoteKey) {
+                // Atualiza todas as conversas com mesmo remote_key
+                $updateStmt = $db->prepare("
+                    UPDATE conversations 
+                    SET tenant_id = ?,
+                        is_incoming_lead = 0,
+                        updated_at = NOW()
+                    WHERE remote_key = ? 
+                    AND channel_type = ?
+                ");
+                $updateStmt->execute([$tenantId, $remoteKey, $conversation['channel_type']]);
+                $duplicatesUpdated = $updateStmt->rowCount();
+                
+                if ($duplicatesUpdated > 1) {
+                    error_log("[CommunicationHub] linkIncomingLeadToTenant: Atualizadas {$duplicatesUpdated} conversas duplicadas com remote_key={$remoteKey}");
+                }
+            } else {
+                // Fallback: atualiza apenas a conversa específica se não tiver remote_key
+                $updateStmt = $db->prepare("
+                    UPDATE conversations 
+                    SET tenant_id = ?,
+                        is_incoming_lead = 0,
+                        updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $updateStmt->execute([$tenantId, $conversationId]);
+            }
 
             $db->commit();
 
