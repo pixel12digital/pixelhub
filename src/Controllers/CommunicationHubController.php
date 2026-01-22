@@ -1402,14 +1402,40 @@ class CommunicationHubController extends Controller
         $lidPhoneMap = [];
         $lidBatchData = [];
         
-        // Coleta todos os @lid que precisam ser resolvidos
+        // Coleta todos os @lid que precisam ser resolvidos (com sufixo ou digits-only)
         foreach ($conversations as $conv) {
-            // Se não tem tenant.phone E é @lid, precisa resolver
-            if (empty($conv['tenant_phone']) && !empty($conv['contact_external_id']) && strpos($conv['contact_external_id'], '@lid') !== false) {
-                $lidBatchData[] = [
-                    'contactId' => (string) $conv['contact_external_id'],
-                    'sessionId' => !empty($conv['channel_id']) ? (string) $conv['channel_id'] : null,
-                ];
+            if (empty($conv['tenant_phone']) && !empty($conv['contact_external_id'])) {
+                $contactId = (string) $conv['contact_external_id'];
+                
+                // Detecta se é @lid (com sufixo ou digits-only)
+                $isLid = false;
+                if (strpos($contactId, '@lid') !== false) {
+                    $isLid = true;
+                } else {
+                    // Tenta detectar como pnlid digits-only (14-20 dígitos, não começa com 55)
+                    $digits = preg_replace('/[^0-9]/', '', $contactId);
+                    if ($digits === $contactId && strlen($digits) >= 14 && strlen($digits) <= 20) {
+                        // Se começa com 55 e tem 12-13 dígitos, é E.164 brasileiro, não pnlid
+                        if (!(strlen($digits) <= 13 && substr($digits, 0, 2) === '55')) {
+                            $isLid = true;
+                            
+                            // LOG TEMPORÁRIO: Detectou pnlid sem @lid
+                            error_log(sprintf(
+                                '[LID_DETECT] conversation_id=%d, contact_external_id=%s, detected_as_lid=YES (digits-only, len=%d)',
+                                $conv['id'] ?? 0,
+                                $contactId,
+                                strlen($digits)
+                            ));
+                        }
+                    }
+                }
+                
+                if ($isLid) {
+                    $lidBatchData[] = [
+                        'contactId' => $contactId,
+                        'sessionId' => !empty($conv['channel_id']) ? (string) $conv['channel_id'] : null,
+                    ];
+                }
             }
         }
         
@@ -1431,10 +1457,45 @@ class CommunicationHubController extends Controller
                     if (!empty($conv['tenant_id']) && !empty($conv['tenant_phone'])) {
                         // Prioridade 1: tenant.phone
                         $realPhone = $conv['tenant_phone'];
-                    } elseif (!empty($conv['contact_external_id']) && strpos($conv['contact_external_id'], '@lid') !== false) {
-                        // Prioridade 2: buscar no mapa pré-carregado (O(1))
-                        $lidId = str_replace('@lid', '', $conv['contact_external_id']);
-                        $realPhone = $lidPhoneMap[$lidId] ?? null;
+                    } elseif (!empty($conv['contact_external_id'])) {
+                        $contactId = (string) $conv['contact_external_id'];
+                        
+                        // Detecta lidId (com sufixo ou digits-only)
+                        $lidId = null;
+                        if (strpos($contactId, '@lid') !== false) {
+                            $lidId = str_replace('@lid', '', $contactId);
+                        } else {
+                            // Tenta detectar como pnlid digits-only
+                            $digits = preg_replace('/[^0-9]/', '', $contactId);
+                            if ($digits === $contactId && strlen($digits) >= 14 && strlen($digits) <= 20) {
+                                if (!(strlen($digits) <= 13 && substr($digits, 0, 2) === '55')) {
+                                    $lidId = $digits;
+                                }
+                            }
+                        }
+                        
+                        if ($lidId) {
+                            // Prioridade 2: buscar no mapa pré-carregado (O(1))
+                            $realPhone = $lidPhoneMap[$lidId] ?? null;
+                            
+                            // LOG TEMPORÁRIO: Resultado da resolução
+                            if ($realPhone) {
+                                error_log(sprintf(
+                                    '[LID_RESOLVE] conversation_id=%d, contact_external_id=%s, lidId=%s, resolved_phone=%s',
+                                    $conv['id'] ?? 0,
+                                    $contactId,
+                                    $lidId,
+                                    $realPhone
+                                ));
+                            } else {
+                                error_log(sprintf(
+                                    '[LID_RESOLVE] conversation_id=%d, contact_external_id=%s, lidId=%s, resolved_phone=NULL',
+                                    $conv['id'] ?? 0,
+                                    $contactId,
+                                    $lidId
+                                ));
+                            }
+                        }
                     }
                     
                     $threads[] = [

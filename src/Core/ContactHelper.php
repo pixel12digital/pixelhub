@@ -168,14 +168,20 @@ class ContactHelper
     /**
      * Busca número de telefone nos eventos recentes de uma conversa
      * 
-     * @param string $contactId Identificador do contato (ex: "56083800395891@lid")
+     * @param string $contactId Identificador do contato (ex: "56083800395891@lid" ou "56083800395891@lid" quando digits-only)
      * @param string|null $sessionId ID da sessão WhatsApp
      * @return string|null Número em formato E.164 ou null se não encontrado
      */
     private static function resolveLidPhoneFromEvents(string $contactId, ?string $sessionId = null): ?string
     {
-        if (empty($contactId) || strpos($contactId, '@lid') === false) {
+        // Aceita tanto @lid quanto businessId (que sempre tem @lid)
+        if (empty($contactId) || (strpos($contactId, '@lid') === false && !preg_match('/^[0-9]{14,20}$/', $contactId))) {
             return null;
+        }
+        
+        // Se for digits-only, converte para businessId
+        if (strpos($contactId, '@lid') === false && preg_match('/^[0-9]{14,20}$/', $contactId)) {
+            $contactId = $contactId . '@lid';
         }
         
         try {
@@ -257,6 +263,55 @@ class ContactHelper
     }
 
     /**
+     * Detecta se um identificador é um pnlid (LID) mesmo sem sufixo @lid
+     * 
+     * Regras:
+     * - Digits-only com 14-20 caracteres
+     * - NÃO começa com "55" (não é E.164 brasileiro)
+     * - Não contém @ (não é JID)
+     * 
+     * @param string $contactId Identificador a verificar
+     * @return array|null ['lidId' => string, 'businessId' => string] ou null se não for pnlid
+     */
+    private static function detectLidWithoutSuffix(string $contactId): ?array
+    {
+        if (empty($contactId)) {
+            return null;
+        }
+        
+        $contactId = (string) $contactId;
+        
+        // Se já tem @lid, não precisa detectar
+        if (strpos($contactId, '@lid') !== false) {
+            return null;
+        }
+        
+        // Se tem @ (é JID), não é pnlid digits-only
+        if (strpos($contactId, '@') !== false) {
+            return null;
+        }
+        
+        // Remove tudo que não é dígito
+        $digits = preg_replace('/[^0-9]/', '', $contactId);
+        
+        // Verifica se é apenas dígitos e tem comprimento suspeito de pnlid (14-20)
+        if ($digits === $contactId && strlen($digits) >= 14 && strlen($digits) <= 20) {
+            // Se começa com 55 e tem 12-13 dígitos, é E.164 brasileiro, não pnlid
+            if (strlen($digits) <= 13 && substr($digits, 0, 2) === '55') {
+                return null;
+            }
+            
+            // É pnlid digits-only
+            return [
+                'lidId' => $digits,
+                'businessId' => $digits . '@lid'
+            ];
+        }
+        
+        return null;
+    }
+
+    /**
      * Resolve um @lid para número de telefone real via cache e mapeamento
      * 
      * Este método consulta as tabelas de cache/mapeamento (sem chamadas HTTP)
@@ -266,8 +321,9 @@ class ContactHelper
      * 1. whatsapp_business_ids (mapeamento persistente)
      * 2. wa_pnlid_cache (cache de resoluções via API)
      * 3. communication_events (busca no payload dos eventos recentes)
+     * 4. resolvePnLidViaProvider (API do gateway)
      * 
-     * @param string $contactId Identificador do contato (ex: "65111721042059@lid")
+     * @param string $contactId Identificador do contato (ex: "65111721042059@lid" ou "169183207809126")
      * @param string|null $sessionId ID da sessão WhatsApp (opcional, para consulta no cache)
      * @param string|null $provider Provider do WhatsApp (opcional, padrão: 'wpp_gateway')
      * @return string|null Número de telefone em formato E.164 (ex: "554796474223") ou null se não encontrado
@@ -282,9 +338,27 @@ class ContactHelper
         // Garante que é string
         $contactId = (string) $contactId;
         
-        if (strpos($contactId, '@lid') === false) {
+        // Detecta se é @lid com sufixo ou pnlid digits-only
+        $lidInfo = null;
+        if (strpos($contactId, '@lid') !== false) {
+            // Tem sufixo @lid
+            $lidId = str_replace('@lid', '', $contactId);
+            $lidInfo = [
+                'lidId' => $lidId,
+                'businessId' => $lidId . '@lid'
+            ];
+        } else {
+            // Tenta detectar como pnlid digits-only
+            $lidInfo = self::detectLidWithoutSuffix($contactId);
+        }
+        
+        // Se não é LID, retorna null
+        if (!$lidInfo) {
             return null;
         }
+        
+        $lidId = $lidInfo['lidId'];
+        $lidBusinessId = $lidInfo['businessId'];
 
         try {
             // Verifica se a classe DB está disponível
@@ -374,8 +448,10 @@ class ContactHelper
             }
             
             // 3. Tenta buscar nos eventos recentes (extrai do payload)
+            // Usa contactId original se tiver @lid, senão usa businessId
+            $contactIdForEvents = strpos($contactId, '@lid') !== false ? $contactId : $lidBusinessId;
             try {
-                $phoneFromEvents = self::resolveLidPhoneFromEvents($contactId, $sessionId);
+                $phoneFromEvents = self::resolveLidPhoneFromEvents($contactIdForEvents, $sessionId);
                 if (!empty($phoneFromEvents)) {
                     return $phoneFromEvents;
                 }
@@ -637,12 +713,30 @@ class ContactHelper
             
             foreach ($lidData as $item) {
                 $contactId = (string) ($item['contactId'] ?? '');
-                if (empty($contactId) || strpos($contactId, '@lid') === false) {
+                if (empty($contactId)) {
                     continue;
                 }
                 
-                $lidId = str_replace('@lid', '', $contactId);
-                $businessId = $lidId . '@lid';
+                // Detecta se é @lid com sufixo ou pnlid digits-only
+                $lidInfo = null;
+                if (strpos($contactId, '@lid') !== false) {
+                    // Tem sufixo @lid
+                    $lidId = str_replace('@lid', '', $contactId);
+                    $lidInfo = [
+                        'lidId' => $lidId,
+                        'businessId' => $lidId . '@lid'
+                    ];
+                } else {
+                    // Tenta detectar como pnlid digits-only
+                    $lidInfo = self::detectLidWithoutSuffix($contactId);
+                }
+                
+                if (!$lidInfo) {
+                    continue;
+                }
+                
+                $lidId = $lidInfo['lidId'];
+                $businessId = $lidInfo['businessId'];
                 
                 $lidIds[$lidId] = true;
                 $businessIds[$businessId] = $lidId; // Mapeia businessId -> lidId
@@ -769,15 +863,31 @@ class ContactHelper
             $unresolvedItems = [];
             foreach ($lidData as $item) {
                 $contactId = (string) ($item['contactId'] ?? '');
-                if (empty($contactId) || strpos($contactId, '@lid') === false) {
+                if (empty($contactId)) {
                     continue;
                 }
                 
-                $lidId = str_replace('@lid', '', $contactId);
+                // Detecta se é @lid com sufixo ou pnlid digits-only
+                $lidInfo = null;
+                if (strpos($contactId, '@lid') !== false) {
+                    $lidId = str_replace('@lid', '', $contactId);
+                    $lidInfo = [
+                        'lidId' => $lidId,
+                        'businessId' => $lidId . '@lid'
+                    ];
+                } else {
+                    $lidInfo = self::detectLidWithoutSuffix($contactId);
+                }
+                
+                if (!$lidInfo) {
+                    continue;
+                }
+                
+                $lidId = $lidInfo['lidId'];
                 // Só adiciona se ainda não foi resolvido
                 if (!isset($resultMap[$lidId])) {
                     $unresolvedItems[] = [
-                        'contactId' => $contactId,
+                        'contactId' => strpos($contactId, '@lid') !== false ? $contactId : $lidInfo['businessId'],
                         'lidId' => $lidId,
                         'sessionId' => $item['sessionId'] ?? null
                     ];
