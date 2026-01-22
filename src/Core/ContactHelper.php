@@ -3,6 +3,7 @@
 namespace PixelHub\Core;
 
 use PixelHub\Core\DB;
+use PixelHub\Services\PhoneNormalizer;
 use PDO;
 
 /**
@@ -326,19 +327,39 @@ class ContactHelper
                 // Ignora erro, continua para próxima tentativa
             }
             
-            // 2. Tenta buscar no cache wa_pnlid_cache (se tiver sessionId)
-            if (!empty($sessionId) && !empty($provider)) {
+            // 2. Tenta buscar no cache wa_pnlid_cache (com sessionId se disponível, depois sem sessionId como fallback)
+            if (!empty($provider)) {
                 try {
                     if (self::tableExists($db, 'wa_pnlid_cache')) {
+                        // Primeiro tenta com sessionId (se disponível)
+                        if (!empty($sessionId)) {
+                            $stmt = $db->prepare("
+                                SELECT phone_e164, updated_at 
+                                FROM wa_pnlid_cache 
+                                WHERE provider = ? AND session_id = ? AND pnlid = ? 
+                                AND updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                                LIMIT 1
+                            ");
+                            if ($stmt) {
+                                $stmt->execute([$provider, $sessionId, $lidId]);
+                                $cached = $stmt->fetch(PDO::FETCH_ASSOC);
+                                if ($cached && !empty($cached['phone_e164'])) {
+                                    return $cached['phone_e164'];
+                                }
+                            }
+                        }
+                        
+                        // Fallback: tenta sem sessionId (apenas provider + pnlid)
                         $stmt = $db->prepare("
                             SELECT phone_e164, updated_at 
                             FROM wa_pnlid_cache 
-                            WHERE provider = ? AND session_id = ? AND pnlid = ? 
+                            WHERE provider = ? AND pnlid = ? 
                             AND updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                            ORDER BY updated_at DESC
                             LIMIT 1
                         ");
                         if ($stmt) {
-                            $stmt->execute([$provider, $sessionId, $lidId]);
+                            $stmt->execute([$provider, $lidId]);
                             $cached = $stmt->fetch(PDO::FETCH_ASSOC);
                             if ($cached && !empty($cached['phone_e164'])) {
                                 return $cached['phone_e164'];
@@ -352,7 +373,7 @@ class ContactHelper
                 }
             }
             
-            // 3. NOVA: Tenta buscar nos eventos recentes (extrai do payload)
+            // 3. Tenta buscar nos eventos recentes (extrai do payload)
             try {
                 $phoneFromEvents = self::resolveLidPhoneFromEvents($contactId, $sessionId);
                 if (!empty($phoneFromEvents)) {
@@ -362,6 +383,21 @@ class ContactHelper
                 // Ignora erro, continua
             } catch (\Throwable $e) {
                 // Ignora erro, continua
+            }
+            
+            // 4. ÚLTIMA CAMADA: Tenta resolver via API do provider
+            try {
+                $phoneFromProvider = self::resolvePnLidViaProvider($provider, $sessionId, $lidId);
+                if (!empty($phoneFromProvider)) {
+                    // Garante persistência do mapeamento encontrado
+                    self::saveLidMapping($db, $lidBusinessId, $phoneFromProvider, $sessionId, $provider, $lidId);
+                    return $phoneFromProvider;
+                }
+            } catch (\Exception $e) {
+                // Log discreto apenas quando falhar (para troubleshooting)
+                error_log("[ContactHelper::resolveLidPhone] Erro ao resolver via provider: " . $e->getMessage());
+            } catch (\Throwable $e) {
+                error_log("[ContactHelper::resolveLidPhone] Erro fatal ao resolver via provider: " . $e->getMessage());
             }
             
         } catch (\Exception $e) {
@@ -374,6 +410,156 @@ class ContactHelper
         }
         
         return null;
+    }
+
+    /**
+     * Resolve @lid via API do provider (gateway)
+     * 
+     * @param string $provider Provider do WhatsApp (ex: 'wpp_gateway')
+     * @param string|null $sessionId ID da sessão WhatsApp (pode ser null)
+     * @param string $pnLid ID do @lid sem sufixo (ex: "56083800395891")
+     * @return string|null Número de telefone em formato E.164 ou null se não encontrado
+     */
+    private static function resolvePnLidViaProvider(string $provider, ?string $sessionId, string $pnLid): ?string
+    {
+        // Apenas para wpp_gateway por enquanto
+        if ($provider !== 'wpp_gateway') {
+            return null;
+        }
+        
+        // Se não tem sessionId, não pode chamar API (endpoint requer sessionId)
+        if (empty($sessionId)) {
+            return null;
+        }
+        
+        try {
+            // Endpoint do gateway: /api/{sessionId}/contact/pn-lid/{pnLid}
+            $baseUrl = \PixelHub\Core\Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
+            if (empty($baseUrl)) {
+                return null;
+            }
+            
+            // Obtém secret para autenticação
+            try {
+                $secret = \PixelHub\Services\GatewaySecret::getDecrypted();
+            } catch (\Exception $e) {
+                return null;
+            }
+            
+            if (empty($secret)) {
+                return null;
+            }
+            
+            $url = rtrim($baseUrl, '/') . '/api/' . rawurlencode($sessionId) . '/contact/pn-lid/' . rawurlencode($pnLid);
+            
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_HTTPGET => true,
+                CURLOPT_HTTPHEADER => [
+                    'Accept: application/json',
+                    'X-Gateway-Secret: ' . $secret
+                ],
+            ]);
+            
+            $raw = curl_exec($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+            
+            if ($code < 200 || $code >= 300 || !$raw) {
+                // Log discreto apenas quando falhar (para troubleshooting)
+                // 404 é esperado quando não encontra, não precisa logar
+                if ($code !== 404 && $code !== 0) {
+                    error_log("[ContactHelper::resolvePnLidViaProvider] HTTP {$code} para pnLid={$pnLid}, sessionId={$sessionId}" . ($curlError ? ", curl_error={$curlError}" : ""));
+                }
+                return null;
+            }
+            
+            $j = json_decode($raw, true);
+            if (!is_array($j)) {
+                return null;
+            }
+            
+            // Tenta extrair telefone em campos comuns
+            $candidates = [
+                $j['phone'] ?? null,
+                $j['number'] ?? null,
+                $j['wid'] ?? null,
+                $j['id']['user'] ?? null,
+                $j['user'] ?? null,
+                $j['contact']['number'] ?? null,
+                $j['contact']['phone'] ?? null,
+                $j['data']['phone'] ?? null,
+                $j['data']['number'] ?? null,
+            ];
+            
+            foreach ($candidates as $cand) {
+                if ($cand) {
+                    $e164 = PhoneNormalizer::toE164OrNull($cand, 'BR', false);
+                    if ($e164) {
+                        return $e164;
+                    }
+                }
+            }
+            
+            // Se vier no formato JID:
+            if (!empty($j['jid'])) {
+                $e164 = PhoneNormalizer::toE164OrNull($j['jid'], 'BR', false);
+                if ($e164) {
+                    return $e164;
+                }
+            }
+            
+            return null;
+        } catch (\Exception $e) {
+            // Log discreto apenas quando falhar (para troubleshooting)
+            error_log("[ContactHelper::resolvePnLidViaProvider] Exceção: " . $e->getMessage());
+            return null;
+        } catch (\Throwable $e) {
+            error_log("[ContactHelper::resolvePnLidViaProvider] Erro fatal: " . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Salva mapeamento @lid → telefone nas tabelas de cache/mapeamento
+     * 
+     * @param PDO $db Conexão do banco
+     * @param string $businessId ID completo com @lid (ex: "56083800395891@lid")
+     * @param string $phoneE164 Número em formato E.164
+     * @param string|null $sessionId ID da sessão (opcional)
+     * @param string $provider Provider (padrão: 'wpp_gateway')
+     * @param string $lidId ID sem @lid (ex: "56083800395891")
+     * @return void
+     */
+    private static function saveLidMapping(PDO $db, string $businessId, string $phoneE164, ?string $sessionId, string $provider, string $lidId): void
+    {
+        try {
+            // Salva em whatsapp_business_ids (mapeamento persistente)
+            if (self::tableExists($db, 'whatsapp_business_ids')) {
+                $insertStmt = $db->prepare("
+                    INSERT IGNORE INTO whatsapp_business_ids (business_id, phone_number)
+                    VALUES (?, ?)
+                ");
+                $insertStmt->execute([$businessId, $phoneE164]);
+            }
+            
+            // Salva no cache wa_pnlid_cache (se tiver sessionId)
+            if (!empty($sessionId) && self::tableExists($db, 'wa_pnlid_cache')) {
+                $cacheStmt = $db->prepare("
+                    INSERT INTO wa_pnlid_cache (provider, session_id, pnlid, phone_e164)
+                    VALUES (?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE phone_e164=VALUES(phone_e164), updated_at=NOW()
+                ");
+                $cacheStmt->execute([$provider, $sessionId, $lidId, $phoneE164]);
+            }
+        } catch (\Exception $e) {
+            // Ignora erro de inserção, mas loga para debug
+            error_log("[ContactHelper::saveLidMapping] Erro ao salvar mapeamento: " . $e->getMessage());
+        }
     }
 
     /**
@@ -499,37 +685,78 @@ class ContactHelper
                 }
             }
             
-            // 2. Busca em wa_pnlid_cache (se tiver sessionIds e não tiver resultado ainda)
-            if (self::tableExists($db, 'wa_pnlid_cache') && !empty($sessionIds) && !empty($lidIds)) {
+            // 2. Busca em wa_pnlid_cache (com sessionIds se disponível, depois sem sessionId como fallback)
+            if (self::tableExists($db, 'wa_pnlid_cache') && !empty($lidIds)) {
                 try {
                     // Pega apenas os lidIds que ainda não foram resolvidos
                     $unresolvedLidIds = array_diff_key($lidIds, $resultMap);
                     if (!empty($unresolvedLidIds)) {
-                        $lidPlaceholders = str_repeat('?,', count($unresolvedLidIds) - 1) . '?';
-                        $sessionPlaceholders = str_repeat('?,', count($sessionIds) - 1) . '?';
+                        // Primeiro tenta com sessionIds (se disponível)
+                        if (!empty($sessionIds)) {
+                            $lidPlaceholders = str_repeat('?,', count($unresolvedLidIds) - 1) . '?';
+                            $sessionPlaceholders = str_repeat('?,', count($sessionIds) - 1) . '?';
+                            
+                            // TTL de 30 dias
+                            $ttlDays = 30;
+                            $stmt = $db->prepare("
+                                SELECT pnlid, phone_e164, session_id, updated_at
+                                FROM wa_pnlid_cache 
+                                WHERE provider = ? 
+                                AND session_id IN ({$sessionPlaceholders})
+                                AND pnlid IN ({$lidPlaceholders})
+                                AND updated_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                            ");
+                            $params = array_merge(
+                                [$provider],
+                                array_keys($sessionIds),
+                                array_keys($unresolvedLidIds),
+                                [$ttlDays]
+                            );
+                            $stmt->execute($params);
+                            $cached = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                            
+                            foreach ($cached as $cache) {
+                                if (!empty($cache['phone_e164']) && !isset($resultMap[$cache['pnlid']])) {
+                                    $resultMap[$cache['pnlid']] = $cache['phone_e164'];
+                                }
+                            }
+                            
+                            // Atualiza lista de não resolvidos após consulta com sessionId
+                            $unresolvedLidIds = array_diff_key($unresolvedLidIds, $resultMap);
+                        }
                         
-                        // TTL de 30 dias
-                        $ttlDays = 30;
-                        $stmt = $db->prepare("
-                            SELECT pnlid, phone_e164, session_id, updated_at
-                            FROM wa_pnlid_cache 
-                            WHERE provider = ? 
-                            AND session_id IN ({$sessionPlaceholders})
-                            AND pnlid IN ({$lidPlaceholders})
-                            AND updated_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-                        ");
-                        $params = array_merge(
-                            [$provider],
-                            array_keys($sessionIds),
-                            array_keys($unresolvedLidIds),
-                            [$ttlDays]
-                        );
-                        $stmt->execute($params);
-                        $cached = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                        
-                        foreach ($cached as $cache) {
-                            if (!empty($cache['phone_e164']) && !isset($resultMap[$cache['pnlid']])) {
-                                $resultMap[$cache['pnlid']] = $cache['phone_e164'];
+                        // Fallback: tenta sem sessionId (apenas provider + pnlid) para os que ainda não foram resolvidos
+                        if (!empty($unresolvedLidIds)) {
+                            $lidPlaceholders = str_repeat('?,', count($unresolvedLidIds) - 1) . '?';
+                            $ttlDays = 30;
+                            $stmt = $db->prepare("
+                                SELECT pnlid, phone_e164, updated_at
+                                FROM wa_pnlid_cache 
+                                WHERE provider = ? 
+                                AND pnlid IN ({$lidPlaceholders})
+                                AND updated_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                                ORDER BY updated_at DESC
+                            ");
+                            $params = array_merge(
+                                [$provider],
+                                array_keys($unresolvedLidIds),
+                                [$ttlDays]
+                            );
+                            $stmt->execute($params);
+                            $cached = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                            
+                            // Agrupa por pnlid e pega o mais recente (já ordenado)
+                            $cachedByPnlid = [];
+                            foreach ($cached as $cache) {
+                                if (!empty($cache['phone_e164']) && !isset($cachedByPnlid[$cache['pnlid']])) {
+                                    $cachedByPnlid[$cache['pnlid']] = $cache['phone_e164'];
+                                }
+                            }
+                            
+                            foreach ($cachedByPnlid as $pnlid => $phone) {
+                                if (!isset($resultMap[$pnlid])) {
+                                    $resultMap[$pnlid] = $phone;
+                                }
                             }
                         }
                     }
@@ -538,7 +765,7 @@ class ContactHelper
                 }
             }
             
-            // 3. NOVA: Para os não resolvidos, tenta buscar nos eventos (em lote otimizado)
+            // 3. Para os não resolvidos, tenta buscar nos eventos (em lote otimizado)
             $unresolvedItems = [];
             foreach ($lidData as $item) {
                 $contactId = (string) ($item['contactId'] ?? '');
@@ -569,6 +796,42 @@ class ContactHelper
                 } catch (\Exception $e) {
                     // Ignora erro, mas loga para debug
                     error_log("Erro ao buscar nos eventos em lote: " . $e->getMessage());
+                }
+            }
+            
+            // 4. ÚLTIMA CAMADA: Tenta resolver via API do provider (limitado para performance)
+            // Apenas para os que ainda não foram resolvidos e limitado a 10 itens para não sobrecarregar
+            $unresolvedForProvider = [];
+            foreach ($lidData as $item) {
+                $contactId = (string) ($item['contactId'] ?? '');
+                if (empty($contactId) || strpos($contactId, '@lid') === false) {
+                    continue;
+                }
+                
+                $lidId = str_replace('@lid', '', $contactId);
+                // Só adiciona se ainda não foi resolvido
+                if (!isset($resultMap[$lidId]) && count($unresolvedForProvider) < 10) {
+                    $unresolvedForProvider[] = [
+                        'lidId' => $lidId,
+                        'businessId' => $lidId . '@lid',
+                        'sessionId' => $item['sessionId'] ?? null
+                    ];
+                }
+            }
+            
+            if (!empty($unresolvedForProvider)) {
+                try {
+                    foreach ($unresolvedForProvider as $item) {
+                        $phoneFromProvider = self::resolvePnLidViaProvider($provider, $item['sessionId'], $item['lidId']);
+                        if (!empty($phoneFromProvider)) {
+                            $resultMap[$item['lidId']] = $phoneFromProvider;
+                            // Garante persistência do mapeamento encontrado
+                            self::saveLidMapping($db, $item['businessId'], $phoneFromProvider, $item['sessionId'], $provider, $item['lidId']);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    // Log discreto apenas quando falhar (para troubleshooting)
+                    error_log("[ContactHelper::resolveLidPhonesBatch] Erro ao resolver via provider: " . $e->getMessage());
                 }
             }
             

@@ -1857,7 +1857,7 @@ class CommunicationHubController extends Controller
 
         // Função principal: normalizeSender() -> retorna e164 se possível, senão null
         $normalizeSender = function($jidOrNumber, $provider, $sessionId) use (
-            $normalizePhoneE164, $extractPnLid, $getPnLidCache, $setPnLidCache, $resolvePnLidViaProvider
+            $normalizePhoneE164, $extractPnLid
         ) {
             if (empty($jidOrNumber)) return null;
             $jidOrNumber = (string)$jidOrNumber;
@@ -1866,30 +1866,16 @@ class CommunicationHubController extends Controller
             $pnLid = $extractPnLid($jidOrNumber);
             if (!$pnLid) {
                 $normalized = $normalizePhoneE164($jidOrNumber);
-                error_log(sprintf('[PNLID_RESOLVE] normalizeSender: NÃO é @lid. jidOrNumber=%s, normalized=%s', $jidOrNumber, $normalized ?: 'NULL'));
                 return $normalized;
             }
             
-            // É @lid -> tenta cache
-            error_log(sprintf('[PNLID_RESOLVE] normalizeSender: Detectado @lid. jidOrNumber=%s, pnLid=%s, provider=%s, sessionId=%s', $jidOrNumber, $pnLid, $provider, $sessionId));
-            $cached = $getPnLidCache($provider, $sessionId, $pnLid);
-            if (!empty($cached)) {
-                error_log(sprintf('[PNLID_RESOLVE] normalizeSender: Cache HIT. pnLid=%s, phone_e164=%s', $pnLid, $cached));
-                return $cached;
-            }
-            error_log(sprintf('[PNLID_RESOLVE] normalizeSender: Cache MISS. Tentando resolver via API... pnLid=%s, sessionId=%s', $pnLid, $sessionId));
-            
-            // Resolve via API do provider
-            $resolved = $resolvePnLidViaProvider($sessionId, $pnLid);
+            // É @lid -> usa ContactHelper que já tem toda a lógica integrada (cache + eventos + provider)
+            $resolved = \PixelHub\Core\ContactHelper::resolveLidPhone($jidOrNumber, $sessionId, $provider);
             if (!empty($resolved)) {
-                error_log(sprintf('[PNLID_RESOLVE] normalizeSender: API resolveu com sucesso! pnLid=%s, phone_e164=%s', $pnLid, $resolved));
-                $cacheSaved = $setPnLidCache($provider, $sessionId, $pnLid, $resolved);
-                error_log(sprintf('[PNLID_RESOLVE] normalizeSender: Cache salvo=%s', $cacheSaved ? 'SIM' : 'NÃO'));
                 return $resolved;
             }
             
             // Não conseguiu resolver: retorna null para evitar falso-match
-            error_log(sprintf('[PNLID_RESOLVE] normalizeSender: FALHA - Não conseguiu resolver pnLid=%s, sessionId=%s. Retornando NULL.', $pnLid, $sessionId));
             return null;
         };
 
