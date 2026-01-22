@@ -1554,7 +1554,6 @@ async function updateConversationListOnly() {
         // Preserva estado atual
         const activeThreadId = ConversationState.currentThreadId;
         const listScroll = document.querySelector('.conversation-list-scroll');
-        const scrollPosition = listScroll ? listScroll.scrollTop : 0;
         
         // CRÍTICO: Garante que threads estão ordenados por last_activity DESC antes de renderizar
         // (Backend já retorna ordenado, mas garante aqui também para segurança)
@@ -1581,9 +1580,9 @@ async function updateConversationListOnly() {
         const incomingLeadsCount = result.incoming_leads_count !== undefined ? result.incoming_leads_count : sortedIncomingLeads.length;
         renderConversationList(sortedThreads, sortedIncomingLeads, incomingLeadsCount);
         
-        // Restaura scroll
+        // Sempre rola para o topo após atualização para mostrar conversas mais recentes
         if (listScroll) {
-            listScroll.scrollTop = scrollPosition;
+            listScroll.scrollTop = 0;
         }
         
         // Restaura conversa ativa
