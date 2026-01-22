@@ -85,7 +85,7 @@ Após criar o usuário via cPanel:
 
 1. ✅ O usuário `admin_master` estará criado
 2. ✅ Terá todas as permissões no banco `pixel12digital_pixelhub`
-3. ✅ A senha será `Los@ngo#081081`
+3. ✅ A senha será a que você configurou (ou `ADMIN_MASTER_DB_PASSWORD` do `.env`)
 
 **Não é necessário atualizar o `.env`** se o banco for remoto e as credenciais forem gerenciadas diretamente no servidor.
 

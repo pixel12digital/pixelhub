@@ -2,7 +2,7 @@
 
 ## 🔐 Senha Analisada
 
-**Senha:** `Los@ngo#081081`
+**Senha:** `[SENHA_REMOVIDA_POR_SEGURANCA]` *(Este arquivo é apenas um exemplo de análise)*
 
 ---
 
@@ -50,7 +50,7 @@
 ### Exemplo de Senha Mais Forte:
 
 ```
-Los@ngo#081081 → [SENHA_REMOVIDA]
+[SENHA_ANTIGA] → [SENHA_NOVA_MAIS_FORTE]
 ```
 
 **Melhorias:**

@@ -15,7 +15,8 @@ NC='\033[0m'
 
 DOMAIN="wpp.pixel12digital.com.br"
 PORT="8443"
-USER="Los@ngo#081081"
+# IMPORTANTE: Configure o usuário no arquivo .env ou substitua abaixo
+USER="${WPP_GATEWAY_USER:-[CONFIGURE_USUARIO_AQUI]}"
 
 echo -e "${GREEN}=========================================="
 echo "Teste Completo do Gateway WhatsApp"

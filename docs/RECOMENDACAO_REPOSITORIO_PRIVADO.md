@@ -13,7 +13,7 @@
 - ✅ IP do servidor (em alguns logs)
 
 ### 2. **Configurações de Segurança** ⚠️
-- ✅ Nome de usuário: `wpp.pixel12` (e `Los@ngo#081081`)
+- ✅ Nome de usuário: `wpp.pixel12` (usuários antigos foram removidos)
 - ✅ Estrutura de autenticação
 - ✅ Configurações do Nginx
 - ✅ Scripts de configuração completos

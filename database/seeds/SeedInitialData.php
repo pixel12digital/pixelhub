@@ -30,6 +30,7 @@ if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
 }
 
 use PixelHub\Core\DB;
+use PixelHub\Core\Env;
 
 echo "=== Seed Inicial - Pixel Hub ===\n\n";
 
@@ -45,7 +46,9 @@ try {
         echo "⊘ Usuário admin já existe (ID: {$existingAdmin['id']})\n";
     } else {
         // Cria usuário admin interno
-        $passwordHash = password_hash('123456', PASSWORD_DEFAULT);
+        // AVISO: Esta é uma senha padrão para desenvolvimento. ALTERE EM PRODUÇÃO!
+        $defaultPassword = Env::get('ADMIN_PASSWORD', '123456');
+        $passwordHash = password_hash($defaultPassword, PASSWORD_DEFAULT);
         $stmt = $db->prepare("
             INSERT INTO users (name, email, password_hash, is_internal, created_at, updated_at)
             VALUES (?, ?, ?, 1, NOW(), NOW())

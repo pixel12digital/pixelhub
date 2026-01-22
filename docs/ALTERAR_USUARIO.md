@@ -22,11 +22,11 @@ curl -k -u "wpp.pixel12:SUA_SENHA" -I https://wpp.pixel12digital.com.br:8443
 
 ## 🗑️ Remover Usuário Antigo (Opcional)
 
-Se quiser remover o usuário antigo "[USUARIO_REMOVIDO]":
+Se quiser remover o usuário antigo:
 
 ```bash
-# 1. Remover usuário antigo
-htpasswd -D /etc/nginx/.htpasswd_wpp.pixel12digital.com.br "[USUARIO_REMOVIDO]"
+# 1. Remover usuário antigo (substitua [USUARIO_ANTIGO] pelo nome real)
+htpasswd -D /etc/nginx/.htpasswd_wpp.pixel12digital.com.br "[USUARIO_ANTIGO]"
 
 # 2. Verificar
 cat /etc/nginx/.htpasswd_wpp.pixel12digital.com.br

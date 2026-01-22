@@ -129,9 +129,9 @@ APP_DEBUG=true
 APP_ENV=local
 TIMEZONE=America/Sao_Paulo
 
-# Credenciais Admin Padrão
+# Credenciais Admin Padrão (ALTERE EM PRODUÇÃO!)
 ADMIN_EMAIL=admin@pixel12.test
-ADMIN_PASSWORD=123456
+ADMIN_PASSWORD=[ALTERE_ESTA_SENHA_EM_PRODUCAO]
 
 # Asaas (API de Pagamentos)
 ASAAS_API_KEY=sua_chave_api
@@ -221,9 +221,9 @@ server {
 http://localhost/painel.pixel12digital/public/
 ```
 
-**Credenciais padrão:**
+**Credenciais padrão (desenvolvimento):**
 - Email: `admin@pixel12.test`
-- Senha: `123456`
+- Senha: Configure no arquivo `.env` (padrão de desenvolvimento: `123456` - **ALTERE EM PRODUÇÃO!**)
 
 ---
 

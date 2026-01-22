@@ -741,7 +741,7 @@ DB_PASS=
 DB_CHARSET=utf8mb4
 
 ADMIN_EMAIL=admin@pixel12.test
-ADMIN_PASSWORD=123456
+ADMIN_PASSWORD=[ALTERE_ESTA_SENHA_EM_PRODUCAO]
 
 ASAAS_API_KEY="$sua_chave_aqui"
 ASAAS_ENV=production
@@ -768,7 +768,7 @@ http://localhost/painel.pixel12digital/public/
 ### 8.3. Credenciais Padrão
 
 - **Email**: `admin@pixel12.test`
-- **Senha**: `123456`
+- **Senha**: Configure no arquivo `.env` (padrão de desenvolvimento: `123456` - **ALTERE EM PRODUÇÃO!**)
 
 ### 8.4. Estrutura de Desenvolvimento
 
