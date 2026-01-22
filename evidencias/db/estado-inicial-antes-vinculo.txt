@@ -1,0 +1,46 @@
+=== ESTADO INICIAL - ANTES DO VÍNCULO ===
+Data/Hora: 2026-01-22 19:12:46
+Total de registros: 2
+
+--- Conversa ID: 15 ---
+conversation_id: 15
+conversation_key: whatsapp_4_169183207809126@lid
+channel_id: pixel12digital
+session_id: pixel12digital
+contact_external_id: 169183207809126@lid
+contact_name: ~Victor
+remote_key: lid:169183207809126
+contact_key: wpp_gateway:pixel12digital:lid:169183207809126
+thread_key: wpp_gateway:pixel12digital:lid:169183207809126
+tenant_id: 121
+is_incoming_lead: 0
+status: new
+last_message_at: 2026-01-19 11:11:52
+updated_at: 2026-01-22 14:25:29
+created_at: 2026-01-19 08:11:47
+tenant_name: SO OBRAS EPC DISTRIBUICAO E INSTALACOES LTDA
+tenant_phone: 11940863773
+mapped_phone_from_lid: 557781649047
+mapped_business_id: 169183207809126@lid
+
+--- Conversa ID: 17 ---
+conversation_id: 17
+conversation_key: whatsapp_4_169183207809126
+channel_id: NULL
+session_id: NULL
+contact_external_id: 169183207809126
+contact_name: NULL
+remote_key: tel:169183207809126
+contact_key: NULL
+thread_key: NULL
+tenant_id: 7
+is_incoming_lead: 0
+status: new
+last_message_at: 2026-01-19 09:23:44
+updated_at: 2026-01-22 14:23:11
+created_at: 2026-01-19 08:37:33
+tenant_name: LAWINTER VAI D ECRUZEIRO LTDA
+tenant_phone: 47999508860
+mapped_phone_from_lid: 557781649047
+mapped_business_id: 169183207809126@lid
+

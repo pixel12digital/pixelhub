@@ -1,0 +1,27 @@
+=== DUPLICADOS ENCONTRADOS (ANTES) ===
+Data/Hora: 2026-01-22 19:12:47
+Total de pares duplicados: 1
+
+--- Par Duplicado ---
+CONVERSA 1:
+  conversation_id_1: 15
+  contact_1: 169183207809126@lid
+  remote_1: lid:169183207809126
+  thread_1: wpp_gateway:pixel12digital:lid:169183207809126
+  tenant_1: 121
+  tenant_name_1: SO OBRAS EPC DISTRIBUICAO E INSTALACOES LTDA
+  updated_1: 2026-01-22 14:25:29
+
+CONVERSA 2:
+  conversation_id_2: 17
+  contact_2: 169183207809126
+  remote_2: tel:169183207809126
+  thread_2: NULL
+  tenant_2: 7
+  tenant_name_2: LAWINTER VAI D ECRUZEIRO LTDA
+  updated_2: 2026-01-22 14:23:11
+
+RELACIONAMENTO: Outro relacionamento
+
+--------------------------------------------------
+

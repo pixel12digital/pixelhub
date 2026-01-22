@@ -1,0 +1,13 @@
+=== MAPEAMENTO LID → TELEFONE ===
+Data/Hora: 2026-01-22 19:12:47
+Total de mapeamentos: 1
+
+business_id: 169183207809126@lid
+phone_number: 557781649047
+tenant_id: NULL
+tenant_name: NULL
+created_at: 2026-01-21 20:00:19
+updated_at: 2026-01-21 20:00:19
+
+--------------------------------------------------
+

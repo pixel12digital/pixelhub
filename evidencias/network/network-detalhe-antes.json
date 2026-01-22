@@ -1,0 +1,125 @@
+{
+    "success": true,
+    "thread": {
+        "thread_id": "whatsapp_15",
+        "conversation_id": 15,
+        "conversation_key": "whatsapp_4_169183207809126@lid",
+        "tenant_id": 121,
+        "tenant_name": "SO OBRAS EPC DISTRIBUICAO E INSTALACOES LTDA",
+        "contact": "(11) 94086-3773",
+        "contact_name": "~Victor",
+        "channel": "whatsapp",
+        "channel_id": "pixel12digital",
+        "status": "new",
+        "assigned_to": null,
+        "assigned_to_name": null,
+        "message_count": 4,
+        "unread_count": 0
+    },
+    "messages": [
+        {
+            "id": "054a4260-291d-406d-a1db-dcbbb9eb4026",
+            "direction": "inbound",
+            "content": "",
+            "timestamp": "2026-01-19 08:11:47",
+            "metadata": {
+                "channel_id": "pixel12digital",
+                "raw_event_type": "message"
+            },
+            "from_raw": "169183207809126@lid",
+            "to_raw": "165111830438135:29@lid",
+            "from_e164": null,
+            "to_e164": null,
+            "is_inbound": true,
+            "channel_id": "pixel12digital",
+            "media": null
+        },
+        {
+            "id": "2a7cdf8c-556c-4ec4-884b-66e06b78a5a3",
+            "direction": "inbound",
+            "content": "",
+            "timestamp": "2026-01-19 08:11:47",
+            "metadata": {
+                "channel_id": "pixel12digital",
+                "raw_event_type": "message"
+            },
+            "from_raw": "169183207809126@lid",
+            "to_raw": "165111830438135:29@lid",
+            "from_e164": null,
+            "to_e164": null,
+            "is_inbound": true,
+            "channel_id": "pixel12digital",
+            "media": null
+        },
+        {
+            "id": "d0c03a92-307d-4bc5-b9d4-465f61a9ca32",
+            "direction": "inbound",
+            "content": "Oi bom dia",
+            "timestamp": "2026-01-19 08:11:53",
+            "metadata": {
+                "channel_id": "pixel12digital",
+                "raw_event_type": "message"
+            },
+            "from_raw": "169183207809126@lid",
+            "to_raw": "554797309525@c.us",
+            "from_e164": null,
+            "to_e164": null,
+            "is_inbound": true,
+            "channel_id": "pixel12digital",
+            "media": null
+        },
+        {
+            "id": "f19f6f59-ec50-4d8e-8533-c1ca4b1ac9ee",
+            "direction": "inbound",
+            "content": "Eu estou desenvolvendo o site da vai de Cruzeiro",
+            "timestamp": "2026-01-19 08:11:56",
+            "metadata": {
+                "channel_id": "pixel12digital",
+                "raw_event_type": "raw_event_type": "message"
+            },
+            "from_raw": "169183207809126@lid",
+            "to_raw": "554797309525@c.us",
+            "from_e164": null,
+            "to_e164": null,
+            "is_inbound": true,
+            "channel_id": "pixel12digital",
+            "media": null
+        },
+        {
+            "id": "e5f44a36-2725-4708-a212-74611ee4f69f",
+            "direction": "inbound",
+            "content": "É preciso ter acesso a hospedagem deles,",
+            "timestamp": "2026-01-19 08:11:56",
+            "metadata": {
+                "channel_id": "pixel12digital",
+                "raw_event_type": "message"
+            },
+            "from_raw": "169183207809126@lid",
+            "to_raw": "554797309525@c.us",
+            "from_e164": null,
+            "to_e164": null,
+            "is_inbound": true,
+            "channel_id": "pixel12digital",
+            "media": null
+        },
+        {
+            "id": "efca9621-2d7a-4358-ac4e-8b5fb729a77e",
+            "direction": "inbound",
+            "content": "Eles me passaram seu contato",
+            "timestamp": "2026-01-19 08:11:57",
+            "metadata": {
+                "channel_id": "pixel12digital",
+                "raw_event_type": "message"
+            },
+            "from_raw": "169183207809126@lid",
+            "to_raw": "554797309525@c.us",
+            "from_e164": null,
+            "to_e164": null,
+            "is_inbound": true,
+            "channel_id": "pixel12digital",
+            "media": null
+        }
+    ],
+    "channel": "whatsapp"
+}
+

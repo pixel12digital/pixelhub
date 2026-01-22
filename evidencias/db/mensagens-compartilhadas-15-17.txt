@@ -1,0 +1,111 @@
+=== MENSAGENS COMPARTILHADAS: Conversas 15 e 17 ===
+Data/Hora: 2026-01-22 20:25:56
+
+CONVERSA 15:
+  contact_external_id: 169183207809126@lid
+  remote_key: lid:169183207809126
+  Total de mensagens encontradas: 6
+
+CONVERSA 17:
+  contact_external_id: 169183207809126
+  remote_key: tel:169183207809126
+  Total de mensagens encontradas: 6
+
+MENSAGENS COMPARTILHADAS:
+  Total de event_id compartilhados: 6
+
+✅ MENSAGENS COMPARTILHADAS ENCONTRADAS:
+  - event_id: 3efba2a4-3767-4087-b920-2e8f3462567e
+  - event_id: b8598b19-5fed-4721-a45b-1156a9060484
+  - event_id: 94377050-bb05-4c23-9fb3-17bab6d558f8
+  - event_id: ac6afa12-b2ab-4ce0-bdf5-5ecf7d66d29d
+  - event_id: c50e8cd6-6cc4-448d-9dc8-00f1e35d0950
+  - event_id: a7b560a7-695b-4e87-8878-8babf13b3898
+
+--- DETALHES: Mensagens da Conversa 15 ---
+event_id: 3efba2a4-3767-4087-b920-2e8f3462567e
+  event_type: whatsapp.outbound.message
+  from_id: 
+  to_id: "169183207809126"
+  created_at: 2026-01-19 09:23:44
+  origem: Conversa 15
+
+event_id: b8598b19-5fed-4721-a45b-1156a9060484
+  event_type: whatsapp.outbound.message
+  from_id: 
+  to_id: "169183207809126"
+  created_at: 2026-01-19 09:23:40
+  origem: Conversa 15
+
+event_id: 94377050-bb05-4c23-9fb3-17bab6d558f8
+  event_type: whatsapp.outbound.message
+  from_id: 
+  to_id: "169183207809126"
+  created_at: 2026-01-19 09:23:28
+  origem: Conversa 15
+
+event_id: ac6afa12-b2ab-4ce0-bdf5-5ecf7d66d29d
+  event_type: whatsapp.outbound.message
+  from_id: 
+  to_id: "169183207809126"
+  created_at: 2026-01-19 09:23:14
+  origem: Conversa 15
+
+event_id: c50e8cd6-6cc4-448d-9dc8-00f1e35d0950
+  event_type: whatsapp.outbound.message
+  from_id: 
+  to_id: "169183207809126"
+  created_at: 2026-01-19 09:22:27
+  origem: Conversa 15
+
+event_id: a7b560a7-695b-4e87-8878-8babf13b3898
+  event_type: whatsapp.outbound.message
+  from_id: 
+  to_id: "169183207809126"
+  created_at: 2026-01-19 08:37:33
+  origem: Conversa 15
+
+
+--- DETALHES: Mensagens da Conversa 17 ---
+event_id: 3efba2a4-3767-4087-b920-2e8f3462567e
+  event_type: whatsapp.outbound.message
+  from_id: 
+  to_id: "169183207809126"
+  created_at: 2026-01-19 09:23:44
+  origem: Conversa 17
+
+event_id: b8598b19-5fed-4721-a45b-1156a9060484
+  event_type: whatsapp.outbound.message
+  from_id: 
+  to_id: "169183207809126"
+  created_at: 2026-01-19 09:23:40
+  origem: Conversa 17
+
+event_id: 94377050-bb05-4c23-9fb3-17bab6d558f8
+  event_type: whatsapp.outbound.message
+  from_id: 
+  to_id: "169183207809126"
+  created_at: 2026-01-19 09:23:28
+  origem: Conversa 17
+
+event_id: ac6afa12-b2ab-4ce0-bdf5-5ecf7d66d29d
+  event_type: whatsapp.outbound.message
+  from_id: 
+  to_id: "169183207809126"
+  created_at: 2026-01-19 09:23:14
+  origem: Conversa 17
+
+event_id: c50e8cd6-6cc4-448d-9dc8-00f1e35d0950
+  event_type: whatsapp.outbound.message
+  from_id: 
+  to_id: "169183207809126"
+  created_at: 2026-01-19 09:22:27
+  origem: Conversa 17
+
+event_id: a7b560a7-695b-4e87-8878-8babf13b3898
+  event_type: whatsapp.outbound.message
+  from_id: 
+  to_id: "169183207809126"
+  created_at: 2026-01-19 08:37:33
+  origem: Conversa 17
+
