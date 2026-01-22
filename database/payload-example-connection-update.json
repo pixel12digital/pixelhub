@@ -1,0 +1,31 @@
+{
+    "spec_version": "1.0",
+    "event": "connection.update",
+    "session": {
+        "id": "Pixel12 Digital",
+        "name": "Pixel12 Digital"
+    },
+    "message": null,
+    "ack": null,
+    "connection": {
+        "status": "unavailable"
+    },
+    "raw": {
+        "provider": "wppconnect",
+        "payload": {
+            "event": "onpresencechanged",
+            "session": "Pixel12 Digital",
+            "id": "5524988237604@c.us",
+            "isOnline": false,
+            "isGroup": false,
+            "isUser": true,
+            "shortName": "+55 24 98823-7604",
+            "state": "unavailable",
+            "t": 1768504026490,
+            "isContact": false
+        }
+    },
+    "event_id": "27400d7a-9091-40ff-9ccb-5216c18fb958",
+    "correlation_id": "7c993d74-d0d3-44bd-9407-a2af98d17f28",
+    "timestamp": "2026-01-15T19:07:06.497Z"
+}

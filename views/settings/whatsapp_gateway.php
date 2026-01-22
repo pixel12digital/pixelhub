@@ -1,0 +1,451 @@
+<?php
+/**
+ * Configurações do WhatsApp Gateway
+ */
+ob_start();
+// Não sobrescrever $baseUrl - ela vem do controller com o valor do .env
+$pixelhubBaseUrl = pixelhub_url('');
+?>
+
+<div class="content-header">
+    <div>
+        <h2>Configurações do WhatsApp Gateway</h2>
+        <p>Gerencie as credenciais e configurações de integração com o gateway de WhatsApp</p>
+    </div>
+</div>
+
+<!-- Menu de Navegação -->
+<div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; border-bottom: 2px solid #dee2e6; padding-bottom: 10px;">
+    <a href="<?= pixelhub_url('/settings/whatsapp-gateway') ?>" 
+       style="padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; font-weight: 600; background: #023A8D; color: white;">
+        Configurações
+    </a>
+    <a href="<?= pixelhub_url('/settings/whatsapp-gateway/test') ?>" 
+       style="padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; font-weight: 500; background: #6c757d; color: white;">
+        Testes
+    </a>
+    <a href="<?= pixelhub_url('/settings/whatsapp-gateway/diagnostic') ?>" 
+       style="padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; font-weight: 500; background: #6c757d; color: white;">
+        Diagnóstico (Debug)
+    </a>
+    <a href="<?= pixelhub_url('/settings/whatsapp-gateway/diagnostic/check-logs') ?>" 
+       style="padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; font-weight: 500; background: #17a2b8; color: white;">
+        Verificar Logs Webhook
+    </a>
+</div>
+
+<!-- Mensagens de Sucesso/Erro -->
+<?php if (isset($_GET['success'])): ?>
+    <div style="background: #d4edda; color: #155724; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #c3e6cb;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+            <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        <?= isset($_GET['message']) ? htmlspecialchars(urldecode($_GET['message'])) : 'Configurações atualizadas com sucesso!' ?>
+    </div>
+<?php endif; ?>
+
+<?php if (isset($_GET['warning'])): ?>
+    <div style="background: #fff3cd; color: #856404; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #ffeaa7;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <?= isset($_GET['message']) ? htmlspecialchars(urldecode($_GET['message'])) : 'Aviso' ?>
+    </div>
+<?php endif; ?>
+
+<?php if (isset($_GET['error'])): ?>
+    <div style="background: #f8d7da; color: #721c24; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #f5c6cb;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        Erro: <?= htmlspecialchars($_GET['error']) ?>
+        <?php if (isset($_GET['message'])): ?>
+            <br><small><?= htmlspecialchars(urldecode($_GET['message'])) ?></small>
+        <?php endif; ?>
+    </div>
+<?php endif; ?>
+
+<?php if (isset($error)): ?>
+    <div style="background: #f8d7da; color: #721c24; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #f5c6cb;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        Erro ao carregar configurações: <?= htmlspecialchars($error) ?>
+    </div>
+<?php endif; ?>
+
+<!-- Formulário de Configuração -->
+<div class="card">
+    <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-gateway') ?>" id="whatsapp-gateway-settings-form">
+        <div style="margin-bottom: 25px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
+                Base URL do Gateway <span style="color: #dc3545;">*</span>
+            </label>
+            <input 
+                type="url" 
+                name="base_url" 
+                id="base_url"
+                value="<?= htmlspecialchars($baseUrl ?? 'https://wpp.pixel12digital.com.br') ?>" 
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px;"
+                placeholder="https://wpp.pixel12digital.com.br"
+            />
+            <div style="margin-top: 5px; font-size: 12px; color: #666;">
+                <small>URL base do gateway de WhatsApp (sem barra final).</small>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
+                Secret do Gateway <span style="color: #dc3545;">*</span>
+            </label>
+            <?php if ($hasSecret ?? false): ?>
+                <div style="margin-bottom: 10px; padding: 10px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px; font-size: 13px; color: #155724;">
+                    <strong style="display: flex; align-items: center; gap: 6px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Secret configurado
+                    </strong>
+                    <br><small>O secret está criptografado e armazenado com segurança. Digite um novo secret abaixo para substituir.</small>
+                </div>
+            <?php else: ?>
+                <div style="margin-bottom: 10px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; font-size: 13px; color: #856404;">
+                    <strong style="display: flex; align-items: center; gap: 6px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                            <line x1="12" y1="9" x2="12" y2="13"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                        Nenhum secret configurado
+                    </strong>
+                    <br><small>Configure o secret do gateway para habilitar a integração.</small>
+                </div>
+            <?php endif; ?>
+            <input 
+                type="password" 
+                name="secret" 
+                id="secret"
+                value="" 
+                <?= ($hasSecret ?? false) ? '' : 'required' ?>
+                autocomplete="new-password"
+                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px;"
+                placeholder="<?= ($hasSecret ?? false) ? 'Deixe em branco para manter o secret atual ou digite um novo para substituir' : 'Cole o secret do gateway aqui (obrigatório)' ?>"
+            />
+            <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                <input 
+                    type="checkbox" 
+                    id="show_secret" 
+                    onchange="toggleSecretVisibility()"
+                    style="cursor: pointer;"
+                />
+                <label for="show_secret" style="font-size: 13px; color: #666; cursor: pointer; margin: 0;">
+                    Mostrar secret enquanto digito
+                </label>
+            </div>
+            <div style="margin-top: 8px; padding: 10px; background: #e7f3ff; border-left: 4px solid #2196F3; border-radius: 4px; font-size: 13px; color: #0c5460;">
+                <strong style="display: flex; align-items: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    Dica:
+                </strong> O secret é usado para autenticar todas as requisições ao gateway via header <code>X-Gateway-Secret</code>
+            </div>
+            <div style="margin-top: 8px; padding: 10px; background: #f8f9fa; border-left: 4px solid #6c757d; border-radius: 4px; font-size: 12px; color: #495057;">
+                <strong style="display: flex; align-items: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    Segurança:
+                </strong> O secret será criptografado usando AES-256-CBC antes de ser armazenado no arquivo .env. 
+                Ele nunca será exibido em texto plano após ser salvo.
+            </div>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
+                URL do Webhook (Opcional)
+            </label>
+            <input 
+                type="url" 
+                name="webhook_url" 
+                id="webhook_url"
+                value="<?= htmlspecialchars($webhookUrl ?? '') ?>" 
+                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px;"
+                placeholder="https://painel.pixel12digital.com.br/api/whatsapp/webhook"
+            />
+            <div style="margin-top: 5px; font-size: 12px; color: #666;">
+                <small>URL onde o gateway enviará eventos (mensagens recebidas, confirmações, etc.).</small>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
+                Secret do Webhook (Opcional)
+            </label>
+            <input 
+                type="text" 
+                name="webhook_secret" 
+                id="webhook_secret"
+                value="<?= htmlspecialchars($webhookSecret ?? '') ?>" 
+                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px;"
+                placeholder="Token para validar webhooks recebidos"
+            />
+            <div style="margin-top: 5px; font-size: 12px; color: #666;">
+                <small>Token usado para validar a autenticidade dos webhooks recebidos do gateway.</small>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 30px; flex-wrap: wrap;">
+            <button 
+                type="submit" 
+                style="padding: 12px 24px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px;"
+                onmouseover="this.style.background='#012a6b'"
+                onmouseout="this.style.background='#023A8D'"
+            >
+                Salvar Configurações
+            </button>
+            <button 
+                type="button" 
+                id="test-connection-btn"
+                onclick="testGatewayConnection()"
+                style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 8px;"
+                onmouseover="this.style.background='#218838'"
+                onmouseout="this.style.background='#28a745'"
+            >
+                <svg id="test-btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="M21 21l-4.35-4.35"/>
+                </svg>
+                <span id="test-btn-text">Testar Conexão</span>
+            </button>
+            <a 
+                href="<?= pixelhub_url('/communication-hub') ?>" 
+                style="padding: 12px 24px; background: #6c757d; color: white; border: none; border-radius: 4px; text-decoration: none; display: inline-block; font-weight: 500; font-size: 14px;"
+            >
+                Cancelar
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Resultado do Teste -->
+<div id="test-result-container" style="display: none; margin-top: 25px;">
+    <div class="card" id="test-result-card">
+        <h3 style="margin-bottom: 15px; color: #333; font-size: 16px; display: flex; align-items: center; gap: 10px;">
+            <svg id="test-result-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+            <span id="test-result-title">Resultado do Teste</span>
+        </h3>
+        <div id="test-result-message" style="margin-bottom: 15px; padding: 12px; border-radius: 4px; font-weight: 600;"></div>
+        <div id="test-result-logs" style="background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6; max-height: 500px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;"></div>
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
+            <strong>Dica:</strong> Os logs acima mostram detalhes técnicos da conexão. Em caso de erro, verifique cada etapa do processo.
+        </div>
+    </div>
+</div>
+
+<!-- Informações Adicionais -->
+<div class="card" style="background: #f8f9fa;">
+    <h3 style="margin-bottom: 15px; color: #333; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        Informações Importantes
+    </h3>
+    <ul style="list-style: none; padding: 0; margin: 0;">
+        <li style="margin-bottom: 10px; padding-left: 25px; position: relative;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 0;">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <strong>Segurança:</strong> O secret é criptografado usando AES-256-CBC antes de ser armazenado no arquivo <code>.env</code>. Ele nunca é exibido após ser salvo e não pode ser recuperado em texto plano.
+        </li>
+        <li style="margin-bottom: 10px; padding-left: 25px; position: relative;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 0;">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <strong>Validação:</strong> Ao salvar, o sistema tentará validar a conexão fazendo uma requisição de teste ao gateway.
+        </li>
+        <li style="margin-bottom: 10px; padding-left: 25px; position: relative;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 0;">
+                <polyline points="23 4 23 10 17 10"/>
+                <polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+            <strong>Atualização:</strong> Após salvar, as configurações serão aplicadas imediatamente. Não é necessário reiniciar o servidor.
+        </li>
+        <li style="margin-bottom: 10px; padding-left: 25px; position: relative;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 0;">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            <strong>Webhook:</strong> Configure a URL do webhook para receber eventos do gateway em tempo real. O endpoint deve ser <code>/api/whatsapp/webhook</code>.
+        </li>
+    </ul>
+</div>
+
+<script>
+// Toggle para mostrar/ocultar o secret
+function toggleSecretVisibility() {
+    const input = document.getElementById('secret');
+    const checkbox = document.getElementById('show_secret');
+    
+    if (checkbox.checked) {
+        input.type = 'text';
+    } else {
+        input.type = 'password';
+    }
+}
+
+// Confirmação antes de salvar
+document.getElementById('whatsapp-gateway-settings-form').addEventListener('submit', function(e) {
+    const secret = document.getElementById('secret').value.trim();
+    const baseUrl = document.getElementById('base_url').value.trim();
+    const hasSecret = <?= ($hasSecret ?? false) ? 'true' : 'false' ?>;
+    
+    if (!baseUrl) {
+        e.preventDefault();
+        alert('Por favor, informe a Base URL do gateway.');
+        return false;
+    }
+    
+    // Secret só é obrigatório se não houver um configurado
+    if (!secret && !hasSecret) {
+        e.preventDefault();
+        alert('Por favor, informe o secret do gateway.');
+        return false;
+    }
+    
+    const message = secret 
+        ? 'Tem certeza que deseja atualizar as configurações do WhatsApp Gateway?\n\nO secret será criptografado e armazenado com segurança. Isso pode afetar todas as operações de envio e recebimento de mensagens.'
+        : 'Tem certeza que deseja atualizar as configurações do WhatsApp Gateway?\n\nO secret atual será mantido.';
+    
+    if (!confirm(message)) {
+        e.preventDefault();
+        return false;
+    }
+});
+
+// Função para testar conexão com gateway
+function testGatewayConnection() {
+    const btn = document.getElementById('test-connection-btn');
+    const btnIcon = document.getElementById('test-btn-icon');
+    const btnText = document.getElementById('test-btn-text');
+    const resultContainer = document.getElementById('test-result-container');
+    const resultCard = document.getElementById('test-result-card');
+    const resultIcon = document.getElementById('test-result-icon');
+    const resultTitle = document.getElementById('test-result-title');
+    const resultMessage = document.getElementById('test-result-message');
+    const resultLogs = document.getElementById('test-result-logs');
+
+    // Desabilita botão e mostra loading
+    btn.disabled = true;
+    btn.style.opacity = '0.7';
+    btn.style.cursor = 'not-allowed';
+    btnIcon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    btnText.textContent = 'Testando...';
+
+    // Limpa resultados anteriores
+    resultContainer.style.display = 'block';
+    resultMessage.innerHTML = '<span style="display: inline-flex; align-items: center; gap: 6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Testando conexão com WhatsApp Gateway...</span>';
+    resultMessage.style.background = '#fff3cd';
+    resultMessage.style.color = '#856404';
+    resultMessage.style.borderLeft = '4px solid #ffc107';
+    resultLogs.textContent = 'Aguardando resposta do servidor...\n';
+    resultCard.style.borderLeft = '4px solid #ffc107';
+
+    // Faz requisição AJAX
+    fetch('<?= pixelhub_url('/settings/whatsapp-gateway/test-connection') ?>', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => {
+        return response.json().then(data => ({
+            status: response.status,
+            data: data
+        }));
+    })
+    .then(({status, data}) => {
+        // Restaura botão
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btnIcon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>';
+        btnText.textContent = 'Testar Conexão';
+
+        // Atualiza resultado
+        if (data.success) {
+            resultIcon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+            resultTitle.textContent = 'Teste Concluído com Sucesso';
+            resultMessage.innerHTML = '<strong style="display: inline-flex; align-items: center; gap: 6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ' + data.message + '</strong><br><small>Código HTTP: ' + (data.http_code || 'N/A') + ' | Tempo: ' + (data.duration_ms || 'N/A') + 'ms | Canais: ' + (data.channels_count || 0) + '</small>';
+            resultMessage.style.background = '#d4edda';
+            resultMessage.style.color = '#155724';
+            resultMessage.style.borderLeft = '4px solid #28a745';
+            resultCard.style.borderLeft = '4px solid #28a745';
+        } else {
+            resultIcon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+            resultTitle.textContent = 'Teste Falhou';
+            resultMessage.innerHTML = '<strong style="display: inline-flex; align-items: center; gap: 6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> ' + data.message + '</strong><br><small>Código HTTP: ' + (data.http_code || 'N/A') + '</small>';
+            resultMessage.style.background = '#f8d7da';
+            resultMessage.style.color = '#721c24';
+            resultMessage.style.borderLeft = '4px solid #dc3545';
+            resultCard.style.borderLeft = '4px solid #dc3545';
+        }
+
+        // Exibe logs
+        if (data.logs && Array.isArray(data.logs)) {
+            resultLogs.textContent = data.logs.join('\n');
+        } else {
+            resultLogs.textContent = JSON.stringify(data, null, 2);
+        }
+
+        // Scroll para o resultado
+        resultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    })
+    .catch(error => {
+        // Restaura botão
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btnIcon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>';
+        btnText.textContent = 'Testar Conexão';
+
+        // Exibe erro
+        resultIcon.textContent = '❌';
+        resultTitle.textContent = 'Erro no Teste';
+        resultMessage.innerHTML = '<strong style="display: inline-flex; align-items: center; gap: 6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Erro ao realizar teste</strong><br><small>' + error.message + '</small>';
+        resultMessage.style.background = '#f8d7da';
+        resultMessage.style.color = '#721c24';
+        resultMessage.style.borderLeft = '4px solid #dc3545';
+        resultCard.style.borderLeft = '4px solid #dc3545';
+        resultLogs.textContent = 'Erro: ' + error.message + '\n\nDetalhes técnicos:\n' + error.stack;
+    });
+}
+</script>
+
+<?php
+$content = ob_get_clean();
+include __DIR__ . '/../layout/main.php';
+?>
+

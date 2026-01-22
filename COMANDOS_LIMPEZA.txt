@@ -1,0 +1,34 @@
+﻿========================================
+COMANDOS PARA LIMPEZA DO HISTÃ“RICO GIT
+========================================
+
+Execute os comandos na ordem abaixo, um por vez:
+
+1. DESABILITAR PAGER DO GIT:
+   $env:GIT_PAGER = ''
+   git config core.pager ''
+
+2. CRIAR BACKUP (OPCIONAL MAS RECOMENDADO):
+   $backup = "backup-git-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+   git clone --mirror . $backup
+
+3. EXECUTAR LIMPEZA (PRINCIPAL - PODE DEMORAR):
+   git filter-branch --force --tree-filter "powershell -Command \"if (Test-Path test-asaas-key.php) { `$c = Get-Content test-asaas-key.php -Raw; `$c = `$c -replace '\\`[CHAVE_REMOVIDA_POR_SEGURANCA]', 'Env::get(''ASAAS_API_KEY'')'; [System.IO.File]::WriteAllText((Resolve-Path test-asaas-key.php), `$c, [System.Text.Encoding]::UTF8); git add test-asaas-key.php }\" " --prune-empty --tag-name-filter cat -- --all
+
+4. LIMPAR REFERÃŠNCIAS ANTIGAS:
+   git for-each-ref --format='delete %(refname)' refs/original | git update-ref --stdin
+   git reflog expire --expire=now --all
+   git gc --prune=now --aggressive
+
+5. VERIFICAR SE FUNCIONOU:
+   git log --all -p | Select-String "aact_prod_000Mzkw"
+   (Se nÃ£o retornar nada, funcionou!)
+
+6. FORCE PUSH (CUIDADO - REESCREVE HISTÃ“RICO REMOTO):
+   git push --force --all
+   git push --force --tags
+
+========================================
+NOTA: O comando 3 pode demorar 5-30 minutos!
+========================================
+

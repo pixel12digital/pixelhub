@@ -1,0 +1,18 @@
+========================================
+BLOCO 1: Comparar emissão de onMessage (30 minutos)
+========================================
+
+docker logs wppconnect-server --since 30m | egrep -i "(ImobSites|pixel12digital)" | egrep -i "(onmessage|emitting onmessage|registering onmessage|message)" | tail -n 250
+
+========================================
+BLOCO 2: Confirmar tipos de eventos (presence/ack vs message)
+========================================
+
+docker logs wppconnect-server --since 30m | egrep -i "(ImobSites|pixel12digital)" | egrep -i "(onpresencechanged|onack|onmessage)" | tail -n 250
+
+========================================
+BLOCO 3: Verificar autenticação e registro de listeners (2 horas)
+========================================
+
+docker logs wppconnect-server --since 2h | egrep -i "(ImobSites|pixel12digital)" | egrep -i "(authenticated|registering|listener|hook|webhook|callback|error|fail)" | tail -n 300
+

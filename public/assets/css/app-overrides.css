@@ -1,0 +1,1332 @@
+/* ===== PixelHub – visual clean sem refatorar ===== */
+
+/* Base */
+:root{
+  --ph-text: #111827;
+  --ph-muted: #6b7280;
+  --ph-border: #e5e7eb;
+  --ph-bg: #ffffff;
+  --ph-soft: #f8fafc;
+  --ph-primary: #1d4ed8; /* azul sob controle */
+  --ph-danger: #dc2626;
+  --ph-success: #16a34a;
+  --ph-radius: 8px;
+}
+
+body{
+  color: var(--ph-text);
+}
+
+/* Cards/containers (Padrão Global) */
+.card, .panel, .box, .container-box{
+  background: white !important;
+  border: 1px solid var(--ph-border) !important;
+  border-radius: var(--ph-radius) !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
+  padding: 20px !important;
+  margin-bottom: 20px !important;
+}
+
+/* ===== Tabela (Padrão Global) ===== */
+/* Aplica em TODAS as tabelas do sistema */
+table{
+  border-color: var(--ph-border) !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+
+thead th{
+  background: #f3f4f6 !important;
+  color: #374151 !important;
+  font-weight: 600 !important;
+  border-bottom: 1px solid var(--ph-border) !important;
+  padding: 12px !important;
+  text-align: left !important;
+}
+
+tbody td{
+  border-top: 1px solid var(--ph-border) !important;
+  vertical-align: middle !important;
+  padding: 12px !important;
+}
+
+tbody tr:hover{
+  background: #f9fafb !important;
+}
+
+tbody tr:nth-child(even){
+  background: #fcfcfd !important;
+}
+
+/* Remove bordas duplicadas */
+tbody tr:first-child td{
+  border-top: none !important;
+}
+
+/* ===== Botões (bootstrap-like) ===== */
+.btn{
+  padding: 6px 10px !important;
+  font-size: 12.5px !important;
+  line-height: 1.1 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  height: auto !important;
+  min-height: 30px !important;
+}
+
+/* Mantém 1 ação como "primária", mas sem gritar */
+.btn-primary,
+a.btn-primary,
+a[href*="/projects/board"],
+a[href*="/projects/board"].btn{
+  background: var(--ph-primary) !important;
+  border: 1px solid var(--ph-primary) !important;
+  color: white !important;
+}
+
+.btn-primary:hover,
+a.btn-primary:hover,
+a[href*="/projects/board"]:hover{
+  background: #1e40af !important;
+  border-color: #1e40af !important;
+}
+
+/* Secundários mais neutros */
+.btn-secondary, .btn-dark{
+  background: #6b7280 !important;
+  border-color: #6b7280 !important;
+  color: white !important;
+}
+
+.btn-secondary:hover, .btn-dark:hover{
+  background: #4b5563 !important;
+  border-color: #4b5563 !important;
+}
+
+/* Outline discreto (se usar) */
+.btn-outline-secondary{
+  color: #374151 !important;
+  border-color: #d1d5db !important;
+  background: transparent !important;
+}
+
+.btn-outline-secondary:hover{
+  background: #f3f4f6 !important;
+}
+
+/* "Arquivar" / perigoso: outline, não chapado */
+.btn-danger{
+  background: transparent !important;
+  color: var(--ph-danger) !important;
+  border-color: #fca5a5 !important;
+}
+
+.btn-danger:hover{
+  background: #fef2f2 !important;
+  border-color: #f87171 !important;
+}
+
+/* Botão sucesso: menos saturado */
+.btn-success{
+  background: #22c55e !important;
+  border-color: #22c55e !important;
+  color: white !important;
+}
+
+.btn-success:hover{
+  background: #16a34a !important;
+  border-color: #16a34a !important;
+}
+
+/* Botões com estilo inline (sobrescreve estilos inline) */
+a.btn, button.btn{
+  padding: 6px 10px !important;
+  font-size: 12.5px !important;
+  line-height: 1.1 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  height: auto !important;
+  min-height: 30px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Botões pequenos */
+.btn-small{
+  padding: 5px 8px !important;
+  font-size: 12px !important;
+  min-height: 28px !important;
+}
+
+/* ===== Badges/labels ===== */
+/* Ajuste para badges genéricas (classe comum: .badge / .label) */
+.badge, .label{
+  font-weight: 600 !important;
+  padding: 4px 8px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  border: 1px solid var(--ph-border) !important;
+}
+
+/* Se suas tags de status/prioridade tiverem classes específicas,
+   dá pra mapear aqui. Exemplo conservador: */
+.badge-success, .label-success{
+  background: #ecfdf5 !important;
+  color: #065f46 !important;
+  border-color: #a7f3d0 !important;
+}
+
+.badge-danger, .label-danger{
+  background: #fef2f2 !important;
+  color: #7f1d1d !important;
+  border-color: #fecaca !important;
+}
+
+.badge-warning, .label-warning{
+  background: #fffbeb !important;
+  color: #92400e !important;
+  border-color: #fde68a !important;
+}
+
+.badge-info, .label-info{
+  background: #eff6ff !important;
+  color: #1e3a8a !important;
+  border-color: #bfdbfe !important;
+}
+
+/* Badge default/neutro */
+.badge-default,
+.badge-neutral {
+  background: #f3f4f6 !important;
+  color: #4b5563 !important;
+  border-color: #d1d5db !important;
+}
+
+/* Badges específicos de billing */
+.badge-pending {
+  background: #eff6ff !important;
+  color: #1e3a8a !important;
+  border-color: #bfdbfe !important;
+}
+
+.badge-overdue {
+  background: #fef2f2 !important;
+  color: #7f1d1d !important;
+  border-color: #fecaca !important;
+}
+
+.badge-paid {
+  background: #ecfdf5 !important;
+  color: #065f46 !important;
+  border-color: #a7f3d0 !important;
+}
+
+/* Badges de tickets (prioridade e status) */
+.ticket-prioridade,
+.ticket-status {
+  font-weight: 600 !important;
+  padding: 4px 8px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  border: 1px solid transparent !important;
+}
+
+/* Prioridades de tickets */
+.prioridade-baixa,
+.ticket-prioridade.prioridade-baixa {
+  background: #ecfdf5 !important;
+  color: #065f46 !important;
+  border-color: #a7f3d0 !important;
+}
+
+.prioridade-media,
+.ticket-prioridade.prioridade-media {
+  background: #fffbeb !important;
+  color: #92400e !important;
+  border-color: #fde68a !important;
+}
+
+.prioridade-alta,
+.ticket-prioridade.prioridade-alta {
+  background: #fef2f2 !important;
+  color: #7f1d1d !important;
+  border-color: #fecaca !important;
+}
+
+.prioridade-critica,
+.ticket-prioridade.prioridade-critica {
+  background: #fce7f3 !important;
+  color: #831843 !important;
+  border-color: #fbcfe8 !important;
+}
+
+/* Status de tickets */
+.status-aberto,
+.ticket-status.status-aberto {
+  background: #eff6ff !important;
+  color: #1e3a8a !important;
+  border-color: #bfdbfe !important;
+}
+
+.status-em_atendimento,
+.ticket-status.status-em_atendimento {
+  background: #fffbeb !important;
+  color: #92400e !important;
+  border-color: #fde68a !important;
+}
+
+.status-aguardando_cliente,
+.ticket-status.status-aguardando_cliente {
+  background: #fef2f2 !important;
+  color: #7f1d1d !important;
+  border-color: #fecaca !important;
+}
+
+.status-resolvido,
+.ticket-status.status-resolvido {
+  background: #ecfdf5 !important;
+  color: #065f46 !important;
+  border-color: #a7f3d0 !important;
+}
+
+.status-cancelado,
+.ticket-status.status-cancelado {
+  background: #f3f4f6 !important;
+  color: #4b5563 !important;
+  border-color: #d1d5db !important;
+}
+
+/* Badges de prioridade (classes específicas do projeto) */
+.priority-badge{
+  font-weight: 600 !important;
+  padding: 4px 8px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  border: 1px solid transparent !important;
+}
+
+.priority-baixa{
+  background: #ecfdf5 !important;
+  color: #065f46 !important;
+  border-color: #a7f3d0 !important;
+}
+
+.priority-media{
+  background: #fffbeb !important;
+  color: #92400e !important;
+  border-color: #fde68a !important;
+}
+
+.priority-alta{
+  background: #fef2f2 !important;
+  color: #7f1d1d !important;
+  border-color: #fecaca !important;
+}
+
+.priority-critica{
+  background: #fce7f3 !important;
+  color: #831843 !important;
+  border-color: #fbcfe8 !important;
+}
+
+/* Status badges (inline styles serão sobrescritos via CSS mais específico) */
+/* Aplica estilo de badge a spans com cor inline (status) */
+td span[style*="color"]:not([class*="badge"]):not([class*="priority"]){
+  display: inline-block !important;
+  padding: 4px 8px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  border: 1px solid transparent !important;
+}
+
+/* Status "Ativo" - verde suave */
+td span[style*="color: #3c3"], 
+td span[style*="color:#3c3"],
+td span[style*="color: rgb(51, 204, 51)"],
+td span[style*="color:rgb(51, 204, 51)"],
+td span[style*="color: #3c3; font-weight"],
+td span[style*="color:#3c3; font-weight"]{
+  background: #ecfdf5 !important;
+  color: #065f46 !important;
+  border: 1px solid #a7f3d0 !important;
+}
+
+/* Status "Arquivado" - cinza suave */
+td span[style*="color: #666"],
+td span[style*="color:#666"],
+td span[style*="color: rgb(102, 102, 102)"],
+td span[style*="color:rgb(102, 102, 102)"],
+td span[style*="color: #666; font-weight"],
+td span[style*="color:#666; font-weight"]{
+  background: #f3f4f6 !important;
+  color: #4b5563 !important;
+  border: 1px solid #d1d5db !important;
+}
+
+/* Badges de visibilidade ao cliente */
+td span[style*="background: #023A8D"],
+td span[style*="background:#023A8D"],
+td span[style*="background: #023A8D; color: white"],
+td span[style*="background:#023A8D; color: white"]{
+  background: #eff6ff !important;
+  color: #1e3a8a !important;
+  border: 1px solid #bfdbfe !important;
+}
+
+td span[style*="background: #666"],
+td span[style*="background:#666"],
+td span[style*="background: #666; color: white"],
+td span[style*="background:#666; color: white"]{
+  background: #f3f4f6 !important;
+  color: #4b5563 !important;
+  border: 1px solid #d1d5db !important;
+}
+
+/* ===== Badges Globais (Status, Prioridade, etc) ===== */
+/* Aplica padrão de badge em qualquer elemento com classes comuns */
+.status-badge,
+.status,
+.prioridade,
+.ticket-status,
+.ticket-prioridade {
+  display: inline-block !important;
+  font-weight: 600 !important;
+  padding: 4px 8px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  border: 1px solid transparent !important;
+}
+
+/* Status badges comuns */
+.status-aberto,
+.status-open,
+.status-pendente,
+.status-pending {
+  background: #eff6ff !important;
+  color: #1e3a8a !important;
+  border-color: #bfdbfe !important;
+}
+
+.status-em_atendimento,
+.status-em-andamento,
+.status-in-progress {
+  background: #fffbeb !important;
+  color: #92400e !important;
+  border-color: #fde68a !important;
+}
+
+.status-resolvido,
+.status-concluido,
+.status-completed {
+  background: #ecfdf5 !important;
+  color: #065f46 !important;
+  border-color: #a7f3d0 !important;
+}
+
+.status-cancelado,
+.status-canceled {
+  background: #f3f4f6 !important;
+  color: #4b5563 !important;
+  border-color: #d1d5db !important;
+}
+
+/* Badges de status com cores inline (compatibilidade) */
+td span[style*="color: #c33"],
+td span[style*="color:#c33"],
+td span[style*="color: rgb(204, 51, 51)"],
+td span[style*="color:rgb(204, 51, 51)"] {
+  background: #fef2f2 !important;
+  color: #7f1d1d !important;
+  border: 1px solid #fecaca !important;
+  display: inline-block !important;
+  padding: 4px 8px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+/* ===== Coluna de ações: botões circulares com ícones ===== */
+td:last-child, .acoes, .actions{
+  white-space: nowrap;
+}
+
+/* Container de ações: uma linha só */
+td:last-child > div[style*="display: flex"],
+.acoes > div[style*="display: flex"],
+.actions > div[style*="display: flex"]{
+  gap: 6px !important;
+  flex-wrap: nowrap !important;
+}
+
+/* ===== Transformar botões em círculos com ícones (discretos) ===== */
+td:last-child .btn,
+.acoes .btn,
+.actions .btn {
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0 !important;
+  margin: 0 2px 0 0 !important;
+  position: relative !important;
+  
+  /* Remove texto e emoji */
+  font-size: 0 !important;
+  line-height: 0 !important;
+  overflow: visible !important;
+  
+  /* Visual limpo e discreto */
+  box-shadow: none !important;
+  text-indent: -9999px !important;
+  border: 1px solid transparent !important;
+}
+
+/* Hover discreto e profissional */
+td:last-child .btn:hover,
+.acoes .btn:hover,
+.actions .btn:hover {
+  filter: brightness(0.95);
+  transition: filter 0.15s ease !important;
+}
+
+/* Garante que ::before permanece visível no hover */
+td:last-child .btn:hover::before,
+.acoes .btn:hover::before,
+.actions .btn:hover::before {
+  opacity: 1 !important;
+  display: inline-block !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+/* Acessibilidade: foco visível */
+td:last-child .btn:focus,
+.acoes .btn:focus,
+.actions .btn:focus {
+  outline: 2px solid rgba(29, 78, 216, .25) !important;
+  outline-offset: 2px !important;
+}
+
+/* Base: ícone no centro via ::before (mais discreto) */
+td:last-child .btn::before,
+.acoes .btn::before,
+.actions .btn::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  display: inline-block !important;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px 14px;
+  opacity: .85;
+  text-indent: 0 !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 1 !important;
+  transition: opacity 0.15s ease !important;
+}
+
+/* Ícones mais visíveis no hover */
+td:last-child .btn:hover::before,
+.acoes .btn:hover::before,
+.actions .btn:hover::before {
+  opacity: 1 !important;
+}
+
+/* ===== Ícones SVG por tipo de botão ===== */
+
+/* Detalhes (ícone de documento) - href contém "show" - mais discreto */
+td:last-child a.btn[href*="show"],
+td:last-child a.btn[href*="/projects/show"] {
+  background: #f3f4f6 !important;
+  border: 1px solid #e5e7eb !important;
+  color: #6b7280 !important;
+}
+
+td:last-child a.btn[href*="show"]:hover,
+td:last-child a.btn[href*="/projects/show"]:hover {
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+}
+
+td:last-child a.btn[href*="show"]::before,
+td:last-child a.btn[href*="/projects/show"]::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b7280'%3E%3Cpath d='M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z'/%3E%3C/svg%3E");
+}
+
+/* Ver quadro (ícone de kanban) - href contém "board" - mais discreto */
+td:last-child a.btn[href*="board"],
+td:last-child a.btn[href*="/projects/board"] {
+  background: #eff6ff !important;
+  border: 1px solid #dbeafe !important;
+  color: #1d4ed8 !important;
+}
+
+td:last-child a.btn[href*="board"]:hover,
+td:last-child a.btn[href*="/projects/board"]:hover {
+  background: #dbeafe !important;
+  border-color: #bfdbfe !important;
+}
+
+td:last-child a.btn[href*="board"]::before,
+td:last-child a.btn[href*="/projects/board"]::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231d4ed8'%3E%3Cpath d='M4 6h4v4H4V6zm0 5h4v4H4v-4zm5-5h4v4H9V6zm0 5h4v4H9v-4zm5-5h4v4h-4V6zm0 5h4v4h-4v-4z'/%3E%3C/svg%3E");
+}
+
+/* Abrir ticket (ícone de suporte/headset) - href contém "tickets" - mais discreto */
+td:last-child a.btn[href*="ticket"],
+td:last-child a.btn[href*="/tickets/"] {
+  background: #fffbeb !important;
+  border: 1px solid #fef3c7 !important;
+  color: #f59e0b !important;
+}
+
+td:last-child a.btn[href*="ticket"]:hover,
+td:last-child a.btn[href*="/tickets/"]:hover {
+  background: #fef3c7 !important;
+  border-color: #fde68a !important;
+}
+
+td:last-child a.btn[href*="ticket"]::before,
+td:last-child a.btn[href*="/tickets/"]::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f59e0b'%3E%3Cpath d='M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3a2 2 0 1 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 1 0 0-4V7zm6 2h2v2H9V9zm0 4h2v2H9v-2zm4-4h2v2h-2V9zm0 4h2v2h-2v-2z'/%3E%3C/svg%3E");
+  opacity: 1 !important;
+}
+
+/* WhatsApp (ícone de chat) - botão com onclick */
+td:last-child button.btn[onclick*="openWhatsAppModal"],
+td:last-child button.btn[onclick*="WhatsApp"],
+.acoes button.btn[onclick*="openWhatsAppModal"],
+.actions button.btn[onclick*="WhatsApp"] {
+  background: #fffbeb !important;
+  border: 1px solid #fef3c7 !important;
+  color: #f59e0b !important;
+}
+
+td:last-child button.btn[onclick*="openWhatsAppModal"]:hover,
+td:last-child button.btn[onclick*="WhatsApp"]:hover,
+.acoes button.btn[onclick*="openWhatsAppModal"]:hover,
+.actions button.btn[onclick*="WhatsApp"]:hover {
+  background: #fef3c7 !important;
+  border-color: #fde68a !important;
+}
+
+td:last-child button.btn[onclick*="openWhatsAppModal"]::before,
+td:last-child button.btn[onclick*="WhatsApp"]::before,
+.acoes button.btn[onclick*="openWhatsAppModal"]::before,
+.actions button.btn[onclick*="WhatsApp"]::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f59e0b'%3E%3Cpath d='M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.77.966-.94 1.164-.17.199-.34.223-.63.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z'/%3E%3C/svg%3E");
+  opacity: 1 !important;
+}
+
+/* Ver Detalhes/View (ícone de documento) - href contém "view" ou "tenants/view" */
+td:last-child a.btn[href*="/tenants/view"],
+td:last-child a.btn[href*="view"][href*="tenant"] {
+  background: #f3f4f6 !important;
+  border: 1px solid #e5e7eb !important;
+  color: #6b7280 !important;
+}
+
+td:last-child a.btn[href*="/tenants/view"]:hover,
+td:last-child a.btn[href*="view"][href*="tenant"]:hover {
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+}
+
+td:last-child a.btn[href*="/tenants/view"]::before,
+td:last-child a.btn[href*="view"][href*="tenant"]::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b7280'%3E%3Cpath d='M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z'/%3E%3C/svg%3E");
+}
+
+/* Editar (ícone lápis) - href contém "edit" ou "tenants/edit" */
+td:last-child a.btn[href*="/tenants/edit"],
+td:last-child a.btn[href*="edit"][href*="tenant"] {
+  background: #f3f4f6 !important;
+  border: 1px solid #e5e7eb !important;
+  color: #6b7280 !important;
+}
+
+td:last-child a.btn[href*="/tenants/edit"]:hover,
+td:last-child a.btn[href*="edit"][href*="tenant"]:hover {
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+}
+
+td:last-child a.btn[href*="/tenants/edit"]::before,
+td:last-child a.btn[href*="edit"][href*="tenant"]::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b7280'%3E%3Cpath d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm18-11.5a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75L21 5.75z'/%3E%3C/svg%3E");
+}
+
+/* Backups (ícone de backup/cloud) - href contém "backups" */
+td:last-child a.btn[href*="backup"],
+td:last-child a.btn[href*="/hosting/backups"] {
+  background: #f3f4f6 !important;
+  border: 1px solid #e5e7eb !important;
+  color: #6b7280 !important;
+}
+
+td:last-child a.btn[href*="backup"]:hover,
+td:last-child a.btn[href*="/hosting/backups"]:hover {
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+}
+
+td:last-child a.btn[href*="backup"]::before,
+td:last-child a.btn[href*="/hosting/backups"]::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b7280'%3E%3Cpath d='M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z'/%3E%3C/svg%3E");
+}
+
+/* Editar (ícone lápis) - href contém "edit" ou "services/edit" */
+td:last-child a.btn[href*="/services/edit"],
+td:last-child a.btn[href*="edit"][href*="service"] {
+  background: #f3f4f6 !important;
+  border: 1px solid #e5e7eb !important;
+  color: #6b7280 !important;
+}
+
+td:last-child a.btn[href*="/services/edit"]:hover,
+td:last-child a.btn[href*="edit"][href*="service"]:hover {
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+}
+
+td:last-child a.btn[href*="/services/edit"]::before,
+td:last-child a.btn[href*="edit"][href*="service"]::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b7280'%3E%3Cpath d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm18-11.5a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75L21 5.75z'/%3E%3C/svg%3E");
+}
+
+/* Toggle Status (ícone de power/switch) - botão de formulário */
+td:last-child button.btn[type="submit"][form],
+td:last-child form button.btn[type="submit"] {
+  background: #f3f4f6 !important;
+  border: 1px solid #e5e7eb !important;
+  color: #6b7280 !important;
+}
+
+td:last-child button.btn[type="submit"][form]:hover,
+td:last-child form button.btn[type="submit"]:hover {
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+}
+
+td:last-child button.btn[type="submit"][form]::before,
+td:last-child form button.btn[type="submit"]::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b7280'%3E%3Cpath d='M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.59-5.41L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z'/%3E%3C/svg%3E");
+}
+
+/* Cobrar (ícone de dinheiro/notificação) - href contém "whatsapp-modal" ou "cobrar" */
+td:last-child a.btn[href*="whatsapp-modal"],
+td:last-child a.btn[href*="cobrar"] {
+  background: #f3f4f6 !important;
+  border: 1px solid #e5e7eb !important;
+  color: #6b7280 !important;
+}
+
+td:last-child a.btn[href*="whatsapp-modal"]:hover,
+td:last-child a.btn[href*="cobrar"]:hover {
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+}
+
+td:last-child a.btn[href*="whatsapp-modal"]::before,
+td:last-child a.btn[href*="cobrar"]::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b7280'%3E%3Cpath d='M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z'/%3E%3C/svg%3E");
+}
+
+/* Editar (ícone lápis) - classe btn-edit-project - mais discreto */
+td:last-child button.btn-edit-project,
+.acoes button.btn-edit-project,
+.actions button.btn-edit-project {
+  background: #f3f4f6 !important;
+  border: 1px solid #e5e7eb !important;
+  color: #6b7280 !important;
+}
+
+td:last-child button.btn-edit-project:hover,
+.acoes button.btn-edit-project:hover,
+.actions button.btn-edit-project:hover {
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+}
+
+td:last-child button.btn-edit-project::before,
+.acoes button.btn-edit-project::before,
+.actions button.btn-edit-project::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b7280'%3E%3Cpath d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm18-11.5a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75L21 5.75z'/%3E%3C/svg%3E");
+}
+
+/* Arquivar (perigoso, mas discreto) - outline + ícone X */
+td:last-child button.btn-archive-project,
+td:last-child button.btn-danger.btn-archive-project,
+.acoes button.btn-archive-project,
+.actions button.btn-archive-project {
+  background: transparent !important;
+  color: #dc2626 !important;
+  border: 1px solid #fecaca !important;
+}
+
+td:last-child button.btn-archive-project::before,
+td:last-child button.btn-danger.btn-archive-project::before,
+.acoes button.btn-archive-project::before,
+.actions button.btn-archive-project::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23dc2626'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E");
+}
+
+td:last-child button.btn-archive-project:hover,
+td:last-child button.btn-danger.btn-archive-project:hover,
+.acoes button.btn-archive-project:hover,
+.actions button.btn-archive-project:hover {
+  background: #fef2f2 !important;
+  border-color: #f87171 !important;
+}
+
+/* ===== Tooltip custom instantâneo (sem delay, sem balão preto do browser) ===== */
+/* Regra GLOBAL para todos os tooltips do sistema */
+[data-tooltip] {
+  position: relative;
+}
+
+/* Nota: ::before já é usado para ícones, então usamos apenas ::after para tooltip */
+td:last-child .btn[data-tooltip],
+.acoes .btn[data-tooltip],
+.actions .btn[data-tooltip] {
+  position: relative;
+}
+
+/* Tooltip discreto e profissional (estilo SaaS/CRM) - GLOBAL */
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip) !important;
+  position: absolute !important;
+  bottom: calc(100% + 8px) !important;
+  left: 50% !important;
+  transform: translateX(-50%) translateY(2px) !important;
+  background: #374151 !important;
+  color: #fff !important;
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+  padding: 6px 10px !important;
+  border-radius: 5px !important;
+  /* Controle inteligente de quebra: evita quebra palavra por palavra */
+  white-space: normal !important;
+  word-break: normal !important;
+  word-wrap: break-word !important;
+  hyphens: none !important;
+  /* Largura: mínima suficiente, máxima controlada */
+  min-width: 120px !important;
+  max-width: 220px !important;
+  text-align: center !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transition: opacity .12s ease, visibility .12s ease, transform .12s ease !important;
+  z-index: 10000 !important;
+  font-weight: 400 !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.15) !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
+}
+
+/* Tooltip discreto e profissional (estilo SaaS/CRM) - acima do botão (específico para tabelas) */
+td:last-child .btn[data-tooltip]::after,
+.acoes .btn[data-tooltip]::after,
+.actions .btn[data-tooltip]::after {
+  content: attr(data-tooltip) !important;
+  position: absolute !important;
+  bottom: calc(100% + 8px) !important;
+  left: 50% !important;
+  transform: translateX(-50%) translateY(2px) !important;
+  background: #374151 !important;
+  color: #fff !important;
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+  padding: 5px 9px !important;
+  border-radius: 5px !important;
+  white-space: nowrap !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transition: opacity .12s ease, visibility .12s ease, transform .12s ease !important;
+  z-index: 10000 !important;
+  font-weight: 400 !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.15) !important;
+  /* Garante que o texto seja visível - sobrescreve regras do botão */
+  text-indent: 0 !important;
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: auto !important;
+  min-height: auto !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
+}
+
+/* Seta do tooltip - GLOBAL */
+[data-tooltip]:hover::before {
+  content: '' !important;
+  position: absolute !important;
+  bottom: calc(100% + 3px) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  border: 5px solid transparent !important;
+  border-top-color: #374151 !important;
+  pointer-events: none !important;
+  z-index: 10000 !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transition: opacity .12s ease, visibility .12s ease !important;
+}
+
+[data-tooltip]:hover::before {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Reposiciona seta para último botão da linha (header) */
+.content-header > div:last-child [data-tooltip]:last-of-type:hover::before,
+.content-header > div:last-child [data-tooltip]:last-child:hover::before {
+  left: auto !important;
+  right: 8px !important;
+  transform: none !important;
+}
+
+/* Mostra tooltip instantaneamente no hover - GLOBAL */
+[data-tooltip]:hover::after {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  transform: translateX(-50%) translateY(0) !important;
+}
+
+/* Reposiciona tooltip para último botão da linha (header) */
+.content-header > div:last-child [data-tooltip]:last-of-type:hover::after,
+.content-header > div:last-child [data-tooltip]:last-child:hover::after {
+  left: auto !important;
+  right: 0 !important;
+  transform: translateY(0) !important;
+}
+
+/* Mostra tooltip instantaneamente no hover (específico para tabelas) */
+td:last-child .btn[data-tooltip]:hover::after,
+.acoes .btn[data-tooltip]:hover::after,
+.actions .btn[data-tooltip]:hover::after {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  transform: translateX(-50%) translateY(0) !important;
+}
+
+/* Desabilita completamente tooltip nativo do navegador */
+td:last-child .btn,
+.acoes .btn,
+.actions .btn {
+  /* Remove qualquer tooltip nativo via CSS */
+  /* Nota: Se houver title no HTML, ele precisa ser removido manualmente */
+}
+
+/* Garante que apenas tooltip customizado apareça */
+td:last-child .btn[data-tooltip]:hover,
+.acoes .btn[data-tooltip]:hover,
+.actions .btn[data-tooltip]:hover {
+  /* Força tooltip customizado */
+}
+
+/* Para não cortar o tooltip em tabelas com overflow */
+table, thead, tbody, tr, td {
+  overflow: visible !important;
+}
+
+/* Garante que tooltip customizado apareça acima de tudo */
+td:last-child .btn[data-tooltip]::after {
+  z-index: 10000 !important;
+}
+
+/* ===== ÍCONES MONOCROMÁTICOS (Substituição de Emojis) ===== */
+/* Sistema de ícones SVG monocromáticos para substituir emojis coloridos */
+
+.icon-inline {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.icon-inline svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+/* Ícone de calendário (substitui 📅) */
+.icon-calendar {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-calendar svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* Ícone de documento/clipboard (substitui 📋) */
+.icon-document {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-document svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* Ícone de ticket (substitui 🎫) */
+.icon-ticket {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-ticket svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* Ícone de check/sucesso (substitui ✅) */
+.icon-check {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-check svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* Ícone de erro/X (substitui ❌) */
+.icon-error {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-error svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* Ícone de aviso (substitui ⚠️) */
+.icon-warning {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-warning svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* Ícone de informação (substitui ℹ️) */
+.icon-info {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-info svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* Ícone de busca (substitui 🔍) */
+.icon-search {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-search svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* Ícone de telefone (substitui 📞) */
+.icon-phone {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-phone svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* Ícone de WhatsApp (substitui 💬) */
+.icon-whatsapp {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-whatsapp svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* Ícone de email (substitui 📧) */
+.icon-email {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-email svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* Ícone de globo/site (substitui 🌐) */
+.icon-globe {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-globe svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* Ícone de celular (substitui 📱) */
+.icon-mobile {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-mobile svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* Ícone de link (substitui 🔗) */
+.icon-link {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-link svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* Ícone de lápis/editar (substitui ✏️) */
+.icon-edit {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-edit svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* Ícone de salvar (substitui 💾) */
+.icon-save {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-save svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* Ícone de gráfico/estatísticas (substitui 📊) */
+.icon-chart {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-chart svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* Ícone de lâmpada/dica (substitui 💡) */
+.icon-lightbulb {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-lightbulb svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* Ícone de cadeado (substitui 🔒) */
+.icon-lock {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-lock svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* Ícone de imagem (substitui 🖼️) */
+.icon-image {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-image svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* Ícone de engrenagem/configurações (substitui ⚙️) */
+.icon-settings {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+.icon-settings svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* Esconde emojis que ainda possam estar visíveis */
+[style*="font-size"][style*="emoji"],
+.emoji {
+  display: none !important;
+}
+

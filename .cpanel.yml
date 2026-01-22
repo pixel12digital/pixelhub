@@ -1,0 +1,8 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/pixel12digital/hub.pixel12digital.com.br
+    - /bin/cp -R * $DEPLOYPATH/ 2>/dev/null || true
+    - /bin/chmod -R 755 $DEPLOYPATH/storage 2>/dev/null || true
+    - /bin/chmod -R 755 $DEPLOYPATH/public/assets 2>/dev/null || true
+

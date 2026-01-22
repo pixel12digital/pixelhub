@@ -1,0 +1,41 @@
+## 📊 ESTÁGIO DO PROJETO
+- Status: [Desenvolvimento | Produção | Manutenção | Em Testes]
+- Versão Atual: 
+- Última Atualização: 
+
+## 🗄️ BANCO DE DADOS
+- Host: 
+- Porta: 
+- Nome do Banco: 
+- Usuário: 
+- Tipo: [MySQL | PostgreSQL | SQLite | MongoDB]
+- ⚠️ Credenciais completas em "Acessos Rápidos" (categoria: banco)
+
+## 🖥️ SERVIDOR/INFRAESTRUTURA
+- Servidor: 
+- Ambiente: [Desenvolvimento | Staging | Produção]
+- IP/URL do Servidor: 
+- ⚠️ Acesso SSH em "Acessos Rápidos" (categoria: vps)
+
+## 🔐 CREDENCIAIS IMPORTANTES
+⚠️ NÃO coloque senhas aqui!
+- Painel Admin: 
+- API Keys: [referência apenas]
+- Registre credenciais completas em "Acessos Rápidos" (Minha Infraestrutura)
+
+## 📝 OBSERVAÇÕES TÉCNICAS
+- Stack: 
+- Dependências: 
+- Configurações especiais: 
+
+## 🔗 LINKS ÚTEIS
+- Repositório: 
+- Documentação: 
+- Painel Admin: 
+- API Docs: 
+
+## 📅 HISTÓRICO
+- Data de Criação: 
+- Última Manutenção: 
+- Próximas Tarefas: 
+

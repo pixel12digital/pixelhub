@@ -1,0 +1,50 @@
+# Arquivos de ambiente
+.env
+.env.backup
+.env.local
+.env.production
+
+# Dependências
+/vendor/
+/node_modules/
+/composer.lock
+
+# Logs
+*.log
+/logs/*.log
+/storage/logs/*.log
+
+# Storage e uploads
+/storage/uploads/
+/storage/tenants/*.wpress
+/storage/temp/
+/storage/whatsapp-media/
+
+# Backups
+*.wpress
+*.sql
+*.dump
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Arquivos de credenciais
+ENV_CREDENTIALS.md
+*_credentials.md
+*_secrets.md
+
+# Arquivos de teste temporários (opcional - manter se útil)
+# /database/test-*.php
+# /database/check-*.php
+
+# Arquivos de teste com dados sensíveis
+test-asaas-key.php
+

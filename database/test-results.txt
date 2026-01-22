@@ -1,0 +1,1272 @@
+﻿=== VERIFICA├ç├âO DE TESTES: Simulado e Real ===
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+1. VERIFICA├ç├âO DO TESTE SIMULADO
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+Event ID: 2c2b8f96-9151-4b99-8150-2dffa74c842e
+
+Ô£ô Evento simulado encontrado!
+
+Detalhes do Evento Simulado:
+------------------------------------------------------------
+Event ID:     2c2b8f96-9151-4b99-8150-2dffa74c842e
+Event Type:   whatsapp.inbound.message
+Source:       pixelhub_test
+Status:       queued
+Trace ID:     c5ae8239-fb13-4c7d-a810-6c6cedb7954a
+Tenant ID:    NULL
+Criado em:    2026-01-09 17:17:22
+------------------------------------------------------------
+
+Payload do Evento Simulado:
+{
+    "event": "message",
+    "channel_id": "Pixel12 Digital",
+    "from": "554796164699",
+    "text": "teste simulado",
+    "timestamp": 1767989842,
+    "message": {
+        "id": "test_69616252037c3",
+        "from": "554796164699",
+        "text": "teste simulado",
+        "timestamp": 1767989842
+    }
+}
+
+Metadata do Evento Simulado:
+{
+    "test": true,
+    "simulated": true
+}
+
+Valida├º├Áes do Evento Simulado:
+  Ô£ô Source system correto: pixelhub_test (simulado)
+  Ô£ô Status correto: queued
+  Ô£ô Metadata indica teste: test=true
+  Ô£ô Metadata indica simula├º├úo: simulated=true
+
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+2. VERIFICA├ç├âO DOS TESTES REAIS
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+Buscando eventos relacionados a: "teste webhook real"
+------------------------------------------------------------
+  Ô£ô 4 evento(s) real(is) encontrado(s)!
+
+  Evento Real:
+  ----------------------------------------------------------
+  Event ID:     d9f256ca-1c8b-4d6d-b8a1-cdccde57bbd8
+  Event Type:   whatsapp.inbound.message
+  Source:       wpp_gateway
+  Status:       queued
+  Trace ID:     b157785c-0c98-4f33-b191-fa2f4a1a2bf0
+  Tenant ID:    NULL
+  Criado em:    2026-01-09 17:07:14
+  ----------------------------------------------------------
+  Payload:
+  {
+    "spec_version": "1.0",
+    "event": "message",
+    "session": {
+        "id": "Pixel12 Digital",
+        "name": "Pixel12 Digital"
+    },
+    "message": {
+        "id": "false_554796164699@c.us_3EB07B01C96384FC19D880",
+        "from": "554796164699@c.us",
+        "to": "554797309525@c.us",
+        "text": "teste webhook real",
+        "timestamp": 1767989246
+    },
+    "ack": null,
+    "connection": null,
+    "raw": {
+        "provider": "wppconnect",
+        "payload": {
+            "event": "onmessage",
+            "session": "Pixel12 Digital",
+            "id": "false_554796164699@c.us_3EB07B01C96384FC19D880",
+            "viewed": false,
+            "body": "teste webhook real",
+            "type": "chat",
+            "t": 1767989246,
+            "clientReceivedTsMillis": 1767989246133,
+            "notifyName": "Charles Dietrich",
+            "from": "554796164699@c.us",
+            "to": "554797309525@c.us",
+            "ack": 1,
+            "invis": false,
+            "isNewMsg": true,
+            "star": false,
+            "kicNotified": false,
+            "recvFresh": true,
+            "isFromTemplate": false,
+            "thumbnail": "",
+            "faviconMMSMetadata": null,
+            "isAdsMedia": false,
+            "pollInvalidated": false,
+            "isSentCagPollCreation": false,
+            "latestEditMsgKey": null,
+            "latestEditSenderTimestampMs": null,
+            "mentionedJidList": [],
+            "groupMentions": [],
+            "isEventCanceled": false,
+            "eventInvalidated": false,
+            "isVcardOverMmsDocument": false,
+            "questionReplyQuotedMessage": null,
+            "questionResponsesCount": 0,
+            "readQuestionResponsesCount": 0,
+            "labels": [],
+            "hasReaction": false,
+            "ephemeralSettingTimestamp": 1766539906,
+            "disappearingModeInitiator": "chat",
+            "disappearingModeTrigger": "chat_settings",
+            "disappearingModeInitiatedByMe": true,
+            "viewMode": "VISIBLE",
+            "messageSecret": [
+                120,
+                217,
+                18,
+                128,
+                164,
+                24,
+                255,
+                240,
+                204,
+                110,
+                10,
+                33,
+                205,
+                76,
+                17,
+                250,
+                175,
+                26,
+                18,
+                45,
+                199,
+                173,
+                87,
+                48,
+                3,
+                18,
+                91,
+                55,
+                175,
+                42,
+                151,
+                228
+            ],
+            "inviteGrpType": "DEFAULT",
+            "productHeaderImageRejected": false,
+            "lastPlaybackProgress": 0,
+            "isDynamicReplyButtonsMsg": false,
+            "isCarouselCard": false,
+            "parentMsgId": null,
+            "callSilenceReason": null,
+            "isVideoCall": false,
+            "callDuration": null,
+            "callCreator": null,
+            "callParticipants": null,
+            "isCallLink": null,
+            "callLinkToken": null,
+            "isMdHistoryMsg": false,
+            "stickerSentTs": 0,
+            "isAvatar": false,
+            "lastUpdateFromServerTs": 0,
+            "invokedBotWid": null,
+            "bizBotType": null,
+            "botResponseTargetId": null,
+            "botPluginType": null,
+            "botPluginReferenceIndex": null,
+            "botPluginSearchProvider": null,
+            "botPluginSearchUrl": null,
+            "botPluginSearchQuery": null,
+            "botPluginMaybeParent": false,
+            "botReelPluginThumbnailCdnUrl": null,
+            "botMessageDisclaimerText": null,
+            "botMsgBodyType": null,
+            "reportingTokenInfo": {
+                "reportingToken": [
+                    47,
+                    255,
+                    28,
+                    120,
+                    70,
+                    195,
+                    122,
+                    62,
+                    8,
+                    227,
+                    163,
+                    88,
+                    228,
+                    194,
+                    64,
+                    86
+                ],
+                "version": 2,
+                "reportingTag": [
+                    1,
+                    14,
+                    51,
+                    32,
+                    145,
+                    168,
+                    62,
+                    226,
+                    209,
+                    4,
+                    25,
+                    234,
+                    218,
+                    152,
+                    13,
+                    177,
+                    182,
+                    119,
+                    238,
+                    145
+                ]
+            },
+            "requiresDirectConnection": null,
+            "bizContentPlaceholderType": null,
+            "hostedBizEncStateMismatch": false,
+            "senderOrRecipientAccountTypeHosted": false,
+            "placeholderCreatedWhenAccountIsHosted": false,
+            "groupHistoryBundleMessageKey": null,
+            "groupHistoryBundleMetadata": null,
+            "chatId": "554796164699@c.us",
+            "fromMe": false,
+            "sender": {
+                "id": "554796164699@c.us",
+                "name": "Charles Dietrich",
+                "shortName": "Charles Dietrich ",
+                "pushname": "Charles Dietrich",
+                "type": "in",
+                "isBusiness": false,
+                "isEnterprise": false,
+                "isSmb": false,
+                "labels": [],
+                "isContactSyncCompleted": 0,
+                "textStatusLastUpdateTime": -1,
+                "syncToAddressbook": true,
+                "formattedName": "Charles Dietrich",
+                "isMe": false,
+                "isMyContact": true,
+                "isWAContact": true,
+                "profilePicThumbObj": {
+                    "eurl": "https://pps.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?ccb=11-4&oh=01_Q5Aa3gHhoXtHMCGJEwlSb7gnoPHbzxBYCWJ0twA-epsipIWURg&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "id": "554796164699@c.us",
+                    "img": "https://media-gig4-1.cdn.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?stp=dst-jpg_s96x96_tt6&ccb=11-4&oh=01_Q5Aa3gHmmXwfqZImSxNj0F3mB3GS8vXFQe-3fY8IrwhOqdGAzQ&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "imgFull": "https://media-gig4-1.cdn.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?ccb=11-4&oh=01_Q5Aa3gHhoXtHMCGJEwlSb7gnoPHbzxBYCWJ0twA-epsipIWURg&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "tag": "2134134547"
+                },
+                "msgs": null
+            },
+            "timestamp": 1767989246,
+            "content": "teste webhook real",
+            "isGroupMsg": false,
+            "mediaData": []
+        }
+    },
+    "event_id": "5d9a91cb-daea-4a23-8b28-cf980e0746ca",
+    "correlation_id": "1327a1e7-f0b5-4b15-8249-1f1986d9e1ae",
+    "timestamp": 1767989246
+}
+
+  Valida├º├Áes:
+    Ô£ô Source system correto: wpp_gateway (real)
+    Ô£ô Status correto: queued
+
+  Evento Real:
+  ----------------------------------------------------------
+  Event ID:     96bde97f-5751-4180-8c2b-4ddc1f94aef3
+  Event Type:   whatsapp.inbound.message
+  Source:       wpp_gateway
+  Status:       queued
+  Trace ID:     dafb95ef-1963-4a09-a336-c4e7c8fe45eb
+  Tenant ID:    NULL
+  Criado em:    2026-01-09 16:58:34
+  ----------------------------------------------------------
+  Payload:
+  {
+    "spec_version": "1.0",
+    "event": "message",
+    "session": {
+        "id": "Pixel12 Digital",
+        "name": "Pixel12 Digital"
+    },
+    "message": {
+        "id": "false_554796164699@c.us_3EB02148EF1E8096E62FF8",
+        "from": "554796164699@c.us",
+        "to": "554797309525@c.us",
+        "text": "teste webhook real",
+        "timestamp": 1767988726
+    },
+    "ack": null,
+    "connection": null,
+    "raw": {
+        "provider": "wppconnect",
+        "payload": {
+            "event": "onmessage",
+            "session": "Pixel12 Digital",
+            "id": "false_554796164699@c.us_3EB02148EF1E8096E62FF8",
+            "viewed": false,
+            "body": "teste webhook real",
+            "type": "chat",
+            "t": 1767988726,
+            "clientReceivedTsMillis": 1767988725594,
+            "notifyName": "Charles Dietrich",
+            "from": "554796164699@c.us",
+            "to": "554797309525@c.us",
+            "ack": 1,
+            "invis": false,
+            "isNewMsg": true,
+            "star": false,
+            "kicNotified": false,
+            "recvFresh": true,
+            "isFromTemplate": false,
+            "thumbnail": "",
+            "faviconMMSMetadata": null,
+            "isAdsMedia": false,
+            "pollInvalidated": false,
+            "isSentCagPollCreation": false,
+            "latestEditMsgKey": null,
+            "latestEditSenderTimestampMs": null,
+            "mentionedJidList": [],
+            "groupMentions": [],
+            "isEventCanceled": false,
+            "eventInvalidated": false,
+            "isVcardOverMmsDocument": false,
+            "questionReplyQuotedMessage": null,
+            "questionResponsesCount": 0,
+            "readQuestionResponsesCount": 0,
+            "labels": [],
+            "hasReaction": false,
+            "ephemeralSettingTimestamp": 1766539906,
+            "disappearingModeInitiator": "chat",
+            "disappearingModeTrigger": "chat_settings",
+            "disappearingModeInitiatedByMe": true,
+            "viewMode": "VISIBLE",
+            "messageSecret": [
+                66,
+                79,
+                170,
+                140,
+                225,
+                251,
+                8,
+                24,
+                187,
+                194,
+                64,
+                183,
+                9,
+                186,
+                43,
+                44,
+                154,
+                150,
+                62,
+                16,
+                225,
+                212,
+                255,
+                171,
+                114,
+                103,
+                204,
+                193,
+                108,
+                195,
+                108,
+                206
+            ],
+            "inviteGrpType": "DEFAULT",
+            "productHeaderImageRejected": false,
+            "lastPlaybackProgress": 0,
+            "isDynamicReplyButtonsMsg": false,
+            "isCarouselCard": false,
+            "parentMsgId": null,
+            "callSilenceReason": null,
+            "isVideoCall": false,
+            "callDuration": null,
+            "callCreator": null,
+            "callParticipants": null,
+            "isCallLink": null,
+            "callLinkToken": null,
+            "isMdHistoryMsg": false,
+            "stickerSentTs": 0,
+            "isAvatar": false,
+            "lastUpdateFromServerTs": 0,
+            "invokedBotWid": null,
+            "bizBotType": null,
+            "botResponseTargetId": null,
+            "botPluginType": null,
+            "botPluginReferenceIndex": null,
+            "botPluginSearchProvider": null,
+            "botPluginSearchUrl": null,
+            "botPluginSearchQuery": null,
+            "botPluginMaybeParent": false,
+            "botReelPluginThumbnailCdnUrl": null,
+            "botMessageDisclaimerText": null,
+            "botMsgBodyType": null,
+            "reportingTokenInfo": {
+                "reportingToken": [
+                    137,
+                    92,
+                    236,
+                    134,
+                    119,
+                    84,
+                    15,
+                    180,
+                    98,
+                    46,
+                    144,
+                    110,
+                    129,
+                    24,
+                    237,
+                    220
+                ],
+                "version": 2,
+                "reportingTag": [
+                    1,
+                    14,
+                    17,
+                    77,
+                    241,
+                    123,
+                    223,
+                    9,
+                    43,
+                    95,
+                    141,
+                    45,
+                    126,
+                    50,
+                    202,
+                    198,
+                    96,
+                    15,
+                    70,
+                    252
+                ]
+            },
+            "requiresDirectConnection": null,
+            "bizContentPlaceholderType": null,
+            "hostedBizEncStateMismatch": false,
+            "senderOrRecipientAccountTypeHosted": false,
+            "placeholderCreatedWhenAccountIsHosted": false,
+            "groupHistoryBundleMessageKey": null,
+            "groupHistoryBundleMetadata": null,
+            "chatId": "554796164699@c.us",
+            "fromMe": false,
+            "sender": {
+                "id": "554796164699@c.us",
+                "name": "Charles Dietrich",
+                "shortName": "Charles Dietrich ",
+                "pushname": "Charles Dietrich",
+                "type": "in",
+                "isBusiness": false,
+                "isEnterprise": false,
+                "isSmb": false,
+                "labels": [],
+                "isContactSyncCompleted": 0,
+                "textStatusLastUpdateTime": -1,
+                "syncToAddressbook": true,
+                "formattedName": "Charles Dietrich",
+                "isMe": false,
+                "isMyContact": true,
+                "isWAContact": true,
+                "profilePicThumbObj": {
+                    "eurl": "https://pps.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?ccb=11-4&oh=01_Q5Aa3gHhoXtHMCGJEwlSb7gnoPHbzxBYCWJ0twA-epsipIWURg&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "id": "554796164699@c.us",
+                    "img": "https://media-gig4-1.cdn.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?stp=dst-jpg_s96x96_tt6&ccb=11-4&oh=01_Q5Aa3gHmmXwfqZImSxNj0F3mB3GS8vXFQe-3fY8IrwhOqdGAzQ&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "imgFull": "https://media-gig4-1.cdn.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?ccb=11-4&oh=01_Q5Aa3gHhoXtHMCGJEwlSb7gnoPHbzxBYCWJ0twA-epsipIWURg&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "tag": "2134134547"
+                },
+                "msgs": null
+            },
+            "timestamp": 1767988726,
+            "content": "teste webhook real",
+            "isGroupMsg": false,
+            "mediaData": []
+        }
+    },
+    "event_id": "f04d49d2-b65b-43c5-b888-0659a594e072",
+    "correlation_id": "e0cd03e7-a050-48bd-a3a2-0f0150549985",
+    "timestamp": 1767988726
+}
+
+  Valida├º├Áes:
+    Ô£ô Source system correto: wpp_gateway (real)
+    Ô£ô Status correto: queued
+
+  Evento Real:
+  ----------------------------------------------------------
+  Event ID:     afe780df-5111-4ee5-a75c-34ed17188e90
+  Event Type:   whatsapp.inbound.message
+  Source:       wpp_gateway
+  Status:       queued
+  Trace ID:     fd3907a2-557c-4427-a209-df7c1b9fb26f
+  Tenant ID:    NULL
+  Criado em:    2026-01-09 16:58:13
+  ----------------------------------------------------------
+  Payload:
+  {
+    "spec_version": "1.0",
+    "event": "message",
+    "session": {
+        "id": "Pixel12 Digital",
+        "name": "Pixel12 Digital"
+    },
+    "message": {
+        "id": "false_554796164699@c.us_3EB02C1B75955D1E784707",
+        "from": "554796164699@c.us",
+        "to": "554797309525@c.us",
+        "text": "teste webhook real",
+        "timestamp": 1767988706
+    },
+    "ack": null,
+    "connection": null,
+    "raw": {
+        "provider": "wppconnect",
+        "payload": {
+            "event": "onmessage",
+            "session": "Pixel12 Digital",
+            "id": "false_554796164699@c.us_3EB02C1B75955D1E784707",
+            "viewed": false,
+            "body": "teste webhook real",
+            "type": "chat",
+            "t": 1767988706,
+            "clientReceivedTsMillis": 1767988705604,
+            "notifyName": "Charles Dietrich",
+            "from": "554796164699@c.us",
+            "to": "554797309525@c.us",
+            "ack": 1,
+            "invis": false,
+            "isNewMsg": true,
+            "star": false,
+            "kicNotified": false,
+            "recvFresh": true,
+            "isFromTemplate": false,
+            "thumbnail": "",
+            "faviconMMSMetadata": null,
+            "isAdsMedia": false,
+            "pollInvalidated": false,
+            "isSentCagPollCreation": false,
+            "latestEditMsgKey": null,
+            "latestEditSenderTimestampMs": null,
+            "mentionedJidList": [],
+            "groupMentions": [],
+            "isEventCanceled": false,
+            "eventInvalidated": false,
+            "isVcardOverMmsDocument": false,
+            "questionReplyQuotedMessage": null,
+            "questionResponsesCount": 0,
+            "readQuestionResponsesCount": 0,
+            "labels": [],
+            "hasReaction": false,
+            "ephemeralSettingTimestamp": 1766539906,
+            "disappearingModeInitiator": "chat",
+            "disappearingModeTrigger": "chat_settings",
+            "disappearingModeInitiatedByMe": true,
+            "viewMode": "VISIBLE",
+            "messageSecret": [
+                130,
+                58,
+                108,
+                127,
+                204,
+                208,
+                62,
+                186,
+                132,
+                240,
+                83,
+                59,
+                51,
+                210,
+                77,
+                187,
+                187,
+                174,
+                222,
+                47,
+                73,
+                10,
+                226,
+                131,
+                230,
+                74,
+                49,
+                47,
+                61,
+                160,
+                216,
+                246
+            ],
+            "inviteGrpType": "DEFAULT",
+            "productHeaderImageRejected": false,
+            "lastPlaybackProgress": 0,
+            "isDynamicReplyButtonsMsg": false,
+            "isCarouselCard": false,
+            "parentMsgId": null,
+            "callSilenceReason": null,
+            "isVideoCall": false,
+            "callDuration": null,
+            "callCreator": null,
+            "callParticipants": null,
+            "isCallLink": null,
+            "callLinkToken": null,
+            "isMdHistoryMsg": false,
+            "stickerSentTs": 0,
+            "isAvatar": false,
+            "lastUpdateFromServerTs": 0,
+            "invokedBotWid": null,
+            "bizBotType": null,
+            "botResponseTargetId": null,
+            "botPluginType": null,
+            "botPluginReferenceIndex": null,
+            "botPluginSearchProvider": null,
+            "botPluginSearchUrl": null,
+            "botPluginSearchQuery": null,
+            "botPluginMaybeParent": false,
+            "botReelPluginThumbnailCdnUrl": null,
+            "botMessageDisclaimerText": null,
+            "botMsgBodyType": null,
+            "reportingTokenInfo": {
+                "reportingToken": [
+                    69,
+                    178,
+                    222,
+                    86,
+                    125,
+                    208,
+                    196,
+                    222,
+                    225,
+                    182,
+                    206,
+                    69,
+                    182,
+                    3,
+                    67,
+                    248
+                ],
+                "version": 2,
+                "reportingTag": [
+                    1,
+                    14,
+                    222,
+                    99,
+                    247,
+                    112,
+                    113,
+                    57,
+                    103,
+                    97,
+                    172,
+                    139,
+                    93,
+                    189,
+                    241,
+                    226,
+                    172,
+                    105,
+                    52,
+                    83
+                ]
+            },
+            "requiresDirectConnection": null,
+            "bizContentPlaceholderType": null,
+            "hostedBizEncStateMismatch": false,
+            "senderOrRecipientAccountTypeHosted": false,
+            "placeholderCreatedWhenAccountIsHosted": false,
+            "groupHistoryBundleMessageKey": null,
+            "groupHistoryBundleMetadata": null,
+            "chatId": "554796164699@c.us",
+            "fromMe": false,
+            "sender": {
+                "id": "554796164699@c.us",
+                "name": "Charles Dietrich",
+                "shortName": "Charles Dietrich ",
+                "pushname": "Charles Dietrich",
+                "type": "in",
+                "isBusiness": false,
+                "isEnterprise": false,
+                "isSmb": false,
+                "labels": [],
+                "isContactSyncCompleted": 0,
+                "textStatusLastUpdateTime": -1,
+                "syncToAddressbook": true,
+                "formattedName": "Charles Dietrich",
+                "isMe": false,
+                "isMyContact": true,
+                "isWAContact": true,
+                "profilePicThumbObj": {
+                    "eurl": "https://pps.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?ccb=11-4&oh=01_Q5Aa3gHhoXtHMCGJEwlSb7gnoPHbzxBYCWJ0twA-epsipIWURg&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "id": "554796164699@c.us",
+                    "img": "https://media-gig4-1.cdn.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?stp=dst-jpg_s96x96_tt6&ccb=11-4&oh=01_Q5Aa3gHmmXwfqZImSxNj0F3mB3GS8vXFQe-3fY8IrwhOqdGAzQ&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "imgFull": "https://media-gig4-1.cdn.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?ccb=11-4&oh=01_Q5Aa3gHhoXtHMCGJEwlSb7gnoPHbzxBYCWJ0twA-epsipIWURg&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "tag": "2134134547"
+                },
+                "msgs": null
+            },
+            "timestamp": 1767988706,
+            "content": "teste webhook real",
+            "isGroupMsg": false,
+            "mediaData": []
+        }
+    },
+    "event_id": "113638a0-4b67-4744-9e1d-44c22dbfcf51",
+    "correlation_id": "fbed1dbe-1dcb-4a82-ba7f-e69429c8390c",
+    "timestamp": 1767988706
+}
+
+  Valida├º├Áes:
+    Ô£ô Source system correto: wpp_gateway (real)
+    Ô£ô Status correto: queued
+
+  Evento Real:
+  ----------------------------------------------------------
+  Event ID:     b72e4a60-644e-453f-bd62-5aa0d15f86ab
+  Event Type:   whatsapp.inbound.message
+  Source:       wpp_gateway
+  Status:       queued
+  Trace ID:     b0406a40-0182-4136-9c2c-37c234c4ac13
+  Tenant ID:    NULL
+  Criado em:    2026-01-09 16:49:57
+  ----------------------------------------------------------
+  Payload:
+  {
+    "spec_version": "1.0",
+    "event": "message",
+    "session": {
+        "id": "Pixel12 Digital",
+        "name": "Pixel12 Digital"
+    },
+    "message": {
+        "id": "false_554796164699@c.us_3EB0FA4AE262CFC4B75E4E",
+        "from": "554796164699@c.us",
+        "to": "554797309525@c.us",
+        "text": "teste webhook real",
+        "timestamp": 1767988210
+    },
+    "ack": null,
+    "connection": null,
+    "raw": {
+        "provider": "wppconnect",
+        "payload": {
+            "event": "onmessage",
+            "session": "Pixel12 Digital",
+            "id": "false_554796164699@c.us_3EB0FA4AE262CFC4B75E4E",
+            "viewed": false,
+            "body": "teste webhook real",
+            "type": "chat",
+            "t": 1767988210,
+            "clientReceivedTsMillis": 1767988210176,
+            "notifyName": "Charles Dietrich",
+            "from": "554796164699@c.us",
+            "to": "554797309525@c.us",
+            "ack": 1,
+            "invis": false,
+            "isNewMsg": true,
+            "star": false,
+            "kicNotified": false,
+            "recvFresh": true,
+            "isFromTemplate": false,
+            "thumbnail": "",
+            "faviconMMSMetadata": null,
+            "isAdsMedia": false,
+            "pollInvalidated": false,
+            "isSentCagPollCreation": false,
+            "latestEditMsgKey": null,
+            "latestEditSenderTimestampMs": null,
+            "mentionedJidList": [],
+            "groupMentions": [],
+            "isEventCanceled": false,
+            "eventInvalidated": false,
+            "isVcardOverMmsDocument": false,
+            "questionReplyQuotedMessage": null,
+            "questionResponsesCount": 0,
+            "readQuestionResponsesCount": 0,
+            "labels": [],
+            "hasReaction": false,
+            "ephemeralSettingTimestamp": 1766539906,
+            "disappearingModeInitiator": "chat",
+            "disappearingModeTrigger": "chat_settings",
+            "disappearingModeInitiatedByMe": true,
+            "viewMode": "VISIBLE",
+            "messageSecret": [
+                131,
+                111,
+                210,
+                130,
+                9,
+                120,
+                51,
+                124,
+                227,
+                42,
+                200,
+                66,
+                95,
+                141,
+                168,
+                151,
+                21,
+                198,
+                104,
+                212,
+                235,
+                141,
+                163,
+                13,
+                27,
+                192,
+                237,
+                211,
+                170,
+                38,
+                25,
+                99
+            ],
+            "inviteGrpType": "DEFAULT",
+            "productHeaderImageRejected": false,
+            "lastPlaybackProgress": 0,
+            "isDynamicReplyButtonsMsg": false,
+            "isCarouselCard": false,
+            "parentMsgId": null,
+            "callSilenceReason": null,
+            "isVideoCall": false,
+            "callDuration": null,
+            "callCreator": null,
+            "callParticipants": null,
+            "isCallLink": null,
+            "callLinkToken": null,
+            "isMdHistoryMsg": false,
+            "stickerSentTs": 0,
+            "isAvatar": false,
+            "lastUpdateFromServerTs": 0,
+            "invokedBotWid": null,
+            "bizBotType": null,
+            "botResponseTargetId": null,
+            "botPluginType": null,
+            "botPluginReferenceIndex": null,
+            "botPluginSearchProvider": null,
+            "botPluginSearchUrl": null,
+            "botPluginSearchQuery": null,
+            "botPluginMaybeParent": false,
+            "botReelPluginThumbnailCdnUrl": null,
+            "botMessageDisclaimerText": null,
+            "botMsgBodyType": null,
+            "reportingTokenInfo": {
+                "reportingToken": [
+                    220,
+                    138,
+                    61,
+                    245,
+                    22,
+                    172,
+                    170,
+                    169,
+                    53,
+                    228,
+                    193,
+                    135,
+                    239,
+                    85,
+                    22,
+                    23
+                ],
+                "version": 2,
+                "reportingTag": [
+                    1,
+                    14,
+                    14,
+                    75,
+                    160,
+                    31,
+                    118,
+                    9,
+                    81,
+                    50,
+                    175,
+                    121,
+                    144,
+                    227,
+                    231,
+                    176,
+                    112,
+                    191,
+                    253,
+                    220
+                ]
+            },
+            "requiresDirectConnection": null,
+            "bizContentPlaceholderType": null,
+            "hostedBizEncStateMismatch": false,
+            "senderOrRecipientAccountTypeHosted": false,
+            "placeholderCreatedWhenAccountIsHosted": false,
+            "groupHistoryBundleMessageKey": null,
+            "groupHistoryBundleMetadata": null,
+            "chatId": "554796164699@c.us",
+            "fromMe": false,
+            "sender": {
+                "id": "554796164699@c.us",
+                "name": "Charles Dietrich",
+                "shortName": "Charles Dietrich ",
+                "pushname": "Charles Dietrich",
+                "type": "in",
+                "isBusiness": false,
+                "isEnterprise": false,
+                "isSmb": false,
+                "labels": [],
+                "isContactSyncCompleted": 0,
+                "textStatusLastUpdateTime": -1,
+                "syncToAddressbook": true,
+                "formattedName": "Charles Dietrich",
+                "isMe": false,
+                "isMyContact": true,
+                "isWAContact": true,
+                "profilePicThumbObj": {
+                    "eurl": "https://pps.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?ccb=11-4&oh=01_Q5Aa3gHhoXtHMCGJEwlSb7gnoPHbzxBYCWJ0twA-epsipIWURg&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "id": "554796164699@c.us",
+                    "img": "https://media-gig4-1.cdn.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?stp=dst-jpg_s96x96_tt6&ccb=11-4&oh=01_Q5Aa3gHmmXwfqZImSxNj0F3mB3GS8vXFQe-3fY8IrwhOqdGAzQ&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "imgFull": "https://media-gig4-1.cdn.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?ccb=11-4&oh=01_Q5Aa3gHhoXtHMCGJEwlSb7gnoPHbzxBYCWJ0twA-epsipIWURg&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "tag": "2134134547"
+                },
+                "msgs": null
+            },
+            "timestamp": 1767988210,
+            "content": "teste webhook real",
+            "isGroupMsg": false,
+            "mediaData": []
+        }
+    },
+    "event_id": "b1b6d9d5-5b8c-44a2-891a-1a8359a42152",
+    "correlation_id": "02e1b66e-68fe-495e-8757-530d543f058e",
+    "timestamp": 1767988210
+}
+
+  Valida├º├Áes:
+    Ô£ô Source system correto: wpp_gateway (real)
+    Ô£ô Status correto: queued
+
+
+Buscando eventos relacionados a: "teste simulado para Pixel Hub"
+------------------------------------------------------------
+  Ô£ô 1 evento(s) real(is) encontrado(s)!
+
+  Evento Real:
+  ----------------------------------------------------------
+  Event ID:     727aacfa-a348-40eb-a5c7-7802adc24dcc
+  Event Type:   whatsapp.inbound.message
+  Source:       wpp_gateway
+  Status:       queued
+  Trace ID:     ff272dd4-173c-4e19-8ccb-1f6c063d1ab9
+  Tenant ID:    NULL
+  Criado em:    2026-01-09 17:18:08
+  ----------------------------------------------------------
+  Payload:
+  {
+    "spec_version": "1.0",
+    "event": "message",
+    "session": {
+        "id": "Pixel12 Digital",
+        "name": "Pixel12 Digital"
+    },
+    "message": {
+        "id": "false_554796164699@c.us_3EB0A03DF2F39854B0B826",
+        "from": "554796164699@c.us",
+        "to": "554797309525@c.us",
+        "text": "teste simulado para Pixel Hub - ID Pixel12 Digital",
+        "timestamp": 1767989901
+    },
+    "ack": null,
+    "connection": null,
+    "raw": {
+        "provider": "wppconnect",
+        "payload": {
+            "event": "onmessage",
+            "session": "Pixel12 Digital",
+            "id": "false_554796164699@c.us_3EB0A03DF2F39854B0B826",
+            "viewed": false,
+            "body": "teste simulado para Pixel Hub - ID Pixel12 Digital",
+            "type": "chat",
+            "t": 1767989901,
+            "clientReceivedTsMillis": 1767989900297,
+            "notifyName": "Charles Dietrich",
+            "from": "554796164699@c.us",
+            "to": "554797309525@c.us",
+            "ack": 1,
+            "invis": false,
+            "isNewMsg": true,
+            "star": false,
+            "kicNotified": false,
+            "recvFresh": true,
+            "isFromTemplate": false,
+            "thumbnail": "",
+            "faviconMMSMetadata": null,
+            "isAdsMedia": false,
+            "pollInvalidated": false,
+            "isSentCagPollCreation": false,
+            "latestEditMsgKey": null,
+            "latestEditSenderTimestampMs": null,
+            "mentionedJidList": [],
+            "groupMentions": [],
+            "isEventCanceled": false,
+            "eventInvalidated": false,
+            "isVcardOverMmsDocument": false,
+            "questionReplyQuotedMessage": null,
+            "questionResponsesCount": 0,
+            "readQuestionResponsesCount": 0,
+            "labels": [],
+            "hasReaction": false,
+            "ephemeralSettingTimestamp": 1766539906,
+            "disappearingModeInitiator": "chat",
+            "disappearingModeTrigger": "chat_settings",
+            "disappearingModeInitiatedByMe": true,
+            "viewMode": "VISIBLE",
+            "messageSecret": [
+                62,
+                163,
+                13,
+                24,
+                234,
+                164,
+                75,
+                60,
+                68,
+                43,
+                72,
+                135,
+                95,
+                199,
+                178,
+                89,
+                97,
+                127,
+                154,
+                208,
+                34,
+                234,
+                165,
+                39,
+                190,
+                45,
+                185,
+                221,
+                203,
+                139,
+                16,
+                192
+            ],
+            "inviteGrpType": "DEFAULT",
+            "productHeaderImageRejected": false,
+            "lastPlaybackProgress": 0,
+            "isDynamicReplyButtonsMsg": false,
+            "isCarouselCard": false,
+            "parentMsgId": null,
+            "callSilenceReason": null,
+            "isVideoCall": false,
+            "callDuration": null,
+            "callCreator": null,
+            "callParticipants": null,
+            "isCallLink": null,
+            "callLinkToken": null,
+            "isMdHistoryMsg": false,
+            "stickerSentTs": 0,
+            "isAvatar": false,
+            "lastUpdateFromServerTs": 0,
+            "invokedBotWid": null,
+            "bizBotType": null,
+            "botResponseTargetId": null,
+            "botPluginType": null,
+            "botPluginReferenceIndex": null,
+            "botPluginSearchProvider": null,
+            "botPluginSearchUrl": null,
+            "botPluginSearchQuery": null,
+            "botPluginMaybeParent": false,
+            "botReelPluginThumbnailCdnUrl": null,
+            "botMessageDisclaimerText": null,
+            "botMsgBodyType": null,
+            "reportingTokenInfo": {
+                "reportingToken": [
+                    88,
+                    97,
+                    29,
+                    81,
+                    200,
+                    250,
+                    194,
+                    132,
+                    153,
+                    83,
+                    43,
+                    136,
+                    162,
+                    58,
+                    216,
+                    174
+                ],
+                "version": 2,
+                "reportingTag": [
+                    1,
+                    14,
+                    41,
+                    163,
+                    36,
+                    93,
+                    253,
+                    34,
+                    107,
+                    222,
+                    74,
+                    159,
+                    113,
+                    14,
+                    7,
+                    14,
+                    230,
+                    4,
+                    188,
+                    207
+                ]
+            },
+            "requiresDirectConnection": null,
+            "bizContentPlaceholderType": null,
+            "hostedBizEncStateMismatch": false,
+            "senderOrRecipientAccountTypeHosted": false,
+            "placeholderCreatedWhenAccountIsHosted": false,
+            "groupHistoryBundleMessageKey": null,
+            "groupHistoryBundleMetadata": null,
+            "chatId": "554796164699@c.us",
+            "fromMe": false,
+            "sender": {
+                "id": "554796164699@c.us",
+                "name": "Charles Dietrich",
+                "shortName": "Charles Dietrich ",
+                "pushname": "Charles Dietrich",
+                "type": "in",
+                "isBusiness": false,
+                "isEnterprise": false,
+                "isSmb": false,
+                "labels": [],
+                "isContactSyncCompleted": 0,
+                "textStatusLastUpdateTime": -1,
+                "syncToAddressbook": true,
+                "formattedName": "Charles Dietrich",
+                "isMe": false,
+                "isMyContact": true,
+                "isWAContact": true,
+                "profilePicThumbObj": {
+                    "eurl": "https://pps.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?ccb=11-4&oh=01_Q5Aa3gHhoXtHMCGJEwlSb7gnoPHbzxBYCWJ0twA-epsipIWURg&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "id": "554796164699@c.us",
+                    "img": "https://media-gig4-1.cdn.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?stp=dst-jpg_s96x96_tt6&ccb=11-4&oh=01_Q5Aa3gHmmXwfqZImSxNj0F3mB3GS8vXFQe-3fY8IrwhOqdGAzQ&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "imgFull": "https://media-gig4-1.cdn.whatsapp.net/v/t61.24694-24/389368984_462826723096505_8054825525646255345_n.jpg?ccb=11-4&oh=01_Q5Aa3gHhoXtHMCGJEwlSb7gnoPHbzxBYCWJ0twA-epsipIWURg&oe=696E37E6&_nc_sid=5e03e0&_nc_cat=109",
+                    "tag": "2134134547"
+                },
+                "msgs": null
+            },
+            "timestamp": 1767989901,
+            "content": "teste simulado para Pixel Hub - ID Pixel12 Digital",
+            "isGroupMsg": false,
+            "mediaData": []
+        }
+    },
+    "event_id": "407f8580-8f71-461c-8f9e-324d9bd00078",
+    "correlation_id": "0d620b7e-0fea-4898-b89c-9ce29d55617e",
+    "timestamp": 1767989901
+}
+
+  Valida├º├Áes:
+    Ô£ô Source system correto: wpp_gateway (real)
+    Ô£ô Status correto: queued
+
+
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+3. COMPARA├ç├âO: Simulado vs Real
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+Eventos Recentes (├║ltimos 20):
+------------------------------------------------------------
+­ƒô▒ [REAL] 727aacfa-a348-40eb-a5c7-7802adc24dcc
+   Tipo: whatsapp.inbound.message
+   Status: queued
+   Texto: teste simulado para Pixel Hub - ID Pixel...
+   Criado: 2026-01-09 17:18:08
+
+­ƒº¬ [SIMULADO] 2c2b8f96-9151-4b99-8150-2dffa74c842e
+   Tipo: whatsapp.inbound.message
+   Status: queued
+   Texto: teste simulado
+   Criado: 2026-01-09 17:17:22
+
+­ƒô▒ [REAL] d9f256ca-1c8b-4d6d-b8a1-cdccde57bbd8
+   Tipo: whatsapp.inbound.message
+   Status: queued
+   Texto: teste webhook real
+   Criado: 2026-01-09 17:07:14
+
+­ƒô▒ [REAL] 96bde97f-5751-4180-8c2b-4ddc1f94aef3
+   Tipo: whatsapp.inbound.message
+   Status: queued
+   Texto: teste webhook real
+   Criado: 2026-01-09 16:58:34
+
+­ƒô▒ [REAL] afe780df-5111-4ee5-a75c-34ed17188e90
+   Tipo: whatsapp.inbound.message
+   Status: queued
+   Texto: teste webhook real
+   Criado: 2026-01-09 16:58:13
+
+­ƒô▒ [REAL] 1ad502d9-c9f3-4d85-ac1c-fd5cd6f9a39c
+   Tipo: whatsapp.inbound.message
+   Status: queued
+   Texto: T2dnUwACAAAAAAAAAAAAAAAAAAAAACqCBoIBE09w...
+   Criado: 2026-01-09 16:51:51
+
+­ƒô▒ [REAL] 92841377-db8f-4d11-bc37-c4b606e62403
+   Tipo: whatsapp.inbound.message
+   Status: queued
+   Texto: /9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAYGBgYH...
+   Criado: 2026-01-09 16:50:22
+
+­ƒô▒ [REAL] b72e4a60-644e-453f-bd62-5aa0d15f86ab
+   Tipo: whatsapp.inbound.message
+   Status: queued
+   Texto: teste webhook real
+   Criado: 2026-01-09 16:49:57
+
+­ƒº¬ [SIMULADO] de246798-13e5-4b78-8b47-93251119e6be
+   Tipo: whatsapp.inbound.message
+   Status: queued
+   Texto: Teste simulado
+   Criado: 2026-01-08 22:38:57
+
+------------------------------------------------------------
+Resumo:
+  ­ƒº¬ Simulados: 2
+  ­ƒô▒ Reais: 7
+  ­ƒôè Total: 9
+
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+4. RESUMO FINAL
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+  Ô£ô Teste Simulado: Evento encontrado e validado
+  Ô£ô Testes Reais: 1 evento(s) encontrado(s)
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+FIM DA VERIFICA├ç├âO
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+

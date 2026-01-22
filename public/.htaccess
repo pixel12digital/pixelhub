@@ -1,0 +1,17 @@
+RewriteEngine On
+
+# Desabilita listagem de diretórios globalmente
+Options -Indexes
+
+# Redireciona tudo para index.php exceto arquivos existentes
+# IMPORTANTE: !-d significa "não é um diretório", então diretórios também serão processados
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# Se for um diretório que existe mas não tem index, também redireciona para index.php
+# Isso evita o 403 quando acessar /screen-recordings/
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteCond %{REQUEST_URI} !^/$
+RewriteRule ^(.*)$ index.php [QSA,L]
+
