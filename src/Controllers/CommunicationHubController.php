@@ -1321,6 +1321,245 @@ class CommunicationHubController extends Controller
     }
 
     /**
+     * Resolve channel_id NULL consultando múltiplas fontes
+     * 
+     * Estratégias (em ordem de prioridade):
+     * 1. Busca em eventos recentes da mesma conversa (communication_events)
+     * 2. Busca em outras conversas com mesmo contact_external_id
+     * 3. Busca em tenant_message_channels baseado no tenant_id
+     * 
+     * @param PDO $db Conexão com banco
+     * @param array $conversations Array de conversas que precisam de channel_id (indexado por índice)
+     * @return array Array indexado por índice da conversa com channel_id resolvido (ou null se não encontrado)
+     */
+    private function resolveMissingChannelIds(PDO $db, array $conversations): array
+    {
+        $resolved = [];
+        
+        if (empty($conversations)) {
+            return $resolved;
+        }
+        
+        // Estratégia 1: Busca em eventos recentes da mesma conversa
+        $conversationIds = array_filter(array_column($conversations, 'id'));
+        if (!empty($conversationIds)) {
+            try {
+                // Verifica se tabela communication_events existe
+                $checkStmt = $db->query("SHOW TABLES LIKE 'communication_events'");
+                if ($checkStmt->rowCount() > 0) {
+                    $placeholders = str_repeat('?,', count($conversationIds) - 1) . '?';
+                    
+                    // Busca channel_id mais recente de eventos inbound para essas conversas
+                    // Primeiro busca por conversation_id no metadata
+                    $stmt = $db->prepare("
+                        SELECT 
+                            ce.metadata,
+                            ce.payload
+                        FROM communication_events ce
+                        WHERE ce.event_type = 'whatsapp.inbound.message'
+                        AND JSON_EXTRACT(ce.metadata, '$.conversation_id') IN ($placeholders)
+                        ORDER BY ce.created_at DESC
+                        LIMIT 100
+                    ");
+                    
+                    $stmt->execute($conversationIds);
+                    $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Processa eventos e extrai channel_id
+                    foreach ($events as $event) {
+                        $metadata = json_decode($event['metadata'] ?? '{}', true);
+                        $payload = json_decode($event['payload'] ?? '{}', true);
+                        
+                        $conversationId = $metadata['conversation_id'] ?? null;
+                        
+                        // Tenta extrair channel_id de múltiplas fontes (mesma lógica do ConversationService)
+                        $channelId = $payload['sessionId'] 
+                            ?? $payload['session']['id'] 
+                            ?? $payload['session']['session'] 
+                            ?? $payload['data']['session']['id'] 
+                            ?? $payload['data']['session']['session'] 
+                            ?? $payload['channelId'] 
+                            ?? $payload['channel'] 
+                            ?? $payload['data']['channel'] 
+                            ?? $metadata['channel_id'] 
+                            ?? null;
+                        
+                        if ($channelId && $conversationId) {
+                            // Encontra índice da conversa
+                            foreach ($conversations as $idx => $conv) {
+                                if ($conv['id'] == $conversationId && empty($resolved[$idx])) {
+                                    $resolved[$idx] = trim((string)$channelId);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Se ainda há conversas sem channel_id, tenta buscar por contact_external_id
+                    $remainingIndices = [];
+                    foreach ($conversations as $idx => $conv) {
+                        if (empty($resolved[$idx]) && !empty($conv['contact_external_id'])) {
+                            $remainingIndices[$idx] = $conv['contact_external_id'];
+                        }
+                    }
+                    
+                    if (!empty($remainingIndices)) {
+                        // Busca eventos por contact_external_id
+                        $contactPlaceholders = str_repeat('?,', count($remainingIndices) - 1) . '?';
+                        $stmt2 = $db->prepare("
+                            SELECT 
+                                ce.metadata,
+                                ce.payload,
+                                JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.from')) as from_field,
+                                JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.from')) as message_from
+                            FROM communication_events ce
+                            WHERE ce.event_type = 'whatsapp.inbound.message'
+                            AND (
+                                JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.from')) IN ($contactPlaceholders)
+                                OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.from')) IN ($contactPlaceholders)
+                            )
+                            ORDER BY ce.created_at DESC
+                            LIMIT 100
+                        ");
+                        
+                        $contactParams = array_merge(array_values($remainingIndices), array_values($remainingIndices));
+                        $stmt2->execute($contactParams);
+                        $events2 = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+                        
+                        // Processa eventos e mapeia por contact_external_id
+                        $contactToChannelMap = [];
+                        foreach ($events2 as $event2) {
+                            $payload2 = json_decode($event2['payload'] ?? '{}', true);
+                            $from = $event2['from_field'] ?? $event2['message_from'] ?? null;
+                            
+                            if ($from) {
+                                $channelId2 = $payload2['sessionId'] 
+                                    ?? $payload2['session']['id'] 
+                                    ?? $payload2['session']['session'] 
+                                    ?? $payload2['data']['session']['id'] 
+                                    ?? $payload2['data']['session']['session'] 
+                                    ?? $payload2['channelId'] 
+                                    ?? $payload2['channel'] 
+                                    ?? $payload2['data']['channel'] 
+                                    ?? null;
+                                
+                                if ($channelId2 && !isset($contactToChannelMap[$from])) {
+                                    $contactToChannelMap[$from] = trim((string)$channelId2);
+                                }
+                            }
+                        }
+                        
+                        // Aplica aos índices restantes
+                        foreach ($remainingIndices as $idx => $contactId) {
+                            if (empty($resolved[$idx]) && isset($contactToChannelMap[$contactId])) {
+                                $resolved[$idx] = $contactToChannelMap[$contactId];
+                            }
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                error_log("[CommunicationHub] Erro ao resolver channel_id de eventos: " . $e->getMessage());
+            }
+        }
+        
+        // Estratégia 2: Busca em outras conversas com mesmo contact_external_id
+        $contactIds = [];
+        foreach ($conversations as $idx => $conv) {
+            if (empty($resolved[$idx]) && !empty($conv['contact_external_id'])) {
+                $contactIds[$idx] = $conv['contact_external_id'];
+            }
+        }
+        
+        if (!empty($contactIds)) {
+            try {
+                $uniqueContactIds = array_unique(array_values($contactIds));
+                $placeholders = str_repeat('?,', count($uniqueContactIds) - 1) . '?';
+                
+                $stmt = $db->prepare("
+                    SELECT DISTINCT contact_external_id, channel_id
+                    FROM conversations
+                    WHERE contact_external_id IN ($placeholders)
+                    AND channel_id IS NOT NULL
+                    AND channel_id != ''
+                    ORDER BY last_message_at DESC
+                ");
+                $stmt->execute(array_values($uniqueContactIds));
+                $matchingConvs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Cria mapa de contact_external_id -> channel_id
+                $contactToChannelMap = [];
+                foreach ($matchingConvs as $match) {
+                    $contactId = $match['contact_external_id'];
+                    $channelId = $match['channel_id'];
+                    if (!isset($contactToChannelMap[$contactId])) {
+                        $contactToChannelMap[$contactId] = $channelId;
+                    }
+                }
+                
+                // Aplica aos índices que ainda não foram resolvidos
+                foreach ($contactIds as $idx => $contactId) {
+                    if (empty($resolved[$idx]) && isset($contactToChannelMap[$contactId])) {
+                        $resolved[$idx] = $contactToChannelMap[$contactId];
+                    }
+                }
+            } catch (\Exception $e) {
+                error_log("[CommunicationHub] Erro ao resolver channel_id de outras conversas: " . $e->getMessage());
+            }
+        }
+        
+        // Estratégia 3: Busca em tenant_message_channels baseado no tenant_id
+        $tenantIds = [];
+        foreach ($conversations as $idx => $conv) {
+            if (empty($resolved[$idx]) && !empty($conv['tenant_id'])) {
+                $tenantIds[$idx] = $conv['tenant_id'];
+            }
+        }
+        
+        if (!empty($tenantIds)) {
+            try {
+                $uniqueTenantIds = array_unique(array_values($tenantIds));
+                $placeholders = str_repeat('?,', count($uniqueTenantIds) - 1) . '?';
+                
+                // Busca primeiro canal habilitado de cada tenant
+                $stmt = $db->prepare("
+                    SELECT tenant_id, channel_id
+                    FROM tenant_message_channels
+                    WHERE tenant_id IN ($placeholders)
+                    AND provider = 'wpp_gateway'
+                    AND is_enabled = 1
+                    AND channel_id IS NOT NULL
+                    AND channel_id != ''
+                    GROUP BY tenant_id
+                    ORDER BY id ASC
+                ");
+                $stmt->execute(array_values($uniqueTenantIds));
+                $tenantChannels = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Cria mapa de tenant_id -> channel_id
+                $tenantToChannelMap = [];
+                foreach ($tenantChannels as $tc) {
+                    $tenantId = $tc['tenant_id'];
+                    $channelId = $tc['channel_id'];
+                    if (!isset($tenantToChannelMap[$tenantId])) {
+                        $tenantToChannelMap[$tenantId] = $channelId;
+                    }
+                }
+                
+                // Aplica aos índices que ainda não foram resolvidos
+                foreach ($tenantIds as $idx => $tenantId) {
+                    if (empty($resolved[$idx]) && isset($tenantToChannelMap[$tenantId])) {
+                        $resolved[$idx] = $tenantToChannelMap[$tenantId];
+                    }
+                }
+            } catch (\Exception $e) {
+                error_log("[CommunicationHub] Erro ao resolver channel_id de tenant_message_channels: " . $e->getMessage());
+            }
+        }
+        
+        return $resolved;
+    }
+
+    /**
      * Busca threads de WhatsApp (via tabela conversations - fonte de verdade)
      */
     private function getWhatsAppThreads(PDO $db, ?int $tenantId, string $status): array
@@ -1449,9 +1688,28 @@ class CommunicationHubController extends Controller
             }
         }
 
+        // CORREÇÃO: Resolve channel_id NULL consultando eventos recentes ou tenant_message_channels
+        // Coleta conversas que precisam de resolução de channel_id
+        $conversationsNeedingChannelId = [];
+        foreach ($conversations as $idx => $conv) {
+            if (empty($conv['channel_id'])) {
+                $conversationsNeedingChannelId[$idx] = $conv;
+            }
+        }
+        
+        // Resolve channel_id em lote para otimização
+        $resolvedChannelIds = [];
+        if (!empty($conversationsNeedingChannelId)) {
+            $resolvedChannelIds = $this->resolveMissingChannelIds($db, $conversationsNeedingChannelId);
+        }
+
         // Formata para o formato esperado pela UI
         $threads = [];
-        foreach ($conversations as $conv) {
+        foreach ($conversations as $idx => $conv) {
+                    // CORREÇÃO: Usa channel_id resolvido se o original estava NULL
+                    $resolvedChannelId = $resolvedChannelIds[$idx] ?? null;
+                    $finalChannelId = !empty($conv['channel_id']) ? $conv['channel_id'] : $resolvedChannelId;
+                    
                     // Busca número real do tenant se houver @lid e tenant vinculado
                     $realPhone = null;
                     if (!empty($conv['tenant_id']) && !empty($conv['tenant_phone'])) {
@@ -1511,7 +1769,7 @@ class CommunicationHubController extends Controller
                         'inbound_count' => $conv['last_message_direction'] === 'inbound' ? 1 : 0, // Aproximação
                         'channel' => 'whatsapp',
                         'channel_type' => $conv['channel_type'], // Adiciona contexto
-                        'channel_id' => $conv['channel_id'] ?? null, // Nome da sessão
+                        'channel_id' => $finalChannelId, // CORREÇÃO: Usa channel_id resolvido se necessário
                         'status' => $conv['status'],
                         'unread_count' => (int) $conv['unread_count'],
                         'assigned_to' => $conv['assigned_to'],
