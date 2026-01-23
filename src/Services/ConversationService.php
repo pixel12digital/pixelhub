@@ -1256,34 +1256,65 @@ class ConversationService
         $number = substr($contactExternalId, 4);
         $numberLen = strlen($number);
 
-        // Aplica apenas para números com 8 ou 9 dígitos (após DDD)
-        if ($numberLen !== 8 && $numberLen !== 9) {
-            return null;
-        }
+        // Gera variações possíveis do número
+        $variants = [];
 
-        // Gera variação do número (adiciona ou remove 9º dígito)
-        $variantContactId = null;
+        // Caso 1: Números com 8 dígitos (após DDD) - adiciona 9º dígito
         if ($numberLen === 8) {
-            // Número com 8 dígitos: tenta adicionar 9º dígito (9 + número)
-            $variantContactId = '55' . $ddd . '9' . $number;
-        } elseif ($numberLen === 9) {
-            // Número com 9 dígitos: tenta remover 9º dígito (remove primeiro dígito)
-            $variantContactId = '55' . $ddd . substr($number, 1);
+            $variants[] = '55' . $ddd . '9' . $number;
+        }
+        // Caso 2: Números com 9 dígitos (após DDD) - remove 9º dígito
+        elseif ($numberLen === 9) {
+            $variants[] = '55' . $ddd . substr($number, 1);
+        }
+        // Caso 3: Números com 10 dígitos (após DDD) - pode ter 9º dígito extra
+        // Exemplo: 5587999884234 (11 dígitos) vs 558799884234 (10 dígitos)
+        elseif ($numberLen === 10) {
+            // Se começa com 9, tenta remover (pode ser 9º dígito extra)
+            if (substr($number, 0, 1) === '9') {
+                $variants[] = '55' . $ddd . substr($number, 1);
+            }
+            // Também tenta adicionar 9 no início (caso contrário)
+            $variants[] = '55' . $ddd . '9' . $number;
+        }
+        // Caso 4: Números com 11 dígitos (após DDD) - pode ter 9º dígito extra
+        // Exemplo: 5587999884234 (11 dígitos) - remove primeiro dígito para obter 10
+        elseif ($numberLen === 11) {
+            // Remove primeiro dígito (pode ser 9 extra)
+            $variants[] = '55' . $ddd . substr($number, 1);
+            // Se o primeiro dígito não é 9, também tenta adicionar 9 no início
+            if (substr($number, 0, 1) !== '9') {
+                $variants[] = '55' . $ddd . '9' . $number;
+            }
         }
 
-        if (!$variantContactId) {
+        if (empty($variants)) {
             return null;
         }
 
-        // Gera chave de conversa equivalente
-        $variantKey = self::generateConversationKey(
-            $channelInfo['channel_type'],
-            $channelInfo['channel_account_id'],
-            $variantContactId
-        );
+        // Tenta encontrar conversa com cada variação
+        foreach ($variants as $variantContactId) {
+            // Gera chave de conversa equivalente
+            $variantKey = self::generateConversationKey(
+                $channelInfo['channel_type'],
+                $channelInfo['channel_account_id'],
+                $variantContactId
+            );
 
-        // Busca conversa com a chave variante
-        return self::findByKey($variantKey);
+            // Busca conversa com a chave variante
+            $found = self::findByKey($variantKey);
+            if ($found) {
+                error_log(sprintf(
+                    '[DUPLICATE_PREVENTION] findEquivalentConversation encontrou conversa equivalente: original=%s, variant=%s, found_id=%d',
+                    $contactExternalId,
+                    $variantContactId,
+                    $found['id']
+                ));
+                return $found;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1427,6 +1458,8 @@ class ConversationService
      * Usado para encontrar conversas "shared" quando uma nova conversa com tenant específico
      * está sendo criada, ou vice-versa.
      * 
+     * MELHORIA: Agora também busca por variações do número (9º dígito, etc.)
+     * 
      * @param array $channelInfo Informações do canal
      * @return array|null Conversa encontrada ou null
      */
@@ -1445,7 +1478,7 @@ class ConversationService
         $db = DB::getConnection();
         
         try {
-            // Busca conversa com mesmo contato e tipo de canal, independente do channel_account_id
+            // Primeiro tenta busca exata
             $stmt = $db->prepare("
                 SELECT * FROM conversations 
                 WHERE channel_type = ? 
@@ -1456,7 +1489,24 @@ class ConversationService
             $stmt->execute([$channelInfo['channel_type'], $contactExternalId]);
             $result = $stmt->fetch();
             
-            return $result ?: null;
+            if ($result) {
+                return $result;
+            }
+            
+            // Se não encontrou, tenta buscar por variações usando findEquivalentConversation
+            // Isso cobre casos como números com 9º dígito extra
+            $equivalent = self::findEquivalentConversation($channelInfo, $contactExternalId);
+            if ($equivalent) {
+                // Verifica se a conversa equivalente não tem channel_account_id (é "shared")
+                // ou se tem o mesmo channel_account_id
+                if (empty($equivalent['channel_account_id']) || 
+                    ($channelInfo['channel_account_id'] && 
+                     $equivalent['channel_account_id'] == $channelInfo['channel_account_id'])) {
+                    return $equivalent;
+                }
+            }
+            
+            return null;
         } catch (\Exception $e) {
             error_log("[ConversationService] Erro ao buscar conversa por contato: " . $e->getMessage());
             return null;
