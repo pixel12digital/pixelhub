@@ -109,9 +109,9 @@ class Security
             header("Content-Security-Policy: {$csp}");
         }
         
-        // Permissions-Policy: Limita recursos do navegador (não invasivo)
+        // Permissions-Policy: Limita recursos do navegador (permite microfone para gravação de áudio)
         if (!headers_sent()) {
-            header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+            header('Permissions-Policy: geolocation=(), microphone=(self), camera=()');
         }
     }
 }
