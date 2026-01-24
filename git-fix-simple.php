@@ -330,9 +330,58 @@ if ($merge['code'] === 0) {
 // 5. Status final
 echo "5️⃣ Status final:\n";
 $finalStatus = execGit('status', $repoDir);
-echo implode("\n", $finalStatus['output']) . "\n";
+$finalStatusOutput = implode("\n", $finalStatus['output']);
+echo $finalStatusOutput . "\n\n";
+
+// 6. Verifica se há commits para fazer push
+$commitsAhead = 0;
+if (strpos($finalStatusOutput, 'ahead of') !== false) {
+    preg_match('/ahead of [^\s]+ by (\d+) commit/', $finalStatusOutput, $matches);
+    $commitsAhead = isset($matches[1]) ? (int)$matches[1] : 0;
+    
+    if ($commitsAhead > 0) {
+        echo "6️⃣ Há {$commitsAhead} commit(s) local(is) à frente do remoto.\n";
+        
+        // Verifica se o usuário quer fazer push
+        $doPush = $_GET['push'] ?? '';
+        if ($doPush === 'yes') {
+            echo "Enviando commits para o repositório remoto...\n";
+            $push = execGit('push origin main', $repoDir);
+            echo implode("\n", $push['output']) . "\n";
+            
+            if ($push['code'] === 0) {
+                echo "\n✅ PUSH CONCLUÍDO COM SUCESSO!\n\n";
+            } else {
+                echo "\n⚠️ Push falhou. Pode ser necessário configurar credenciais.\n";
+                echo "Erro: " . implode("\n", $push['output']) . "\n\n";
+            }
+        } else {
+            echo "\n💡 Para enviar os commits ao repositório remoto, use:\n";
+            echo "   ?action=fix&push=yes\n\n";
+            echo "⚠️ ATENÇÃO: Isso enviará {$commitsAhead} commit(s) local(is) para o GitHub.\n";
+            echo "Certifique-se de que esses commits devem ser compartilhados.\n\n";
+        }
+    }
+}
 
 ?></pre>
+
+<?php
+// Mostra botão de push se houver commits à frente
+if (isset($commitsAhead) && $commitsAhead > 0 && ($_GET['push'] ?? '') !== 'yes') {
+    ?>
+    <div style="margin: 20px 0; padding: 15px; background: #252526; border-radius: 5px; border-left: 3px solid #007acc;">
+        <p style="margin: 0 0 10px 0;"><strong>💡 Próximo passo:</strong></p>
+        <a href="?action=fix&push=yes" style="display: inline-block; background: #007acc; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+            ▶️ Fazer Push dos <?= $commitsAhead ?> Commit(s)
+        </a>
+        <p style="margin: 10px 0 0 0; font-size: 12px; color: #dcdcaa;">
+            ⚠️ Isso enviará os commits locais para o GitHub
+        </p>
+    </div>
+    <?php
+}
+?>
 
     <hr>
     <p><strong>⚠️ IMPORTANTE:</strong> Remova este arquivo após usar por segurança!</p>
