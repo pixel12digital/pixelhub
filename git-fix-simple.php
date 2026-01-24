@@ -199,10 +199,48 @@ echo "✅ Repositório Git encontrado!\n";
 echo "📁 Diretório do repositório: {$repoDir}\n";
 echo "📁 Diretório .git: {$gitDir}\n\n";
 
+// 0. Configura identidade do Git (necessário para commits)
+echo "0️⃣ Configurando identidade do Git...\n";
+$configName = execGit('config user.name', $repoDir);
+$configEmail = execGit('config user.email', $repoDir);
+
+if (empty($configName['output'][0]) || empty($configEmail['output'][0])) {
+    // Configura identidade apenas para este repositório
+    execGit('config user.name "Pixel Hub Server"', $repoDir);
+    execGit('config user.email "server@pixel12digital.com.br"', $repoDir);
+    echo "✅ Identidade configurada: Pixel Hub Server <server@pixel12digital.com.br>\n";
+} else {
+    echo "✅ Identidade já configurada: {$configName['output'][0]} <{$configEmail['output'][0]}>\n";
+}
+echo "\n";
+
 // 1. Status inicial
 echo "1️⃣ Status inicial:\n";
 $status = execGit('status', $repoDir);
 echo implode("\n", $status['output']) . "\n\n";
+
+// Verifica se há rebase em andamento
+$statusOutput = implode("\n", $status['output']);
+if (strpos($statusOutput, 'rebase in progress') !== false || strpos($statusOutput, 'interactive rebase') !== false) {
+    echo "⚠️ Rebase em andamento detectado.\n";
+    echo "Opções:\n";
+    echo "  - Abortar rebase e tentar merge novamente\n";
+    echo "  - Continuar rebase atual\n\n";
+    
+    // Tenta abortar primeiro (mais seguro)
+    echo "Tentando abortar rebase anterior...\n";
+    $abort = execGit('rebase --abort', $repoDir);
+    echo implode("\n", $abort['output']) . "\n";
+    
+    if ($abort['code'] === 0) {
+        echo "✅ Rebase abortado com sucesso.\n\n";
+    } else {
+        echo "⚠️ Não foi possível abortar. Tentando continuar...\n";
+        // Se não conseguir abortar, tenta continuar
+        $continue = execGit('rebase --continue', $repoDir);
+        echo implode("\n", $continue['output']) . "\n\n";
+    }
+}
 
 // 2. Fetch
 echo "2️⃣ Buscando atualizações...\n";
@@ -222,20 +260,70 @@ echo implode("\n", $merge['output']) . "\n";
 if ($merge['code'] === 0) {
     echo "\n✅ MERGE CONCLUÍDO COM SUCESSO!\n\n";
 } else {
-    echo "\n⚠️ Merge falhou. Tentando rebase...\n\n";
+    $mergeOutput = implode("\n", $merge['output']);
     
-    // 4. Rebase
-    echo "4️⃣ Tentando rebase...\n";
-    $rebase = execGit('rebase origin/main', $repoDir);
-    echo implode("\n", $rebase['output']) . "\n";
+    // Verifica se o erro é por falta de identidade
+    if (strpos($mergeOutput, 'Committer identity unknown') !== false || strpos($mergeOutput, 'empty ident name') !== false) {
+        echo "\n⚠️ Erro de identidade detectado. Configurando novamente...\n";
+        execGit('config user.name "Pixel Hub Server"', $repoDir);
+        execGit('config user.email "server@pixel12digital.com.br"', $repoDir);
+        echo "✅ Identidade reconfigurada. Tentando merge novamente...\n";
+        $merge = execGit('merge --no-ff origin/main', $repoDir);
+        echo implode("\n", $merge['output']) . "\n";
+        
+        if ($merge['code'] === 0) {
+            echo "\n✅ MERGE CONCLUÍDO COM SUCESSO!\n\n";
+        }
+    }
     
-    if ($rebase['code'] === 0) {
-        echo "\n✅ REBASE CONCLUÍDO COM SUCESSO!\n\n";
-    } else {
-        echo "\n❌ Rebase também falhou. Pode haver conflitos.\n";
-        echo "Considere executar manualmente no servidor:\n";
-        echo "  git reset --hard origin/main\n";
-        echo "(Isso apagará commits locais do servidor)\n\n";
+    if ($merge['code'] !== 0) {
+        echo "\n⚠️ Merge falhou. Tentando rebase...\n\n";
+        
+        // 4. Rebase
+        echo "4️⃣ Tentando rebase...\n";
+        $rebase = execGit('rebase origin/main', $repoDir);
+        $rebaseOutput = implode("\n", $rebase['output']);
+        echo $rebaseOutput . "\n";
+        
+        // Se rebase falhou por identidade, configura e tenta continuar
+        if ($rebase['code'] !== 0 && (strpos($rebaseOutput, 'Committer identity unknown') !== false || strpos($rebaseOutput, 'empty ident name') !== false)) {
+            echo "\n⚠️ Erro de identidade no rebase. Configurando e continuando...\n";
+            execGit('config user.name "Pixel Hub Server"', $repoDir);
+            execGit('config user.email "server@pixel12digital.com.br"', $repoDir);
+            
+            // Tenta continuar o rebase se estiver em progresso
+            $continue = execGit('rebase --continue', $repoDir);
+            if ($continue['code'] === 0) {
+                echo "✅ Rebase continuado com sucesso!\n";
+                // Continua o rebase até o fim
+                while (true) {
+                    $status = execGit('status', $repoDir);
+                    $statusOutput = implode("\n", $status['output']);
+                    if (strpos($statusOutput, 'rebase in progress') === false && strpos($statusOutput, 'interactive rebase') === false) {
+                        break;
+                    }
+                    $continue = execGit('rebase --continue', $repoDir);
+                    if ($continue['code'] !== 0) {
+                        break;
+                    }
+                }
+                echo "\n✅ REBASE CONCLUÍDO COM SUCESSO!\n\n";
+            } else {
+                echo "\n❌ Não foi possível continuar o rebase.\n";
+                echo "Considere abortar e tentar reset:\n";
+                echo "  git rebase --abort\n";
+                echo "  git reset --hard origin/main\n";
+                echo "(Isso apagará commits locais do servidor)\n\n";
+            }
+        } elseif ($rebase['code'] === 0) {
+            echo "\n✅ REBASE CONCLUÍDO COM SUCESSO!\n\n";
+        } else {
+            echo "\n❌ Rebase falhou. Pode haver conflitos.\n";
+            echo "Considere executar manualmente no servidor:\n";
+            echo "  git rebase --abort  (para cancelar)\n";
+            echo "  git reset --hard origin/main  (para resetar)\n";
+            echo "(Isso apagará commits locais do servidor)\n\n";
+        }
     }
 }
 
