@@ -2589,6 +2589,19 @@ function initComposerAudio() {
     // Estado: Idle → Recording
     async function startRecording() {
         try {
+            // Verifica se a API está disponível
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Seu navegador não suporta gravação de áudio. Use Chrome, Firefox ou Edge atualizado.');
+                return;
+            }
+            
+            // Verifica se está em contexto seguro (HTTPS ou localhost)
+            const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+            if (!isSecureContext) {
+                alert('Gravação de áudio requer conexão segura (HTTPS). Acesse o site via HTTPS.');
+                return;
+            }
+            
             recStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             
             // Tenta OGG/Opus primeiro (pra passar o "OpusHead")
@@ -2626,7 +2639,31 @@ function initComposerAudio() {
                 }
             }, 200);
         } catch (err) {
-            alert('Não consegui acessar o microfone. Permita o acesso e tente novamente.');
+            console.error('[AudioRecorder] Erro ao acessar microfone:', err);
+            
+            let errorMessage = 'Não consegui acessar o microfone.';
+            
+            // Mensagens específicas baseadas no tipo de erro
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                errorMessage = 'Acesso ao microfone negado. Por favor, permita o acesso ao microfone nas configurações do navegador e tente novamente.';
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                errorMessage = 'Nenhum microfone encontrado. Verifique se há um microfone conectado ao seu dispositivo.';
+            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                errorMessage = 'O microfone está sendo usado por outra aplicação. Feche outras aplicações que possam estar usando o microfone e tente novamente.';
+            } else if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
+                errorMessage = 'O microfone não atende aos requisitos necessários. Tente usar outro dispositivo de áudio.';
+            } else if (err.name === 'SecurityError') {
+                errorMessage = 'Erro de segurança ao acessar o microfone. Certifique-se de que está acessando o site via HTTPS.';
+            } else if (err.message) {
+                errorMessage = `Erro ao acessar microfone: ${err.message}`;
+            }
+            
+            errorMessage += '\n\nDica: Verifique as permissões do navegador no ícone de cadeado na barra de endereços.';
+            
+            alert(errorMessage);
+            
+            // Reseta para estado idle em caso de erro
+            resetToIdle();
         }
     }
     
