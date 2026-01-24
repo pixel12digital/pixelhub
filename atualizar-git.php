@@ -11,6 +11,95 @@
 
 $action = $_GET['action'] ?? '';
 
+// Diretório do repositório
+$repoDir = '/home/pixel12digital/hub.pixel12digital.com.br';
+
+// Função para executar Git
+function execGit($cmd, $dir) {
+    $fullCmd = "cd " . escapeshellarg($dir) . " && git " . $cmd . " 2>&1";
+    $output = [];
+    $code = 0;
+    exec($fullCmd, $output, $code);
+    return ['output' => $output, 'code' => $code];
+}
+
+// Ação: Push dos commits
+if ($action === 'push') {
+    header('Content-Type: text/html; charset=utf-8');
+    ?>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Fazendo Push...</title>
+        <style>
+            body { font-family: 'Courier New', monospace; max-width: 1000px; margin: 20px auto; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+            h1 { color: #4ec9b0; }
+            pre { background: #252526; padding: 20px; border-radius: 5px; overflow-x: auto; border-left: 3px solid #007acc; }
+        </style>
+    </head>
+    <body>
+        <h1>📤 Fazendo Push dos Commits...</h1>
+        <pre><?php
+    
+    $gitDir = $repoDir . '/.git';
+    if (!is_dir($gitDir)) {
+        die("❌ ERRO: Diretório .git não encontrado!\n");
+    }
+    
+    echo "📁 Diretório: {$repoDir}\n\n";
+    
+    // Configura identidade
+    echo "1️⃣ Configurando Git...\n";
+    execGit('config user.name "Pixel Hub Server"', $repoDir);
+    execGit('config user.email "server@pixel12digital.com.br"', $repoDir);
+    echo "✅ Configurado\n\n";
+    
+    // Verifica status
+    echo "2️⃣ Verificando commits locais...\n";
+    $status = execGit('status', $repoDir);
+    $statusOutput = implode("\n", $status['output']);
+    echo $statusOutput . "\n\n";
+    
+    // Verifica quantos commits à frente
+    $commitsAhead = 0;
+    if (preg_match('/ahead of [^\s]+ by (\d+) commit/', $statusOutput, $matches)) {
+        $commitsAhead = (int)$matches[1];
+        echo "📊 Encontrados {$commitsAhead} commit(s) local(is) à frente do remoto.\n\n";
+    }
+    
+    if ($commitsAhead === 0) {
+        echo "ℹ️ Nenhum commit local para enviar.\n";
+    } else {
+        // Faz push
+        echo "3️⃣ Enviando commits para o GitHub...\n";
+        $push = execGit('push origin main', $repoDir);
+        echo implode("\n", $push['output']) . "\n";
+        
+        if ($push['code'] === 0) {
+            echo "\n✅ PUSH CONCLUÍDO COM SUCESSO!\n";
+            echo "✅ {$commitsAhead} commit(s) enviado(s) para o GitHub!\n\n";
+            echo "💡 Próximo passo: Sincronize produção com o remoto.\n";
+            echo "   <a href='?action=update&reset=yes' style='color: #4ec9b0;'>Clique aqui para sincronizar</a>\n";
+        } else {
+            echo "\n❌ Push falhou!\n";
+            echo "Erro: " . implode("\n", $push['output']) . "\n\n";
+            echo "💡 Possíveis causas:\n";
+            echo "   - Credenciais não configuradas\n";
+            echo "   - Problemas de rede\n";
+            echo "   - Permissões insuficientes\n";
+        }
+    }
+    
+    ?></pre>
+        <hr>
+        <p><a href="?" style="color: #4ec9b0;">← Voltar</a></p>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+
 // Página inicial
 if ($action !== 'update') {
     ?>
@@ -52,14 +141,25 @@ if ($action !== 'update') {
                 </ol>
             </div>
             
-            <div class="warning">
-                <h3>🔄 Sincronizar Produção (Espelho do Local):</h3>
-                <p>Se você quer que a produção seja <strong>exatamente igual</strong> ao repositório remoto (descartando commits locais do servidor), use a opção abaixo:</p>
+            <div class="info">
+                <h3>📤 Fluxo Recomendado:</h3>
+                <ol>
+                    <li><strong>Primeiro:</strong> Fazer push dos commits do servidor para o GitHub</li>
+                    <li><strong>Depois:</strong> Sincronizar produção com o remoto (reset hard)</li>
+                </ol>
                 <p style="margin: 15px 0;">
+                    <a href="?action=push" style="display: inline-block; background: #28a745; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-right: 10px;">
+                        📤 1. Fazer Push dos Commits
+                    </a>
                     <a href="?action=update&reset=yes" style="display: inline-block; background: #dc3545; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                        ⚠️ Reset Hard (Espelhar Remoto)
+                        🔄 2. Sincronizar Produção
                     </a>
                 </p>
+            </div>
+            
+            <div class="warning">
+                <h3>🔄 Sincronizar Produção (Espelho do Remoto):</h3>
+                <p>Se você já fez push dos commits ou quer descartar commits locais:</p>
                 <p style="font-size: 12px; color: #856404; margin-top: 10px;">
                     <strong>ATENÇÃO:</strong> Isso vai descartar TODOS os commits locais do servidor e deixar exatamente igual ao GitHub!
                 </p>
@@ -112,15 +212,6 @@ if (!is_dir($repoDir)) {
 
 if (!is_dir($gitDir)) {
     die("❌ ERRO: Diretório .git não encontrado em: {$repoDir}\n");
-}
-
-// Função para executar Git
-function execGit($cmd, $dir) {
-    $fullCmd = "cd " . escapeshellarg($dir) . " && git " . $cmd . " 2>&1";
-    $output = [];
-    $code = 0;
-    exec($fullCmd, $output, $code);
-    return ['output' => $output, 'code' => $code];
 }
 
 echo "✅ Repositório Git encontrado!\n";
