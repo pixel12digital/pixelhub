@@ -52,13 +52,26 @@ if ($action !== 'update') {
                 </ol>
             </div>
             
+            <div class="warning">
+                <h3>🔄 Sincronizar Produção (Espelho do Local):</h3>
+                <p>Se você quer que a produção seja <strong>exatamente igual</strong> ao repositório remoto (descartando commits locais do servidor), use a opção abaixo:</p>
+                <p style="margin: 15px 0;">
+                    <a href="?action=update&reset=yes" style="display: inline-block; background: #dc3545; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        ⚠️ Reset Hard (Espelhar Remoto)
+                    </a>
+                </p>
+                <p style="font-size: 12px; color: #856404; margin-top: 10px;">
+                    <strong>ATENÇÃO:</strong> Isso vai descartar TODOS os commits locais do servidor e deixar exatamente igual ao GitHub!
+                </p>
+            </div>
+            
             <div class="danger">
                 <strong>🔒 SEGURANÇA:</strong> Remova este arquivo após usar!
             </div>
             
             <p style="text-align: center; margin: 30px 0;">
                 <a href="?action=update">
-                    <button>▶️ Atualizar Repositório</button>
+                    <button>▶️ Atualizar Repositório (Merge)</button>
                 </a>
             </p>
         </div>
@@ -113,6 +126,81 @@ function execGit($cmd, $dir) {
 echo "✅ Repositório Git encontrado!\n";
 echo "📁 Diretório do repositório: {$repoDir}\n";
 echo "📁 Diretório .git: {$gitDir}\n\n";
+
+// Verifica se é para fazer reset hard (espelhar remoto)
+$doReset = $_GET['reset'] ?? '';
+if ($doReset === 'yes') {
+    echo "🔄 MODO: Reset Hard (Espelhar Repositório Remoto)\n";
+    echo "⚠️ ATENÇÃO: Isso vai descartar TODOS os commits locais!\n\n";
+    
+    // 0. Configura identidade
+    echo "0️⃣ Configurando Git...\n";
+    execGit('config user.name "Pixel Hub Server"', $repoDir);
+    execGit('config user.email "server@pixel12digital.com.br"', $repoDir);
+    echo "✅ Configurado\n\n";
+    
+    // 1. Aborta qualquer rebase/merge em andamento
+    echo "1️⃣ Limpando operações em andamento...\n";
+    $status = execGit('status', $repoDir);
+    $statusOutput = implode("\n", $status['output']);
+    
+    if (strpos($statusOutput, 'rebase in progress') !== false) {
+        execGit('rebase --abort', $repoDir);
+        echo "✅ Rebase abortado\n";
+    }
+    if (strpos($statusOutput, 'merge in progress') !== false) {
+        execGit('merge --abort', $repoDir);
+        echo "✅ Merge abortado\n";
+    }
+    echo "\n";
+    
+    // 2. Fetch
+    echo "2️⃣ Buscando atualizações...\n";
+    $fetch = execGit('fetch origin', $repoDir);
+    if ($fetch['code'] === 0) {
+        echo "✅ Atualizações buscadas\n\n";
+    } else {
+        echo "⚠️ " . implode("\n", $fetch['output']) . "\n\n";
+    }
+    
+    // 3. Reset hard para origin/main
+    echo "3️⃣ Fazendo reset hard para origin/main...\n";
+    echo "⚠️ DESCARTANDO commits locais...\n";
+    $reset = execGit('reset --hard origin/main', $repoDir);
+    echo implode("\n", $reset['output']) . "\n";
+    
+    if ($reset['code'] === 0) {
+        echo "\n✅ RESET HARD CONCLUÍDO COM SUCESSO!\n";
+        echo "✅ Produção agora está ESPELHADA com o repositório remoto!\n\n";
+    } else {
+        echo "\n❌ Reset falhou!\n";
+        echo implode("\n", $reset['output']) . "\n\n";
+    }
+    
+    // 4. Limpa arquivos não rastreados (opcional)
+    echo "4️⃣ Limpando arquivos não rastreados...\n";
+    $clean = execGit('clean -fd', $repoDir);
+    echo implode("\n", $clean['output']) . "\n";
+    echo "✅ Limpeza concluída\n\n";
+    
+    // 5. Status final
+    echo "5️⃣ Status final:\n";
+    $finalStatus = execGit('status', $repoDir);
+    echo implode("\n", $finalStatus['output']) . "\n";
+    
+    echo "\n✅ PRODUÇÃO SINCRONIZADA COM O REMOTO!\n";
+    echo "📦 O servidor agora está exatamente igual ao GitHub.\n";
+    
+    ?></pre>
+    <hr>
+    <p><strong>✅ SUCESSO:</strong> Produção sincronizada com o repositório remoto!</p>
+    <p><strong>⚠️ IMPORTANTE:</strong> Remova este arquivo após usar!</p>
+    <p><a href="?" style="color: #4ec9b0;">← Voltar</a></p>
+</body>
+</html>
+    <?php
+    exit;
+}
 
 // 0. Configura identidade do Git (necessário para commits)
 echo "0️⃣ Configurando identidade do Git...\n";
