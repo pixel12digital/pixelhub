@@ -415,6 +415,7 @@ class CommunicationHubController extends Controller
             // CORRIGIDO: channel_id deve permanecer string (VARCHAR(100) no banco, string no gateway)
             $channelId = isset($_POST['channel_id']) && $_POST['channel_id'] !== '' ? trim($_POST['channel_id']) : null;
             // CRÍTICO: Preserva o channel_id original do POST ANTES de qualquer processamento
+            // Define no escopo global do método para garantir acesso em todos os lugares
             $originalChannelIdFromPost = $channelId;
             // LOG CRÍTICO: Rastreia channel_id recebido do POST
             error_log("[CommunicationHub::send] 🔍 channel_id extraído do POST: " . ($channelId ?: 'NULL') . " (raw: " . ($_POST['channel_id'] ?? 'NÃO DEFINIDO') . ")");
@@ -772,9 +773,9 @@ class CommunicationHubController extends Controller
                     // PRIORIDADE 1: Usa channel_id fornecido diretamente no POST (vem do frontend)
                     // CRÍTICO: O channel_id do POST sempre tem prioridade sobre o da conversa
                     if ($channelId) {
-                        // PRESERVA o channelId original do POST para usar no erro (não substitui pelo valor do banco)
-                        $originalChannelIdFromPost = $channelId;
-                        error_log("[CommunicationHub::send] PRIORIDADE 1: Usando channel_id do POST: '{$channelId}' (PRESERVADO para erro)");
+                        // NOTA: $originalChannelIdFromPost já foi preservado no início do método (linha 418)
+                        // Não precisa redefinir aqui, pois isso sobrescreveria o valor original
+                        error_log("[CommunicationHub::send] PRIORIDADE 1: Usando channel_id do POST: '{$channelId}' (originalChannelIdFromPost já preservado: " . ($originalChannelIdFromPost ?: 'NULL') . ")");
                         
                         // PATCH H2: Interpreta channelId recebido como sessionId do gateway
                         // Valida usando a nova função que detecta schema automaticamente
