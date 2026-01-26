@@ -611,9 +611,10 @@ class CommunicationHubController extends Controller
                                 error_log("[CommunicationHub::send] ✅ targetChannels após validação: " . json_encode($targetChannels));
                             } else {
                                 // CORREÇÃO CRÍTICA: Sempre usa o channel_id original do POST se disponível (não o da conversa)
+                                // FORÇA uso do originalChannelIdFromPost se disponível, senão usa channelId do POST, senão usa sessionId da conversa
                                 $errorChannelId = !empty($originalChannelIdFromPost) ? $originalChannelIdFromPost : (!empty($channelId) ? $channelId : $sessionId);
                                 error_log("[CommunicationHub::send] ❌ ERRO: SessionId '{$sessionId}' do gateway não encontrado ou não habilitado para este tenant");
-                                error_log("[CommunicationHub::send] Usando channel_id ORIGINAL do POST no erro: '{$errorChannelId}' (sessionId da conversa: '{$sessionId}', originalChannelIdFromPost: " . ($originalChannelIdFromPost ?: 'NULL') . ")");
+                                error_log("[CommunicationHub::send] Usando channel_id ORIGINAL do POST no erro: '{$errorChannelId}' (sessionId da conversa: '{$sessionId}', originalChannelIdFromPost: " . ($originalChannelIdFromPost ?: 'NULL') . ", channelId: " . ($channelId ?: 'NULL') . ")");
                                 $this->json([
                                     'success' => false, 
                                     'error' => "SessionId do gateway '{$errorChannelId}' não está habilitado para este tenant. Verifique se a sessão está cadastrada e habilitada.",
@@ -843,8 +844,9 @@ class CommunicationHubController extends Controller
                                     } else {
                                         error_log("[CommunicationHub::send] ❌ Canal do banco também não passou na validação (session_id: '{$foundSessionId}')");
                                         // Retorna erro com o channel_id ORIGINAL do POST (preservado no início)
-                                        $errorChannelId = $originalChannelIdFromPost ?? $channelId;
-                                        error_log("[CommunicationHub::send] ❌ Retornando erro com channel_id ORIGINAL do POST: '{$errorChannelId}' (não do banco)");
+                                        // FORÇA uso do originalChannelIdFromPost se disponível, senão usa channelId do POST
+                                        $errorChannelId = !empty($originalChannelIdFromPost) ? $originalChannelIdFromPost : (!empty($channelId) ? $channelId : 'pixel12digital');
+                                        error_log("[CommunicationHub::send] ❌ Retornando erro com channel_id ORIGINAL do POST: '{$errorChannelId}' (originalChannelIdFromPost: " . ($originalChannelIdFromPost ?: 'NULL') . ", channelId: " . ($channelId ?: 'NULL') . ")");
                                         $this->json([
                                             'success' => false, 
                                             'error' => "Canal '{$errorChannelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
@@ -856,8 +858,9 @@ class CommunicationHubController extends Controller
                                 } else {
                                     error_log("[CommunicationHub::send] ❌ Canal do banco também não passou na validação e não tem session_id");
                                     // Retorna erro com o channel_id ORIGINAL do POST (preservado no início)
-                                    $errorChannelId = $originalChannelIdFromPost ?? $channelId;
-                                    error_log("[CommunicationHub::send] ❌ Retornando erro com channel_id ORIGINAL do POST: '{$errorChannelId}' (não do banco)");
+                                    // FORÇA uso do originalChannelIdFromPost se disponível, senão usa channelId do POST
+                                    $errorChannelId = !empty($originalChannelIdFromPost) ? $originalChannelIdFromPost : (!empty($channelId) ? $channelId : 'pixel12digital');
+                                    error_log("[CommunicationHub::send] ❌ Retornando erro com channel_id ORIGINAL do POST: '{$errorChannelId}' (originalChannelIdFromPost: " . ($originalChannelIdFromPost ?: 'NULL') . ", channelId: " . ($channelId ?: 'NULL') . ")");
                                     $this->json([
                                         'success' => false, 
                                         'error' => "Canal '{$errorChannelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
@@ -870,8 +873,9 @@ class CommunicationHubController extends Controller
                                 // Nenhum canal encontrado no banco
                                 error_log("[CommunicationHub::send] ❌ Nenhum canal encontrado no banco para: '{$channelId}' (normalized: '{$normalized}')");
                                 // Retorna erro com o channel_id ORIGINAL do POST (preservado no início)
-                                $errorChannelId = isset($originalChannelIdFromPost) ? $originalChannelIdFromPost : $channelId;
-                                error_log("[CommunicationHub::send] ❌ Retornando erro com channel_id ORIGINAL do POST: '{$errorChannelId}' (não do banco)");
+                                // FORÇA uso do originalChannelIdFromPost se disponível, senão usa channelId do POST
+                                $errorChannelId = !empty($originalChannelIdFromPost) ? $originalChannelIdFromPost : (!empty($channelId) ? $channelId : 'pixel12digital');
+                                error_log("[CommunicationHub::send] ❌ Retornando erro com channel_id ORIGINAL do POST: '{$errorChannelId}' (originalChannelIdFromPost: " . ($originalChannelIdFromPost ?: 'NULL') . ", channelId: " . ($channelId ?: 'NULL') . ")");
                                 $this->json([
                                     'success' => false, 
                                     'error' => "Canal '{$errorChannelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
