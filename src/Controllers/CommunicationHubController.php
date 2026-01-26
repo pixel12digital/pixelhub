@@ -767,13 +767,42 @@ class CommunicationHubController extends Controller
                         
                         // PATCH H2: Interpreta channelId recebido como sessionId do gateway
                         // Valida usando a nova função que detecta schema automaticamente
-                        $validatedChannel = $this->validateGatewaySessionId($channelId, $tenantId, $db);
+                        // CORREÇÃO: Tenta primeiro sem tenant_id para permitir canais compartilhados
+                        $validatedChannel = $this->validateGatewaySessionId($channelId, null, $db);
+                        
+                        // Se não encontrou sem tenant_id, tenta com tenant_id específico
+                        if (!$validatedChannel && $tenantId) {
+                            $validatedChannel = $this->validateGatewaySessionId($channelId, $tenantId, $db);
+                        }
                         
                         if (!$validatedChannel) {
-                            error_log("[CommunicationHub::send] ERRO: SessionId '{$channelId}' do gateway não encontrado ou não habilitado para este tenant");
+                            error_log("[CommunicationHub::send] ERRO: SessionId '{$channelId}' do gateway não encontrado ou não habilitado");
+                            error_log("[CommunicationHub::send] Tentou buscar com tenant_id: " . ($tenantId ?: 'NULL'));
+                            
+                            // Log adicional: verifica se o canal existe sem filtro de tenant
+                            $sessionIdColumn = $this->getSessionIdColumnName($db);
+                            $checkStmt = $db->prepare("
+                                SELECT channel_id, tenant_id, is_enabled
+                                FROM tenant_message_channels
+                                WHERE provider = 'wpp_gateway'
+                                AND (
+                                    channel_id = ?
+                                    OR LOWER(TRIM(channel_id)) = LOWER(TRIM(?))
+                                    OR LOWER(REPLACE(channel_id, ' ', '')) = LOWER(REPLACE(?, ' ', ''))
+                                )
+                                LIMIT 5
+                            ");
+                            $normalized = strtolower(preg_replace('/\s+/', '', trim($channelId)));
+                            $checkStmt->execute([$channelId, $channelId, $channelId]);
+                            $foundChannels = $checkStmt->fetchAll(PDO::FETCH_ASSOC);
+                            
+                            if (!empty($foundChannels)) {
+                                error_log("[CommunicationHub::send] Canais encontrados no banco (mas não validados): " . json_encode($foundChannels));
+                            }
+                            
                             $this->json([
                                 'success' => false, 
-                                'error' => "SessionId do gateway '{$channelId}' não está habilitado para este tenant. Verifique se a sessão está cadastrada e habilitada.",
+                                'error' => "Canal '{$channelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
                                 'error_code' => 'CHANNEL_NOT_FOUND',
                                 'channel_id' => $channelId
                             ], 400);
