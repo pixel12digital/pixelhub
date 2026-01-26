@@ -768,45 +768,99 @@ class CommunicationHubController extends Controller
                         // PATCH H2: Interpreta channelId recebido como sessionId do gateway
                         // Valida usando a nova função que detecta schema automaticamente
                         // CORREÇÃO: Tenta primeiro sem tenant_id para permitir canais compartilhados
+                        error_log("[CommunicationHub::send] 🔍 Validando channelId do POST: '{$channelId}' (tenant_id: " . ($tenantId ?: 'NULL') . ")");
                         $validatedChannel = $this->validateGatewaySessionId($channelId, null, $db);
                         
                         // Se não encontrou sem tenant_id, tenta com tenant_id específico
                         if (!$validatedChannel && $tenantId) {
+                            error_log("[CommunicationHub::send] 🔍 Tentando validação com tenant_id específico: {$tenantId}");
                             $validatedChannel = $this->validateGatewaySessionId($channelId, $tenantId, $db);
                         }
                         
                         if (!$validatedChannel) {
-                            error_log("[CommunicationHub::send] ERRO: SessionId '{$channelId}' do gateway não encontrado ou não habilitado");
+                            error_log("[CommunicationHub::send] ⚠️ ERRO: SessionId '{$channelId}' do gateway não encontrado ou não habilitado");
                             error_log("[CommunicationHub::send] Tentou buscar com tenant_id: " . ($tenantId ?: 'NULL'));
                             
                             // Log adicional: verifica se o canal existe sem filtro de tenant
                             $sessionIdColumn = $this->getSessionIdColumnName($db);
+                            $normalized = strtolower(preg_replace('/\s+/', '', trim($channelId)));
+                            error_log("[CommunicationHub::send] 🔍 Buscando canais no banco com normalização: original='{$channelId}', normalized='{$normalized}'");
+                            
                             $checkStmt = $db->prepare("
-                                SELECT channel_id, tenant_id, is_enabled
+                                SELECT channel_id, tenant_id, is_enabled, {$sessionIdColumn} as session_id
                                 FROM tenant_message_channels
                                 WHERE provider = 'wpp_gateway'
                                 AND (
                                     channel_id = ?
                                     OR LOWER(TRIM(channel_id)) = LOWER(TRIM(?))
-                                    OR LOWER(REPLACE(channel_id, ' ', '')) = LOWER(REPLACE(?, ' ', ''))
+                                    OR LOWER(REPLACE(channel_id, ' ', '')) = ?
+                                    OR {$sessionIdColumn} = ?
+                                    OR LOWER(TRIM({$sessionIdColumn})) = LOWER(TRIM(?))
+                                    OR LOWER(REPLACE({$sessionIdColumn}, ' ', '')) = ?
                                 )
                                 LIMIT 5
                             ");
-                            $normalized = strtolower(preg_replace('/\s+/', '', trim($channelId)));
-                            $checkStmt->execute([$channelId, $channelId, $channelId]);
+                            $checkStmt->execute([$channelId, $channelId, $normalized, $channelId, $channelId, $normalized]);
                             $foundChannels = $checkStmt->fetchAll(PDO::FETCH_ASSOC);
                             
                             if (!empty($foundChannels)) {
-                                error_log("[CommunicationHub::send] Canais encontrados no banco (mas não validados): " . json_encode($foundChannels));
+                                error_log("[CommunicationHub::send] ✅ Canais encontrados no banco: " . json_encode($foundChannels));
+                                // CORREÇÃO: Se encontrou canais no banco mas não passou na validação,
+                                // pode ser que o problema seja a normalização. Tenta usar o channel_id do banco.
+                                $firstFound = $foundChannels[0];
+                                $foundChannelId = $firstFound['channel_id'];
+                                $foundSessionId = !empty($firstFound['session_id']) ? trim($firstFound['session_id']) : null;
+                                
+                                error_log("[CommunicationHub::send] 🔍 Tentando usar channel_id do banco: '{$foundChannelId}' (session_id: " . ($foundSessionId ?: 'NULL') . ", original do POST: '{$channelId}')");
+                                
+                                // Tenta validar novamente com o channel_id do banco
+                                $retryValidated = $this->validateGatewaySessionId($foundChannelId, $tenantId, $db);
+                                if ($retryValidated) {
+                                    error_log("[CommunicationHub::send] ✅ Canal encontrado usando channel_id do banco: '{$foundChannelId}' → session_id: '{$retryValidated['session_id']}'");
+                                    $foundSessionId = trim($retryValidated['session_id']);
+                                    $targetChannels = [$foundSessionId];
+                                    // Pula o erro e continua
+                                } elseif ($foundSessionId) {
+                                    // Se não passou na validação mas encontrou session_id, tenta validar o session_id
+                                    error_log("[CommunicationHub::send] 🔍 Tentando validar session_id encontrado: '{$foundSessionId}'");
+                                    $retryValidated = $this->validateGatewaySessionId($foundSessionId, $tenantId, $db);
+                                    if ($retryValidated) {
+                                        error_log("[CommunicationHub::send] ✅ Canal encontrado usando session_id do banco: '{$foundSessionId}'");
+                                        $targetChannels = [trim($retryValidated['session_id'])];
+                                        // Pula o erro e continua
+                                    } else {
+                                        error_log("[CommunicationHub::send] ❌ Canal do banco também não passou na validação (session_id: '{$foundSessionId}')");
+                                        // Retorna erro com o channel_id original do POST (não o do banco)
+                                        $this->json([
+                                            'success' => false, 
+                                            'error' => "Canal '{$channelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
+                                            'error_code' => 'CHANNEL_NOT_FOUND',
+                                            'channel_id' => $channelId
+                                        ], 400);
+                                        return;
+                                    }
+                                } else {
+                                    error_log("[CommunicationHub::send] ❌ Canal do banco também não passou na validação e não tem session_id");
+                                    // Retorna erro com o channel_id original do POST (não o do banco)
+                                    $this->json([
+                                        'success' => false, 
+                                        'error' => "Canal '{$channelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
+                                        'error_code' => 'CHANNEL_NOT_FOUND',
+                                        'channel_id' => $channelId
+                                    ], 400);
+                                    return;
+                                }
+                            } else {
+                                // Nenhum canal encontrado no banco
+                                error_log("[CommunicationHub::send] ❌ Nenhum canal encontrado no banco para: '{$channelId}' (normalized: '{$normalized}')");
+                                $this->json([
+                                    'success' => false, 
+                                    'error' => "Canal '{$channelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
+                                    'error_code' => 'CHANNEL_NOT_FOUND',
+                                    'channel_id' => $channelId
+                                ], 400);
+                                return;
                             }
-                            
-                            $this->json([
-                                'success' => false, 
-                                'error' => "Canal '{$channelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
-                                'error_code' => 'CHANNEL_NOT_FOUND',
-                                'channel_id' => $channelId
-                            ], 400);
-                            return;
                         }
                         
                         // CRÍTICO: Usa o sessionId CANÔNICO validado (valor original do gateway)
