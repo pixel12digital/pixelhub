@@ -414,8 +414,11 @@ class CommunicationHubController extends Controller
             $tenantIdFromPost = isset($_POST['tenant_id']) && $_POST['tenant_id'] !== '' ? (int) $_POST['tenant_id'] : null;
             // CORRIGIDO: channel_id deve permanecer string (VARCHAR(100) no banco, string no gateway)
             $channelId = isset($_POST['channel_id']) && $_POST['channel_id'] !== '' ? trim($_POST['channel_id']) : null;
+            // CRÍTICO: Preserva o channel_id original do POST ANTES de qualquer processamento
+            $originalChannelIdFromPost = $channelId;
             // LOG CRÍTICO: Rastreia channel_id recebido do POST
             error_log("[CommunicationHub::send] 🔍 channel_id extraído do POST: " . ($channelId ?: 'NULL') . " (raw: " . ($_POST['channel_id'] ?? 'NÃO DEFINIDO') . ")");
+            error_log("[CommunicationHub::send] 🔍 originalChannelIdFromPost preservado: " . ($originalChannelIdFromPost ?: 'NULL'));
             // NOVO: Suporte para encaminhamento para múltiplos canais
             $forwardToAll = isset($_POST['forward_to_all']) && $_POST['forward_to_all'] === '1';
             $channelIdsArray = isset($_POST['channel_ids']) && is_array($_POST['channel_ids']) ? $_POST['channel_ids'] : null;
@@ -838,12 +841,14 @@ class CommunicationHubController extends Controller
                                         // Pula o erro e continua
                                     } else {
                                         error_log("[CommunicationHub::send] ❌ Canal do banco também não passou na validação (session_id: '{$foundSessionId}')");
-                                        // Retorna erro com o channel_id original do POST (não o do banco)
+                                        // Retorna erro com o channel_id ORIGINAL do POST (preservado no início)
+                                        $errorChannelId = $originalChannelIdFromPost ?? $channelId;
+                                        error_log("[CommunicationHub::send] ❌ Retornando erro com channel_id ORIGINAL do POST: '{$errorChannelId}' (não do banco)");
                                         $this->json([
                                             'success' => false, 
-                                            'error' => "Canal '{$channelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
+                                            'error' => "Canal '{$errorChannelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
                                             'error_code' => 'CHANNEL_NOT_FOUND',
-                                            'channel_id' => $channelId
+                                            'channel_id' => $errorChannelId
                                         ], 400);
                                         return;
                                     }
@@ -864,7 +869,7 @@ class CommunicationHubController extends Controller
                                 // Nenhum canal encontrado no banco
                                 error_log("[CommunicationHub::send] ❌ Nenhum canal encontrado no banco para: '{$channelId}' (normalized: '{$normalized}')");
                                 // Retorna erro com o channel_id ORIGINAL do POST (preservado no início)
-                                $errorChannelId = $originalChannelIdFromPost ?? $channelId;
+                                $errorChannelId = isset($originalChannelIdFromPost) ? $originalChannelIdFromPost : $channelId;
                                 error_log("[CommunicationHub::send] ❌ Retornando erro com channel_id ORIGINAL do POST: '{$errorChannelId}' (não do banco)");
                                 $this->json([
                                     'success' => false, 
