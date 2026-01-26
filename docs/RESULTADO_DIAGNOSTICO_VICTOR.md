@@ -114,3 +114,4 @@ A correção permite que a busca de eventos encontre nomes mesmo quando:
 2. `database/test-victor-name-extraction.php` - Testes unitários
 3. `database/check-cache-victor.php` - Verificação de cache
 
+

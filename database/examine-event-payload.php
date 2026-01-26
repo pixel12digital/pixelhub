@@ -62,3 +62,4 @@ echo "Channel ID (metadata): " . ($metadata['channel_id'] ?? 'N/A') . "\n";
 echo "Message Body: " . ($payload['message']['body'] ?? 'N/A') . "\n";
 
 
+

@@ -65,3 +65,4 @@ No File Manager, verifique se existe:
 **Status**: Arquivo existe mas está vazio e no lugar errado
 **Solução**: Criar/editar arquivo em `public/` ou `public_html/` com conteúdo completo
 
+

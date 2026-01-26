@@ -135,3 +135,4 @@ No File Manager, verifique:
 **Local correto**: `/home/pixel12digital/hub.pixel12digital.com.br/public/atualizar-repositorio.php`
 **Conteúdo**: Cole o código PHP completo acima
 
+

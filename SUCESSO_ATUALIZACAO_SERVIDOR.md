@@ -96,3 +96,4 @@ git reset --hard origin/main
 
 **Próxima ação**: Testar deploy no cPanel e remover o arquivo PHP.
 
+
