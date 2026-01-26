@@ -106,7 +106,7 @@ if (!chdir($repoDir)) {
         }
 
         echo '<div class="step">';
-        echo '<h3>[1/5] Verificando repositório...</h3>';
+        echo '<h3>[1/6] Verificando repositório...</h3>';
         echo '<pre>';
         echo shell_exec('pwd 2>&1');
         echo '</pre>';
@@ -114,14 +114,37 @@ if (!chdir($repoDir)) {
         echo '</div>';
 
         echo '<div class="step">';
-        echo '<h3>[2/5] Estado atual do repositório...</h3>';
+        echo '<h3>[2/6] Estado atual do repositório...</h3>';
         echo '<pre>';
         echo shell_exec('git status --short 2>&1');
+        echo '</pre>';
+        echo '<h4>Hash atual do HEAD:</h4>';
+        echo '<pre>';
+        $currentHash = trim(shell_exec('git rev-parse HEAD 2>&1'));
+        echo $currentHash;
         echo '</pre>';
         echo '</div>';
 
         echo '<div class="step">';
-        echo '<h3>[3/5] Atualizando referências remotas (git fetch)...</h3>';
+        echo '<h3>[3/6] Verificando divergência...</h3>';
+        echo '<pre>';
+        $divergenceCheck = shell_exec('git rev-list --left-right --count HEAD...origin/main 2>&1');
+        echo $divergenceCheck;
+        echo '</pre>';
+        if (strpos($divergenceCheck, 'fatal') === false) {
+            $parts = preg_split('/\s+/', trim($divergenceCheck));
+            $ahead = isset($parts[0]) ? (int)$parts[0] : 0;
+            $behind = isset($parts[1]) ? (int)$parts[1] : 0;
+            if ($ahead > 0 || $behind > 0) {
+                echo '<div class="warning">⚠️ Divergência detectada: ' . $ahead . ' commits ahead, ' . $behind . ' commits behind</div>';
+            } else {
+                echo '<div class="success">✓ Sem divergência</div>';
+            }
+        }
+        echo '</div>';
+
+        echo '<div class="step">';
+        echo '<h3>[4/6] Atualizando referências remotas (git fetch)...</h3>';
         echo '<pre>';
         $fetchOutput = shell_exec('git fetch origin 2>&1');
         echo $fetchOutput;
@@ -134,24 +157,41 @@ if (!chdir($repoDir)) {
         echo '</div>';
 
         echo '<div class="step">';
-        echo '<h3>[4/5] Resetando para origin/main...</h3>';
-        echo '<div class="warning">⚠️ Isso irá sobrescrever mudanças locais</div>';
+        echo '<h3>[5/6] Limpando working directory e resetando para origin/main...</h3>';
+        echo '<div class="warning">⚠️ Isso irá SOBRESCREVER todas as mudanças locais no servidor</div>';
         echo '<pre>';
+        // Limpar working directory primeiro
+        $cleanOutput = shell_exec('git clean -fd 2>&1');
+        echo "git clean -fd:\n" . $cleanOutput . "\n\n";
+        
+        // Resetar para origin/main
         $resetOutput = shell_exec('git reset --hard origin/main 2>&1');
-        echo $resetOutput;
+        echo "git reset --hard origin/main:\n" . $resetOutput;
         echo '</pre>';
-        if (strpos($resetOutput, 'fatal') === false) {
-            echo '<div class="success">✓ Reset concluído</div>';
+        if (strpos($resetOutput, 'fatal') === false && strpos($resetOutput, 'HEAD is now at') !== false) {
+            echo '<div class="success">✓ Reset concluído com sucesso</div>';
         } else {
             echo '<div class="error">❌ Erro ao fazer reset</div>';
         }
         echo '</div>';
 
         echo '<div class="step">';
-        echo '<h3>[5/5] Verificando resultado...</h3>';
+        echo '<h3>[6/6] Verificando resultado final...</h3>';
+        echo '<h4>Status do repositório:</h4>';
         echo '<pre>';
         echo shell_exec('git status 2>&1');
         echo '</pre>';
+        echo '<h4>Hash do HEAD após reset:</h4>';
+        echo '<pre>';
+        $newHash = trim(shell_exec('git rev-parse HEAD 2>&1'));
+        echo $newHash;
+        echo '</pre>';
+        $expectedHash = 'c189200ca8d0f3418e864df82a9dcca1212b4eeb';
+        if ($newHash === $expectedHash) {
+            echo '<div class="success">✓ Hash correto! Produção está igual ao local</div>';
+        } else {
+            echo '<div class="warning">⚠️ Hash diferente do esperado. Esperado: ' . substr($expectedHash, 0, 12) . '...</div>';
+        }
         echo '<h4>Últimos commits:</h4>';
         echo '<pre>';
         echo shell_exec('git log --oneline -5 2>&1');
@@ -159,14 +199,22 @@ if (!chdir($repoDir)) {
         echo '</div>';
 
         echo '<div class="info">';
-        echo '<h3>✅ Atualização concluída!</h3>';
-        echo '<p><strong>Próximos passos:</strong></p>';
+        echo '<h3>✅ Reset concluído com sucesso!</h3>';
+        echo '<p><strong>O problema de "diverging branches" foi resolvido.</strong></p>';
+        echo '<p><strong>Próximos passos para fazer deploy:</strong></p>';
         echo '<ol>';
-        echo '<li>Volte ao cPanel Git Version Control</li>';
-        echo '<li>Tente fazer deploy novamente</li>';
-        echo '<li>O erro de "diverging branches" deve estar resolvido</li>';
-        echo '<li><strong>IMPORTANTE:</strong> Remova este arquivo PHP por segurança!</li>';
+        echo '<li><strong>Volte ao cPanel</strong> → Tools → Git Version Control</li>';
+        echo '<li><strong>Clique em "Update from Remote"</strong> (deve funcionar agora sem erro)</li>';
+        echo '<li><strong>Verifique os requisitos:</strong> Ambos devem estar OK (✓)</li>';
+        echo '<li><strong>Clique em "Deploy HEAD Commit"</strong> (deve funcionar agora)</li>';
+        echo '<li><strong>Verifique o deploy:</strong> Acesse <code>/public/verificar-deploy.php</code></li>';
+        echo '<li><strong>IMPORTANTE:</strong> Remova este arquivo PHP por segurança após o deploy!</li>';
         echo '</ol>';
+        echo '<p style="margin-top: 15px;"><strong>Hash esperado:</strong> <code>' . substr($expectedHash, 0, 12) . '...</code></p>';
+        echo '<p><strong>Hash atual no servidor:</strong> <code>' . substr($newHash, 0, 12) . '...</code></p>';
+        if ($newHash === $expectedHash) {
+            echo '<p style="color: #28a745; font-weight: bold;">✓ Produção está sincronizada com o código local!</p>';
+        }
         echo '</div>';
         ?>
 

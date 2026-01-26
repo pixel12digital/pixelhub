@@ -24,6 +24,7 @@
 *.wpress
 *.sql
 *.dump
+backup-git-*/
 
 # Arquivos do sistema
 .DS_Store

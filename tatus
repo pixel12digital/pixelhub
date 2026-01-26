@@ -1,1 +1,0 @@
-[33m16ff252[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m fix: Corrige erro 500 em /hosting/view e /hosting/edit - Conflito de assinatura de método view() resolvido renomeando para show()
