@@ -4756,22 +4756,28 @@ class CommunicationHubController extends Controller
         $params = [];
         
         // Compara sessionId (case-sensitive primeiro, depois case-insensitive como fallback)
-        // Também remove espaços para comparar "Pixel12 Digital" com "pixel12digital"
+        // CORREÇÃO: Normalização mais robusta que remove TODOS os espaços e converte para lowercase
+        // Isso permite comparar "Pixel 12 Digital" com "Pixel12 Digital" e "pixel12digital"
         $sessionIdTrimmed = trim($sessionId);
         $sessionIdNormalized = strtolower(preg_replace('/\s+/', '', $sessionIdTrimmed));
         
+        // CORREÇÃO: Também normaliza removendo espaços do valor recebido para comparação
+        // Isso garante que "Pixel 12 Digital" seja comparado como "pixel12digital"
         if ($sessionIdColumn === 'session_id') {
             // Se tem coluna session_id, compara direto nela
-            $where[] = "(session_id = ? OR LOWER(TRIM(session_id)) = LOWER(TRIM(?)) OR LOWER(REPLACE(session_id, ' ', '')) = ?)";
+            $where[] = "(session_id = ? OR LOWER(TRIM(session_id)) = LOWER(TRIM(?)) OR LOWER(REPLACE(session_id, ' ', '')) = ? OR LOWER(REPLACE(session_id, ' ', '')) = LOWER(REPLACE(?, ' ', '')))";
             $params[] = $sessionId;
             $params[] = $sessionId;
             $params[] = $sessionIdNormalized;
+            $params[] = $sessionId; // Para comparação com REPLACE em ambos os lados
         } else {
             // Fallback: usa channel_id
-            $where[] = "(channel_id = ? OR LOWER(TRIM(channel_id)) = LOWER(TRIM(?)) OR LOWER(REPLACE(channel_id, ' ', '')) = ?)";
+            // CORREÇÃO: Compara normalizando ambos os lados (remove espaços e converte para lowercase)
+            $where[] = "(channel_id = ? OR LOWER(TRIM(channel_id)) = LOWER(TRIM(?)) OR LOWER(REPLACE(channel_id, ' ', '')) = ? OR LOWER(REPLACE(channel_id, ' ', '')) = LOWER(REPLACE(?, ' ', '')))";
             $params[] = $sessionId;
             $params[] = $sessionId;
             $params[] = $sessionIdNormalized;
+            $params[] = $sessionId; // Para comparação com REPLACE em ambos os lados
         }
         
         // Filtra por tenant se fornecido
@@ -4820,16 +4826,19 @@ class CommunicationHubController extends Controller
             $paramsFallback = [];
             
             // Mesma lógica de comparação, mas sem filtro de tenant
+            // CORREÇÃO: Usa mesma normalização robusta
             if ($sessionIdColumn === 'session_id') {
-                $whereFallback[] = "(session_id = ? OR LOWER(TRIM(session_id)) = LOWER(TRIM(?)) OR LOWER(REPLACE(session_id, ' ', '')) = ?)";
+                $whereFallback[] = "(session_id = ? OR LOWER(TRIM(session_id)) = LOWER(TRIM(?)) OR LOWER(REPLACE(session_id, ' ', '')) = ? OR LOWER(REPLACE(session_id, ' ', '')) = LOWER(REPLACE(?, ' ', '')))";
                 $paramsFallback[] = $sessionId;
                 $paramsFallback[] = $sessionId;
                 $paramsFallback[] = $sessionIdNormalized;
+                $paramsFallback[] = $sessionId; // Para comparação com REPLACE em ambos os lados
             } else {
-                $whereFallback[] = "(channel_id = ? OR LOWER(TRIM(channel_id)) = LOWER(TRIM(?)) OR LOWER(REPLACE(channel_id, ' ', '')) = ?)";
+                $whereFallback[] = "(channel_id = ? OR LOWER(TRIM(channel_id)) = LOWER(TRIM(?)) OR LOWER(REPLACE(channel_id, ' ', '')) = ? OR LOWER(REPLACE(channel_id, ' ', '')) = LOWER(REPLACE(?, ' ', '')))";
                 $paramsFallback[] = $sessionId;
                 $paramsFallback[] = $sessionId;
                 $paramsFallback[] = $sessionIdNormalized;
+                $paramsFallback[] = $sessionId; // Para comparação com REPLACE em ambos os lados
             }
             
             $sqlFallback = "SELECT {$selectColumns} 
