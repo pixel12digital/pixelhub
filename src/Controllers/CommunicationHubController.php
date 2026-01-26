@@ -367,6 +367,16 @@ class CommunicationHubController extends Controller
             error_log('[CommunicationHub::send] INICIO');
             error_log('[CommunicationHub::send] POST: ' . json_encode($_POST, JSON_UNESCAPED_UNICODE));
             
+            // Aumenta timeout do PHP para requisições de áudio (podem demorar mais)
+            // O proxy/nginx pode ter timeout de 60s, então aumentamos o PHP para 120s
+            // para dar margem ao gateway processar o áudio
+            $messageType = $_POST['type'] ?? 'text';
+            if ($messageType === 'audio') {
+                set_time_limit(120);
+                ini_set('max_execution_time', '120');
+                error_log("[CommunicationHub::send] ⏱️ Timeout aumentado para 120s para envio de áudio");
+            }
+            
             try {
                 error_log('[CommunicationHub::send] HEADERS: ' . json_encode(getallheaders()));
             } catch (\Exception $e) {
@@ -528,10 +538,11 @@ class CommunicationHubController extends Controller
                 error_log('[CommunicationHub::send] STAGE=' . $stage);
                 
                 // PATCH I: tenant_id já foi derivado da conversa no início (linha ~369)
-                // Agora apenas busca channel_id da conversa se thread_id existe
-                // CORREÇÃO CRÍTICA: Sempre usa thread.channel_id como fonte da verdade
-                // Ignora channel_id do frontend quando thread_id está presente
-                if (!empty($threadId) && preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
+                // CORREÇÃO CRÍTICA: channel_id do POST sempre tem prioridade sobre o da conversa
+                // Se channel_id foi fornecido no POST, NÃO busca da conversa
+                // Só busca da conversa se channel_id do POST estiver vazio
+                if (empty($channelId) && !empty($threadId) && preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
+                    error_log("[CommunicationHub::send] channel_id do POST vazio, buscando da conversa...");
                     $conversationId = (int) $matches[1];
                     error_log("[CommunicationHub::send] ✅ threadId válido detectado, conversationId={$conversationId}");
                     
@@ -559,44 +570,50 @@ class CommunicationHubController extends Controller
                             error_log("[CommunicationHub::send] PATCH I: Corrigido tenant_id divergente → {$tenantId} (conversation_id={$conversationId})");
                         }
                         
-                        // CORREÇÃO: SEMPRE usa channel_id da thread (ignora channel_id do frontend)
-                        // Se thread não tem channel_id, retorna erro explícito
-                        if (empty($conv['channel_id'])) {
-                            error_log("[CommunicationHub::send] ERRO: Thread conversation_id={$conversationId} não possui channel_id. Não é possível enviar.");
-                            $this->json([
-                                'success' => false, 
-                                'error' => 'THREAD_MISSING_CHANNEL_ID',
-                                'error_code' => 'THREAD_MISSING_CHANNEL_ID',
-                                'message' => 'A conversa não possui canal associado. Verifique se a mensagem foi recebida corretamente.'
-                            ], 400);
-                            return;
-                        }
-                        
-                        // Usa channel_id da thread como sessionId do gateway (fonte da verdade)
-                        $sessionId = trim($conv['channel_id']);
-                        error_log("[CommunicationHub::send] Usando sessionId da thread (fonte da verdade): {$sessionId} (ignorando channel_id do frontend se fornecido)");
-                        
-                        $stage = 'resolve_channel';
-                        error_log('[CommunicationHub::send] STAGE=' . $stage);
-                        
-                        // PATCH H2: Valida sessionId do gateway (não depende de display_name)
-                        // Interpreta channel_id da thread como sessionId do gateway
-                        $validatedChannel = $this->validateGatewaySessionId($sessionId, $tenantId, $db);
-                        
-                        if ($validatedChannel) {
-                            // Usa o sessionId CANÔNICO validado
-                            $foundSessionId = trim($validatedChannel['session_id']);
-                            $targetChannels = [$foundSessionId];
-                            error_log("[CommunicationHub::send] ✅ SessionId do gateway validado e adicionado ao targetChannels: {$foundSessionId}");
-                            error_log("[CommunicationHub::send] ✅ targetChannels após validação: " . json_encode($targetChannels));
+                        // CORREÇÃO CRÍTICA: channel_id do POST sempre tem prioridade sobre o da thread
+                        // Só usa channel_id da thread se o POST não forneceu um
+                        if (empty($channelId)) {
+                            // Se thread não tem channel_id, retorna erro explícito
+                            if (empty($conv['channel_id'])) {
+                                error_log("[CommunicationHub::send] ERRO: Thread conversation_id={$conversationId} não possui channel_id. Não é possível enviar.");
+                                $this->json([
+                                    'success' => false, 
+                                    'error' => 'THREAD_MISSING_CHANNEL_ID',
+                                    'error_code' => 'THREAD_MISSING_CHANNEL_ID',
+                                    'message' => 'A conversa não possui canal associado. Verifique se a mensagem foi recebida corretamente.'
+                                ], 400);
+                                return;
+                            }
+                            
+                            // Usa channel_id da thread como fallback (só se POST não forneceu)
+                            $sessionId = trim($conv['channel_id']);
+                            error_log("[CommunicationHub::send] Usando sessionId da thread (fallback, POST não forneceu channel_id): {$sessionId}");
+                            
+                            $stage = 'resolve_channel';
+                            error_log('[CommunicationHub::send] STAGE=' . $stage);
+                            
+                            // PATCH H2: Valida sessionId do gateway (não depende de display_name)
+                            // Interpreta channel_id da thread como sessionId do gateway
+                            $validatedChannel = $this->validateGatewaySessionId($sessionId, $tenantId, $db);
+                            
+                            if ($validatedChannel) {
+                                // Usa o sessionId CANÔNICO validado
+                                $foundSessionId = trim($validatedChannel['session_id']);
+                                $targetChannels = [$foundSessionId];
+                                error_log("[CommunicationHub::send] ✅ SessionId do gateway validado e adicionado ao targetChannels: {$foundSessionId}");
+                                error_log("[CommunicationHub::send] ✅ targetChannels após validação: " . json_encode($targetChannels));
+                            } else {
+                                error_log("[CommunicationHub::send] ❌ ERRO: SessionId '{$sessionId}' do gateway não encontrado ou não habilitado para este tenant");
+                                $this->json([
+                                    'success' => false, 
+                                    'error' => "SessionId do gateway '{$sessionId}' não está habilitado para este tenant. Verifique se a sessão está cadastrada e habilitada.",
+                                    'error_code' => 'CHANNEL_NOT_FOUND',
+                                    'channel_id' => $sessionId
+                                ], 400);
+                                return;
+                            }
                         } else {
-                            error_log("[CommunicationHub::send] ❌ ERRO: SessionId '{$sessionId}' do gateway não encontrado ou não habilitado para este tenant");
-                            $this->json([
-                                'success' => false, 
-                                'error' => "SessionId do gateway '{$sessionId}' não está habilitado para este tenant. Verifique se a sessão está cadastrada e habilitada.",
-                                'error_code' => 'CHANNEL_NOT_FOUND'
-                            ], 400);
-                            return;
+                            error_log("[CommunicationHub::send] ✅ channel_id do POST fornecido ('{$channelId}'), ignorando channel_id da thread");
                         }
                     } else {
                         error_log("[CommunicationHub::send] ERRO: Thread conversation_id={$conversationId} não encontrada.");
@@ -610,14 +627,30 @@ class CommunicationHubController extends Controller
                 }
                 
                 // NOVO: Determina lista de canais para envio
+                // CRÍTICO: channel_id do POST sempre tem prioridade absoluta sobre qualquer busca da conversa
                 // targetChannels já foi inicializado no início, mas pode ter sido definido no bloco do threadId acima
                 // Se ainda estiver vazio, precisa buscar canais
+                
+                // PRIORIDADE ABSOLUTA: Se channel_id foi fornecido no POST, usa ele diretamente (ignora conversa)
+                if (!empty($channelId) && empty($targetChannels)) {
+                    error_log("[CommunicationHub::send] ⚠️ PRIORIDADE ABSOLUTA: channel_id do POST fornecido ('{$channelId}'), ignorando qualquer busca da conversa");
+                    $validatedChannel = $this->validateGatewaySessionId($channelId, $tenantId, $db);
+                    if ($validatedChannel && !empty($validatedChannel['session_id'])) {
+                        $targetChannels = [trim($validatedChannel['session_id'])];
+                        error_log("[CommunicationHub::send] ✅ ChannelId do POST validado e usado: '{$channelId}' → '{$validatedChannel['session_id']}'");
+                    } else {
+                        error_log("[CommunicationHub::send] ⚠️ ChannelId do POST não validado, mas continuando com ele mesmo assim: '{$channelId}'");
+                        // Mesmo sem validação, usa o channelId do POST (pode ser que o gateway aceite)
+                        $targetChannels = [trim($channelId)];
+                    }
+                }
                 
                 // Se forward_to_all está ativo, busca todos os canais habilitados
                 if ($forwardToAll) {
                     error_log("[CommunicationHub::send] Modo encaminhamento para todos os canais ativado");
+                    $sessionIdColumn = $this->getSessionIdColumnName($db);
                     $channelStmt = $db->query("
-                        SELECT DISTINCT channel_id 
+                        SELECT DISTINCT {$sessionIdColumn} as session_id, channel_id
                         FROM tenant_message_channels 
                         WHERE provider = 'wpp_gateway' 
                         AND is_enabled = 1
@@ -628,53 +661,98 @@ class CommunicationHubController extends Controller
                         )
                         ORDER BY channel_id
                     ");
-                    $allChannels = $channelStmt->fetchAll(PDO::FETCH_COLUMN);
-                    $targetChannels = array_filter(array_map('trim', $allChannels));
-                    error_log("[CommunicationHub::send] Canais encontrados para encaminhamento: " . implode(', ', $targetChannels));
+                    $allChannels = $channelStmt->fetchAll(PDO::FETCH_ASSOC);
+                    // Usa session_id se existir, senão usa channel_id normalizado
+                    $targetChannels = [];
+                    foreach ($allChannels as $channel) {
+                        $sessionId = !empty($channel['session_id']) ? trim($channel['session_id']) : null;
+                        if ($sessionId) {
+                            $targetChannels[] = $sessionId;
+                        } else {
+                            // Fallback: normaliza channel_id removendo espaços e convertendo para lowercase
+                            $normalized = strtolower(preg_replace('/\s+/', '', trim($channel['channel_id'])));
+                            if (!empty($normalized)) {
+                                $targetChannels[] = $normalized;
+                            }
+                        }
+                    }
+                    $targetChannels = array_unique(array_filter($targetChannels));
+                    error_log("[CommunicationHub::send] Canais encontrados para encaminhamento (normalizados): " . implode(', ', $targetChannels));
                 } 
                 // Se channel_ids array foi fornecido, usa esses canais
                 elseif ($channelIdsArray && !empty($channelIdsArray)) {
                     error_log("[CommunicationHub::send] Lista de canais fornecida: " . implode(', ', $channelIdsArray));
                     // Valida que os canais existem e estão habilitados (case-insensitive)
+                    // CRÍTICO: Sempre retorna session_id técnico, não channel_id (que pode ser nome de exibição)
+                    $sessionIdColumn = $this->getSessionIdColumnName($db);
                     $placeholders = str_repeat('?,', count($channelIdsArray) - 1) . '?';
                     $channelStmt = $db->prepare("
-                        SELECT channel_id 
+                        SELECT {$sessionIdColumn} as session_id, channel_id
                         FROM tenant_message_channels 
                         WHERE provider = 'wpp_gateway' 
                         AND is_enabled = 1
                         AND (
                             channel_id IN ($placeholders)
                             OR LOWER(channel_id) IN (" . implode(',', array_fill(0, count($channelIdsArray), 'LOWER(?)')) . ")
+                            OR {$sessionIdColumn} IN ($placeholders)
+                            OR LOWER({$sessionIdColumn}) IN (" . implode(',', array_fill(0, count($channelIdsArray), 'LOWER(?)')) . ")
                         )
                     ");
                     // Executa com ambos os arrays (original e lowercase) para busca case-insensitive
-                    $executeParams = array_merge($channelIdsArray, array_map('strtolower', $channelIdsArray));
+                    $executeParams = array_merge($channelIdsArray, array_map('strtolower', $channelIdsArray), $channelIdsArray, array_map('strtolower', $channelIdsArray));
                     $channelStmt->execute($executeParams);
-                    $validChannels = $channelStmt->fetchAll(PDO::FETCH_COLUMN);
-                    $targetChannels = array_filter(array_map('trim', $validChannels));
-                    error_log("[CommunicationHub::send] Canais válidos encontrados: " . implode(', ', $targetChannels));
+                    $validChannels = $channelStmt->fetchAll(PDO::FETCH_ASSOC);
+                    // Usa session_id se existir, senão normaliza channel_id
+                    $targetChannels = [];
+                    foreach ($validChannels as $channel) {
+                        $sessionId = !empty($channel['session_id']) ? trim($channel['session_id']) : null;
+                        if ($sessionId) {
+                            $targetChannels[] = $sessionId;
+                        } else {
+                            // Fallback: normaliza channel_id
+                            $normalized = strtolower(preg_replace('/\s+/', '', trim($channel['channel_id'])));
+                            if (!empty($normalized)) {
+                                $targetChannels[] = $normalized;
+                            }
+                        }
+                    }
+                    $targetChannels = array_unique(array_filter($targetChannels));
+                    error_log("[CommunicationHub::send] Canais válidos encontrados (normalizados): " . implode(', ', $targetChannels));
                     
                     // Se nenhum canal válido encontrado, tenta busca mais flexível
                     if (empty($targetChannels)) {
                         error_log("[CommunicationHub::send] Nenhum canal encontrado com nomes exatos, tentando busca flexível...");
                         foreach ($channelIdsArray as $requestedChannel) {
                             $lowerRequested = strtolower(trim($requestedChannel));
+                            $sessionIdColumn = $this->getSessionIdColumnName($db);
                             $flexibleStmt = $db->prepare("
-                                SELECT channel_id 
+                                SELECT {$sessionIdColumn} as session_id, channel_id
                                 FROM tenant_message_channels 
                                 WHERE provider = 'wpp_gateway' 
                                 AND is_enabled = 1
                                 AND (
                                     LOWER(channel_id) LIKE ?
                                     OR LOWER(channel_id) LIKE ?
+                                    OR LOWER({$sessionIdColumn}) LIKE ?
+                                    OR LOWER({$sessionIdColumn}) LIKE ?
                                 )
                                 LIMIT 1
                             ");
-                            $flexibleStmt->execute(["%{$lowerRequested}%", "{$lowerRequested}%"]);
-                            $found = $flexibleStmt->fetch(PDO::FETCH_COLUMN);
+                            $flexibleStmt->execute(["%{$lowerRequested}%", "{$lowerRequested}%", "%{$lowerRequested}%", "{$lowerRequested}%"]);
+                            $found = $flexibleStmt->fetch(PDO::FETCH_ASSOC);
                             if ($found) {
-                                $targetChannels[] = trim($found);
-                                error_log("[CommunicationHub::send] Canal encontrado via busca flexível: '{$found}' para '{$requestedChannel}'");
+                                $sessionId = !empty($found['session_id']) ? trim($found['session_id']) : null;
+                                if ($sessionId) {
+                                    $targetChannels[] = $sessionId;
+                                    error_log("[CommunicationHub::send] Canal encontrado via busca flexível: '{$sessionId}' (session_id) para '{$requestedChannel}'");
+                                } else {
+                                    // Fallback: normaliza channel_id
+                                    $normalized = strtolower(preg_replace('/\s+/', '', trim($found['channel_id'])));
+                                    if (!empty($normalized)) {
+                                        $targetChannels[] = $normalized;
+                                        error_log("[CommunicationHub::send] Canal encontrado via busca flexível: '{$normalized}' (normalizado) para '{$requestedChannel}'");
+                                    }
+                                }
                             }
                         }
                     }
@@ -682,8 +760,11 @@ class CommunicationHubController extends Controller
                 
                 // Se ainda não tem canais definidos, usa lógica antiga (um único canal)
                 if (empty($targetChannels)) {
-                    // PRIORIDADE 1: Usa channel_id fornecido diretamente (vem da thread ou especificado explicitamente)
+                    // PRIORIDADE 1: Usa channel_id fornecido diretamente no POST (vem do frontend)
+                    // CRÍTICO: O channel_id do POST sempre tem prioridade sobre o da conversa
                     if ($channelId) {
+                        error_log("[CommunicationHub::send] PRIORIDADE 1: Usando channel_id do POST: '{$channelId}'");
+                        
                         // PATCH H2: Interpreta channelId recebido como sessionId do gateway
                         // Valida usando a nova função que detecta schema automaticamente
                         $validatedChannel = $this->validateGatewaySessionId($channelId, $tenantId, $db);
@@ -693,7 +774,8 @@ class CommunicationHubController extends Controller
                             $this->json([
                                 'success' => false, 
                                 'error' => "SessionId do gateway '{$channelId}' não está habilitado para este tenant. Verifique se a sessão está cadastrada e habilitada.",
-                                'error_code' => 'CHANNEL_NOT_FOUND'
+                                'error_code' => 'CHANNEL_NOT_FOUND',
+                                'channel_id' => $channelId
                             ], 400);
                             return;
                         }
@@ -706,11 +788,12 @@ class CommunicationHubController extends Controller
                         // LOG DE DIAGNÓSTICO: Informações do canal
                         // PATCH F+G: Secret e baseUrl sempre vêm do serviço/env, não do banco
                         error_log(sprintf(
-                            "[CommunicationHub::send] SessionId validado: solicitado='%s' → canônico='%s' (será usado no gateway)",
+                            "[CommunicationHub::send] ✅ SessionId validado: solicitado='%s' → canônico='%s' (será usado no gateway)",
                             $channelId,
                             $foundSessionId
                         ));
                     } else {
+                        error_log("[CommunicationHub::send] PRIORIDADE 2: channel_id do POST não fornecido, buscando da conversa/thread...");
                     // PRIORIDADE 2: Se não tem channel_id, tenta buscar diretamente da conversa/thread
                     // ATENÇÃO: Esta lógica pode pegar o canal errado se a conversa tem histórico de múltiplos canais
                     if (!empty($threadId) && preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
@@ -925,6 +1008,31 @@ class CommunicationHubController extends Controller
                 $errors = [];
                 
                 foreach ($targetChannels as $targetChannelId) {
+                    // CRÍTICO: Normaliza channelId para garantir que sempre use ID técnico (sem espaços)
+                    // Se o channelId tem espaços ou caracteres especiais, tenta validar e obter o session_id canônico
+                    $originalChannelId = $targetChannelId;
+                    $needsNormalization = preg_match('/\s/', $targetChannelId) || 
+                                         $targetChannelId !== strtolower($targetChannelId) ||
+                                         preg_match('/[A-Z]/', $targetChannelId);
+                    
+                    if ($needsNormalization) {
+                        error_log("[CommunicationHub::send] ⚠️ ChannelId precisa normalização: '{$originalChannelId}' (tem espaços ou maiúsculas)");
+                        
+                        // Tenta obter o session_id técnico via validação
+                        $validatedChannel = $this->validateGatewaySessionId($targetChannelId, $tenantId, $db);
+                        if ($validatedChannel && !empty($validatedChannel['session_id'])) {
+                            $targetChannelId = trim($validatedChannel['session_id']);
+                            error_log("[CommunicationHub::send] ✅ ChannelId normalizado via validação: '{$originalChannelId}' → '{$targetChannelId}'");
+                        } else {
+                            // Fallback: normaliza removendo espaços e convertendo para lowercase
+                            $targetChannelId = strtolower(preg_replace('/\s+/', '', trim($targetChannelId)));
+                            error_log("[CommunicationHub::send] ⚠️ ChannelId normalizado (fallback): '{$originalChannelId}' → '{$targetChannelId}'");
+                            error_log("[CommunicationHub::send] ⚠️ ATENÇÃO: Validação não encontrou canal, usando normalização básica. Pode não funcionar se o gateway não aceitar este formato.");
+                        }
+                    } else {
+                        error_log("[CommunicationHub::send] ✅ ChannelId já está normalizado: '{$targetChannelId}'");
+                    }
+                    
                     // LOG DE DIAGNÓSTICO: Informações antes de enviar
                     error_log(sprintf(
                         "[CommunicationHub::send] ===== DIAGNÓSTICO ENVIO ====="
@@ -1043,17 +1151,31 @@ class CommunicationHubController extends Controller
                     
                     // Switch entre texto e áudio
                     if ($messageType === 'audio') {
+                        $audioStartTime = microtime(true);
+                        error_log("[CommunicationHub::send] ===== INÍCIO PROCESSAMENTO DE ÁUDIO ======");
+                        error_log("[CommunicationHub::send] Timestamp: " . date('Y-m-d H:i:s.u'));
+                        error_log("[CommunicationHub::send] channel_id: {$targetChannelId}, to: {$phoneNormalized}");
+                        
                         // Validação adicional para áudio
                         $b64 = $base64Ptt;
+                        $b64OriginalLength = strlen($b64);
+                        error_log("[CommunicationHub::send] Base64 original length: {$b64OriginalLength} bytes");
+                        
                         $pos = stripos($b64, 'base64,');
                         if ($pos !== false) {
                             $b64 = substr($b64, $pos + 7);
+                            error_log("[CommunicationHub::send] Removido prefixo data:audio, novo length: " . strlen($b64) . " bytes");
                         }
                         $b64 = trim($b64);
                         
                         // Validação mínima (evita "T2dnUw==" sozinho)
+                        $decodeStartTime = microtime(true);
                         $bin = base64_decode($b64, true);
+                        $decodeTime = (microtime(true) - $decodeStartTime) * 1000;
+                        error_log("[CommunicationHub::send] Base64 decode concluído em {$decodeTime}ms");
+                        
                         if ($bin === false || strlen($bin) < 2000) {
+                            error_log("[CommunicationHub::send] ❌ Áudio inválido ou muito pequeno: " . ($bin === false ? 'decode failed' : strlen($bin) . ' bytes'));
                             $sendResults[] = [
                                 'channel_id' => $targetChannelId,
                                 'success' => false,
@@ -1063,16 +1185,60 @@ class CommunicationHubController extends Controller
                             continue;
                         }
                         
-                        // Valida se parece Opus (costuma existir cedo no arquivo)
-                        if (strpos($bin, 'OpusHead') === false) {
-                            $sendResults[] = [
-                                'channel_id' => $targetChannelId,
-                                'success' => false,
-                                'error' => 'Audio must be OGG/Opus (OpusHead not found)',
-                            ];
-                            $errors[] = "{$targetChannelId}: Audio must be OGG/Opus";
-                            continue;
+                        $binSize = strlen($bin);
+                        $binSizeKB = round($binSize / 1024, 2);
+                        error_log("[CommunicationHub::send] Áudio binário válido: {$binSize} bytes ({$binSizeKB} KB)");
+                        
+                        // Valida formato do áudio (aceita tanto OGG/Opus quanto WebM/Opus)
+                        $opusCheckStartTime = microtime(true);
+                        $hasOpusHead = strpos($bin, 'OpusHead') !== false;
+                        $isWebM = strpos($bin, 'webm') !== false || strpos($bin, 'matroska') !== false;
+                        $isOGG = strpos($bin, 'OggS') === 0; // OGG sempre começa com "OggS"
+                        $opusCheckTime = (microtime(true) - $opusCheckStartTime) * 1000;
+                        
+                        // Detecta formato exato
+                        $detectedFormat = 'DESCONHECIDO';
+                        if ($isOGG && $hasOpusHead) {
+                            $detectedFormat = 'OGG/Opus';
+                        } elseif ($isWebM && $hasOpusHead) {
+                            $detectedFormat = 'WebM/Opus';
+                        } elseif ($isWebM) {
+                            $detectedFormat = 'WebM (sem OpusHead detectado)';
+                        } elseif ($isOGG) {
+                            $detectedFormat = 'OGG (sem OpusHead detectado)';
+                        } elseif ($hasOpusHead) {
+                            $detectedFormat = 'Opus (container desconhecido)';
                         }
+                        
+                        error_log("[CommunicationHub::send] Verificação de formato concluída em {$opusCheckTime}ms:");
+                        error_log("[CommunicationHub::send] - Formato detectado: {$detectedFormat}");
+                        error_log("[CommunicationHub::send] - OpusHead encontrado: " . ($hasOpusHead ? 'SIM' : 'NÃO'));
+                        error_log("[CommunicationHub::send] - WebM detectado: " . ($isWebM ? 'SIM' : 'NÃO'));
+                        error_log("[CommunicationHub::send] - OGG detectado (OggS header): " . ($isOGG ? 'SIM' : 'NÃO'));
+                        
+                        // Log dos primeiros bytes para debug
+                        $firstBytes = bin2hex(substr($bin, 0, 16));
+                        error_log("[CommunicationHub::send] - Primeiros 16 bytes (hex): {$firstBytes}");
+                        
+                        if (function_exists('pixelhub_log')) {
+                            pixelhub_log("[CommunicationHub::send] Formato de áudio detectado: {$detectedFormat}, tamanho: {$binSizeKB} KB");
+                        }
+                        
+                        // Aceita WebM/Opus (comum em navegadores modernos) mesmo sem OpusHead explícito
+                        // O gateway pode aceitar WebM, então tentamos enviar
+                        if (!$hasOpusHead && !$isWebM) {
+                            error_log("[CommunicationHub::send] ⚠️ AVISO: Áudio não parece ser OGG/Opus nem WebM/Opus");
+                            error_log("[CommunicationHub::send] Tentando enviar mesmo assim (pode funcionar dependendo do gateway)");
+                            // Não bloqueia, apenas loga aviso
+                        } else if ($isWebM) {
+                            error_log("[CommunicationHub::send] ✅ WebM/Opus detectado - será enviado ao gateway (pode ser aceito)");
+                        } else {
+                            error_log("[CommunicationHub::send] ✅ OGG/Opus detectado - formato ideal");
+                        }
+                        
+                        error_log("[CommunicationHub::send] ✅ Validações passadas, chamando gateway->sendAudioBase64Ptt()");
+                        $gatewayCallStartTime = microtime(true);
+                        error_log("[CommunicationHub::send] Timestamp antes da chamada ao gateway: " . date('Y-m-d H:i:s.u'));
                         
                         $result = $gateway->sendAudioBase64Ptt(
                             $targetChannelId,
@@ -1083,6 +1249,13 @@ class CommunicationHubController extends Controller
                                 'sent_by_name' => Auth::user()['name'] ?? null
                             ]
                         );
+                        
+                        $gatewayCallTime = (microtime(true) - $gatewayCallStartTime) * 1000;
+                        $totalAudioTime = (microtime(true) - $audioStartTime) * 1000;
+                        error_log("[CommunicationHub::send] Chamada ao gateway concluída em {$gatewayCallTime}ms");
+                        error_log("[CommunicationHub::send] Tempo total de processamento de áudio: {$totalAudioTime}ms");
+                        error_log("[CommunicationHub::send] Timestamp após chamada ao gateway: " . date('Y-m-d H:i:s.u'));
+                        error_log("[CommunicationHub::send] ===== FIM PROCESSAMENTO DE ÁUDIO ======");
                     } else {
                         // Texto como já é hoje
                         $result = $gateway->sendText($targetChannelId, $phoneNormalized, $message, [
@@ -1168,26 +1341,86 @@ class CommunicationHubController extends Controller
                         $error = $result['error'] ?? 'Erro ao enviar mensagem';
                         $errorCode = $result['error_code'] ?? null;
                         $gatewayStatus = $result['status'] ?? null;
+                        $jsonError = $result['json_error'] ?? null;
+                        $responsePreview = $result['response_preview'] ?? null;
+                        $rawResponse = $result['raw'] ?? null;
+                        
+                        // Log completo da resposta raw quando há erro
+                        if ($isDev && $rawResponse !== null) {
+                            $rawForLog = is_array($rawResponse) ? $rawResponse : ['raw_type' => gettype($rawResponse), 'raw_value' => is_string($rawResponse) ? substr($rawResponse, 0, 1000) : $rawResponse];
+                            // Remove base64Ptt se existir
+                            if (is_array($rawForLog) && isset($rawForLog['base64Ptt'])) {
+                                $rawForLog['base64Ptt'] = '[REMOVED - too large]';
+                            }
+                            error_log("[CommunicationHub::send] Resposta raw completa do gateway: " . json_encode($rawForLog, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+                            
+                            // Tenta extrair mensagens de erro adicionais do raw
+                            if (is_array($rawResponse)) {
+                                $additionalErrors = [];
+                                foreach (['error', 'message', 'error_message', 'details', 'data'] as $key) {
+                                    if (isset($rawResponse[$key])) {
+                                        $value = $rawResponse[$key];
+                                        if (is_string($value)) {
+                                            $additionalErrors[] = "{$key}: {$value}";
+                                        } elseif (is_array($value) && isset($value['error'])) {
+                                            $additionalErrors[] = "{$key}.error: " . (is_string($value['error']) ? $value['error'] : json_encode($value['error']));
+                                        }
+                                    }
+                                }
+                                if (!empty($additionalErrors)) {
+                                    error_log("[CommunicationHub::send] Mensagens de erro adicionais do raw: " . implode(" | ", $additionalErrors));
+                                }
+                            }
+                        }
                         
                         // Detecta erros específicos e melhora mensagens
                         $errorLower = strtolower($error);
                         
+                        // Detecta erros de JSON/HTML do gateway
+                        if ($errorCode === 'GATEWAY_HTML_ERROR' || $errorCode === 'GATEWAY_SERVER_ERROR' || $errorCode === 'EMPTY_RESPONSE') {
+                            error_log("[CommunicationHub::send] ❌ Erro crítico do gateway: {$errorCode}");
+                            if ($jsonError) {
+                                error_log("[CommunicationHub::send] Erro JSON: {$jsonError}");
+                            }
+                            if ($responsePreview) {
+                                error_log("[CommunicationHub::send] Preview da resposta: {$responsePreview}");
+                            }
+                            // Mantém a mensagem de erro já melhorada do gateway client
+                        }
                         // Detecta SESSION_DISCONNECTED do gateway
-                        if (strpos($errorLower, 'session') !== false && strpos($errorLower, 'disconnect') !== false) {
+                        elseif (strpos($errorLower, 'session') !== false && strpos($errorLower, 'disconnect') !== false) {
                             $errorCode = 'SESSION_DISCONNECTED';
                             $error = 'Sessão do WhatsApp desconectada. Verifique se a sessão está conectada no gateway.';
                         } 
                         // Detecta erros específicos do WPPConnect para áudio
-                        elseif ($messageType === 'audio' && (stripos($error, 'WPPConnect') !== false || stripos($error, 'sendVoiceBase64') !== false)) {
+                        elseif ($messageType === 'audio' && (stripos($error, 'WPPConnect') !== false || stripos($error, 'sendVoiceBase64') !== false || stripos($error, 'wppconnect') !== false)) {
                             $errorCode = $errorCode ?: 'WPPCONNECT_SEND_ERROR';
-                            // Melhora mensagem se for erro genérico
-                            if (stripos($error, 'Erro ao enviar a mensagem') !== false) {
-                                $error = 'Falha ao enviar áudio via WPPConnect. Possíveis causas: sessão desconectada, formato de áudio inválido, ou tamanho muito grande. Verifique os logs do gateway para mais detalhes.';
+                            
+                            // Detecta timeout específico do WPPConnect (30 segundos)
+                            if (stripos($error, 'timeout') !== false || stripos($error, '30000ms') !== false || stripos($error, '30') !== false) {
+                                $errorCode = 'WPPCONNECT_TIMEOUT';
+                                $error = 'O gateway WPPConnect está demorando mais de 30 segundos para processar o áudio. Isso pode acontecer se o áudio for muito grande ou se o gateway estiver sobrecarregado. Tente gravar um áudio mais curto (menos de 1 minuto) ou aguarde alguns minutos e tente novamente.';
+                            } else {
+                                // Preserva mensagem original se ela for específica (mais de 50 caracteres)
+                                // Só substitui se for mensagem genérica muito curta
+                                $isGenericError = (stripos($error, 'Erro ao enviar a mensagem') !== false || stripos($error, 'Failed to send') !== false) && strlen($error) < 50;
+                                
+                                if ($isGenericError) {
+                                    $error = 'Falha ao enviar áudio via WPPConnect. Possíveis causas: sessão desconectada, formato de áudio inválido (o gateway espera OGG/Opus, mas foi enviado WebM/Opus), ou tamanho muito grande. Verifique os logs do gateway para mais detalhes.';
+                                }
+                                // Caso contrário, mantém a mensagem original do gateway
                             }
                         }
                         // Detecta áudio muito grande
                         elseif (stripos($error, 'AUDIO_TOO_LARGE') !== false || stripos($error, 'muito grande') !== false) {
                             $errorCode = 'AUDIO_TOO_LARGE';
+                        }
+                        // Detecta timeout
+                        elseif ($errorCode === 'TIMEOUT' || stripos($error, 'timeout') !== false) {
+                            $errorCode = 'TIMEOUT';
+                            if (!stripos($error, 'timeout')) {
+                                $error = 'Timeout ao enviar áudio. O gateway pode estar sobrecarregado ou o arquivo muito grande.';
+                            }
                         }
                         // Detecta outros erros do gateway
                         elseif ($gatewayStatus === 409 || $gatewayStatus === 400) {
@@ -1204,7 +1437,9 @@ class CommunicationHubController extends Controller
                                 'status' => $gatewayStatus,
                                 'channel_id' => $targetChannelId,
                                 'to' => $phoneNormalized,
-                                'base64_length' => isset($b64) ? strlen($b64) : 'N/A'
+                                'base64_length' => isset($b64) ? strlen($b64) : 'N/A',
+                                'json_error' => $jsonError,
+                                'response_preview' => $responsePreview
                             ], JSON_UNESCAPED_UNICODE));
                         }
                         
@@ -2366,20 +2601,19 @@ class CommunicationHubController extends Controller
         $where[] = "(" . implode(" OR ", $contactConditions) . ")";
 
         // PATCH K: Filtro estrito por tenant_id (após PATCH J, todos eventos têm tenant_id)
-        // CORREÇÃO: Torna filtro mais flexível - se tenant_id não retornar resultados e houver channel_id,
-        // tenta buscar sem filtro de tenant_id (channel_id já garante isolamento)
+        // CORREÇÃO CRÍTICA: Se houver channel_id, NÃO filtra por tenant_id na query SQL
+        // porque o channel_id já garante isolamento. Isso resolve casos onde eventos têm
+        // tenant_id diferente da conversa (ex: eventos com tenant_id=121 mas conversa com tenant_id=25)
         // IMPORTANTE: Se tenant_id é NULL na conversa, não filtra por tenant_id (permite encontrar eventos com qualquer tenant_id)
         $whereWithTenant = $where;
         $paramsWithTenant = $params;
         
-        if ($tenantId) {
-            $whereWithTenant[] = "ce.tenant_id = ?";
-            $paramsWithTenant[] = $tenantId;
-        }
-        
         // PATCH K: Filtro adicional por channel_id para garantir isolamento por sessão
         // CORREÇÃO: Usa comparação case-insensitive para channel_id (resolve problema "imobsites" vs "ImobSites")
-        if (!empty($sessionId)) {
+        $hasChannelId = !empty($sessionId);
+        
+        if ($hasChannelId) {
+            // Se há channel_id, adiciona filtro de channel_id (garante isolamento)
             $whereWithTenant[] = "(
                 LOWER(TRIM(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(ce.metadata, '$.channel_id')), ' ', ''))) = LOWER(TRIM(REPLACE(?, ' ', '')))
                 OR JSON_EXTRACT(ce.payload, '$.session.id') = ?
@@ -2390,6 +2624,13 @@ class CommunicationHubController extends Controller
             $paramsWithTenant[] = $sessionId;
             $paramsWithTenant[] = $sessionId;
             $paramsWithTenant[] = $sessionId;
+            
+            // NÃO adiciona filtro de tenant_id quando há channel_id (channel_id já garante isolamento)
+            // Isso permite encontrar eventos mesmo quando tenant_id é diferente
+        } elseif ($tenantId) {
+            // Se NÃO há channel_id mas há tenant_id, filtra por tenant_id
+            $whereWithTenant[] = "ce.tenant_id = ?";
+            $paramsWithTenant[] = $tenantId;
         }
 
         $whereClause = "WHERE " . implode(" AND ", $whereWithTenant);
@@ -2417,12 +2658,12 @@ class CommunicationHubController extends Controller
         // [LOG TEMPORARIO] Resultado da query
         error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - QUERY RETORNOU: events_count=' . count($filteredEvents));
         
-        // CORREÇÃO: Se não encontrou eventos, tenta buscar sem filtro de tenant_id
+        // CORREÇÃO: Se não encontrou eventos, tenta buscar sem filtro de tenant_id/channel_id
         // Isso resolve casos onde:
         // 1. A conversa tem tenant_id NULL (não vinculada) mas os eventos têm tenant_id
-        // 2. A conversa tem tenant_id incorreto mas os eventos têm tenant_id diferente
-        // IMPORTANTE: Para conversas não vinculadas (tenant_id NULL), já não filtra por tenant_id na primeira query,
-        // mas se ainda assim não encontra, tenta buscar apenas por contato (sem filtros de tenant_id ou channel_id)
+        // 2. A conversa tem tenant_id incorreto mas os eventos têm tenant_id diferente (e não há channel_id)
+        // IMPORTANTE: Se há channel_id, a query inicial já não filtra por tenant_id, então esta busca
+        // só será executada quando não houver channel_id ou quando os filtros de contato não encontrarem nada
         if (empty($filteredEvents)) {
             error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - NENHUM EVENTO ENCONTRADO, TENTANDO BUSCA MAIS AMPLA: tenant_id=' . ($tenantId ?: 'NULL') . ', channel_id=' . ($sessionId ?: 'NULL'));
             

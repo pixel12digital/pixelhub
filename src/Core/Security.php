@@ -104,8 +104,9 @@ class Security
         // Content-Security-Policy básico (permissivo para compatibilidade)
         // Permite recursos do mesmo origin, inline scripts/styles, e recursos externos HTTPS
         // Isso garante que o código existente continue funcionando
+        // IMPORTANTE: media-src permite blob: para preview de áudio gravado
         if (!headers_sent()) {
-            $csp = "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: blob:; font-src 'self' data: https:; connect-src 'self' https: wss: ws:; frame-src 'self' https:;";
+            $csp = "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: blob:; font-src 'self' data: https:; media-src 'self' blob: data: https:; connect-src 'self' https: wss: ws:; frame-src 'self' https:;";
             header("Content-Security-Policy: {$csp}");
         }
         

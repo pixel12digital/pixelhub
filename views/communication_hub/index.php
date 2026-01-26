@@ -2005,6 +2005,7 @@ const ConversationState = {
 /**
  * Handler para clique em conversa da lista
  * FORÇA reset completo e carrega full (não incremental)
+ * IMPORTANTE: Deve estar no escopo global para funcionar com onclick inline
  */
 function handleConversationClick(clickedThreadId, channel) {
     console.log('[Hub] Clique em conversa:', clickedThreadId, channel);
@@ -2029,7 +2030,13 @@ function handleConversationClick(clickedThreadId, channel) {
 }
 
 // Garante que handleConversationClick esteja no escopo global (para onclick inline)
-window.handleConversationClick = handleConversationClick;
+// Isso é crítico para que os elementos HTML possam chamar a função
+if (typeof window !== 'undefined') {
+    window.handleConversationClick = handleConversationClick;
+    console.log('[Hub] handleConversationClick registrado no window');
+} else {
+    console.error('[Hub] ERRO: window não está disponível!');
+}
 
 async function loadConversation(threadId, channel) {
     console.log('[Hub] Carregando conversa:', threadId, channel);
@@ -2408,7 +2415,7 @@ function renderConversation(thread, messages, channel) {
             <input type="hidden" id="hub-channel" value="${escapeHtml(channel)}">
             <input type="hidden" id="hub-thread-id" value="${escapeHtml(thread.thread_id || '')}">
             <input type="hidden" id="hub-tenant-id" value="${thread.tenant_id || ''}">
-            ${thread.channel_id ? `<input type="hidden" id="hub-channel-id" value="${thread.channel_id}">` : ''}
+            <input type="hidden" id="hub-channel-id" value="${thread.channel_id || ''}">
             ${channel === 'whatsapp' && thread.contact ? `<input type="hidden" id="hub-to" value="${escapeHtml(thread.contact)}">` : ''}
             </div>
         </div>
@@ -2501,7 +2508,18 @@ function initComposerAudio() {
     
     const MAX_RECORDING_TIME = 120000; // 2 minutos em ms
     
-    if (!hubText || !btnMic || !btnSend) return; // Elementos não existem ainda
+    if (!hubText || !btnMic || !btnSend) {
+        console.warn('[AudioRecorder] Elementos básicos não encontrados, abortando inicialização');
+        return; // Elementos não existem ainda
+    }
+    
+    // Valida elementos críticos para gravação
+    if (!hubRecTime) {
+        console.error('[AudioRecorder] ERRO CRÍTICO: hubRecTime não encontrado! O timer não funcionará.');
+    }
+    if (!hubRecStatus) {
+        console.error('[AudioRecorder] ERRO CRÍTICO: hubRecStatus não encontrado! O status de gravação não será exibido.');
+    }
     
     let recorder = null;
     let recStream = null;
@@ -2530,7 +2548,7 @@ function initComposerAudio() {
         // Estado Recording
         else if (state === 'recording') {
             hubText.hidden = true;
-            hubRecStatus.hidden = false;
+            hubRecStatus.hidden = false; // Mostra timer de gravação
             hubAudioPreview.hidden = true;
             btnRecStop.hidden = false;
             btnRecCancel.hidden = false;
@@ -2539,6 +2557,22 @@ function initComposerAudio() {
             btnMic.hidden = true;
             btnSend.hidden = true;
             hubSending.hidden = true;
+            
+            // Garante que o elemento de tempo está visível e atualizado
+            if (hubRecTime) {
+                hubRecTime.textContent = hubRecTime.textContent || '0:00';
+                // Força visibilidade (remove atributo hidden se existir)
+                hubRecTime.removeAttribute('hidden');
+            }
+            if (hubRecStatus) {
+                hubRecStatus.removeAttribute('hidden');
+            }
+            
+            console.log('[AudioRecorder] Estado mudado para recording. Elementos:', {
+                hubRecStatusHidden: hubRecStatus ? hubRecStatus.hidden : 'N/A',
+                hubRecTimeText: hubRecTime ? hubRecTime.textContent : 'N/A',
+                hubRecTimeHidden: hubRecTime ? hubRecTime.hidden : 'N/A'
+            });
         }
         // Estado Preview
         else if (state === 'preview') {
@@ -2622,22 +2656,51 @@ function initComposerAudio() {
             
             recorder.start();
             
-            // Muda para estado Recording
+            // Muda para estado Recording ANTES de iniciar o timer
             setState('recording');
             
             recStart = Date.now();
-            hubRecTime.textContent = '0:00';
+            
+            // Garante que o elemento existe antes de atualizar
+            if (hubRecTime) {
+                hubRecTime.textContent = '0:00';
+            } else {
+                console.error('[AudioRecorder] ERRO: hubRecTime não encontrado!');
+            }
+            
             if (hubRecMax) hubRecMax.hidden = false;
             
+            // Inicia timer de atualização
             recTimer = setInterval(() => {
+                // Valida elementos antes de atualizar
+                if (!hubRecTime) {
+                    console.error('[AudioRecorder] ERRO: hubRecTime não encontrado durante timer!');
+                    clearInterval(recTimer);
+                    recTimer = null;
+                    return;
+                }
+                
                 const elapsed = Date.now() - recStart;
-                hubRecTime.textContent = fmtTime(elapsed);
+                const timeStr = fmtTime(elapsed);
+                hubRecTime.textContent = timeStr;
+                
+                // Log a cada 5 segundos para debug
+                if (Math.floor(elapsed / 5000) !== Math.floor((elapsed - 200) / 5000)) {
+                    console.log('[AudioRecorder] Tempo de gravação:', timeStr);
+                }
                 
                 // Para automaticamente após 2 minutos
                 if (elapsed >= MAX_RECORDING_TIME) {
+                    console.log('[AudioRecorder] Tempo máximo atingido, parando gravação');
                     stopRecording();
                 }
             }, 200);
+            
+            console.log('[AudioRecorder] Gravação iniciada, timer configurado. Elementos:', {
+                hubRecTime: !!hubRecTime,
+                hubRecStatus: !!hubRecStatus,
+                hubRecStatusHidden: hubRecStatus ? hubRecStatus.hidden : 'N/A'
+            });
         } catch (err) {
             console.error('[AudioRecorder] Erro ao acessar microfone:', err);
             
@@ -2696,20 +2759,31 @@ function initComposerAudio() {
             
             console.log('[AudioRecorder] Formato capturado:', mimeType, '| Tamanho:', recBlob.size, 'bytes');
             
+            // WebM/Opus é aceito (navegadores modernos gravam nesse formato)
+            // O gateway pode aceitar WebM, então não bloqueamos
             if (isWebM && !isOggOpus) {
-                console.warn('[AudioRecorder] ⚠️ Áudio gravado em WebM. Pode falhar no envio se o WPPConnect exigir OGG/Opus.');
-                // Mostra aviso discreto (não bloqueia, mas informa)
-                if (confirm('Seu navegador gravou em formato WebM. Isso pode não funcionar com WhatsApp.\n\nDeseja tentar enviar mesmo assim? (Recomendado: use Chrome/Edge para melhor compatibilidade)')) {
-                    // Continua normalmente
-                } else {
-                    resetToIdle();
-                    return;
-                }
+                console.log('[AudioRecorder] ℹ️ Áudio gravado em WebM/Opus - será enviado ao gateway (pode ser aceito)');
+                // Não bloqueia mais - apenas informa
             }
             
             // Cria URL para preview
             const audioUrl = URL.createObjectURL(recBlob);
             hubAudioPreview.src = audioUrl;
+            
+            // Aguarda carregar metadados para mostrar duração correta
+            hubAudioPreview.onloadedmetadata = () => {
+                const duration = hubAudioPreview.duration;
+                if (duration && !isNaN(duration) && isFinite(duration)) {
+                    const minutes = Math.floor(duration / 60);
+                    const seconds = Math.floor(duration % 60);
+                    console.log('[AudioRecorder] Duração do áudio carregada:', minutes + ':' + String(seconds).padStart(2, '0'));
+                } else {
+                    console.warn('[AudioRecorder] Duração não disponível ou inválida');
+                }
+            };
+            
+            // Força carregar metadados
+            hubAudioPreview.load();
             
             // Guarda URL para limpar depois
             window.__currentAudioUrl = audioUrl;
@@ -2823,17 +2897,47 @@ function initComposerAudio() {
     
     // Estado: Preview → Envia
     btnReviewSend.addEventListener('click', async () => {
+        const startTime = Date.now();
+        console.log('[AudioRecorder] ===== INÍCIO ENVIO DE ÁUDIO =====');
+        console.log('[AudioRecorder] Timestamp:', new Date().toISOString());
+        
         if (!recBlob || recBlob.size < 2000) {
             alert('Áudio muito curto. Grave novamente.');
             resetToIdle();
             return;
         }
         
+        // DEBUG: Informações do áudio
+        const mimeType = recBlob.type || 'unknown';
+        const audioSize = recBlob.size;
+        const audioSizeKB = (audioSize / 1024).toFixed(2);
+        const audioSizeMB = (audioSize / 1024 / 1024).toFixed(2);
+        console.log('[AudioRecorder] Informações do áudio:', {
+            mimeType: mimeType,
+            size_bytes: audioSize,
+            size_kb: audioSizeKB + ' KB',
+            size_mb: audioSizeMB + ' MB',
+            isOgg: mimeType.includes('ogg') || mimeType.includes('opus'),
+            isWebM: mimeType.includes('webm')
+        });
+        
         try {
             // Muda para estado Sending
             setState('sending');
+            console.log('[AudioRecorder] Estado alterado para: sending');
             
+            const convertStartTime = Date.now();
+            console.log('[AudioRecorder] Iniciando conversão para base64...');
             const dataUrl = await blobToDataUrl(recBlob);
+            const convertTime = Date.now() - convertStartTime;
+            const base64Length = dataUrl.length;
+            const base64SizeKB = (base64Length / 1024).toFixed(2);
+            console.log('[AudioRecorder] Conversão concluída:', {
+                tempo_ms: convertTime,
+                base64_length: base64Length,
+                base64_size_kb: base64SizeKB + ' KB',
+                base64_preview: dataUrl.substring(0, 100) + '...'
+            });
             
             // Obtém dados da conversa
             const channel = document.getElementById('hub-channel')?.value || 'whatsapp';
@@ -2842,12 +2946,30 @@ function initComposerAudio() {
             const tenantId = document.getElementById('hub-tenant-id')?.value;
             const channelId = document.getElementById('hub-channel-id')?.value;
             
+            console.log('[AudioRecorder] Dados da conversa:', {
+                channel: channel,
+                to: to,
+                thread_id: threadId,
+                tenant_id: tenantId,
+                channel_id: channelId
+            });
+            
             if (!to) {
                 alert('Erro: Destinatário não identificado.');
                 resetToIdle();
                 return;
             }
             
+            // Validação específica para WhatsApp: channel_id é obrigatório
+            if (channel === 'whatsapp' && !channelId) {
+                alert('Erro: Canal não identificado. Esta conversa não possui um canal associado.\n\nPor favor, recarregue a página ou entre em contato com o suporte se o problema persistir.');
+                console.error('[AudioRecorder] Tentativa de envio sem channel_id. Thread:', { threadId, channel, to });
+                resetToIdle();
+                return;
+            }
+            
+            const sendStartTime = Date.now();
+            console.log('[AudioRecorder] Iniciando envio para backend...');
             await sendHubMessage({
                 channel: channel,
                 to: to,
@@ -2857,9 +2979,23 @@ function initComposerAudio() {
                 type: 'audio',
                 base64Ptt: dataUrl
             });
+            const sendTime = Date.now() - sendStartTime;
+            const totalTime = Date.now() - startTime;
+            console.log('[AudioRecorder] Envio concluído com sucesso:', {
+                tempo_envio_ms: sendTime,
+                tempo_total_ms: totalTime
+            });
+            console.log('[AudioRecorder] ===== FIM ENVIO DE ÁUDIO (SUCESSO) =====');
             
             resetToIdle();
         } catch (err) {
+            const totalTime = Date.now() - startTime;
+            console.error('[AudioRecorder] ===== ERRO NO ENVIO DE ÁUDIO =====');
+            console.error('[AudioRecorder] Tempo até erro:', totalTime + ' ms');
+            console.error('[AudioRecorder] Erro:', err);
+            console.error('[AudioRecorder] Stack:', err.stack);
+            console.error('[AudioRecorder] ===== FIM LOG DE ERRO =====');
+            
             // Limpa memória mesmo em caso de erro
             if (hubAudioPreview.src) {
                 URL.revokeObjectURL(hubAudioPreview.src);
@@ -2914,8 +3050,13 @@ function initComposerAudio() {
  * Envia mensagem do painel (texto ou áudio)
  */
 async function sendHubMessage(payload) {
+    const requestStartTime = Date.now();
     const isAudio = payload.type === 'audio';
     const messageText = payload.message || '[Áudio]';
+    
+    console.log('[CommunicationHub] ===== INÍCIO sendHubMessage =====');
+    console.log('[CommunicationHub] Timestamp:', new Date().toISOString());
+    console.log('[CommunicationHub] Tipo:', payload.type);
     
     // VALIDAÇÃO: Garante que channel_id está presente para WhatsApp
     if (payload.channel === 'whatsapp' && !payload.channel_id) {
@@ -2930,7 +3071,9 @@ async function sendHubMessage(payload) {
         channel_id: payload.channel_id,
         thread_id: payload.thread_id,
         to: payload.to,
-        type: payload.type
+        type: payload.type,
+        has_base64Ptt: !!(payload.base64Ptt),
+        base64_length: payload.base64Ptt ? payload.base64Ptt.length : 0
     });
     
     // Mensagem otimista
@@ -2993,6 +3136,10 @@ async function sendHubMessage(payload) {
             has_message: !!formData.get('message')
         });
         
+        const fetchStartTime = Date.now();
+        console.log('[CommunicationHub] Iniciando fetch para:', sendUrl);
+        console.log('[CommunicationHub] Timestamp antes do fetch:', new Date().toISOString());
+        
         const response = await fetch(sendUrl, {
             method: 'POST',
             headers: {
@@ -3002,16 +3149,86 @@ async function sendHubMessage(payload) {
             body: formData
         });
         
-        console.log('[CommunicationHub] Response status:', response.status);
+        const fetchTime = Date.now() - fetchStartTime;
+        console.log('[CommunicationHub] Fetch concluído:', {
+            status: response.status,
+            tempo_ms: fetchTime,
+            timestamp: new Date().toISOString()
+        });
         
         if (!response.ok) {
+            const errorTextStartTime = Date.now();
             const errorText = await response.text();
-            console.error('[CommunicationHub] Erro HTTP:', response.status, errorText);
-            throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
+            const errorTextTime = Date.now() - errorTextStartTime;
+            console.error('[CommunicationHub] Erro HTTP:', {
+                status: response.status,
+                tempo_leitura_erro_ms: errorTextTime,
+                erro_preview: errorText.substring(0, 500)
+            });
+            
+            let errorData;
+            try {
+                errorData = JSON.parse(errorText);
+            } catch (e) {
+                console.error('[CommunicationHub] Erro ao parsear JSON de erro:', e);
+                errorData = {
+                    success: false,
+                    error: `Erro HTTP ${response.status}: ${errorText.substring(0, 200)}`,
+                    error_code: 'PARSE_ERROR'
+                };
+            }
+            
+            console.error('[CommunicationHub] Dados do erro:', errorData);
+            
+            // Melhora mensagem de erro baseado no código
+            let errorMessage = errorData.error || 'Erro desconhecido ao enviar mensagem';
+            
+            if (errorData.error_code === 'GATEWAY_TIMEOUT') {
+                // Timeout específico do gateway (504)
+                errorMessage = 'Timeout do gateway (504). O servidor do gateway demorou mais de 60 segundos para processar o áudio. Possíveis causas:\n\n' +
+                    '• Arquivo de áudio muito grande\n' +
+                    '• Gateway sobrecarregado\n' +
+                    '• Problemas de rede\n\n' +
+                    'Tente novamente com um áudio menor ou aguarde alguns minutos.';
+            } else if (errorData.error_code === 'GATEWAY_HTML_ERROR' || errorData.error_code === 'GATEWAY_SERVER_ERROR') {
+                // Detecta se é timeout 504
+                if (errorMessage.includes('504') || errorMessage.includes('Gateway Time-out') || errorMessage.includes('timeout')) {
+                    errorMessage = 'Timeout do gateway (504). O servidor do gateway demorou mais de 60 segundos para processar o áudio. Possíveis causas:\n\n' +
+                        '• Arquivo de áudio muito grande\n' +
+                        '• Gateway sobrecarregado\n' +
+                        '• Problemas de rede\n\n' +
+                        'Tente novamente com um áudio menor ou aguarde alguns minutos.';
+                } else {
+                    errorMessage = 'O gateway retornou um erro interno. Isso pode indicar que o servidor do gateway está com problemas. Verifique os logs do servidor para mais detalhes.';
+                }
+            } else if (errorData.error_code === 'EMPTY_RESPONSE') {
+                errorMessage = 'O gateway não retornou resposta. Verifique se o serviço do gateway está online e funcionando.';
+            } else if (errorData.error_code === 'TIMEOUT') {
+                errorMessage = 'Timeout ao enviar áudio. O gateway pode estar sobrecarregado ou o arquivo muito grande. Tente novamente ou reduza o tamanho do áudio.';
+            } else if (errorData.error_code === 'WPPCONNECT_TIMEOUT') {
+                errorMessage = 'O gateway WPPConnect está demorando mais de 30 segundos para processar o áudio. Isso pode acontecer se:\n\n' +
+                    '• O áudio for muito grande (tente gravar menos de 1 minuto)\n' +
+                    '• O gateway estiver sobrecarregado\n' +
+                    '• A conexão com o WhatsApp estiver lenta\n\n' +
+                    'Tente gravar um áudio mais curto ou aguarde alguns minutos e tente novamente.';
+            } else if (errorData.error_code === 'WPPCONNECT_SEND_ERROR') {
+                errorMessage = errorData.error || 'Falha ao enviar áudio via WPPConnect. Verifique se a sessão está conectada e se o formato do áudio está correto.';
+            } else if (errorData.error_code === 'GATEWAY_ERROR' && errorMessage.includes('Syntax error')) {
+                errorMessage = 'O gateway retornou uma resposta inválida (erro de sintaxe JSON). Isso geralmente indica um problema no servidor do gateway. Verifique os logs do servidor.';
+            }
+            
+            const totalTime = Date.now() - requestStartTime;
+            console.error('[CommunicationHub] Tempo total até erro:', totalTime + ' ms');
+            console.error('[CommunicationHub] ===== FIM sendHubMessage (ERRO) =====');
+            
+            throw new Error(errorMessage);
         }
         
         const result = await response.json();
+        const totalTime = Date.now() - requestStartTime;
         console.log('[CommunicationHub] Response JSON:', result);
+        console.log('[CommunicationHub] Tempo total de envio:', totalTime + ' ms');
+        console.log('[CommunicationHub] ===== FIM sendHubMessage (SUCESSO) =====');
         
         if (result.success && result.event_id) {
             // Busca mensagem confirmada

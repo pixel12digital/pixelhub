@@ -153,3 +153,4 @@ echo "\n=== Fim da Verificação ===\n";
 
 
 
+

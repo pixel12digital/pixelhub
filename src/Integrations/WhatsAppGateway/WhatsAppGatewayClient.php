@@ -60,7 +60,9 @@ class WhatsAppGatewayClient
      */
     public function getChannel(string $channelId): array
     {
-        return $this->request('GET', "/api/channels/{$channelId}");
+        // Codifica o channelId para URL (resolve problemas com espaços e caracteres especiais)
+        $encodedChannelId = rawurlencode($channelId);
+        return $this->request('GET', "/api/channels/{$encodedChannelId}");
     }
 
     /**
@@ -71,7 +73,9 @@ class WhatsAppGatewayClient
      */
     public function getQr(string $channelId): array
     {
-        return $this->request('GET', "/api/channels/{$channelId}/qr");
+        // Codifica o channelId para URL
+        $encodedChannelId = rawurlencode($channelId);
+        return $this->request('GET', "/api/channels/{$encodedChannelId}/qr");
     }
 
     /**
@@ -169,17 +173,41 @@ class WhatsAppGatewayClient
 
         // Aumenta timeout para requisições de áudio (podem ser grandes)
         $originalTimeout = $this->timeout;
-        $this->timeout = 60; // 60 segundos para áudio
+        $this->timeout = 90; // 90 segundos para áudio (aumentado de 60 para dar mais margem)
+        
+        $requestStartTime = microtime(true);
+        $requestStartTimestamp = date('Y-m-d H:i:s.u');
+        error_log("[WhatsAppGateway::sendAudioBase64Ptt] ===== INÍCIO REQUISIÇÃO AO GATEWAY ======");
+        error_log("[WhatsAppGateway::sendAudioBase64Ptt] Timestamp: {$requestStartTimestamp}");
+        error_log("[WhatsAppGateway::sendAudioBase64Ptt] Timeout configurado: {$this->timeout}s");
+        error_log("[WhatsAppGateway::sendAudioBase64Ptt] channel_id: {$channelId}, to: {$to}");
+        error_log("[WhatsAppGateway::sendAudioBase64Ptt] Base64 length: " . strlen($b64) . " bytes");
         
         try {
             $response = $this->request('POST', '/api/messages', $payload);
+            
+            $requestTime = (microtime(true) - $requestStartTime) * 1000;
+            $requestEndTimestamp = date('Y-m-d H:i:s.u');
+            error_log("[WhatsAppGateway::sendAudioBase64Ptt] Requisição concluída em {$requestTime}ms");
+            error_log("[WhatsAppGateway::sendAudioBase64Ptt] Timestamp após requisição: {$requestEndTimestamp}");
+            error_log("[WhatsAppGateway::sendAudioBase64Ptt] Success: " . ($response['success'] ? 'true' : 'false'));
+            error_log("[WhatsAppGateway::sendAudioBase64Ptt] ===== FIM REQUISIÇÃO AO GATEWAY ======");
+        } catch (\Exception $e) {
+            $requestTime = (microtime(true) - $requestStartTime) * 1000;
+            error_log("[WhatsAppGateway::sendAudioBase64Ptt] ❌ EXCEÇÃO durante requisição após {$requestTime}ms: " . $e->getMessage());
+            error_log("[WhatsAppGateway::sendAudioBase64Ptt] Stack trace: " . $e->getTraceAsString());
+            throw $e;
         } finally {
             // Restaura timeout original
             $this->timeout = $originalTimeout;
         }
 
-        // Log detalhado da resposta
-        error_log("[WhatsAppGateway::sendAudioBase64Ptt] Resposta do gateway: success=" . ($response['success'] ? 'true' : 'false') . ", status=" . ($response['status'] ?? 'N/A') . ", error=" . ($response['error'] ?? 'N/A'));
+        // Log detalhado da resposta (usa pixelhub_log se disponível para garantir que apareça no log do projeto)
+        $logMsg = "[WhatsAppGateway::sendAudioBase64Ptt] Resposta do gateway: success=" . ($response['success'] ? 'true' : 'false') . ", status=" . ($response['status'] ?? 'N/A') . ", error=" . ($response['error'] ?? 'N/A');
+        error_log($logMsg);
+        if (function_exists('pixelhub_log')) {
+            pixelhub_log($logMsg);
+        }
 
         // Log completo da resposta raw para diagnóstico
         if (isset($response['raw'])) {
@@ -188,7 +216,57 @@ class WhatsAppGatewayClient
             if (isset($rawForLog['base64Ptt'])) {
                 $rawForLog['base64Ptt'] = '[REMOVED - too large]';
             }
-            error_log("[WhatsAppGateway::sendAudioBase64Ptt] Resposta raw completa: " . json_encode($rawForLog, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            
+            // Log TODOS os campos da resposta para diagnóstico completo
+            $allFieldsMsg = "[WhatsAppGateway::sendAudioBase64Ptt] Resposta raw completa (TODOS os campos): " . json_encode($rawForLog, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+            error_log($allFieldsMsg);
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log($allFieldsMsg);
+            }
+            
+            // Log campos individuais para facilitar análise
+            if (is_array($rawForLog)) {
+                $fieldsList = [];
+                foreach ($rawForLog as $key => $value) {
+                    if (is_string($value) && strlen($value) > 200) {
+                        $fieldsList[] = "{$key}: " . substr($value, 0, 200) . "... (truncated, total: " . strlen($value) . " chars)";
+                    } elseif (is_array($value)) {
+                        $fieldsList[] = "{$key}: " . json_encode($value, JSON_UNESCAPED_UNICODE);
+                    } else {
+                        $fieldsList[] = "{$key}: " . (is_bool($value) ? ($value ? 'true' : 'false') : (string)$value);
+                    }
+                }
+                $fieldsMsg = "[WhatsAppGateway::sendAudioBase64Ptt] Campos da resposta: " . implode(" | ", $fieldsList);
+                error_log($fieldsMsg);
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log($fieldsMsg);
+                }
+                
+                // Extrai correlationId se existir (útil para rastreamento no gateway)
+                if (isset($rawForLog['correlationId'])) {
+                    $corrIdMsg = "[WhatsAppGateway::sendAudioBase64Ptt] CorrelationId para rastreamento: " . $rawForLog['correlationId'];
+                    error_log($corrIdMsg);
+                    if (function_exists('pixelhub_log')) {
+                        pixelhub_log($corrIdMsg);
+                    }
+                }
+            }
+        } else {
+            $noRawMsg = "[WhatsAppGateway::sendAudioBase64Ptt] ⚠️ ATENÇÃO: Resposta não contém campo 'raw'";
+            error_log($noRawMsg);
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log($noRawMsg);
+            }
+        }
+        
+        // Log adicional: se a resposta for string (não decodificada), loga ela também
+        if (isset($response['raw']) && is_string($response['raw'])) {
+            $rawStrPreview = strlen($response['raw']) > 1000 ? substr($response['raw'], 0, 1000) . '... (truncated, total: ' . strlen($response['raw']) . ' bytes)' : $response['raw'];
+            $rawStrMsg = "[WhatsAppGateway::sendAudioBase64Ptt] Resposta raw (string): " . $rawStrPreview;
+            error_log($rawStrMsg);
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log($rawStrMsg);
+            }
         }
 
         // Normaliza resposta
@@ -209,20 +287,52 @@ class WhatsAppGatewayClient
 
         // Melhora mensagem de erro se vier do gateway
         if (!$response['success']) {
-            $errorMsg = $response['error'] ?? 'Erro desconhecido';
             $rawResponse = $response['raw'] ?? [];
+            
+            // Tenta extrair mensagem de erro do raw primeiro (pode ser mais específica)
+            $rawErrorMsg = $rawResponse['error'] ?? $rawResponse['message'] ?? $rawResponse['error_message'] ?? null;
+            $errorMsg = $rawErrorMsg ?? $response['error'] ?? 'Erro desconhecido';
             
             // Extrai error_code do raw se existir
             if (isset($rawResponse['error_code']) && !isset($response['error_code'])) {
                 $response['error_code'] = $rawResponse['error_code'];
             }
             
+            // Log da mensagem original para debug
+            error_log("[WhatsAppGateway::sendAudioBase64Ptt] Mensagem de erro original: {$errorMsg}");
+            if ($rawErrorMsg && $rawErrorMsg !== $errorMsg) {
+                error_log("[WhatsAppGateway::sendAudioBase64Ptt] Mensagem do raw: {$rawErrorMsg}");
+            }
+            
             // Detecta erros específicos do WPPConnect
-            if (stripos($errorMsg, 'sendVoiceBase64') !== false || stripos($errorMsg, 'WPPConnect') !== false) {
-                // Extrai mensagem mais específica se possível
-                if (stripos($errorMsg, 'Erro ao enviar a mensagem') !== false) {
-                    $response['error'] = 'Falha ao enviar áudio via WPPConnect. Verifique se a sessão está conectada e se o formato do áudio está correto (OGG/Opus).';
-                    $response['error_code'] = $response['error_code'] ?? 'WPPCONNECT_SEND_ERROR';
+            if (stripos($errorMsg, 'sendVoiceBase64') !== false || stripos($errorMsg, 'WPPConnect') !== false || stripos($errorMsg, 'wppconnect') !== false) {
+                // Detecta timeout específico do WPPConnect
+                if (stripos($errorMsg, 'timeout') !== false || stripos($errorMsg, '30000ms') !== false || stripos($errorMsg, '30') !== false) {
+                    $response['error'] = 'O gateway WPPConnect está demorando mais de 30 segundos para processar o áudio. Isso pode acontecer se o áudio for muito grande ou se o gateway estiver sobrecarregado. Tente gravar um áudio mais curto (menos de 1 minuto) ou aguarde alguns minutos e tente novamente.';
+                    $response['error_code'] = $response['error_code'] ?? 'WPPCONNECT_TIMEOUT';
+                } else {
+                    // Preserva mensagem original se ela for específica (mais de 50 caracteres ou contém detalhes)
+                    $isGenericError = (stripos($errorMsg, 'Erro ao enviar a mensagem') !== false || stripos($errorMsg, 'Failed to send') !== false) && strlen($errorMsg) < 50;
+                    
+                    if ($isGenericError) {
+                        // Só substitui se for mensagem genérica muito curta
+                        $correlationId = is_array($rawResponse) ? ($rawResponse['correlationId'] ?? null) : null;
+                        $errorText = 'Falha ao enviar áudio via WPPConnect. Verifique se a sessão está conectada e se o formato do áudio está correto (OGG/Opus).';
+                        if ($correlationId) {
+                            $errorText .= ' ID de rastreamento: ' . $correlationId;
+                        }
+                        $response['error'] = $errorText;
+                        $response['error_code'] = $response['error_code'] ?? 'WPPCONNECT_SEND_ERROR';
+                    } else {
+                        // Mantém a mensagem original do gateway (pode conter informações úteis)
+                        $correlationId = is_array($rawResponse) ? ($rawResponse['correlationId'] ?? null) : null;
+                        $errorText = $errorMsg;
+                        if ($correlationId && stripos($errorText, $correlationId) === false) {
+                            $errorText .= ' (ID: ' . $correlationId . ')';
+                        }
+                        $response['error'] = $errorText;
+                        $response['error_code'] = $response['error_code'] ?? 'WPPCONNECT_SEND_ERROR';
+                    }
                 }
             }
             
@@ -231,15 +341,70 @@ class WhatsAppGatewayClient
                 'error' => $errorMsg,
                 'error_code' => $response['error_code'] ?? 'N/A',
                 'status' => $response['status'] ?? 'N/A',
-                'raw_response' => $rawResponse
+                'raw_response' => $rawResponse,
+                'response_keys' => is_array($rawResponse) ? array_keys($rawResponse) : (is_string($rawResponse) ? 'STRING (length: ' . strlen($rawResponse) . ')' : gettype($rawResponse)),
+                'correlationId' => is_array($rawResponse) ? ($rawResponse['correlationId'] ?? 'N/A') : 'N/A'
             ];
             
+            // Se houver correlationId, loga separadamente para facilitar rastreamento
+            if (is_array($rawResponse) && isset($rawResponse['correlationId'])) {
+                $corrIdMsg = "[WhatsAppGateway::sendAudioBase64Ptt] ⚠️ CorrelationId do erro: " . $rawResponse['correlationId'] . " (use este ID para rastrear o erro nos logs do gateway)";
+                error_log($corrIdMsg);
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log($corrIdMsg);
+                }
+            }
+            
             // Remove dados sensíveis do log
-            if (isset($errorLogData['raw_response']['base64Ptt'])) {
+            if (is_array($errorLogData['raw_response']) && isset($errorLogData['raw_response']['base64Ptt'])) {
                 $errorLogData['raw_response']['base64Ptt'] = '[REMOVED - too large]';
             }
             
-            error_log("[WhatsAppGateway::sendAudioBase64Ptt] ❌ Erro detalhado: " . json_encode($errorLogData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            // Log completo do erro (usa pixelhub_log se disponível)
+            $errorDetailMsg = "[WhatsAppGateway::sendAudioBase64Ptt] ❌ Erro detalhado: " . json_encode($errorLogData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+            error_log($errorDetailMsg);
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log($errorDetailMsg);
+            }
+            
+            // Log adicional: se raw_response for string, tenta extrair informações úteis
+            if (is_string($rawResponse) && !empty($rawResponse)) {
+                $rawStrMsg = "[WhatsAppGateway::sendAudioBase64Ptt] Raw response (string) - Primeiros 2000 chars: " . substr($rawResponse, 0, 2000);
+                error_log($rawStrMsg);
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log($rawStrMsg);
+                }
+                
+                // Tenta detectar padrões comuns de erro
+                if (preg_match('/<title[^>]*>([^<]+)<\/title>/i', $rawResponse, $matches)) {
+                    $titleMsg = "[WhatsAppGateway::sendAudioBase64Ptt] Título HTML encontrado: " . trim($matches[1]);
+                    error_log($titleMsg);
+                    if (function_exists('pixelhub_log')) {
+                        pixelhub_log($titleMsg);
+                    }
+                }
+                if (preg_match('/<h1[^>]*>([^<]+)<\/h1>/i', $rawResponse, $matches)) {
+                    $h1Msg = "[WhatsAppGateway::sendAudioBase64Ptt] H1 HTML encontrado: " . trim($matches[1]);
+                    error_log($h1Msg);
+                    if (function_exists('pixelhub_log')) {
+                        pixelhub_log($h1Msg);
+                    }
+                }
+                if (preg_match('/"error"\s*:\s*"([^"]+)"/i', $rawResponse, $matches)) {
+                    $errorFieldMsg = "[WhatsAppGateway::sendAudioBase64Ptt] Campo 'error' encontrado no JSON: " . $matches[1];
+                    error_log($errorFieldMsg);
+                    if (function_exists('pixelhub_log')) {
+                        pixelhub_log($errorFieldMsg);
+                    }
+                }
+                if (preg_match('/"message"\s*:\s*"([^"]+)"/i', $rawResponse, $matches)) {
+                    $messageFieldMsg = "[WhatsAppGateway::sendAudioBase64Ptt] Campo 'message' encontrado no JSON: " . $matches[1];
+                    error_log($messageFieldMsg);
+                    if (function_exists('pixelhub_log')) {
+                        pixelhub_log($messageFieldMsg);
+                    }
+                }
+            }
             
             // Também loga no pixelhub_log se disponível
             if (function_exists('pixelhub_log')) {
@@ -265,7 +430,9 @@ class WhatsAppGatewayClient
             $payload['secret'] = $secret;
         }
 
-        return $this->request('POST', "/api/channels/{$channelId}/webhook", $payload);
+        // Codifica o channelId para URL
+        $encodedChannelId = rawurlencode($channelId);
+        return $this->request('POST', "/api/channels/{$encodedChannelId}/webhook", $payload);
     }
 
     /**
@@ -299,8 +466,10 @@ class WhatsAppGatewayClient
         if (filter_var($mediaId, FILTER_VALIDATE_URL)) {
             $url = $mediaId;
         } else {
-            // Tenta endpoint padrão do gateway
-            $url = $this->baseUrl . "/api/channels/{$channelId}/media/{$mediaId}";
+            // Tenta endpoint padrão do gateway (codifica channelId e mediaId para URL)
+            $encodedChannelId = rawurlencode($channelId);
+            $encodedMediaId = rawurlencode($mediaId);
+            $url = $this->baseUrl . "/api/channels/{$encodedChannelId}/media/{$encodedMediaId}";
         }
         
         $ch = curl_init($url);
@@ -390,6 +559,9 @@ class WhatsAppGatewayClient
         }, $headers);
         error_log("[WhatsAppGateway::request] Headers: " . json_encode($headersForLog, JSON_UNESCAPED_UNICODE));
 
+        $curlStartTime = microtime(true);
+        error_log("[WhatsAppGateway::request] Configurando cURL: timeout={$this->timeout}s, method={$method}, endpoint={$endpoint}");
+        
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => $this->timeout,
@@ -397,23 +569,146 @@ class WhatsAppGatewayClient
             CURLOPT_HTTPHEADER => $headers,
             CURLOPT_CUSTOMREQUEST => $method,
         ]);
+        
+        // Log adicional para áudio
+        if (isset($data['type']) && $data['type'] === 'audio') {
+            error_log("[WhatsAppGateway::request] Requisição de áudio detectada, timeout={$this->timeout}s");
+        }
 
         if ($data !== null && in_array($method, ['POST', 'PUT', 'PATCH'])) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         }
 
+        $curlExecStartTime = microtime(true);
+        $curlExecStartTimestamp = date('Y-m-d H:i:s.u');
+        error_log("[WhatsAppGateway::request] Executando curl_exec()... Timestamp: {$curlExecStartTimestamp}");
+        if (function_exists('pixelhub_log')) {
+            pixelhub_log("[WhatsAppGateway::request] Executando curl_exec()... Timestamp: {$curlExecStartTimestamp}");
+        }
+        
         $response = curl_exec($ch);
+        
+        $curlExecTime = (microtime(true) - $curlExecStartTime) * 1000;
+        $curlExecEndTimestamp = date('Y-m-d H:i:s.u');
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
+        $curlInfo = curl_getinfo($ch);
         curl_close($ch);
-
-        // LOG TEMPORÁRIO: status code e body bruto
-        error_log("[WhatsAppGateway::request] Response HTTP Status: {$httpCode}");
+        
+        $totalTimeSeconds = $curlInfo['total_time'] ?? 0;
+        error_log("[WhatsAppGateway::request] curl_exec() concluído em {$curlExecTime}ms ({$totalTimeSeconds}s)");
+        error_log("[WhatsAppGateway::request] Timestamp após curl_exec: {$curlExecEndTimestamp}");
+        error_log("[WhatsAppGateway::request] HTTP Code: {$httpCode}");
+        error_log("[WhatsAppGateway::request] Total time: {$totalTimeSeconds}s");
+        error_log("[WhatsAppGateway::request] Connect time: " . ($curlInfo['connect_time'] ?? 'N/A') . "s");
+        error_log("[WhatsAppGateway::request] Start transfer time: " . ($curlInfo['starttransfer_time'] ?? 'N/A') . "s");
+        
+        if (function_exists('pixelhub_log')) {
+            pixelhub_log("[WhatsAppGateway::request] curl_exec() concluído em {$curlExecTime}ms ({$totalTimeSeconds}s), HTTP {$httpCode}");
+        }
+        
+        // Detecta timeout do Nginx (504) após ~60 segundos
+        if ($httpCode === 504 && $totalTimeSeconds >= 58 && $totalTimeSeconds <= 62) {
+            $timeoutMsg = "[WhatsAppGateway::request] ⚠️ TIMEOUT DO NGINX DETECTADO: O gateway retornou 504 após {$totalTimeSeconds}s. O timeout do Nginx no servidor do gateway precisa ser aumentado (atualmente está em ~60s, recomendado: 120s ou mais).";
+            error_log($timeoutMsg);
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log($timeoutMsg);
+            }
+        }
+        
         if ($error) {
-            error_log("[WhatsAppGateway::request] cURL Error: {$error}");
+            error_log("[WhatsAppGateway::request] ❌ cURL Error: {$error}");
+            
+            // Detecta timeout específico
+            if (stripos($error, 'timeout') !== false || stripos($error, 'timed out') !== false) {
+                error_log("[WhatsAppGateway::request] ⚠️ TIMEOUT DETECTADO após {$curlExecTime}ms (timeout configurado: {$this->timeout}s)");
+                error_log("[WhatsAppGateway::request] Total time: " . ($curlInfo['total_time'] ?? 'N/A') . "s");
+                error_log("[WhatsAppGateway::request] Connect time: " . ($curlInfo['connect_time'] ?? 'N/A') . "s");
+                error_log("[WhatsAppGateway::request] Start transfer time: " . ($curlInfo['starttransfer_time'] ?? 'N/A') . "s");
+                
+                return [
+                    'success' => false,
+                    'error' => "Timeout de {$this->timeout}s excedido ao enviar áudio. O gateway pode estar sobrecarregado ou o arquivo muito grande.",
+                    'error_code' => 'TIMEOUT',
+                    'raw' => null,
+                    'status' => 0,
+                    'timeout_info' => [
+                        'configured_timeout' => $this->timeout,
+                        'actual_time' => $curlExecTime / 1000,
+                        'total_time' => $curlInfo['total_time'] ?? null,
+                        'connect_time' => $curlInfo['connect_time'] ?? null,
+                        'starttransfer_time' => $curlInfo['starttransfer_time'] ?? null
+                    ]
+                ];
+            }
+        }
+
+        // LOG TEMPORÁRIO: status code e body bruto (também usa pixelhub_log)
+        $statusMsg = "[WhatsAppGateway::request] Response HTTP Status: {$httpCode}";
+        error_log($statusMsg);
+        if (function_exists('pixelhub_log')) {
+            pixelhub_log($statusMsg);
+        }
+        
+        $contentType = $curlInfo['content_type'] ?? 'N/A';
+        $contentTypeMsg = "[WhatsAppGateway::request] Content-Type: {$contentType}";
+        error_log($contentTypeMsg);
+        if (function_exists('pixelhub_log')) {
+            pixelhub_log($contentTypeMsg);
+        }
+        
+        $lengthMsg = "[WhatsAppGateway::request] Response length: " . strlen($response) . " bytes";
+        error_log($lengthMsg);
+        if (function_exists('pixelhub_log')) {
+            pixelhub_log($lengthMsg);
+        }
+        
+        if ($error) {
+            $curlErrorMsg = "[WhatsAppGateway::request] cURL Error: {$error}";
+            error_log($curlErrorMsg);
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log($curlErrorMsg);
+            }
         } else {
-            $bodyPreview = strlen($response) > 500 ? (substr($response, 0, 500) . '... (truncated)') : $response;
-            error_log("[WhatsAppGateway::request] Response body (primeiros 500 chars): " . $bodyPreview);
+            // Log mais detalhado da resposta para debug
+            if (strlen($response) > 0) {
+                $bodyPreview = strlen($response) > 2000 ? (substr($response, 0, 2000) . '... (truncated, total: ' . strlen($response) . ' bytes)') : $response;
+                $bodyMsg = "[WhatsAppGateway::request] Response body completo: " . $bodyPreview;
+                error_log($bodyMsg);
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log($bodyMsg);
+                }
+                
+                // Detecta se é HTML (página de erro)
+                if (stripos($response, '<html') !== false || stripos($response, '<!DOCTYPE') !== false) {
+                    $htmlWarningMsg = "[WhatsAppGateway::request] ⚠️ ATENÇÃO: Resposta parece ser HTML (página de erro do servidor)";
+                    error_log($htmlWarningMsg);
+                    if (function_exists('pixelhub_log')) {
+                        pixelhub_log($htmlWarningMsg);
+                    }
+                    // Tenta extrair mensagem de erro do HTML
+                    if (preg_match('/<title[^>]*>([^<]+)<\/title>/i', $response, $matches)) {
+                        $titleMsg = "[WhatsAppGateway::request] Título da página HTML: " . $matches[1];
+                        error_log($titleMsg);
+                        if (function_exists('pixelhub_log')) {
+                            pixelhub_log($titleMsg);
+                        }
+                    }
+                    if (preg_match('/<h1[^>]*>([^<]+)<\/h1>/i', $response, $matches)) {
+                        $h1Msg = "[WhatsAppGateway::request] H1 da página HTML: " . $matches[1];
+                        error_log($h1Msg);
+                        if (function_exists('pixelhub_log')) {
+                            pixelhub_log($h1Msg);
+                        }
+                    }
+                }
+            } else {
+                $emptyMsg = "[WhatsAppGateway::request] ⚠️ ATENÇÃO: Resposta vazia (0 bytes)";
+                error_log($emptyMsg);
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log($emptyMsg);
+                }
+            }
         }
 
         // Log (sem expor secret)
@@ -436,25 +731,114 @@ class WhatsAppGatewayClient
             ];
         }
 
-        $decoded = json_decode($response, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log("[WhatsAppGateway] JSON Error: " . json_last_error_msg() . " - Response: " . substr($response, 0, 200));
+        // Verifica se a resposta está vazia
+        if (empty($response)) {
+            error_log("[WhatsAppGateway::request] ❌ ERRO: Resposta vazia do gateway (HTTP {$httpCode})");
             return [
                 'success' => false,
-                'error' => 'Resposta inválida do gateway: ' . json_last_error_msg(),
-                'raw' => $response,
+                'error' => "Gateway retornou resposta vazia (HTTP {$httpCode}). Verifique se o gateway está funcionando corretamente.",
+                'error_code' => 'EMPTY_RESPONSE',
+                'raw' => null,
                 'status' => $httpCode
+            ];
+        }
+
+        // Tenta decodificar JSON
+        $decoded = json_decode($response, true);
+        $jsonError = json_last_error();
+        
+        if ($jsonError !== JSON_ERROR_NONE) {
+            $jsonErrorMsg = json_last_error_msg();
+            $responsePreview = strlen($response) > 2000 ? substr($response, 0, 2000) . '... (truncated)' : $response;
+            
+            error_log("[WhatsAppGateway::request] ❌ ERRO JSON: {$jsonErrorMsg} (code: {$jsonError})");
+            error_log("[WhatsAppGateway::request] HTTP Status: {$httpCode}");
+            error_log("[WhatsAppGateway::request] Content-Type: {$contentType}");
+            error_log("[WhatsAppGateway::request] Response length: " . strlen($response) . " bytes");
+            error_log("[WhatsAppGateway::request] Response preview (primeiros 2000 chars): {$responsePreview}");
+            
+            // Detecta tipo de erro comum
+            $errorMessage = "Resposta inválida do gateway: {$jsonErrorMsg}";
+            $errorCode = 'GATEWAY_ERROR';
+            
+            if (stripos($response, '<html') !== false || stripos($response, '<!DOCTYPE') !== false) {
+                $errorMessage = "Gateway retornou página HTML ao invés de JSON. O servidor pode estar com erro interno.";
+                $errorCode = 'GATEWAY_HTML_ERROR';
+                
+                // Tenta extrair mensagem útil do HTML
+                $htmlTitle = null;
+                if (preg_match('/<title[^>]*>([^<]+)<\/title>/i', $response, $matches)) {
+                    $htmlTitle = trim($matches[1]);
+                    $errorMessage .= " Título da página: " . $htmlTitle;
+                }
+                
+                // Detecta timeout 504 especificamente
+                if ($htmlTitle && stripos($htmlTitle, '504') !== false && stripos($htmlTitle, 'timeout') !== false) {
+                    $errorCode = 'GATEWAY_TIMEOUT';
+                    $errorMessage = "Timeout do gateway (504). O servidor do gateway demorou mais de 60 segundos para processar o áudio. Possíveis causas:\n";
+                    $errorMessage .= "- Arquivo de áudio muito grande\n";
+                    $errorMessage .= "- Gateway sobrecarregado\n";
+                    $errorMessage .= "- Problemas de rede\n";
+                    $errorMessage .= "Tente novamente com um áudio menor ou aguarde alguns minutos.";
+                }
+            } elseif ($httpCode >= 500) {
+                $errorMessage = "Erro interno do gateway (HTTP {$httpCode}). O servidor pode estar sobrecarregado.";
+                $errorCode = 'GATEWAY_SERVER_ERROR';
+            } elseif ($httpCode === 0) {
+                $errorMessage = "Não foi possível conectar ao gateway. Verifique se o serviço está online.";
+                $errorCode = 'GATEWAY_CONNECTION_ERROR';
+            }
+            
+            return [
+                'success' => false,
+                'error' => $errorMessage,
+                'error_code' => $errorCode,
+                'raw' => $response, // Retorna resposta bruta para debug
+                'status' => $httpCode,
+                'json_error' => $jsonErrorMsg,
+                'response_preview' => substr($response, 0, 500) // Primeiros 500 chars para debug
             ];
         }
 
         // Normaliza resposta
         $success = $httpCode >= 200 && $httpCode < 300;
+        
+        // Log detalhado da resposta decodificada
+        if (!$success) {
+            error_log("[WhatsAppGateway::request] ❌ Resposta de erro do gateway (HTTP {$httpCode})");
+            error_log("[WhatsAppGateway::request] Resposta decodificada: " . json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            
+            // Tenta extrair todas as possíveis mensagens de erro
+            $possibleErrors = [];
+            if (isset($decoded['error'])) {
+                $possibleErrors[] = "error: " . (is_string($decoded['error']) ? $decoded['error'] : json_encode($decoded['error']));
+            }
+            if (isset($decoded['message'])) {
+                $possibleErrors[] = "message: " . (is_string($decoded['message']) ? $decoded['message'] : json_encode($decoded['message']));
+            }
+            if (isset($decoded['error_message'])) {
+                $possibleErrors[] = "error_message: " . (is_string($decoded['error_message']) ? $decoded['error_message'] : json_encode($decoded['error_message']));
+            }
+            if (isset($decoded['details'])) {
+                $possibleErrors[] = "details: " . (is_string($decoded['details']) ? $decoded['details'] : json_encode($decoded['details']));
+            }
+            if (isset($decoded['data']) && is_array($decoded['data']) && isset($decoded['data']['error'])) {
+                $possibleErrors[] = "data.error: " . (is_string($decoded['data']['error']) ? $decoded['data']['error'] : json_encode($decoded['data']['error']));
+            }
+            
+            if (!empty($possibleErrors)) {
+                error_log("[WhatsAppGateway::request] Possíveis mensagens de erro encontradas: " . implode(" | ", $possibleErrors));
+            } else {
+                error_log("[WhatsAppGateway::request] ⚠️ Nenhuma mensagem de erro explícita encontrada na resposta");
+                error_log("[WhatsAppGateway::request] Chaves disponíveis na resposta: " . (is_array($decoded) ? implode(', ', array_keys($decoded)) : 'N/A'));
+            }
+        }
 
         return [
             'success' => $success,
             'status' => $httpCode,
             'raw' => $decoded,
-            'error' => $success ? null : ($decoded['error'] ?? $decoded['message'] ?? "HTTP {$httpCode}")
+            'error' => $success ? null : ($decoded['error'] ?? $decoded['message'] ?? $decoded['error_message'] ?? $decoded['details'] ?? ($decoded['data']['error'] ?? null) ?? "HTTP {$httpCode}")
         ];
     }
 }

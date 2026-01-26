@@ -346,6 +346,15 @@ class EventIngestionService
         } catch (\Exception $e) {
             // Não quebra fluxo se resolver conversa falhar
             error_log("[EventIngestion] Erro ao resolver conversa (não crítico): " . $e->getMessage());
+            error_log("[EventIngestion] Stack trace: " . $e->getTraceAsString());
+            
+            // Marca evento como processado mesmo se resolver conversa falhar
+            // Isso evita que o evento fique em 'queued' indefinidamente
+            try {
+                self::updateStatus($eventId, 'processed');
+            } catch (\Exception $updateException) {
+                error_log("[EventIngestion] Erro ao atualizar status após falha: " . $updateException->getMessage());
+            }
         }
 
         return $eventId;

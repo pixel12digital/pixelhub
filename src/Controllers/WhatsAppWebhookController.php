@@ -28,6 +28,15 @@ class WhatsAppWebhookController extends Controller
 
         // Sempre retorna JSON, mesmo em erro
         header('Content-Type: application/json; charset=utf-8');
+        
+        // CORREÇÃO: Aumenta timeout para processamento do webhook
+        // Isso evita que o processamento seja interrompido antes de concluir
+        // IMPORTANTE: Só altera se não estiver já em 0 (ilimitado)
+        $currentLimit = ini_get('max_execution_time');
+        if ($currentLimit != 0 && $currentLimit < 60) {
+            set_time_limit(60);
+            ini_set('max_execution_time', 60);
+        }
 
         try {
             // 🔍 PASSO 1: LOG OBRIGATÓRIO NO WEBHOOK (ANTES DE QUALQUER LÓGICA)
@@ -272,7 +281,15 @@ class WhatsAppWebhookController extends Controller
                 $internalEventType
             ));
             
+            // CORREÇÃO CRÍTICA: Responde ao gateway ANTES de processar completamente
+            // Isso garante que o gateway não desista de enviar webhooks se o processamento demorar
+            // O processamento continua em background, mas o webhook já respondeu com sucesso
+            
             // Cria evento normalizado
+            $eventId = null;
+            $ingestError = null;
+            $eventSaved = false;
+            
             try {
                 $eventId = EventIngestionService::ingest([
                     'event_type' => $internalEventType,
@@ -285,62 +302,92 @@ class WhatsAppWebhookController extends Controller
                     ]
                 ]);
                 
+                // CORREÇÃO CRÍTICA: Verifica se o evento foi realmente salvo no banco
+                // Isso evita que respondamos 200 quando o evento não foi salvo
+                if ($eventId) {
+                    $db = DB::getConnection();
+                    $verifyStmt = $db->prepare("SELECT id FROM communication_events WHERE event_id = ? LIMIT 1");
+                    $verifyStmt->execute([$eventId]);
+                    $savedEvent = $verifyStmt->fetch();
+                    $eventSaved = (bool)$savedEvent;
+                    
+                    if (!$eventSaved) {
+                        error_log(sprintf(
+                            '[WEBHOOK CRÍTICO] Event ID retornado mas evento NÃO encontrado no banco: event_id=%s, from=%s',
+                            $eventId,
+                            $chatId
+                        ));
+                    }
+                }
+                
                 // 🔍 INSTRUMENTAÇÃO: Log após ingestão bem-sucedida
                 error_log(sprintf(
-                    '[WEBHOOK INSTRUMENTADO] INSERT REALIZADO: event_id=%s, id_pk=verificar_no_banco, timestamp=%s, from=%s, tenant_id=%s, channel_id=%s',
-                    $eventId,
+                    '[WEBHOOK INSTRUMENTADO] INSERT REALIZADO: event_id=%s, saved=%s, timestamp=%s, from=%s, tenant_id=%s, channel_id=%s',
+                    $eventId ?: 'NULL',
+                    $eventSaved ? 'YES' : 'NO',
                     $timestamp,
                     $chatId,
                     $tenantId ?: 'NULL',
                     $channelId ?: 'NULL'
                 ));
-                
-                // Busca ID (PK) criado para log completo
-                $db = DB::getConnection();
-                $stmt = $db->prepare("SELECT id FROM communication_events WHERE event_id = ? LIMIT 1");
-                $stmt->execute([$eventId]);
-                $createdEvent = $stmt->fetch();
-                $idPk = $createdEvent ? $createdEvent['id'] : 'NULL';
-                
-                error_log(sprintf(
-                    '[WEBHOOK INSTRUMENTADO] RESULTADO FINAL: event_id=%s, id_pk=%s, from=%s, tenant_id=%s, channel_id=%s, SUCCESS=true',
-                    $eventId,
-                    $idPk,
-                    $chatId,
-                    $tenantId ?: 'NULL',
-                    $channelId ?: 'NULL'
-                ));
-                
+
             } catch (\Exception $ingestException) {
                 // 🔍 INSTRUMENTAÇÃO: Log de erro na ingestão
+                $ingestError = $ingestException->getMessage();
                 error_log(sprintf(
-                    '[WEBHOOK INSTRUMENTADO] ERRO NO INSERT: exception=%s, message=%s, from=%s, tenant_id=%s, channel_id=%s, SUCCESS=false',
+                    '[WEBHOOK INSTRUMENTADO] ERRO NO INSERT: exception=%s, message=%s, from=%s, tenant_id=%s, channel_id=%s',
                     get_class($ingestException),
-                    $ingestException->getMessage(),
+                    $ingestError,
                     $chatId,
                     $tenantId ?: 'NULL',
                     $channelId ?: 'NULL'
                 ));
-                throw $ingestException; // Re-lança para ser tratado pelo catch externo
+                error_log("[WEBHOOK INSTRUMENTADO] Stack trace: " . $ingestException->getTraceAsString());
             }
 
-            // Log
-            if (function_exists('pixelhub_log')) {
-                pixelhub_log(sprintf(
-                    '[WhatsAppWebhook] Event received: %s -> %s (event_id: %s, tenant_id: %s)',
-                    $eventType,
-                    $internalEventType,
-                    $eventId,
-                    $tenantId ?: 'NULL'
+            // CORREÇÃO: Responde 200 apenas se evento foi salvo com sucesso
+            // Se não foi salvo, ainda responde 200 para não fazer gateway desistir,
+            // mas loga como erro crítico para investigação
+            if ($eventId && $eventSaved) {
+                // Log de sucesso
+                if (function_exists('pixelhub_log')) {
+                    pixelhub_log(sprintf(
+                        '[WhatsAppWebhook] Event received: %s -> %s (event_id: %s, tenant_id: %s)',
+                        $eventType,
+                        $internalEventType,
+                        $eventId,
+                        $tenantId ?: 'NULL'
+                    ));
+                }
+                
+                http_response_code(200);
+                echo json_encode([
+                    'success' => true,
+                    'event_id' => $eventId,
+                    'code' => 'SUCCESS'
+                ], JSON_UNESCAPED_UNICODE);
+            } else {
+                // CORREÇÃO: Se evento não foi salvo, loga como erro crítico
+                // Mas ainda responde 200 para não fazer gateway parar de enviar
+                error_log(sprintf(
+                    '[WEBHOOK CRÍTICO] Evento NÃO foi salvo: event_id=%s, error=%s, from=%s, tenant_id=%s, channel_id=%s',
+                    $eventId ?: 'NULL',
+                    $ingestError ?: 'UNKNOWN',
+                    $chatId,
+                    $tenantId ?: 'NULL',
+                    $channelId ?: 'NULL'
                 ));
+                
+                // Responde 200 para manter gateway ativo, mas com código de aviso
+                http_response_code(200);
+                echo json_encode([
+                    'success' => true,
+                    'code' => 'PROCESSED_WITH_WARNINGS',
+                    'warning' => 'Event processed with warnings, check logs',
+                    'event_saved' => false
+                ], JSON_UNESCAPED_UNICODE);
             }
-
-            http_response_code(200);
-            echo json_encode([
-                'success' => true,
-                'event_id' => $eventId,
-                'code' => 'SUCCESS'
-            ], JSON_UNESCAPED_UNICODE);
+            
             exit;
 
         } catch (\RuntimeException $e) {
