@@ -414,6 +414,8 @@ class CommunicationHubController extends Controller
             $tenantIdFromPost = isset($_POST['tenant_id']) && $_POST['tenant_id'] !== '' ? (int) $_POST['tenant_id'] : null;
             // CORRIGIDO: channel_id deve permanecer string (VARCHAR(100) no banco, string no gateway)
             $channelId = isset($_POST['channel_id']) && $_POST['channel_id'] !== '' ? trim($_POST['channel_id']) : null;
+            // LOG CRÍTICO: Rastreia channel_id recebido do POST
+            error_log("[CommunicationHub::send] 🔍 channel_id extraído do POST: " . ($channelId ?: 'NULL') . " (raw: " . ($_POST['channel_id'] ?? 'NÃO DEFINIDO') . ")");
             // NOVO: Suporte para encaminhamento para múltiplos canais
             $forwardToAll = isset($_POST['forward_to_all']) && $_POST['forward_to_all'] === '1';
             $channelIdsArray = isset($_POST['channel_ids']) && is_array($_POST['channel_ids']) ? $_POST['channel_ids'] : null;
@@ -541,8 +543,9 @@ class CommunicationHubController extends Controller
                 // CORREÇÃO CRÍTICA: channel_id do POST sempre tem prioridade sobre o da conversa
                 // Se channel_id foi fornecido no POST, NÃO busca da conversa
                 // Só busca da conversa se channel_id do POST estiver vazio
+                error_log("[CommunicationHub::send] 🔍 Verificando se precisa buscar channel_id da conversa: channelId=" . ($channelId ?: 'NULL') . ", threadId=" . ($threadId ?: 'NULL'));
                 if (empty($channelId) && !empty($threadId) && preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
-                    error_log("[CommunicationHub::send] channel_id do POST vazio, buscando da conversa...");
+                    error_log("[CommunicationHub::send] ⚠️ channel_id do POST vazio, buscando da conversa...");
                     $conversationId = (int) $matches[1];
                     error_log("[CommunicationHub::send] ✅ threadId válido detectado, conversationId={$conversationId}");
                     
