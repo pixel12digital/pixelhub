@@ -603,12 +603,15 @@ class CommunicationHubController extends Controller
                                 error_log("[CommunicationHub::send] ✅ SessionId do gateway validado e adicionado ao targetChannels: {$foundSessionId}");
                                 error_log("[CommunicationHub::send] ✅ targetChannels após validação: " . json_encode($targetChannels));
                             } else {
+                                // CORREÇÃO: Se channel_id foi fornecido no POST, usa ele no erro (não o da conversa)
+                                $errorChannelId = !empty($channelId) ? $channelId : $sessionId;
                                 error_log("[CommunicationHub::send] ❌ ERRO: SessionId '{$sessionId}' do gateway não encontrado ou não habilitado para este tenant");
+                                error_log("[CommunicationHub::send] Usando channel_id do POST no erro: '{$errorChannelId}' (sessionId da conversa: '{$sessionId}')");
                                 $this->json([
                                     'success' => false, 
-                                    'error' => "SessionId do gateway '{$sessionId}' não está habilitado para este tenant. Verifique se a sessão está cadastrada e habilitada.",
+                                    'error' => "SessionId do gateway '{$errorChannelId}' não está habilitado para este tenant. Verifique se a sessão está cadastrada e habilitada.",
                                     'error_code' => 'CHANNEL_NOT_FOUND',
-                                    'channel_id' => $sessionId
+                                    'channel_id' => $errorChannelId
                                 ], 400);
                                 return;
                             }
