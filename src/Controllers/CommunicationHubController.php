@@ -763,7 +763,9 @@ class CommunicationHubController extends Controller
                     // PRIORIDADE 1: Usa channel_id fornecido diretamente no POST (vem do frontend)
                     // CRÍTICO: O channel_id do POST sempre tem prioridade sobre o da conversa
                     if ($channelId) {
-                        error_log("[CommunicationHub::send] PRIORIDADE 1: Usando channel_id do POST: '{$channelId}'");
+                        // PRESERVA o channelId original do POST para usar no erro (não substitui pelo valor do banco)
+                        $originalChannelIdFromPost = $channelId;
+                        error_log("[CommunicationHub::send] PRIORIDADE 1: Usando channel_id do POST: '{$channelId}' (PRESERVADO para erro)");
                         
                         // PATCH H2: Interpreta channelId recebido como sessionId do gateway
                         // Valida usando a nova função que detecta schema automaticamente
@@ -841,23 +843,28 @@ class CommunicationHubController extends Controller
                                     }
                                 } else {
                                     error_log("[CommunicationHub::send] ❌ Canal do banco também não passou na validação e não tem session_id");
-                                    // Retorna erro com o channel_id original do POST (não o do banco)
+                                    // Retorna erro com o channel_id ORIGINAL do POST (preservado no início)
+                                    $errorChannelId = $originalChannelIdFromPost ?? $channelId;
+                                    error_log("[CommunicationHub::send] ❌ Retornando erro com channel_id ORIGINAL do POST: '{$errorChannelId}' (não do banco)");
                                     $this->json([
                                         'success' => false, 
-                                        'error' => "Canal '{$channelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
+                                        'error' => "Canal '{$errorChannelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
                                         'error_code' => 'CHANNEL_NOT_FOUND',
-                                        'channel_id' => $channelId
+                                        'channel_id' => $errorChannelId
                                     ], 400);
                                     return;
                                 }
                             } else {
                                 // Nenhum canal encontrado no banco
                                 error_log("[CommunicationHub::send] ❌ Nenhum canal encontrado no banco para: '{$channelId}' (normalized: '{$normalized}')");
+                                // Retorna erro com o channel_id ORIGINAL do POST (preservado no início)
+                                $errorChannelId = $originalChannelIdFromPost ?? $channelId;
+                                error_log("[CommunicationHub::send] ❌ Retornando erro com channel_id ORIGINAL do POST: '{$errorChannelId}' (não do banco)");
                                 $this->json([
                                     'success' => false, 
-                                    'error' => "Canal '{$channelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
+                                    'error' => "Canal '{$errorChannelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
                                     'error_code' => 'CHANNEL_NOT_FOUND',
-                                    'channel_id' => $channelId
+                                    'channel_id' => $errorChannelId
                                 ], 400);
                                 return;
                             }
