@@ -3480,6 +3480,14 @@ async function sendHubMessage(payload) {
  * Adiciona mensagem ao painel
  */
 function addMessageToPanel(message) {
+    console.log('[Hub] addMessageToPanel chamado:', {
+        id: message.id,
+        direction: message.direction,
+        content: message.content?.substring(0, 50),
+        hasMedia: !!message.media,
+        mediaUrl: message.media?.url
+    });
+    
     const container = document.getElementById('messages-container');
     if (!container) return;
     
@@ -3498,6 +3506,7 @@ function addMessageToPanel(message) {
     
     // Renderiza mídia se existir
     const mediaHtml = (message.media && message.media.url) ? renderMediaPlayer(message.media) : '';
+    console.log('[Hub] mediaHtml gerado:', mediaHtml ? 'SIM (' + mediaHtml.length + ' chars)' : 'VAZIO');
     
     // Conteúdo da mensagem (só mostra se não estiver vazio e não for placeholder de áudio com mídia)
     // Se tem mídia de áudio e conteúdo é [Áudio] ou [audio], não mostra o texto
@@ -3561,23 +3570,34 @@ function addMessageToPanel(message) {
  * Confirma mensagem enviada
  */
 async function confirmSentMessageFromPanel(eventId, tempId) {
+    console.log('[Hub] confirmSentMessageFromPanel INICIADO:', { eventId, tempId });
     try {
         const url = '<?= pixelhub_url('/communication-hub/message') ?>?' + 
                    new URLSearchParams({
                        event_id: eventId,
                        thread_id: ConversationState.currentThreadId
                    });
+        console.log('[Hub] Buscando mensagem:', url);
         const response = await fetch(url, {
             credentials: 'same-origin' // Envia cookies de sessão para autenticação
         });
+        console.log('[Hub] Response status:', response.status);
         const result = await response.json();
+        console.log('[Hub] Resultado da confirmação:', JSON.stringify(result, null, 2));
         
         if (result.success && result.message) {
+            console.log('[Hub] Mensagem confirmada - tem mídia?', !!result.message.media);
+            if (result.message.media) {
+                console.log('[Hub] Mídia:', JSON.stringify(result.message.media, null, 2));
+            }
+            
             // Remove mensagem otimista
             const tempMsg = document.querySelector(`[data-message-id="${tempId}"]`);
+            console.log('[Hub] Mensagem otimista encontrada?', !!tempMsg);
             if (tempMsg) tempMsg.remove();
             
             // Adiciona mensagem confirmada
+            console.log('[Hub] Chamando onNewMessagesFromPanel...');
             onNewMessagesFromPanel([result.message]);
             
             // Reabilita formulário
@@ -3586,6 +3606,8 @@ async function confirmSentMessageFromPanel(eventId, tempId) {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Enviar';
             }
+        } else {
+            console.error('[Hub] Confirmação falhou:', result);
         }
     } catch (error) {
         console.error('[Hub] Erro ao confirmar mensagem:', error);
@@ -3596,10 +3618,23 @@ async function confirmSentMessageFromPanel(eventId, tempId) {
  * Processa novas mensagens no painel
  */
 function onNewMessagesFromPanel(messages) {
+    console.log('[Hub] onNewMessagesFromPanel chamado com', messages.length, 'mensagem(s)');
     if (!messages || messages.length === 0) return;
     
     const container = document.getElementById('messages-container');
     if (!container) return;
+    
+    // Log detalhado de cada mensagem
+    messages.forEach((msg, idx) => {
+        console.log(`[Hub] Mensagem ${idx + 1}:`, {
+            id: msg.id,
+            direction: msg.direction,
+            content: msg.content?.substring(0, 50),
+            hasMedia: !!msg.media,
+            mediaType: msg.media?.type || msg.media?.media_type,
+            mediaUrl: msg.media?.url
+        });
+    });
     
     // 🔍 PASSO 8: UI - Log antes de processar
     const activeThreadId = ConversationState.currentThreadId;

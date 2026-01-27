@@ -4328,22 +4328,62 @@ class CommunicationHubController extends Controller
                     $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
                     $eventTo = $payload['to'] ?? $payload['message']['to'] ?? null;
                     
-                    $normalizeContact = function($contact) {
-                        if (empty($contact)) return null;
-                        return preg_replace('/@.*$/', '', (string) $contact);
-                    };
-                    
-                    $normalizedContact = $normalizeContact($conversationData['contact_external_id']);
-                    $normalizedFrom = $eventFrom ? $normalizeContact($eventFrom) : null;
-                    $normalizedTo = $eventTo ? $normalizeContact($eventTo) : null;
-                    
-                    $isFromThisContact = !empty($normalizedFrom) && $normalizedFrom === $normalizedContact;
-                    $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContact;
-                    
-                    if (!$isFromThisContact && !$isToThisContact) {
-                        // Mensagem não pertence à thread solicitada
-                        $this->json(['success' => false, 'error' => 'Mensagem não pertence à thread'], 403);
-                        return;
+                    // CORREÇÃO: Se evento tem conversation_id, valida diretamente
+                    // Isso é mais confiável que comparar números que podem ter formatos diferentes
+                    if (!empty($event['conversation_id'])) {
+                        $expectedConversationId = $conversationData['id'] ?? null;
+                        if ($event['conversation_id'] != $expectedConversationId) {
+                            error_log("[CommunicationHub::getMessage] REJEITADO - conversation_id não bate. event.conversation_id={$event['conversation_id']} expected={$expectedConversationId}");
+                            $this->json(['success' => false, 'error' => 'Mensagem não pertence à thread'], 403);
+                            return;
+                        }
+                        // Validação por conversation_id passou, continua
+                    } else {
+                        // Fallback: valida por from/to (para eventos antigos sem conversation_id)
+                        $normalizeContact = function($contact) {
+                            if (empty($contact)) return null;
+                            // Remove @server suffix e caracteres não-numéricos
+                            $cleaned = preg_replace('/@.*$/', '', (string) $contact);
+                            return preg_replace('/\D/', '', $cleaned);
+                        };
+                        
+                        $normalizedContact = $normalizeContact($conversationData['contact_external_id']);
+                        $normalizedFrom = $eventFrom ? $normalizeContact($eventFrom) : null;
+                        $normalizedTo = $eventTo ? $normalizeContact($eventTo) : null;
+                        
+                        // CORREÇÃO: Para outbound, também verifica se os últimos dígitos batem
+                        // (evita falsos negativos por diferença de formato de número)
+                        $isFromThisContact = !empty($normalizedFrom) && $normalizedFrom === $normalizedContact;
+                        $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContact;
+                        
+                        // CORREÇÃO: Se não bateu exato, tenta pelos últimos 8-10 dígitos
+                        if (!$isFromThisContact && !$isToThisContact) {
+                            $last8Contact = substr($normalizedContact, -8);
+                            $last8From = $normalizedFrom ? substr($normalizedFrom, -8) : null;
+                            $last8To = $normalizedTo ? substr($normalizedTo, -8) : null;
+                            
+                            $isFromThisContact = $last8From && $last8From === $last8Contact;
+                            $isToThisContact = $last8To && $last8To === $last8Contact;
+                            
+                            if ($isFromThisContact || $isToThisContact) {
+                                error_log("[CommunicationHub::getMessage] Validação por últimos 8 dígitos - PASSOU");
+                            }
+                        }
+                        
+                        if (!$isFromThisContact && !$isToThisContact) {
+                            // CORREÇÃO: Se é outbound do sistema, permite (confia no tenant_id)
+                            $isSystemOutbound = $event['event_type'] === 'whatsapp.outbound.message' && 
+                                               !empty($event['tenant_id']) &&
+                                               $event['tenant_id'] == ($conversationData['tenant_id'] ?? null);
+                            
+                            if ($isSystemOutbound) {
+                                error_log("[CommunicationHub::getMessage] Outbound do sistema - permitido por tenant_id match");
+                            } else {
+                                error_log("[CommunicationHub::getMessage] REJEITADO - Mensagem não pertence à thread. event_id={$eventId} thread_id={$threadId} contact={$normalizedContact} from={$normalizedFrom} to={$normalizedTo}");
+                                $this->json(['success' => false, 'error' => 'Mensagem não pertence à thread'], 403);
+                                return;
+                            }
+                        }
                     }
                 }
             }

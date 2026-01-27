@@ -305,6 +305,19 @@ class EventIngestionService
                     $messageId ?: 'NULL'
                 ));
                 
+                // CORREÇÃO: Atualiza evento com conversation_id
+                try {
+                    $updateConvStmt = $db->prepare("UPDATE communication_events SET conversation_id = ? WHERE event_id = ?");
+                    $updateConvStmt->execute([$conversation['id'], $eventId]);
+                    error_log(sprintf(
+                        '[EventIngestion] Evento atualizado com conversation_id=%d, event_id=%s',
+                        $conversation['id'],
+                        $eventId
+                    ));
+                } catch (\Exception $e) {
+                    error_log("[EventIngestion] Erro ao atualizar conversation_id (não crítico): " . $e->getMessage());
+                }
+                
                 if (function_exists('pixelhub_log')) {
                     pixelhub_log(sprintf(
                         '[EventIngestion] Conversa resolvida: conversation_id=%d, conversation_key=%s',
