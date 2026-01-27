@@ -163,3 +163,4 @@ echo "\n=== FIM DA VERIFICAÇÃO ===\n";
 
 
 
+

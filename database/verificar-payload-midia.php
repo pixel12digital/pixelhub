@@ -119,3 +119,4 @@ echo "=== FIM DA VERIFICAÇÃO ===\n";
 
 
 
+

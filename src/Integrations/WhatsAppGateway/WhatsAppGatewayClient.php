@@ -120,15 +120,17 @@ class WhatsAppGatewayClient
     }
 
     /**
-     * Envia áudio PTT (voice note) via base64Ptt (OGG/Opus)
+     * Envia áudio PTT (voice note) via base64.
+     * Aceita OGG/Opus ou WebM; quando audio_mime=audio/webm, o gateway (VPS) converte para OGG.
      *
      * @param string $channelId ID do canal (ex: pixel12digital)
      * @param string $to Número do destinatário (formato: 5547...)
-     * @param string $base64Ptt Base64 do arquivo OGG/Opus (PTT). Pode vir com prefixo data:audio/...;base64,
-     * @param array|null $metadata Metadados adicionais (opcional)
+     * @param string $base64Ptt Base64 do áudio (OGG/Opus ou WebM). Pode vir com prefixo data:audio/...;base64,
+     * @param array|null $metadata Metadados (sent_by, etc.)
+     * @param array $options Opcional: ['audio_mime' => 'audio/webm'|'audio/ogg', 'is_voice' => bool]. Se audio_mime=audio/webm, gateway converte na VPS.
      * @return array { success: bool, message_id?: string, error?: string, raw?: array }
      */
-    public function sendAudioBase64Ptt(string $channelId, string $to, string $base64Ptt, ?array $metadata = null): array
+    public function sendAudioBase64Ptt(string $channelId, string $to, string $base64Ptt, ?array $metadata = null, array $options = []): array
     {
         // aceita data-uri e base64 puro
         $b64 = (string) $base64Ptt;
@@ -161,6 +163,13 @@ class WhatsAppGatewayClient
             'type' => 'audio',
             'base64Ptt' => $b64
         ];
+
+        // Contrato normalizado: gateway pode converter WebM→OGG quando recebe audio_mime + is_voice
+        if (!empty($options['audio_mime'])) {
+            $payload['audio_mime'] = (string) $options['audio_mime'];
+            $payload['is_voice'] = $options['is_voice'] ?? true;
+            error_log("[WhatsAppGateway::sendAudioBase64Ptt] audio_mime=" . $payload['audio_mime'] . ", is_voice=" . ($payload['is_voice'] ? 'true' : 'false'));
+        }
 
         if ($metadata !== null) {
             $payload['metadata'] = $metadata;
@@ -410,6 +419,216 @@ class WhatsAppGatewayClient
             if (function_exists('pixelhub_log')) {
                 pixelhub_log("[WhatsAppGateway::sendAudioBase64Ptt] Erro ao enviar áudio: " . $errorMsg . " (code: " . ($response['error_code'] ?? 'N/A') . ", status: " . ($response['status'] ?? 'N/A') . ")");
             }
+        }
+
+        return $response;
+    }
+
+    /**
+     * Envia imagem via base64 ou URL
+     * 
+     * @param string $channelId ID do canal
+     * @param string $to Número do destinatário (formato: 5511999999999)
+     * @param string|null $base64 Base64 da imagem (opcional se fornecer $url)
+     * @param string|null $url URL da imagem (opcional se fornecer $base64)
+     * @param string|null $caption Legenda da imagem (opcional)
+     * @param array|null $metadata Metadados adicionais (opcional)
+     * @return array { success: bool, message_id?: string, error?: string, raw?: array }
+     */
+    public function sendImage(string $channelId, string $to, ?string $base64 = null, ?string $url = null, ?string $caption = null, ?array $metadata = null): array
+    {
+        if (empty($base64) && empty($url)) {
+            return [
+                'success' => false,
+                'error' => 'É necessário fornecer base64 ou url da imagem',
+                'error_code' => 'MISSING_MEDIA',
+                'status' => 400
+            ];
+        }
+
+        $payload = [
+            'channel' => $channelId,
+            'to' => $to,
+            'type' => 'image'
+        ];
+
+        if ($base64) {
+            // Remove prefixo data:image/...;base64, se existir
+            $b64 = $base64;
+            $pos = stripos($b64, 'base64,');
+            if ($pos !== false) {
+                $b64 = substr($b64, $pos + 7);
+            }
+            $payload['base64'] = $b64;
+        } elseif ($url) {
+            $payload['url'] = $url;
+        }
+
+        if ($caption !== null) {
+            $payload['caption'] = $caption;
+        }
+
+        if ($metadata !== null) {
+            $payload['metadata'] = $metadata;
+        }
+
+        $response = $this->request('POST', '/api/messages', $payload);
+
+        // Normaliza resposta
+        if ($response['success'] && isset($response['raw'])) {
+            $raw = $response['raw'];
+            $response['message_id'] = $raw['id'] ?? $raw['messageId'] ?? $raw['message_id'] ?? null;
+            $response['correlationId'] = $raw['correlationId'] 
+                ?? $raw['correlation_id'] 
+                ?? $raw['trace_id'] 
+                ?? $raw['traceId']
+                ?? null;
+        }
+
+        return $response;
+    }
+
+    /**
+     * Envia documento/PDF via base64 ou URL
+     * 
+     * @param string $channelId ID do canal
+     * @param string $to Número do destinatário (formato: 5511999999999)
+     * @param string|null $base64 Base64 do documento (opcional se fornecer $url)
+     * @param string|null $url URL do documento (opcional se fornecer $base64)
+     * @param string $fileName Nome do arquivo (obrigatório)
+     * @param string|null $caption Legenda do documento (opcional)
+     * @param array|null $metadata Metadados adicionais (opcional)
+     * @return array { success: bool, message_id?: string, error?: string, raw?: array }
+     */
+    public function sendDocument(string $channelId, string $to, ?string $base64 = null, ?string $url = null, string $fileName = 'document.pdf', ?string $caption = null, ?array $metadata = null): array
+    {
+        if (empty($base64) && empty($url)) {
+            return [
+                'success' => false,
+                'error' => 'É necessário fornecer base64 ou url do documento',
+                'error_code' => 'MISSING_MEDIA',
+                'status' => 400
+            ];
+        }
+
+        $payload = [
+            'channel' => $channelId,
+            'to' => $to,
+            'type' => 'document',
+            'fileName' => $fileName
+        ];
+
+        if ($base64) {
+            // Remove prefixo data:application/...;base64, se existir
+            $b64 = $base64;
+            $pos = stripos($b64, 'base64,');
+            if ($pos !== false) {
+                $b64 = substr($b64, $pos + 7);
+            }
+            $payload['base64'] = $b64;
+        } elseif ($url) {
+            $payload['url'] = $url;
+        }
+
+        if ($caption !== null) {
+            $payload['caption'] = $caption;
+        }
+
+        if ($metadata !== null) {
+            $payload['metadata'] = $metadata;
+        }
+
+        // Aumenta timeout para documentos (podem ser grandes)
+        $originalTimeout = $this->timeout;
+        $this->timeout = 90;
+        
+        try {
+            $response = $this->request('POST', '/api/messages', $payload);
+        } finally {
+            $this->timeout = $originalTimeout;
+        }
+
+        // Normaliza resposta
+        if ($response['success'] && isset($response['raw'])) {
+            $raw = $response['raw'];
+            $response['message_id'] = $raw['id'] ?? $raw['messageId'] ?? $raw['message_id'] ?? null;
+            $response['correlationId'] = $raw['correlationId'] 
+                ?? $raw['correlation_id'] 
+                ?? $raw['trace_id'] 
+                ?? $raw['traceId']
+                ?? null;
+        }
+
+        return $response;
+    }
+
+    /**
+     * Envia vídeo via base64 ou URL
+     * 
+     * @param string $channelId ID do canal
+     * @param string $to Número do destinatário (formato: 5511999999999)
+     * @param string|null $base64 Base64 do vídeo (opcional se fornecer $url)
+     * @param string|null $url URL do vídeo (opcional se fornecer $base64)
+     * @param string|null $caption Legenda do vídeo (opcional)
+     * @param array|null $metadata Metadados adicionais (opcional)
+     * @return array { success: bool, message_id?: string, error?: string, raw?: array }
+     */
+    public function sendVideo(string $channelId, string $to, ?string $base64 = null, ?string $url = null, ?string $caption = null, ?array $metadata = null): array
+    {
+        if (empty($base64) && empty($url)) {
+            return [
+                'success' => false,
+                'error' => 'É necessário fornecer base64 ou url do vídeo',
+                'error_code' => 'MISSING_MEDIA',
+                'status' => 400
+            ];
+        }
+
+        $payload = [
+            'channel' => $channelId,
+            'to' => $to,
+            'type' => 'video'
+        ];
+
+        if ($base64) {
+            // Remove prefixo data:video/...;base64, se existir
+            $b64 = $base64;
+            $pos = stripos($b64, 'base64,');
+            if ($pos !== false) {
+                $b64 = substr($b64, $pos + 7);
+            }
+            $payload['base64'] = $b64;
+        } elseif ($url) {
+            $payload['url'] = $url;
+        }
+
+        if ($caption !== null) {
+            $payload['caption'] = $caption;
+        }
+
+        if ($metadata !== null) {
+            $payload['metadata'] = $metadata;
+        }
+
+        // Aumenta timeout para vídeos (podem ser grandes)
+        $originalTimeout = $this->timeout;
+        $this->timeout = 120;
+        
+        try {
+            $response = $this->request('POST', '/api/messages', $payload);
+        } finally {
+            $this->timeout = $originalTimeout;
+        }
+
+        // Normaliza resposta
+        if ($response['success'] && isset($response['raw'])) {
+            $raw = $response['raw'];
+            $response['message_id'] = $raw['id'] ?? $raw['messageId'] ?? $raw['message_id'] ?? null;
+            $response['correlationId'] = $raw['correlationId'] 
+                ?? $raw['correlation_id'] 
+                ?? $raw['trace_id'] 
+                ?? $raw['traceId']
+                ?? null;
         }
 
         return $response;

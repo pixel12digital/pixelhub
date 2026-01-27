@@ -2853,6 +2853,50 @@ function initComposerAudio() {
             fr.readAsDataURL(blob);
         });
     }
+
+    /**
+     * Converte WebM/Opus para OGG/Opus quando o navegador suporta gravar em OGG.
+     * WhatsApp exige OGG/Opus para voice; Chrome grava em WebM, Firefox em OGG.
+     * Se não suportar OGG, retorna o blob original (o backend pode converter com ffmpeg).
+     */
+    async function ensureOggForSend(blob) {
+        const mime = (blob.type || '').toLowerCase();
+        if (mime.indexOf('ogg') >= 0 || mime.indexOf('opus') >= 0) {
+            return blob;
+        }
+        if (mime.indexOf('webm') < 0) {
+            return blob;
+        }
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        let buf;
+        try {
+            buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+        } catch (e) {
+            console.warn('[AudioRecorder] decodeAudioData falhou, enviando WebM:', e);
+            return blob;
+        }
+        if (!window.MediaRecorder || !MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+            console.log('[AudioRecorder] Navegador não suporta OGG/Opus; enviando WebM (backend pode converter com ffmpeg)');
+            return blob;
+        }
+        const dest = ctx.createMediaStreamDestination();
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(dest);
+        src.start(0);
+        src.stop(buf.duration);
+        return new Promise((resolve, reject) => {
+            const chunks = [];
+            const mr = new MediaRecorder(dest.stream, { mimeType: 'audio/ogg;codecs=opus' });
+            mr.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+            mr.onstop = () => resolve(new Blob(chunks, { type: 'audio/ogg;codecs=opus' }));
+            mr.onerror = () => reject(new Error('Falha ao converter áudio para OGG'));
+            mr.start(100);
+            setTimeout(() => {
+                try { mr.stop(); } catch (_) {}
+            }, Math.ceil(buf.duration * 1000) + 300);
+        });
+    }
     
     // Event listeners
     btnMic.addEventListener('click', startRecording);
@@ -2927,8 +2971,13 @@ function initComposerAudio() {
             console.log('[AudioRecorder] Estado alterado para: sending');
             
             const convertStartTime = Date.now();
+            console.log('[AudioRecorder] Garantindo formato OGG/Opus (WhatsApp exige)...');
+            const blobToSend = await ensureOggForSend(recBlob);
+            if (blobToSend !== recBlob) {
+                console.log('[AudioRecorder] Áudio convertido para OGG no navegador:', blobToSend.type);
+            }
             console.log('[AudioRecorder] Iniciando conversão para base64...');
-            const dataUrl = await blobToDataUrl(recBlob);
+            const dataUrl = await blobToDataUrl(blobToSend);
             const convertTime = Date.now() - convertStartTime;
             const base64Length = dataUrl.length;
             const base64SizeKB = (base64Length / 1024).toFixed(2);
