@@ -38,7 +38,7 @@ echo "Inserir apos linha: $INSERT_AFTER"
 PATCH_FILE=$(mktemp)
 cat > "$PATCH_FILE" << 'PATCHEOF'
 
-    location /api/ {
+    location ^~ /api/ {
         auth_basic off;
 
         proxy_pass http://172.19.0.1:3000;
