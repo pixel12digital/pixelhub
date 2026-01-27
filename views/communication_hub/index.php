@@ -1130,7 +1130,7 @@ body.communication-hub-page {
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
                                     <?php if (($lead['unread_count'] ?? 0) > 0): ?>
-                                        <span style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600;">
+                                        <span class="hub-unread-badge" style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600;">
                                             <?= $lead['unread_count'] ?>
                                         </span>
                                     <?php endif; ?>
@@ -1229,7 +1229,7 @@ body.communication-hub-page {
                             </div>
                                 <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: 8px;">
                                     <?php if (($thread['unread_count'] ?? 0) > 0): ?>
-                                        <span style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; display: inline-block; min-width: 18px; text-align: center;">
+                                        <span class="hub-unread-badge" style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; display: inline-block; min-width: 18px; text-align: center;">
                                             <?= $thread['unread_count'] ?>
                                         </span>
                                     <?php endif; ?>
@@ -1863,7 +1863,7 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                         </div>
                         <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
                             ${unreadCount > 0 ? `
-                                <span style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600;">
+                                <span class="hub-unread-badge" style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600;">
                                     ${unreadCount}
                                 </span>
                             ` : ''}
@@ -1961,7 +1961,7 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                     </div>
                     <div style="text-align: right; flex-shrink: 0; margin-left: 8px;">
                         ${unreadCount > 0 ? `
-                            <span style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; display: inline-block; min-width: 18px; text-align: center;">
+                            <span class="hub-unread-badge" style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; display: inline-block; min-width: 18px; text-align: center;">
                                 ${unreadCount}
                             </span>
                         ` : ''}
@@ -2193,6 +2193,20 @@ if (typeof window !== 'undefined') {
     console.error('[Hub] ERRO: window não está disponível!');
 }
 
+/**
+ * Remove o badge de não lidas do item da lista da conversa aberta.
+ * Comportamento WhatsApp: ao abrir/visualizar a conversa, ela é considerada lida e o badge zera.
+ */
+function clearUnreadBadgeForThread(threadId) {
+    if (!threadId) return;
+    document.querySelectorAll('.conversation-item').forEach(function(item) {
+        if (item.dataset.threadId === threadId) {
+            const badge = item.querySelector('.hub-unread-badge');
+            if (badge) badge.remove();
+        }
+    });
+}
+
 async function loadConversation(threadId, channel) {
     console.log('[Hub] Carregando conversa:', threadId, channel);
     
@@ -2276,6 +2290,9 @@ async function loadConversation(threadId, channel) {
         
         // Renderiza conversa
         renderConversation(result.thread, result.messages, result.channel);
+        
+        // Zera badge de não lidas na lista: conversa aberta = considerada lida (comportamento WhatsApp)
+        clearUnreadBadgeForThread(threadId);
         
         // Inicializa marcadores baseado no último item renderizado da conversa
         // IMPORTANTE: Deve ser chamado APÓS renderConversation para garantir que os markers

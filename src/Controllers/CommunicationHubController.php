@@ -291,6 +291,7 @@ class CommunicationHubController extends Controller
                 // Marca conversa como lida ao abrir (mark as read)
                 if ($thread && isset($thread['conversation_id'])) {
                     $this->markConversationAsRead($db, (int) $thread['conversation_id']);
+                    $thread['unread_count'] = 0; // Resposta já reflete "lida" para o frontend zerar o badge
                 }
             } else {
                 // Busca mensagens de chat interno
