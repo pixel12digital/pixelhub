@@ -110,8 +110,9 @@ Use **`public/capture-route-log.php`** depois de cada teste de áudio em produç
 
 3. **Capturar o log:** logo em seguida, abra no navegador:
    ```
-   https://hub.pixel12digital.com.br/capture-route-log.php?token=uma_frase_secreta_qualquer&request_id=REQUEST_ID_DA_RESPOSTA
+   https://hub.pixel12digital.com.br/capture-route-log.php?token=uma_frase_secreta_qualquer&request_id=REQUEST_ID_REAL
    ```
+   **Importante:** troque **REQUEST_ID_REAL** pelo `request_id` que veio na resposta do erro (no console: "Dados do erro: Object" → abra o Object e copie o campo `request_id`; ex.: `9ae2f5866699a63c`). Não use o texto literal "REQUEST_ID_ANOTADO" ou "REQUEST_ID_DA_RESPOSTA" na URL.
    (Se não definiu `ROUTE_LOG_CAPTURE_TOKEN`, use só `?request_id=...`.)
 
 4. **Resultado:** o script devolve JSON com:

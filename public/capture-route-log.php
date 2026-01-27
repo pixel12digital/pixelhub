@@ -34,6 +34,13 @@ $expectedToken = (string) \PixelHub\Core\Env::get('ROUTE_LOG_CAPTURE_TOKEN', '')
 $givenToken = isset($_GET['token']) ? (string) $_GET['token'] : '';
 $requestIdFilter = isset($_GET['request_id']) ? trim((string) $_GET['request_id']) : '';
 
+// Se veio placeholder do doc, ignora o filtro e devolve as últimas linhas ROUTE (qualquer request_id)
+$placeholderPatterns = ['REQUEST_ID_ANOTADO', 'REQUEST_ID_DA_RESPOSTA', 'YYY', 'SEU_REQUEST_ID'];
+$isPlaceholder = $requestIdFilter !== '' && in_array(strtoupper($requestIdFilter), array_map('strtoupper', $placeholderPatterns), true);
+if ($isPlaceholder) {
+    $requestIdFilter = '';
+}
+
 // Se ROUTE_LOG_CAPTURE_TOKEN estiver definido no .env, exige ?token= correto
 if ($expectedToken !== '') {
     if ($givenToken === '' || !hash_equals($expectedToken, $givenToken)) {
@@ -56,8 +63,11 @@ $out = [
     'request_id_filter' => $requestIdFilter !== '' ? $requestIdFilter : null,
     'lines' => [],
     'count' => 0,
-    'hint' => 'Linhas que contêm [WhatsAppGateway::request] ROUTE (mais recentes primeiro). Use request_id do erro para filtrar.',
+    'hint' => 'Linhas que contêm [WhatsAppGateway::request] ROUTE (mais recentes primeiro). Use request_id real da resposta do erro (ex.: 9ae2f5866699a63c).',
 ];
+if ($isPlaceholder) {
+    $out['warning'] = 'request_id era placeholder (REQUEST_ID_ANOTADO etc.); filtro ignorado. Devolvendo últimas linhas ROUTE. Use request_id real na próxima vez.';
+}
 
 if (!is_file($logFile) || !is_readable($logFile)) {
     $out['success'] = false;
@@ -92,7 +102,24 @@ foreach ($allLines as $line) {
     }
 }
 
+// Se filtrou por request_id e não achou nada, tenta sem filtro e avisa (útil para debug)
+if (count($collected) === 0 && $requestIdFilter !== '') {
+    $collected = [];
+    foreach ($allLines as $line) {
+        if (stripos($line, 'ROUTE') === false) continue;
+        $collected[] = $line;
+        if (count($collected) >= $maxLines) break;
+    }
+    if (count($collected) > 0) {
+        $out['warning'] = ($out['warning'] ?? '') . ' Nenhuma linha com request_id=' . $requestIdFilter . '; abaixo as últimas ROUTE (qualquer request_id).';
+    }
+}
+
 $out['lines'] = $collected;
 $out['count'] = count($collected);
+
+if ($out['count'] === 0) {
+    $out['hint_if_empty'] = 'Nenhuma linha ROUTE em pixelhub.log. A linha ROUTE pode estar no error_log do Apache (domínio hub). Use o request_id real da resposta do erro (Dados do erro no console → request_id).';
+}
 
 echo json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
