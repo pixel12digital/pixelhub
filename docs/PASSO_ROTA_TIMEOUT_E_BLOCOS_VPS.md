@@ -8,6 +8,22 @@
 
 ---
 
+## 0) Fechamento imediato (antes dos testes)
+
+- **Commit + deploy no HostMedia** do patch: GATEWAY_HTML_ERROR + ROUTE com timeouts + áudio 120s + diagnostic-gateway-route.
+- **Confirmar** que o endpoint existe e responde: **https://hub.pixel12digital.com.br/diagnostic-gateway-route.php**
+- **Critério:** o endpoint retorna JSON; no próximo erro de envio o response do Hub inclui `request_id` e, se vier HTML, inclui `gateway_html_error`.
+
+---
+
+## Mensagem para o Charles (Passo 1 — uma coisa só)
+
+> **Abra https://hub.pixel12digital.com.br/diagnostic-gateway-route.php e me mande o JSON completo.**
+
+Assim que ele devolver o JSON, aplicar a tabela de decisão (seção 4) e responder com um próximo passo único (ajuste do WPP_GATEWAY_BASE_URL ou Passo 2).
+
+---
+
 ## Estado consolidado (assumir como verdade)
 
 | Item | Valor |
@@ -42,35 +58,43 @@
 
 2. Copiar o **JSON completo** retornado e enviar ao Cursor.
 
-**Retorno esperado:** JSON com pelo menos:
-- `base_url`, `host`, `dns_ips`
-- `tests.env_exact`: `target`, `get_root`, `get_api_health` (cada um com `effective_url`, `primary_ip`, `http_code`, `content_type`, `timings`)
-- `tests.env_8443` (se a URL do .env não tem porta): idem
+**Retorno esperado:** JSON completo. Do JSON você extrai:
+
+- **tests.env_exact.get_api_health** → `effective_url`, `primary_ip`, `http_code`, `content_type`, `timings.total`
+- **tests.env_exact.get_root** → mesmos campos (para saber se está caindo em 401/redirect/UI etc.)
+- **tests.env_8443.get_api_health** (se existir) → mesmos campos
+- **tests.env_8443.get_root** (se existir) → mesmos campos
+
+**Decisão automática após Passo 1:**
+
+| Condição | Ação |
+|----------|------|
+| `/api/health` só “funciona” em **:8443** (http_code 200 em env_8443.get_api_health) | Ajustar `WPP_GATEWAY_BASE_URL` para incluir `:8443` (ex.: `https://wpp.pixel12digital.com.br:8443`) e **redeploy**. |
+| `/api/health` só funciona em **:443** (http_code 200 em env_exact.get_api_health e env_exact já usa 443) | Remover/evitar `:8443` no `WPP_GATEWAY_BASE_URL` e **redeploy**. |
+| **Nenhum** responde (404/401/HTML em ambos) | Não ir para VPS ainda; ajustar o diagnóstico para bater num endpoint de health que exista de verdade na API (objetivo: provar rota/porta/IP, não “inventar health”). |
 
 **Critério de conclusão:** Com esse JSON fica determinado qual porta o .env está usando, qual IP o cURL do HostMedia atinge em cada alvo e se `/api/health` responde em algum deles.
 
 ---
 
-## 3) Passo 2 (HostMedia) – Após um novo teste de áudio
+## 3) Passo 2 (HostMedia) – Teste de áudio + evidência mínima
 
-**Objetivo:** Coletar a linha ROUTE do log do HostMedia para o request que acionou o teste.
+**Quando:** Depois de aplicar (ou não) o ajuste do `WPP_GATEWAY_BASE_URL` conforme a decisão do Passo 1.
 
-**Quem faz:** Charles (ou quem tiver acesso aos logs do HostMedia).
+**Objetivo:** Fechar “para onde o Hub foi” (URL/porta/IP), “quanto tempo esperou” (total_time_s) e “o que recebeu” (content_type + HTML vs JSON).
 
-**Ação:**
+**Quem faz:** Charles (ou quem tiver acesso ao Hub e aos logs do HostMedia).
 
-1. Fazer um **novo teste de áudio** (Chrome, 4–10s) via Hub.
-2. No log do HostMedia (ex.: `storage/logs/` ou log do PHP/web server), localizar a linha:  
-   **`[WhatsAppGateway::request] ROUTE …`**  
-   correspondente a esse envio.
-3. Enviar ao Cursor **exatamente**:
-   - `request_id`
-   - `effective_url` + porta (ou a porta extraída da URL)
-   - `primary_ip`
-   - `http_code` + `content_type`
-   - `total_time_s`
+**Ação:** Charles faz um **envio de áudio** (Chrome, 4–10s) no Hub e devolve **duas coisas**:
 
-**Critério de conclusão:** Com isso se define, sem achismo, qual porta o Hub usou nesse request e qual IP atendeu. Se der 504/HTML, o corpo de erro pode incluir `gateway_html_error` com os mesmos campos.
+**(A) Do erro/sucesso no Hub (payload de resposta):**
+- `request_id`
+- Se existir: **gateway_html_error completo** (`http_code`, `content_type`, `effective_url`, `primary_ip`, `body_preview`)
+
+**(B) Do log do HostMedia (linha única ROUTE do request):**
+- A linha **`[WhatsAppGateway::request] ROUTE …`** correspondente ao **mesmo** `request_id`.
+
+**Critério de conclusão:** Com isso você fecha “para onde o Hub foi” (URL/porta/IP), “quanto tempo esperou” (total_time_s) e “o que recebeu” (content_type + HTML vs JSON).
 
 ---
 
