@@ -1406,6 +1406,9 @@ class CommunicationHubController extends Controller
                                 if (!empty($channelInfo['secret_sent'])) {
                                     $unauthEntry['secret_sent'] = $channelInfo['secret_sent'];
                                 }
+                                if (isset($channelInfo['effective_url']) && $channelInfo['effective_url'] !== '') {
+                                    $unauthEntry['effective_url'] = $channelInfo['effective_url'];
+                                }
                                 $sendResults[] = $unauthEntry;
                                 $errors[] = "{$targetChannelId}: Erro de autenticação";
                                 continue;
@@ -1787,6 +1790,9 @@ class CommunicationHubController extends Controller
                             if (!empty($result['secret_sent'])) {
                                 $errPayload['secret_sent'] = $result['secret_sent'];
                             }
+                            if (isset($result['effective_url']) && $result['effective_url'] !== '') {
+                                $errPayload['effective_url'] = $result['effective_url'];
+                            }
                         }
                         $sendResults[] = $errPayload;
                         $errors[] = "{$targetChannelId}: {$error}";
@@ -1830,6 +1836,9 @@ class CommunicationHubController extends Controller
                         }
                         if (!empty($singleResult['secret_sent'])) {
                             $payload['secret_sent'] = $singleResult['secret_sent'];
+                        }
+                        if (isset($singleResult['effective_url']) && $singleResult['effective_url'] !== '') {
+                            $payload['effective_url'] = $singleResult['effective_url'];
                         }
                         if (!empty($singleResult['origin'])) {
                             $payload['origin'] = $singleResult['origin'];
