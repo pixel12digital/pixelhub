@@ -70,9 +70,23 @@ $baseUrl = pixelhub_url('');
                          data-timestamp="<?= htmlspecialchars($msgTimestamp) ?>"
                          style="margin-bottom: 15px; display: flex; <?= $isOutbound ? 'justify-content: flex-end;' : '' ?>">
                         <div style="max-width: 70%; padding: 12px 16px; border-radius: 18px; <?= $isOutbound ? 'background: #dcf8c6; margin-left: auto;' : 'background: white;' ?>">
-                            <?php if (!empty($msg['channel_id'])): ?>
-                                <div style="font-size: 10px; color: #666; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
-                                    <?= htmlspecialchars($msg['channel_id']) ?>
+                            <?php 
+                            // Mostra informação do remetente
+                            $senderInfo = '';
+                            if ($isOutbound && !empty($msg['sent_by_name'])) {
+                                $senderInfo = 'Enviado por: ' . htmlspecialchars($msg['sent_by_name']);
+                            } elseif (!$isOutbound && !empty($thread['contact_name'])) {
+                                $senderInfo = htmlspecialchars($thread['contact_name']);
+                            }
+                            ?>
+                            <?php if (!empty($senderInfo) || !empty($msg['channel_id'])): ?>
+                                <div style="font-size: 10px; color: #666; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
+                                    <?php if (!empty($senderInfo)): ?>
+                                        <span style="font-weight: 600;"><?= $senderInfo ?></span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($msg['channel_id'])): ?>
+                                        <span style="text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7;"><?= htmlspecialchars($msg['channel_id']) ?></span>
+                                    <?php endif; ?>
                                 </div>
                             <?php endif; ?>
                             <?php 
@@ -107,11 +121,27 @@ $baseUrl = pixelhub_url('');
                                         </video>
                                     </div>
                                 <?php elseif (strpos($mimeType, 'audio/') === 0 || in_array($mediaType, ['audio', 'voice'])): ?>
-                                    <div style="margin-bottom: 8px; padding: 12px; background: rgba(0,0,0,0.05); border-radius: 8px;">
-                                        <audio controls style="width: 100%;">
-                                            <source src="<?= htmlspecialchars($media['url']) ?>" type="<?= htmlspecialchars($media['mime_type']) ?>">
-                                            Seu navegador não suporta o elemento de áudio.
-                                        </audio>
+                                    <div class="audio-player-container" style="margin-bottom: 8px; padding: 10px 12px; background: <?= $isOutbound ? 'rgba(0,0,0,0.06)' : 'rgba(2,58,141,0.08)' ?>; border-radius: 12px; min-width: 200px;">
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <div class="audio-icon" style="width: 40px; height: 40px; background: <?= $isOutbound ? '#128C7E' : '#023A8D' ?>; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                                                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                                                    <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                                                </svg>
+                                            </div>
+                                            <audio controls style="flex: 1; max-width: calc(100% - 50px); height: 36px;">
+                                                <source src="<?= htmlspecialchars($media['url']) ?>" type="<?= htmlspecialchars($media['mime_type'] ?: 'audio/ogg') ?>">
+                                            </audio>
+                                        </div>
+                                        <?php if (!empty($media['file_size'])): ?>
+                                            <div style="font-size: 10px; color: #666; margin-top: 4px; text-align: right;">
+                                                <?= number_format($media['file_size'] / 1024, 1) ?> KB
+                                            </div>
+                                        <?php endif; ?>
+                                        <!-- Fallback: link para download se áudio não carregar -->
+                                        <noscript>
+                                            <a href="<?= htmlspecialchars($media['url']) ?>" target="_blank" style="color: #023A8D; font-size: 12px;">Baixar áudio</a>
+                                        </noscript>
                                     </div>
                                 <?php else: ?>
                                     <div style="margin-bottom: 8px; padding: 12px; background: rgba(0,0,0,0.05); border-radius: 8px;">
@@ -264,7 +294,16 @@ function addMessageElementToDOM(message) {
     messageDiv.style.cssText = 'margin-bottom: 15px; display: flex; ' + (isOutbound ? 'justify-content: flex-end;' : '');
     
     const channelId = message.channel_id || '';
-    const channelIdHtml = channelId ? `<div style="font-size: 10px; color: #666; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${escapeHtml(channelId)}</div>` : '';
+    const sentByName = message.sent_by_name || '';
+    
+    // Monta informação do remetente
+    let senderHtml = '';
+    if (isOutbound && sentByName) {
+        senderHtml = `<span style="font-weight: 600;">Enviado por: ${escapeHtml(sentByName)}</span>`;
+    }
+    const channelHtml = channelId ? `<span style="text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7;">${escapeHtml(channelId)}</span>` : '';
+    
+    const headerHtml = (senderHtml || channelHtml) ? `<div style="font-size: 10px; color: #666; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">${senderHtml}${channelHtml}</div>` : '';
     
     // Renderiza mídia se houver
     let mediaHtml = '';
@@ -296,11 +335,22 @@ function addMessageElementToDOM(message) {
                 </video>
             </div>`;
         } else if (mimeType.startsWith('audio/') || mediaType === 'audio' || mediaType === 'voice') {
-            mediaHtml = `<div style="margin-bottom: 8px; padding: 12px; background: rgba(0,0,0,0.05); border-radius: 8px;">
-                <audio controls style="width: 100%;">
-                    <source src="${escapeHtml(media.url)}" type="${escapeHtml(media.mime_type || 'audio/ogg')}">
-                    Seu navegador não suporta o elemento de áudio.
-                </audio>
+            const bgColor = isOutbound ? 'rgba(0,0,0,0.06)' : 'rgba(2,58,141,0.08)';
+            const iconColor = isOutbound ? '#128C7E' : '#023A8D';
+            const fileSizeHtml = media.file_size ? `<div style="font-size: 10px; color: #666; margin-top: 4px; text-align: right;">${(media.file_size / 1024).toFixed(1)} KB</div>` : '';
+            mediaHtml = `<div class="audio-player-container" style="margin-bottom: 8px; padding: 10px 12px; background: ${bgColor}; border-radius: 12px; min-width: 200px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="audio-icon" style="width: 40px; height: 40px; background: ${iconColor}; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                        </svg>
+                    </div>
+                    <audio controls style="flex: 1; max-width: calc(100% - 50px); height: 36px;">
+                        <source src="${escapeHtml(media.url)}" type="${escapeHtml(media.mime_type || 'audio/ogg')}">
+                    </audio>
+                </div>
+                ${fileSizeHtml}
             </div>`;
         } else {
             const fileSize = media.file_size ? ` <small style="color: #666;">(${Math.round(media.file_size / 1024 * 100) / 100} KB)</small>` : '';
@@ -314,7 +364,7 @@ function addMessageElementToDOM(message) {
     
     messageDiv.innerHTML = `
         <div style="max-width: 70%; padding: 12px 16px; border-radius: 18px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto;' : 'background: white;'}">
-            ${channelIdHtml}
+            ${headerHtml}
             ${mediaHtml}
             <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%;">
                 ${escapeHtml(content)}
