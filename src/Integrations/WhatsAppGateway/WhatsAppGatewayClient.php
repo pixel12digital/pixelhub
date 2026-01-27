@@ -804,6 +804,7 @@ class WhatsAppGatewayClient
         
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HEADER => true,
             CURLOPT_TIMEOUT => $this->timeout,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_HTTPHEADER => $headers,
@@ -826,13 +827,16 @@ class WhatsAppGatewayClient
             pixelhub_log("[WhatsAppGateway::request] Executando curl_exec()... Timestamp: {$curlExecStartTimestamp}");
         }
         
-        $response = curl_exec($ch);
+        $rawResponse = curl_exec($ch);
         
         $curlExecTime = (microtime(true) - $curlExecStartTime) * 1000;
         $curlExecEndTimestamp = date('Y-m-d H:i:s.u');
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
         $curlInfo = curl_getinfo($ch);
+        $headerSize = (int) ($curlInfo['header_size'] ?? 0);
+        $responseHeadersStr = $headerSize > 0 ? substr((string) $rawResponse, 0, $headerSize) : '';
+        $response = $headerSize > 0 ? substr((string) $rawResponse, $headerSize) : (string) $rawResponse;
         curl_close($ch);
         
         $totalTimeSeconds = $curlInfo['total_time'] ?? 0;
@@ -904,6 +908,37 @@ class WhatsAppGatewayClient
         error_log($lengthMsg);
         if (function_exists('pixelhub_log')) {
             pixelhub_log($lengthMsg);
+        }
+        
+        $isHtml = stripos($response, '<html') !== false || stripos($response, '<!DOCTYPE') !== false;
+        if ($httpCode >= 500 || $isHtml) {
+            $keyHeaderKeys = ['server', 'via', 'cf-ray', 'x-cache', 'x-served-by', 'x-amz-cf-id'];
+            $keyHeaders = [];
+            foreach (explode("\n", str_replace("\r\n", "\n", $responseHeadersStr)) as $line) {
+                if (strpos($line, ':') !== false) {
+                    [$name, $val] = explode(':', $line, 2);
+                    $name = strtolower(trim($name));
+                    if (in_array($name, $keyHeaderKeys, true)) {
+                        $keyHeaders[$name] = trim($val);
+                    }
+                }
+            }
+            $diag = [
+                'request_id' => $this->requestId ?? 'N/A',
+                'effective_url' => $curlInfo['url'] ?? $url,
+                'primary_ip' => $curlInfo['primary_ip'] ?? null,
+                'http_code' => $httpCode,
+                'content_type' => $contentType,
+                'total_time' => $totalTimeSeconds,
+                'resp_headers' => $keyHeaders,
+                'body_preview' => strlen($response) > 200 ? substr($response, 0, 200) . '...' : $response,
+            ];
+            error_log("[WhatsAppGateway::request] DIAG_504_HTML request_id=" . ($this->requestId ?? 'N/A') . " effective_url=" . ($curlInfo['url'] ?? $url) . " primary_ip=" . ($curlInfo['primary_ip'] ?? 'N/A') . " http_code={$httpCode} content_type={$contentType} total_time_s={$totalTimeSeconds}");
+            error_log("[WhatsAppGateway::request] DIAG_504_HTML resp_headers=" . json_encode($keyHeaders, JSON_UNESCAPED_UNICODE));
+            error_log("[WhatsAppGateway::request] DIAG_504_HTML body_preview=" . (strlen($response) > 200 ? substr($response, 0, 200) . '...' : $response));
+            if (function_exists('pixelhub_log')) {
+                pixelhub_log("[WhatsAppGateway::request] DIAG_504_HTML " . json_encode($diag, JSON_UNESCAPED_UNICODE));
+            }
         }
         
         if ($error) {
