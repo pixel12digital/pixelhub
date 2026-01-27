@@ -26,13 +26,27 @@ Quando o Hostmidia envia áudio, o payload pode incluir:
 
 ---
 
-## 2. Comportamento esperado no Gateway (VPS)
+## 2. Correlation ID (obrigatório para diagnóstico)
+
+- O Hostmidia envia o header **`X-Request-Id`** em toda requisição ao gateway (valor = request_id do `CommunicationHubController::send()`).
+- O **gateway (VPS) deve** ler esse header e logar o mesmo ID em **cada etapa** do processamento de áudio:
+  - `received` (request entrou)
+  - `decode` (se houver decode de payload)
+  - `convert` (se WebM→OGG)
+  - `sendVoiceBase64` (chamada ao WPPConnect)
+  - `returned` (resposta enviada)
+- Assim, quando o usuário reportar “500 às 11:57”, basta filtrar os logs do PM2 por esse request-id para ver em qual etapa parou.
+
+---
+
+## 3. Comportamento esperado no Gateway (VPS)
 
 1. Se vier `audio_mime === "audio/webm"` (ou equivalente) ou o conteúdo for WebM (ex.: header EBML):
    - Converter para OGG/Opus com ffmpeg (ex.: `-c:a libopus -b:a 32k -ar 16000`).
    - Logar: tempo de conversão, exit code, stderr (preview), tamanho input/output.
 2. Se já for `audio/ogg` ou `audio/ogg;codecs=opus`: não converter; repassar ao WPPConnect.
-3. Em caso de falha na conversão: responder com erro estruturado, ex.:
+3. Em todas as etapas acima, logar o **X-Request-Id** recebido no header (ver seção 2).
+4. Em caso de falha na conversão: responder com erro estruturado, ex.:
    - `error_code`: `AUDIO_CONVERT_FAILED`
    - `origin`: `gateway`
    - `reason`: `FFMPEG_NOT_FOUND` | `FFMPEG_FAILED` | `TIMEOUT` | etc.
@@ -40,7 +54,7 @@ Quando o Hostmidia envia áudio, o payload pode incluir:
 
 ---
 
-## 3. Fallback no Hostmidia
+## 4. Fallback no Hostmidia
 
 1. **Tentativa 1:** converter WebM→OGG no Hostmidia (ffmpeg via `exec`).  
    - Se `disable_functions` incluir `exec` ou ffmpeg falhar → vai para 2.
@@ -52,7 +66,7 @@ Quando o Hostmidia envia áudio, o payload pode incluir:
 
 ---
 
-## 4. Diagnóstico no Hostmidia
+## 5. Diagnóstico no Hostmidia
 
 - **`GET /diagnostic-audio-env.php`**  
   - Resposta JSON com: `exec_available`, `shell_exec_available`, `proc_open_available`, `ffmpeg_in_path`, `recommendation` (`hostmidia_convert` ou `gateway_convert`).  
@@ -60,7 +74,7 @@ Quando o Hostmidia envia áudio, o payload pode incluir:
 
 ---
 
-## 5. Respostas de erro estruturadas (Hostmidia → cliente)
+## 6. Respostas de erro estruturadas (Hostmidia → cliente)
 
 Quando a conversão falha no Hostmidia (sem fallback) ou no gateway após fallback:
 

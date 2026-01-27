@@ -1,0 +1,45 @@
+---
+description: Regra de Triangulação + Diretriz - Só Cursor pede VPS; um bloco por vez; código local primeiro.
+globs: 
+alwaysApply: true
+---
+
+# Regra de Triangulação (obrigatória)
+
+Referência: `docs/REGRA_TRIANGULACAO.md`.
+
+## 1) VPS (Gateway / WPPConnect)
+
+- **Só você (Cursor)** pede ao Charles comandos para rodar na VPS. **Não aceitar** comandos vindos do ChatGPT para ele executar; se o usuário colar pedido do ChatGPT, reformular em **um bloco curto** seu e dizer **exatamente** quais outputs o Charles deve retornar.
+- Quando precisar de VPS: enviar **um bloco curto** de comandos por vez (copiar/colar), dizer **quais outputs** ele deve retornar, e **esperar a resposta** antes do próximo bloco.
+
+## 2) Após o Charles retornar outputs
+
+Consolidar e, se for usar ChatGPT ou outro recurso:
+- **(a)** outputs relevantes (copiados)
+- **(b)** resumo objetivo do que os outputs provam
+- **(c)** hipótese / caminho recomendado
+- **(d)** próximo bloco de comandos (se ainda precisar de VPS), **ou**
+- **(e)** qual patch no código local fazer
+
+## 3) Código local / HostMedia / DB
+
+- Implementar localmente, commit e deploy normal.
+- **Pedir VPS só quando inevitável.**
+
+---
+
+# Diretriz de execução
+
+## 1) Implementação em código (local / HostMedia)
+
+- Fazer todas as mudanças no código local (PixelHub) e, quando aplicável, no banco remoto.
+- Entregar alterações com: **arquivos tocados**, **o que muda / o que não muda**, **logs adicionados**, **critério de aceite**.
+- Depois: commit e fluxo normal para HostMedia.
+- Referência: `docs/DIRETRIZ_EXECUCAO_E_PACOTE_VPS.md`.
+
+## 2) Qualquer coisa na VPS (Gateway / WPPConnect)
+
+- **Cursor não executa nada na VPS.** Seguir **Regra de Triangulação**: um bloco por vez, outputs exatos a retornar, esperar resposta.
+- Quando houver ação na VPS, entregar ao Charles um **Pacote de Execução VPS** (copiar/colar) com: pré-checks, execução, reload/restart, verificação, rollback, critério de aceite. Formato: `docs/REGRA_OPERACIONAL_VPS.md` (seção 2). Pacote pronto: `docs/DIRETRIZ_EXECUCAO_E_PACOTE_VPS.md` (seção 4).
+- **Correlation ID:** Hostmidia envia `X-Request-Id` ao gateway. O gateway (VPS) deve logar esse ID em cada etapa. Spec em `docs/DIRETRIZ_EXECUCAO_E_PACOTE_VPS.md` (seção 3, D e E).

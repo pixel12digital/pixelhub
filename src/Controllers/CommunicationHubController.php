@@ -443,10 +443,11 @@ class CommunicationHubController extends Controller
         // Gera UUID curto para correlacionar todos os logs do mesmo request
         $requestId = substr(str_replace('-', '', bin2hex(random_bytes(8))), 0, 16);
         $logPrefix = "[CommunicationHub::send][rid={$requestId}]";
+        error_log("{$logPrefix} request_id={$requestId} INÍCIO envio");
         
-        // Define header com request_id para o método json() capturar
+        // Define header com request_id (contrato: X-Request-Id) para o front/caller correlacionar
         if (!headers_sent()) {
-            header("X-Request-ID: {$requestId}");
+            header("X-Request-Id: {$requestId}");
         }
         
         // ===== LOG INEQUÍVOCO PARA PROVAR QUE O CÓDIGO CERTO ESTÁ RODANDO =====
@@ -625,23 +626,23 @@ class CommunicationHubController extends Controller
         // Validação: para texto, message é obrigatório; para áudio, base64Ptt é obrigatório
         if (empty($channel)) {
             error_log("[CommunicationHub::send] ❌ ERRO 400: Canal vazio");
-            $this->json(['success' => false, 'error' => 'Canal é obrigatório'], 400);
+            $this->json(['success' => false, 'error' => 'Canal é obrigatório', 'request_id' => $requestId], 400);
             return;
         }
         if ($messageType !== 'audio' && empty($message)) {
             error_log("[CommunicationHub::send] ❌ ERRO 400: Mensagem vazia (para tipo texto)");
-            $this->json(['success' => false, 'error' => 'Mensagem é obrigatória para tipo texto'], 400);
+            $this->json(['success' => false, 'error' => 'Mensagem é obrigatória para tipo texto', 'request_id' => $requestId], 400);
             return;
         }
         if ($messageType === 'audio' && (empty($base64Ptt) || !is_string($base64Ptt))) {
             error_log("[CommunicationHub::send] ❌ ERRO 400: base64Ptt é obrigatório para tipo áudio");
-            $this->json(['success' => false, 'error' => 'base64Ptt é obrigatório para tipo áudio'], 400);
+            $this->json(['success' => false, 'error' => 'base64Ptt é obrigatório para tipo áudio', 'request_id' => $requestId], 400);
             return;
         }
             if ($channel === 'whatsapp') {
                 if (empty($to)) {
                     error_log("[CommunicationHub::send] ❌ ERRO 400: Telefone vazio");
-                    $this->json(['success' => false, 'error' => 'to (telefone) é obrigatório para WhatsApp'], 400);
+                    $this->json(['success' => false, 'error' => 'to (telefone) é obrigatório para WhatsApp', 'request_id' => $requestId], 400);
                     return;
                 }
                 
@@ -709,7 +710,8 @@ class CommunicationHubController extends Controller
                                     'success' => false, 
                                     'error' => 'THREAD_MISSING_CHANNEL_ID',
                                     'error_code' => 'THREAD_MISSING_CHANNEL_ID',
-                                    'message' => 'A conversa não possui canal associado. Verifique se a mensagem foi recebida corretamente.'
+                                    'message' => 'A conversa não possui canal associado. Verifique se a mensagem foi recebida corretamente.',
+                                    'request_id' => $requestId
                                 ], 400);
                                 return;
                             }
@@ -763,7 +765,8 @@ class CommunicationHubController extends Controller
                                     'success' => false, 
                                     'error' => "SessionId do gateway '{$errorChannelId}' não está habilitado para este tenant. Verifique se a sessão está cadastrada e habilitada.",
                                     'error_code' => 'CHANNEL_NOT_FOUND',
-                                    'channel_id' => $errorChannelId
+                                    'channel_id' => $errorChannelId,
+                                    'request_id' => $requestId
                                 ], 400);
                                 return;
                             }
@@ -775,7 +778,8 @@ class CommunicationHubController extends Controller
                         $this->json([
                             'success' => false, 
                             'error' => 'THREAD_NOT_FOUND',
-                            'error_code' => 'THREAD_NOT_FOUND'
+                            'error_code' => 'THREAD_NOT_FOUND',
+                            'request_id' => $requestId
                         ], 404);
                         return;
                     }
@@ -1005,7 +1009,8 @@ class CommunicationHubController extends Controller
                                             'success' => false, 
                                             'error' => "Canal '{$errorChannelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
                                             'error_code' => 'CHANNEL_NOT_FOUND',
-                                            'channel_id' => $errorChannelId
+                                            'channel_id' => $errorChannelId,
+                                            'request_id' => $requestId
                                         ], 400);
                                         return;
                                     }
@@ -1028,7 +1033,8 @@ class CommunicationHubController extends Controller
                                         'success' => false, 
                                         'error' => "Canal '{$errorChannelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
                                         'error_code' => 'CHANNEL_NOT_FOUND',
-                                        'channel_id' => $errorChannelId
+                                        'channel_id' => $errorChannelId,
+                                        'request_id' => $requestId
                                     ], 400);
                                     return;
                                 }
@@ -1053,7 +1059,8 @@ class CommunicationHubController extends Controller
                                     'success' => false, 
                                     'error' => "Canal '{$errorChannelId}' não encontrado ou não habilitado. Verifique se o canal está cadastrado e habilitado.",
                                     'error_code' => 'CHANNEL_NOT_FOUND',
-                                    'channel_id' => $errorChannelId
+                                    'channel_id' => $errorChannelId,
+                                    'request_id' => $requestId
                                 ], 400);
                                 return;
                             }
@@ -1241,7 +1248,7 @@ class CommunicationHubController extends Controller
                             error_log("[CommunicationHub::send] SessionId encontrado (canal compartilhado/fallback): {$foundSessionId}");
                         } else {
                             error_log("[CommunicationHub::send] Nenhum canal WhatsApp habilitado encontrado no sistema");
-                            $this->json(['success' => false, 'error' => 'Nenhum canal WhatsApp configurado no sistema'], 400);
+                            $this->json(['success' => false, 'error' => 'Nenhum canal WhatsApp configurado no sistema', 'request_id' => $requestId], 400);
                             return;
                         }
                     }
@@ -1254,7 +1261,7 @@ class CommunicationHubController extends Controller
                 
                 if (empty($targetChannels)) {
                     error_log("[CommunicationHub::send] ❌ ERRO: Nenhum canal identificado para envio");
-                    $this->json(['success' => false, 'error' => 'Nenhum canal WhatsApp identificado para envio'], 400);
+                    $this->json(['success' => false, 'error' => 'Nenhum canal WhatsApp identificado para envio', 'request_id' => $requestId], 400);
                     return;
                 }
                 
@@ -1263,7 +1270,7 @@ class CommunicationHubController extends Controller
                 // Normaliza telefone
                 $phoneNormalized = WhatsAppBillingService::normalizePhone($to);
                 if (empty($phoneNormalized)) {
-                    $this->json(['success' => false, 'error' => 'Telefone inválido'], 400);
+                    $this->json(['success' => false, 'error' => 'Telefone inválido', 'request_id' => $requestId], 400);
                     return;
                 }
 
@@ -1300,6 +1307,7 @@ class CommunicationHubController extends Controller
                 
                 // Cria gateway com configurações (específicas do canal ou globais)
                 $gateway = new WhatsAppGatewayClient($baseUrl, $secret);
+                $gateway->setRequestId($requestId);
                 
                 // ===== LOG TEMPORÁRIO: Endpoint de verificação de status =====
                 // Usa o primeiro canal de targetChannels para o log (garantido que não está vazio)
@@ -1468,6 +1476,7 @@ class CommunicationHubController extends Controller
                             $detectedFormat = 'Opus (container desconhecido)';
                         }
                         
+                        error_log("{$logPrefix} bytes_input=" . strlen($bin) . " mime_detected=" . $detectedFormat);
                         error_log("[CommunicationHub::send] Verificação de formato concluída em {$opusCheckTime}ms:");
                         error_log("[CommunicationHub::send] - Formato detectado: {$detectedFormat}");
                         error_log("[CommunicationHub::send] - OpusHead encontrado: " . ($hasOpusHead ? 'SIM' : 'NÃO'));
@@ -1689,8 +1698,13 @@ class CommunicationHubController extends Controller
                         elseif ($messageType === 'audio' && (stripos($error, 'WPPConnect') !== false || stripos($error, 'sendVoiceBase64') !== false || stripos($error, 'wppconnect') !== false)) {
                             $errorCode = $errorCode ?: 'WPPCONNECT_SEND_ERROR';
                             
-                            // Detecta timeout específico do WPPConnect (30 segundos)
-                            if (stripos($error, 'timeout') !== false || stripos($error, '30000ms') !== false || stripos($error, '30') !== false) {
+                            // Timeout apenas quando a mensagem indica explicitamente (evita falso positivo com "30" solto)
+                            $isTimeout = stripos($error, 'timeout') !== false || stripos($error, 'timed out') !== false
+                                || stripos($error, '30000ms') !== false
+                                || preg_match('/\b30\s*second/i', $error) === 1
+                                || preg_match('/\b30s\b/i', $error) === 1
+                                || stripos($error, '30 segundos') !== false;
+                            if ($isTimeout) {
                                 $errorCode = 'WPPCONNECT_TIMEOUT';
                                 $error = 'O gateway WPPConnect está demorando mais de 30 segundos para processar o áudio. Isso pode acontecer se o áudio for muito grande ou se o gateway estiver sobrecarregado. Tente gravar um áudio mais curto (menos de 1 minuto) ou aguarde alguns minutos e tente novamente.';
                             } else {
@@ -1776,12 +1790,20 @@ class CommunicationHubController extends Controller
                             $httpCode = 400; // Bad Request
                         }
                         
-                        $this->json([
+                        $payload = [
                             'success' => false,
                             'error' => $singleResult['error'],
                             'error_code' => $singleResult['error_code'],
-                            'channel_id' => $singleResult['channel_id']
-                        ], $httpCode);
+                            'channel_id' => $singleResult['channel_id'],
+                            'request_id' => $requestId
+                        ];
+                        if (!empty($singleResult['origin'])) {
+                            $payload['origin'] = $singleResult['origin'];
+                        }
+                        if (!empty($singleResult['reason'])) {
+                            $payload['reason'] = $singleResult['reason'];
+                        }
+                        $this->json($payload, $httpCode);
                     }
                 } else {
                     // Novo comportamento: retorna resultado múltiplo
@@ -1792,7 +1814,7 @@ class CommunicationHubController extends Controller
                     error_log("[CommunicationHub::send] Total de canais: {$totalCount} | Sucessos: {$successCount} | Falhas: " . ($totalCount - $successCount));
                     error_log("[CommunicationHub::send] ===== FIM LOG DIAGNÓSTICO =====");
                     
-                    $this->json([
+                    $payload = [
                         'success' => $hasAnySuccess,
                         'forwarded' => true,
                         'total_channels' => $totalCount,
@@ -1801,11 +1823,13 @@ class CommunicationHubController extends Controller
                         'results' => $sendResults,
                         'message' => $hasAnySuccess 
                             ? "Mensagem enviada para {$successCount} de {$totalCount} canal(is)" 
-                            : "Falha ao enviar para todos os canais"
-                    ], $hasAnySuccess ? 200 : 500);
+                            : "Falha ao enviar para todos os canais",
+                        'request_id' => $requestId
+                    ];
+                    $this->json($payload, $hasAnySuccess ? 200 : 500);
                 }
             } else {
-                $this->json(['success' => false, 'error' => "Canal {$channel} não implementado ainda"], 400);
+                $this->json(['success' => false, 'error' => "Canal {$channel} não implementado ainda", 'request_id' => $requestId], 400);
             }
             
         } catch (\Throwable $e) {
@@ -1848,6 +1872,7 @@ class CommunicationHubController extends Controller
                 'success' => false,
                 'error' => 'Erro interno do servidor',
                 'error_code' => 'CONTROLLER_EXCEPTION',
+                'request_id' => $requestId ?? null,
                 'debug' => $exceptionDebug
             ];
             

@@ -16,6 +16,7 @@ class WhatsAppGatewayClient
     private string $baseUrl;
     private string $secret;
     private int $timeout;
+    private ?string $requestId = null;
 
     public function __construct(?string $baseUrl = null, ?string $secret = null, int $timeout = 30)
     {
@@ -27,6 +28,15 @@ class WhatsAppGatewayClient
         if (empty($this->secret)) {
             throw new \RuntimeException('WPP_GATEWAY_SECRET não configurado');
         }
+    }
+
+    /**
+     * Define request/correlation ID para enviar no header X-Request-Id ao gateway.
+     * O gateway deve logar esse ID em cada etapa (received → decode → convert → sendVoiceBase64 → returned).
+     */
+    public function setRequestId(string $id): void
+    {
+        $this->requestId = $id;
     }
 
     /**
@@ -132,12 +142,14 @@ class WhatsAppGatewayClient
      */
     public function sendAudioBase64Ptt(string $channelId, string $to, string $base64Ptt, ?array $metadata = null, array $options = []): array
     {
-        // aceita data-uri e base64 puro
+        // Normalização: envia somente base64 cru (gateway nunca recebe dataURL)
         $b64 = (string) $base64Ptt;
         $pos = stripos($b64, 'base64,');
         if ($pos !== false) {
             $b64 = substr($b64, $pos + 7);
+            error_log("[WhatsAppGateway::sendAudioBase64Ptt] base64 sanitized: removed dataURL prefix, raw_base64_len=" . strlen($b64));
         }
+        $b64 = trim($b64);
 
         // Valida tamanho do base64 (limite WhatsApp: 16MB)
         // Base64 é ~33% maior que o binário, então 16MB * 1.33 ≈ 21MB em base64
@@ -315,8 +327,14 @@ class WhatsAppGatewayClient
             
             // Detecta erros específicos do WPPConnect
             if (stripos($errorMsg, 'sendVoiceBase64') !== false || stripos($errorMsg, 'WPPConnect') !== false || stripos($errorMsg, 'wppconnect') !== false) {
-                // Detecta timeout específico do WPPConnect
-                if (stripos($errorMsg, 'timeout') !== false || stripos($errorMsg, '30000ms') !== false || stripos($errorMsg, '30') !== false) {
+                // Timeout apenas quando a mensagem indica explicitamente timeout (evita falso positivo com "30" solto)
+                $isTimeout = stripos($errorMsg, 'timeout') !== false
+                    || stripos($errorMsg, 'timed out') !== false
+                    || stripos($errorMsg, '30000ms') !== false
+                    || preg_match('/\b30\s*second/i', $errorMsg) === 1
+                    || preg_match('/\b30s\b/i', $errorMsg) === 1
+                    || stripos($errorMsg, '30 segundos') !== false;
+                if ($isTimeout) {
                     $response['error'] = 'O gateway WPPConnect está demorando mais de 30 segundos para processar o áudio. Isso pode acontecer se o áudio for muito grande ou se o gateway estiver sobrecarregado. Tente gravar um áudio mais curto (menos de 1 minuto) ou aguarde alguns minutos e tente novamente.';
                     $response['error_code'] = $response['error_code'] ?? 'WPPCONNECT_TIMEOUT';
                 } else {
@@ -766,6 +784,9 @@ class WhatsAppGatewayClient
             'Content-Type: application/json',
             'Accept: application/json'
         ];
+        if ($this->requestId !== null && $this->requestId !== '') {
+            $headers[] = 'X-Request-Id: ' . $this->requestId;
+        }
         
         // LOG TEMPORÁRIO: headers montados (sem secret completo)
         $headersForLog = array_map(function($h) {
@@ -815,6 +836,8 @@ class WhatsAppGatewayClient
         curl_close($ch);
         
         $totalTimeSeconds = $curlInfo['total_time'] ?? 0;
+        $reqIdUsed = $this->requestId ?? 'N/A';
+        error_log("[WhatsAppGateway::request] URL={$url} total_time_s=" . round((float)$totalTimeSeconds, 2) . " http_code={$httpCode} X-Request-Id={$reqIdUsed}");
         error_log("[WhatsAppGateway::request] curl_exec() concluído em {$curlExecTime}ms ({$totalTimeSeconds}s)");
         error_log("[WhatsAppGateway::request] Timestamp após curl_exec: {$curlExecEndTimestamp}");
         error_log("[WhatsAppGateway::request] HTTP Code: {$httpCode}");
@@ -823,6 +846,7 @@ class WhatsAppGatewayClient
         error_log("[WhatsAppGateway::request] Start transfer time: " . ($curlInfo['starttransfer_time'] ?? 'N/A') . "s");
         
         if (function_exists('pixelhub_log')) {
+            pixelhub_log("[WhatsAppGateway::request] URL={$url} total_time_s=" . round((float)$totalTimeSeconds, 2) . " http_code={$httpCode} X-Request-Id={$reqIdUsed}");
             pixelhub_log("[WhatsAppGateway::request] curl_exec() concluído em {$curlExecTime}ms ({$totalTimeSeconds}s), HTTP {$httpCode}");
         }
         

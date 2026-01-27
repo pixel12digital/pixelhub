@@ -198,3 +198,42 @@ Testar envio de áudio no painel. O problema deve estar resolvido com os timeout
 
 3. **Requisito no servidor**
    - Para envio de áudio gravado em WebM (Chrome, etc.), o servidor precisa ter **ffmpeg** no PATH. Sem ffmpeg, só funciona quando o navegador já envia OGG (ex.: Firefox).
+
+---
+
+## Diagnóstico: ~46s + WPPCONNECT_TIMEOUT (27/01/2026)
+
+### Sintoma
+- POST /communication-hub/send leva ~46s e retorna 500 com `error_code: WPPCONNECT_TIMEOUT`.
+- Áudio WebM (~75 KB, 4s); frontend envia sem conversão (Chrome).
+
+### O que foi alterado no código (Hostmidia)
+- **Detecção de timeout:** Não tratar mais qualquer "30" na mensagem como timeout. Só classificar como `WPPCONNECT_TIMEOUT` quando a mensagem do gateway contiver explicitamente: `timeout`, `timed out`, `30000ms`, `30 second`, `30s` ou `30 segundos`. Isso evita falso positivo quando o gateway devolve outro erro que por acaso contenha "30".
+
+### Onde está o atraso (~46s)
+- O tempo total é entre o clique “Enviar” no hub e a resposta 500. A maior parte costuma ser:
+  1. **Hostmidia:** conversão WebM→OGG (ffmpeg), se existir; ou fallback montando o request.
+  2. **Rede:** hub.pixel12digital.com.br → gateway (wpp.pixel12digital.com.br).
+  3. **Gateway (VPS):** processar o áudio e chamar WPPConnect; se o gateway tiver timeout interno (ex.: 30s), ele devolve erro após ~30s e o resto do tempo é rede + PHP.
+
+### O que conferir na VPS (quem tem acesso roda na VPS)
+1. **Nginx (proxy do gateway)**  
+   - Arquivo: `/etc/nginx/sites-available/whatsapp-multichannel` (ou o que faz proxy para o gateway).  
+   - Verificar: `proxy_connect_timeout`, `proxy_send_timeout`, `proxy_read_timeout` ≥ 120s.  
+   - Recarregar: `sudo nginx -t && sudo kill -HUP $(cat /var/run/nginx.pid)`.
+
+2. **Timeout interno do gateway (Node/PM2)**  
+   - Se o gateway tiver timeout próprio (ex.: 30s) antes de chamar o WPPConnect, ele vai devolver erro nesse tempo.  
+   - Procurar no código do gateway por `timeout`, `setTimeout`, `30000`, etc., e aumentar ou remover para envio de áudio, mantendo um valor coerente (ex.: 60–90s).
+
+3. **FFmpeg na VPS**  
+   - Para o gateway converter WebM→OGG na VPS (conforme `docs/CONTRATO_AUDIO_GATEWAY_HOSTMIDIA.md`):  
+     - `ffmpeg -version`  
+     - Usuário do processo (PM2) deve conseguir executar ffmpeg (PATH ou caminho absoluto).
+
+4. **Logs do gateway no momento do envio**  
+   - Quando der 500 no hub, anotar o horário e, na VPS:  
+     - `pm2 logs --lines 200 --nostream` (ou o nome do app do gateway) e buscar por esse horário, erros de áudio e “timeout”.
+
+### Critério de sucesso
+- Áudio de 4–10s enviado pelo Chrome conclui em **menos de 15s** (ideal &lt; 10s) e a mensagem chega como áudio/voz no WhatsApp, sem 500 e sem WPPCONNECT_TIMEOUT.
