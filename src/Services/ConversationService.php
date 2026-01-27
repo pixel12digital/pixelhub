@@ -414,9 +414,28 @@ class ConversationService
             }
             
             // Se ainda não tem contactExternalId mas tem rawFrom, usa rawFrom como fallback final
+            // CORREÇÃO: SEMPRE normalizar através de PhoneNormalizer para evitar duplicatas
             if (!$contactExternalId && $rawFrom) {
-                $contactExternalId = $rawFrom;
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando rawFrom como contact_external_id (fallback final): ' . $contactExternalId);
+                // Remove sufixos e extrai dígitos
+                $rawForNorm = preg_replace('/@.*$/', '', $rawFrom);
+                $rawForNorm = preg_replace('/[^0-9]/', '', $rawForNorm);
+                
+                // Tenta normalizar para E.164
+                if (strlen($rawForNorm) >= 8) {
+                    $normalized = PhoneNormalizer::toE164OrNull($rawForNorm);
+                    if ($normalized) {
+                        $contactExternalId = $normalized;
+                        error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando rawFrom NORMALIZADO como contact_external_id: ' . $contactExternalId . ' (original: ' . $rawFrom . ')');
+                    } else {
+                        // Se não conseguiu normalizar, usa o rawFrom original (pode ser @lid ou formato não-brasileiro)
+                        $contactExternalId = $rawFrom;
+                        error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando rawFrom ORIGINAL como contact_external_id (falha normalização): ' . $contactExternalId);
+                    }
+                } else {
+                    // Poucos dígitos, usa original
+                    $contactExternalId = $rawFrom;
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando rawFrom como contact_external_id (poucos dígitos): ' . $contactExternalId);
+                }
             }
             
             error_log('[CONVERSATION UPSERT] extractChannelInfo: contact_external_id final: ' . $contactExternalId . ' (tipo: ' . ($isLidId ? '@lid' : ($isNumericJid ? 'JID numérico' : 'outro')) . ')');
@@ -1292,25 +1311,35 @@ class ConversationService
             return null;
         }
 
-        // Tenta encontrar conversa com cada variação
-        foreach ($variants as $variantContactId) {
-            // Gera chave de conversa equivalente
-            $variantKey = self::generateConversationKey(
-                $channelInfo['channel_type'],
-                $channelInfo['channel_account_id'],
-                $variantContactId
-            );
+        $db = DB::getConnection();
 
-            // Busca conversa com a chave variante
-            $found = self::findByKey($variantKey);
-            if ($found) {
-                error_log(sprintf(
-                    '[DUPLICATE_PREVENTION] findEquivalentConversation encontrou conversa equivalente: original=%s, variant=%s, found_id=%d',
-                    $contactExternalId,
-                    $variantContactId,
-                    $found['id']
-                ));
-                return $found;
+        // CORREÇÃO: Busca diretamente por contact_external_id, ignorando channel_account_id
+        // Isso permite encontrar conversas mesmo que tenham channel_account_id diferente (ex: shared vs 1)
+        foreach ($variants as $variantContactId) {
+            try {
+                // Busca qualquer conversa com esse contact_external_id (ignora channel_account_id)
+                $stmt = $db->prepare("
+                    SELECT * FROM conversations 
+                    WHERE channel_type = ? 
+                    AND contact_external_id = ?
+                    ORDER BY last_message_at DESC
+                    LIMIT 1
+                ");
+                $stmt->execute([$channelInfo['channel_type'], $variantContactId]);
+                $found = $stmt->fetch(\PDO::FETCH_ASSOC);
+                
+                if ($found) {
+                    error_log(sprintf(
+                        '[DUPLICATE_PREVENTION] findEquivalentConversation encontrou conversa equivalente: original=%s, variant=%s, found_id=%d, found_account_id=%s',
+                        $contactExternalId,
+                        $variantContactId,
+                        $found['id'],
+                        $found['channel_account_id'] ?? 'NULL'
+                    ));
+                    return $found;
+                }
+            } catch (\Exception $e) {
+                error_log('[DUPLICATE_PREVENTION] Erro ao buscar variante: ' . $e->getMessage());
             }
         }
 

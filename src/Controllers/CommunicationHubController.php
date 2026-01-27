@@ -2199,11 +2199,15 @@ class CommunicationHubController extends Controller
         }
 
         // Filtro de status
-        // IMPORTANTE: Exclui conversas com status='ignored' da lista de ativas
+        // IMPORTANTE: Exclui conversas com status='ignored' e 'archived' da lista de ativas
         if ($status === 'active') {
             $where[] = "c.status NOT IN ('closed', 'archived', 'ignored')";
+        } elseif ($status === 'archived') {
+            $where[] = "c.status = 'archived'";
+        } elseif ($status === 'ignored') {
+            $where[] = "c.status = 'ignored'";
         } elseif ($status === 'closed') {
-            $where[] = "c.status IN ('closed', 'archived')";
+            $where[] = "c.status IN ('closed')";
         }
         // Se status = 'all', não filtra
 
@@ -3893,11 +3897,15 @@ class CommunicationHubController extends Controller
                 $params[] = $tenantId;
             }
 
-            // IMPORTANTE: Exclui conversas com status='ignored' da lista de ativas
+            // IMPORTANTE: Exclui conversas com status='ignored' e 'archived' da lista de ativas
             if ($status === 'active') {
                 $where[] = "c.status NOT IN ('closed', 'archived', 'ignored')";
+            } elseif ($status === 'archived') {
+                $where[] = "c.status = 'archived'";
+            } elseif ($status === 'ignored') {
+                $where[] = "c.status = 'ignored'";
             } elseif ($status === 'closed') {
-                $where[] = "c.status IN ('closed', 'archived')";
+                $where[] = "c.status IN ('closed')";
             }
 
             if ($afterTimestamp) {
@@ -4735,9 +4743,16 @@ class CommunicationHubController extends Controller
                 return;
             }
 
-            if (!$conversation['is_incoming_lead']) {
+            // Permite vincular se:
+            // 1. É um incoming lead (is_incoming_lead = 1), OU
+            // 2. Não tem tenant definido (tenant_id IS NULL)
+            // Isso permite vincular conversas que foram desvinculadas anteriormente
+            if (!$conversation['is_incoming_lead'] && !empty($conversation['tenant_id'])) {
                 $db->rollBack();
-                $this->json(['success' => false, 'error' => 'Esta conversa não é um incoming lead'], 400);
+                $this->json([
+                    'success' => false, 
+                    'error' => 'Esta conversa já está vinculada a um cliente. Use a opção "Alterar cliente" para mudar o vínculo.'
+                ], 400);
                 return;
             }
 
@@ -4920,6 +4935,154 @@ class CommunicationHubController extends Controller
 
         } catch (\Exception $e) {
             error_log("[CommunicationHub] Erro ao rejeitar incoming lead: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Atualiza o status de uma conversa (arquivar, ignorar, reativar)
+     * 
+     * POST /communication-hub/conversation/update-status
+     * 
+     * Body JSON:
+     * - conversation_id: int (obrigatório)
+     * - status: string (obrigatório) - 'active', 'archived', 'ignored'
+     */
+    public function updateConversationStatus(): void
+    {
+        Auth::requireInternal();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $conversationId = isset($input['conversation_id']) ? (int) $input['conversation_id'] : 0;
+        $newStatus = $input['status'] ?? '';
+
+        // Validação
+        if ($conversationId <= 0) {
+            $this->json(['success' => false, 'error' => 'conversation_id é obrigatório'], 400);
+            return;
+        }
+
+        $allowedStatuses = ['active', 'archived', 'ignored'];
+        if (!in_array($newStatus, $allowedStatuses)) {
+            $this->json(['success' => false, 'error' => 'Status inválido. Use: ' . implode(', ', $allowedStatuses)], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            // Verifica se a conversa existe
+            $checkStmt = $db->prepare("SELECT id, status, contact_name FROM conversations WHERE id = ?");
+            $checkStmt->execute([$conversationId]);
+            $conversation = $checkStmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$conversation) {
+                $this->json(['success' => false, 'error' => 'Conversa não encontrada'], 404);
+                return;
+            }
+
+            // Atualiza o status
+            $stmt = $db->prepare("
+                UPDATE conversations 
+                SET status = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$newStatus, $conversationId]);
+
+            // Mensagens de feedback
+            $messages = [
+                'active' => 'Conversa reativada',
+                'archived' => 'Conversa arquivada',
+                'ignored' => 'Conversa ignorada'
+            ];
+
+            error_log(sprintf(
+                "[CommunicationHub] Status da conversa %d alterado: %s -> %s (contato: %s)",
+                $conversationId,
+                $conversation['status'],
+                $newStatus,
+                $conversation['contact_name'] ?? 'N/A'
+            ));
+
+            $this->json([
+                'success' => true,
+                'conversation_id' => $conversationId,
+                'old_status' => $conversation['status'],
+                'new_status' => $newStatus,
+                'message' => $messages[$newStatus] ?? 'Status atualizado'
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao atualizar status da conversa: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Exclui uma conversa permanentemente
+     * 
+     * POST /communication-hub/conversation/delete
+     * 
+     * Body JSON:
+     * - conversation_id: int (obrigatório)
+     */
+    public function deleteConversation(): void
+    {
+        Auth::requireInternal();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $conversationId = isset($input['conversation_id']) ? (int) $input['conversation_id'] : 0;
+
+        if ($conversationId <= 0) {
+            $this->json(['success' => false, 'error' => 'conversation_id é obrigatório'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            $db->beginTransaction();
+
+            // Verifica se a conversa existe
+            $checkStmt = $db->prepare("SELECT id, contact_name, status FROM conversations WHERE id = ?");
+            $checkStmt->execute([$conversationId]);
+            $conversation = $checkStmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$conversation) {
+                $db->rollBack();
+                $this->json(['success' => false, 'error' => 'Conversa não encontrada'], 404);
+                return;
+            }
+
+            // Remove eventos associados primeiro (FK)
+            $deleteEventsStmt = $db->prepare("DELETE FROM communication_events WHERE conversation_id = ?");
+            $deleteEventsStmt->execute([$conversationId]);
+            $deletedEvents = $deleteEventsStmt->rowCount();
+
+            // Remove a conversa
+            $deleteStmt = $db->prepare("DELETE FROM conversations WHERE id = ?");
+            $deleteStmt->execute([$conversationId]);
+
+            $db->commit();
+
+            error_log(sprintf(
+                "[CommunicationHub] Conversa %d excluída: contato=%s, eventos_removidos=%d",
+                $conversationId,
+                $conversation['contact_name'] ?? 'N/A',
+                $deletedEvents
+            ));
+
+            $this->json([
+                'success' => true,
+                'conversation_id' => $conversationId,
+                'deleted_events' => $deletedEvents,
+                'message' => 'Conversa excluída permanentemente'
+            ]);
+
+        } catch (\Exception $e) {
+            $db->rollBack();
+            error_log("[CommunicationHub] Erro ao excluir conversa: " . $e->getMessage());
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }

@@ -472,6 +472,126 @@ body.communication-hub-page {
     display: none;
 }
 
+/* Menu de ações para conversas vinculadas */
+.conversation-menu {
+    position: relative;
+    display: inline-block;
+}
+
+.conversation-menu-toggle {
+    padding: 4px 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #6B7280;
+    line-height: 1;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    opacity: 0;
+}
+
+.conversation-item:hover .conversation-menu-toggle {
+    opacity: 1;
+}
+
+.conversation-menu-toggle:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+    color: #374151;
+}
+
+.conversation-menu-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 4px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    z-index: 100;
+    min-width: 140px;
+    padding: 4px 0;
+}
+
+.conversation-menu-dropdown.show {
+    display: block;
+}
+
+.conversation-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 12px;
+    color: #374151;
+    transition: background 0.15s;
+}
+
+.conversation-menu-item:hover {
+    background: #f3f4f6;
+}
+
+.conversation-menu-item.danger {
+    color: #dc2626;
+}
+
+.conversation-menu-item.danger:hover {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+/* Indicador visual para conversas arquivadas/ignoradas */
+.conversation-item.conversation-archived {
+    opacity: 0.7;
+    border-left: 3px solid #f59e0b;
+}
+
+.conversation-item.conversation-ignored {
+    opacity: 0.6;
+    border-left: 3px solid #9ca3af;
+}
+
+.conversation-item.conversation-archived::after,
+.conversation-item.conversation-ignored::after {
+    content: attr(data-status-label);
+    position: absolute;
+    top: 4px;
+    right: 40px;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+.conversation-item.conversation-archived::before {
+    content: '📁';
+    position: absolute;
+    top: 8px;
+    left: 4px;
+    font-size: 10px;
+}
+
+.conversation-item.conversation-ignored::before {
+    content: '🚫';
+    position: absolute;
+    top: 8px;
+    left: 4px;
+    font-size: 10px;
+}
+
 /* Painel de conversa (coluna direita) */
 .conversation-thread-pane {
     display: flex;
@@ -952,6 +1072,8 @@ body.communication-hub-page {
                 <label>Status</label>
                 <select name="status">
                     <option value="active" <?= ($filters['status'] === 'active') ? 'selected' : '' ?>>Ativas</option>
+                    <option value="archived" <?= ($filters['status'] === 'archived') ? 'selected' : '' ?>>Arquivadas</option>
+                    <option value="ignored" <?= ($filters['status'] === 'ignored') ? 'selected' : '' ?>>Ignoradas</option>
                     <option value="all" <?= ($filters['status'] === 'all') ? 'selected' : '' ?>>Todas</option>
                 </select>
             </div>
@@ -1062,8 +1184,9 @@ body.communication-hub-page {
                 <?php elseif (!empty($threads)): ?>
                     <?php foreach ($threads as $thread): ?>
                         <div onclick="handleConversationClick('<?= htmlspecialchars($thread['thread_id'], ENT_QUOTES) ?>', '<?= htmlspecialchars($thread['channel'] ?? 'whatsapp', ENT_QUOTES) ?>')" 
-                             class="conversation-item"
-                             data-thread-id="<?= htmlspecialchars($thread['thread_id'], ENT_QUOTES) ?>">
+                             class="conversation-item <?= ($thread['status'] ?? 'active') === 'archived' ? 'conversation-archived' : '' ?> <?= ($thread['status'] ?? 'active') === 'ignored' ? 'conversation-ignored' : '' ?>"
+                             data-thread-id="<?= htmlspecialchars($thread['thread_id'], ENT_QUOTES) ?>"
+                             data-conversation-id="<?= $thread['conversation_id'] ?? 0 ?>">
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
                                 <div style="flex: 1; min-width: 0;">
                                     <div style="font-weight: 600; font-size: 14px; color: #111b21; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
@@ -1104,12 +1227,41 @@ body.communication-hub-page {
                                     </div>
                                 <?php endif; ?>
                             </div>
-                                <div style="text-align: right; flex-shrink: 0; margin-left: 8px;">
+                                <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: 8px;">
                                     <?php if (($thread['unread_count'] ?? 0) > 0): ?>
                                         <span style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; display: inline-block; min-width: 18px; text-align: center;">
                                             <?= $thread['unread_count'] ?>
                                         </span>
                                     <?php endif; ?>
+                                    <div class="conversation-menu">
+                                        <button type="button" class="conversation-menu-toggle" onclick="event.stopPropagation(); toggleConversationMenu(this)" aria-label="Mais opções">
+                                            ⋮
+                                        </button>
+                                        <div class="conversation-menu-dropdown">
+                                            <?php 
+                                            $currentStatus = $thread['status'] ?? 'active';
+                                            $conversationId = $thread['conversation_id'] ?? 0;
+                                            $contactName = htmlspecialchars($thread['contact_name'] ?? 'Conversa', ENT_QUOTES);
+                                            ?>
+                                            <?php if ($currentStatus !== 'archived'): ?>
+                                                <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); archiveConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
+                                                    📁 Arquivar
+                                                </button>
+                                            <?php else: ?>
+                                                <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); reactivateConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
+                                                    ✅ Reativar
+                                                </button>
+                                            <?php endif; ?>
+                                            <?php if ($currentStatus !== 'ignored'): ?>
+                                                <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); ignoreConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
+                                                    🚫 Ignorar
+                                                </button>
+                                            <?php endif; ?>
+                                            <button type="button" class="conversation-menu-item danger" onclick="event.stopPropagation(); deleteConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
+                                                🗑️ Excluir
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div style="display: flex; justify-content: flex-end; align-items: center; font-size: 11px; color: #667781;">
@@ -1218,10 +1370,11 @@ body.communication-hub-page {
 // - Aba aberta sem conversa: 6-10s
 // - Aba em background: 15-30s
 const POLLING_INTERVALS = {
-    ACTIVE_CONVERSATION: 3000,      // 3s (média entre 2-4s)
-    NO_ACTIVE_CONVERSATION: 8000,   // 8s (média entre 6-10s)
-    BACKGROUND: 20000,              // 20s (média entre 15-30s)
-    MAX_BACKOFF: 30000              // Teto do backoff: 30s
+    ACTIVE_CONVERSATION: 5000,      // 5s - Otimizado para reduzir carga
+    NO_ACTIVE_CONVERSATION: 15000,  // 15s - Lista sem conversa aberta
+    BACKGROUND: 60000,              // 60s - Aba em background
+    MAX_BACKOFF: 120000,            // 2 min - Teto do backoff
+    ERROR_BACKOFF: 30000            // 30s - Após erro de rede
 };
 
 // ============================================================================
@@ -1379,6 +1532,8 @@ async function checkForListUpdates() {
         }
     } catch (error) {
         console.error('[Hub] ❌ Erro ao verificar atualizações:', error);
+        // Aplica backoff agressivo em caso de erro de rede
+        HubState.consecutiveNoUpdates = Math.min(HubState.consecutiveNoUpdates + 3, 10);
     }
 }
 
@@ -3801,12 +3956,190 @@ function closeIncomingLeadMenu(button) {
 
 // Fecha menus ao clicar fora
 document.addEventListener('click', function(event) {
-    if (!event.target.closest('.incoming-lead-menu')) {
-        document.querySelectorAll('.incoming-lead-menu-dropdown.show').forEach(menu => {
+    if (!event.target.closest('.incoming-lead-menu') && !event.target.closest('.conversation-menu')) {
+        document.querySelectorAll('.incoming-lead-menu-dropdown.show, .conversation-menu-dropdown.show').forEach(menu => {
             menu.classList.remove('show');
         });
     }
 });
+
+// ============================================================================
+// Menu de ações para conversas vinculadas
+// ============================================================================
+
+/**
+ * Abre/fecha o menu de três pontos para conversas
+ */
+function toggleConversationMenu(button) {
+    const menu = button.closest('.conversation-menu');
+    const dropdown = menu.querySelector('.conversation-menu-dropdown');
+    
+    // Fecha todos os outros menus abertos
+    document.querySelectorAll('.conversation-menu-dropdown.show, .incoming-lead-menu-dropdown.show').forEach(openMenu => {
+        if (openMenu !== dropdown) {
+            openMenu.classList.remove('show');
+        }
+    });
+    
+    // Toggle do menu atual
+    dropdown.classList.toggle('show');
+}
+
+/**
+ * Fecha o menu de três pontos para conversas
+ */
+function closeConversationMenu(button) {
+    const menu = button.closest('.conversation-menu');
+    const dropdown = menu.querySelector('.conversation-menu-dropdown');
+    if (dropdown) {
+        dropdown.classList.remove('show');
+    }
+}
+
+/**
+ * Arquiva uma conversa
+ */
+async function archiveConversation(conversationId, contactName) {
+    if (!confirm(`Arquivar conversa com "${contactName}"?\n\nA conversa será movida para "Arquivadas" e poderá ser reativada depois.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/communication-hub/conversation/update-status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                conversation_id: conversationId,
+                status: 'archived'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Conversa arquivada', 'success');
+            // Remove da lista atual
+            const item = document.querySelector(`.conversation-item[data-conversation-id="${conversationId}"]`);
+            if (item) {
+                item.style.transition = 'opacity 0.3s, transform 0.3s';
+                item.style.opacity = '0';
+                item.style.transform = 'translateX(-20px)';
+                setTimeout(() => item.remove(), 300);
+            }
+            // Recarrega a página para atualizar listas
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast(result.error || 'Erro ao arquivar conversa', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao arquivar conversa:', error);
+        showToast('Erro ao arquivar conversa', 'error');
+    }
+}
+
+/**
+ * Ignora uma conversa
+ */
+async function ignoreConversation(conversationId, contactName) {
+    if (!confirm(`Ignorar conversa com "${contactName}"?\n\nA conversa será movida para "Ignoradas".`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/communication-hub/conversation/update-status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                conversation_id: conversationId,
+                status: 'ignored'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Conversa ignorada', 'success');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast(result.error || 'Erro ao ignorar conversa', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao ignorar conversa:', error);
+        showToast('Erro ao ignorar conversa', 'error');
+    }
+}
+
+/**
+ * Reativa uma conversa arquivada ou ignorada
+ */
+async function reactivateConversation(conversationId, contactName) {
+    try {
+        const response = await fetch('/communication-hub/conversation/update-status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                conversation_id: conversationId,
+                status: 'active'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Conversa reativada', 'success');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast(result.error || 'Erro ao reativar conversa', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao reativar conversa:', error);
+        showToast('Erro ao reativar conversa', 'error');
+    }
+}
+
+/**
+ * Exclui uma conversa permanentemente
+ */
+async function deleteConversation(conversationId, contactName) {
+    if (!confirm(`EXCLUIR PERMANENTEMENTE a conversa com "${contactName}"?\n\n⚠️ Esta ação NÃO pode ser desfeita!\n\nTodas as mensagens serão removidas.`)) {
+        return;
+    }
+    
+    // Segunda confirmação para ações destrutivas
+    if (!confirm(`Tem certeza ABSOLUTA?\n\nDigite OK para confirmar a exclusão de "${contactName}".`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/communication-hub/conversation/delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                conversation_id: conversationId
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Conversa excluída permanentemente', 'success');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast(result.error || 'Erro ao excluir conversa', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao excluir conversa:', error);
+        showToast('Erro ao excluir conversa', 'error');
+    }
+}
 
 // ============================================================================
 // Incoming Leads - Ações (Criar Cliente, Vincular, Ignorar)
