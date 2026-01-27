@@ -1,7 +1,9 @@
 <?php
 /**
  * Diagnóstico de rota até o gateway (WPP_GATEWAY_BASE_URL).
- * Só usa o host do .env; sem input livre de URL.
+ * Testa URL exata do .env e, se não houver porta, variante :8443.
+ * Para cada alvo: GET / e GET /api/health (ou /health).
+ * Só usa host do .env; sem input livre de URL.
  * Acesso: GET https://hub.pixel12digital.com.br/diagnostic-gateway-route.php
  */
 header('Content-Type: application/json; charset=utf-8');
@@ -32,13 +34,7 @@ $out = [
     'base_url' => $baseUrl,
     'host' => null,
     'dns_ips' => [],
-    'curl_primary_ip' => null,
-    'curl_effective_url' => null,
-    'http_code' => null,
-    'content_type' => null,
-    'resp_headers_preview' => [],
-    'resp_body_preview' => null,
-    'timings' => [],
+    'tests' => [],
 ];
 
 $parsed = parse_url($baseUrl);
@@ -64,47 +60,67 @@ if (is_array($dnsAAAA)) {
 }
 $out['dns_ips'] = array_values(array_unique($ips));
 
-$probeUrl = $baseUrl . '/';
-$ch = curl_init($probeUrl);
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HEADER => true,
-    CURLOPT_CONNECTTIMEOUT => 8,
-    CURLOPT_TIMEOUT => 25,
-    CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_MAXREDIRS => 2,
-    CURLOPT_SSL_VERIFYPEER => true,
-    CURLOPT_USERAGENT => 'PixelHub-Diagnostic-Gateway-Route/1',
-]);
-$raw = curl_exec($ch);
-$headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-$out['http_code'] = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$out['content_type'] = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: null;
-$out['curl_primary_ip'] = curl_getinfo($ch, CURLINFO_PRIMARY_IP) ?: null;
-$out['curl_effective_url'] = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL) ?: null;
-$out['timings'] = [
-    'namelookup' => curl_getinfo($ch, CURLINFO_NAMELOOKUP_TIME),
-    'connect' => curl_getinfo($ch, CURLINFO_CONNECT_TIME),
-    'appconnect' => curl_getinfo($ch, CURLINFO_APPCONNECT_TIME),
-    'starttransfer' => curl_getinfo($ch, CURLINFO_STARTTRANSFER_TIME),
-    'total' => curl_getinfo($ch, CURLINFO_TOTAL_TIME),
-];
-curl_close($ch);
-
-$headerStr = $headerSize > 0 ? substr($raw, 0, $headerSize) : '';
-$bodyStr = $headerSize > 0 ? substr($raw, $headerSize) : $raw;
-
 $keyHeaders = ['server', 'via', 'cf-ray', 'x-cache', 'x-served-by', 'x-amz-cf-id'];
-$out['resp_headers_preview'] = [];
-foreach (explode("\n", str_replace("\r\n", "\n", $headerStr)) as $line) {
-    if (strpos($line, ':') !== false) {
-        [$name, $val] = explode(':', $line, 2);
-        $name = strtolower(trim($name));
-        if (in_array($name, $keyHeaders, true)) {
-            $out['resp_headers_preview'][$name] = trim($val);
+
+function runProbe(string $url, array $keyHeaders): array {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HEADER => true,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 25,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 2,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_USERAGENT => 'PixelHub-Diagnostic-Gateway-Route/1',
+    ]);
+    $raw = curl_exec($ch);
+    $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $headerStr = $headerSize > 0 ? substr($raw, 0, $headerSize) : '';
+    $bodyStr = $headerSize > 0 ? substr($raw, $headerSize) : $raw;
+    $res = [
+        'effective_url' => curl_getinfo($ch, CURLINFO_EFFECTIVE_URL) ?: null,
+        'primary_ip' => curl_getinfo($ch, CURLINFO_PRIMARY_IP) ?: null,
+        'http_code' => (int) curl_getinfo($ch, CURLINFO_HTTP_CODE),
+        'content_type' => curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: null,
+        'resp_headers_preview' => [],
+        'timings' => [
+            'namelookup' => curl_getinfo($ch, CURLINFO_NAMELOOKUP_TIME),
+            'connect' => curl_getinfo($ch, CURLINFO_CONNECT_TIME),
+            'appconnect' => curl_getinfo($ch, CURLINFO_APPCONNECT_TIME),
+            'starttransfer' => curl_getinfo($ch, CURLINFO_STARTTRANSFER_TIME),
+            'total' => curl_getinfo($ch, CURLINFO_TOTAL_TIME),
+        ],
+    ];
+    foreach (explode("\n", str_replace("\r\n", "\n", $headerStr)) as $line) {
+        if (strpos($line, ':') !== false) {
+            [$name, $val] = explode(':', $line, 2);
+            $name = strtolower(trim($name));
+            if (in_array($name, $keyHeaders, true)) {
+                $res['resp_headers_preview'][$name] = trim($val);
+            }
         }
     }
+    curl_close($ch);
+    return $res;
 }
-$out['resp_body_preview'] = strlen($bodyStr) > 200 ? substr($bodyStr, 0, 200) . '...' : $bodyStr;
+
+$targets = [['label' => 'env_exact', 'url' => $baseUrl]];
+$hasPort = isset($parsed['port']);
+if (!$hasPort) {
+    $scheme = $parsed['scheme'] ?? 'https';
+    $targets[] = ['label' => 'env_8443', 'url' => $scheme . '://' . $host . ':8443'];
+}
+
+foreach ($targets as $t) {
+    $label = $t['label'];
+    $rootUrl = rtrim($t['url'], '/') . '/';
+    $healthUrl = rtrim($t['url'], '/') . '/api/health';
+    $out['tests'][$label] = [
+        'target' => $t['url'],
+        'get_root' => runProbe($rootUrl, $keyHeaders),
+        'get_api_health' => runProbe($healthUrl, $keyHeaders),
+    ];
+}
 
 echo json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);

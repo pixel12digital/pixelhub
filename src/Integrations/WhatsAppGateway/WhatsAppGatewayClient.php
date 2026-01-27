@@ -194,7 +194,7 @@ class WhatsAppGatewayClient
 
         // Aumenta timeout para requisições de áudio (podem ser grandes)
         $originalTimeout = $this->timeout;
-        $this->timeout = 90; // 90 segundos para áudio (aumentado de 60 para dar mais margem)
+        $this->timeout = 120; // 120s para áudio (evita 504 antes do upstream responder)
         
         $requestStartTime = microtime(true);
         $requestStartTimestamp = date('Y-m-d H:i:s.u');
@@ -841,6 +841,15 @@ class WhatsAppGatewayClient
         
         $totalTimeSeconds = $curlInfo['total_time'] ?? 0;
         $reqIdUsed = $this->requestId ?? 'N/A';
+        $effectiveUrl = $curlInfo['url'] ?? $url;
+        $effParsed = parse_url($effectiveUrl);
+        $effHost = $effParsed['host'] ?? null;
+        $effPort = $effParsed['port'] ?? null;
+        if ($effPort === null && isset($effParsed['scheme'])) {
+            $effPort = strtolower($effParsed['scheme']) === 'https' ? 443 : 80;
+        }
+        $connectTimeoutUsed = 10; // CURLOPT_CONNECTTIMEOUT
+        error_log("[WhatsAppGateway::request] ROUTE request_id={$reqIdUsed} effective_url={$effectiveUrl} host=" . ($effHost ?? 'N/A') . " port=" . ($effPort ?? 'N/A') . " http_code={$httpCode} content_type=" . ($curlInfo['content_type'] ?? 'N/A') . " primary_ip=" . ($curlInfo['primary_ip'] ?? 'N/A') . " total_time_s=" . round((float)$totalTimeSeconds, 2) . " connect_timeout_s={$connectTimeoutUsed} total_timeout_s={$this->timeout}");
         error_log("[WhatsAppGateway::request] URL={$url} total_time_s=" . round((float)$totalTimeSeconds, 2) . " http_code={$httpCode} X-Request-Id={$reqIdUsed}");
         error_log("[WhatsAppGateway::request] curl_exec() concluído em {$curlExecTime}ms ({$totalTimeSeconds}s)");
         error_log("[WhatsAppGateway::request] Timestamp após curl_exec: {$curlExecEndTimestamp}");
@@ -850,6 +859,7 @@ class WhatsAppGatewayClient
         error_log("[WhatsAppGateway::request] Start transfer time: " . ($curlInfo['starttransfer_time'] ?? 'N/A') . "s");
         
         if (function_exists('pixelhub_log')) {
+            pixelhub_log("[WhatsAppGateway::request] ROUTE request_id={$reqIdUsed} effective_url={$effectiveUrl} host=" . ($effHost ?? 'N/A') . " port=" . ($effPort ?? 'N/A') . " http_code={$httpCode} content_type=" . ($curlInfo['content_type'] ?? 'N/A') . " primary_ip=" . ($curlInfo['primary_ip'] ?? 'N/A') . " total_time_s=" . round((float)$totalTimeSeconds, 2) . " connect_timeout_s={$connectTimeoutUsed} total_timeout_s={$this->timeout}");
             pixelhub_log("[WhatsAppGateway::request] URL={$url} total_time_s=" . round((float)$totalTimeSeconds, 2) . " http_code={$httpCode} X-Request-Id={$reqIdUsed}");
             pixelhub_log("[WhatsAppGateway::request] curl_exec() concluído em {$curlExecTime}ms ({$totalTimeSeconds}s), HTTP {$httpCode}");
         }
@@ -1018,6 +1028,30 @@ class WhatsAppGatewayClient
                 'error_code' => 'EMPTY_RESPONSE',
                 'raw' => null,
                 'status' => $httpCode
+            ];
+        }
+
+        // Classifica HTML como GATEWAY_HTML_ERROR e retorna estrutura acionável (evita falso WPPCONNECT_TIMEOUT)
+        $contentTypeForCheck = $curlInfo['content_type'] ?? '';
+        $isHtmlResponse = (stripos($contentTypeForCheck, 'text/html') !== false)
+            || (strlen(trim($response)) > 0 && strpos(ltrim($response), '<') === 0);
+        if ($isHtmlResponse) {
+            $bodyPreviewShort = strlen($response) > 300 ? substr($response, 0, 300) . '...' : $response;
+            error_log("[WhatsAppGateway::request] GATEWAY_HTML_ERROR http_code={$httpCode} effective_url=" . ($effectiveUrl ?? $url) . " primary_ip=" . ($curlInfo['primary_ip'] ?? 'N/A') . " request_id={$reqIdUsed}");
+            return [
+                'success' => false,
+                'error' => 'Gateway retornou página HTML em vez de JSON. Possível 504 Gateway Time-out ou erro de proxy.',
+                'error_code' => 'GATEWAY_HTML_ERROR',
+                'raw' => $response,
+                'status' => $httpCode,
+                'gateway_html_error' => [
+                    'http_code' => $httpCode,
+                    'content_type' => $contentTypeForCheck ?: 'N/A',
+                    'effective_url' => $effectiveUrl ?? $curlInfo['url'] ?? $url,
+                    'primary_ip' => $curlInfo['primary_ip'] ?? null,
+                    'request_id' => $reqIdUsed,
+                    'body_preview' => $bodyPreviewShort,
+                ],
             ];
         }
 

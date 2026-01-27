@@ -1763,6 +1763,9 @@ class CommunicationHubController extends Controller
                                 $errPayload['stderr_preview'] = substr((string) $result['stderr_preview'], 0, 500);
                             }
                         }
+                        if (!empty($result['gateway_html_error'])) {
+                            $errPayload['gateway_html_error'] = $result['gateway_html_error'];
+                        }
                         $sendResults[] = $errPayload;
                         $errors[] = "{$targetChannelId}: {$error}";
                     }
@@ -1802,6 +1805,9 @@ class CommunicationHubController extends Controller
                         }
                         if (!empty($singleResult['reason'])) {
                             $payload['reason'] = $singleResult['reason'];
+                        }
+                        if (!empty($singleResult['gateway_html_error'])) {
+                            $payload['gateway_html_error'] = $singleResult['gateway_html_error'];
                         }
                         $this->json($payload, $httpCode);
                     }
