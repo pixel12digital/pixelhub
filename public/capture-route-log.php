@@ -41,30 +41,41 @@ if ($isPlaceholder) {
     $requestIdFilter = '';
 }
 
+// Mesmo path que index.php usa para pixelhub_log (public/../logs/pixelhub.log)
+$logDir = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'logs';
+$logFile = realpath($logDir) ? realpath($logDir) . DIRECTORY_SEPARATOR . 'pixelhub.log' : $logDir . DIRECTORY_SEPARATOR . 'pixelhub.log';
+
+// Prova de ambiente (sempre devolvida, inclusive em 403) para “provar o deploy”
+$envProof = [
+    'script_stamp' => basename(__FILE__) . '.m' . (string) filemtime(__FILE__) . '.t' . date('Y-m-d\TH:i:s'),
+    'hostname' => function_exists('gethostname') ? gethostname() : 'N/A',
+    'cwd' => getcwd() ?: 'N/A',
+    'log_source' => $logFile,
+    'log_source_mtime' => is_file($logFile) ? (int) filemtime($logFile) : null,
+    'log_source_size' => is_file($logFile) ? (int) filesize($logFile) : null,
+];
+
 // Se ROUTE_LOG_CAPTURE_TOKEN estiver definido no .env, exige ?token= correto
 if ($expectedToken !== '') {
     if ($givenToken === '' || !hash_equals($expectedToken, $givenToken)) {
         http_response_code(403);
-        echo json_encode([
+        echo json_encode(array_merge($envProof, [
             'success' => false,
             'error' => 'token_required',
             'message' => 'Use ?token=VALOR_DE_ROUTE_LOG_CAPTURE_TOKEN no .env'
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        ]), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         exit;
     }
 }
 
-$logDir = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'logs';
-$logFile = realpath($logDir) ? realpath($logDir) . DIRECTORY_SEPARATOR . 'pixelhub.log' : $logDir . DIRECTORY_SEPARATOR . 'pixelhub.log';
-
-$out = [
+$out = array_merge($envProof, [
     'success' => true,
     'log_path' => $logFile,
     'request_id_filter' => $requestIdFilter !== '' ? $requestIdFilter : null,
     'lines' => [],
     'count' => 0,
     'hint' => 'Linhas que contêm [WhatsAppGateway::request] ROUTE (mais recentes primeiro). Use request_id real da resposta do erro (ex.: 9ae2f5866699a63c).',
-];
+]);
 if ($isPlaceholder) {
     $out['warning'] = 'request_id era placeholder (REQUEST_ID_ANOTADO etc.); filtro ignorado. Devolvendo últimas linhas ROUTE. Use request_id real na próxima vez.';
 }
@@ -89,8 +100,10 @@ $allLines = array_reverse(array_filter($allLines));
 $maxLines = 50;
 $collected = [];
 
+// Só entram linhas do gateway: [WhatsAppGateway::request] ROUTE ... (evita "Rota encontrada", "Router Setup" etc.)
+$routeMarker = '[WhatsAppGateway::request] ROUTE';
 foreach ($allLines as $line) {
-    if (stripos($line, 'ROUTE') === false) {
+    if (strpos($line, $routeMarker) === false) {
         continue;
     }
     if ($requestIdFilter !== '' && strpos($line, $requestIdFilter) === false) {
@@ -106,7 +119,7 @@ foreach ($allLines as $line) {
 if (count($collected) === 0 && $requestIdFilter !== '') {
     $collected = [];
     foreach ($allLines as $line) {
-        if (stripos($line, 'ROUTE') === false) continue;
+        if (strpos($line, $routeMarker) === false) continue;
         $collected[] = $line;
         if (count($collected) >= $maxLines) break;
     }

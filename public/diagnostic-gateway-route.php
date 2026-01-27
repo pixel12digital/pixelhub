@@ -30,7 +30,11 @@ try {
 }
 $baseUrl = rtrim((string) \PixelHub\Core\Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br'), '/');
 
+// Marcadores de deploy/ambiente (evitar "no escuro")
 $out = [
+    'script_stamp' => basename(__FILE__) . '.m' . (string) filemtime(__FILE__) . '.t' . date('Y-m-d\TH:i:s'),
+    'hostname' => function_exists('gethostname') ? gethostname() : 'N/A',
+    'cwd' => getcwd() ?: 'N/A',
     'base_url' => $baseUrl,
     'host' => null,
     'dns_ips' => [],
