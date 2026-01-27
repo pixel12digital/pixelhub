@@ -758,7 +758,9 @@ async function confirmSentMessage(eventId, tempId) {
         });
         const url = urlPath + '?' + params.toString();
         
-        const response = await fetch(url);
+        const response = await fetch(url, {
+            credentials: 'same-origin' // Envia cookies de sessão para autenticação
+        });
         const result = await response.json();
         
         if (result.success && result.message) {

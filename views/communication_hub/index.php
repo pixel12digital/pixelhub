@@ -3567,7 +3567,9 @@ async function confirmSentMessageFromPanel(eventId, tempId) {
                        event_id: eventId,
                        thread_id: ConversationState.currentThreadId
                    });
-        const response = await fetch(url);
+        const response = await fetch(url, {
+            credentials: 'same-origin' // Envia cookies de sessão para autenticação
+        });
         const result = await response.json();
         
         if (result.success && result.message) {
