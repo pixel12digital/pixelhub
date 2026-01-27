@@ -1650,15 +1650,15 @@ class CommunicationHubController extends Controller
                         
                         // CORREÇÃO: Salva mídia de áudio outbound na tabela communication_media
                         // Isso permite que o player de áudio funcione para mensagens enviadas
+                        error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: Verificando condições - messageType={$messageType}, eventId=" . ($eventId ?: 'NULL') . ", b64_len=" . strlen($b64 ?? ''));
+                        
                         if ($messageType === 'audio' && $eventId && !empty($b64)) {
+                            error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: Condições OK, iniciando salvamento...");
                             try {
-                                // Decodifica base64 para obter dados binários
-                                $audioB64Clean = $b64;
-                                // Remove prefixo data:audio/...;base64, se existir
-                                if (preg_match('/^data:audio\/[^;]+;base64,(.+)$/i', $audioB64Clean, $matches)) {
-                                    $audioB64Clean = $matches[1];
-                                }
-                                $audioData = base64_decode($audioB64Clean, true);
+                                // Usa os dados binários já decodificados ($bin) em vez de decodificar novamente
+                                // $bin foi definido na linha ~1454 durante a validação do áudio
+                                $audioData = $bin;
+                                error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: audioData length=" . strlen($audioData ?? ''));
                                 
                                 if ($audioData !== false && strlen($audioData) > 0) {
                                     // Determina diretório para salvar
@@ -1669,9 +1669,12 @@ class CommunicationHubController extends Controller
                                     }
                                     $mediaDir .= '/' . $subDir;
                                     
+                                    error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: mediaDir={$mediaDir}");
+                                    
                                     // Cria diretório se não existir
                                     if (!is_dir($mediaDir)) {
-                                        mkdir($mediaDir, 0755, true);
+                                        $mkdirResult = mkdir($mediaDir, 0755, true);
+                                        error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: mkdir result=" . ($mkdirResult ? 'OK' : 'FAILED'));
                                     }
                                     
                                     // Gera nome de arquivo único
@@ -1679,8 +1682,13 @@ class CommunicationHubController extends Controller
                                     $storedPath = 'whatsapp-media/' . ($tenantId ? "tenant-{$tenantId}/" : '') . $subDir . '/' . $fileName;
                                     $fullPath = $mediaDir . DIRECTORY_SEPARATOR . $fileName;
                                     
+                                    error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: fullPath={$fullPath}, storedPath={$storedPath}");
+                                    
                                     // Salva arquivo de áudio
-                                    if (file_put_contents($fullPath, $audioData) !== false) {
+                                    $writeResult = file_put_contents($fullPath, $audioData);
+                                    error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: file_put_contents result=" . ($writeResult !== false ? $writeResult . ' bytes' : 'FAILED'));
+                                    
+                                    if ($writeResult !== false) {
                                         $fileSize = filesize($fullPath);
                                         
                                         // Insere registro na tabela communication_media
