@@ -1031,6 +1031,44 @@ class WhatsAppGatewayClient
             ];
         }
 
+        // 401: evidência única para classificar (Basic Auth vs Secret) — sem interpretação
+        if ($httpCode === 401) {
+            $authHeaderKeys = ['server', 'www-authenticate', 'via', 'cf-ray', 'date'];
+            $respHeadersPreview = [];
+            foreach (explode("\n", str_replace("\r\n", "\n", $responseHeadersStr)) as $line) {
+                if (strpos($line, ':') !== false) {
+                    [$name, $val] = explode(':', $line, 2);
+                    $name = strtolower(trim($name));
+                    if (in_array($name, $authHeaderKeys, true)) {
+                        $respHeadersPreview[$name] = trim($val);
+                    }
+                }
+            }
+            $bodyPreviewShort = strlen($response) > 300 ? substr($response, 0, 300) . '...' : $response;
+            $secretPresent = !empty($this->secret);
+            $secretLen = $secretPresent ? strlen($this->secret) : 0;
+            $secretFingerprint = $secretPresent ? substr(hash('sha256', $this->secret), 0, 8) : null;
+            error_log("[WhatsAppGateway::request] 401 UNAUTHORIZED resp_headers_preview=" . json_encode($respHeadersPreview, JSON_UNESCAPED_UNICODE) . " body_preview_len=" . strlen($bodyPreviewShort) . " secret_sent present=" . ($secretPresent ? 'true' : 'false') . " len=" . $secretLen . " fingerprint=" . ($secretFingerprint ?? 'N/A'));
+            return [
+                'success' => false,
+                'error' => 'Gateway retornou 401 Unauthorized.',
+                'error_code' => 'UNAUTHORIZED',
+                'status' => 401,
+                'effective_url' => $effectiveUrl ?? $curlInfo['url'] ?? $url,
+                'primary_ip' => $curlInfo['primary_ip'] ?? null,
+                'http_code' => 401,
+                'content_type' => $contentType,
+                'resp_headers_preview' => $respHeadersPreview,
+                'body_preview' => $bodyPreviewShort,
+                'request_id' => $reqIdUsed,
+                'secret_sent' => [
+                    'present' => $secretPresent,
+                    'len' => $secretLen,
+                    'fingerprint' => $secretFingerprint,
+                ],
+            ];
+        }
+
         // Classifica HTML como GATEWAY_HTML_ERROR e retorna estrutura acionável (evita falso WPPCONNECT_TIMEOUT)
         $contentTypeForCheck = $curlInfo['content_type'] ?? '';
         $isHtmlResponse = (stripos($contentTypeForCheck, 'text/html') !== false)

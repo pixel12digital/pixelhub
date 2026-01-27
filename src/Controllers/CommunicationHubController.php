@@ -1390,12 +1390,23 @@ class CommunicationHubController extends Controller
                             // 404 pode ser temporário ou o gateway pode aceitar mesmo assim
                             if ($statusCode === 401) {
                                 error_log("[CommunicationHub::send] ⚠️ ERRO DE AUTENTICAÇÃO (401) - bloqueando envio");
-                                $sendResults[] = [
+                                $unauthEntry = [
                                     'channel_id' => $targetChannelId,
                                     'success' => false,
                                     'error' => 'Erro de autenticação com o gateway',
-                                    'error_code' => 'UNAUTHORIZED'
+                                    'error_code' => 'UNAUTHORIZED',
+                                    'request_id' => $requestId,
                                 ];
+                                if (!empty($channelInfo['resp_headers_preview'])) {
+                                    $unauthEntry['resp_headers_preview'] = $channelInfo['resp_headers_preview'];
+                                }
+                                if (isset($channelInfo['body_preview'])) {
+                                    $unauthEntry['body_preview'] = $channelInfo['body_preview'];
+                                }
+                                if (!empty($channelInfo['secret_sent'])) {
+                                    $unauthEntry['secret_sent'] = $channelInfo['secret_sent'];
+                                }
+                                $sendResults[] = $unauthEntry;
                                 $errors[] = "{$targetChannelId}: Erro de autenticação";
                                 continue;
                             } else {
@@ -1766,6 +1777,17 @@ class CommunicationHubController extends Controller
                         if (!empty($result['gateway_html_error'])) {
                             $errPayload['gateway_html_error'] = $result['gateway_html_error'];
                         }
+                        if (($result['error_code'] ?? '') === 'UNAUTHORIZED') {
+                            if (!empty($result['resp_headers_preview'])) {
+                                $errPayload['resp_headers_preview'] = $result['resp_headers_preview'];
+                            }
+                            if (isset($result['body_preview'])) {
+                                $errPayload['body_preview'] = $result['body_preview'];
+                            }
+                            if (!empty($result['secret_sent'])) {
+                                $errPayload['secret_sent'] = $result['secret_sent'];
+                            }
+                        }
                         $sendResults[] = $errPayload;
                         $errors[] = "{$targetChannelId}: {$error}";
                     }
@@ -1800,6 +1822,15 @@ class CommunicationHubController extends Controller
                             'channel_id' => $singleResult['channel_id'],
                             'request_id' => $requestId
                         ];
+                        if (!empty($singleResult['resp_headers_preview'])) {
+                            $payload['resp_headers_preview'] = $singleResult['resp_headers_preview'];
+                        }
+                        if (isset($singleResult['body_preview'])) {
+                            $payload['body_preview'] = $singleResult['body_preview'];
+                        }
+                        if (!empty($singleResult['secret_sent'])) {
+                            $payload['secret_sent'] = $singleResult['secret_sent'];
+                        }
                         if (!empty($singleResult['origin'])) {
                             $payload['origin'] = $singleResult['origin'];
                         }
