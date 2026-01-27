@@ -154,9 +154,18 @@ $baseUrl = pixelhub_url('');
                                     </div>
                                 <?php endif; ?>
                             <?php endif; ?>
+                            <?php 
+                            // Determina se deve mostrar o conteúdo
+                            // Se tem mídia e conteúdo é placeholder de áudio, não mostra o texto
+                            $contentText = $msg['content'] ?? '';
+                            $isAudioPlaceholder = preg_match('/^\[(?:Á|A)udio\]$/i', trim($contentText));
+                            $showContent = !empty(trim($contentText)) && !($hasMediaUrl && $isAudioPlaceholder);
+                            ?>
+                            <?php if ($showContent): ?>
                             <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%;">
-                                <?= htmlspecialchars($msg['content'] ?? '') ?>
+                                <?= htmlspecialchars($contentText) ?>
                             </div>
+                            <?php endif; ?>
                             <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: right;">
                                 <?= $msgDateTime->format('d/m H:i') ?>
                             </div>
@@ -362,13 +371,19 @@ function addMessageElementToDOM(message) {
         }
     }
     
+    // Determina se deve mostrar o conteúdo
+    // Se tem mídia e conteúdo é placeholder de áudio, não mostra o texto
+    const isAudioPlaceholder = content && /^\[(?:Á|A)udio\]$/i.test(content.trim());
+    const showContent = content && content.trim() && !(mediaHtml && isAudioPlaceholder);
+    const contentHtml = showContent
+        ? `<div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%;">${escapeHtml(content)}</div>`
+        : '';
+    
     messageDiv.innerHTML = `
         <div style="max-width: 70%; padding: 12px 16px; border-radius: 18px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto;' : 'background: white;'}">
             ${headerHtml}
             ${mediaHtml}
-            <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%;">
-                ${escapeHtml(content)}
-            </div>
+            ${contentHtml}
             <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: right;">
                 ${timeStr}
             </div>

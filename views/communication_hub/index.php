@@ -2485,22 +2485,31 @@ function renderConversation(thread, messages, channel) {
                           String(msgDate.getHours()).padStart(2, '0') + ':' + 
                           String(msgDate.getMinutes()).padStart(2, '0');
             
-            const channelId = msg.channel_id || '';
-            const channelIdHtml = channelId ? `<div style="font-size: 10px; color: #667781; margin-bottom: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7;">${escapeHtml(channelId)}</div>` : '';
-            
             // Renderiza mídia se existir
             const mediaHtml = (msg.media && msg.media.url) ? renderMediaPlayer(msg.media) : '';
             
-            // Conteúdo da mensagem (só mostra se não estiver vazio)
-            const contentHtml = (msg.content && msg.content.trim()) 
-                ? `<div style="font-size: 14.2px; color: #111b21; line-height: 1.4; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word; ${mediaHtml ? 'margin-top: 8px;' : ''}">${escapeHtml(msg.content)}</div>`
+            // Conteúdo da mensagem (só mostra se não estiver vazio e não for placeholder de áudio com mídia)
+            const content = msg.content || '';
+            const isAudioPlaceholder = content && /^\[(?:Á|A)udio\]$/i.test(content.trim());
+            const shouldShowContent = content && content.trim() && !(mediaHtml && isAudioPlaceholder);
+            const contentHtml = shouldShowContent
+                ? `<div style="font-size: 14.2px; color: #111b21; line-height: 1.4; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word; ${mediaHtml ? 'margin-top: 8px;' : ''}">${escapeHtml(content)}</div>`
                 : '';
             
-            // Se não há conteúdo nem mídia, mostra placeholder
-            const hasContent = (msg.content && msg.content.trim()) || mediaHtml;
+            // Se não há conteúdo nem mídia, pula
+            const hasContent = shouldShowContent || mediaHtml;
             if (!hasContent) {
-                // Pula mensagens completamente vazias
                 return;
+            }
+            
+            // Header: canal e/ou remetente
+            const channelId = msg.channel_id || '';
+            const sentByName = msg.sent_by_name || '';
+            let headerHtml = '';
+            if (channelId || (isOutbound && sentByName)) {
+                const senderHtml = (isOutbound && sentByName) ? `<span style="font-weight: 600;">Enviado por: ${escapeHtml(sentByName)}</span>` : '';
+                const channelHtml = channelId ? `<span style="text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7;">${escapeHtml(channelId)}</span>` : '';
+                headerHtml = `<div style="font-size: 10px; color: #667781; margin-bottom: 3px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">${senderHtml}${channelHtml}</div>`;
             }
             
             html += `
@@ -2509,7 +2518,7 @@ function renderConversation(thread, messages, channel) {
                      data-timestamp="${escapeHtml(msg.timestamp || '')}"
                      style="margin-bottom: 6px; display: flex; ${isOutbound ? 'justify-content: flex-end;' : 'justify-content: flex-start;'}">
                     <div style="max-width: 70%; padding: 7px 12px; border-radius: 7.5px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto; border-bottom-right-radius: 2px;' : 'background: white; border-bottom-left-radius: 2px;'}">
-                        ${channelIdHtml}
+                        ${headerHtml}
                         ${mediaHtml}
                         ${contentHtml}
                         <div style="font-size: 11px; color: #667781; margin-top: 3px; text-align: right; padding-top: 2px; opacity: 0.8;">
@@ -3490,13 +3499,16 @@ function addMessageToPanel(message) {
     // Renderiza mídia se existir
     const mediaHtml = (message.media && message.media.url) ? renderMediaPlayer(message.media) : '';
     
-    // Conteúdo da mensagem (só mostra se não estiver vazio)
-    const contentHtml = (content && content.trim()) 
+    // Conteúdo da mensagem (só mostra se não estiver vazio e não for placeholder de áudio com mídia)
+    // Se tem mídia de áudio e conteúdo é [Áudio] ou [audio], não mostra o texto
+    const isAudioPlaceholder = content && /^\[(?:Á|A)udio\]$/i.test(content.trim());
+    const shouldShowContent = content && content.trim() && !(mediaHtml && isAudioPlaceholder);
+    const contentHtml = shouldShowContent
         ? `<div style="font-size: 14.2px; color: #111b21; line-height: 1.4; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word; ${mediaHtml ? 'margin-top: 8px;' : ''}">${escapeHtml(content)}</div>`
         : '';
     
     // Se não há conteúdo nem mídia, não adiciona mensagem vazia
-    const hasContent = (content && content.trim()) || mediaHtml;
+    const hasContent = shouldShowContent || mediaHtml;
     if (!hasContent) {
         return;
     }
@@ -3507,12 +3519,19 @@ function addMessageToPanel(message) {
     messageDiv.setAttribute('data-timestamp', timestamp);
     messageDiv.style.cssText = 'margin-bottom: 6px; display: flex; ' + (isOutbound ? 'justify-content: flex-end;' : 'justify-content: flex-start;');
     
+    // Header: canal e/ou remetente
     const channelId = message.channel_id || '';
-    const channelIdHtml = channelId ? `<div style="font-size: 10px; color: #667781; margin-bottom: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7;">${escapeHtml(channelId)}</div>` : '';
+    const sentByName = message.sent_by_name || '';
+    let headerHtml = '';
+    if (channelId || (isOutbound && sentByName)) {
+        const senderHtml = (isOutbound && sentByName) ? `<span style="font-weight: 600;">Enviado por: ${escapeHtml(sentByName)}</span>` : '';
+        const channelHtml = channelId ? `<span style="text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7;">${escapeHtml(channelId)}</span>` : '';
+        headerHtml = `<div style="font-size: 10px; color: #667781; margin-bottom: 3px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">${senderHtml}${channelHtml}</div>`;
+    }
     
     messageDiv.innerHTML = `
         <div style="max-width: 70%; padding: 7px 12px; border-radius: 7.5px; ${isOutbound ? 'background: #dcf8c6; margin-left: auto; border-bottom-right-radius: 2px;' : 'background: white; border-bottom-left-radius: 2px;'}">
-            ${channelIdHtml}
+            ${headerHtml}
             ${mediaHtml}
             ${contentHtml}
             <div style="font-size: 11px; color: #667781; margin-top: 3px; text-align: right; padding-top: 2px; opacity: 0.8;">
