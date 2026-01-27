@@ -96,6 +96,32 @@ Assim que ele devolver o JSON, aplicar a tabela de decisão (seção 4) e respon
 
 **Critério de conclusão:** Com isso você fecha “para onde o Hub foi” (URL/porta/IP), “quanto tempo esperou” (total_time_s) e “o que recebeu” (content_type + HTML vs JSON).
 
+### Script para capturar a linha ROUTE com precisão
+
+Use **`public/capture-route-log.php`** depois de cada teste de áudio em produção:
+
+1. **Configurar (uma vez):** no `.env` do Hub, defina um segredo:
+   ```env
+   ROUTE_LOG_CAPTURE_TOKEN=uma_frase_secreta_qualquer
+   ```
+   (Ou deixe vazio: a variável vazia desabilita a exigência de token.)
+
+2. **Rodar o teste:** envie um áudio (4–10s) pelo Hub e anote o **request_id** da resposta (erro ou sucesso).
+
+3. **Capturar o log:** logo em seguida, abra no navegador:
+   ```
+   https://hub.pixel12digital.com.br/capture-route-log.php?token=uma_frase_secreta_qualquer&request_id=REQUEST_ID_DA_RESPOSTA
+   ```
+   (Se não definiu `ROUTE_LOG_CAPTURE_TOKEN`, use só `?request_id=...`.)
+
+4. **Resultado:** o script devolve JSON com:
+   - `lines`: array de linhas do `pixelhub.log` que contêm **ROUTE** (e opcionalmente o `request_id` informado), das mais recentes para as mais antigas;
+   - `count`, `log_path`, `request_id_filter`.
+
+5. **Entregar:** copie o JSON completo (ou só o conteúdo de `lines`) e envie a quem estiver analisando. A linha ROUTE contém `effective_url`, `port`, `primary_ip`, `http_code`, `content_type`, `total_time_s`, `connect_timeout_s`, `total_timeout_s`.
+
+**Observação:** o script lê as **últimas 2 MB** de `logs/pixelhub.log`. Se o Hub escrever em outro arquivo (ex.: error_log do Apache), essa linha pode não aparecer — nesse caso use o error log do domínio do Hub, como antes.
+
 ---
 
 ## 4) Decisão automática (sem debate)
