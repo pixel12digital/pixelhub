@@ -207,6 +207,9 @@ class CommunicationHubController extends Controller
         $threadsList = is_array($normalThreads) ? $normalThreads : [];
         $incomingLeadsList = is_array($incomingLeads) ? $incomingLeads : [];
         
+        // Thread selecionada (para não mostrar badge na conversa aberta)
+        $selectedThreadId = $_GET['thread_id'] ?? null;
+        
         $this->view('communication_hub.index', [
             'threads' => $threadsList,
             'incoming_leads' => $incomingLeadsList,
@@ -218,7 +221,8 @@ class CommunicationHubController extends Controller
                 'tenant_id' => $tenantId,
                 'status' => $status ?? 'active',
                 'session_id' => $sessionId
-            ]
+            ],
+            'selected_thread_id' => $selectedThreadId
         ]);
         
         } catch (\Throwable $e) {

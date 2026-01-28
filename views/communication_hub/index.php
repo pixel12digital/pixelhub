@@ -1423,7 +1423,7 @@ body.communication-hub-page {
                                 <?php endif; ?>
                             </div>
                                 <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: 8px;">
-                                    <?php if (($thread['unread_count'] ?? 0) > 0): ?>
+                                    <?php if (($thread['unread_count'] ?? 0) > 0 && ($thread['thread_id'] ?? '') !== ($selected_thread_id ?? '')): ?>
                                         <span class="hub-unread-badge" style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; display: inline-block; min-width: 18px; text-align: center;">
                                             <?= $thread['unread_count'] ?>
                                         </span>
@@ -2163,7 +2163,7 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                         </div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: 8px;">
-                        ${unreadCount > 0 ? `
+                        ${unreadCount > 0 && threadId !== ConversationState.currentThreadId ? `
                             <span class="hub-unread-badge" style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; display: inline-block; min-width: 18px; text-align: center;">
                                 ${unreadCount}
                             </span>
@@ -2596,21 +2596,20 @@ const ConversationState = {
  */
 function handleConversationClick(clickedThreadId, channel) {
     console.log('[Hub] Clique em conversa:', clickedThreadId, channel);
-    console.log('[LOG TEMPORARIO] handleConversationClick() - activeThreadId ANTES=' + (ConversationState.currentThreadId || 'NULL'));
+    
+    // IMEDIATO: Zera badge de não lidas ao clicar (comportamento WhatsApp)
+    // Isso evita que o badge "pisque" durante o carregamento
+    clearUnreadBadgeForThread(clickedThreadId);
     
     // FORÇA: setActiveThread(clickedThreadId) - ignora qualquer thread salva
     ConversationState.currentThreadId = clickedThreadId;
     ConversationState.currentChannel = channel;
-    
-    console.log('[LOG TEMPORARIO] handleConversationClick() - activeThreadId DEPOIS=' + clickedThreadId);
     
     // FORÇA: reset completo de markers
     ConversationState.messageIds.clear();
     ConversationState.lastTimestamp = null;
     ConversationState.lastEventId = null;
     ConversationState.newMessagesCount = 0;
-    
-    console.log('[LOG TEMPORARIO] handleConversationClick() - MARKERS RESETADOS');
     
     // Carrega conversa (será full load, não incremental)
     loadConversation(clickedThreadId, channel);
