@@ -160,6 +160,25 @@ class ConversationService
             }
         }
 
+        // CORREÇÃO: Verifica se existe conversa com mesmo contact_name no mesmo tenant
+        // Isso previne duplicidade quando o mesmo contato aparece com identificadores diferentes (@lid vs telefone)
+        // mas com o mesmo nome (ex: "Alessandra Karkow")
+        if (!empty($channelInfo['contact_name']) && strpos($channelInfo['contact_external_id'] ?? '', '@lid') !== false) {
+            $conversationByName = self::findConversationByContactName($channelInfo, $eventData['tenant_id'] ?? null);
+            if ($conversationByName) {
+                error_log('[HUB_CONV_MATCH] FOUND_BY_CONTACT_NAME id=' . $conversationByName['id'] . 
+                    ' contact_external_id=' . $conversationByName['contact_external_id'] . 
+                    ' new_contact=' . $channelInfo['contact_external_id'] . 
+                    ' contact_name=' . $channelInfo['contact_name'] . ' reason=same_contact_name_different_id');
+                
+                // IMPORTANTE: Cria mapeamento @lid -> telefone para futuras mensagens
+                self::createLidPhoneMapping($channelInfo['contact_external_id'], $conversationByName['contact_external_id'], $eventData['tenant_id'] ?? null);
+                
+                self::updateConversationMetadata($conversationByName['id'], $eventData, $channelInfo);
+                return $conversationByName;
+            }
+        }
+
         // CORREÇÃO CRÍTICA: Verifica se existe conversa com número E.164 correspondente ao @lid (ou vice-versa)
         // Isso previne duplicidade quando o mesmo contato aparece via @lid e via número E.164
         $conversationByLidPhone = self::findConversationByLidPhoneMapping($channelInfo);
@@ -1830,6 +1849,139 @@ class ConversationService
         }
         
         return null;
+    }
+
+    /**
+     * Busca conversa existente por contact_name dentro do mesmo tenant
+     * 
+     * Esta função é crucial para prevenir duplicidades quando:
+     * - Uma conversa existe com telefone E.164 (ex: 5553811064884)
+     * - Uma nova mensagem chega via @lid para o mesmo contato
+     * - O @lid não tem mapeamento em whatsapp_business_ids
+     * - Mas o contact_name é idêntico (ex: "Alessandra Karkow")
+     * 
+     * @param array $channelInfo Informações do canal
+     * @param int|null $tenantId ID do tenant
+     * @return array|null Conversa encontrada ou null
+     */
+    private static function findConversationByContactName(array $channelInfo, ?int $tenantId): ?array
+    {
+        $contactName = $channelInfo['contact_name'] ?? null;
+        
+        if (empty($contactName)) {
+            return null;
+        }
+
+        // Aplica apenas para WhatsApp
+        if ($channelInfo['channel_type'] !== 'whatsapp') {
+            return null;
+        }
+
+        $db = DB::getConnection();
+        
+        try {
+            // Busca conversa com mesmo contact_name e tenant_id
+            // IMPORTANTE: Prioriza conversas com telefone (não @lid) como identificador
+            // pois são mais confiáveis para exibição
+            $stmt = $db->prepare("
+                SELECT * FROM conversations 
+                WHERE channel_type = 'whatsapp' 
+                AND contact_name = ?
+                AND (
+                    (tenant_id IS NULL AND ? IS NULL)
+                    OR tenant_id = ?
+                )
+                AND contact_external_id NOT LIKE '%@lid'
+                AND contact_external_id REGEXP '^[0-9]+$'
+                ORDER BY last_message_at DESC
+                LIMIT 1
+            ");
+            $stmt->execute([$contactName, $tenantId, $tenantId]);
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if ($result) {
+                error_log(sprintf(
+                    '[DUPLICATE_PREVENTION] findConversationByContactName: Encontrada conversa existente! contact_name=%s, conversation_id=%d, existing_contact_id=%s',
+                    $contactName,
+                    $result['id'],
+                    $result['contact_external_id']
+                ));
+                return $result;
+            }
+            
+            return null;
+        } catch (\Exception $e) {
+            error_log('[DUPLICATE_PREVENTION] findConversationByContactName: Erro: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Cria mapeamento @lid -> telefone na tabela whatsapp_business_ids
+     * 
+     * Esta função é chamada quando detectamos que um @lid corresponde a um telefone
+     * conhecido (via contact_name match). Isso garante que futuras mensagens
+     * com esse @lid sejam corretamente associadas à conversa existente.
+     * 
+     * @param string $lidId O identificador @lid (ex: "253815605489835@lid")
+     * @param string $phoneNumber O número E.164 correspondente (ex: "5553811064884")
+     * @param int|null $tenantId ID do tenant (opcional)
+     * @return bool True se criou/atualizou o mapeamento, False se falhou
+     */
+    private static function createLidPhoneMapping(string $lidId, string $phoneNumber, ?int $tenantId = null): bool
+    {
+        // Valida que lidId realmente é um @lid
+        if (strpos($lidId, '@lid') === false) {
+            return false;
+        }
+
+        // Valida que phoneNumber parece um número E.164
+        if (!preg_match('/^[0-9]{10,15}$/', $phoneNumber)) {
+            return false;
+        }
+
+        $db = DB::getConnection();
+        
+        try {
+            // Tenta inserir, ignora se já existe (UNIQUE KEY em business_id)
+            $stmt = $db->prepare("
+                INSERT IGNORE INTO whatsapp_business_ids 
+                (business_id, phone_number, tenant_id, created_at, updated_at)
+                VALUES (?, ?, ?, NOW(), NOW())
+            ");
+            $result = $stmt->execute([$lidId, $phoneNumber, $tenantId]);
+            
+            if ($stmt->rowCount() > 0) {
+                error_log(sprintf(
+                    '[LID_PHONE_MAPPING] Mapeamento CRIADO: %s -> %s (tenant_id=%s)',
+                    $lidId,
+                    $phoneNumber,
+                    $tenantId ?? 'NULL'
+                ));
+            } else {
+                // Já existia - tenta atualizar o phone_number se diferente
+                $updateStmt = $db->prepare("
+                    UPDATE whatsapp_business_ids 
+                    SET phone_number = ?, tenant_id = COALESCE(?, tenant_id), updated_at = NOW()
+                    WHERE business_id = ? AND phone_number != ?
+                ");
+                $updateStmt->execute([$phoneNumber, $tenantId, $lidId, $phoneNumber]);
+                
+                if ($updateStmt->rowCount() > 0) {
+                    error_log(sprintf(
+                        '[LID_PHONE_MAPPING] Mapeamento ATUALIZADO: %s -> %s (tenant_id=%s)',
+                        $lidId,
+                        $phoneNumber,
+                        $tenantId ?? 'NULL'
+                    ));
+                }
+            }
+            
+            return true;
+        } catch (\Exception $e) {
+            error_log('[LID_PHONE_MAPPING] Erro ao criar mapeamento: ' . $e->getMessage());
+            return false;
+        }
     }
 }
 
