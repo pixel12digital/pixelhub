@@ -3184,45 +3184,78 @@ class CommunicationHubController extends Controller
             $isFromThisContact = !empty($eventFromKey) && !empty($conversationRemoteKey) && $eventFromKey === $conversationRemoteKey;
             $isToThisContact = !empty($eventToKey) && !empty($conversationRemoteKey) && $eventToKey === $conversationRemoteKey;
             
-            // CORREÇÃO: Se não bateu por remote_key, verifica se é @lid mapeado para o número da conversa
-            if (!$isFromThisContact && !$isToThisContact && !empty($conversationRemoteKey) && strpos($conversationRemoteKey, 'tel:') === 0) {
-                // Extrai número da conversa (sem prefixo tel:)
-                $conversationPhone = substr($conversationRemoteKey, 4);
+            // CORREÇÃO: Se não bateu por remote_key, verifica mapeamentos lid <-> tel
+            if (!$isFromThisContact && !$isToThisContact && !empty($conversationRemoteKey)) {
                 
-                // Se o evento tem @lid, verifica se está mapeado para o número da conversa
-                if ($eventFromKey && strpos($eventFromKey, 'lid:') === 0) {
-                    $lidId = substr($eventFromKey, 4);
-                    $lidBusinessId = $lidId . '@lid';
+                // CASO 1: Conversa tem tel:, evento tem lid: (conversa usa número, evento usa @lid)
+                if (strpos($conversationRemoteKey, 'tel:') === 0) {
+                    $conversationPhone = substr($conversationRemoteKey, 4);
                     
-                    // Verifica se esse @lid está mapeado para o número da conversa
-                    $checkLidStmt = $db->prepare("
-                        SELECT phone_number 
-                        FROM whatsapp_business_ids 
-                        WHERE business_id = ? AND phone_number = ?
-                        LIMIT 1
-                    ");
-                    $checkLidStmt->execute([$lidBusinessId, $conversationPhone]);
-                    if ($checkLidStmt->fetchColumn()) {
-                        $isFromThisContact = true;
-                        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - MATCH VIA LID: eventFromKey=' . $eventFromKey . ', conversationRemoteKey=' . $conversationRemoteKey);
+                    if ($eventFromKey && strpos($eventFromKey, 'lid:') === 0) {
+                        $lidId = substr($eventFromKey, 4);
+                        $lidBusinessId = $lidId . '@lid';
+                        $checkLidStmt = $db->prepare("
+                            SELECT phone_number FROM whatsapp_business_ids 
+                            WHERE business_id = ? AND phone_number = ? LIMIT 1
+                        ");
+                        $checkLidStmt->execute([$lidBusinessId, $conversationPhone]);
+                        if ($checkLidStmt->fetchColumn()) {
+                            $isFromThisContact = true;
+                            error_log('[LOG TEMPORARIO] MATCH VIA LID->TEL: eventFromKey=' . $eventFromKey . ', conversationRemoteKey=' . $conversationRemoteKey);
+                        }
+                    }
+                    
+                    if ($eventToKey && strpos($eventToKey, 'lid:') === 0) {
+                        $lidId = substr($eventToKey, 4);
+                        $lidBusinessId = $lidId . '@lid';
+                        $checkLidStmt = $db->prepare("
+                            SELECT phone_number FROM whatsapp_business_ids 
+                            WHERE business_id = ? AND phone_number = ? LIMIT 1
+                        ");
+                        $checkLidStmt->execute([$lidBusinessId, $conversationPhone]);
+                        if ($checkLidStmt->fetchColumn()) {
+                            $isToThisContact = true;
+                            error_log('[LOG TEMPORARIO] MATCH VIA LID->TEL: eventToKey=' . $eventToKey . ', conversationRemoteKey=' . $conversationRemoteKey);
+                        }
                     }
                 }
                 
-                if ($eventToKey && strpos($eventToKey, 'lid:') === 0) {
-                    $lidId = substr($eventToKey, 4);
-                    $lidBusinessId = $lidId . '@lid';
+                // CASO 2: Conversa tem lid:, evento tem tel: (conversa usa @lid, evento outbound usa número)
+                // Este é o caso do Luiz: conversa tem lid:103066917425370, evento outbound tem to=5511988427530
+                if (strpos($conversationRemoteKey, 'lid:') === 0) {
+                    $conversationLidId = substr($conversationRemoteKey, 4);
+                    $conversationLidBusinessId = $conversationLidId . '@lid';
                     
-                    // Verifica se esse @lid está mapeado para o número da conversa
-                    $checkLidStmt = $db->prepare("
-                        SELECT phone_number 
-                        FROM whatsapp_business_ids 
-                        WHERE business_id = ? AND phone_number = ?
-                        LIMIT 1
+                    // Busca o número mapeado para este @lid
+                    $getLidPhoneStmt = $db->prepare("
+                        SELECT phone_number FROM whatsapp_business_ids 
+                        WHERE business_id = ? LIMIT 1
                     ");
-                    $checkLidStmt->execute([$lidBusinessId, $conversationPhone]);
-                    if ($checkLidStmt->fetchColumn()) {
-                        $isToThisContact = true;
-                        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - MATCH VIA LID: eventToKey=' . $eventToKey . ', conversationRemoteKey=' . $conversationRemoteKey);
+                    $getLidPhoneStmt->execute([$conversationLidBusinessId]);
+                    $conversationPhoneFromLid = $getLidPhoneStmt->fetchColumn();
+                    
+                    if ($conversationPhoneFromLid) {
+                        // Verifica se eventFromKey (tel:xxx) bate com o telefone do @lid
+                        if ($eventFromKey && strpos($eventFromKey, 'tel:') === 0) {
+                            $eventFromPhone = substr($eventFromKey, 4);
+                            // Compara com normalização (remove 9º dígito se necessário)
+                            if ($eventFromPhone === $conversationPhoneFromLid ||
+                                self::normalizePhone($eventFromPhone) === self::normalizePhone($conversationPhoneFromLid)) {
+                                $isFromThisContact = true;
+                                error_log('[LOG TEMPORARIO] MATCH VIA TEL->LID: eventFromKey=' . $eventFromKey . ', conversationPhoneFromLid=' . $conversationPhoneFromLid);
+                            }
+                        }
+                        
+                        // Verifica se eventToKey (tel:xxx) bate com o telefone do @lid
+                        if ($eventToKey && strpos($eventToKey, 'tel:') === 0) {
+                            $eventToPhone = substr($eventToKey, 4);
+                            // Compara com normalização (remove 9º dígito se necessário)
+                            if ($eventToPhone === $conversationPhoneFromLid ||
+                                self::normalizePhone($eventToPhone) === self::normalizePhone($conversationPhoneFromLid)) {
+                                $isToThisContact = true;
+                                error_log('[LOG TEMPORARIO] MATCH VIA TEL->LID: eventToKey=' . $eventToKey . ', conversationPhoneFromLid=' . $conversationPhoneFromLid);
+                            }
+                        }
                     }
                 }
             }
@@ -4763,6 +4796,32 @@ class CommunicationHubController extends Controller
         }
         
         return $content;
+    }
+
+    /**
+     * Normaliza número de telefone para comparação
+     * Remove 9º dígito em números BR se necessário para matching
+     * @param string $phone Número de telefone
+     * @return string Número normalizado
+     */
+    private static function normalizePhone(string $phone): string
+    {
+        // Apenas dígitos
+        $digits = preg_replace('/[^0-9]/', '', $phone);
+        
+        // Se não é BR ou é muito curto, retorna como está
+        if (strlen($digits) < 12 || substr($digits, 0, 2) !== '55') {
+            return $digits;
+        }
+        
+        // Número BR completo: 55 + DDD (2) + número (8 ou 9)
+        // Se tem 13 dígitos (com 9º dígito), normaliza para 12 (sem 9º dígito)
+        if (strlen($digits) === 13) {
+            // Remove 9º dígito: 55 + DDD(2) + 9 + 8dig => 55 + DDD(2) + 8dig
+            return substr($digits, 0, 4) . substr($digits, 5);
+        }
+        
+        return $digits;
     }
 
     /**

@@ -192,8 +192,16 @@ class ConversationService
                 error_log('[HUB_CONV_MATCH] FOUND_CONVERSATION id=' . $equivalentByContact['id'] . ' reason=same_contact_and_channel_account_id');
                 self::updateConversationMetadata($equivalentByContact['id'], $eventData, $channelInfo);
                 return $equivalentByContact;
+            } elseif (!empty($equivalentByContact['channel_account_id']) && empty($channelInfo['channel_account_id'])) {
+                // CORREÇÃO: Nova mensagem não tem channel_account_id, mas conversa existente tem
+                // Isso acontece quando mensagem chega via "shared" mas já existe conversa vinculada
+                // Ex: Robson já tem conversa 8 com channel_account_id=4, mas nova msg vem sem channel_account_id
+                // Usa a conversa existente ao invés de criar nova
+                error_log('[HUB_CONV_MATCH] FOUND_EXISTING_WITH_ACCOUNT id=' . $equivalentByContact['id'] . ' reason=use_existing_vinculada_instead_of_creating_shared');
+                self::updateConversationMetadata($equivalentByContact['id'], $eventData, $channelInfo);
+                return $equivalentByContact;
             }
-            // Se channel_account_id é diferente, cria nova (comportamento esperado para múltiplos tenants)
+            // Se channel_account_id é diferente (ambos definidos e diferentes), cria nova (comportamento esperado para múltiplos tenants)
         }
 
         // Cria nova conversa
