@@ -3,6 +3,14 @@ RewriteEngine On
 # Desabilita listagem de diretórios globalmente
 Options -Indexes
 
+# Aumenta limites PHP para upload de mídia (áudio/imagem/vídeo)
+# Necessário para áudios longos que podem ter vários MB em base64
+php_value upload_max_filesize 64M
+php_value post_max_size 64M
+php_value max_execution_time 120
+php_value max_input_time 120
+php_value memory_limit 256M
+
 # Redireciona tudo para index.php exceto arquivos existentes
 # IMPORTANTE: !-d significa "não é um diretório", então diretórios também serão processados
 RewriteCond %{REQUEST_FILENAME} !-f
