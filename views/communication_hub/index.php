@@ -71,15 +71,13 @@ body.communication-hub-page {
     opacity: 0.8;
 }
 
-/* Estatísticas colapsáveis */
+/* Estatísticas colapsáveis - Layout operacional */
 .communication-stats {
     display: none; /* Oculto por padrão */
     grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+    gap: 10px;
     margin-bottom: 12px;
-    padding: 12px;
-    background: #f0f2f5;
-    border-radius: 8px;
+    padding: 10px 0;
 }
 
 .communication-stats.expanded {
@@ -88,18 +86,45 @@ body.communication-hub-page {
 
 .communication-stats-item {
     text-align: center;
-    padding: 12px;
+    padding: 14px 12px;
     background: #023A8D;
     color: white;
-    border-radius: 6px;
-    font-size: 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    transition: all 0.2s;
+    cursor: default;
+}
+
+/* Estilo discreto quando valor é 0 */
+.communication-stats-item.muted {
+    background: #e9ecef;
+    color: #6c757d;
+}
+
+.communication-stats-item.muted .number {
+    color: #adb5bd;
 }
 
 .communication-stats-item .number {
-    font-size: 24px;
-    font-weight: bold;
+    font-size: 28px;
+    font-weight: 700;
     display: block;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
+    line-height: 1;
+}
+
+.communication-stats-item .label {
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    opacity: 0.9;
+}
+
+/* Indicador de unidade (para tempo) */
+.communication-stats-item .unit {
+    font-size: 14px;
+    font-weight: 400;
+    opacity: 0.8;
 }
 
 .communication-stats-toggle {
@@ -1145,22 +1170,22 @@ body.communication-hub-page {
         <h2>Painel de Comunicação</h2>
         <p>Gerencie conversas, envie mensagens e responda clientes em tempo real</p>
         
-        <!-- Estatísticas colapsáveis -->
+        <!-- Estatísticas colapsáveis - Métricas operacionais -->
         <button class="communication-stats-toggle" onclick="toggleStats()" id="stats-toggle">
             <span id="stats-toggle-text">Mostrar estatísticas</span>
         </button>
         <div class="communication-stats" id="communication-stats">
-            <div class="communication-stats-item">
-                <span class="number"><?= $stats['whatsapp_active'] ?></span>
-                <span>WhatsApp</span>
+            <div class="communication-stats-item <?= ($stats['awaiting_response'] ?? 0) == 0 ? 'muted' : '' ?>">
+                <span class="number"><?= $stats['awaiting_response'] ?? 0 ?></span>
+                <span class="label">Aguardando resposta</span>
             </div>
-            <div class="communication-stats-item">
-                <span class="number"><?= $stats['chat_active'] ?></span>
-                <span>Chats</span>
+            <div class="communication-stats-item <?= ($stats['total_unread'] ?? 0) == 0 ? 'muted' : '' ?>">
+                <span class="number"><?= $stats['total_unread'] ?? 0 ?></span>
+                <span class="label">Não lidas</span>
             </div>
-            <div class="communication-stats-item">
-                <span class="number"><?= $stats['total_unread'] ?></span>
-                <span>Não Lidas</span>
+            <div class="communication-stats-item <?= ($stats['avg_first_response'] ?? 0) == 0 ? 'muted' : '' ?>">
+                <span class="number"><?= $stats['avg_first_response'] ?? 0 ?><span class="unit">min</span></span>
+                <span class="label">Tempo médio 1ª resp.</span>
             </div>
         </div>
         
@@ -4470,16 +4495,40 @@ function autoResizeTextarea(textarea) {
 }
 
 /**
- * Toggle estatísticas
+ * Toggle estatísticas (com localStorage para memorizar preferência)
  */
 function toggleStats() {
     const stats = document.getElementById('communication-stats');
     const toggle = document.getElementById('stats-toggle-text');
     if (stats && toggle) {
         stats.classList.toggle('expanded');
-        toggle.textContent = stats.classList.contains('expanded') ? 'Ocultar estatísticas' : 'Mostrar estatísticas';
+        const isExpanded = stats.classList.contains('expanded');
+        toggle.textContent = isExpanded ? 'Ocultar estatísticas' : 'Mostrar estatísticas';
+        // Salva preferência no localStorage
+        try {
+            localStorage.setItem('hub_stats_expanded', isExpanded ? '1' : '0');
+        } catch (e) {
+            // Ignora erro de localStorage (modo privado, etc)
+        }
     }
 }
+
+// Restaura preferência de estatísticas ao carregar página
+(function initStatsPreference() {
+    try {
+        const savedPref = localStorage.getItem('hub_stats_expanded');
+        if (savedPref === '1') {
+            const stats = document.getElementById('communication-stats');
+            const toggle = document.getElementById('stats-toggle-text');
+            if (stats && toggle) {
+                stats.classList.add('expanded');
+                toggle.textContent = 'Ocultar estatísticas';
+            }
+        }
+    } catch (e) {
+        // Ignora erro de localStorage
+    }
+})();
 
 /**
  * Inicializa marcadores da conversa
