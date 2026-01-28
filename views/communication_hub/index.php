@@ -2645,38 +2645,36 @@ function renderConversation(thread, messages, channel) {
             <!-- Input de arquivo oculto para anexos -->
             <input type="file" id="hub-file-input" accept="image/*,.pdf,.doc,.docx" style="display: none;">
             
-            <!-- Preview de mídia selecionada -->
-            <div id="hub-media-preview" style="display: none; padding: 12px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-radius: 12px; margin-bottom: 10px; border: 2px solid #90caf9;">
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#1976d2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" fill="none" stroke="#1976d2" stroke-width="2"/></svg>
-                    <span style="font-weight: 600; color: #1565c0; font-size: 13px;">Anexo pronto para enviar</span>
-                    <button type="button" id="hub-media-remove" style="margin-left: auto; padding: 6px 14px; background: #ef5350; color: white; border: none; border-radius: 16px; cursor: pointer; font-size: 12px; font-weight: 600; transition: background 0.2s;" onmouseover="this.style.background='#d32f2f'" onmouseout="this.style.background='#ef5350'">✕ Remover</button>
-                </div>
-                <!-- Thumbnail da imagem (clicável para expandir) -->
-                <div id="hub-media-thumb-container" style="display: none; margin-bottom: 10px; cursor: pointer; position: relative;" onclick="expandMediaPreview()">
-                    <img id="hub-media-preview-img" src="" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 8px; object-fit: contain; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
-                    <div style="position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.6); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">
-                        🔍 Clique para ampliar
+            <!-- Preview de mídia selecionada (compacto, estilo WhatsApp) -->
+            <div id="hub-media-preview" style="display: none; padding: 8px 12px; background: #f5f5f5; border-radius: 8px; margin-bottom: 8px; border: 1px solid #e0e0e0;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <!-- Thumbnail compacto (clicável) -->
+                    <div id="hub-media-thumb-container" style="display: none; position: relative; cursor: pointer; flex-shrink: 0;" onclick="expandMediaPreview()" title="Clique para ampliar">
+                        <img id="hub-media-preview-img" src="" alt="Preview" style="width: 80px; height: 80px; border-radius: 6px; object-fit: cover; border: 1px solid #ddd;">
+                        <div style="position: absolute; bottom: 2px; right: 2px; background: rgba(0,0,0,0.5); color: white; width: 18px; height: 18px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 10px;">🔍</div>
                     </div>
-                </div>
-                <!-- Ícone para documentos -->
-                <div id="hub-media-doc-container" style="display: none; margin-bottom: 10px; padding: 16px; background: white; border-radius: 8px; text-align: center;">
-                    <span id="hub-media-preview-icon" style="font-size: 48px; display: block; margin-bottom: 8px;">📄</span>
-                </div>
-                <!-- Info do arquivo -->
-                <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: white; border-radius: 8px;">
+                    <!-- Ícone para documentos -->
+                    <div id="hub-media-doc-container" style="display: none; width: 60px; height: 60px; background: white; border-radius: 6px; border: 1px solid #ddd; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+                        <span id="hub-media-preview-icon" style="font-size: 28px;">📄</span>
+                    </div>
+                    <!-- Info do arquivo -->
                     <div style="flex: 1; min-width: 0;">
-                        <div id="hub-media-name" style="font-size: 13px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
-                        <div id="hub-media-size" style="font-size: 11px; color: #666;"></div>
+                        <div id="hub-media-name" style="font-size: 12px; font-weight: 500; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px;"></div>
+                        <div id="hub-media-size" style="font-size: 11px; color: #888;"></div>
                     </div>
+                    <!-- Botão remover (monocromático) -->
+                    <button type="button" id="hub-media-remove" style="padding: 6px 10px; background: transparent; color: #666; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 11px; flex-shrink: 0; transition: all 0.15s;" onmouseover="this.style.background='#eee'; this.style.borderColor='#999';" onmouseout="this.style.background='transparent'; this.style.borderColor='#ccc';">✕</button>
                 </div>
             </div>
             
-            <!-- Modal para preview expandido -->
-            <div id="hub-media-expand-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10001; align-items: center; justify-content: center; cursor: pointer;" onclick="closeMediaExpandModal()">
-                <div style="position: relative; max-width: 90%; max-height: 90%;">
-                    <img id="hub-media-expand-img" src="" style="max-width: 100%; max-height: 85vh; border-radius: 8px; object-fit: contain;">
-                    <div style="text-align: center; margin-top: 16px; color: white; font-size: 13px;">Clique em qualquer lugar para fechar</div>
+            <!-- Modal lightbox para preview expandido -->
+            <div id="hub-media-expand-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 10001; align-items: center; justify-content: center;" onclick="closeMediaExpandModal(event)">
+                <!-- Botão fechar (X) no canto -->
+                <button onclick="closeMediaExpandModal()" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: #aaa; font-size: 32px; cursor: pointer; z-index: 10002; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; transition: color 0.15s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">✕</button>
+                <!-- Container da imagem -->
+                <div style="position: relative; max-width: 90%; max-height: 90%; display: flex; flex-direction: column; align-items: center;" onclick="event.stopPropagation()">
+                    <img id="hub-media-expand-img" src="" style="max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 4px;">
+                    <div style="margin-top: 12px; color: #888; font-size: 12px;">Pressione ESC ou clique fora para fechar</div>
                 </div>
             </div>
             
@@ -3277,7 +3275,7 @@ function initComposerAudio() {
         updateSendMicVisibility();
     }
     
-    // Função para expandir preview da imagem
+    // Função para expandir preview da imagem (lightbox)
     window.expandMediaPreview = function() {
         const modal = document.getElementById('hub-media-expand-modal');
         const expandImg = document.getElementById('hub-media-expand-img');
@@ -3285,16 +3283,32 @@ function initComposerAudio() {
         if (modal && expandImg && window._mediaPreviewDataUrl) {
             expandImg.src = window._mediaPreviewDataUrl;
             modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden'; // Trava scroll do body
         }
     };
     
     // Função para fechar modal de expansão
-    window.closeMediaExpandModal = function() {
+    window.closeMediaExpandModal = function(event) {
+        // Se clicou na imagem, não fecha
+        if (event && event.target && event.target.tagName === 'IMG') {
+            return;
+        }
         const modal = document.getElementById('hub-media-expand-modal');
         if (modal) {
             modal.style.display = 'none';
+            document.body.style.overflow = ''; // Restaura scroll
         }
     };
+    
+    // Fecha modal com ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('hub-media-expand-modal');
+            if (modal && modal.style.display === 'flex') {
+                window.closeMediaExpandModal();
+            }
+        }
+    });
     
     function removeMediaPreviewHub() {
         clearMediaAttachState();
