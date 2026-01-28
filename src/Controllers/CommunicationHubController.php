@@ -2329,8 +2329,9 @@ class CommunicationHubController extends Controller
         $lidBatchData = [];
         
         // Coleta todos os @lid que precisam ser resolvidos (com sufixo ou digits-only)
+        // CORREÇÃO: Sempre resolve @lid para obter número real, independente de tenant_phone
         foreach ($conversations as $conv) {
-            if (empty($conv['tenant_phone']) && !empty($conv['contact_external_id'])) {
+            if (!empty($conv['contact_external_id'])) {
                 $contactId = (string) $conv['contact_external_id'];
                 
                 // Detecta se é @lid (com sufixo ou digits-only)
