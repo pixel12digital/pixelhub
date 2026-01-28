@@ -1239,21 +1239,35 @@ body.communication-hub-page {
                                             $conversationId = $thread['conversation_id'] ?? 0;
                                             $contactName = htmlspecialchars($thread['contact_name'] ?? 'Conversa', ENT_QUOTES);
                                             ?>
-                                            <?php if ($currentStatus !== 'archived'): ?>
+                                            <?php if ($currentStatus === 'active' || $currentStatus === ''): ?>
+                                                <!-- ATIVA: Arquivar e Ignorar -->
                                                 <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); archiveConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
                                                     Arquivar
                                                 </button>
-                                            <?php else: ?>
-                                                <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); reactivateConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                                    Reativar
-                                                </button>
-                                            <?php endif; ?>
-                                            <?php if ($currentStatus !== 'ignored'): ?>
                                                 <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); ignoreConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
                                                     Ignorar
+                                                </button>
+                                            <?php elseif ($currentStatus === 'archived'): ?>
+                                                <!-- ARQUIVADA: Desarquivar e Ignorar -->
+                                                <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); reactivateConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+                                                    Desarquivar
+                                                </button>
+                                                <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); ignoreConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                                                    Ignorar
+                                                </button>
+                                            <?php elseif ($currentStatus === 'ignored'): ?>
+                                                <!-- IGNORADA: Ativar e Arquivar -->
+                                                <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); reactivateConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                                    Ativar
+                                                </button>
+                                                <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); archiveConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+                                                    Arquivar
                                                 </button>
                                             <?php endif; ?>
                                             <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); openEditContactNameModal(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
@@ -1957,23 +1971,50 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                                 ⋮
                             </button>
                             <div class="conversation-menu-dropdown">
-                                ${thread.status !== 'archived' ? `
-                                    <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); archiveConversation(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || 'Conversa')}'); closeConversationMenu(this);">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
-                                        Arquivar
-                                    </button>
-                                ` : `
-                                    <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); reactivateConversation(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || 'Conversa')}'); closeConversationMenu(this);">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                        Reativar
-                                    </button>
-                                `}
-                                ${thread.status !== 'ignored' ? `
-                                    <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); ignoreConversation(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || 'Conversa')}'); closeConversationMenu(this);">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                                        Ignorar
-                                    </button>
-                                ` : ''}
+                                ${(() => {
+                                    const status = thread.status || 'active';
+                                    const convId = thread.conversation_id || 0;
+                                    const name = escapeHtml(thread.contact_name || 'Conversa');
+                                    
+                                    if (status === 'active' || status === '') {
+                                        // ATIVA: Arquivar e Ignorar
+                                        return `
+                                            <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); archiveConversation(${convId}, '${name}'); closeConversationMenu(this);">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+                                                Arquivar
+                                            </button>
+                                            <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); ignoreConversation(${convId}, '${name}'); closeConversationMenu(this);">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                                                Ignorar
+                                            </button>
+                                        `;
+                                    } else if (status === 'archived') {
+                                        // ARQUIVADA: Desarquivar e Ignorar
+                                        return `
+                                            <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); reactivateConversation(${convId}, '${name}'); closeConversationMenu(this);">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+                                                Desarquivar
+                                            </button>
+                                            <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); ignoreConversation(${convId}, '${name}'); closeConversationMenu(this);">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                                                Ignorar
+                                            </button>
+                                        `;
+                                    } else if (status === 'ignored') {
+                                        // IGNORADA: Ativar e Arquivar
+                                        return `
+                                            <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); reactivateConversation(${convId}, '${name}'); closeConversationMenu(this);">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                                Ativar
+                                            </button>
+                                            <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); archiveConversation(${convId}, '${name}'); closeConversationMenu(this);">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+                                                Arquivar
+                                            </button>
+                                        `;
+                                    }
+                                    return '';
+                                })()}
                                 <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); openEditContactNameModal(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || '')}'); closeConversationMenu(this);">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                     Editar nome
