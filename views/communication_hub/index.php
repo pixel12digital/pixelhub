@@ -1142,10 +1142,22 @@ body.communication-hub-page {
         <form method="GET" action="<?= pixelhub_url('/communication-hub') ?>" class="communication-filters">
             <div>
                 <label>Canal</label>
-                <select name="channel">
+                <select name="channel" id="filter-channel" onchange="toggleSessionFilter()">
                     <option value="all" <?= ($filters['channel'] === 'all') ? 'selected' : '' ?>>Todos</option>
                     <option value="whatsapp" <?= ($filters['channel'] === 'whatsapp') ? 'selected' : '' ?>>WhatsApp</option>
                     <option value="chat" <?= ($filters['channel'] === 'chat') ? 'selected' : '' ?>>Chat Interno</option>
+                </select>
+            </div>
+            <div id="session-filter-container" style="<?= ($filters['channel'] === 'chat') ? 'display: none;' : '' ?>">
+                <label>Sessão (WhatsApp)</label>
+                <select name="session_id" id="filter-session">
+                    <option value="">Todas as sessões</option>
+                    <?php foreach ($whatsapp_sessions as $session): ?>
+                        <option value="<?= htmlspecialchars($session['id']) ?>" <?= ($filters['session_id'] === $session['id']) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($session['name']) ?>
+                            <?php if ($session['status'] === 'connected'): ?> ●<?php endif; ?>
+                        </option>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div>
@@ -1458,11 +1470,39 @@ body.communication-hub-page {
         <form id="new-message-form" onsubmit="sendNewMessage(event)">
             <div style="margin-bottom: 20px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">Canal</label>
-                <select name="channel" id="new-message-channel" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                <select name="channel" id="new-message-channel" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;" onchange="toggleNewMessageSessionField()">
                     <option value="">Selecione...</option>
                     <option value="whatsapp">WhatsApp</option>
                     <option value="chat">Chat Interno</option>
                 </select>
+            </div>
+            
+            <!-- Sessão WhatsApp (mostrado quando canal = whatsapp) -->
+            <div id="new-message-session-container" style="margin-bottom: 20px; display: none;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Sessão (WhatsApp) <span style="color: #dc3545;">*</span></label>
+                <select name="channel_id" id="new-message-session" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="">Selecione a sessão...</option>
+                    <?php foreach ($whatsapp_sessions as $session): ?>
+                        <option value="<?= htmlspecialchars($session['id']) ?>" <?= ($session['status'] === 'connected') ? 'data-connected="true"' : '' ?>>
+                            <?= htmlspecialchars($session['name']) ?>
+                            <?php if ($session['status'] === 'connected'): ?> (conectada)<?php else: ?> (offline)<?php endif; ?>
+                        </option>
+                    <?php endforeach; ?>
+                    <?php if (count($whatsapp_sessions) === 1): ?>
+                        <script>
+                            // Auto-seleciona se só tem uma sessão
+                            document.addEventListener('DOMContentLoaded', function() {
+                                const sessionSelect = document.getElementById('new-message-session');
+                                if (sessionSelect && sessionSelect.options.length === 2) {
+                                    sessionSelect.selectedIndex = 1;
+                                }
+                            });
+                        </script>
+                    <?php endif; ?>
+                </select>
+                <small style="color: #666; font-size: 11px; display: block; margin-top: 4px;">
+                    Define por qual número/instância a mensagem será enviada
+                </small>
             </div>
             
             <div style="margin-bottom: 20px;">
@@ -2175,6 +2215,58 @@ function closeNewMessageModal() {
     document.getElementById('new-message-modal').style.display = 'none';
     document.getElementById('new-message-form').reset();
     document.getElementById('new-message-to-container').style.display = 'none';
+    document.getElementById('new-message-session-container').style.display = 'none';
+}
+
+// ============================================================================
+// Lógica de Sessão WhatsApp (Filtros e Nova Mensagem)
+// ============================================================================
+
+/**
+ * Mostra/oculta o filtro de sessão baseado no canal selecionado
+ */
+function toggleSessionFilter() {
+    const channelSelect = document.getElementById('filter-channel');
+    const sessionContainer = document.getElementById('session-filter-container');
+    
+    if (channelSelect && sessionContainer) {
+        // Mostra filtro de sessão quando canal é 'whatsapp' ou 'all'
+        if (channelSelect.value === 'chat') {
+            sessionContainer.style.display = 'none';
+        } else {
+            sessionContainer.style.display = '';
+        }
+    }
+}
+
+/**
+ * Mostra/oculta o campo de sessão no modal Nova Mensagem
+ */
+function toggleNewMessageSessionField() {
+    const channelSelect = document.getElementById('new-message-channel');
+    const sessionContainer = document.getElementById('new-message-session-container');
+    const sessionSelect = document.getElementById('new-message-session');
+    
+    if (channelSelect && sessionContainer) {
+        if (channelSelect.value === 'whatsapp') {
+            sessionContainer.style.display = 'block';
+            // Torna obrigatório se há mais de uma sessão
+            if (sessionSelect) {
+                const hasMultipleSessions = sessionSelect.options.length > 2;
+                sessionSelect.required = hasMultipleSessions;
+                
+                // Auto-seleciona se só tem uma sessão
+                if (sessionSelect.options.length === 2) {
+                    sessionSelect.selectedIndex = 1;
+                }
+            }
+        } else {
+            sessionContainer.style.display = 'none';
+            if (sessionSelect) {
+                sessionSelect.required = false;
+            }
+        }
+    }
 }
 
 // Auto-preenche telefone quando seleciona cliente (WhatsApp)
@@ -2197,6 +2289,9 @@ document.getElementById('new-message-channel')?.addEventListener('change', funct
     const channel = this.value;
     const toContainer = document.getElementById('new-message-to-container');
     
+    // Atualiza campo de sessão
+    toggleNewMessageSessionField();
+    
     if (channel === 'whatsapp') {
         toContainer.style.display = 'block';
         // Auto-preenche telefone se cliente já estiver selecionado
@@ -2217,6 +2312,16 @@ async function sendNewMessage(e) {
     
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData);
+    
+    // Validação: se canal é WhatsApp e há múltiplas sessões, exige seleção
+    if (data.channel === 'whatsapp') {
+        const sessionSelect = document.getElementById('new-message-session');
+        if (sessionSelect && sessionSelect.options.length > 2 && !data.channel_id) {
+            alert('Por favor, selecione a sessão do WhatsApp para enviar a mensagem.');
+            sessionSelect.focus();
+            return;
+        }
+    }
     
     try {
         const response = await fetch('<?= pixelhub_url('/communication-hub/send') ?>', {

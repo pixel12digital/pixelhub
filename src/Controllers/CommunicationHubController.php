@@ -45,6 +45,15 @@ class CommunicationHubController extends Controller
         $channel = $_GET['channel'] ?? 'all'; // all, whatsapp, chat, email
         $tenantId = isset($_GET['tenant_id']) ? (int) $_GET['tenant_id'] : null;
         $status = $_GET['status'] ?? 'active'; // active, all, closed
+        $sessionId = isset($_GET['session_id']) && $_GET['session_id'] !== '' ? $_GET['session_id'] : null;
+
+        // Busca sessões WhatsApp disponíveis (para o filtro)
+        $whatsappSessions = [];
+        try {
+            $whatsappSessions = $this->getWhatsAppSessions($db);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao buscar sessões WhatsApp: " . $e->getMessage());
+        }
 
         // Busca threads de conversa ativos
         $where = [];
@@ -52,7 +61,7 @@ class CommunicationHubController extends Controller
 
         // Threads de WhatsApp (via eventos recentes)
         try {
-            $whatsappThreads = $this->getWhatsAppThreads($db, $tenantId, $status);
+            $whatsappThreads = $this->getWhatsAppThreads($db, $tenantId, $status, $sessionId);
         } catch (\Exception $e) {
             error_log("[CommunicationHub] Erro ao buscar threads WhatsApp: " . $e->getMessage());
             $whatsappThreads = [];
@@ -154,11 +163,13 @@ class CommunicationHubController extends Controller
             'threads' => $threadsList,
             'incoming_leads' => $incomingLeadsList,
             'tenants' => is_array($tenants) ? $tenants : [],
+            'whatsapp_sessions' => is_array($whatsappSessions) ? $whatsappSessions : [],
             'stats' => is_array($stats) ? $stats : ['whatsapp_active' => 0, 'chat_active' => 0, 'total_unread' => 0, 'incoming_leads_count' => 0],
             'filters' => [
                 'channel' => $channel ?? 'all',
                 'tenant_id' => $tenantId,
-                'status' => $status ?? 'active'
+                'status' => $status ?? 'active',
+                'session_id' => $sessionId
             ]
         ]);
         
@@ -2440,15 +2451,86 @@ class CommunicationHubController extends Controller
     }
 
     /**
-     * Busca threads de WhatsApp (via tabela conversations - fonte de verdade)
+     * Busca sessões WhatsApp disponíveis
+     * Combina: sessões do gateway + sessões distintas nas conversas
+     * 
+     * @param PDO $db Conexão com o banco
+     * @return array Lista de sessões [['id' => 'pixel12digital', 'name' => 'Pixel12 Digital', 'status' => 'connected'], ...]
      */
-    private function getWhatsAppThreads(PDO $db, ?int $tenantId, string $status): array
+    private function getWhatsAppSessions(PDO $db): array
+    {
+        $sessions = [];
+        $sessionIds = [];
+        
+        // 1. Tenta buscar do gateway (sessões conectadas)
+        try {
+            $gateway = new WhatsAppGatewayClient();
+            $result = $gateway->listChannels();
+            
+            if (!empty($result['success']) && !empty($result['raw']['channels'])) {
+                foreach ($result['raw']['channels'] as $channel) {
+                    $sessionId = $channel['session'] ?? $channel['id'] ?? $channel['channel'] ?? null;
+                    if ($sessionId && !in_array($sessionId, $sessionIds)) {
+                        $sessionIds[] = $sessionId;
+                        $sessions[] = [
+                            'id' => $sessionId,
+                            'name' => ucwords(str_replace(['_', '-'], ' ', $sessionId)),
+                            'status' => $channel['status'] ?? 'connected',
+                            'source' => 'gateway'
+                        ];
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao buscar sessões do gateway: " . $e->getMessage());
+        }
+        
+        // 2. Busca sessões distintas nas conversas (backup/fallback)
+        try {
+            $stmt = $db->query("
+                SELECT DISTINCT channel_id 
+                FROM conversations 
+                WHERE channel_type = 'whatsapp' 
+                  AND channel_id IS NOT NULL 
+                  AND channel_id != ''
+                ORDER BY channel_id
+            ");
+            $dbSessions = $stmt->fetchAll();
+            
+            foreach ($dbSessions as $row) {
+                $sessionId = $row['channel_id'];
+                if ($sessionId && !in_array($sessionId, $sessionIds)) {
+                    $sessionIds[] = $sessionId;
+                    $sessions[] = [
+                        'id' => $sessionId,
+                        'name' => ucwords(str_replace(['_', '-'], ' ', $sessionId)),
+                        'status' => 'unknown',
+                        'source' => 'database'
+                    ];
+                }
+            }
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao buscar sessões do banco: " . $e->getMessage());
+        }
+        
+        return $sessions;
+    }
+
+    /**
+     * Busca threads de WhatsApp (via tabela conversations - fonte de verdade)
+     * 
+     * @param PDO $db Conexão com banco
+     * @param int|null $tenantId Filtro por tenant
+     * @param string $status Filtro por status
+     * @param string|null $sessionId Filtro por sessão WhatsApp (channel_id)
+     */
+    private function getWhatsAppThreads(PDO $db, ?int $tenantId, string $status, ?string $sessionId = null): array
     {
         // 1. Tenta ler da tabela conversations (fonte de verdade)
         try {
             $checkStmt = $db->query("SHOW TABLES LIKE 'conversations'");
             if ($checkStmt->rowCount() > 0) {
-                return $this->getWhatsAppThreadsFromConversations($db, $tenantId, $status);
+                return $this->getWhatsAppThreadsFromConversations($db, $tenantId, $status, $sessionId);
             }
         } catch (\Exception $e) {
             error_log("[CommunicationHub] Erro ao verificar tabela conversations: " . $e->getMessage());
@@ -2460,8 +2542,13 @@ class CommunicationHubController extends Controller
 
     /**
      * Busca threads de WhatsApp da tabela conversations (fonte de verdade)
+     * 
+     * @param PDO $db Conexão com banco
+     * @param int|null $tenantId Filtro por tenant
+     * @param string $status Filtro por status
+     * @param string|null $sessionId Filtro por sessão WhatsApp (channel_id)
      */
-    private function getWhatsAppThreadsFromConversations(PDO $db, ?int $tenantId, string $status): array
+    private function getWhatsAppThreadsFromConversations(PDO $db, ?int $tenantId, string $status, ?string $sessionId = null): array
     {
         $where = ["c.channel_type = 'whatsapp'"];
         $params = [];
@@ -2469,6 +2556,12 @@ class CommunicationHubController extends Controller
         if ($tenantId) {
             $where[] = "c.tenant_id = ?";
             $params[] = $tenantId;
+        }
+        
+        // Filtro por sessão WhatsApp (channel_id)
+        if ($sessionId) {
+            $where[] = "c.channel_id = ?";
+            $params[] = $sessionId;
         }
 
         // Filtro de status
