@@ -2534,11 +2534,8 @@ function renderConversation(thread, messages, channel) {
     } else {
         messages.forEach(msg => {
             const isOutbound = msg.direction === 'outbound';
-            const msgDate = new Date(msg.timestamp);
-            const timeStr = String(msgDate.getDate()).padStart(2, '0') + '/' + 
-                          String(msgDate.getMonth() + 1).padStart(2, '0') + ' ' +
-                          String(msgDate.getHours()).padStart(2, '0') + ':' + 
-                          String(msgDate.getMinutes()).padStart(2, '0');
+            // CORREÇÃO: Usa formatDateBrasilia para garantir fuso horário correto
+            const timeStr = formatDateBrasilia(msg.timestamp);
             
             // Renderiza mídia se existir
             const mediaHtml = (msg.media && msg.media.url) ? renderMediaPlayer(msg.media) : '';
@@ -3548,11 +3545,8 @@ function addMessageToPanel(message) {
     const content = message.content || '';
     const timestamp = message.timestamp || new Date().toISOString();
     
-    const date = new Date(timestamp);
-    const timeStr = String(date.getDate()).padStart(2, '0') + '/' + 
-                   String(date.getMonth() + 1).padStart(2, '0') + ' ' +
-                   String(date.getHours()).padStart(2, '0') + ':' + 
-                   String(date.getMinutes()).padStart(2, '0');
+    // CORREÇÃO: Usa formatDateBrasilia para garantir fuso horário correto
+    const timeStr = formatDateBrasilia(timestamp);
     
     const isOutbound = direction === 'outbound';
     

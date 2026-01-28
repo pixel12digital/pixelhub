@@ -160,6 +160,17 @@ class ConversationService
             }
         }
 
+        // CORREÇÃO CRÍTICA: Verifica se existe conversa com número E.164 correspondente ao @lid (ou vice-versa)
+        // Isso previne duplicidade quando o mesmo contato aparece via @lid e via número E.164
+        $conversationByLidPhone = self::findConversationByLidPhoneMapping($channelInfo);
+        if ($conversationByLidPhone) {
+            error_log('[HUB_CONV_MATCH] FOUND_BY_LID_PHONE_MAPPING id=' . $conversationByLidPhone['id'] . 
+                ' contact_external_id=' . $conversationByLidPhone['contact_external_id'] . 
+                ' new_contact=' . $channelInfo['contact_external_id'] . ' reason=lid_phone_mapping');
+            self::updateConversationMetadata($conversationByLidPhone['id'], $eventData, $channelInfo);
+            return $conversationByLidPhone;
+        }
+
         // Se ainda não encontrou, tenta encontrar conversa com mesmo contato mas channel_account_id diferente
         // (ex.: conversa "shared" vs conversa com tenant específico)
         error_log('[HUB_CONV_MATCH] Query: findConversationByContactOnly contact=' . $channelInfo['contact_external_id']);
@@ -1341,6 +1352,111 @@ class ConversationService
             } catch (\Exception $e) {
                 error_log('[DUPLICATE_PREVENTION] Erro ao buscar variante: ' . $e->getMessage());
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * Busca conversa existente usando mapeamento @lid → E.164 do cache wa_pnlid_cache
+     * 
+     * Isso resolve o problema de duplicidade quando:
+     * - Uma mensagem chega via @lid (ex: 103066917425370@lid)
+     * - Já existe uma conversa com o número E.164 correspondente (ex: 5511988427530)
+     * - Ou vice-versa
+     * 
+     * @param array $channelInfo Informações do canal
+     * @return array|null Conversa encontrada ou null
+     */
+    private static function findConversationByLidPhoneMapping(array $channelInfo): ?array
+    {
+        // Aplica apenas para WhatsApp
+        if ($channelInfo['channel_type'] !== 'whatsapp') {
+            return null;
+        }
+
+        $contactId = $channelInfo['contact_external_id'] ?? '';
+        if (empty($contactId)) {
+            return null;
+        }
+
+        $db = DB::getConnection();
+        $sessionId = $channelInfo['channel_id'] ?? $channelInfo['session_id'] ?? null;
+
+        try {
+            // Caso 1: contato é @lid - busca número E.164 correspondente
+            if (strpos($contactId, '@lid') !== false) {
+                $pnlid = str_replace('@lid', '', $contactId);
+                
+                // Busca no cache wa_pnlid_cache
+                $cacheStmt = $db->prepare("
+                    SELECT phone_e164 FROM wa_pnlid_cache 
+                    WHERE pnlid = ? 
+                    AND (session_id = ? OR session_id IS NULL)
+                    LIMIT 1
+                ");
+                $cacheStmt->execute([$pnlid, $sessionId]);
+                $cacheRow = $cacheStmt->fetch(\PDO::FETCH_ASSOC);
+                
+                if ($cacheRow && !empty($cacheRow['phone_e164'])) {
+                    $phoneE164 = $cacheRow['phone_e164'];
+                    error_log("[LID_PHONE_MAPPING] @lid {$contactId} -> E.164 {$phoneE164}");
+                    
+                    // Busca conversa com esse número E.164
+                    $convStmt = $db->prepare("
+                        SELECT * FROM conversations 
+                        WHERE channel_type = 'whatsapp' 
+                        AND contact_external_id = ?
+                        LIMIT 1
+                    ");
+                    $convStmt->execute([$phoneE164]);
+                    $found = $convStmt->fetch(\PDO::FETCH_ASSOC);
+                    
+                    if ($found) {
+                        error_log("[LID_PHONE_MAPPING] Encontrada conversa ID={$found['id']} com E.164 {$phoneE164} para @lid {$contactId}");
+                        return $found;
+                    }
+                }
+            }
+            // Caso 2: contato é número E.164 - busca @lid correspondente
+            else {
+                $digits = preg_replace('/[^0-9]/', '', $contactId);
+                
+                // Verifica se parece com número E.164 brasileiro
+                if (strlen($digits) >= 12 && strlen($digits) <= 13 && substr($digits, 0, 2) === '55') {
+                    // Busca no cache wa_pnlid_cache
+                    $cacheStmt = $db->prepare("
+                        SELECT pnlid FROM wa_pnlid_cache 
+                        WHERE phone_e164 = ? 
+                        AND (session_id = ? OR session_id IS NULL)
+                        LIMIT 1
+                    ");
+                    $cacheStmt->execute([$digits, $sessionId]);
+                    $cacheRow = $cacheStmt->fetch(\PDO::FETCH_ASSOC);
+                    
+                    if ($cacheRow && !empty($cacheRow['pnlid'])) {
+                        $pnlidWithSuffix = $cacheRow['pnlid'] . '@lid';
+                        error_log("[LID_PHONE_MAPPING] E.164 {$digits} -> @lid {$pnlidWithSuffix}");
+                        
+                        // Busca conversa com esse @lid
+                        $convStmt = $db->prepare("
+                            SELECT * FROM conversations 
+                            WHERE channel_type = 'whatsapp' 
+                            AND contact_external_id = ?
+                            LIMIT 1
+                        ");
+                        $convStmt->execute([$pnlidWithSuffix]);
+                        $found = $convStmt->fetch(\PDO::FETCH_ASSOC);
+                        
+                        if ($found) {
+                            error_log("[LID_PHONE_MAPPING] Encontrada conversa ID={$found['id']} com @lid {$pnlidWithSuffix} para E.164 {$digits}");
+                            return $found;
+                        }
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            error_log("[LID_PHONE_MAPPING] Erro: " . $e->getMessage());
         }
 
         return null;
