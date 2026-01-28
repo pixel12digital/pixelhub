@@ -170,6 +170,24 @@ $baseUrl = pixelhub_url('');
             <?php endif; ?>
         </div>
         
+        <!-- Preview de Mídia (inicialmente oculto) -->
+        <div id="media-preview-container" style="display: none; padding: 10px 15px; border-top: 1px solid #dee2e6; background: #f8f9fa;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div id="media-preview-thumbnail" style="width: 60px; height: 60px; border-radius: 8px; overflow: hidden; background: #ddd; display: flex; align-items: center; justify-content: center;">
+                    <img id="media-preview-img" src="" alt="Preview" style="max-width: 100%; max-height: 100%; object-fit: cover; display: none;">
+                    <span id="media-preview-icon" style="font-size: 24px; display: none;">📄</span>
+                </div>
+                <div style="flex: 1;">
+                    <div id="media-preview-name" style="font-size: 13px; font-weight: 600; color: #333;"></div>
+                    <div id="media-preview-size" style="font-size: 11px; color: #666;"></div>
+                </div>
+                <button type="button" id="media-preview-remove" onclick="removeMediaPreview()" 
+                        style="padding: 6px 12px; background: #dc3545; color: white; border: none; border-radius: 15px; cursor: pointer; font-size: 12px;">
+                    ✕ Remover
+                </button>
+            </div>
+        </div>
+        
         <!-- Formulário de Envio -->
         <div style="padding: 15px; border-top: 2px solid #dee2e6; background: white;">
             <form id="send-message-form" onsubmit="sendMessage(event)" style="display: flex; gap: 10px; align-items: flex-end;">
@@ -183,13 +201,27 @@ $baseUrl = pixelhub_url('');
                     <input type="hidden" name="to" value="<?= htmlspecialchars($thread['contact']) ?>">
                 <?php endif; ?>
                 
+                <!-- Input de arquivo oculto -->
+                <input type="file" id="media-file-input" accept="image/*,.pdf,.doc,.docx" style="display: none;" onchange="handleFileSelect(event)">
+                
+                <!-- Botão de Anexar -->
+                <button type="button" id="attach-btn" onclick="document.getElementById('media-file-input').click()" 
+                        title="Anexar arquivo (imagem, PDF, documento)"
+                        style="padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
+                        onmouseover="this.style.background='#e9ecef'; this.style.borderColor='#023A8D';"
+                        onmouseout="this.style.background='#f8f9fa'; this.style.borderColor='#ddd';">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                    </svg>
+                </button>
+                
                 <div style="flex: 1;">
-                    <textarea name="message" id="message-input" required rows="2" 
-                              placeholder="Digite sua mensagem..." 
+                    <textarea name="message" id="message-input" rows="2" 
+                              placeholder="Digite sua mensagem ou cole uma imagem (Ctrl+V)..." 
                               style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 20px; font-family: inherit; resize: none; font-size: 14px;"
                               onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); document.getElementById('send-message-form').dispatchEvent(new Event('submit')); }"></textarea>
                 </div>
-                <button type="submit" 
+                <button type="submit" id="send-btn"
                         style="padding: 12px 24px; background: #023A8D; color: white; border: none; border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 14px; white-space: nowrap;">
                     Enviar
                 </button>
@@ -668,6 +700,191 @@ document.addEventListener('visibilitychange', function() {
 });
 
 // ============================================================================
+// Gestão de Mídia (Anexar / Colar)
+// ============================================================================
+
+// Estado da mídia selecionada
+const MediaState = {
+    file: null,           // File object
+    base64: null,         // Base64 string (sem prefixo data:...)
+    mimeType: null,       // image/jpeg, image/png, application/pdf, etc
+    fileName: null,       // Nome do arquivo
+    fileSize: null,       // Tamanho em bytes
+    type: null            // 'image', 'document'
+};
+
+/**
+ * Processa arquivo selecionado (via input ou paste)
+ */
+function processFile(file) {
+    if (!file) return;
+    
+    console.log('[Media] Processando arquivo:', file.name, file.type, file.size);
+    
+    // Valida tamanho (máx 16MB para WhatsApp)
+    const maxSize = 16 * 1024 * 1024; // 16MB
+    if (file.size > maxSize) {
+        alert('Arquivo muito grande. Máximo permitido: 16MB');
+        return;
+    }
+    
+    // Valida tipo
+    const allowedTypes = [
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+        'application/pdf',
+        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    
+    if (!allowedTypes.includes(file.type)) {
+        alert('Tipo de arquivo não suportado. Use: imagens (JPG, PNG, GIF, WebP), PDF ou DOC/DOCX.');
+        return;
+    }
+    
+    // Determina tipo de mídia
+    const isImage = file.type.startsWith('image/');
+    MediaState.type = isImage ? 'image' : 'document';
+    MediaState.file = file;
+    MediaState.mimeType = file.type;
+    MediaState.fileName = file.name;
+    MediaState.fileSize = file.size;
+    
+    // Converte para base64
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const result = e.target.result;
+        // Extrai apenas o base64 (sem prefixo data:...;base64,)
+        const base64 = result.split(',')[1];
+        MediaState.base64 = base64;
+        
+        console.log('[Media] Base64 gerado, tamanho:', base64.length);
+        
+        // Mostra preview
+        showMediaPreview(file, result);
+    };
+    reader.onerror = function() {
+        alert('Erro ao ler arquivo. Tente novamente.');
+        clearMediaState();
+    };
+    reader.readAsDataURL(file);
+}
+
+/**
+ * Mostra preview da mídia selecionada
+ */
+function showMediaPreview(file, dataUrl) {
+    const container = document.getElementById('media-preview-container');
+    const img = document.getElementById('media-preview-img');
+    const icon = document.getElementById('media-preview-icon');
+    const name = document.getElementById('media-preview-name');
+    const size = document.getElementById('media-preview-size');
+    
+    name.textContent = file.name;
+    size.textContent = formatFileSize(file.size);
+    
+    if (file.type.startsWith('image/')) {
+        img.src = dataUrl;
+        img.style.display = 'block';
+        icon.style.display = 'none';
+    } else {
+        img.style.display = 'none';
+        icon.style.display = 'block';
+        icon.textContent = file.type.includes('pdf') ? '📄' : '📝';
+    }
+    
+    container.style.display = 'block';
+    
+    // Remove required do textarea quando tem mídia
+    document.getElementById('message-input').removeAttribute('required');
+}
+
+/**
+ * Remove preview e limpa estado da mídia
+ */
+function removeMediaPreview() {
+    clearMediaState();
+    document.getElementById('media-preview-container').style.display = 'none';
+    document.getElementById('media-file-input').value = '';
+}
+
+/**
+ * Limpa estado da mídia
+ */
+function clearMediaState() {
+    MediaState.file = null;
+    MediaState.base64 = null;
+    MediaState.mimeType = null;
+    MediaState.fileName = null;
+    MediaState.fileSize = null;
+    MediaState.type = null;
+}
+
+/**
+ * Formata tamanho do arquivo
+ */
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+/**
+ * Handler para seleção de arquivo via input
+ */
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+        processFile(file);
+    }
+}
+
+/**
+ * Handler para paste (Ctrl+V)
+ */
+function handlePaste(event) {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        
+        // Verifica se é uma imagem
+        if (item.type.startsWith('image/')) {
+            event.preventDefault(); // Impede paste de texto
+            const file = item.getAsFile();
+            if (file) {
+                // Gera nome baseado no timestamp
+                const ext = item.type.split('/')[1] || 'png';
+                const fileName = `imagem_${Date.now()}.${ext}`;
+                
+                // Cria novo File com nome customizado
+                const namedFile = new File([file], fileName, { type: file.type });
+                processFile(namedFile);
+            }
+            return;
+        }
+    }
+}
+
+// Registra handler de paste no textarea
+document.addEventListener('DOMContentLoaded', function() {
+    const messageInput = document.getElementById('message-input');
+    if (messageInput) {
+        messageInput.addEventListener('paste', handlePaste);
+    }
+    
+    // Também registra no documento para capturar paste em qualquer lugar da área de chat
+    const messagesArea = document.querySelector('.card');
+    if (messagesArea) {
+        messagesArea.addEventListener('paste', function(e) {
+            // Só processa se não está focado em outro input
+            if (document.activeElement !== messageInput) {
+                handlePaste(e);
+            }
+        });
+    }
+});
+
+// ============================================================================
 // Envio de Mensagens (Atualização Incremental)
 // ============================================================================
 
@@ -678,40 +895,98 @@ async function sendMessage(e) {
     const messageInput = document.getElementById('message-input');
     const messageText = messageInput.value.trim();
     
-    if (!messageText) {
-        return;
+    // Verifica se tem mídia ou texto
+    const hasMedia = MediaState.base64 !== null;
+    const hasText = messageText.length > 0;
+    
+    if (!hasMedia && !hasText) {
+        return; // Nada para enviar
     }
     
     // Desabilita formulário
     const submitBtn = e.target.querySelector('button[type="submit"]');
+    const attachBtn = document.getElementById('attach-btn');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Enviando...';
+    if (attachBtn) attachBtn.disabled = true;
     
-    // Mensagem otimista (temporária, sem ID)
+    // Monta mensagem otimista
     const tempId = 'temp_' + Date.now();
     const optimisticMessage = {
         id: tempId,
         direction: 'outbound',
-        content: messageText,
+        content: hasText ? messageText : (hasMedia ? `[${MediaState.type === 'image' ? 'Imagem' : 'Documento'}]` : ''),
         timestamp: new Date().toISOString()
     };
+    
+    // Se tem imagem, adiciona preview na mensagem otimista
+    if (hasMedia && MediaState.type === 'image') {
+        optimisticMessage.media = {
+            url: 'data:' + MediaState.mimeType + ';base64,' + MediaState.base64,
+            media_type: 'image',
+            mime_type: MediaState.mimeType
+        };
+        // Se tem texto junto, usa como caption
+        if (hasText) {
+            optimisticMessage.content = messageText;
+        } else {
+            optimisticMessage.content = '';
+        }
+    }
     
     ThreadState.pendingOptimisticMessage = optimisticMessage;
     addMessageElementToDOM(optimisticMessage);
     messageInput.value = '';
     
+    // Guarda dados da mídia antes de limpar
+    const mediaToSend = hasMedia ? {
+        type: MediaState.type,
+        base64: MediaState.base64,
+        mimeType: MediaState.mimeType,
+        fileName: MediaState.fileName
+    } : null;
+    
+    // Limpa preview de mídia
+    if (hasMedia) {
+        removeMediaPreview();
+    }
+    
     try {
-        // CORRIGIDO: Usa pixelhub_url diretamente para garantir URL correta
+        // Monta corpo da requisição
+        const params = new URLSearchParams(formData);
+        
+        if (mediaToSend) {
+            // Envio de mídia
+            params.set('type', mediaToSend.type);
+            if (mediaToSend.type === 'image') {
+                params.set('base64Image', mediaToSend.base64);
+            } else {
+                params.set('base64Document', mediaToSend.base64);
+                params.set('fileName', mediaToSend.fileName);
+            }
+            // Caption (texto) vai junto se houver
+            if (hasText) {
+                params.set('caption', messageText);
+            }
+            params.delete('message'); // Remove message padrão para mídia
+        } else {
+            // Envio de texto normal
+            params.set('type', 'text');
+        }
+        
         const sendUrl = '<?= pixelhub_url('/communication-hub/send') ?>';
+        console.log('[SendMessage] Enviando:', { hasMedia, hasText, type: params.get('type') });
+        
         const response = await fetch(sendUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: new URLSearchParams(formData)
+            body: params
         });
         
         const result = await response.json();
+        console.log('[SendMessage] Resposta:', result);
         
         if (result.success && result.event_id) {
             // Busca mensagem confirmada do backend
@@ -721,18 +996,18 @@ async function sendMessage(e) {
             const tempMsg = document.querySelector(`[data-message-id="${tempId}"]`);
             if (tempMsg) tempMsg.remove();
             alert('Erro: ' + (result.error || 'Erro ao enviar mensagem'));
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Enviar';
         }
     } catch (error) {
         // Erro: remove mensagem otimista
         const tempMsg = document.querySelector(`[data-message-id="${tempId}"]`);
         if (tempMsg) tempMsg.remove();
         alert('Erro ao enviar mensagem: ' + error.message);
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Enviar';
+        console.error('[SendMessage] Erro:', error);
     } finally {
         ThreadState.pendingOptimisticMessage = null;
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Enviar';
+        if (attachBtn) attachBtn.disabled = false;
     }
 }
 

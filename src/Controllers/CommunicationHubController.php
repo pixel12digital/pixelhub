@@ -551,6 +551,12 @@ class CommunicationHubController extends Controller
             $messageType = isset($_POST['type']) ? strtolower(trim($_POST['type'])) : 'text';
             $base64Ptt = isset($_POST['base64Ptt']) ? trim($_POST['base64Ptt']) : null;
             
+            // NOVO: Suporte para envio de imagem e documento
+            $base64Image = isset($_POST['base64Image']) ? trim($_POST['base64Image']) : null;
+            $base64Document = isset($_POST['base64Document']) ? trim($_POST['base64Document']) : null;
+            $caption = isset($_POST['caption']) ? trim($_POST['caption']) : null;
+            $fileName = isset($_POST['fileName']) ? trim($_POST['fileName']) : null;
+            
             // PATCH I: Derivar tenant_id pela conversa (thread_id) e ignorar POST tenant_id
             // Regra de ouro: se thread_id existe, sempre usar tenant_id da conversa (fonte da verdade)
             $tenantId = $tenantIdFromPost; // Inicializa com valor do POST (fallback para casos sem thread_id)
@@ -624,20 +630,39 @@ class CommunicationHubController extends Controller
             error_log("[CommunicationHub::send] channel: {$channel}, to: {$to}");
         }
 
-        // Validação: para texto, message é obrigatório; para áudio, base64Ptt é obrigatório
+        // Validação: para texto, message é obrigatório; para áudio/imagem/documento, base64 é obrigatório
         if (empty($channel)) {
             error_log("[CommunicationHub::send] ❌ ERRO 400: Canal vazio");
             $this->json(['success' => false, 'error' => 'Canal é obrigatório', 'request_id' => $requestId], 400);
             return;
         }
-        if ($messageType !== 'audio' && empty($message)) {
+        // Texto: message obrigatório
+        if ($messageType === 'text' && empty($message)) {
             error_log("[CommunicationHub::send] ❌ ERRO 400: Mensagem vazia (para tipo texto)");
             $this->json(['success' => false, 'error' => 'Mensagem é obrigatória para tipo texto', 'request_id' => $requestId], 400);
             return;
         }
+        // Áudio: base64Ptt obrigatório
         if ($messageType === 'audio' && (empty($base64Ptt) || !is_string($base64Ptt))) {
             error_log("[CommunicationHub::send] ❌ ERRO 400: base64Ptt é obrigatório para tipo áudio");
             $this->json(['success' => false, 'error' => 'base64Ptt é obrigatório para tipo áudio', 'request_id' => $requestId], 400);
+            return;
+        }
+        // Imagem: base64Image obrigatório
+        if ($messageType === 'image' && (empty($base64Image) || !is_string($base64Image))) {
+            error_log("[CommunicationHub::send] ❌ ERRO 400: base64Image é obrigatório para tipo imagem");
+            $this->json(['success' => false, 'error' => 'base64Image é obrigatório para tipo imagem', 'request_id' => $requestId], 400);
+            return;
+        }
+        // Documento: base64Document e fileName obrigatórios
+        if ($messageType === 'document' && (empty($base64Document) || !is_string($base64Document))) {
+            error_log("[CommunicationHub::send] ❌ ERRO 400: base64Document é obrigatório para tipo documento");
+            $this->json(['success' => false, 'error' => 'base64Document é obrigatório para tipo documento', 'request_id' => $requestId], 400);
+            return;
+        }
+        if ($messageType === 'document' && empty($fileName)) {
+            error_log("[CommunicationHub::send] ❌ ERRO 400: fileName é obrigatório para tipo documento");
+            $this->json(['success' => false, 'error' => 'fileName é obrigatório para tipo documento', 'request_id' => $requestId], 400);
             return;
         }
             if ($channel === 'whatsapp') {
@@ -1573,8 +1598,98 @@ class CommunicationHubController extends Controller
                         error_log("[CommunicationHub::send] Tempo total de processamento de áudio: {$totalAudioTime}ms");
                         error_log("[CommunicationHub::send] Timestamp após chamada ao gateway: " . date('Y-m-d H:i:s.u'));
                         error_log("[CommunicationHub::send] ===== FIM PROCESSAMENTO DE ÁUDIO ======");
+                    } elseif ($messageType === 'image') {
+                        // ===== ENVIO DE IMAGEM =====
+                        error_log("[CommunicationHub::send] 🖼️ Enviando imagem para {$targetChannelId}");
+                        
+                        // Remove prefixo data:image/...;base64, se existir
+                        $b64Img = $base64Image;
+                        $pos = stripos($b64Img, 'base64,');
+                        if ($pos !== false) {
+                            $b64Img = substr($b64Img, $pos + 7);
+                        }
+                        $b64Img = trim($b64Img);
+                        
+                        // Valida tamanho mínimo (evita imagens corrompidas)
+                        $binImg = base64_decode($b64Img, true);
+                        if ($binImg === false || strlen($binImg) < 1000) {
+                            error_log("[CommunicationHub::send] ❌ Imagem inválida ou muito pequena");
+                            $sendResults[] = [
+                                'channel_id' => $targetChannelId,
+                                'success' => false,
+                                'error' => 'Imagem inválida ou muito pequena',
+                            ];
+                            continue;
+                        }
+                        
+                        $result = $gateway->sendImage(
+                            $targetChannelId,
+                            $phoneNormalized,
+                            $b64Img,
+                            null, // url (não usado quando tem base64)
+                            $caption, // caption (opcional)
+                            [
+                                'sent_by' => Auth::user()['id'] ?? null,
+                                'sent_by_name' => Auth::user()['name'] ?? null
+                            ]
+                        );
+                        
+                        // Guarda dados da imagem para salvar depois
+                        $sentMediaData = [
+                            'type' => 'image',
+                            'binary' => $binImg,
+                            'mimeType' => 'image/jpeg', // Padrão, gateway pode detectar automaticamente
+                            'caption' => $caption
+                        ];
+                        
+                    } elseif ($messageType === 'document') {
+                        // ===== ENVIO DE DOCUMENTO =====
+                        error_log("[CommunicationHub::send] 📄 Enviando documento para {$targetChannelId}");
+                        
+                        // Remove prefixo data:...;base64, se existir
+                        $b64Doc = $base64Document;
+                        $pos = stripos($b64Doc, 'base64,');
+                        if ($pos !== false) {
+                            $b64Doc = substr($b64Doc, $pos + 7);
+                        }
+                        $b64Doc = trim($b64Doc);
+                        
+                        // Valida tamanho mínimo
+                        $binDoc = base64_decode($b64Doc, true);
+                        if ($binDoc === false || strlen($binDoc) < 100) {
+                            error_log("[CommunicationHub::send] ❌ Documento inválido ou muito pequeno");
+                            $sendResults[] = [
+                                'channel_id' => $targetChannelId,
+                                'success' => false,
+                                'error' => 'Documento inválido ou muito pequeno',
+                            ];
+                            continue;
+                        }
+                        
+                        $result = $gateway->sendDocument(
+                            $targetChannelId,
+                            $phoneNormalized,
+                            $b64Doc,
+                            null, // url (não usado quando tem base64)
+                            $fileName,
+                            $caption, // caption (opcional)
+                            [
+                                'sent_by' => Auth::user()['id'] ?? null,
+                                'sent_by_name' => Auth::user()['name'] ?? null
+                            ]
+                        );
+                        
+                        // Guarda dados do documento para salvar depois
+                        $sentMediaData = [
+                            'type' => 'document',
+                            'binary' => $binDoc,
+                            'mimeType' => 'application/octet-stream',
+                            'fileName' => $fileName,
+                            'caption' => $caption
+                        ];
+                        
                     } else {
-                        // Texto como já é hoje
+                        // ===== ENVIO DE TEXTO =====
                         $result = $gateway->sendText($targetChannelId, $phoneNormalized, $message, [
                             'sent_by' => Auth::user()['id'] ?? null,
                             'sent_by_name' => Auth::user()['name'] ?? null
@@ -1625,7 +1740,29 @@ class CommunicationHubController extends Controller
                                 'timestamp' => time()
                             ];
                             // Não inclui base64Ptt no payload do evento (muito grande)
-                            // Pode ser salvo separadamente se necessário
+                        } elseif ($messageType === 'image') {
+                            $eventPayload['message'] = [
+                                'to' => $phoneNormalized,
+                                'type' => 'image',
+                                'timestamp' => time()
+                            ];
+                            // Caption vai no text se existir
+                            if (!empty($caption)) {
+                                $eventPayload['text'] = $caption;
+                                $eventPayload['message']['text'] = $caption;
+                            }
+                        } elseif ($messageType === 'document') {
+                            $eventPayload['message'] = [
+                                'to' => $phoneNormalized,
+                                'type' => 'document',
+                                'timestamp' => time(),
+                                'fileName' => $fileName ?? 'document'
+                            ];
+                            // Caption vai no text se existir
+                            if (!empty($caption)) {
+                                $eventPayload['text'] = $caption;
+                                $eventPayload['message']['text'] = $caption;
+                            }
                         } else {
                             $eventPayload['message'] = [
                                 'to' => $phoneNormalized,
@@ -1653,73 +1790,133 @@ class CommunicationHubController extends Controller
                             ]
                         ]);
                         
-                        // CORREÇÃO: Salva mídia de áudio outbound na tabela communication_media
-                        // Isso permite que o player de áudio funcione para mensagens enviadas
-                        error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: Verificando condições - messageType={$messageType}, eventId=" . ($eventId ?: 'NULL') . ", b64_len=" . strlen($b64 ?? ''));
+                        // ===== SALVAR MÍDIA OUTBOUND (áudio, imagem, documento) =====
+                        // Isso permite que o player/preview funcione para mensagens enviadas
+                        $mediaSaveStarted = false;
                         
+                        // ÁUDIO
                         if ($messageType === 'audio' && $eventId && !empty($b64)) {
-                            error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: Condições OK, iniciando salvamento...");
+                            $mediaSaveStarted = true;
+                            error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: Iniciando salvamento...");
                             try {
-                                // Usa os dados binários já decodificados ($bin) em vez de decodificar novamente
-                                // $bin foi definido na linha ~1454 durante a validação do áudio
                                 $audioData = $bin;
-                                error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: audioData length=" . strlen($audioData ?? ''));
-                                
                                 if ($audioData !== false && strlen($audioData) > 0) {
-                                    // Determina diretório para salvar
                                     $subDir = date('Y/m/d');
                                     $mediaDir = __DIR__ . '/../../storage/whatsapp-media';
-                                    if ($tenantId) {
-                                        $mediaDir .= '/tenant-' . $tenantId;
-                                    }
+                                    if ($tenantId) $mediaDir .= '/tenant-' . $tenantId;
                                     $mediaDir .= '/' . $subDir;
                                     
-                                    error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: mediaDir={$mediaDir}");
+                                    if (!is_dir($mediaDir)) mkdir($mediaDir, 0755, true);
                                     
-                                    // Cria diretório se não existir
-                                    if (!is_dir($mediaDir)) {
-                                        $mkdirResult = mkdir($mediaDir, 0755, true);
-                                        error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: mkdir result=" . ($mkdirResult ? 'OK' : 'FAILED'));
-                                    }
+                                    $mediaFileName = bin2hex(random_bytes(16)) . '.ogg';
+                                    $storedPath = 'whatsapp-media/' . ($tenantId ? "tenant-{$tenantId}/" : '') . $subDir . '/' . $mediaFileName;
+                                    $fullPath = $mediaDir . DIRECTORY_SEPARATOR . $mediaFileName;
                                     
-                                    // Gera nome de arquivo único
-                                    $fileName = bin2hex(random_bytes(16)) . '.ogg';
-                                    $storedPath = 'whatsapp-media/' . ($tenantId ? "tenant-{$tenantId}/" : '') . $subDir . '/' . $fileName;
-                                    $fullPath = $mediaDir . DIRECTORY_SEPARATOR . $fileName;
-                                    
-                                    error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: fullPath={$fullPath}, storedPath={$storedPath}");
-                                    
-                                    // Salva arquivo de áudio
                                     $writeResult = file_put_contents($fullPath, $audioData);
-                                    error_log("[CommunicationHub::send] 🔊 AUDIO MEDIA SAVE: file_put_contents result=" . ($writeResult !== false ? $writeResult . ' bytes' : 'FAILED'));
-                                    
                                     if ($writeResult !== false) {
                                         $fileSize = filesize($fullPath);
-                                        
-                                        // Insere registro na tabela communication_media
                                         $mediaStmt = $db->prepare("
                                             INSERT INTO communication_media 
                                             (event_id, media_id, media_type, mime_type, stored_path, file_name, file_size, created_at, updated_at)
                                             VALUES (?, ?, 'audio', 'audio/ogg', ?, ?, ?, NOW(), NOW())
                                         ");
-                                        $mediaStmt->execute([
-                                            $eventId,
-                                            $result['message_id'] ?? $eventId, // Usa message_id do gateway ou event_id como fallback
-                                            $storedPath,
-                                            $fileName,
-                                            $fileSize
-                                        ]);
-                                        
-                                        error_log("[CommunicationHub::send] ✅ Mídia de áudio outbound salva: event_id={$eventId}, path={$storedPath}, size={$fileSize}");
-                                    } else {
-                                        error_log("[CommunicationHub::send] ⚠️ Falha ao salvar arquivo de áudio outbound: {$fullPath}");
+                                        $mediaStmt->execute([$eventId, $result['message_id'] ?? $eventId, $storedPath, $mediaFileName, $fileSize]);
+                                        error_log("[CommunicationHub::send] ✅ Mídia de áudio outbound salva: event_id={$eventId}, path={$storedPath}");
                                     }
-                                } else {
-                                    error_log("[CommunicationHub::send] ⚠️ Áudio base64 inválido ou vazio para event_id={$eventId}");
                                 }
                             } catch (\Exception $audioSaveEx) {
-                                // Não falha o envio se a mídia não puder ser salva
-                                error_log("[CommunicationHub::send] ⚠️ Erro ao salvar mídia de áudio outbound: " . $audioSaveEx->getMessage());
+                                error_log("[CommunicationHub::send] ⚠️ Erro ao salvar mídia de áudio: " . $audioSaveEx->getMessage());
+                            }
+                        }
+                        
+                        // IMAGEM
+                        if ($messageType === 'image' && $eventId && isset($sentMediaData)) {
+                            $mediaSaveStarted = true;
+                            error_log("[CommunicationHub::send] 🖼️ IMAGE MEDIA SAVE: Iniciando salvamento...");
+                            try {
+                                $imgData = $sentMediaData['binary'] ?? null;
+                                if ($imgData && strlen($imgData) > 0) {
+                                    $subDir = date('Y/m/d');
+                                    $mediaDir = __DIR__ . '/../../storage/whatsapp-media';
+                                    if ($tenantId) $mediaDir .= '/tenant-' . $tenantId;
+                                    $mediaDir .= '/' . $subDir;
+                                    
+                                    if (!is_dir($mediaDir)) mkdir($mediaDir, 0755, true);
+                                    
+                                    // Detecta extensão pelo magic bytes
+                                    $ext = 'jpg';
+                                    $mimeType = 'image/jpeg';
+                                    if (substr($imgData, 0, 8) === "\x89PNG\r\n\x1a\n") {
+                                        $ext = 'png';
+                                        $mimeType = 'image/png';
+                                    } elseif (substr($imgData, 0, 4) === 'GIF8') {
+                                        $ext = 'gif';
+                                        $mimeType = 'image/gif';
+                                    } elseif (substr($imgData, 0, 4) === 'RIFF' && substr($imgData, 8, 4) === 'WEBP') {
+                                        $ext = 'webp';
+                                        $mimeType = 'image/webp';
+                                    }
+                                    
+                                    $mediaFileName = bin2hex(random_bytes(16)) . '.' . $ext;
+                                    $storedPath = 'whatsapp-media/' . ($tenantId ? "tenant-{$tenantId}/" : '') . $subDir . '/' . $mediaFileName;
+                                    $fullPath = $mediaDir . DIRECTORY_SEPARATOR . $mediaFileName;
+                                    
+                                    $writeResult = file_put_contents($fullPath, $imgData);
+                                    if ($writeResult !== false) {
+                                        $fileSize = filesize($fullPath);
+                                        $mediaStmt = $db->prepare("
+                                            INSERT INTO communication_media 
+                                            (event_id, media_id, media_type, mime_type, stored_path, file_name, file_size, created_at, updated_at)
+                                            VALUES (?, ?, 'image', ?, ?, ?, ?, NOW(), NOW())
+                                        ");
+                                        $mediaStmt->execute([$eventId, $result['message_id'] ?? $eventId, $mimeType, $storedPath, $mediaFileName, $fileSize]);
+                                        error_log("[CommunicationHub::send] ✅ Mídia de imagem outbound salva: event_id={$eventId}, path={$storedPath}");
+                                    }
+                                }
+                            } catch (\Exception $imgSaveEx) {
+                                error_log("[CommunicationHub::send] ⚠️ Erro ao salvar mídia de imagem: " . $imgSaveEx->getMessage());
+                            }
+                        }
+                        
+                        // DOCUMENTO
+                        if ($messageType === 'document' && $eventId && isset($sentMediaData)) {
+                            $mediaSaveStarted = true;
+                            error_log("[CommunicationHub::send] 📄 DOCUMENT MEDIA SAVE: Iniciando salvamento...");
+                            try {
+                                $docData = $sentMediaData['binary'] ?? null;
+                                $docFileName = $sentMediaData['fileName'] ?? 'document';
+                                if ($docData && strlen($docData) > 0) {
+                                    $subDir = date('Y/m/d');
+                                    $mediaDir = __DIR__ . '/../../storage/whatsapp-media';
+                                    if ($tenantId) $mediaDir .= '/tenant-' . $tenantId;
+                                    $mediaDir .= '/' . $subDir;
+                                    
+                                    if (!is_dir($mediaDir)) mkdir($mediaDir, 0755, true);
+                                    
+                                    // Preserva extensão original
+                                    $ext = pathinfo($docFileName, PATHINFO_EXTENSION) ?: 'bin';
+                                    $mimeType = 'application/octet-stream';
+                                    if ($ext === 'pdf') $mimeType = 'application/pdf';
+                                    elseif (in_array($ext, ['doc', 'docx'])) $mimeType = 'application/msword';
+                                    
+                                    $storedFileName = bin2hex(random_bytes(16)) . '.' . $ext;
+                                    $storedPath = 'whatsapp-media/' . ($tenantId ? "tenant-{$tenantId}/" : '') . $subDir . '/' . $storedFileName;
+                                    $fullPath = $mediaDir . DIRECTORY_SEPARATOR . $storedFileName;
+                                    
+                                    $writeResult = file_put_contents($fullPath, $docData);
+                                    if ($writeResult !== false) {
+                                        $fileSize = filesize($fullPath);
+                                        $mediaStmt = $db->prepare("
+                                            INSERT INTO communication_media 
+                                            (event_id, media_id, media_type, mime_type, stored_path, file_name, file_size, created_at, updated_at)
+                                            VALUES (?, ?, 'document', ?, ?, ?, ?, NOW(), NOW())
+                                        ");
+                                        $mediaStmt->execute([$eventId, $result['message_id'] ?? $eventId, $mimeType, $storedPath, $docFileName, $fileSize]);
+                                        error_log("[CommunicationHub::send] ✅ Mídia de documento outbound salva: event_id={$eventId}, path={$storedPath}");
+                                    }
+                                }
+                            } catch (\Exception $docSaveEx) {
+                                error_log("[CommunicationHub::send] ⚠️ Erro ao salvar mídia de documento: " . $docSaveEx->getMessage());
                             }
                         }
                         
