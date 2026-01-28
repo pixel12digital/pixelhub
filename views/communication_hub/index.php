@@ -2646,16 +2646,38 @@ function renderConversation(thread, messages, channel) {
             <input type="file" id="hub-file-input" accept="image/*,.pdf,.doc,.docx" style="display: none;">
             
             <!-- Preview de mídia selecionada -->
-            <div id="hub-media-preview" style="display: none; padding: 8px 12px; background: #e3f2fd; border-radius: 8px; margin-bottom: 8px; align-items: center; gap: 10px;">
-                <div id="hub-media-thumb" style="width: 50px; height: 50px; border-radius: 6px; overflow: hidden; background: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                    <img id="hub-media-preview-img" src="" alt="Preview" style="max-width: 100%; max-height: 100%; object-fit: cover; display: none;">
-                    <span id="hub-media-preview-icon" style="font-size: 24px; display: none;">📄</span>
+            <div id="hub-media-preview" style="display: none; padding: 12px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-radius: 12px; margin-bottom: 10px; border: 2px solid #90caf9;">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#1976d2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" fill="none" stroke="#1976d2" stroke-width="2"/></svg>
+                    <span style="font-weight: 600; color: #1565c0; font-size: 13px;">Anexo pronto para enviar</span>
+                    <button type="button" id="hub-media-remove" style="margin-left: auto; padding: 6px 14px; background: #ef5350; color: white; border: none; border-radius: 16px; cursor: pointer; font-size: 12px; font-weight: 600; transition: background 0.2s;" onmouseover="this.style.background='#d32f2f'" onmouseout="this.style.background='#ef5350'">✕ Remover</button>
                 </div>
-                <div style="flex: 1; min-width: 0;">
-                    <div id="hub-media-name" style="font-size: 12px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
-                    <div id="hub-media-size" style="font-size: 11px; color: #666;"></div>
+                <!-- Thumbnail da imagem (clicável para expandir) -->
+                <div id="hub-media-thumb-container" style="display: none; margin-bottom: 10px; cursor: pointer; position: relative;" onclick="expandMediaPreview()">
+                    <img id="hub-media-preview-img" src="" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 8px; object-fit: contain; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                    <div style="position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.6); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">
+                        🔍 Clique para ampliar
+                    </div>
                 </div>
-                <button type="button" id="hub-media-remove" style="padding: 4px 10px; background: #dc3545; color: white; border: none; border-radius: 12px; cursor: pointer; font-size: 11px; flex-shrink: 0;">✕</button>
+                <!-- Ícone para documentos -->
+                <div id="hub-media-doc-container" style="display: none; margin-bottom: 10px; padding: 16px; background: white; border-radius: 8px; text-align: center;">
+                    <span id="hub-media-preview-icon" style="font-size: 48px; display: block; margin-bottom: 8px;">📄</span>
+                </div>
+                <!-- Info do arquivo -->
+                <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: white; border-radius: 8px;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div id="hub-media-name" style="font-size: 13px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+                        <div id="hub-media-size" style="font-size: 11px; color: #666;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Modal para preview expandido -->
+            <div id="hub-media-expand-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10001; align-items: center; justify-content: center; cursor: pointer;" onclick="closeMediaExpandModal()">
+                <div style="position: relative; max-width: 90%; max-height: 90%;">
+                    <img id="hub-media-expand-img" src="" style="max-width: 100%; max-height: 85vh; border-radius: 8px; object-fit: contain;">
+                    <div style="text-align: center; margin-top: 16px; color: white; font-size: 13px;">Clique em qualquer lugar para fechar</div>
+                </div>
             </div>
             
             <input type="hidden" id="hub-channel" value="${escapeHtml(channel)}">
@@ -3217,39 +3239,80 @@ function initComposerAudio() {
     
     function showMediaPreviewHub(file, dataUrl) {
         const container = document.getElementById('hub-media-preview');
+        const thumbContainer = document.getElementById('hub-media-thumb-container');
+        const docContainer = document.getElementById('hub-media-doc-container');
         const img = document.getElementById('hub-media-preview-img');
         const icon = document.getElementById('hub-media-preview-icon');
         const name = document.getElementById('hub-media-name');
         const size = document.getElementById('hub-media-size');
         
-        if (!container) return;
+        if (!container) {
+            console.warn('[Media] Container de preview não encontrado');
+            return;
+        }
         
         name.textContent = file.name;
         size.textContent = formatFileSize(file.size);
         
         if (file.type.startsWith('image/')) {
+            // Mostra thumbnail da imagem
             img.src = dataUrl;
-            img.style.display = 'block';
-            icon.style.display = 'none';
+            if (thumbContainer) thumbContainer.style.display = 'block';
+            if (docContainer) docContainer.style.display = 'none';
+            
+            // Guarda dataUrl para o modal de expansão
+            window._mediaPreviewDataUrl = dataUrl;
+            console.log('[Media] Preview de imagem configurado');
         } else {
-            img.style.display = 'none';
-            icon.style.display = 'block';
+            // Mostra ícone de documento
+            if (thumbContainer) thumbContainer.style.display = 'none';
+            if (docContainer) docContainer.style.display = 'block';
             icon.textContent = file.type.includes('pdf') ? '📄' : '📝';
+            console.log('[Media] Preview de documento configurado');
         }
         
-        container.style.display = 'flex';
+        container.style.display = 'block';
         
         // Mostra botão enviar se estava oculto
         updateSendMicVisibility();
     }
     
+    // Função para expandir preview da imagem
+    window.expandMediaPreview = function() {
+        const modal = document.getElementById('hub-media-expand-modal');
+        const expandImg = document.getElementById('hub-media-expand-img');
+        
+        if (modal && expandImg && window._mediaPreviewDataUrl) {
+            expandImg.src = window._mediaPreviewDataUrl;
+            modal.style.display = 'flex';
+        }
+    };
+    
+    // Função para fechar modal de expansão
+    window.closeMediaExpandModal = function() {
+        const modal = document.getElementById('hub-media-expand-modal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    };
+    
     function removeMediaPreviewHub() {
         clearMediaAttachState();
         const container = document.getElementById('hub-media-preview');
+        const thumbContainer = document.getElementById('hub-media-thumb-container');
+        const docContainer = document.getElementById('hub-media-doc-container');
         const fileInput = document.getElementById('hub-file-input');
+        
         if (container) container.style.display = 'none';
+        if (thumbContainer) thumbContainer.style.display = 'none';
+        if (docContainer) docContainer.style.display = 'none';
         if (fileInput) fileInput.value = '';
+        
+        // Limpa URL guardada
+        window._mediaPreviewDataUrl = null;
+        
         updateSendMicVisibility();
+        console.log('[Media] Preview removido');
     }
     
     function handleMediaPaste(event) {
