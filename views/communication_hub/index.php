@@ -2171,7 +2171,7 @@ function renderMediaPlayer(media) {
     let mediaHtml = '';
     
     if (isAudio) {
-        mediaHtml = `<audio controls preload="none" src="${safeUrl}"></audio>`;
+        mediaHtml = `<audio controls preload="metadata" src="${safeUrl}"></audio>`;
     } else if (isImage) {
         // Envolve imagem com botão clicável para abrir viewer
         mediaHtml = `
