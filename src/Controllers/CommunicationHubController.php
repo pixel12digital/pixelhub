@@ -1905,6 +1905,8 @@ class CommunicationHubController extends Controller
                                         ");
                                         $mediaStmt->execute([$eventId, $result['message_id'] ?? $eventId, $mimeType, $storedPath, $mediaFileName, $fileSize]);
                                         error_log("[CommunicationHub::send] ✅ Mídia de imagem outbound salva: event_id={$eventId}, path={$storedPath}");
+                                    } else {
+                                        error_log("[CommunicationHub::send] ❌ FALHA ao salvar imagem: path={$fullPath}, error=" . error_get_last()['message'] ?? 'desconhecido');
                                     }
                                 }
                             } catch (\Exception $imgSaveEx) {
