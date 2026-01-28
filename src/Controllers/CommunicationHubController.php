@@ -2955,10 +2955,17 @@ class CommunicationHubController extends Controller
 
         // CORREÇÃO: Filtra no SQL ao invés de buscar todos os eventos
         // Usa LIKE para pegar variações do telefone (com @c.us, @lid, etc)
+        // CORREÇÃO: Também busca por conversation_id para pegar eventos outbound que têm o conversation_id correto
         $where = [
             "ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')"
         ];
         $params = [];
+        
+        // CORREÇÃO: Adiciona busca por conversation_id (mais confiável que busca por número)
+        // Isso garante que eventos outbound com conversation_id sejam encontrados
+        // independentemente do formato do número (com/sem 9º dígito, etc)
+        $conversationIdCondition = "ce.conversation_id = ?";
+        $conversationIdParam = $conversationId;
 
         // CORREÇÃO: Filtro mais robusto que pega variações do telefone
         // Usa múltiplos padrões para pegar: número puro, com @c.us, com 9º dígito, etc
@@ -3045,6 +3052,12 @@ class CommunicationHubController extends Controller
             
             $contactConditions[] = $condition;
         }
+        
+        // CORREÇÃO: Adiciona conversation_id como condição OR (mais confiável para eventos outbound)
+        // Eventos outbound que têm conversation_id serão encontrados independente do formato do número
+        $contactConditions[] = $conversationIdCondition;
+        $params[] = $conversationIdParam;
+        
         $where[] = "(" . implode(" OR ", $contactConditions) . ")";
 
         // PATCH K: Filtro estrito por tenant_id (após PATCH J, todos eventos têm tenant_id)
