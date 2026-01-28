@@ -2642,6 +2642,22 @@ function renderConversation(thread, messages, channel) {
                     <span id="hubSending" class="hub-sending" hidden>Enviando...</span>
                 </div>
             </div>
+            <!-- Input de arquivo oculto para anexos -->
+            <input type="file" id="hub-file-input" accept="image/*,.pdf,.doc,.docx" style="display: none;">
+            
+            <!-- Preview de mídia selecionada -->
+            <div id="hub-media-preview" style="display: none; padding: 8px 12px; background: #e3f2fd; border-radius: 8px; margin-bottom: 8px; align-items: center; gap: 10px;">
+                <div id="hub-media-thumb" style="width: 50px; height: 50px; border-radius: 6px; overflow: hidden; background: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <img id="hub-media-preview-img" src="" alt="Preview" style="max-width: 100%; max-height: 100%; object-fit: cover; display: none;">
+                    <span id="hub-media-preview-icon" style="font-size: 24px; display: none;">📄</span>
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <div id="hub-media-name" style="font-size: 12px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+                    <div id="hub-media-size" style="font-size: 11px; color: #666;"></div>
+                </div>
+                <button type="button" id="hub-media-remove" style="padding: 4px 10px; background: #dc3545; color: white; border: none; border-radius: 12px; cursor: pointer; font-size: 11px; flex-shrink: 0;">✕</button>
+            </div>
+            
             <input type="hidden" id="hub-channel" value="${escapeHtml(channel)}">
             <input type="hidden" id="hub-thread-id" value="${escapeHtml(thread.thread_id || '')}">
             <input type="hidden" id="hub-tenant-id" value="${thread.tenant_id || ''}">
@@ -2836,8 +2852,10 @@ function initComposerAudio() {
     
     function updateSendMicVisibility() {
         const hasText = (hubText.value || '').trim().length > 0;
-        btnSend.hidden = !hasText || currentState !== 'idle';
-        btnMic.hidden = hasText || currentState !== 'idle';
+        const hasMedia = MediaAttachState.base64 !== null;
+        const hasContent = hasText || hasMedia;
+        btnSend.hidden = !hasContent || currentState !== 'idle';
+        btnMic.hidden = hasContent || currentState !== 'idle';
     }
     
     hubText.addEventListener('input', updateSendMicVisibility);
@@ -3128,6 +3146,183 @@ function initComposerAudio() {
         });
     }
     
+    // ============================================================================
+    // Estado de Mídia para Anexos
+    // ============================================================================
+    const MediaAttachState = {
+        file: null,
+        base64: null,
+        mimeType: null,
+        fileName: null,
+        fileSize: null,
+        type: null // 'image' ou 'document'
+    };
+    
+    function clearMediaAttachState() {
+        MediaAttachState.file = null;
+        MediaAttachState.base64 = null;
+        MediaAttachState.mimeType = null;
+        MediaAttachState.fileName = null;
+        MediaAttachState.fileSize = null;
+        MediaAttachState.type = null;
+    }
+    
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+    
+    function processMediaFile(file) {
+        if (!file) return;
+        console.log('[Media] Processando arquivo:', file.name, file.type, file.size);
+        
+        // Valida tamanho (máx 16MB)
+        if (file.size > 16 * 1024 * 1024) {
+            alert('Arquivo muito grande. Máximo permitido: 16MB');
+            return;
+        }
+        
+        // Valida tipo
+        const allowedTypes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'application/pdf',
+            'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+        if (!allowedTypes.includes(file.type)) {
+            alert('Tipo de arquivo não suportado. Use: imagens (JPG, PNG, GIF, WebP), PDF ou DOC/DOCX.');
+            return;
+        }
+        
+        const isImage = file.type.startsWith('image/');
+        MediaAttachState.type = isImage ? 'image' : 'document';
+        MediaAttachState.file = file;
+        MediaAttachState.mimeType = file.type;
+        MediaAttachState.fileName = file.name;
+        MediaAttachState.fileSize = file.size;
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const result = e.target.result;
+            MediaAttachState.base64 = result.split(',')[1];
+            console.log('[Media] Base64 gerado, tamanho:', MediaAttachState.base64.length);
+            showMediaPreviewHub(file, result);
+        };
+        reader.onerror = function() {
+            alert('Erro ao ler arquivo.');
+            clearMediaAttachState();
+        };
+        reader.readAsDataURL(file);
+    }
+    
+    function showMediaPreviewHub(file, dataUrl) {
+        const container = document.getElementById('hub-media-preview');
+        const img = document.getElementById('hub-media-preview-img');
+        const icon = document.getElementById('hub-media-preview-icon');
+        const name = document.getElementById('hub-media-name');
+        const size = document.getElementById('hub-media-size');
+        
+        if (!container) return;
+        
+        name.textContent = file.name;
+        size.textContent = formatFileSize(file.size);
+        
+        if (file.type.startsWith('image/')) {
+            img.src = dataUrl;
+            img.style.display = 'block';
+            icon.style.display = 'none';
+        } else {
+            img.style.display = 'none';
+            icon.style.display = 'block';
+            icon.textContent = file.type.includes('pdf') ? '📄' : '📝';
+        }
+        
+        container.style.display = 'flex';
+        
+        // Mostra botão enviar se estava oculto
+        updateSendMicVisibility();
+    }
+    
+    function removeMediaPreviewHub() {
+        clearMediaAttachState();
+        const container = document.getElementById('hub-media-preview');
+        const fileInput = document.getElementById('hub-file-input');
+        if (container) container.style.display = 'none';
+        if (fileInput) fileInput.value = '';
+        updateSendMicVisibility();
+    }
+    
+    function handleMediaPaste(event) {
+        const clipboardData = event.clipboardData || window.clipboardData;
+        if (!clipboardData) return;
+        
+        const items = clipboardData.items;
+        if (!items) return;
+        
+        console.log('[Media] Paste detectado, items:', items.length);
+        
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            console.log('[Media] Item', i, '- kind:', item.kind, 'type:', item.type);
+            
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+                event.preventDefault();
+                event.stopPropagation();
+                
+                const file = item.getAsFile();
+                if (file) {
+                    const ext = item.type.split('/')[1] || 'png';
+                    const fileName = `imagem_${Date.now()}.${ext}`;
+                    const namedFile = new File([file], fileName, { type: file.type });
+                    processMediaFile(namedFile);
+                }
+                return;
+            }
+        }
+    }
+    
+    // Handler do botão de anexar
+    const btnAttach = document.getElementById('btnAttach');
+    const fileInput = document.getElementById('hub-file-input');
+    
+    if (btnAttach && fileInput) {
+        btnAttach.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[Media] Botão anexar clicado');
+            fileInput.click();
+        });
+        
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                console.log('[Media] Arquivo selecionado:', file.name);
+                processMediaFile(file);
+            }
+        });
+        
+        console.log('[Media] Handlers de anexo registrados');
+    }
+    
+    // Handler do botão remover preview
+    const removeBtn = document.getElementById('hub-media-remove');
+    if (removeBtn) {
+        removeBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            removeMediaPreviewHub();
+        });
+    }
+    
+    // Handler de paste no textarea
+    if (hubText) {
+        hubText.addEventListener('paste', handleMediaPaste);
+        console.log('[Media] Handler de paste registrado');
+    }
+    
+    // ============================================================================
+    // Event listeners originais
+    // ============================================================================
+    
     // Event listeners
     btnMic.addEventListener('click', startRecording);
     
@@ -3293,7 +3488,9 @@ function initComposerAudio() {
     
     btnSend.addEventListener('click', async () => {
         const text = (hubText.value || '').trim();
-        if (!text || currentState !== 'idle') return;
+        const hasMedia = MediaAttachState.base64 !== null;
+        
+        if ((!text && !hasMedia) || currentState !== 'idle') return;
         
         // Obtém dados da conversa
         const channel = document.getElementById('hub-channel')?.value || 'whatsapp';
@@ -3308,15 +3505,40 @@ function initComposerAudio() {
         }
         
         try {
-            await sendHubMessage({
-                channel: channel,
-                to: to,
-                thread_id: threadId || '',
-                tenant_id: tenantId || '',
-                channel_id: channelId || '',
-                type: 'text',
-                message: text
-            });
+            if (hasMedia) {
+                // Envio de mídia
+                const payload = {
+                    channel: channel,
+                    to: to,
+                    thread_id: threadId || '',
+                    tenant_id: tenantId || '',
+                    channel_id: channelId || '',
+                    type: MediaAttachState.type,
+                    caption: text || null // Texto vai como legenda
+                };
+                
+                if (MediaAttachState.type === 'image') {
+                    payload.base64Image = MediaAttachState.base64;
+                } else {
+                    payload.base64Document = MediaAttachState.base64;
+                    payload.fileName = MediaAttachState.fileName;
+                }
+                
+                console.log('[Media] Enviando mídia:', { type: MediaAttachState.type, fileName: MediaAttachState.fileName });
+                await sendHubMessage(payload);
+                removeMediaPreviewHub();
+            } else {
+                // Envio de texto normal
+                await sendHubMessage({
+                    channel: channel,
+                    to: to,
+                    thread_id: threadId || '',
+                    tenant_id: tenantId || '',
+                    channel_id: channelId || '',
+                    type: 'text',
+                    message: text
+                });
+            }
             hubText.value = '';
             updateSendMicVisibility();
         } catch (err) {
@@ -3365,6 +3587,26 @@ async function sendHubMessage(payload) {
         type: payload.type
     };
     
+    // Se for imagem, adiciona preview na mensagem otimista
+    if (payload.type === 'image' && payload.base64Image) {
+        // Detecta mime type do base64 (assume jpeg se não souber)
+        let mimeType = 'image/jpeg';
+        try {
+            const binaryStr = atob(payload.base64Image.substring(0, 20));
+            if (binaryStr.startsWith('\x89PNG')) mimeType = 'image/png';
+            else if (binaryStr.startsWith('GIF8')) mimeType = 'image/gif';
+        } catch(e) {}
+        
+        optimisticMessage.media = {
+            url: 'data:' + mimeType + ';base64,' + payload.base64Image,
+            media_type: 'image',
+            mime_type: mimeType
+        };
+        optimisticMessage.content = payload.caption || '';
+    } else if (payload.type === 'document') {
+        optimisticMessage.content = '[Documento: ' + (payload.fileName || 'arquivo') + ']';
+    }
+    
     addMessageToPanel(optimisticMessage);
     
     // Limpa input de texto se não for áudio
@@ -3401,6 +3643,13 @@ async function sendHubMessage(payload) {
         
         if (payload.type === 'audio' && payload.base64Ptt) {
             formData.append('base64Ptt', payload.base64Ptt);
+        } else if (payload.type === 'image' && payload.base64Image) {
+            formData.append('base64Image', payload.base64Image);
+            if (payload.caption) formData.append('caption', payload.caption);
+        } else if (payload.type === 'document' && payload.base64Document) {
+            formData.append('base64Document', payload.base64Document);
+            formData.append('fileName', payload.fileName || 'document');
+            if (payload.caption) formData.append('caption', payload.caption);
         } else if (payload.message) {
             formData.append('message', payload.message);
         }
