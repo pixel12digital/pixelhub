@@ -2775,6 +2775,33 @@ function initComposerAudio() {
     let recStart = 0;
     let currentState = 'idle'; // idle, recording, preview, sending
     
+    // ============================================================================
+    // Estado de Mídia para Anexos (deve ser definido antes de updateSendMicVisibility)
+    // ============================================================================
+    const MediaAttachState = {
+        file: null,
+        base64: null,
+        mimeType: null,
+        fileName: null,
+        fileSize: null,
+        type: null // 'image' ou 'document'
+    };
+    
+    function clearMediaAttachState() {
+        MediaAttachState.file = null;
+        MediaAttachState.base64 = null;
+        MediaAttachState.mimeType = null;
+        MediaAttachState.fileName = null;
+        MediaAttachState.fileSize = null;
+        MediaAttachState.type = null;
+    }
+    
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+    
     // Gerenciamento de estados
     function setState(state) {
         currentState = state;
@@ -3144,33 +3171,6 @@ function initComposerAudio() {
                 try { mr.stop(); } catch (_) {}
             }, Math.ceil(buf.duration * 1000) + 300);
         });
-    }
-    
-    // ============================================================================
-    // Estado de Mídia para Anexos
-    // ============================================================================
-    const MediaAttachState = {
-        file: null,
-        base64: null,
-        mimeType: null,
-        fileName: null,
-        fileSize: null,
-        type: null // 'image' ou 'document'
-    };
-    
-    function clearMediaAttachState() {
-        MediaAttachState.file = null;
-        MediaAttachState.base64 = null;
-        MediaAttachState.mimeType = null;
-        MediaAttachState.fileName = null;
-        MediaAttachState.fileSize = null;
-        MediaAttachState.type = null;
-    }
-    
-    function formatFileSize(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
     }
     
     function processMediaFile(file) {
