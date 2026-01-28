@@ -157,6 +157,108 @@ body.communication-hub-page {
     background: #022a6d;
 }
 
+/* Dropdown pesquisável de Cliente */
+.searchable-dropdown {
+    position: relative;
+    width: 100%;
+}
+
+.searchable-dropdown-input {
+    width: 100%;
+    padding: 7px 30px 7px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    font-size: 13px;
+    background: white;
+    height: 36px;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+.searchable-dropdown-input:focus {
+    outline: none;
+    border-color: #023A8D;
+    box-shadow: 0 0 0 2px rgba(2, 58, 141, 0.1);
+}
+
+.searchable-dropdown-input::placeholder {
+    color: #667781;
+}
+
+.searchable-dropdown-arrow {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #667781;
+    font-size: 10px;
+}
+
+.searchable-dropdown-list {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    margin-top: 2px;
+}
+
+.searchable-dropdown-list.show {
+    display: block;
+}
+
+.searchable-dropdown-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.1s;
+}
+
+.searchable-dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.searchable-dropdown-item:hover {
+    background: #f5f6f6;
+}
+
+.searchable-dropdown-item.selected {
+    background: #e7f3ff;
+}
+
+.searchable-dropdown-item-name {
+    font-weight: 500;
+    font-size: 13px;
+    color: #111b21;
+    margin-bottom: 2px;
+}
+
+.searchable-dropdown-item-detail {
+    font-size: 11px;
+    color: #667781;
+}
+
+.searchable-dropdown-empty {
+    padding: 12px;
+    text-align: center;
+    color: #667781;
+    font-size: 12px;
+}
+
+.searchable-dropdown-item mark {
+    background: #fff3cd;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
 /* Corpo principal (2 colunas desktop, 1 coluna mobile) */
 .communication-body {
     flex: 1;
@@ -1048,14 +1150,31 @@ body.communication-hub-page {
             </div>
             <div>
                 <label>Cliente</label>
-                <select name="tenant_id">
-                    <option value="">Todos</option>
-                    <?php foreach ($tenants as $tenant): ?>
-                        <option value="<?= $tenant['id'] ?>" <?= ($filters['tenant_id'] == $tenant['id']) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($tenant['name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                <div class="searchable-dropdown" id="clienteDropdown">
+                    <input type="text" 
+                           class="searchable-dropdown-input" 
+                           id="clienteSearchInput"
+                           placeholder="Buscar cliente..."
+                           value="<?= $filters['tenant_id'] ? htmlspecialchars($tenants[array_search($filters['tenant_id'], array_column($tenants, 'id'))]['name'] ?? 'Todos') : 'Todos' ?>"
+                           autocomplete="off">
+                    <input type="hidden" name="tenant_id" id="clienteTenantId" value="<?= htmlspecialchars($filters['tenant_id'] ?? '') ?>">
+                    <span class="searchable-dropdown-arrow">▼</span>
+                    <div class="searchable-dropdown-list" id="clienteDropdownList">
+                        <div class="searchable-dropdown-item" data-value="" data-name="Todos">
+                            <div class="searchable-dropdown-item-name">Todos</div>
+                            <div class="searchable-dropdown-item-detail">Exibir todas as conversas</div>
+                        </div>
+                        <?php foreach ($tenants as $tenant): ?>
+                            <div class="searchable-dropdown-item" 
+                                 data-value="<?= $tenant['id'] ?>" 
+                                 data-name="<?= htmlspecialchars($tenant['name']) ?>"
+                                 data-search="<?= htmlspecialchars(strtolower($tenant['name'])) ?>">
+                                <div class="searchable-dropdown-item-name"><?= htmlspecialchars($tenant['name']) ?></div>
+                                <div class="searchable-dropdown-item-detail">ID: <?= $tenant['id'] ?></div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
             </div>
             <div>
                 <label>Status</label>
@@ -5254,6 +5373,209 @@ async function changeConversationTenant(event) {
         alert('Erro ao alterar cliente vinculado. Tente novamente.');
     }
 }
+
+// ============================================================================
+// Dropdown Pesquisável de Cliente
+// ============================================================================
+(function() {
+    const dropdown = document.getElementById('clienteDropdown');
+    if (!dropdown) return;
+    
+    const input = document.getElementById('clienteSearchInput');
+    const hiddenInput = document.getElementById('clienteTenantId');
+    const list = document.getElementById('clienteDropdownList');
+    const items = list.querySelectorAll('.searchable-dropdown-item');
+    
+    let isOpen = false;
+    let selectedValue = hiddenInput.value;
+    
+    // Abre dropdown ao clicar no input
+    input.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggleDropdown();
+    });
+    
+    // Abre dropdown ao focar
+    input.addEventListener('focus', function() {
+        if (!isOpen) {
+            openDropdown();
+            // Seleciona todo o texto para facilitar nova busca
+            this.select();
+        }
+    });
+    
+    // Filtra enquanto digita
+    input.addEventListener('input', function() {
+        const query = this.value.toLowerCase().trim();
+        filterItems(query);
+        if (!isOpen) openDropdown();
+    });
+    
+    // Navegação por teclado
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeDropdown();
+            restoreSelectedValue();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const visibleItems = Array.from(items).filter(i => i.style.display !== 'none');
+            if (visibleItems.length > 0) {
+                selectItem(visibleItems[0]);
+            }
+            closeDropdown();
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (!isOpen) openDropdown();
+            focusNextItem(1);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            focusNextItem(-1);
+        }
+    });
+    
+    // Seleciona item ao clicar
+    items.forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.stopPropagation();
+            selectItem(this);
+            closeDropdown();
+        });
+        
+        // Hover highlight
+        item.addEventListener('mouseenter', function() {
+            items.forEach(i => i.classList.remove('focused'));
+            this.classList.add('focused');
+        });
+    });
+    
+    // Fecha dropdown ao clicar fora
+    document.addEventListener('click', function(e) {
+        if (!dropdown.contains(e.target)) {
+            closeDropdown();
+            restoreSelectedValue();
+        }
+    });
+    
+    function toggleDropdown() {
+        if (isOpen) {
+            closeDropdown();
+        } else {
+            openDropdown();
+        }
+    }
+    
+    function openDropdown() {
+        list.classList.add('show');
+        isOpen = true;
+        // Mostra todos os itens ao abrir
+        items.forEach(item => item.style.display = '');
+        // Scroll para o item selecionado
+        const selected = list.querySelector(`[data-value="${selectedValue}"]`);
+        if (selected) {
+            selected.scrollIntoView({ block: 'nearest' });
+            selected.classList.add('selected');
+        }
+    }
+    
+    function closeDropdown() {
+        list.classList.remove('show');
+        isOpen = false;
+        items.forEach(i => i.classList.remove('focused'));
+    }
+    
+    function selectItem(item) {
+        const value = item.dataset.value;
+        const name = item.dataset.name;
+        
+        selectedValue = value;
+        hiddenInput.value = value;
+        input.value = name;
+        
+        // Atualiza classe selected
+        items.forEach(i => i.classList.remove('selected'));
+        item.classList.add('selected');
+    }
+    
+    function restoreSelectedValue() {
+        // Restaura o valor selecionado se o usuário não escolheu nada
+        const selected = list.querySelector(`[data-value="${selectedValue}"]`);
+        if (selected) {
+            input.value = selected.dataset.name;
+        }
+    }
+    
+    function filterItems(query) {
+        let hasResults = false;
+        
+        items.forEach(item => {
+            const name = (item.dataset.name || '').toLowerCase();
+            const search = (item.dataset.search || '').toLowerCase();
+            const detail = item.querySelector('.searchable-dropdown-item-detail')?.textContent?.toLowerCase() || '';
+            
+            // Busca em: nome, texto de busca adicional, e detalhes
+            const matches = name.includes(query) || search.includes(query) || detail.includes(query);
+            
+            if (query === '' || matches) {
+                item.style.display = '';
+                hasResults = true;
+                
+                // Destaca o termo buscado
+                if (query && query.length >= 2) {
+                    highlightMatch(item.querySelector('.searchable-dropdown-item-name'), query, item.dataset.name);
+                } else {
+                    // Remove destaque
+                    item.querySelector('.searchable-dropdown-item-name').textContent = item.dataset.name;
+                }
+            } else {
+                item.style.display = 'none';
+            }
+        });
+        
+        // Mostra mensagem se não houver resultados
+        let emptyMsg = list.querySelector('.searchable-dropdown-empty');
+        if (!hasResults) {
+            if (!emptyMsg) {
+                emptyMsg = document.createElement('div');
+                emptyMsg.className = 'searchable-dropdown-empty';
+                emptyMsg.textContent = 'Nenhum cliente encontrado';
+                list.appendChild(emptyMsg);
+            }
+            emptyMsg.style.display = '';
+        } else if (emptyMsg) {
+            emptyMsg.style.display = 'none';
+        }
+    }
+    
+    function highlightMatch(element, query, originalText) {
+        const lowerText = originalText.toLowerCase();
+        const index = lowerText.indexOf(query);
+        
+        if (index >= 0) {
+            const before = originalText.substring(0, index);
+            const match = originalText.substring(index, index + query.length);
+            const after = originalText.substring(index + query.length);
+            element.innerHTML = escapeHtml(before) + '<mark>' + escapeHtml(match) + '</mark>' + escapeHtml(after);
+        } else {
+            element.textContent = originalText;
+        }
+    }
+    
+    function focusNextItem(direction) {
+        const visibleItems = Array.from(items).filter(i => i.style.display !== 'none');
+        if (visibleItems.length === 0) return;
+        
+        const currentFocused = list.querySelector('.focused');
+        let currentIndex = currentFocused ? visibleItems.indexOf(currentFocused) : -1;
+        
+        let nextIndex = currentIndex + direction;
+        if (nextIndex < 0) nextIndex = visibleItems.length - 1;
+        if (nextIndex >= visibleItems.length) nextIndex = 0;
+        
+        items.forEach(i => i.classList.remove('focused'));
+        visibleItems[nextIndex].classList.add('focused');
+        visibleItems[nextIndex].scrollIntoView({ block: 'nearest' });
+    }
+})();
 </script>
 
 <!-- Modal: Criar Cliente a partir de Incoming Lead -->
