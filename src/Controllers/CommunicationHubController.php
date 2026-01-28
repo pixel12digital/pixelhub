@@ -5169,12 +5169,16 @@ class CommunicationHubController extends Controller
     }
 
     /**
-     * Exclui uma conversa permanentemente
+     * Exclui uma conversa permanentemente (exclusão REAL como no WhatsApp)
      * 
      * POST /communication-hub/conversation/delete
      * 
      * Body JSON:
      * - conversation_id: int (obrigatório)
+     * 
+     * CORREÇÃO: Agora deleta também eventos órfãos (sem conversation_id) que batem
+     * com o número de telefone. Isso garante que o histórico não "volte" quando
+     * uma nova mensagem é recebida desse contato.
      */
     public function deleteConversation(): void
     {
@@ -5193,8 +5197,11 @@ class CommunicationHubController extends Controller
         try {
             $db->beginTransaction();
 
-            // Verifica se a conversa existe
-            $checkStmt = $db->prepare("SELECT id, contact_name, status FROM conversations WHERE id = ?");
+            // Verifica se a conversa existe e pega dados para exclusão abrangente
+            $checkStmt = $db->prepare("
+                SELECT id, contact_name, contact_external_id, channel_id, session_id, status 
+                FROM conversations WHERE id = ?
+            ");
             $checkStmt->execute([$conversationId]);
             $conversation = $checkStmt->fetch(\PDO::FETCH_ASSOC);
 
@@ -5204,29 +5211,87 @@ class CommunicationHubController extends Controller
                 return;
             }
 
-            // Remove eventos associados primeiro (FK)
+            $contactExternalId = $conversation['contact_external_id'] ?? null;
+            $channelId = $conversation['channel_id'] ?? $conversation['session_id'] ?? null;
+            
+            // 1. Remove eventos associados por conversation_id
             $deleteEventsStmt = $db->prepare("DELETE FROM communication_events WHERE conversation_id = ?");
             $deleteEventsStmt->execute([$conversationId]);
-            $deletedEvents = $deleteEventsStmt->rowCount();
+            $deletedByConvId = $deleteEventsStmt->rowCount();
 
-            // Remove a conversa
+            // 2. Remove eventos órfãos (sem conversation_id) que batem com o número de telefone
+            // Isso é CRÍTICO para garantir exclusão permanente real
+            $deletedOrphans = 0;
+            if (!empty($contactExternalId)) {
+                // Normaliza número para busca
+                $normalizedNumber = preg_replace('/[^0-9]/', '', preg_replace('/@.*$/', '', $contactExternalId));
+                
+                if (!empty($normalizedNumber)) {
+                    // Cria padrões de busca (com/sem 9º dígito para números BR)
+                    $patterns = ["%{$normalizedNumber}%"];
+                    
+                    // Se for número BR, adiciona variação
+                    if (strlen($normalizedNumber) >= 12 && substr($normalizedNumber, 0, 2) === '55') {
+                        if (strlen($normalizedNumber) === 13) {
+                            // Remove 9º dígito
+                            $without9th = substr($normalizedNumber, 0, 4) . substr($normalizedNumber, 5);
+                            $patterns[] = "%{$without9th}%";
+                        } elseif (strlen($normalizedNumber) === 12) {
+                            // Adiciona 9º dígito
+                            $with9th = substr($normalizedNumber, 0, 4) . '9' . substr($normalizedNumber, 4);
+                            $patterns[] = "%{$with9th}%";
+                        }
+                    }
+                    
+                    // Adiciona padrão com @lid se existir
+                    if (strpos($contactExternalId, '@lid') !== false) {
+                        $patterns[] = "%{$contactExternalId}%";
+                    }
+                    
+                    // Deleta eventos órfãos que batem com os padrões
+                    foreach ($patterns as $pattern) {
+                        $deleteOrphansStmt = $db->prepare("
+                            DELETE FROM communication_events 
+                            WHERE conversation_id IS NULL
+                            AND event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+                            AND (
+                                JSON_UNQUOTE(JSON_EXTRACT(payload, '$.from')) LIKE ?
+                                OR JSON_UNQUOTE(JSON_EXTRACT(payload, '$.message.from')) LIKE ?
+                                OR JSON_UNQUOTE(JSON_EXTRACT(payload, '$.to')) LIKE ?
+                                OR JSON_UNQUOTE(JSON_EXTRACT(payload, '$.message.to')) LIKE ?
+                            )
+                        ");
+                        $deleteOrphansStmt->execute([$pattern, $pattern, $pattern, $pattern]);
+                        $deletedOrphans += $deleteOrphansStmt->rowCount();
+                    }
+                }
+            }
+
+            // 3. Remove a conversa
             $deleteStmt = $db->prepare("DELETE FROM conversations WHERE id = ?");
             $deleteStmt->execute([$conversationId]);
 
             $db->commit();
 
+            $totalDeleted = $deletedByConvId + $deletedOrphans;
+
             error_log(sprintf(
-                "[CommunicationHub] Conversa %d excluída: contato=%s, eventos_removidos=%d",
+                "[CommunicationHub] Conversa %d EXCLUÍDA PERMANENTEMENTE: contato=%s, numero=%s, eventos_por_conv_id=%d, eventos_orfaos=%d, total=%d",
                 $conversationId,
                 $conversation['contact_name'] ?? 'N/A',
-                $deletedEvents
+                $contactExternalId ?? 'N/A',
+                $deletedByConvId,
+                $deletedOrphans,
+                $totalDeleted
             ));
 
             $this->json([
                 'success' => true,
                 'conversation_id' => $conversationId,
-                'deleted_events' => $deletedEvents,
-                'message' => 'Conversa excluída permanentemente'
+                'deleted_events' => $totalDeleted,
+                'deleted_by_conversation_id' => $deletedByConvId,
+                'deleted_orphan_events' => $deletedOrphans,
+                'message' => "Conversa excluída permanentemente. {$totalDeleted} mensagens removidas."
             ]);
 
         } catch (\Exception $e) {
