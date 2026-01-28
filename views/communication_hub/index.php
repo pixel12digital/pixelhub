@@ -1156,7 +1156,8 @@ body.communication-hub-page {
                                 <?php
                                 $lastActivity = $lead['last_activity'] ?? 'now';
                                 try {
-                                    $dateTime = new DateTime($lastActivity);
+                                    $dateTime = new DateTime($lastActivity, new DateTimeZone('UTC'));
+                                    $dateTime->setTimezone(new DateTimeZone('America/Sao_Paulo'));
                                     $dateStr = $dateTime->format('d/m H:i');
                                 } catch (Exception $e) {
                                     $dateStr = 'Agora';
@@ -1271,7 +1272,8 @@ body.communication-hub-page {
                                 <?php
                                 $lastActivity = $thread['last_activity'] ?? ($thread['created_at'] ?? 'now');
                                 try {
-                                    $dateTime = new DateTime($lastActivity);
+                                    $dateTime = new DateTime($lastActivity, new DateTimeZone('UTC'));
+                                    $dateTime->setTimezone(new DateTimeZone('America/Sao_Paulo'));
                                     $dateStr = $dateTime->format('d/m H:i');
                                 } catch (Exception $e) {
                                     $dateStr = 'Agora';
