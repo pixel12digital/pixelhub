@@ -5237,6 +5237,196 @@ class CommunicationHubController extends Controller
     }
 
     /**
+     * Atualiza o nome de exibição do contato em uma conversa
+     * 
+     * POST /communication-hub/conversation/update-contact-name
+     * Body JSON:
+     * - conversation_id: int (obrigatório)
+     * - contact_name: string (obrigatório) - novo nome do contato
+     */
+    public function updateContactName(): void
+    {
+        Auth::requireInternal();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $conversationId = isset($input['conversation_id']) ? (int) $input['conversation_id'] : 0;
+        $newName = trim($input['contact_name'] ?? '');
+
+        // Validação
+        if ($conversationId <= 0) {
+            $this->json(['success' => false, 'error' => 'conversation_id é obrigatório'], 400);
+            return;
+        }
+
+        if (empty($newName)) {
+            $this->json(['success' => false, 'error' => 'contact_name é obrigatório'], 400);
+            return;
+        }
+
+        if (strlen($newName) > 255) {
+            $this->json(['success' => false, 'error' => 'contact_name muito longo (máx 255 caracteres)'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            // Verifica se a conversa existe
+            $checkStmt = $db->prepare("SELECT id, contact_name, contact_external_id FROM conversations WHERE id = ?");
+            $checkStmt->execute([$conversationId]);
+            $conversation = $checkStmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$conversation) {
+                $this->json(['success' => false, 'error' => 'Conversa não encontrada'], 404);
+                return;
+            }
+
+            $oldName = $conversation['contact_name'];
+
+            // Atualiza o nome do contato
+            $stmt = $db->prepare("
+                UPDATE conversations 
+                SET contact_name = ?, updated_at = NOW() 
+                WHERE id = ?
+            ");
+            $stmt->execute([$newName, $conversationId]);
+
+            error_log(sprintf(
+                "[CommunicationHub] Nome do contato atualizado: conv_id=%d, numero=%s, de='%s' para='%s'",
+                $conversationId,
+                $conversation['contact_external_id'],
+                $oldName ?? 'N/A',
+                $newName
+            ));
+
+            $this->json([
+                'success' => true,
+                'conversation_id' => $conversationId,
+                'old_name' => $oldName,
+                'new_name' => $newName,
+                'message' => 'Nome do contato atualizado com sucesso'
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao atualizar nome do contato: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Unifica duas conversas duplicadas (move eventos e deleta a conversa de origem)
+     * 
+     * POST /communication-hub/conversation/merge
+     * Body JSON:
+     * - source_conversation_id: int (obrigatório) - conversa que será absorvida e deletada
+     * - target_conversation_id: int (obrigatório) - conversa que receberá os eventos
+     * - delete_source: bool (opcional, default true) - se deve deletar a conversa de origem
+     */
+    public function mergeConversations(): void
+    {
+        Auth::requireInternal();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $sourceId = isset($input['source_conversation_id']) ? (int) $input['source_conversation_id'] : 0;
+        $targetId = isset($input['target_conversation_id']) ? (int) $input['target_conversation_id'] : 0;
+        $deleteSource = $input['delete_source'] ?? true;
+
+        // Validação
+        if ($sourceId <= 0) {
+            $this->json(['success' => false, 'error' => 'source_conversation_id é obrigatório'], 400);
+            return;
+        }
+
+        if ($targetId <= 0) {
+            $this->json(['success' => false, 'error' => 'target_conversation_id é obrigatório'], 400);
+            return;
+        }
+
+        if ($sourceId === $targetId) {
+            $this->json(['success' => false, 'error' => 'source e target não podem ser iguais'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            $db->beginTransaction();
+
+            // Verifica se ambas conversas existem
+            $checkStmt = $db->prepare("SELECT id, contact_name, contact_external_id, message_count FROM conversations WHERE id IN (?, ?)");
+            $checkStmt->execute([$sourceId, $targetId]);
+            $conversations = $checkStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            if (count($conversations) !== 2) {
+                $db->rollBack();
+                $this->json(['success' => false, 'error' => 'Uma ou ambas as conversas não foram encontradas'], 404);
+                return;
+            }
+
+            $source = null;
+            $target = null;
+            foreach ($conversations as $conv) {
+                if ($conv['id'] == $sourceId) $source = $conv;
+                if ($conv['id'] == $targetId) $target = $conv;
+            }
+
+            // Move eventos da conversa de origem para o destino
+            $moveStmt = $db->prepare("
+                UPDATE communication_events 
+                SET conversation_id = ? 
+                WHERE conversation_id = ?
+            ");
+            $moveStmt->execute([$targetId, $sourceId]);
+            $movedEvents = $moveStmt->rowCount();
+
+            // Atualiza contadores da conversa destino
+            $updateTargetStmt = $db->prepare("
+                UPDATE conversations 
+                SET 
+                    message_count = COALESCE(message_count, 0) + ?,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $updateTargetStmt->execute([$movedEvents, $targetId]);
+
+            $deletedSource = false;
+            if ($deleteSource) {
+                // Remove eventos restantes (se houver) e deleta a conversa de origem
+                $db->prepare("DELETE FROM communication_events WHERE conversation_id = ?")->execute([$sourceId]);
+                $deleteStmt = $db->prepare("DELETE FROM conversations WHERE id = ?");
+                $deleteStmt->execute([$sourceId]);
+                $deletedSource = $deleteStmt->rowCount() > 0;
+            }
+
+            $db->commit();
+
+            error_log(sprintf(
+                "[CommunicationHub] Conversas unificadas: source=%d (%s) -> target=%d (%s), eventos_movidos=%d, source_deletada=%s",
+                $sourceId,
+                $source['contact_name'] ?? 'N/A',
+                $targetId,
+                $target['contact_name'] ?? 'N/A',
+                $movedEvents,
+                $deletedSource ? 'sim' : 'não'
+            ));
+
+            $this->json([
+                'success' => true,
+                'source_conversation_id' => $sourceId,
+                'target_conversation_id' => $targetId,
+                'moved_events' => $movedEvents,
+                'source_deleted' => $deletedSource,
+                'message' => "Conversa unificada com sucesso. {$movedEvents} eventos movidos."
+            ]);
+
+        } catch (\Exception $e) {
+            $db->rollBack();
+            error_log("[CommunicationHub] Erro ao unificar conversas: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Serve mídia armazenada de forma segura
      * 
      * GET /communication-hub/media?path=whatsapp-media/...
