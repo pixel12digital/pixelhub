@@ -124,7 +124,7 @@ $baseUrl = pixelhub_url('');
                                                     <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
                                                 </svg>
                                             </div>
-                                            <audio controls style="flex: 1; max-width: calc(100% - 50px); height: 36px;">
+                                            <audio controls preload="metadata" style="flex: 1; max-width: calc(100% - 50px); height: 36px;">
                                                 <source src="<?= htmlspecialchars($media['url']) ?>" type="<?= htmlspecialchars($media['mime_type'] ?: 'audio/ogg') ?>">
                                             </audio>
                                         </div>
@@ -375,7 +375,7 @@ function addMessageElementToDOM(message) {
                             <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
                         </svg>
                     </div>
-                    <audio controls style="flex: 1; max-width: calc(100% - 50px); height: 36px;">
+                    <audio controls preload="metadata" style="flex: 1; max-width: calc(100% - 50px); height: 36px;">
                         <source src="${escapeHtml(media.url)}" type="${escapeHtml(media.mime_type || 'audio/ogg')}">
                     </audio>
                 </div>
