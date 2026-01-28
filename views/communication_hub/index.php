@@ -1829,20 +1829,8 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
             const conversationId = lead.conversation_id || 0;
             const unreadCount = lead.unread_count || 0;
             
-            // Formata data
-            let dateStr = 'Agora';
-            try {
-                const dateTime = new Date(lead.last_activity || 'now');
-                if (!isNaN(dateTime.getTime())) {
-                    const day = String(dateTime.getDate()).padStart(2, '0');
-                    const month = String(dateTime.getMonth() + 1).padStart(2, '0');
-                    const hours = String(dateTime.getHours()).padStart(2, '0');
-                    const minutes = String(dateTime.getMinutes()).padStart(2, '0');
-                    dateStr = `${day}/${month} ${hours}:${minutes}`;
-                }
-            } catch (e) {
-                // Mantém 'Agora' se erro ao formatar
-            }
+            // Formata data (usa função que garante fuso de Brasília)
+            const dateStr = formatDateBrasilia(lead.last_activity);
             
             const channel = lead.channel || 'whatsapp';
             html += `
@@ -1922,20 +1910,8 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
         const messageCount = thread.message_count || 0;
         const lastActivity = thread.last_activity || 'now';
         
-        // Formata data
-        let dateStr = 'Agora';
-        try {
-            const dateTime = new Date(lastActivity);
-            if (!isNaN(dateTime.getTime())) {
-                const day = String(dateTime.getDate()).padStart(2, '0');
-                const month = String(dateTime.getMonth() + 1).padStart(2, '0');
-                const hours = String(dateTime.getHours()).padStart(2, '0');
-                const minutes = String(dateTime.getMinutes()).padStart(2, '0');
-                dateStr = `${day}/${month} ${hours}:${minutes}`;
-            }
-        } catch (e) {
-            // Mantém 'Agora' se erro ao formatar
-        }
+        // Formata data (usa função que garante fuso de Brasília)
+        const dateStr = formatDateBrasilia(lastActivity);
         
         html += `
             <div onclick="handleConversationClick('${threadId}', '${channel}')" 
@@ -2113,6 +2089,44 @@ document.getElementById('new-message-modal')?.addEventListener('click', function
 // ============================================================================
 // Carregamento de Conversa no Painel Direito
 // ============================================================================
+
+/**
+ * Formata data/hora para exibição no fuso de Brasília
+ * Os timestamps do banco vêm em formato "YYYY-MM-DD HH:MM:SS" no fuso de Brasília
+ */
+function formatDateBrasilia(dateStr) {
+    if (!dateStr || dateStr === 'now') return 'Agora';
+    
+    try {
+        // Adiciona timezone de Brasília (-03:00) se não tiver
+        // Isso garante que o JavaScript interprete corretamente
+        let isoStr = dateStr;
+        if (!dateStr.includes('T') && !dateStr.includes('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
+            // Formato "YYYY-MM-DD HH:MM:SS" - adiciona T e timezone
+            isoStr = dateStr.replace(' ', 'T') + '-03:00';
+        }
+        
+        const dateTime = new Date(isoStr);
+        if (isNaN(dateTime.getTime())) return 'Agora';
+        
+        // Formata para exibição em Brasília
+        const options = { 
+            timeZone: 'America/Sao_Paulo',
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        };
+        
+        const formatted = dateTime.toLocaleString('pt-BR', options);
+        // Retorna no formato "dd/mm HH:MM"
+        return formatted.replace(',', '').replace(/\/\d{4}/, '');
+    } catch (e) {
+        console.warn('[Hub] Erro ao formatar data:', dateStr, e);
+        return 'Agora';
+    }
+}
 
 /**
  * Escapa HTML para prevenir XSS
