@@ -157,6 +157,32 @@ body.communication-hub-page {
     background: #022a6d;
 }
 
+/* Botão Nova Conversa */
+.btn-nova-conversa {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #25d366 !important;
+    color: white !important;
+    border: none;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    height: 36px;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+
+.btn-nova-conversa:hover {
+    background: #1fb855 !important;
+}
+
+.btn-nova-conversa svg {
+    flex-shrink: 0;
+}
+
 /* Dropdown pesquisável de Cliente */
 .searchable-dropdown {
     position: relative;
@@ -1190,7 +1216,7 @@ body.communication-hub-page {
             </div>
             <div>
                 <label>Status</label>
-                <select name="status">
+                <select name="status" id="filter-status" onchange="onStatusFilterChange()">
                     <option value="active" <?= ($filters['status'] === 'active') ? 'selected' : '' ?>>Ativas</option>
                     <option value="archived" <?= ($filters['status'] === 'archived') ? 'selected' : '' ?>>Arquivadas</option>
                     <option value="ignored" <?= ($filters['status'] === 'ignored') ? 'selected' : '' ?>>Ignoradas</option>
@@ -1198,7 +1224,13 @@ body.communication-hub-page {
                 </select>
             </div>
             <div>
-                <button type="submit">Filtrar</button>
+                <button type="button" onclick="openNewMessageModal()" class="btn-nova-conversa" title="Iniciar nova conversa">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Nova Conversa
+                </button>
             </div>
         </form>
     </div>
@@ -1507,17 +1539,31 @@ body.communication-hub-page {
             
             <div style="margin-bottom: 20px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">Cliente</label>
-                <select name="tenant_id" id="new-message-tenant" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                    <option value="">Selecione...</option>
-                    <?php foreach ($tenants as $tenant): ?>
-                        <option value="<?= $tenant['id'] ?>" data-phone="<?= htmlspecialchars($tenant['phone'] ?? '') ?>">
-                            <?= htmlspecialchars($tenant['name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                <div class="searchable-dropdown" id="modalClienteDropdown">
+                    <input type="text" 
+                           class="searchable-dropdown-input" 
+                           id="modalClienteSearchInput"
+                           placeholder="Buscar cliente..."
+                           autocomplete="off"
+                           style="height: 42px; font-size: 14px;">
+                    <input type="hidden" name="tenant_id" id="modalClienteTenantId" value="">
+                    <span class="searchable-dropdown-arrow">▼</span>
+                    <div class="searchable-dropdown-list" id="modalClienteDropdownList" style="max-height: 200px;">
+                        <?php foreach ($tenants as $tenant): ?>
+                            <div class="searchable-dropdown-item" 
+                                 data-value="<?= $tenant['id'] ?>" 
+                                 data-name="<?= htmlspecialchars($tenant['name']) ?>"
+                                 data-phone="<?= htmlspecialchars($tenant['phone'] ?? '') ?>"
+                                 data-search="<?= htmlspecialchars(strtolower($tenant['name'] . ' ' . ($tenant['phone'] ?? ''))) ?>">
+                                <div class="searchable-dropdown-item-name"><?= htmlspecialchars($tenant['name']) ?></div>
+                                <div class="searchable-dropdown-item-detail"><?= htmlspecialchars($tenant['phone'] ?? 'Sem telefone') ?></div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
             </div>
             
-            <div style="margin-bottom: 20px;" id="new-message-to-container" style="display: none;">
+            <div style="margin-bottom: 20px;" id="new-message-to-container">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">Para (Telefone/E-mail)</label>
                 <input type="text" name="to" id="new-message-to" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;" placeholder="5511999999999">
             </div>
@@ -2216,6 +2262,10 @@ function closeNewMessageModal() {
     document.getElementById('new-message-form').reset();
     document.getElementById('new-message-to-container').style.display = 'none';
     document.getElementById('new-message-session-container').style.display = 'none';
+    // Reseta o dropdown pesquisável de cliente
+    if (typeof resetModalClienteDropdown === 'function') {
+        resetModalClienteDropdown();
+    }
 }
 
 // ============================================================================
@@ -2268,6 +2318,26 @@ function onSessionFilterChange() {
 }
 
 /**
+ * Handler para mudança de Status - auto-submete
+ */
+function onStatusFilterChange() {
+    const form = document.getElementById('communication-filters-form');
+    if (form) {
+        form.submit();
+    }
+}
+
+/**
+ * Handler para mudança de Cliente - auto-submete (chamado pelo dropdown)
+ */
+function onClienteFilterChange() {
+    const form = document.getElementById('communication-filters-form');
+    if (form) {
+        form.submit();
+    }
+}
+
+/**
  * Mostra/oculta o campo de sessão no modal Nova Mensagem
  */
 function toggleNewMessageSessionField() {
@@ -2297,21 +2367,17 @@ function toggleNewMessageSessionField() {
     }
 }
 
-// Auto-preenche telefone quando seleciona cliente (WhatsApp)
-document.getElementById('new-message-tenant')?.addEventListener('change', function() {
+// Auto-preenche telefone quando seleciona cliente no modal (via dropdown pesquisável)
+function onModalClienteSelect(phone) {
     const channel = document.getElementById('new-message-channel').value;
-    const tenantSelect = this;
     const toInput = document.getElementById('new-message-to');
     const toContainer = document.getElementById('new-message-to-container');
     
-    if (channel === 'whatsapp' && tenantSelect.value) {
-        const phone = tenantSelect.options[tenantSelect.selectedIndex].dataset.phone;
-        if (phone) {
-            toInput.value = phone;
-            toContainer.style.display = 'block';
-        }
+    if (channel === 'whatsapp' && phone) {
+        toInput.value = phone;
+        toContainer.style.display = 'block';
     }
-});
+}
 
 document.getElementById('new-message-channel')?.addEventListener('change', function() {
     const channel = this.value;
@@ -2323,11 +2389,15 @@ document.getElementById('new-message-channel')?.addEventListener('change', funct
     if (channel === 'whatsapp') {
         toContainer.style.display = 'block';
         // Auto-preenche telefone se cliente já estiver selecionado
-        const tenantSelect = document.getElementById('new-message-tenant');
-        if (tenantSelect.value) {
-            const phone = tenantSelect.options[tenantSelect.selectedIndex].dataset.phone;
-            if (phone) {
-                document.getElementById('new-message-to').value = phone;
+        const hiddenInput = document.getElementById('modalClienteTenantId');
+        if (hiddenInput && hiddenInput.value) {
+            const list = document.getElementById('modalClienteDropdownList');
+            const selectedItem = list?.querySelector(`[data-value="${hiddenInput.value}"]`);
+            if (selectedItem) {
+                const phone = selectedItem.dataset.phone;
+                if (phone) {
+                    document.getElementById('new-message-to').value = phone;
+                }
             }
         }
     } else {
@@ -2804,9 +2874,6 @@ function renderConversation(thread, messages, channel) {
                         <line x1="5" y1="12" x2="19" y2="12"></line>
                     </svg>
                 </button>
-                <div class="status">
-                    <span style="color: #25d366; font-weight: 600;">Ativa</span>
-                </div>
             </div>
         </div>
         
@@ -5627,6 +5694,11 @@ async function changeConversationTenant(event) {
         // Atualiza classe selected
         items.forEach(i => i.classList.remove('selected'));
         item.classList.add('selected');
+        
+        // Auto-submit do formulário ao selecionar cliente
+        if (typeof onClienteFilterChange === 'function') {
+            onClienteFilterChange();
+        }
     }
     
     function restoreSelectedValue() {
@@ -5708,6 +5780,213 @@ async function changeConversationTenant(event) {
         visibleItems[nextIndex].classList.add('focused');
         visibleItems[nextIndex].scrollIntoView({ block: 'nearest' });
     }
+})();
+
+// ============================================================================
+// Dropdown Pesquisável de Cliente no Modal Nova Mensagem
+// ============================================================================
+(function() {
+    const dropdown = document.getElementById('modalClienteDropdown');
+    if (!dropdown) return;
+    
+    const input = document.getElementById('modalClienteSearchInput');
+    const hiddenInput = document.getElementById('modalClienteTenantId');
+    const list = document.getElementById('modalClienteDropdownList');
+    const items = list.querySelectorAll('.searchable-dropdown-item');
+    
+    let isOpen = false;
+    let selectedValue = '';
+    
+    // Abre dropdown ao clicar no input
+    input.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggleDropdown();
+    });
+    
+    // Abre dropdown ao focar
+    input.addEventListener('focus', function() {
+        if (!isOpen) {
+            openDropdown();
+            this.select();
+        }
+    });
+    
+    // Filtra enquanto digita
+    input.addEventListener('input', function() {
+        const query = this.value.toLowerCase().trim();
+        filterItems(query);
+        if (!isOpen) openDropdown();
+    });
+    
+    // Navegação por teclado
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeDropdown();
+            restoreSelectedValue();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const visibleItems = Array.from(items).filter(i => i.style.display !== 'none');
+            if (visibleItems.length > 0) {
+                selectItem(visibleItems[0]);
+            }
+            closeDropdown();
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (!isOpen) openDropdown();
+            focusNextItem(1);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            focusNextItem(-1);
+        }
+    });
+    
+    // Seleciona item ao clicar
+    items.forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.stopPropagation();
+            selectItem(this);
+            closeDropdown();
+        });
+        
+        item.addEventListener('mouseenter', function() {
+            items.forEach(i => i.classList.remove('focused'));
+            this.classList.add('focused');
+        });
+    });
+    
+    // Fecha dropdown ao clicar fora
+    document.addEventListener('click', function(e) {
+        if (!dropdown.contains(e.target)) {
+            closeDropdown();
+            restoreSelectedValue();
+        }
+    });
+    
+    function toggleDropdown() {
+        if (isOpen) closeDropdown();
+        else openDropdown();
+    }
+    
+    function openDropdown() {
+        list.classList.add('show');
+        isOpen = true;
+        items.forEach(item => item.style.display = '');
+        const selected = list.querySelector(`[data-value="${selectedValue}"]`);
+        if (selected) {
+            selected.scrollIntoView({ block: 'nearest' });
+            selected.classList.add('selected');
+        }
+    }
+    
+    function closeDropdown() {
+        list.classList.remove('show');
+        isOpen = false;
+        items.forEach(i => i.classList.remove('focused'));
+    }
+    
+    function selectItem(item) {
+        const value = item.dataset.value;
+        const name = item.dataset.name;
+        const phone = item.dataset.phone || '';
+        
+        selectedValue = value;
+        hiddenInput.value = value;
+        input.value = name;
+        
+        items.forEach(i => i.classList.remove('selected'));
+        item.classList.add('selected');
+        
+        // Auto-preenche telefone no modal
+        if (typeof onModalClienteSelect === 'function') {
+            onModalClienteSelect(phone);
+        }
+    }
+    
+    function restoreSelectedValue() {
+        const selected = list.querySelector(`[data-value="${selectedValue}"]`);
+        if (selected) {
+            input.value = selected.dataset.name;
+        } else if (!selectedValue) {
+            input.value = '';
+        }
+    }
+    
+    function filterItems(query) {
+        let hasResults = false;
+        
+        items.forEach(item => {
+            const name = (item.dataset.name || '').toLowerCase();
+            const search = (item.dataset.search || '').toLowerCase();
+            const matches = name.includes(query) || search.includes(query);
+            
+            if (query === '' || matches) {
+                item.style.display = '';
+                hasResults = true;
+                
+                if (query && query.length >= 2) {
+                    highlightMatch(item.querySelector('.searchable-dropdown-item-name'), query, item.dataset.name);
+                } else {
+                    item.querySelector('.searchable-dropdown-item-name').textContent = item.dataset.name;
+                }
+            } else {
+                item.style.display = 'none';
+            }
+        });
+        
+        let emptyMsg = list.querySelector('.searchable-dropdown-empty');
+        if (!hasResults) {
+            if (!emptyMsg) {
+                emptyMsg = document.createElement('div');
+                emptyMsg.className = 'searchable-dropdown-empty';
+                emptyMsg.textContent = 'Nenhum cliente encontrado';
+                list.appendChild(emptyMsg);
+            }
+            emptyMsg.style.display = '';
+        } else if (emptyMsg) {
+            emptyMsg.style.display = 'none';
+        }
+    }
+    
+    function highlightMatch(element, query, originalText) {
+        const lowerText = originalText.toLowerCase();
+        const index = lowerText.indexOf(query);
+        
+        if (index >= 0) {
+            const before = originalText.substring(0, index);
+            const match = originalText.substring(index, index + query.length);
+            const after = originalText.substring(index + query.length);
+            element.innerHTML = escapeHtml(before) + '<mark>' + escapeHtml(match) + '</mark>' + escapeHtml(after);
+        } else {
+            element.textContent = originalText;
+        }
+    }
+    
+    function focusNextItem(direction) {
+        const visibleItems = Array.from(items).filter(i => i.style.display !== 'none');
+        if (visibleItems.length === 0) return;
+        
+        const currentFocused = list.querySelector('.focused');
+        let currentIndex = currentFocused ? visibleItems.indexOf(currentFocused) : -1;
+        
+        let nextIndex = currentIndex + direction;
+        if (nextIndex < 0) nextIndex = visibleItems.length - 1;
+        if (nextIndex >= visibleItems.length) nextIndex = 0;
+        
+        items.forEach(i => i.classList.remove('focused'));
+        visibleItems[nextIndex].classList.add('focused');
+        visibleItems[nextIndex].scrollIntoView({ block: 'nearest' });
+    }
+    
+    // Reset do dropdown quando modal abre
+    window.resetModalClienteDropdown = function() {
+        selectedValue = '';
+        hiddenInput.value = '';
+        input.value = '';
+        items.forEach(i => {
+            i.classList.remove('selected');
+            i.style.display = '';
+        });
+    };
 })();
 </script>
 
