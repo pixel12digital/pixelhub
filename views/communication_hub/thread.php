@@ -205,12 +205,12 @@ $baseUrl = pixelhub_url('');
                 <input type="file" id="media-file-input" accept="image/*,.pdf,.doc,.docx" style="display: none;" onchange="handleFileSelect(event)">
                 
                 <!-- Botão de Anexar -->
-                <button type="button" id="attach-btn" onclick="document.getElementById('media-file-input').click()" 
+                <button type="button" id="attach-btn" 
                         title="Anexar arquivo (imagem, PDF, documento)"
                         style="padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
                         onmouseover="this.style.background='#e9ecef'; this.style.borderColor='#023A8D';"
                         onmouseout="this.style.background='#f8f9fa'; this.style.borderColor='#ddd';">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;">
                         <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
                     </svg>
                 </button>
@@ -841,35 +841,89 @@ function handleFileSelect(event) {
  * Handler para paste (Ctrl+V)
  */
 function handlePaste(event) {
-    const items = event.clipboardData?.items;
-    if (!items) return;
+    console.log('[Media] Paste detectado');
     
-    for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        
-        // Verifica se é uma imagem
-        if (item.type.startsWith('image/')) {
-            event.preventDefault(); // Impede paste de texto
-            const file = item.getAsFile();
-            if (file) {
-                // Gera nome baseado no timestamp
-                const ext = item.type.split('/')[1] || 'png';
-                const fileName = `imagem_${Date.now()}.${ext}`;
+    const clipboardData = event.clipboardData || window.clipboardData;
+    if (!clipboardData) {
+        console.log('[Media] Sem dados no clipboard');
+        return;
+    }
+    
+    const items = clipboardData.items;
+    const files = clipboardData.files;
+    
+    console.log('[Media] Clipboard items:', items?.length, 'files:', files?.length);
+    
+    // Tenta primeiro via items (mais confiável para imagens copiadas)
+    if (items) {
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            console.log('[Media] Item', i, '- kind:', item.kind, 'type:', item.type);
+            
+            // Verifica se é uma imagem
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+                event.preventDefault();
+                event.stopPropagation();
                 
-                // Cria novo File com nome customizado
-                const namedFile = new File([file], fileName, { type: file.type });
-                processFile(namedFile);
+                const file = item.getAsFile();
+                if (file) {
+                    console.log('[Media] Imagem encontrada no clipboard:', file.name, file.type, file.size);
+                    
+                    // Gera nome baseado no timestamp
+                    const ext = item.type.split('/')[1] || 'png';
+                    const fileName = `imagem_${Date.now()}.${ext}`;
+                    
+                    // Cria novo File com nome customizado
+                    const namedFile = new File([file], fileName, { type: file.type });
+                    processFile(namedFile);
+                }
+                return;
             }
-            return;
         }
     }
+    
+    // Fallback: tenta via files (para alguns navegadores)
+    if (files && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            console.log('[Media] File', i, '- name:', file.name, 'type:', file.type);
+            
+            if (file.type.startsWith('image/')) {
+                event.preventDefault();
+                event.stopPropagation();
+                console.log('[Media] Imagem encontrada via files:', file.name);
+                processFile(file);
+                return;
+            }
+        }
+    }
+    
+    console.log('[Media] Nenhuma imagem encontrada no paste, deixando comportamento padrão (texto)');
 }
 
-// Registra handler de paste no textarea
+// Registra handlers de paste e click para mídia
 document.addEventListener('DOMContentLoaded', function() {
     const messageInput = document.getElementById('message-input');
+    const attachBtn = document.getElementById('attach-btn');
+    const fileInput = document.getElementById('media-file-input');
+    
+    // Handler do botão de anexar
+    if (attachBtn && fileInput) {
+        attachBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[Media] Botão de anexar clicado');
+            fileInput.click();
+        });
+        console.log('[Media] Handler do botão de anexar registrado');
+    } else {
+        console.warn('[Media] Botão de anexar ou input de arquivo não encontrado');
+    }
+    
+    // Handler de paste no textarea
     if (messageInput) {
         messageInput.addEventListener('paste', handlePaste);
+        console.log('[Media] Handler de paste registrado no textarea');
     }
     
     // Também registra no documento para capturar paste em qualquer lugar da área de chat
@@ -882,6 +936,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // Handler de paste global para capturar Ctrl+V em qualquer lugar
+    document.addEventListener('paste', function(e) {
+        // Verifica se estamos na página de thread e não em outro input
+        const activeEl = document.activeElement;
+        const isInChatArea = activeEl === messageInput || activeEl.closest('#messages-container');
+        if (isInChatArea || activeEl.tagName === 'BODY') {
+            handlePaste(e);
+        }
+    });
 });
 
 // ============================================================================
