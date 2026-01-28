@@ -2651,11 +2651,14 @@ function renderConversation(thread, messages, channel) {
                     <!-- Thumbnail compacto (clicável) -->
                     <div id="hub-media-thumb-container" style="display: none; position: relative; cursor: pointer; flex-shrink: 0;" onclick="expandMediaPreview()" title="Clique para ampliar">
                         <img id="hub-media-preview-img" src="" alt="Preview" style="width: 80px; height: 80px; border-radius: 6px; object-fit: cover; border: 1px solid #ddd;">
-                        <div style="position: absolute; bottom: 2px; right: 2px; background: rgba(0,0,0,0.5); color: white; width: 18px; height: 18px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 10px;">🔍</div>
+                        <!-- Indicador monocromático -->
+                        <div style="position: absolute; bottom: 3px; right: 3px; background: rgba(0,0,0,0.4); width: 16px; height: 16px; border-radius: 2px; display: flex; align-items: center; justify-content: center;">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+                        </div>
                     </div>
                     <!-- Ícone para documentos -->
-                    <div id="hub-media-doc-container" style="display: none; width: 60px; height: 60px; background: white; border-radius: 6px; border: 1px solid #ddd; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
-                        <span id="hub-media-preview-icon" style="font-size: 28px;">📄</span>
+                    <div id="hub-media-doc-container" style="display: none; width: 60px; height: 60px; background: white; border-radius: 6px; border: 1px solid #ddd; flex-shrink: 0; align-items: center; justify-content: center;">
+                        <span id="hub-media-preview-icon" style="font-size: 28px; color: #666;">📄</span>
                     </div>
                     <!-- Info do arquivo -->
                     <div style="flex: 1; min-width: 0;">
@@ -2664,17 +2667,6 @@ function renderConversation(thread, messages, channel) {
                     </div>
                     <!-- Botão remover (monocromático) -->
                     <button type="button" id="hub-media-remove" style="padding: 6px 10px; background: transparent; color: #666; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 11px; flex-shrink: 0; transition: all 0.15s;" onmouseover="this.style.background='#eee'; this.style.borderColor='#999';" onmouseout="this.style.background='transparent'; this.style.borderColor='#ccc';">✕</button>
-                </div>
-            </div>
-            
-            <!-- Modal lightbox para preview expandido -->
-            <div id="hub-media-expand-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 10001; align-items: center; justify-content: center;" onclick="closeMediaExpandModal(event)">
-                <!-- Botão fechar (X) no canto -->
-                <button onclick="closeMediaExpandModal()" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: #aaa; font-size: 32px; cursor: pointer; z-index: 10002; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; transition: color 0.15s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">✕</button>
-                <!-- Container da imagem -->
-                <div style="position: relative; max-width: 90%; max-height: 90%; display: flex; flex-direction: column; align-items: center;" onclick="event.stopPropagation()">
-                    <img id="hub-media-expand-img" src="" style="max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 4px;">
-                    <div style="margin-top: 12px; color: #888; font-size: 12px;">Pressione ESC ou clique fora para fechar</div>
                 </div>
             </div>
             
@@ -3275,28 +3267,48 @@ function initComposerAudio() {
         updateSendMicVisibility();
     }
     
+    // Função para criar modal lightbox dinamicamente (garante que fica no body, isolado)
+    function ensureMediaModal() {
+        let modal = document.getElementById('hub-media-expand-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'hub-media-expand-modal';
+            modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#000; z-index:999999; align-items:center; justify-content:center;';
+            modal.onclick = function(e) { if (e.target === modal) window.closeMediaExpandModal(); };
+            
+            modal.innerHTML = `
+                <button onclick="closeMediaExpandModal()" style="position:absolute; top:20px; right:20px; background:transparent; border:none; color:#888; font-size:28px; cursor:pointer; z-index:999999; width:44px; height:44px; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'">✕</button>
+                <img id="hub-media-expand-img" src="" style="max-width:90vw; max-height:90vh; object-fit:contain;">
+            `;
+            
+            document.body.appendChild(modal);
+            console.log('[Media] Modal lightbox criado e anexado ao body');
+        }
+        return modal;
+    }
+    
     // Função para expandir preview da imagem (lightbox)
     window.expandMediaPreview = function() {
-        const modal = document.getElementById('hub-media-expand-modal');
+        if (!window._mediaPreviewDataUrl) return;
+        
+        const modal = ensureMediaModal();
         const expandImg = document.getElementById('hub-media-expand-img');
         
-        if (modal && expandImg && window._mediaPreviewDataUrl) {
+        if (modal && expandImg) {
             expandImg.src = window._mediaPreviewDataUrl;
             modal.style.display = 'flex';
-            document.body.style.overflow = 'hidden'; // Trava scroll do body
+            document.body.style.overflow = 'hidden';
+            console.log('[Media] Modal aberto');
         }
     };
     
     // Função para fechar modal de expansão
-    window.closeMediaExpandModal = function(event) {
-        // Se clicou na imagem, não fecha
-        if (event && event.target && event.target.tagName === 'IMG') {
-            return;
-        }
+    window.closeMediaExpandModal = function() {
         const modal = document.getElementById('hub-media-expand-modal');
         if (modal) {
             modal.style.display = 'none';
-            document.body.style.overflow = ''; // Restaura scroll
+            document.body.style.overflow = '';
+            console.log('[Media] Modal fechado');
         }
     };
     
