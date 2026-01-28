@@ -1635,6 +1635,10 @@ class CommunicationHubController extends Controller
                             $eventPayload['text'] = $message;
                         }
                         
+                        // CORREÇÃO: Normaliza channel_id no metadata para garantir busca consistente
+                        // Eventos inbound têm metadata.channel_id normalizado, outbound precisa ter também
+                        $normalizedChannelId = strtolower(str_replace(' ', '', $targetChannelId));
+                        
                         $eventId = EventIngestionService::ingest([
                             'event_type' => 'whatsapp.outbound.message',
                             'source_system' => 'pixelhub_operator',
@@ -1644,7 +1648,8 @@ class CommunicationHubController extends Controller
                                 'sent_by' => Auth::user()['id'] ?? null,
                                 'sent_by_name' => Auth::user()['name'] ?? null,
                                 'message_id' => $result['message_id'] ?? null,
-                                'forwarded' => count($targetChannels) > 1 ? true : null
+                                'forwarded' => count($targetChannels) > 1 ? true : null,
+                                'channel_id' => $normalizedChannelId // CORREÇÃO: Adiciona channel_id normalizado
                             ]
                         ]);
                         
@@ -3074,16 +3079,21 @@ class CommunicationHubController extends Controller
         
         if ($hasChannelId) {
             // Se há channel_id, adiciona filtro de channel_id (garante isolamento)
+            // CORREÇÃO: Adiciona payload.channel_id para eventos outbound (que não têm metadata.channel_id)
+            // e usa normalização case-insensitive com remoção de espaços para todas as comparações
+            $normalizedSessionId = strtolower(str_replace(' ', '', $sessionId));
             $whereWithTenant[] = "(
-                LOWER(TRIM(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(ce.metadata, '$.channel_id')), ' ', ''))) = LOWER(TRIM(REPLACE(?, ' ', '')))
-                OR JSON_EXTRACT(ce.payload, '$.session.id') = ?
-                OR JSON_EXTRACT(ce.payload, '$.sessionId') = ?
-                OR JSON_EXTRACT(ce.payload, '$.channelId') = ?
+                LOWER(TRIM(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(ce.metadata, '$.channel_id')), ' ', ''))) = ?
+                OR LOWER(TRIM(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.channel_id')), ' ', ''))) = ?
+                OR LOWER(TRIM(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.session.id')), ' ', ''))) = ?
+                OR LOWER(TRIM(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.sessionId')), ' ', ''))) = ?
+                OR LOWER(TRIM(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.channelId')), ' ', ''))) = ?
             )";
-            $paramsWithTenant[] = $sessionId;
-            $paramsWithTenant[] = $sessionId;
-            $paramsWithTenant[] = $sessionId;
-            $paramsWithTenant[] = $sessionId;
+            $paramsWithTenant[] = $normalizedSessionId;
+            $paramsWithTenant[] = $normalizedSessionId;
+            $paramsWithTenant[] = $normalizedSessionId;
+            $paramsWithTenant[] = $normalizedSessionId;
+            $paramsWithTenant[] = $normalizedSessionId;
             
             // NÃO adiciona filtro de tenant_id quando há channel_id (channel_id já garante isolamento)
             // Isso permite encontrar eventos mesmo quando tenant_id é diferente
