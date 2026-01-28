@@ -1919,9 +1919,6 @@ window.addEventListener('beforeunload', function() {
  */
 async function updateConversationListOnly() {
     try {
-        // [LOG TEMPORARIO] Início da atualização
-        console.log('[LOG TEMPORARIO] updateConversationListOnly() - INICIADO');
-        
         // Busca lista atualizada via endpoint JSON
         const params = new URLSearchParams({
             channel: '<?= htmlspecialchars($filters['channel'] ?? 'all') ?>',
@@ -1929,6 +1926,9 @@ async function updateConversationListOnly() {
         });
         <?php if (isset($filters['tenant_id']) && $filters['tenant_id']): ?>
         params.set('tenant_id', '<?= (int) $filters['tenant_id'] ?>');
+        <?php endif; ?>
+        <?php if (isset($filters['session_id']) && $filters['session_id']): ?>
+        params.set('session_id', '<?= htmlspecialchars($filters['session_id']) ?>');
         <?php endif; ?>
         
         const url = '<?= pixelhub_url('/communication-hub/conversations-list') ?>?' + params.toString();
@@ -1940,58 +1940,17 @@ async function updateConversationListOnly() {
             return;
         }
         
-        // [LOG TEMPORARIO] Resposta recebida
-        console.log('[LOG TEMPORARIO] updateConversationListOnly() - RESPOSTA RECEBIDA: threads_count=' + (result.threads?.length || 0) + ', incoming_leads_count=' + (result.incoming_leads?.length || 0));
-        
-        // [LOG TEMPORARIO] Valida ordenação do backend
-        if (result.threads && result.threads.length > 0) {
-            const firstThread = result.threads[0];
-            const lastThread = result.threads[result.threads.length - 1];
-            console.log('[LOG TEMPORARIO] updateConversationListOnly() - ORDENACAO BACKEND: primeiro_thread_id=' + (firstThread.thread_id || 'N/A') + ', last_activity=' + (firstThread.last_activity || 'N/A'));
-            console.log('[LOG TEMPORARIO] updateConversationListOnly() - ORDENACAO BACKEND: ultimo_thread_id=' + (lastThread.thread_id || 'N/A') + ', last_activity=' + (lastThread.last_activity || 'N/A'));
-            
-            // Valida se está ordenado por last_activity DESC
-            let isOrdered = true;
-            for (let i = 1; i < result.threads.length; i++) {
-                const prevTime = new Date(result.threads[i-1].last_activity || '1970-01-01').getTime();
-                const currTime = new Date(result.threads[i].last_activity || '1970-01-01').getTime();
-                if (currTime > prevTime) {
-                    isOrdered = false;
-                    console.warn('[LOG TEMPORARIO] updateConversationListOnly() - ORDENACAO QUEBRADA: thread[' + (i-1) + '].last_activity=' + result.threads[i-1].last_activity + ' < thread[' + i + '].last_activity=' + result.threads[i].last_activity);
-                    break;
-                }
-            }
-            console.log('[LOG TEMPORARIO] updateConversationListOnly() - ORDENACAO VALIDADA: ' + (isOrdered ? 'CORRETA (DESC)' : 'INCORRETA'));
-        }
-        
         // Preserva estado atual
         const activeThreadId = ConversationState.currentThreadId;
         const listScroll = document.querySelector('.conversation-list-scroll');
         
-        // CRÍTICO: Garante que threads estão ordenados por last_activity DESC antes de renderizar
-        // (Backend já retorna ordenado, mas garante aqui também para segurança)
-        const sortedThreads = [...(result.threads || [])].sort((a, b) => {
-            const timeA = new Date(a.last_activity || '1970-01-01').getTime();
-            const timeB = new Date(b.last_activity || '1970-01-01').getTime();
-            return timeB - timeA; // DESC: mais recente primeiro
-        });
+        // Backend já retorna ordenado por last_activity DESC - não reordenar no front
+        const threads = result.threads || [];
+        const incomingLeads = result.incoming_leads || [];
         
-        // Ordena incoming leads também
-        const sortedIncomingLeads = [...(result.incoming_leads || [])].sort((a, b) => {
-            const timeA = new Date(a.last_activity || '1970-01-01').getTime();
-            const timeB = new Date(b.last_activity || '1970-01-01').getTime();
-            return timeB - timeA; // DESC: mais recente primeiro
-        });
-        
-        // [LOG TEMPORARIO] Ordenação após sort
-        if (sortedThreads.length > 0) {
-            console.log('[LOG TEMPORARIO] updateConversationListOnly() - APOS SORT: primeiro_thread_id=' + (sortedThreads[0].thread_id || 'N/A') + ', last_activity=' + (sortedThreads[0].last_activity || 'N/A'));
-        }
-        
-        // Renderiza lista atualizada (já ordenada) incluindo incoming leads
-        // Usa o valor correto do backend se disponível, senão usa o tamanho do array
-        const incomingLeadsCount = result.incoming_leads_count !== undefined ? result.incoming_leads_count : sortedIncomingLeads.length;
-        renderConversationList(sortedThreads, sortedIncomingLeads, incomingLeadsCount);
+        // Renderiza lista (já ordenada pelo backend)
+        const incomingLeadsCount = result.incoming_leads_count !== undefined ? result.incoming_leads_count : incomingLeads.length;
+        renderConversationList(threads, incomingLeads, incomingLeadsCount);
         
         // Sempre rola para o topo após atualização para mostrar conversas mais recentes
         if (listScroll) {

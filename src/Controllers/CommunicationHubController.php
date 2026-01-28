@@ -23,6 +23,31 @@ use PDO;
 class CommunicationHubController extends Controller
 {
     /**
+     * Cache estático de existência de tabelas (evita SHOW TABLES repetidos no mesmo request)
+     * @var array<string, bool>
+     */
+    private static array $tableExistsCache = [];
+    
+    /**
+     * Verifica se uma tabela existe (com cache por request)
+     */
+    private static function tableExists(PDO $db, string $tableName): bool
+    {
+        if (isset(self::$tableExistsCache[$tableName])) {
+            return self::$tableExistsCache[$tableName];
+        }
+        
+        try {
+            $stmt = $db->query("SHOW TABLES LIKE " . $db->quote($tableName));
+            self::$tableExistsCache[$tableName] = $stmt->rowCount() > 0;
+        } catch (\Exception $e) {
+            self::$tableExistsCache[$tableName] = false;
+        }
+        
+        return self::$tableExistsCache[$tableName];
+    }
+    
+    /**
      * Painel principal de comunicação
      * 
      * GET /communication-hub
@@ -2260,9 +2285,8 @@ class CommunicationHubController extends Controller
         $conversationIds = array_filter(array_column($conversations, 'id'));
         if (!empty($conversationIds)) {
             try {
-                // Verifica se tabela communication_events existe
-                $checkStmt = $db->query("SHOW TABLES LIKE 'communication_events'");
-                if ($checkStmt->rowCount() > 0) {
+                // Verifica se tabela communication_events existe (com cache)
+                if (self::tableExists($db, 'communication_events')) {
                     $placeholders = str_repeat('?,', count($conversationIds) - 1) . '?';
                     
                     // Busca channel_id mais recente de eventos inbound para essas conversas
@@ -2793,14 +2817,9 @@ class CommunicationHubController extends Controller
      */
     private function getWhatsAppThreadsFromEvents(PDO $db, ?int $tenantId, string $status): array
     {
-        // Verifica se a tabela existe
-        try {
-            $checkStmt = $db->query("SHOW TABLES LIKE 'communication_events'");
-            if ($checkStmt->rowCount() === 0) {
-                return []; // Tabela não existe ainda
-            }
-        } catch (\Exception $e) {
-            return []; // Erro ao verificar tabela
+        // Verifica se a tabela existe (com cache)
+        if (!self::tableExists($db, 'communication_events')) {
+            return []; // Tabela não existe ainda
         }
 
         $where = ["ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')"];
@@ -2904,14 +2923,9 @@ class CommunicationHubController extends Controller
      */
     private function getChatThreads(PDO $db, ?int $tenantId, string $status): array
     {
-        // Verifica se a tabela existe
-        try {
-            $checkStmt = $db->query("SHOW TABLES LIKE 'chat_threads'");
-            if ($checkStmt->rowCount() === 0) {
-                return []; // Tabela não existe ainda
-            }
-        } catch (\Exception $e) {
-            return []; // Erro ao verificar tabela
+        // Verifica se a tabela existe (com cache)
+        if (!self::tableExists($db, 'chat_threads')) {
+            return []; // Tabela não existe ainda
         }
 
         $where = [];
@@ -4213,15 +4227,14 @@ class CommunicationHubController extends Controller
         $channel = $_GET['channel'] ?? 'all';
         $tenantId = isset($_GET['tenant_id']) && $_GET['tenant_id'] !== '' ? (int) $_GET['tenant_id'] : null;
         $status = $_GET['status'] ?? 'active';
-
-        // [LOG TEMPORARIO] Início da busca de lista
-        error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - INICIADO: channel=' . $channel . ', tenant_id=' . ($tenantId ?: 'NULL') . ', status=' . $status);
+        // FIX: Agora lê session_id do GET para manter consistência com os filtros da página
+        $sessionId = isset($_GET['session_id']) && $_GET['session_id'] !== '' ? $_GET['session_id'] : null;
 
         $db = DB::getConnection();
 
         try {
-            // Busca threads de WhatsApp
-            $whatsappThreads = $this->getWhatsAppThreads($db, $tenantId, $status);
+            // Busca threads de WhatsApp (agora com session_id)
+            $whatsappThreads = $this->getWhatsAppThreads($db, $tenantId, $status, $sessionId);
             
             // Busca threads de chat interno
             $chatThreads = $this->getChatThreads($db, $tenantId, $status);
@@ -4233,22 +4246,12 @@ class CommunicationHubController extends Controller
             $incomingLeads = [];
             $normalThreads = [];
             
-            // [LOG TEMPORARIO] Antes de ordenar
-            if (!empty($allThreads)) {
-                $firstBeforeSort = $allThreads[0] ?? null;
-                error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - ANTES SORT: threads_count=' . count($allThreads) . ', primeiro_thread_id=' . ($firstBeforeSort['thread_id'] ?? 'N/A') . ', last_activity=' . ($firstBeforeSort['last_activity'] ?? 'N/A'));
-            }
-            
             if (!empty($allThreads)) {
                 usort($allThreads, function($a, $b) {
                     $timeA = strtotime($a['last_activity'] ?? '1970-01-01');
                     $timeB = strtotime($b['last_activity'] ?? '1970-01-01');
                     return $timeB <=> $timeA; // Mais recente primeiro
                 });
-                
-                // [LOG TEMPORARIO] Após ordenar
-                $firstAfterSort = $allThreads[0] ?? null;
-                error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - APOS SORT: primeiro_thread_id=' . ($firstAfterSort['thread_id'] ?? 'N/A') . ', last_activity=' . ($firstAfterSort['last_activity'] ?? 'N/A'));
 
                 // Filtra por canal se necessário
                 if ($channel !== 'all') {
@@ -4257,18 +4260,12 @@ class CommunicationHubController extends Controller
                     });
                     $allThreads = array_values($allThreads); // Reindexa array
                     
-                    // CRÍTICO: Reordena após filtrar (array_filter pode desordenar)
+                    // Reordena após filtrar (array_filter pode desordenar)
                     usort($allThreads, function($a, $b) {
                         $timeA = strtotime($a['last_activity'] ?? '1970-01-01');
                         $timeB = strtotime($b['last_activity'] ?? '1970-01-01');
                         return $timeB <=> $timeA; // Mais recente primeiro
                     });
-                    
-                    // [LOG TEMPORARIO] Após filtrar e reordenar
-                    if (!empty($allThreads)) {
-                        $firstAfterFilter = $allThreads[0] ?? null;
-                        error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - APOS FILTRO: threads_count=' . count($allThreads) . ', primeiro_thread_id=' . ($firstAfterFilter['thread_id'] ?? 'N/A') . ', last_activity=' . ($firstAfterFilter['last_activity'] ?? 'N/A'));
-                    }
                 }
                 
                 // Separa incoming leads das conversas normais
@@ -4278,17 +4275,6 @@ class CommunicationHubController extends Controller
                     } else {
                         $normalThreads[] = $thread;
                     }
-                }
-            }
-
-            // [LOG TEMPORARIO] Resultado final
-            error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - RETORNO FINAL: threads_count=' . count($normalThreads ?? []) . ', incoming_leads_count=' . count($incomingLeads ?? []));
-            if (!empty($normalThreads)) {
-                $firstFinal = $normalThreads[0] ?? null;
-                $secondFinal = $normalThreads[1] ?? null;
-                error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - PRIMEIRO: thread_id=' . ($firstFinal['thread_id'] ?? 'N/A') . ', last_activity=' . ($firstFinal['last_activity'] ?? 'N/A') . ', unread_count=' . ($firstFinal['unread_count'] ?? 0));
-                if ($secondFinal) {
-                    error_log('[LOG TEMPORARIO] CommunicationHub::getConversationsList() - SEGUNDO: thread_id=' . ($secondFinal['thread_id'] ?? 'N/A') . ', last_activity=' . ($secondFinal['last_activity'] ?? 'N/A') . ', unread_count=' . ($secondFinal['unread_count'] ?? 0));
                 }
             }
 
