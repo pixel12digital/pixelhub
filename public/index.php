@@ -4,6 +4,16 @@
  * Bootstrap principal do Pixel Hub
  */
 
+// IMPORTANTE: Aumenta limites para rotas de envio de mídia ANTES de qualquer parsing
+// Isso previne falhas silenciosas ao processar POST bodies grandes (áudio/imagem base64)
+if (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], 'communication-hub/send') !== false) {
+    ini_set('memory_limit', '256M');
+    ini_set('post_max_size', '64M');
+    ini_set('upload_max_filesize', '64M');
+    ini_set('max_execution_time', '120');
+    ini_set('max_input_time', '120');
+}
+
 // Inicia sessão
 if (session_status() === PHP_SESSION_NONE) {
     session_start();

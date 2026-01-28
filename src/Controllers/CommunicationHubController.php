@@ -543,14 +543,15 @@ class CommunicationHubController extends Controller
             error_log('[CommunicationHub::send] INICIO');
             error_log('[CommunicationHub::send] POST: ' . json_encode($_POST, JSON_UNESCAPED_UNICODE));
             
-            // Aumenta timeout do PHP para requisições de áudio (podem demorar mais)
+            // Aumenta timeout e memória do PHP para requisições de áudio/mídia (podem ser grandes)
             // O proxy/nginx pode ter timeout de 60s, então aumentamos o PHP para 120s
             // para dar margem ao gateway processar o áudio
             $messageType = $_POST['type'] ?? 'text';
-            if ($messageType === 'audio') {
+            if (in_array($messageType, ['audio', 'image', 'video', 'document'])) {
                 set_time_limit(120);
                 ini_set('max_execution_time', '120');
-                error_log("[CommunicationHub::send] ⏱️ Timeout aumentado para 120s para envio de áudio");
+                ini_set('memory_limit', '256M'); // Aumenta memória para processar base64 grande
+                error_log("[CommunicationHub::send] ⏱️ Timeout=120s, Memory=256M para envio de {$messageType}");
             }
             
             try {
