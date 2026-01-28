@@ -1139,18 +1139,18 @@ body.communication-hub-page {
         </div>
         
         <!-- Filtros compactos -->
-        <form method="GET" action="<?= pixelhub_url('/communication-hub') ?>" class="communication-filters">
+        <form method="GET" action="<?= pixelhub_url('/communication-hub') ?>" class="communication-filters" id="communication-filters-form">
             <div>
                 <label>Canal</label>
-                <select name="channel" id="filter-channel" onchange="toggleSessionFilter()">
+                <select name="channel" id="filter-channel" onchange="onChannelFilterChange()">
                     <option value="all" <?= ($filters['channel'] === 'all') ? 'selected' : '' ?>>Todos</option>
                     <option value="whatsapp" <?= ($filters['channel'] === 'whatsapp') ? 'selected' : '' ?>>WhatsApp</option>
                     <option value="chat" <?= ($filters['channel'] === 'chat') ? 'selected' : '' ?>>Chat Interno</option>
                 </select>
             </div>
-            <div id="session-filter-container" style="<?= ($filters['channel'] === 'chat') ? 'display: none;' : '' ?>">
+            <div id="session-filter-container" style="<?= ($filters['channel'] !== 'whatsapp') ? 'display: none;' : '' ?>">
                 <label>Sessão (WhatsApp)</label>
-                <select name="session_id" id="filter-session">
+                <select name="session_id" id="filter-session" onchange="onSessionFilterChange()">
                     <option value="">Todas as sessões</option>
                     <?php foreach ($whatsapp_sessions as $session): ?>
                         <option value="<?= htmlspecialchars($session['id']) ?>" <?= ($filters['session_id'] === $session['id']) ? 'selected' : '' ?>>
@@ -2224,18 +2224,46 @@ function closeNewMessageModal() {
 
 /**
  * Mostra/oculta o filtro de sessão baseado no canal selecionado
+ * Sessão só aparece quando Canal = WhatsApp
  */
 function toggleSessionFilter() {
     const channelSelect = document.getElementById('filter-channel');
     const sessionContainer = document.getElementById('session-filter-container');
+    const sessionSelect = document.getElementById('filter-session');
     
     if (channelSelect && sessionContainer) {
-        // Mostra filtro de sessão quando canal é 'whatsapp' ou 'all'
-        if (channelSelect.value === 'chat') {
-            sessionContainer.style.display = 'none';
-        } else {
+        // Mostra filtro de sessão SOMENTE quando canal é 'whatsapp'
+        if (channelSelect.value === 'whatsapp') {
             sessionContainer.style.display = '';
+        } else {
+            sessionContainer.style.display = 'none';
+            // Limpa seleção de sessão quando esconde
+            if (sessionSelect) {
+                sessionSelect.value = '';
+            }
         }
+    }
+}
+
+/**
+ * Handler para mudança de Canal - atualiza visibilidade e auto-submete
+ */
+function onChannelFilterChange() {
+    toggleSessionFilter();
+    // Auto-submit do formulário
+    const form = document.getElementById('communication-filters-form');
+    if (form) {
+        form.submit();
+    }
+}
+
+/**
+ * Handler para mudança de Sessão - auto-submete
+ */
+function onSessionFilterChange() {
+    const form = document.getElementById('communication-filters-form');
+    if (form) {
+        form.submit();
     }
 }
 
