@@ -467,7 +467,8 @@ class WhatsAppGatewayClient
         $payload = [
             'channel' => $channelId,
             'to' => $to,
-            'type' => 'image'
+            'type' => 'image',
+            'text' => $caption ?? '' // Gateway exige campo text mesmo para imagens
         ];
 
         if ($base64) {
@@ -482,7 +483,7 @@ class WhatsAppGatewayClient
             $payload['url'] = $url;
         }
 
-        if ($caption !== null) {
+        if ($caption !== null && $caption !== '') {
             $payload['caption'] = $caption;
         }
 
@@ -533,7 +534,8 @@ class WhatsAppGatewayClient
             'channel' => $channelId,
             'to' => $to,
             'type' => 'document',
-            'fileName' => $fileName
+            'fileName' => $fileName,
+            'text' => $caption ?? '' // Gateway exige campo text mesmo para documentos
         ];
 
         if ($base64) {
@@ -548,7 +550,7 @@ class WhatsAppGatewayClient
             $payload['url'] = $url;
         }
 
-        if ($caption !== null) {
+        if ($caption !== null && $caption !== '') {
             $payload['caption'] = $caption;
         }
 
