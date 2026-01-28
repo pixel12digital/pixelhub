@@ -2532,7 +2532,11 @@ function renderMediaPlayer(media) {
     let mediaHtml = '';
     
     if (isAudio) {
-        mediaHtml = `<audio controls preload="metadata" src="${safeUrl}"></audio>`;
+        // OTIMIZAÇÃO: preload="none" para evitar sobrecarga do servidor (HTTP 508)
+        // Metadados são carregados quando o usuário interage com o player
+        mediaHtml = `<audio controls preload="none" src="${safeUrl}" 
+            onmouseenter="if(this.preload==='none'){this.preload='metadata';}" 
+            onplay="if(this.preload==='none'){this.preload='metadata';}"></audio>`;
     } else if (isImage) {
         // Envolve imagem com botão clicável para abrir viewer
         // CORREÇÃO: Adiciona loading="lazy", onerror para retry/fallback, e loading indicator
