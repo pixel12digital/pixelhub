@@ -79,14 +79,9 @@ $baseUrl = pixelhub_url('');
                                 $senderInfo = htmlspecialchars($thread['contact_name']);
                             }
                             ?>
-                            <?php if (!empty($senderInfo) || !empty($msg['channel_id'])): ?>
-                                <div style="font-size: 10px; color: #666; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
-                                    <?php if (!empty($senderInfo)): ?>
-                                        <span style="font-weight: 600;"><?= $senderInfo ?></span>
-                                    <?php endif; ?>
-                                    <?php if (!empty($msg['channel_id'])): ?>
-                                        <span style="text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7;"><?= htmlspecialchars($msg['channel_id']) ?></span>
-                                    <?php endif; ?>
+                            <?php if (!empty($senderInfo)): ?>
+                                <div style="font-size: 10px; color: #666; margin-bottom: 4px;">
+                                    <span style="font-weight: 600;"><?= $senderInfo ?></span>
                                 </div>
                             <?php endif; ?>
                             <?php 
@@ -302,17 +297,10 @@ function addMessageElementToDOM(message) {
     messageDiv.setAttribute('data-timestamp', timestamp);
     messageDiv.style.cssText = 'margin-bottom: 15px; display: flex; ' + (isOutbound ? 'justify-content: flex-end;' : '');
     
-    const channelId = message.channel_id || '';
     const sentByName = message.sent_by_name || '';
     
-    // Monta informação do remetente
-    let senderHtml = '';
-    if (isOutbound && sentByName) {
-        senderHtml = `<span style="font-weight: 600;">Enviado por: ${escapeHtml(sentByName)}</span>`;
-    }
-    const channelHtml = channelId ? `<span style="text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7;">${escapeHtml(channelId)}</span>` : '';
-    
-    const headerHtml = (senderHtml || channelHtml) ? `<div style="font-size: 10px; color: #666; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">${senderHtml}${channelHtml}</div>` : '';
+    // Header: apenas remetente para mensagens outbound (sessão/canal mostrado só no header da conversa)
+    const headerHtml = (isOutbound && sentByName) ? `<div style="font-size: 10px; color: #666; margin-bottom: 4px;"><span style="font-weight: 600;">Enviado por: ${escapeHtml(sentByName)}</span></div>` : '';
     
     // Renderiza mídia se houver
     let mediaHtml = '';

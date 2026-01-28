@@ -2501,7 +2501,7 @@ function renderConversation(thread, messages, channel) {
             </button>
             <div class="info">
                 <strong>${escapeHtml(contactName)}</strong>
-                ${channel === 'whatsapp' ? `<small>${escapeHtml(contact)}</small>` : ''}
+                ${channel === 'whatsapp' ? `<small>${escapeHtml(contact)}${thread.channel_id ? ` • Sessão: ${escapeHtml(thread.channel_id)}` : ''}</small>` : ''}
             </div>
             <div class="header-actions">
                 <button class="new-message-header-btn" onclick="openNewMessageModal()" title="Nova Mensagem">
@@ -2557,14 +2557,11 @@ function renderConversation(thread, messages, channel) {
                 return;
             }
             
-            // Header: canal e/ou remetente
-            const channelId = msg.channel_id || '';
+            // Header: apenas remetente para mensagens outbound (sessão/canal mostrado só no header da conversa)
             const sentByName = msg.sent_by_name || '';
             let headerHtml = '';
-            if (channelId || (isOutbound && sentByName)) {
-                const senderHtml = (isOutbound && sentByName) ? `<span style="font-weight: 600;">Enviado por: ${escapeHtml(sentByName)}</span>` : '';
-                const channelHtml = channelId ? `<span style="text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7;">${escapeHtml(channelId)}</span>` : '';
-                headerHtml = `<div style="font-size: 10px; color: #667781; margin-bottom: 3px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">${senderHtml}${channelHtml}</div>`;
+            if (isOutbound && sentByName) {
+                headerHtml = `<div style="font-size: 10px; color: #667781; margin-bottom: 3px;"><span style="font-weight: 600;">Enviado por: ${escapeHtml(sentByName)}</span></div>`;
             }
             
             html += `
@@ -3583,14 +3580,11 @@ function addMessageToPanel(message) {
     messageDiv.setAttribute('data-timestamp', timestamp);
     messageDiv.style.cssText = 'margin-bottom: 6px; display: flex; ' + (isOutbound ? 'justify-content: flex-end;' : 'justify-content: flex-start;');
     
-    // Header: canal e/ou remetente
-    const channelId = message.channel_id || '';
+    // Header: apenas remetente para mensagens outbound (sessão/canal mostrado só no header da conversa)
     const sentByName = message.sent_by_name || '';
     let headerHtml = '';
-    if (channelId || (isOutbound && sentByName)) {
-        const senderHtml = (isOutbound && sentByName) ? `<span style="font-weight: 600;">Enviado por: ${escapeHtml(sentByName)}</span>` : '';
-        const channelHtml = channelId ? `<span style="text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7;">${escapeHtml(channelId)}</span>` : '';
-        headerHtml = `<div style="font-size: 10px; color: #667781; margin-bottom: 3px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">${senderHtml}${channelHtml}</div>`;
+    if (isOutbound && sentByName) {
+        headerHtml = `<div style="font-size: 10px; color: #667781; margin-bottom: 3px;"><span style="font-weight: 600;">Enviado por: ${escapeHtml(sentByName)}</span></div>`;
     }
     
     messageDiv.innerHTML = `
