@@ -5848,13 +5848,44 @@ class CommunicationHubController extends Controller
             $fileName = basename($path);
         }
         
-        // Envia arquivo
+        // Envia arquivo com suporte a Range Requests (necessário para metadados de áudio)
+        $fileSize = filesize($absolutePath);
+        
         header('Content-Type: ' . $contentType);
-        header('Content-Length: ' . filesize($absolutePath));
         header('Content-Disposition: inline; filename="' . htmlspecialchars($fileName) . '"');
         header('Cache-Control: private, max-age=31536000'); // Cache por 1 ano
+        header('Accept-Ranges: bytes');
         
-        readfile($absolutePath);
+        // Verifica se é um Range Request
+        if (isset($_SERVER['HTTP_RANGE'])) {
+            // Parse do header Range (ex: "bytes=0-1023")
+            preg_match('/bytes=(\d*)-(\d*)/', $_SERVER['HTTP_RANGE'], $matches);
+            $start = $matches[1] !== '' ? intval($matches[1]) : 0;
+            $end = $matches[2] !== '' ? intval($matches[2]) : $fileSize - 1;
+            
+            // Validação
+            if ($start > $end || $start >= $fileSize) {
+                header('HTTP/1.1 416 Range Not Satisfiable');
+                header('Content-Range: bytes */' . $fileSize);
+                exit;
+            }
+            
+            $length = $end - $start + 1;
+            
+            header('HTTP/1.1 206 Partial Content');
+            header('Content-Length: ' . $length);
+            header('Content-Range: bytes ' . $start . '-' . $end . '/' . $fileSize);
+            
+            // Envia apenas a parte solicitada
+            $fp = fopen($absolutePath, 'rb');
+            fseek($fp, $start);
+            echo fread($fp, $length);
+            fclose($fp);
+        } else {
+            // Request normal - envia arquivo completo
+            header('Content-Length: ' . $fileSize);
+            readfile($absolutePath);
+        }
         exit;
     }
     
