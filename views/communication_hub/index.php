@@ -2141,18 +2141,17 @@ function formatDateBrasilia(dateStr) {
     if (!dateStr || dateStr === 'now') return 'Agora';
     
     try {
-        // Adiciona timezone de Brasília (-03:00) se não tiver
-        // Isso garante que o JavaScript interprete corretamente
+        // Timestamps do banco vêm em UTC - adiciona 'Z' para indicar isso ao JavaScript
         let isoStr = dateStr;
         if (!dateStr.includes('T') && !dateStr.includes('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
-            // Formato "YYYY-MM-DD HH:MM:SS" - adiciona T e timezone
-            isoStr = dateStr.replace(' ', 'T') + '-03:00';
+            // Formato "YYYY-MM-DD HH:MM:SS" (UTC) - adiciona T e Z
+            isoStr = dateStr.replace(' ', 'T') + 'Z';
         }
         
         const dateTime = new Date(isoStr);
         if (isNaN(dateTime.getTime())) return 'Agora';
         
-        // Formata para exibição em Brasília
+        // Formata para exibição em Brasília (UTC-3)
         const options = { 
             timeZone: 'America/Sao_Paulo',
             day: '2-digit',
