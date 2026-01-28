@@ -2397,12 +2397,12 @@ class CommunicationHubController extends Controller
                     $resolvedChannelId = $resolvedChannelIds[$idx] ?? null;
                     $finalChannelId = !empty($conv['channel_id']) ? $conv['channel_id'] : $resolvedChannelId;
                     
-                    // Busca número real do tenant se houver @lid e tenant vinculado
+                    // CORREÇÃO CRÍTICA: O número exibido deve ser SEMPRE o contact_external_id da conversa
+                    // NUNCA usar tenant.phone porque isso mistura números de contatos diferentes
+                    // que pertencem ao mesmo cliente (ex: Luiz, Renato, Alessandra do mesmo tenant)
                     $realPhone = null;
-                    if (!empty($conv['tenant_id']) && !empty($conv['tenant_phone'])) {
-                        // Prioridade 1: tenant.phone
-                        $realPhone = $conv['tenant_phone'];
-                    } elseif (!empty($conv['contact_external_id'])) {
+                    
+                    if (!empty($conv['contact_external_id'])) {
                         $contactId = (string) $conv['contact_external_id'];
                         
                         // Detecta lidId (com sufixo ou digits-only)
@@ -2420,10 +2420,9 @@ class CommunicationHubController extends Controller
                         }
                         
                         if ($lidId) {
-                            // Prioridade 2: buscar no mapa pré-carregado (O(1))
+                            // Busca número real no mapa pré-carregado (cache wa_pnlid_cache)
                             $realPhone = $lidPhoneMap[$lidId] ?? null;
                             
-                            // LOG TEMPORÁRIO: Resultado da resolução
                             if ($realPhone) {
                                 error_log(sprintf(
                                     '[LID_RESOLVE] conversation_id=%d, contact_external_id=%s, lidId=%s, resolved_phone=%s',
@@ -2431,13 +2430,6 @@ class CommunicationHubController extends Controller
                                     $contactId,
                                     $lidId,
                                     $realPhone
-                                ));
-                            } else {
-                                error_log(sprintf(
-                                    '[LID_RESOLVE] conversation_id=%d, contact_external_id=%s, lidId=%s, resolved_phone=NULL',
-                                    $conv['id'] ?? 0,
-                                    $contactId,
-                                    $lidId
                                 ));
                             }
                         }
@@ -2530,9 +2522,10 @@ class CommunicationHubController extends Controller
             $threadKey = "{$eventTenantId}_{$from}";
             
             if (!isset($threadsMap[$threadKey])) {
-                // Busca número real do tenant se disponível
-                $realPhone = $event['tenant_phone'] ?? null;
-                if (empty($realPhone) && strpos($from, '@lid') !== false) {
+                // CORREÇÃO CRÍTICA: O número exibido deve ser baseado no $from (contact_external_id),
+                // NUNCA usar tenant.phone porque isso mistura números de contatos diferentes
+                $realPhone = null;
+                if (strpos($from, '@lid') !== false) {
                     // Tenta resolver @lid via cache e mapeamento usando ContactHelper
                     $resolvedPhone = ContactHelper::resolveLidPhone(
                         $from,
@@ -3677,11 +3670,10 @@ class CommunicationHubController extends Controller
                 
                 error_log("[CommunicationHub::getWhatsAppThreadInfo] Thread {$threadId}: channel_id={$channelId}, tenant_id={$conversation['tenant_id']}, contact={$contactId}");
                 
-                // Busca número real do tenant se houver @lid e tenant vinculado
+                // CORREÇÃO CRÍTICA: O número exibido deve ser SEMPRE o contact_external_id da conversa
+                // NUNCA usar tenant.phone porque isso mistura números de contatos diferentes
                 $realPhone = null;
-                if (!empty($conversation['tenant_id']) && !empty($conversation['tenant_phone'])) {
-                    $realPhone = $conversation['tenant_phone'];
-                } elseif (strpos($conversation['contact_external_id'] ?? '', '@lid') !== false) {
+                if (strpos($conversation['contact_external_id'] ?? '', '@lid') !== false) {
                     // Tenta resolver @lid via cache e mapeamento usando ContactHelper
                     $resolvedPhone = ContactHelper::resolveLidPhone(
                         $conversation['contact_external_id'],
@@ -3764,9 +3756,10 @@ class CommunicationHubController extends Controller
             $tenant = $stmt->fetch();
 
             if ($tenant) {
-                // Busca número real do tenant se disponível
-                $realPhone = $tenant['phone'] ?? null;
-                if (empty($realPhone) && strpos($from, '@lid') !== false) {
+                // CORREÇÃO CRÍTICA: O número exibido deve ser baseado no $from (contact_external_id),
+                // NUNCA usar tenant.phone porque isso mistura números de contatos diferentes
+                $realPhone = null;
+                if (strpos($from, '@lid') !== false) {
                     // Tenta resolver @lid via cache e mapeamento usando ContactHelper
                     $resolvedPhone = ContactHelper::resolveLidPhone(
                         $from,
