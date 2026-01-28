@@ -2867,14 +2867,6 @@ function renderConversation(thread, messages, channel) {
                 <strong>${escapeHtml(contactName)}</strong>
                 ${channel === 'whatsapp' ? `<small>${escapeHtml(contact)}${thread.channel_id ? ` • Sessão: ${escapeHtml(thread.channel_id)}` : ''}</small>` : ''}
             </div>
-            <div class="header-actions">
-                <button class="new-message-header-btn" onclick="openNewMessageModal()" title="Nova Mensagem">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                </button>
-            </div>
         </div>
         
         <div class="commhub-thread-shell">
