@@ -13,7 +13,7 @@ ob_start();
             class="btn btn-primary"
             onclick="if (window.PixelHubScreenRecorder) { window.currentTaskId = null; window.PixelHubScreenRecorder.open(null, 'library'); } else { alert('Gravador de tela não está disponível. Verifique se o script foi carregado corretamente.'); }"
             style="background: #023A8D; color: white; padding: 8px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px;">
-            🎥 Gravar tela
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4M14 4v4M4 8h16"/></svg>Gravar tela
         </button>
     </div>
 </div>
@@ -172,14 +172,14 @@ ob_start();
                                            target="_blank"
                                            style="color: #023A8D; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #023A8D; display: inline-flex; align-items: center; gap: 4px;"
                                            title="Abrir vídeo em nova aba">
-                                            <span>▶️</span> Abrir
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg> Abrir
                                         </a>
                                         <!-- Copiar link -->
                                         <a href="#" 
                                            onclick="event.preventDefault(); copyRecordingLink('<?= htmlspecialchars($publicUrl) ?>'); return false;"
                                            style="color: #666; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #666; display: inline-flex; align-items: center; gap: 4px;"
                                            title="Copiar link público para compartilhar">
-                                            <span>🔗</span> Copiar link
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Copiar link
                                         </a>
                                         <!-- Compartilhar (se tiver cliente) -->
                                         <?php if ($taskId && !empty($recording['tenant_id'])): ?>
@@ -202,7 +202,7 @@ ob_start();
                                                    onclick="event.preventDefault(); shareRecordingViaWhatsApp('<?= htmlspecialchars($publicUrl) ?>', '<?= htmlspecialchars($whatsappLink) ?>'); return false;"
                                                    style="color: #25D366; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #25D366; display: inline-flex; align-items: center; gap: 4px;"
                                                    title="Compartilhar via WhatsApp do cliente">
-                                                    <span>📱</span> Compartilhar
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Compartilhar
                                                 </a>
                                             <?php endif; ?>
                                         <?php endif; ?>
@@ -216,7 +216,7 @@ ob_start();
                                                onclick="event.preventDefault(); if(confirm('Tem certeza que deseja excluir esta gravação? Esta ação não pode ser desfeita.')) { this.closest('form').submit(); } return false;"
                                                style="color: #c33; padding: 4px 8px; text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid #c33; display: inline-flex; align-items: center; gap: 4px;"
                                                title="Excluir gravação">
-                                                <span>🗑️</span> Excluir
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Excluir
                                             </a>
                                         </form>
                                     <?php else: ?>
