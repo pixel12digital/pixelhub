@@ -2572,9 +2572,25 @@ function renderMediaPlayer(media) {
         mediaHtml = `<audio controls preload="metadata" src="${safeUrl}"></audio>`;
     } else if (isImage) {
         // Envolve imagem com botão clicável para abrir viewer
+        // CORREÇÃO: Adiciona loading="lazy", onerror para retry/fallback, e loading indicator
         mediaHtml = `
-            <button type="button" class="hub-media-open" data-src="${safeUrl}" style="background: none; border: none; padding: 0; cursor: pointer; display: block;">
-                <img src="${safeUrl}" class="hub-media-thumb" data-src="${safeUrl}" style="max-width:240px;border-radius:8px;display:block;" alt="Imagem">
+            <button type="button" class="hub-media-open" data-src="${safeUrl}" style="background: none; border: none; padding: 0; cursor: pointer; display: block; position: relative; min-width: 100px; min-height: 60px;">
+                <img src="${safeUrl}" 
+                     class="hub-media-thumb" 
+                     data-src="${safeUrl}" 
+                     loading="lazy"
+                     style="max-width:240px;border-radius:8px;display:block;" 
+                     alt="Imagem"
+                     onload="this.parentElement.classList.add('loaded')"
+                     onerror="console.warn('[Hub] Falha ao carregar imagem:', this.src); this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="img-error-placeholder" style="display:none; flex-direction:column; align-items:center; justify-content:center; min-width:100px; min-height:60px; background:#f0f0f0; border-radius:8px; padding:16px; gap:8px;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    <span style="font-size:11px;color:#666;">Clique para ver</span>
+                </div>
             </button>
         `;
     } else if (isVideo) {
