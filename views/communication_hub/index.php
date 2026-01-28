@@ -281,6 +281,7 @@ body.communication-hub-page {
 
 /* Item de conversa */
 .conversation-item {
+    position: relative; /* CORREÇÃO: necessário para posicionar ícones ::before/::after corretamente */
     padding: 10px 12px;
     border-radius: 8px;
     cursor: pointer;
@@ -576,21 +577,9 @@ body.communication-hub-page {
     font-weight: 500;
 }
 
-.conversation-item.conversation-archived::before {
-    content: '📁';
-    position: absolute;
-    top: 8px;
-    left: 4px;
-    font-size: 10px;
-}
-
-.conversation-item.conversation-ignored::before {
-    content: '🚫';
-    position: absolute;
-    top: 8px;
-    left: 4px;
-    font-size: 10px;
-}
+/* Ícones de status removidos - borda colorida já indica o status */
+/* .conversation-item.conversation-archived::before - REMOVIDO (emoji colorido) */
+/* .conversation-item.conversation-ignored::before - REMOVIDO (emoji colorido) */
 
 /* Painel de conversa (coluna direita) */
 .conversation-thread-pane {
