@@ -142,54 +142,48 @@ class CommunicationHubController extends Controller
             $incomingLeadsCount = count($incomingLeads);
         }
         
-        // Estatísticas operacionais (agnósticas de canal)
-        // 1. Aguardando resposta: última mensagem foi do cliente (inbound)
-        $awaitingResponse = count(array_filter($normalThreads, function($t) {
-            return ($t['last_message_direction'] ?? '') === 'inbound' && ($t['status'] ?? 'active') === 'active';
+        // =====================================================================
+        // Estatísticas operacionais (refletem os filtros atuais)
+        // =====================================================================
+        $todayStart = date('Y-m-d 00:00:00');
+        
+        // 1. Pendentes para responder: última mensagem foi do cliente (inbound)
+        //    e ainda não houve resposta - isso é a fila real de atendimento
+        $pendingToRespond = array_filter($normalThreads, function($t) {
+            return ($t['last_message_direction'] ?? '') === 'inbound';
+        });
+        $pendingCount = count($pendingToRespond);
+        
+        // 2. Novas hoje: conversas que tiveram primeira mensagem recebida hoje
+        $newToday = count(array_filter($normalThreads, function($t) use ($todayStart) {
+            $createdAt = $t['created_at'] ?? null;
+            return $createdAt && $createdAt >= $todayStart;
         }));
         
-        // 2. Não lidas: conversas com mensagens não vistas
-        $totalUnread = count(array_filter($normalThreads, function($t) {
-            return ($t['unread_count'] ?? 0) > 0;
-        }));
-        
-        // 3. Tempo médio da 1ª resposta (hoje) - busca do banco
-        $avgFirstResponseMinutes = 0;
-        try {
-            $todayStart = date('Y-m-d 00:00:00');
-            $avgStmt = $db->prepare("
-                SELECT AVG(TIMESTAMPDIFF(SECOND, first_inbound_at, first_response_at)) / 60 as avg_minutes
-                FROM (
-                    SELECT 
-                        conversation_id,
-                        MIN(CASE WHEN event_type = 'message_received' THEN created_at END) as first_inbound_at,
-                        MIN(CASE WHEN event_type = 'message_sent' THEN created_at END) as first_response_at
-                    FROM communication_events
-                    WHERE created_at >= ?
-                    GROUP BY conversation_id
-                    HAVING first_inbound_at IS NOT NULL AND first_response_at IS NOT NULL
-                       AND first_response_at > first_inbound_at
-                ) as response_times
-            ");
-            $avgStmt->execute([$todayStart]);
-            $avgResult = $avgStmt->fetch();
-            $avgFirstResponseMinutes = $avgResult['avg_minutes'] ? round((float)$avgResult['avg_minutes']) : 0;
-        } catch (\Exception $e) {
-            error_log("[CommunicationHub] Erro ao calcular tempo médio de resposta: " . $e->getMessage());
+        // 3. Mais antigo pendente: entre os pendentes, qual está esperando há mais tempo
+        //    Mostra a "idade" do backlog (não média)
+        $oldestPendingMinutes = 0;
+        if (!empty($pendingToRespond)) {
+            $oldestTimestamp = null;
+            foreach ($pendingToRespond as $thread) {
+                $lastMsgAt = $thread['last_message_at'] ?? $thread['last_activity'] ?? null;
+                if ($lastMsgAt) {
+                    $ts = strtotime($lastMsgAt);
+                    if ($oldestTimestamp === null || $ts < $oldestTimestamp) {
+                        $oldestTimestamp = $ts;
+                    }
+                }
+            }
+            if ($oldestTimestamp) {
+                $oldestPendingMinutes = round((time() - $oldestTimestamp) / 60);
+            }
         }
         
         $stats = [
-            'awaiting_response' => $awaitingResponse,
-            'total_unread' => $totalUnread,
-            'avg_first_response' => $avgFirstResponseMinutes,
-            'incoming_leads_count' => $incomingLeadsCount,
-            // Mantém por compatibilidade (pode remover depois)
-            'whatsapp_active' => count(array_filter($normalThreads, function($t) {
-                return ($t['channel'] ?? '') === 'whatsapp' && ($t['status'] ?? '') === 'active';
-            })),
-            'chat_active' => count(array_filter($normalThreads, function($t) {
-                return ($t['channel'] ?? '') === 'chat' && ($t['status'] ?? '') === 'active';
-            }))
+            'pending_to_respond' => $pendingCount,
+            'new_today' => $newToday,
+            'oldest_pending_minutes' => $oldestPendingMinutes,
+            'incoming_leads_count' => $incomingLeadsCount
         ];
 
         // Garante que threads é sempre um array válido
@@ -201,7 +195,7 @@ class CommunicationHubController extends Controller
             'incoming_leads' => $incomingLeadsList,
             'tenants' => is_array($tenants) ? $tenants : [],
             'whatsapp_sessions' => is_array($whatsappSessions) ? $whatsappSessions : [],
-            'stats' => is_array($stats) ? $stats : ['awaiting_response' => 0, 'total_unread' => 0, 'avg_first_response' => 0, 'incoming_leads_count' => 0],
+            'stats' => is_array($stats) ? $stats : ['pending_to_respond' => 0, 'new_today' => 0, 'oldest_pending_minutes' => 0, 'incoming_leads_count' => 0],
             'filters' => [
                 'channel' => $channel ?? 'all',
                 'tenant_id' => $tenantId,

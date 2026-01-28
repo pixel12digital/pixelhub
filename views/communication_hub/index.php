@@ -1170,22 +1170,31 @@ body.communication-hub-page {
         <h2>Painel de Comunicação</h2>
         <p>Gerencie conversas, envie mensagens e responda clientes em tempo real</p>
         
-        <!-- Estatísticas colapsáveis - Métricas operacionais -->
+        <!-- Estatísticas colapsáveis - Métricas de produtividade -->
         <button class="communication-stats-toggle" onclick="toggleStats()" id="stats-toggle">
             <span id="stats-toggle-text">Mostrar estatísticas</span>
         </button>
+        <?php
+        // Formata tempo do mais antigo pendente
+        $oldestMinutes = $stats['oldest_pending_minutes'] ?? 0;
+        if ($oldestMinutes >= 60) {
+            $oldestFormatted = round($oldestMinutes / 60) . ' h';
+        } else {
+            $oldestFormatted = $oldestMinutes . ' min';
+        }
+        ?>
         <div class="communication-stats" id="communication-stats">
-            <div class="communication-stats-item <?= ($stats['awaiting_response'] ?? 0) == 0 ? 'muted' : '' ?>">
-                <span class="number"><?= $stats['awaiting_response'] ?? 0 ?></span>
-                <span class="label">Aguardando resposta</span>
+            <div class="communication-stats-item <?= ($stats['pending_to_respond'] ?? 0) == 0 ? 'muted' : '' ?>">
+                <span class="number"><?= $stats['pending_to_respond'] ?? 0 ?></span>
+                <span class="label">Pendentes p/ responder</span>
             </div>
-            <div class="communication-stats-item <?= ($stats['total_unread'] ?? 0) == 0 ? 'muted' : '' ?>">
-                <span class="number"><?= $stats['total_unread'] ?? 0 ?></span>
-                <span class="label">Não lidas</span>
+            <div class="communication-stats-item <?= ($stats['new_today'] ?? 0) == 0 ? 'muted' : '' ?>">
+                <span class="number"><?= $stats['new_today'] ?? 0 ?></span>
+                <span class="label">Novas hoje</span>
             </div>
-            <div class="communication-stats-item <?= ($stats['avg_first_response'] ?? 0) == 0 ? 'muted' : '' ?>">
-                <span class="number"><?= $stats['avg_first_response'] ?? 0 ?><span class="unit">min</span></span>
-                <span class="label">Tempo médio 1ª resp.</span>
+            <div class="communication-stats-item <?= $oldestMinutes == 0 ? 'muted' : '' ?>">
+                <span class="number"><?= $oldestMinutes == 0 ? '—' : $oldestFormatted ?></span>
+                <span class="label">Mais antigo pendente</span>
             </div>
         </div>
         
