@@ -491,7 +491,35 @@ class WhatsAppGatewayClient
             $payload['metadata'] = $metadata;
         }
 
+        // Log do payload (sem base64 completo)
+        $payloadForLog = $payload;
+        if (isset($payloadForLog['base64']) && strlen($payloadForLog['base64']) > 100) {
+            $payloadForLog['base64'] = substr($payloadForLog['base64'], 0, 50) . '... (len=' . strlen($payload['base64']) . ')';
+        }
+        error_log("[WhatsAppGateway::sendImage] Payload: " . json_encode($payloadForLog, JSON_UNESCAPED_UNICODE));
+        
         $response = $this->request('POST', '/api/messages', $payload);
+
+        // Log detalhado da resposta
+        error_log("[WhatsAppGateway::sendImage] Response success: " . ($response['success'] ? 'true' : 'false'));
+        error_log("[WhatsAppGateway::sendImage] Response error: " . ($response['error'] ?? 'N/A'));
+        error_log("[WhatsAppGateway::sendImage] Response HTTP status: " . ($response['status'] ?? 'N/A'));
+        
+        if (isset($response['raw'])) {
+            $rawForLog = $response['raw'];
+            if (is_array($rawForLog)) {
+                // Remove campos grandes para log
+                if (isset($rawForLog['base64'])) $rawForLog['base64'] = '(truncated)';
+                error_log("[WhatsAppGateway::sendImage] Response raw: " . json_encode($rawForLog, JSON_UNESCAPED_UNICODE));
+            } else {
+                $rawPreview = is_string($rawForLog) && strlen($rawForLog) > 500 
+                    ? substr($rawForLog, 0, 500) . '...' 
+                    : $rawForLog;
+                error_log("[WhatsAppGateway::sendImage] Response raw: " . print_r($rawPreview, true));
+            }
+        } else {
+            error_log("[WhatsAppGateway::sendImage] ⚠️ Response não contém 'raw'");
+        }
 
         // Normaliza resposta
         if ($response['success'] && isset($response['raw'])) {
@@ -502,6 +530,14 @@ class WhatsAppGatewayClient
                 ?? $raw['trace_id'] 
                 ?? $raw['traceId']
                 ?? null;
+            
+            // Log do message_id extraído
+            error_log("[WhatsAppGateway::sendImage] message_id extraído: " . ($response['message_id'] ?? 'NULL'));
+            
+            // ALERTA: Se não tiver message_id, pode indicar que a mensagem não foi enviada
+            if (empty($response['message_id'])) {
+                error_log("[WhatsAppGateway::sendImage] ⚠️ ALERTA: Gateway retornou success mas SEM message_id - possível falha silenciosa!");
+            }
         }
 
         return $response;
@@ -558,6 +594,13 @@ class WhatsAppGatewayClient
             $payload['metadata'] = $metadata;
         }
 
+        // Log do payload (sem base64 completo)
+        $payloadForLog = $payload;
+        if (isset($payloadForLog['base64']) && strlen($payloadForLog['base64']) > 100) {
+            $payloadForLog['base64'] = substr($payloadForLog['base64'], 0, 50) . '... (len=' . strlen($payload['base64']) . ')';
+        }
+        error_log("[WhatsAppGateway::sendDocument] Payload: " . json_encode($payloadForLog, JSON_UNESCAPED_UNICODE));
+        
         // Aumenta timeout para documentos (podem ser grandes)
         $originalTimeout = $this->timeout;
         $this->timeout = 90;
@@ -568,6 +611,10 @@ class WhatsAppGatewayClient
             $this->timeout = $originalTimeout;
         }
 
+        // Log detalhado da resposta
+        error_log("[WhatsAppGateway::sendDocument] Response success: " . ($response['success'] ? 'true' : 'false'));
+        error_log("[WhatsAppGateway::sendDocument] Response error: " . ($response['error'] ?? 'N/A'));
+
         // Normaliza resposta
         if ($response['success'] && isset($response['raw'])) {
             $raw = $response['raw'];
@@ -577,6 +624,12 @@ class WhatsAppGatewayClient
                 ?? $raw['trace_id'] 
                 ?? $raw['traceId']
                 ?? null;
+            
+            error_log("[WhatsAppGateway::sendDocument] message_id extraído: " . ($response['message_id'] ?? 'NULL'));
+            
+            if (empty($response['message_id'])) {
+                error_log("[WhatsAppGateway::sendDocument] ⚠️ ALERTA: Gateway retornou success mas SEM message_id!");
+            }
         }
 
         return $response;
