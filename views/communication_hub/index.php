@@ -1257,6 +1257,9 @@ body.communication-hub-page {
                                                     🚫 Ignorar
                                                 </button>
                                             <?php endif; ?>
+                                            <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); openEditContactNameModal(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
+                                                ✏️ Editar nome
+                                            </button>
                                             <button type="button" class="conversation-menu-item danger" onclick="event.stopPropagation(); deleteConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
                                                 🗑️ Excluir
                                             </button>
@@ -1959,12 +1962,39 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                             }
                         </div>
                     </div>
-                    <div style="text-align: right; flex-shrink: 0; margin-left: 8px;">
+                    <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: 8px;">
                         ${unreadCount > 0 ? `
                             <span class="hub-unread-badge" style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; display: inline-block; min-width: 18px; text-align: center;">
                                 ${unreadCount}
                             </span>
                         ` : ''}
+                        <div class="conversation-menu">
+                            <button type="button" class="conversation-menu-toggle" onclick="event.stopPropagation(); toggleConversationMenu(this)" aria-label="Mais opções">
+                                ⋮
+                            </button>
+                            <div class="conversation-menu-dropdown">
+                                ${thread.status !== 'archived' ? `
+                                    <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); archiveConversation(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || 'Conversa')}'); closeConversationMenu(this);">
+                                        📁 Arquivar
+                                    </button>
+                                ` : `
+                                    <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); reactivateConversation(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || 'Conversa')}'); closeConversationMenu(this);">
+                                        ✅ Reativar
+                                    </button>
+                                `}
+                                ${thread.status !== 'ignored' ? `
+                                    <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); ignoreConversation(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || 'Conversa')}'); closeConversationMenu(this);">
+                                        🚫 Ignorar
+                                    </button>
+                                ` : ''}
+                                <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); openEditContactNameModal(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || '')}'); closeConversationMenu(this);">
+                                    ✏️ Editar nome
+                                </button>
+                                <button type="button" class="conversation-menu-item danger" onclick="event.stopPropagation(); deleteConversation(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || 'Conversa')}'); closeConversationMenu(this);">
+                                    🗑️ Excluir
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div style="display: flex; justify-content: flex-end; align-items: center; font-size: 11px; color: #667781;">
@@ -4631,6 +4661,85 @@ function closeChangeTenantModal() {
 }
 
 /**
+ * Abre modal para editar nome do contato
+ */
+function openEditContactNameModal(conversationId, currentName) {
+    const modal = document.getElementById('edit-contact-name-modal');
+    if (!modal) {
+        console.error('Modal edit-contact-name-modal não encontrado');
+        return;
+    }
+    
+    document.getElementById('edit-contact-conversation-id').value = conversationId;
+    document.getElementById('edit-contact-current-name').textContent = currentName || 'Contato Desconhecido';
+    document.getElementById('edit-contact-new-name').value = currentName || '';
+    
+    modal.style.display = 'flex';
+    
+    // Foca no campo de nome
+    setTimeout(() => {
+        const nameInput = document.getElementById('edit-contact-new-name');
+        if (nameInput) {
+            nameInput.focus();
+            nameInput.select();
+        }
+    }, 100);
+}
+
+/**
+ * Fecha modal de editar nome do contato
+ */
+function closeEditContactNameModal() {
+    const modal = document.getElementById('edit-contact-name-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+/**
+ * Atualiza nome do contato
+ */
+async function updateContactName(event) {
+    event.preventDefault();
+    
+    const conversationId = document.getElementById('edit-contact-conversation-id').value;
+    const newName = document.getElementById('edit-contact-new-name').value.trim();
+    
+    if (!newName) {
+        alert('Nome é obrigatório');
+        return;
+    }
+    
+    try {
+        const response = await fetch('<?= pixelhub_url('/communication-hub/conversation/update-contact-name') ?>', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                conversation_id: parseInt(conversationId),
+                contact_name: newName
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            closeEditContactNameModal();
+            // Recarrega a lista de conversas para mostrar nome atualizado
+            await loadConversationList();
+            showNotification('Nome atualizado com sucesso!', 'success');
+        } else {
+            alert('Erro ao atualizar nome: ' + (result.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar nome do contato:', error);
+        alert('Erro ao atualizar nome do contato');
+    }
+}
+
+/**
  * Filtra opções do select de tenant baseado na busca
  */
 function filterChangeTenantOptions(searchTerm) {
@@ -4900,6 +5009,47 @@ async function changeConversationTenant(event) {
                     Alterar Cliente
                 </button>
                 <button type="button" onclick="closeChangeTenantModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Editar Nome do Contato -->
+<div id="edit-contact-name-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 450px; width: 90%;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Editar Nome do Contato</h2>
+            <button onclick="closeEditContactNameModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        </div>
+        
+        <div style="margin-bottom: 15px; padding: 12px; background: #f0f2f5; border-radius: 6px;">
+            <div style="font-size: 12px; color: #667781; margin-bottom: 4px;">Nome atual:</div>
+            <div style="font-weight: 600; color: #111b21;" id="edit-contact-current-name"></div>
+        </div>
+        
+        <form onsubmit="updateContactName(event)">
+            <input type="hidden" id="edit-contact-conversation-id" value="">
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Novo nome *</label>
+                <input type="text" 
+                       id="edit-contact-new-name" 
+                       placeholder="Digite o nome do contato..." 
+                       maxlength="255"
+                       required
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                <div style="font-size: 11px; color: #667781; margin-top: 4px;">
+                    Este é o nome exibido na lista de conversas. Não altera o cliente vinculado.
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="flex: 1; padding: 12px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Salvar
+                </button>
+                <button type="button" onclick="closeEditContactNameModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
                     Cancelar
                 </button>
             </div>
