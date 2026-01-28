@@ -5588,7 +5588,15 @@ class CommunicationHubController extends Controller
             $contactExternalId = $conversation['contact_external_id'] ?? null;
             $channelId = $conversation['channel_id'] ?? $conversation['session_id'] ?? null;
             
-            // 1. Remove eventos associados por conversation_id
+            // 1. Remove mídias associadas aos eventos da conversa
+            $deleteMediaStmt = $db->prepare("
+                DELETE FROM communication_media 
+                WHERE event_id IN (SELECT event_id FROM communication_events WHERE conversation_id = ?)
+            ");
+            $deleteMediaStmt->execute([$conversationId]);
+            $deletedMedia = $deleteMediaStmt->rowCount();
+            
+            // 2. Remove eventos associados por conversation_id
             $deleteEventsStmt = $db->prepare("DELETE FROM communication_events WHERE conversation_id = ?");
             $deleteEventsStmt->execute([$conversationId]);
             $deletedByConvId = $deleteEventsStmt->rowCount();
@@ -5650,10 +5658,11 @@ class CommunicationHubController extends Controller
             $totalDeleted = $deletedByConvId + $deletedOrphans;
 
             error_log(sprintf(
-                "[CommunicationHub] Conversa %d EXCLUÍDA PERMANENTEMENTE: contato=%s, numero=%s, eventos_por_conv_id=%d, eventos_orfaos=%d, total=%d",
+                "[CommunicationHub] Conversa %d EXCLUÍDA PERMANENTEMENTE: contato=%s, numero=%s, midias=%d, eventos_por_conv_id=%d, eventos_orfaos=%d, total_eventos=%d",
                 $conversationId,
                 $conversation['contact_name'] ?? 'N/A',
                 $contactExternalId ?? 'N/A',
+                $deletedMedia,
                 $deletedByConvId,
                 $deletedOrphans,
                 $totalDeleted
@@ -5662,10 +5671,11 @@ class CommunicationHubController extends Controller
             $this->json([
                 'success' => true,
                 'conversation_id' => $conversationId,
+                'deleted_media' => $deletedMedia,
                 'deleted_events' => $totalDeleted,
                 'deleted_by_conversation_id' => $deletedByConvId,
                 'deleted_orphan_events' => $deletedOrphans,
-                'message' => "Conversa excluída permanentemente. {$totalDeleted} mensagens removidas."
+                'message' => "Conversa excluída permanentemente. {$totalDeleted} mensagens e {$deletedMedia} mídias removidas."
             ]);
 
         } catch (\Exception $e) {
