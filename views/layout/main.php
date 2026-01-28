@@ -951,25 +951,12 @@
     <script>
         /**
          * Inicia gravação de tela com contexto inteligente
-         * - Se estiver na página /screen-recordings: abre em modo LIBRARY (salva na biblioteca)
          * - Se houver currentTaskId: abre em modo TAREFA (anexa na task)
-         * - Se não houver: abre em modo RÁPIDO (apenas download)
+         * - Se não houver: abre em modo LIBRARY (salva na biblioteca e gera link compartilhável)
          */
         function startGlobalScreenRecording() {
             if (!window.PixelHubScreenRecorder) {
                 alert('Gravador de tela não está disponível no momento.');
-                return;
-            }
-
-            // Detecta se estamos na página de Gravações de Tela
-            const currentPath = window.location.pathname;
-            const isOnScreenRecordingsPage = currentPath.includes('/screen-recordings') && !currentPath.includes('/screen-recordings/share');
-            
-            if (isOnScreenRecordingsPage) {
-                // Na página de Gravações de Tela, sempre usa modo library
-                console.log('[ScreenRecorder] startGlobalScreenRecording: modo biblioteca (página Gravações de Tela)');
-                window.currentTaskId = null;
-                window.PixelHubScreenRecorder.open(null, 'library');
                 return;
             }
 
@@ -981,9 +968,10 @@
                 console.log('[ScreenRecorder] startGlobalScreenRecording: modo tarefa, taskId=', taskId);
                 window.PixelHubScreenRecorder.open(taskId, 'task');
             } else {
-                // Modo rápido: apenas download, sem tarefa
-                console.log('[ScreenRecorder] startGlobalScreenRecording: modo rápido (sem tarefa)');
-                window.PixelHubScreenRecorder.open(null, 'quick');
+                // Modo biblioteca: salva na biblioteca e gera link compartilhável
+                console.log('[ScreenRecorder] startGlobalScreenRecording: modo biblioteca (sem tarefa)');
+                window.currentTaskId = null;
+                window.PixelHubScreenRecorder.open(null, 'library');
             }
         }
     </script>
