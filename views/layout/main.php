@@ -596,33 +596,17 @@
             
             <div class="sidebar-divider"></div>
             
-            <!-- Comunicação -->
-            <?php
-            $comunicacaoActive = $isActive(['/communication-hub', '/communication-hub/thread']);
-            $comunicacaoExpanded = $shouldExpand(['/communication-hub', '/communication-hub/thread']);
-            ?>
-            <div class="sidebar-module" data-module="comunicacao">
-                <div class="sidebar-module-header has-children <?= $comunicacaoActive ? 'active' : '' ?> <?= $comunicacaoExpanded ? 'is-open' : '' ?>" data-title="Comunicação">
-                    <span class="sidebar-item-content">
-                        <span class="sidebar-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                            </svg>
-                        </span>
-                        <span class="sidebar-text">Comunicação</span>
-                    </span>
-                    <span class="sidebar-chevron">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M6 9l6 6 6-6"></path>
+            <!-- Comunicação (link direto) -->
+            <a href="<?= pixelhub_url('/communication-hub') ?>" class="sidebar-top-link <?= (strpos($currentUri, '/communication-hub') !== false) ? 'active' : '' ?>" data-title="Comunicação">
+                <span class="sidebar-item-content">
+                    <span class="sidebar-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                         </svg>
                     </span>
-                </div>
-                <div class="sidebar-module-content <?= $comunicacaoExpanded ? 'is-open' : '' ?>">
-                    <a href="<?= pixelhub_url('/communication-hub') ?>" class="sub-item <?= (strpos($currentUri, '/communication-hub') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Inbox Unificada</span>
-                    </a>
-                </div>
-            </div>
+                    <span class="sidebar-text">Comunicação</span>
+                </span>
+            </a>
             
             <div class="sidebar-divider"></div>
             
