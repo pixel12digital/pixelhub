@@ -63,7 +63,9 @@ $baseUrl = pixelhub_url('');
                     $isOutbound = ($msg['direction'] ?? $msg['role'] ?? '') === 'outbound' || ($msg['role'] ?? '') === 'assistant';
                     $msgId = $msg['id'] ?? '';
                     $msgTimestamp = $msg['timestamp'] ?? $msg['created_at'] ?? 'now';
-                    $msgDateTime = new DateTime($msgTimestamp);
+                    // Timestamps do banco JÁ estão em Brasília (UTC-3)
+                    // Cria DateTime com timezone de Brasília para exibição correta
+                    $msgDateTime = new DateTime($msgTimestamp, new DateTimeZone('America/Sao_Paulo'));
                     ?>
                     <div class="message-bubble <?= $isOutbound ? 'outbound' : 'inbound' ?>" 
                          data-message-id="<?= htmlspecialchars($msgId) ?>"
@@ -232,6 +234,48 @@ $baseUrl = pixelhub_url('');
 
 <script>
 // ============================================================================
+// Utilitários de Formatação
+// ============================================================================
+
+/**
+ * Formata timestamp para exibição no fuso de Brasília
+ * Timestamps do banco JÁ estão em Brasília (UTC-3)
+ */
+function formatTimestampBrasilia(dateStr) {
+    if (!dateStr || dateStr === 'now') return 'Agora';
+    
+    try {
+        // Timestamps do banco JÁ estão em Brasília (UTC-3)
+        // Adiciona offset -03:00 ao invés de 'Z' (UTC)
+        let isoStr = dateStr;
+        if (!dateStr.includes('T') && !dateStr.includes('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
+            // Formato "YYYY-MM-DD HH:MM:SS" (Brasília) - adiciona T e offset -03:00
+            isoStr = dateStr.replace(' ', 'T') + '-03:00';
+        }
+        
+        const dateTime = new Date(isoStr);
+        if (isNaN(dateTime.getTime())) return 'Agora';
+        
+        // Formata para exibição em Brasília (UTC-3)
+        const options = { 
+            timeZone: 'America/Sao_Paulo',
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        };
+        
+        const formatted = dateTime.toLocaleString('pt-BR', options);
+        // Retorna no formato "dd/mm HH:MM"
+        return formatted.replace(',', '').replace(/\/\d{4}/, '');
+    } catch (e) {
+        console.warn('[Thread] Erro ao formatar data:', dateStr, e);
+        return 'Agora';
+    }
+}
+
+// ============================================================================
 // Configuração Global
 // ============================================================================
 // Configuração Central de Polling
@@ -314,12 +358,9 @@ function addMessageElementToDOM(message) {
     const content = message.content || '';
     const timestamp = message.timestamp || message.created_at || new Date().toISOString();
     
-    // Formata timestamp
-    const date = new Date(timestamp);
-    const timeStr = String(date.getDate()).padStart(2, '0') + '/' + 
-                   String(date.getMonth() + 1).padStart(2, '0') + ' ' +
-                   String(date.getHours()).padStart(2, '0') + ':' + 
-                   String(date.getMinutes()).padStart(2, '0');
+    // Formata timestamp com fuso de Brasília
+    // CORREÇÃO: Timestamps do banco JÁ estão em Brasília (UTC-3)
+    const timeStr = formatTimestampBrasilia(timestamp);
     
     const isOutbound = direction === 'outbound';
     

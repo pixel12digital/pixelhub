@@ -27,15 +27,14 @@ echo "=== DIAGNÓSTICO: Mensagem do número {$phoneSearch} ===\n\n";
 
 // 1. Buscar eventos recentes com esse número (últimas 24h)
 echo "1) Eventos nas últimas 24h com número similar:\n";
-$sql = "SELECT id, event_id, conversation_id, direction, event_type, 
+$sql = "SELECT id, event_id, conversation_id, event_type, 
                JSON_UNQUOTE(JSON_EXTRACT(payload, '$.from')) as from_number,
+               JSON_UNQUOTE(JSON_EXTRACT(payload, '$.to')) as to_number,
                JSON_UNQUOTE(JSON_EXTRACT(payload, '$.text')) as text_content,
                created_at
         FROM communication_events 
         WHERE (
             JSON_EXTRACT(payload, '$.from') LIKE ? OR
-            JSON_EXTRACT(payload, '$.from') LIKE ? OR
-            JSON_EXTRACT(payload, '$.to') LIKE ? OR
             JSON_EXTRACT(payload, '$.to') LIKE ?
         )
         AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
@@ -43,24 +42,25 @@ $sql = "SELECT id, event_id, conversation_id, direction, event_type,
         LIMIT 20";
 $stmt = $pdo->prepare($sql);
 $pattern = "%{$phoneSearch}%";
-$stmt->execute([$pattern, $pattern, $pattern, $pattern]);
+$stmt->execute([$pattern, $pattern]);
 $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if (empty($events)) {
     echo "   NENHUM evento encontrado com esse número nas últimas 24h\n";
 } else {
     foreach ($events as $e) {
-        echo "   - [{$e['created_at']}] conv={$e['conversation_id']} dir={$e['direction']} from={$e['from_number']}\n";
+        $dir = !empty($e['from_number']) ? 'inbound' : 'outbound';
+        echo "   - [{$e['created_at']}] conv={$e['conversation_id']} type={$e['event_type']} from={$e['from_number']} to={$e['to_number']}\n";
         echo "     text: " . substr($e['text_content'] ?? '(sem texto)', 0, 80) . "\n";
     }
 }
 
 // 2. Buscar conversas com esse número
 echo "\n2) Conversas com número similar:\n";
-$sql = "SELECT id, thread_id, contact_name, contact_external_id, status, channel_account_id, last_activity
+$sql = "SELECT id, conversation_key, contact_name, contact_external_id, status, channel_account_id, last_message_at
         FROM conversations 
         WHERE contact_external_id LIKE ?
-        ORDER BY last_activity DESC
+        ORDER BY last_message_at DESC
         LIMIT 10";
 $stmt = $pdo->prepare($sql);
 $stmt->execute([$pattern]);
@@ -70,9 +70,9 @@ if (empty($conversations)) {
     echo "   NENHUMA conversa encontrada com esse número\n";
 } else {
     foreach ($conversations as $c) {
-        echo "   - ID={$c['id']} thread={$c['thread_id']} status={$c['status']}\n";
+        echo "   - ID={$c['id']} key={$c['conversation_key']} status={$c['status']}\n";
         echo "     contact={$c['contact_name']} external_id={$c['contact_external_id']}\n";
-        echo "     channel_account_id={$c['channel_account_id']} last_activity={$c['last_activity']}\n";
+        echo "     channel_account_id={$c['channel_account_id']} last_message={$c['last_message_at']}\n";
     }
 }
 
@@ -83,7 +83,7 @@ $sql = "SELECT id, event_id, conversation_id,
                JSON_UNQUOTE(JSON_EXTRACT(payload, '$.text')) as text_content,
                created_at
         FROM communication_events 
-        WHERE direction = 'inbound'
+        WHERE event_type = 'message_received'
         AND created_at >= DATE_SUB(NOW(), INTERVAL 2 HOUR)
         ORDER BY created_at DESC
         LIMIT 10";

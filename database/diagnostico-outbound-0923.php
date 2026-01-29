@@ -5,9 +5,13 @@
  * Objetivo: Verificar se a mensagem chegou ao PixelHub e como foi processada
  */
 
-require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../src/Core/DB.php';
+require_once __DIR__ . '/../src/Core/Env.php';
 
 use PixelHub\Core\DB;
+use PixelHub\Core\Env;
+
+Env::load(__DIR__ . '/../.env');
 
 echo "=== DIAGNÓSTICO MENSAGEM OUTBOUND 0923 ===\n\n";
 

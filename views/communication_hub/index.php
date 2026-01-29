@@ -2454,17 +2454,19 @@ document.getElementById('new-message-modal')?.addEventListener('click', function
 
 /**
  * Formata data/hora para exibição no fuso de Brasília
- * Os timestamps do banco vêm em formato "YYYY-MM-DD HH:MM:SS" no fuso de Brasília
+ * Os timestamps do banco vêm em formato "YYYY-MM-DD HH:MM:SS" JÁ no fuso de Brasília
+ * (MySQL na HostMedia está configurado para America/Sao_Paulo)
  */
 function formatDateBrasilia(dateStr) {
     if (!dateStr || dateStr === 'now') return 'Agora';
     
     try {
-        // Timestamps do banco vêm em UTC - adiciona 'Z' para indicar isso ao JavaScript
+        // CORREÇÃO: Timestamps do banco JÁ estão em Brasília (UTC-3)
+        // Adiciona offset -03:00 ao invés de 'Z' (UTC)
         let isoStr = dateStr;
         if (!dateStr.includes('T') && !dateStr.includes('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
-            // Formato "YYYY-MM-DD HH:MM:SS" (UTC) - adiciona T e Z
-            isoStr = dateStr.replace(' ', 'T') + 'Z';
+            // Formato "YYYY-MM-DD HH:MM:SS" (Brasília) - adiciona T e offset -03:00
+            isoStr = dateStr.replace(' ', 'T') + '-03:00';
         }
         
         const dateTime = new Date(isoStr);

@@ -11,7 +11,28 @@
  * @date 2026-01-28
  */
 
-require_once __DIR__ . '/../vendor/autoload.php';
+// Bootstrap: Carrega autoload do Composer se existir, senão carrega manualmente
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+} else {
+    // Autoload manual simples (mesmo usado no public/index.php)
+    spl_autoload_register(function ($class) {
+        $prefix = 'PixelHub\\';
+        $baseDir = __DIR__ . '/../src/';
+        
+        $len = strlen($prefix);
+        if (strncmp($prefix, $class, $len) !== 0) {
+            return;
+        }
+        
+        $relativeClass = substr($class, $len);
+        $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+        
+        if (file_exists($file)) {
+            require $file;
+        }
+    });
+}
 
 use PixelHub\Core\DB;
 
