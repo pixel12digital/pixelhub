@@ -24,6 +24,27 @@ curl -s "https://hub.pixel12digital.com.br/clear-opcache.php"
 
 ## Tags de Restauração
 
+### `v1.1.0-stable-media` (29/01/2026) - ATUAL
+
+**Commit:** `9bc7a96`
+
+**Descrição:** Sistema de mídia completo funcionando (áudio, vídeo, imagens). Ponto antes de otimizações de performance.
+
+**Funcionalidades confirmadas:**
+- Tudo de v1.0.0-stable-comm
+- Download de vídeos (não apenas thumbnail)
+- Correção de arquivos JSON salvos incorretamente
+- Scripts de diagnóstico de mídia
+
+**Para restaurar:**
+```bash
+git fetch --tags
+git checkout v1.1.0-stable-media
+curl -s "https://hub.pixel12digital.com.br/clear-opcache.php"
+```
+
+---
+
 ### `v1.0.0-stable-comm` (29/01/2026)
 
 **Commit:** `702f8ec`
