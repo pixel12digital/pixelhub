@@ -595,7 +595,6 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/communication-hub', 'CommunicationHubController@index');
     $router->get('/communication-hub/thread', 'CommunicationHubController@thread');
     $router->get('/communication-hub/thread-data', 'CommunicationHubController@getThreadData');
-    $router->get('/communication-hub/messages', 'CommunicationHubController@getMessages'); // Paginação de mensagens
     $router->post('/communication-hub/send', 'CommunicationHubController@send');
     $router->get('/communication-hub/conversations-list', 'CommunicationHubController@getConversationsList');
     $router->get('/communication-hub/check-updates', 'CommunicationHubController@checkUpdates');
