@@ -3301,7 +3301,15 @@ function initComposerAudio() {
             ];
             const mimeType = candidates.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
             
-            recorder = new MediaRecorder(recStream, mimeType ? { mimeType } : undefined);
+            // Configura gravação com bitrate baixo (24kbps é suficiente para voz)
+            // Isso mantém áudios de 2 minutos abaixo de 400KB
+            const recorderOptions = {
+                audioBitsPerSecond: 24000 // 24kbps - qualidade boa para voz, tamanho pequeno
+            };
+            if (mimeType) {
+                recorderOptions.mimeType = mimeType;
+            }
+            recorder = new MediaRecorder(recStream, recorderOptions);
             recChunks = [];
             recBlob = null;
             
@@ -3510,6 +3518,113 @@ function initComposerAudio() {
         });
     }
 
+    /**
+     * Limite máximo de tamanho do áudio em bytes para envio.
+     * O servidor LiteSpeed tem limite de ~500KB para request body.
+     * Usamos 400KB para ter margem de segurança (base64 aumenta ~33%).
+     */
+    const MAX_AUDIO_SIZE_BYTES = 400 * 1024; // 400KB
+    
+    /**
+     * Comprime o áudio reduzindo bitrate se exceder o limite.
+     * Usa Web Audio API para decodificar e re-codificar com bitrate menor.
+     */
+    async function compressAudioIfNeeded(blob, targetSizeKb = 400) {
+        const currentSizeKb = blob.size / 1024;
+        
+        // Se já está pequeno o suficiente, retorna sem modificar
+        if (blob.size <= targetSizeKb * 1024) {
+            console.log(`[AudioCompressor] Áudio já está pequeno (${currentSizeKb.toFixed(1)}KB), não precisa comprimir`);
+            return blob;
+        }
+        
+        console.log(`[AudioCompressor] Áudio grande (${currentSizeKb.toFixed(1)}KB), iniciando compressão...`);
+        
+        // Verifica suporte
+        if (!window.AudioContext && !window.webkitAudioContext) {
+            console.warn('[AudioCompressor] AudioContext não suportado, enviando original');
+            return blob;
+        }
+        
+        if (!window.MediaRecorder || !MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+            console.warn('[AudioCompressor] OGG/Opus não suportado, enviando original');
+            return blob;
+        }
+        
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const arrayBuffer = await blob.arrayBuffer();
+            const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+            
+            // Calcula bitrate alvo baseado no tamanho desejado
+            // targetSize = (bitrate * duration) / 8
+            // bitrate = (targetSize * 8) / duration
+            const durationSecs = audioBuffer.duration;
+            const targetBitrate = Math.floor((targetSizeKb * 1024 * 8) / durationSecs);
+            
+            // Limita bitrate entre 12kbps (mínimo aceitável) e 24kbps
+            const finalBitrate = Math.max(12000, Math.min(24000, targetBitrate));
+            
+            console.log(`[AudioCompressor] Duração: ${durationSecs.toFixed(1)}s, Bitrate alvo: ${(finalBitrate/1000).toFixed(1)}kbps`);
+            
+            // Cria MediaStream a partir do AudioBuffer
+            const dest = ctx.createMediaStreamDestination();
+            const source = ctx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(dest);
+            source.start(0);
+            
+            // Grava com o novo bitrate
+            return new Promise((resolve, reject) => {
+                const chunks = [];
+                const mr = new MediaRecorder(dest.stream, { 
+                    mimeType: 'audio/ogg;codecs=opus',
+                    audioBitsPerSecond: finalBitrate
+                });
+                
+                mr.ondataavailable = e => {
+                    if (e.data && e.data.size) chunks.push(e.data);
+                };
+                
+                mr.onstop = () => {
+                    const compressedBlob = new Blob(chunks, { type: 'audio/ogg;codecs=opus' });
+                    const newSizeKb = compressedBlob.size / 1024;
+                    const reduction = ((1 - compressedBlob.size / blob.size) * 100).toFixed(1);
+                    console.log(`[AudioCompressor] ✅ Compressão concluída: ${currentSizeKb.toFixed(1)}KB → ${newSizeKb.toFixed(1)}KB (${reduction}% redução)`);
+                    ctx.close();
+                    resolve(compressedBlob);
+                };
+                
+                mr.onerror = (e) => {
+                    console.error('[AudioCompressor] Erro na compressão:', e);
+                    ctx.close();
+                    reject(e);
+                };
+                
+                mr.start(100);
+                
+                // Para a gravação quando o áudio terminar
+                source.onended = () => {
+                    setTimeout(() => {
+                        try { mr.stop(); } catch (_) {}
+                    }, 200);
+                };
+                
+                // Timeout de segurança
+                setTimeout(() => {
+                    if (mr.state === 'recording') {
+                        try { mr.stop(); } catch (_) {}
+                    }
+                }, Math.ceil(durationSecs * 1000) + 500);
+            });
+            
+        } catch (err) {
+            console.error('[AudioCompressor] Erro ao comprimir:', err);
+            // Em caso de erro, retorna o blob original
+            return blob;
+        }
+    }
+    
     /**
      * Converte WebM/Opus para OGG/Opus quando o navegador suporta gravar em OGG.
      * WhatsApp exige OGG/Opus para voice; Chrome grava em WebM, Firefox em OGG.
@@ -3855,10 +3970,22 @@ function initComposerAudio() {
             
             const convertStartTime = Date.now();
             console.log('[AudioRecorder] Garantindo formato OGG/Opus (WhatsApp exige)...');
-            const blobToSend = await ensureOggForSend(recBlob);
+            let blobToSend = await ensureOggForSend(recBlob);
             if (blobToSend !== recBlob) {
                 console.log('[AudioRecorder] Áudio convertido para OGG no navegador:', blobToSend.type);
             }
+            
+            // Comprime se necessário (servidor tem limite de ~500KB para POST)
+            const originalSizeKB = (blobToSend.size / 1024).toFixed(1);
+            console.log(`[AudioRecorder] Tamanho do áudio: ${originalSizeKB}KB`);
+            
+            if (blobToSend.size > MAX_AUDIO_SIZE_BYTES) {
+                console.log(`[AudioRecorder] ⚠️ Áudio excede ${MAX_AUDIO_SIZE_BYTES/1024}KB, comprimindo...`);
+                blobToSend = await compressAudioIfNeeded(blobToSend, MAX_AUDIO_SIZE_BYTES / 1024);
+                const compressedSizeKB = (blobToSend.size / 1024).toFixed(1);
+                console.log(`[AudioRecorder] ✅ Áudio comprimido: ${originalSizeKB}KB → ${compressedSizeKB}KB`);
+            }
+            
             console.log('[AudioRecorder] Iniciando conversão para base64...');
             const dataUrl = await blobToDataUrl(blobToSend);
             const convertTime = Date.now() - convertStartTime;
