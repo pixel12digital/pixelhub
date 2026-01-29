@@ -125,13 +125,13 @@ class WhatsAppMediaService
                 ?? null;
         } elseif ($wppConnectMediaData) {
             // NOVO: WPP Connect com dados em raw.payload
-            // Usa mediaKey ou id da mensagem como identificador
-            $mediaId = $wppConnectMediaData['mediaKey'] 
-                ?? $wppConnectMediaData['directPath']
-                ?? $wppConnectMediaData['id']
+            // IMPORTANTE: Usa ID da mensagem (não mediaKey!) para download via gateway
+            // mediaKey é a chave de criptografia, não o identificador para download
+            $mediaId = $wppConnectMediaData['id']  // ID da mensagem (ex: false_554796164699@c.us_3EB0...)
                 ?? $payload['message']['id']
+                ?? $wppConnectMediaData['directPath']  // Fallback: caminho direto no WhatsApp CDN
                 ?? null;
-            error_log("[WhatsAppMediaService] WPP Connect: mediaId extraído = " . ($mediaId ? substr($mediaId, 0, 50) . '...' : 'NULL'));
+            error_log("[WhatsAppMediaService] WPP Connect: mediaId (msg id) extraído = " . ($mediaId ? substr($mediaId, 0, 80) . '...' : 'NULL'));
         } else {
             // WPP Connect: pode usar mediaUrl, media_id, ou id da mensagem
             // Formato padrão também suportado
