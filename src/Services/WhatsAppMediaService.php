@@ -65,6 +65,21 @@ class WhatsAppMediaService
         // Formato Baileys: message.message.audioMessage, message.message.imageMessage, etc.
         $messageContent = $payload['message']['message'] ?? null;
         
+        // NOVO: Formato WPP Connect - dados de mídia em raw.payload
+        $rawPayload = $payload['raw']['payload'] ?? null;
+        $wppConnectMediaType = null;
+        $wppConnectMediaData = null;
+        
+        if ($rawPayload && isset($rawPayload['type'])) {
+            $rawType = $rawPayload['type'];
+            // WPP Connect usa: ptt (voice), audio, image, video, document, sticker
+            if (in_array($rawType, ['ptt', 'audio', 'image', 'video', 'document', 'sticker'])) {
+                $wppConnectMediaType = $rawType === 'ptt' ? 'audio' : $rawType; // Normaliza ptt para audio
+                $wppConnectMediaData = $rawPayload;
+                error_log("[WhatsAppMediaService] WPP Connect: Detectado tipo '{$rawType}' em raw.payload, normalizado para '{$wppConnectMediaType}'");
+            }
+        }
+        
         // Detecta tipo de mídia no formato Baileys
         $baileysMediaType = null;
         $baileysMediaData = null;
@@ -108,6 +123,15 @@ class WhatsAppMediaService
                 ?? $baileysMediaData['directPath']
                 ?? $payload['message']['key']['id'] // ID da mensagem pode ser usado como mediaId
                 ?? null;
+        } elseif ($wppConnectMediaData) {
+            // NOVO: WPP Connect com dados em raw.payload
+            // Usa mediaKey ou id da mensagem como identificador
+            $mediaId = $wppConnectMediaData['mediaKey'] 
+                ?? $wppConnectMediaData['directPath']
+                ?? $wppConnectMediaData['id']
+                ?? $payload['message']['id']
+                ?? null;
+            error_log("[WhatsAppMediaService] WPP Connect: mediaId extraído = " . ($mediaId ? substr($mediaId, 0, 50) . '...' : 'NULL'));
         } else {
             // WPP Connect: pode usar mediaUrl, media_id, ou id da mensagem
             // Formato padrão também suportado
@@ -131,8 +155,10 @@ class WhatsAppMediaService
         // Se não encontrou mediaId, verifica se é mídia pelo tipo
         if (!$mediaId) {
             $typeCheck = $baileysMediaType 
+                ?? $wppConnectMediaType  // NOVO: inclui tipo do WPP Connect
                 ?? $payload['type'] 
                 ?? $payload['message']['type'] 
+                ?? $payload['raw']['payload']['type']  // NOVO: fallback para raw.payload.type
                 ?? null;
             if (in_array($typeCheck, ['audio', 'ptt', 'image', 'video', 'document', 'sticker'])) {
                 // É mídia, mas sem mediaId - pode ser que o gateway forneça URL direta
@@ -142,6 +168,7 @@ class WhatsAppMediaService
                     ?? $payload['message_id'] 
                     ?? $payload['message']['id'] 
                     ?? $payload['message']['key']['id']
+                    ?? $payload['raw']['payload']['id']  // NOVO: fallback para raw.payload.id
                     ?? null;
             }
         }
@@ -149,8 +176,10 @@ class WhatsAppMediaService
         if (!$mediaId) {
             // Não é uma mensagem com mídia identificável
             $typeLog = $baileysMediaType 
+                ?? $wppConnectMediaType
                 ?? $payload['type'] 
-                ?? $payload['message']['type'] 
+                ?? $payload['message']['type']
+                ?? $payload['raw']['payload']['type']
                 ?? 'unknown';
             error_log("[WhatsAppMediaService] MediaId não encontrado no payload. Type: {$typeLog}");
             return null;
@@ -189,10 +218,17 @@ class WhatsAppMediaService
         
         // Extrai tipo de mídia
         $mediaType = $baileysMediaType 
+            ?? $wppConnectMediaType  // NOVO: WPP Connect
             ?? $payload['type'] 
             ?? $payload['message']['type']
+            ?? $payload['raw']['payload']['type']  // NOVO: fallback para raw.payload
             ?? ($baileysMediaData ? 'media' : null)
             ?? 'unknown';
+        
+        // Normaliza tipo ptt para audio
+        if ($mediaType === 'ptt') {
+            $mediaType = 'audio';
+        }
         
         // Extrai mimetype (Baileys, WPP Connect ou padrão)
         $mimeType = null;
@@ -200,6 +236,12 @@ class WhatsAppMediaService
             $mimeType = $baileysMediaData['mimetype'] 
                 ?? $baileysMediaData['mimeType']
                 ?? self::guessMimeType($mediaType);
+        } elseif ($wppConnectMediaData) {
+            // NOVO: WPP Connect com dados em raw.payload
+            $mimeType = $wppConnectMediaData['mimetype'] 
+                ?? $wppConnectMediaData['mimeType']
+                ?? self::guessMimeType($mediaType);
+            error_log("[WhatsAppMediaService] WPP Connect: mimeType extraído = {$mimeType}");
         } else {
             // WPP Connect usa 'mimetype' (sem camelCase)
             $mimeType = $payload['mimetype'] 
