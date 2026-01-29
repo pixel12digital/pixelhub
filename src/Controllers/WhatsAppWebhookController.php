@@ -455,7 +455,21 @@ class WhatsAppWebhookController extends Controller
             error_log('[mapEventType] Evento "message" - fromMe=' . ($fromMe ? 'true' : 'false'));
             
             if ($fromMe) {
-                error_log('[mapEventType] ✅ Mensagem enviada pelo celular/web detectada! Classificando como outbound.');
+                // Log detalhado do payload outbound para debug
+                $toValue = $payload['to'] 
+                    ?? $payload['message']['to']
+                    ?? $payload['message']['key']['remoteJid']
+                    ?? $payload['chatId']
+                    ?? $payload['message']['chatId']
+                    ?? 'NULL';
+                $fromValue = $payload['from'] 
+                    ?? $payload['message']['from']
+                    ?? 'NULL';
+                error_log(sprintf(
+                    '[mapEventType] ✅ Mensagem OUTBOUND (celular/web): from=%s, to/remoteJid=%s',
+                    $fromValue,
+                    $toValue
+                ));
                 return 'whatsapp.outbound.message';
             }
             

@@ -316,11 +316,26 @@ class ConversationService
                     ?? $payload['data']['notifyName']
                     ?? $payload['notifyName'] ?? null;
             } else {
+                // OUTBOUND: Para mensagens enviadas (fromMe=true), queremos o DESTINATÁRIO
+                // remoteJid é o contato externo (para outbound = destinatário)
+                // IMPORTANTE: WPPConnect/onselfmessage usa remoteJid, não 'to'
                 $rawFrom = $payload['message']['to'] 
                     ?? $payload['to'] 
                     ?? $payload['data']['to']
                     ?? $payload['raw']['payload']['to']
-                    ?? $payload['raw']['to'] ?? null;
+                    ?? $payload['raw']['to']
+                    // CORREÇÃO: remoteJid é o contato externo (destinatário para outbound)
+                    ?? $payload['message']['key']['remoteJid']
+                    ?? $payload['data']['key']['remoteJid']
+                    ?? $payload['raw']['payload']['key']['remoteJid']
+                    // Fallback: chatId também é o contato externo
+                    ?? $payload['chatId']
+                    ?? $payload['message']['chatId']
+                    ?? $payload['data']['chatId']
+                    ?? $payload['raw']['payload']['chatId']
+                    ?? null;
+                
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: OUTBOUND extraction - to/remoteJid result: ' . ($rawFrom ?: 'NULL'));
             }
             
             error_log('[CONVERSATION UPSERT] extractChannelInfo: WhatsApp ' . $direction . ' - rawFrom: ' . ($rawFrom ?: 'NULL'));
