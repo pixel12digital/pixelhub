@@ -3658,10 +3658,14 @@ class CommunicationHubController extends Controller
             if ($direction === 'outbound' && $isFromThisContact && !$isToThisContact) $direction = 'inbound';
             
             // Extrai conteúdo da mensagem (suporta diferentes formatos de payload)
+            // CORREÇÃO: Inclui caption para imagens/vídeos com legenda
             $content = $payload['text'] 
                 ?? $payload['body'] 
                 ?? $payload['message']['text'] 
-                ?? $payload['message']['body'] 
+                ?? $payload['message']['body']
+                ?? $payload['caption']
+                ?? $payload['message']['caption']
+                ?? $payload['raw']['payload']['caption']  // WPPConnect image/video caption
                 ?? '';
             
             // Processa mídia base64 se ainda não foi processada (áudio OGG, imagens JPEG/PNG)
@@ -3801,10 +3805,14 @@ class CommunicationHubController extends Controller
             
             $direction = $event['event_type'] === 'whatsapp.inbound.message' ? 'inbound' : 'outbound';
             
+            // CORREÇÃO: Inclui caption para imagens/vídeos com legenda
             $content = $payload['body'] 
                 ?? $payload['text'] 
                 ?? $payload['message']['text'] 
-                ?? $payload['message']['body'] 
+                ?? $payload['message']['body']
+                ?? $payload['caption']
+                ?? $payload['message']['caption']
+                ?? $payload['raw']['payload']['caption']  // WPPConnect image/video caption
                 ?? '';
             
             // Processa mídia base64 se ainda não foi processada (áudio OGG, imagens JPEG/PNG)
@@ -4759,10 +4767,14 @@ class CommunicationHubController extends Controller
             $payload = json_decode($event['payload'], true);
             $direction = $event['event_type'] === 'whatsapp.inbound.message' ? 'inbound' : 'outbound';
             
+            // CORREÇÃO: Inclui caption para imagens/vídeos com legenda
             $content = $payload['text'] 
                 ?? $payload['body'] 
                 ?? $payload['message']['text'] 
-                ?? $payload['message']['body'] 
+                ?? $payload['message']['body']
+                ?? $payload['caption']
+                ?? $payload['message']['caption']
+                ?? $payload['raw']['payload']['caption']  // WPPConnect image/video caption
                 ?? '';
             
             if (empty($content)) {
@@ -5008,10 +5020,14 @@ class CommunicationHubController extends Controller
             
             $direction = $event['event_type'] === 'whatsapp.inbound.message' ? 'inbound' : 'outbound';
             
+            // CORREÇÃO: Inclui caption para imagens/vídeos com legenda
             $content = $payload['text'] 
                 ?? $payload['body'] 
                 ?? $payload['message']['text'] 
-                ?? $payload['message']['body'] 
+                ?? $payload['message']['body']
+                ?? $payload['caption']
+                ?? $payload['message']['caption']
+                ?? $payload['raw']['payload']['caption']  // WPPConnect image/video caption
                 ?? '';
             
             // Processa mídia base64 se ainda não foi processada (áudio OGG, imagens JPEG/PNG)
