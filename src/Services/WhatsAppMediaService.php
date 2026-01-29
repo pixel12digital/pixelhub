@@ -612,7 +612,7 @@ class WhatsAppMediaService
      * Gera URL pública para a mídia
      * CORRIGIDO: Sempre usa pixelhub_url() quando disponível para garantir URL absoluta correta
      */
-    private static function getMediaUrl(string $storedPath): string
+    public static function getMediaUrl(string $storedPath): string
     {
         // Sempre tenta usar pixelhub_url() primeiro (mais robusto)
         if (function_exists('pixelhub_url')) {
