@@ -24,7 +24,27 @@ curl -s "https://hub.pixel12digital.com.br/clear-opcache.php"
 
 ## Tags de Restauração
 
-### `v1.1.0-stable-media` (29/01/2026) - ATUAL
+### `v1.2.1-stable-batch-media` (29/01/2026) - ATUAL
+
+**Commit:** `9a7861f`
+
+**Descrição:** Otimização de performance - batch query para mídias. Reduz N queries para 1 query ao carregar conversas com mídia.
+
+**Funcionalidades confirmadas:**
+- Tudo de v1.1.0-stable-media
+- Batch query para mídia (1 query em vez de N)
+- Carregamento mais rápido de conversas com muitas mídias
+
+**Para restaurar:**
+```bash
+git fetch --tags
+git checkout v1.2.1-stable-batch-media
+curl -s "https://hub.pixel12digital.com.br/clear-opcache.php"
+```
+
+---
+
+### `v1.1.0-stable-media` (29/01/2026)
 
 **Commit:** `9bc7a96`
 
@@ -74,6 +94,22 @@ curl -s "https://hub.pixel12digital.com.br/clear-opcache.php"
 ---
 
 ## Histórico de Problemas Resolvidos
+
+### Fase 1 Performance causou erro 500 (29/01/2026)
+
+**Sintomas:**
+- Paginação backend implementada quebrou audio/video
+- Erro HTTP 500 ao carregar conversas
+
+**Causa raiz:**
+1. Primeira tentativa de Fase 1 (paginação) alterou demais o código existente
+2. Segunda tentativa: método `getMediaUrl` era `private`, causou erro ao chamar de fora
+
+**Solução:**
+- Abordagem mais segura: batch query para mídias existentes (sem paginação)
+- Mudança de `private` para `public` no método `getMediaUrl`
+
+---
 
 ### Audio Inbound não funcionava (29/01/2026)
 
