@@ -15,7 +15,6 @@ $stmt = $db->query("
         cm.file_size,
         cm.file_name,
         cm.created_at,
-        ce.direction,
         JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.raw.payload.type')) as raw_type,
         JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.raw.payload.mimetype')) as raw_mimetype
     FROM communication_media cm
@@ -25,13 +24,13 @@ $stmt = $db->query("
 ");
 
 foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $m) {
-    $hasPath = !empty($m['stored_path']) ? '✅' : '❌';
-    $hasSize = !empty($m['file_size']) && $m['file_size'] > 0 ? '✅' : '❌';
+    $hasPath = !empty($m['stored_path']) ? 'OK' : 'VAZIO';
+    $hasSize = !empty($m['file_size']) && $m['file_size'] > 0 ? 'OK' : 'VAZIO';
     
-    echo "[{$m['id']}] {$m['created_at']} | {$m['direction']}\n";
+    echo "[{$m['id']}] {$m['created_at']}\n";
     echo "    type: {$m['media_type']} | raw_type: {$m['raw_type']}\n";
     echo "    mime: {$m['mime_type']} | raw_mime: {$m['raw_mimetype']}\n";
-    echo "    path: {$hasPath} {$m['stored_path']}\n";
-    echo "    size: {$hasSize} {$m['file_size']} bytes\n";
+    echo "    path: [{$hasPath}] {$m['stored_path']}\n";
+    echo "    size: [{$hasSize}] {$m['file_size']} bytes\n";
     echo "\n";
 }
