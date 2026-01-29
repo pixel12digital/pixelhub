@@ -443,12 +443,15 @@ class WhatsAppWebhookController extends Controller
         // Isso captura mensagens enviadas pelo celular/web (fora do PixelHub)
         if ($gatewayEventType === 'message') {
             // Tenta extrair fromMe de várias possíveis localizações no payload
+            // CORREÇÃO: Adiciona raw.payload.fromMe que é onde o WPPConnect coloca para onselfmessage
             $fromMe = $payload['fromMe'] 
                 ?? $payload['message']['fromMe']
                 ?? $payload['message']['key']['fromMe']
                 ?? $payload['data']['fromMe']
                 ?? $payload['data']['message']['fromMe']
                 ?? $payload['data']['message']['key']['fromMe']
+                ?? $payload['raw']['payload']['fromMe']           // NOVO: WPPConnect onselfmessage
+                ?? $payload['raw']['payload']['key']['fromMe']    // NOVO: alternativa
                 ?? false;
             
             // Log para debug
