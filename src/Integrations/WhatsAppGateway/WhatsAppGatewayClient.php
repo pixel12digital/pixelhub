@@ -841,6 +841,39 @@ class WhatsAppGatewayClient
         $binaryData = base64_decode($base64);
         $mimeType = $json['mime_type'] ?? 'application/octet-stream';
         
+        // CORREÇÃO: O wppconnectAdapter pode ter codificado JSON como binário
+        // Se o "binário" é na verdade JSON com dados de mídia, extrair o áudio real
+        if (strlen($binaryData) > 0 && $binaryData[0] === '{') {
+            $innerJson = json_decode($binaryData, true);
+            if ($innerJson && json_last_error() === JSON_ERROR_NONE) {
+                error_log("[WhatsAppGateway::downloadMedia] Detectado JSON aninhado, extraindo dados reais...");
+                
+                // WPP Connect retorna: {"mimetype": "...", "data": "base64_audio", ...}
+                // ou pode ser {"base64": "...", "mimetype": "..."}
+                $innerBase64 = $innerJson['data'] ?? $innerJson['base64'] ?? $innerJson['body'] ?? null;
+                $innerMime = $innerJson['mimetype'] ?? $innerJson['mimeType'] ?? $innerJson['mime_type'] ?? null;
+                
+                if ($innerBase64) {
+                    $binaryData = base64_decode($innerBase64);
+                    if ($innerMime) {
+                        $mimeType = $innerMime;
+                    }
+                    error_log("[WhatsAppGateway::downloadMedia] Extraído áudio do JSON interno! mime={$mimeType}, size=" . strlen($binaryData) . " bytes");
+                } else {
+                    error_log("[WhatsAppGateway::downloadMedia] JSON interno não contém campo de dados (data/base64/body)");
+                }
+            }
+        }
+        
+        // Verifica se é áudio OGG válido (começa com "OggS")
+        if (strlen($binaryData) >= 4) {
+            $header = substr($binaryData, 0, 4);
+            if ($header === 'OggS') {
+                error_log("[WhatsAppGateway::downloadMedia] Confirmado: arquivo OGG válido");
+                $mimeType = 'audio/ogg';
+            }
+        }
+        
         error_log("[WhatsAppGateway::downloadMedia] Download OK! mime={$mimeType}, size=" . strlen($binaryData) . " bytes");
         
         return [
