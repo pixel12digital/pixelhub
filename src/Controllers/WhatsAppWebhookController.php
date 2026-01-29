@@ -521,20 +521,24 @@ class WhatsAppWebhookController extends Controller
         
         // CORREÇÃO: ORDER BY id ASC garante ordem determinística
         // Prioriza registro mais antigo (tenant original) se houver duplicidade futura
+        // CORREÇÃO: Busca case-insensitive e ignora espaços para resolver diferenças
+        // entre "Pixel12 Digital" (banco) e "pixel12digital" (gateway)
+        $normalizedChannelId = strtolower(str_replace(' ', '', $channelId));
+        
         $stmt = $db->prepare("
             SELECT tenant_id 
             FROM tenant_message_channels 
             WHERE provider = 'wpp_gateway' 
-            AND channel_id = ? 
+            AND LOWER(REPLACE(channel_id, ' ', '')) = ? 
             AND is_enabled = 1
             ORDER BY id ASC
             LIMIT 1
         ");
-        $stmt->execute([$channelId]);
+        $stmt->execute([$normalizedChannelId]);
         $result = $stmt->fetch();
 
         $tenantId = $result ? (int) $result['tenant_id'] : null;
-        error_log('[WHATSAPP INBOUND RAW] resolveTenantByChannel: resultado tenant_id=' . ($tenantId ?: 'NULL'));
+        error_log('[WHATSAPP INBOUND RAW] resolveTenantByChannel: resultado tenant_id=' . ($tenantId ?: 'NULL') . ' (channelId=' . $channelId . ', normalized=' . $normalizedChannelId . ')');
         
         return $tenantId;
     }
