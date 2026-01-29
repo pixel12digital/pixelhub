@@ -2780,9 +2780,9 @@ function initMediaViewerOnce() {
             return;
         }
         
-        // Fechar modal ao clicar no overlay (fora da imagem)
+        // Fechar modal ao clicar no overlay (fora da imagem e botões)
         const viewer = document.getElementById('hub-media-viewer');
-        if (viewer && e.target === viewer) {
+        if (viewer && (e.target === viewer || e.target.classList.contains('viewer-container'))) {
             viewer.style.display = 'none';
             return;
         }
@@ -2846,6 +2846,16 @@ function openMediaViewer(src) {
     openNewBtn.onclick = function() {
         window.open(src, '_blank');
     };
+    
+    // Mobile: garante ações visíveis
+    const actions = viewer.querySelector('.viewer-actions');
+    if (actions) {
+        if (window.innerWidth <= 768) {
+            actions.classList.add('visible');
+        } else {
+            actions.classList.remove('visible');
+        }
+    }
     
     // Mostra o modal
     viewer.style.display = 'flex';
@@ -3049,15 +3059,120 @@ function renderConversation(thread, messages, channel) {
             </div>
         </div>
         
-        <!-- Modal Viewer de Mídia -->
-        <div id="hub-media-viewer" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10000; align-items: center; justify-content: center;">
-            <div style="position: relative; max-width: 90%; max-height: 90%; display: flex; flex-direction: column; align-items: center;">
-                <img id="hub-media-viewer-img" src="" style="max-width: 100%; max-height: 80vh; border-radius: 8px; object-fit: contain;">
-                <div style="margin-top: 20px; display: flex; gap: 12px;">
-                    <button id="hub-media-download" style="padding: 10px 20px; background: #023A8D; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">Baixar</button>
-                    <button id="hub-media-open-new" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">Abrir em Nova Aba</button>
-                    <button id="hub-media-close" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">Fechar                    </button>
+        <!-- Modal Viewer de Mídia (Redesign: ações no topo, fit proporcional) -->
+        <style>
+            #hub-media-viewer {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.92);
+                z-index: 10000;
+                align-items: center;
+                justify-content: center;
+                cursor: zoom-out;
+            }
+            #hub-media-viewer .viewer-container {
+                position: relative;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            #hub-media-viewer-img {
+                max-width: 94vw;
+                max-height: 94vh;
+                object-fit: contain;
+                border-radius: 4px;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+                cursor: default;
+            }
+            #hub-media-viewer .viewer-actions {
+                position: absolute;
+                top: 16px;
+                right: 16px;
+                display: flex;
+                gap: 8px;
+                opacity: 0;
+                transition: opacity 0.2s ease;
+                z-index: 10001;
+            }
+            #hub-media-viewer:hover .viewer-actions,
+            #hub-media-viewer .viewer-actions.visible {
+                opacity: 1;
+            }
+            #hub-media-viewer .viewer-btn {
+                width: 44px;
+                height: 44px;
+                border: none;
+                border-radius: 50%;
+                background: rgba(255,255,255,0.15);
+                backdrop-filter: blur(8px);
+                color: white;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: background 0.2s ease, transform 0.15s ease;
+            }
+            #hub-media-viewer .viewer-btn:hover {
+                background: rgba(255,255,255,0.3);
+                transform: scale(1.08);
+            }
+            #hub-media-viewer .viewer-btn svg {
+                width: 20px;
+                height: 20px;
+                fill: currentColor;
+            }
+            #hub-media-viewer .viewer-btn-close {
+                background: rgba(220,53,69,0.7);
+            }
+            #hub-media-viewer .viewer-btn-close:hover {
+                background: rgba(220,53,69,0.9);
+            }
+            /* Mobile: sempre visível */
+            @media (max-width: 768px) {
+                #hub-media-viewer .viewer-actions {
+                    opacity: 1;
+                }
+                #hub-media-viewer .viewer-btn {
+                    width: 48px;
+                    height: 48px;
+                }
+            }
+            /* Tooltip */
+            #hub-media-viewer .viewer-btn[title]:hover::after {
+                content: attr(title);
+                position: absolute;
+                top: 52px;
+                right: 0;
+                background: rgba(0,0,0,0.8);
+                color: white;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 12px;
+                white-space: nowrap;
+            }
+        </style>
+        <div id="hub-media-viewer">
+            <div class="viewer-container">
+                <!-- Ações no topo direito -->
+                <div class="viewer-actions">
+                    <button id="hub-media-download" class="viewer-btn" title="Baixar">
+                        <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                    </button>
+                    <button id="hub-media-open-new" class="viewer-btn" title="Abrir em nova aba">
+                        <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+                    </button>
+                    <button id="hub-media-close" class="viewer-btn viewer-btn-close" title="Fechar">
+                        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                    </button>
                 </div>
+                <!-- Imagem proporcional (fit to screen) -->
+                <img id="hub-media-viewer-img" src="" alt="Mídia">
             </div>
         </div>
         </div>
