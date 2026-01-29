@@ -110,8 +110,18 @@ class WhatsAppMediaService
         }
         
         // Se detectou imagem em base64, processa diretamente
+        // MAS: Não processar se for VÍDEO - a imagem seria só thumbnail
         if ($base64ImageData && $base64ImageType) {
-            return self::processBase64Image($event, $base64ImageData, $base64ImageType);
+            // Verifica se é realmente uma imagem e não thumbnail de vídeo
+            $isVideoEvent = ($wppConnectMediaType === 'video') 
+                || ($baileysMediaType === 'video')
+                || (isset($rawPayload['type']) && $rawPayload['type'] === 'video');
+            
+            if (!$isVideoEvent) {
+                return self::processBase64Image($event, $base64ImageData, $base64ImageType);
+            } else {
+                error_log("[WhatsAppMediaService] Ignorando thumbnail base64 - evento é de vídeo, será feito download do arquivo completo");
+            }
         }
         
         // Extrai mediaId (suporta múltiplos formatos: Baileys, WPP Connect, padrão)
