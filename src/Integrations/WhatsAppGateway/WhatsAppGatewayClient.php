@@ -747,42 +747,38 @@ class WhatsAppGatewayClient
     /**
      * Baixa mídia do WhatsApp Gateway (WPP Connect)
      * 
-     * @param string $channelId ID do canal
-     * @param string $mediaId ID da mídia ou URL da mídia (vem no payload da mensagem)
+     * @param string $channelId ID do canal/sessão
+     * @param string $messageId ID da mensagem (ex: false_554796164699@c.us_3EB0...)
      * @return array { success: bool, data?: string (binary), mime_type?: string, error?: string }
      */
-    public function downloadMedia(string $channelId, string $mediaId): array
+    public function downloadMedia(string $channelId, string $messageId): array
     {
-        // WPP Connect: Se mediaId é uma URL completa, usa diretamente
-        // Caso contrário, usa o endpoint do gateway
-        if (filter_var($mediaId, FILTER_VALIDATE_URL)) {
-            $url = $mediaId;
-        } else {
-            // Tenta endpoint padrão do gateway (codifica channelId e mediaId para URL)
-            $encodedChannelId = rawurlencode($channelId);
-            $encodedMediaId = rawurlencode($mediaId);
-            $url = $this->baseUrl . "/api/channels/{$encodedChannelId}/media/{$encodedMediaId}";
-        }
+        error_log("[WhatsAppGateway::downloadMedia] Iniciando download - channel: {$channelId}, messageId: " . substr($messageId, 0, 50) . "...");
+        
+        // Endpoint correto do wrapper: GET /api/media/{channel}/{messageId}
+        $encodedChannelId = rawurlencode($channelId);
+        $encodedMessageId = rawurlencode($messageId);
+        $url = $this->baseUrl . "/api/media/{$encodedChannelId}/{$encodedMessageId}";
+        
+        error_log("[WhatsAppGateway::downloadMedia] URL: {$url}");
         
         $ch = curl_init($url);
         
         $headers = [
             'X-Gateway-Secret: ' . $this->secret,
-            'Accept: */*'
+            'Accept: application/json'
         ];
         
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 60, // Timeout maior para download de mídias
-            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => 120, // Timeout maior para download de mídias
+            CURLOPT_CONNECTTIMEOUT => 15,
             CURLOPT_HTTPHEADER => $headers,
             CURLOPT_CUSTOMREQUEST => 'GET',
-            CURLOPT_BINARYTRANSFER => true,
         ]);
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
         $error = curl_error($ch);
         curl_close($ch);
         
@@ -797,7 +793,7 @@ class WhatsAppGatewayClient
         }
         
         if ($httpCode < 200 || $httpCode >= 300) {
-            error_log("[WhatsAppGateway::downloadMedia] HTTP Error: {$httpCode}");
+            error_log("[WhatsAppGateway::downloadMedia] HTTP Error: {$httpCode}, Response: " . substr($response, 0, 200));
             return [
                 'success' => false,
                 'error' => "HTTP {$httpCode}",
@@ -806,10 +802,51 @@ class WhatsAppGatewayClient
             ];
         }
         
+        // Resposta do wrapper é JSON com base64
+        $json = json_decode($response, true);
+        
+        if (!$json || !isset($json['success'])) {
+            error_log("[WhatsAppGateway::downloadMedia] Resposta inválida (não é JSON)");
+            return [
+                'success' => false,
+                'error' => 'Resposta inválida do gateway',
+                'data' => null,
+                'mime_type' => null
+            ];
+        }
+        
+        if (!$json['success']) {
+            $errorMsg = $json['error'] ?? 'Erro desconhecido';
+            error_log("[WhatsAppGateway::downloadMedia] Gateway retornou erro: {$errorMsg}");
+            return [
+                'success' => false,
+                'error' => $errorMsg,
+                'data' => null,
+                'mime_type' => null
+            ];
+        }
+        
+        // Decodifica base64 para binário
+        $base64 = $json['media_base64'] ?? null;
+        if (!$base64) {
+            error_log("[WhatsAppGateway::downloadMedia] Resposta sem media_base64");
+            return [
+                'success' => false,
+                'error' => 'Resposta sem dados de mídia',
+                'data' => null,
+                'mime_type' => null
+            ];
+        }
+        
+        $binaryData = base64_decode($base64);
+        $mimeType = $json['mime_type'] ?? 'application/octet-stream';
+        
+        error_log("[WhatsAppGateway::downloadMedia] Download OK! mime={$mimeType}, size=" . strlen($binaryData) . " bytes");
+        
         return [
             'success' => true,
-            'data' => $response,
-            'mime_type' => $contentType ?: 'application/octet-stream',
+            'data' => $binaryData,
+            'mime_type' => $mimeType,
             'error' => null
         ];
     }
