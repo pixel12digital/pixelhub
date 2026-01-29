@@ -164,7 +164,8 @@ class WhatsAppWebhookController extends Controller
             }
 
             // Mapeia evento do gateway para evento interno
-            $internalEventType = $this->mapEventType($eventType);
+            // Passa payload para verificar fromMe em eventos 'message'
+            $internalEventType = $this->mapEventType($eventType, $payload);
             if (empty($internalEventType)) {
                 // Evento desconhecido, mas responde 200 para não causar retry
                 http_response_code(200);
@@ -433,15 +434,39 @@ class WhatsAppWebhookController extends Controller
      * Mapeia evento do gateway para tipo de evento interno
      * 
      * @param string $gatewayEventType Tipo de evento do gateway
+     * @param array $payload Payload completo do webhook (para verificar fromMe)
      * @return string|null Tipo de evento interno ou null se não mapeado
      */
-    private function mapEventType(string $gatewayEventType): ?string
+    private function mapEventType(string $gatewayEventType, array $payload = []): ?string
     {
+        // Para eventos 'message', verifica fromMe para determinar direção
+        // Isso captura mensagens enviadas pelo celular/web (fora do PixelHub)
+        if ($gatewayEventType === 'message') {
+            // Tenta extrair fromMe de várias possíveis localizações no payload
+            $fromMe = $payload['fromMe'] 
+                ?? $payload['message']['fromMe']
+                ?? $payload['message']['key']['fromMe']
+                ?? $payload['data']['fromMe']
+                ?? $payload['data']['message']['fromMe']
+                ?? $payload['data']['message']['key']['fromMe']
+                ?? false;
+            
+            // Log para debug
+            error_log('[mapEventType] Evento "message" - fromMe=' . ($fromMe ? 'true' : 'false'));
+            
+            if ($fromMe) {
+                error_log('[mapEventType] ✅ Mensagem enviada pelo celular/web detectada! Classificando como outbound.');
+                return 'whatsapp.outbound.message';
+            }
+            
+            return 'whatsapp.inbound.message';
+        }
+        
+        // Outros eventos mapeados estaticamente
         $mapping = [
-            'message' => 'whatsapp.inbound.message',
             'message.ack' => 'whatsapp.delivery.ack',
             'connection.update' => 'whatsapp.connection.update',
-            // Eventos de mensagens enviadas (outbound)
+            // Eventos de mensagens enviadas (outbound) - já classificados pelo gateway
             'message.sent' => 'whatsapp.outbound.message',
             'message_sent' => 'whatsapp.outbound.message',
             'sent' => 'whatsapp.outbound.message',
