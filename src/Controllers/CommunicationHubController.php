@@ -384,6 +384,61 @@ class CommunicationHubController extends Controller
     }
 
     /**
+     * Carrega mais mensagens (paginação) - NOVO ENDPOINT PARA INFINITE SCROLL
+     * 
+     * GET /communication-hub/messages?thread_id=whatsapp_123&before_id=456&limit=50
+     * 
+     * @return void JSON com mensagens e metadados de paginação
+     */
+    public function getMessages(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $threadId = $_GET['thread_id'] ?? null;
+        $beforeId = isset($_GET['before_id']) ? (int) $_GET['before_id'] : null;
+        $limit = isset($_GET['limit']) ? min((int) $_GET['limit'], 100) : 50; // Max 100
+
+        if (empty($threadId)) {
+            $this->json(['success' => false, 'error' => 'thread_id é obrigatório'], 400);
+            return;
+        }
+
+        // Valida formato do thread_id
+        if (!preg_match('/^whatsapp_(\d+)$/', $threadId, $matches)) {
+            $this->json(['success' => false, 'error' => 'Formato de thread_id inválido'], 400);
+            return;
+        }
+
+        $conversationId = (int) $matches[1];
+        $db = DB::getConnection();
+
+        try {
+            error_log("[CommunicationHub::getMessages] Carregando mensagens - conversation_id={$conversationId}, before_id=" . ($beforeId ?? 'NULL') . ", limit={$limit}");
+            
+            // Chama método com paginação ativa
+            $result = $this->getWhatsAppMessagesFromConversation(
+                $db, 
+                $conversationId,
+                $limit,
+                $beforeId,
+                true // returnPagination = true
+            );
+            
+            error_log("[CommunicationHub::getMessages] Retornando " . count($result['messages']) . " mensagens, has_more=" . ($result['pagination']['has_more'] ? 'true' : 'false'));
+            
+            $this->json([
+                'success' => true,
+                'messages' => $result['messages'],
+                'pagination' => $result['pagination']
+            ]);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub::getMessages] ERRO: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro ao carregar mensagens: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Marca conversa como lida
      */
     private function markConversationAsRead(PDO $db, int $conversationId): void
@@ -3009,8 +3064,21 @@ class CommunicationHubController extends Controller
      * 
      * CORRIGIDO: Agora busca corretamente mesmo quando tenant_id é NULL
      * PATCH: Resolve @lid -> E.164 via cache + API do provider
+     * 
+     * @param PDO $db Conexão com banco de dados
+     * @param int $conversationId ID da conversa
+     * @param int $limit Limite de mensagens (padrão: 50 para performance)
+     * @param int|null $beforeId Cursor: buscar mensagens com ID menor que este (para paginação)
+     * @param bool $returnPagination Se true, retorna array com 'messages' e 'pagination'
+     * @return array Array de mensagens ou ['messages' => [...], 'pagination' => [...]]
      */
-    private function getWhatsAppMessagesFromConversation(PDO $db, int $conversationId): array
+    private function getWhatsAppMessagesFromConversation(
+        PDO $db, 
+        int $conversationId,
+        int $limit = 50,
+        ?int $beforeId = null,
+        bool $returnPagination = false
+    ): array
     {
         // =====================
         // ARQUITETURA: remote_key como identidade primária
@@ -3445,12 +3513,22 @@ class CommunicationHubController extends Controller
 
         $whereClause = "WHERE " . implode(" AND ", $whereWithTenant);
 
+        // PAGINAÇÃO: Adiciona cursor beforeId se fornecido
+        $paginationParams = [];
+        if ($beforeId !== null) {
+            $whereClause .= " AND ce.id < ?";
+            $paginationParams[] = $beforeId;
+        }
+
         // Busca eventos filtrados (limitado para performance)
         // [LOG TEMPORARIO] Query do thread
-        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - EXECUTANDO QUERY: conversation_id=' . $conversationId . ', contact=' . $normalizedContactExternalId . ', tenant_id=' . ($tenantId ?: 'NULL') . ', channel_id=' . ($sessionId ?: 'NULL'));
+        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - EXECUTANDO QUERY: conversation_id=' . $conversationId . ', contact=' . $normalizedContactExternalId . ', tenant_id=' . ($tenantId ?: 'NULL') . ', channel_id=' . ($sessionId ?: 'NULL') . ', limit=' . $limit . ', beforeId=' . ($beforeId ?? 'NULL'));
         
+        // OTIMIZAÇÃO: Busca em ordem DESC (mais recentes primeiro) para paginação eficiente
+        // Depois inverte para exibição cronológica
         $stmt = $db->prepare("
             SELECT 
+                ce.id,
                 ce.event_id,
                 ce.event_type,
                 ce.created_at,
@@ -3459,10 +3537,11 @@ class CommunicationHubController extends Controller
                 ce.tenant_id
             FROM communication_events ce
             {$whereClause}
-            ORDER BY ce.created_at ASC
-            LIMIT 500
+            ORDER BY ce.id DESC
+            LIMIT ?
         ");
-        $stmt->execute($paramsWithTenant);
+        $allParams = array_merge($paramsWithTenant, $paginationParams, [$limit]);
+        $stmt->execute($allParams);
         $filteredEvents = $stmt->fetchAll();
         
         // [LOG TEMPORARIO] Resultado da query
@@ -3484,8 +3563,15 @@ class CommunicationHubController extends Controller
             
             $whereClauseWithoutFilters = "WHERE " . implode(" AND ", $whereWithoutFilters);
             
+            // PAGINAÇÃO: Adiciona cursor beforeId se fornecido
+            if ($beforeId !== null) {
+                $whereClauseWithoutFilters .= " AND ce.id < ?";
+                $paramsWithoutFilters[] = $beforeId;
+            }
+            
             $stmt = $db->prepare("
                 SELECT 
+                    ce.id,
                     ce.event_id,
                     ce.event_type,
                     ce.created_at,
@@ -3494,9 +3580,10 @@ class CommunicationHubController extends Controller
                     ce.tenant_id
                 FROM communication_events ce
                 {$whereClauseWithoutFilters}
-                ORDER BY ce.created_at ASC
-                LIMIT 500
+                ORDER BY ce.id DESC
+                LIMIT ?
             ");
+            $paramsWithoutFilters[] = $limit;
             $stmt->execute($paramsWithoutFilters);
             $filteredEvents = $stmt->fetchAll();
             
@@ -3738,6 +3825,7 @@ class CommunicationHubController extends Controller
             
             $messages[] = [
                 'id' => $event['event_id'],
+                'db_id' => $event['id'] ?? null, // ID numérico do banco para paginação
                 'direction' => $direction,
                 'content' => $content,
                 'timestamp' => $event['created_at'],
@@ -3756,7 +3844,35 @@ class CommunicationHubController extends Controller
         }
         
         // [LOG TEMPORARIO] Resultado final da validação
-        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - RESULTADO FINAL: messages_count=' . count($messages) . ', excluded_count=' . $excludedCount . ', filtered_events_count=' . count($filteredEvents));
+        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - RESULTADO FINAL: messages_count=' . count($messages) . ', excluded_count=' . $excludedCount . ', filtered_events_count=' . count($filteredEvents) . ', limit=' . $limit);
+
+        // PAGINAÇÃO: Inverte array para ordem cronológica (query retorna DESC para eficiência)
+        $messages = array_reverse($messages);
+        
+        // Se solicitado retorno com paginação, adiciona metadados
+        if ($returnPagination) {
+            // Encontra o ID mais antigo para cursor de próxima página
+            $oldestId = null;
+            $newestId = null;
+            if (!empty($messages)) {
+                // Primeiro item é o mais antigo (após reverse)
+                $oldestId = $messages[0]['db_id'] ?? null;
+                // Último item é o mais recente
+                $newestId = end($messages)['db_id'] ?? null;
+            }
+            
+            return [
+                'messages' => $messages,
+                'pagination' => [
+                    'limit' => $limit,
+                    'count' => count($messages),
+                    'has_more' => count($filteredEvents) === $limit, // Se retornou exatamente o limit, pode haver mais
+                    'oldest_id' => $oldestId,
+                    'newest_id' => $newestId,
+                    'before_id' => $beforeId
+                ]
+            ];
+        }
 
         return $messages;
     }
