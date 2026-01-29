@@ -1162,6 +1162,61 @@ body.communication-hub-page {
         max-width: 88% !important;
     }
 }
+
+/* ==========================================================================
+   Thumbnails de Mídia (estilo WhatsApp)
+   - Container com tamanho fixo
+   - Imagem mantém proporção, centralizada, com crop se necessário
+   ========================================================================== */
+.hub-media-open {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: block;
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    /* Container fixo estilo WhatsApp */
+    max-width: 280px;
+    max-height: 280px;
+    min-width: 100px;
+    min-height: 80px;
+}
+
+.hub-media-thumb {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 280px;
+    max-height: 280px;
+    min-height: 80px;
+    /* Mantém proporção, centraliza, corta excesso */
+    object-fit: cover;
+    object-position: center;
+    border-radius: 8px;
+    background: #f0f0f0;
+    transition: transform 0.15s ease;
+}
+
+.hub-media-open:hover .hub-media-thumb {
+    transform: scale(1.02);
+}
+
+/* Placeholder de erro */
+.hub-media-open .img-error-placeholder {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 100px;
+    min-height: 80px;
+    max-width: 280px;
+    background: #f5f5f5;
+    border-radius: 8px;
+    padding: 16px;
+    gap: 8px;
+}
 </style>
 
 <div class="communication-hub-container">
@@ -2541,18 +2596,17 @@ function renderMediaPlayer(media) {
             onplay="if(this.preload==='none'){this.preload='metadata';}"></audio>`;
     } else if (isImage) {
         // Envolve imagem com botão clicável para abrir viewer
-        // CORREÇÃO: Adiciona loading="lazy", onerror para retry/fallback, e loading indicator
+        // CSS controla tamanho e proporção (hub-media-thumb)
         mediaHtml = `
-            <button type="button" class="hub-media-open" data-src="${safeUrl}" style="background: none; border: none; padding: 0; cursor: pointer; display: block; position: relative; min-width: 100px; min-height: 60px;">
+            <button type="button" class="hub-media-open" data-src="${safeUrl}">
                 <img src="${safeUrl}" 
                      class="hub-media-thumb" 
                      data-src="${safeUrl}" 
                      loading="lazy"
-                     style="max-width:240px;border-radius:8px;display:block;" 
                      alt="Imagem"
                      onload="this.parentElement.classList.add('loaded')"
                      onerror="console.warn('[Hub] Falha ao carregar imagem:', this.src); this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <div class="img-error-placeholder" style="display:none; flex-direction:column; align-items:center; justify-content:center; min-width:100px; min-height:60px; background:#f0f0f0; border-radius:8px; padding:16px; gap:8px;">
+                <div class="img-error-placeholder">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2">
                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                         <circle cx="8.5" cy="8.5" r="1.5"></circle>
@@ -3083,11 +3137,14 @@ function renderConversation(thread, messages, channel) {
                 justify-content: center;
             }
             #hub-media-viewer-img {
-                max-width: 94vw;
-                max-height: 94vh;
+                /* Fit: ocupa máximo da tela mantendo proporção */
+                max-width: 92vw;
+                max-height: 92vh;
+                width: auto;
+                height: auto;
                 object-fit: contain;
-                border-radius: 4px;
-                box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+                border-radius: 6px;
+                box-shadow: 0 8px 40px rgba(0,0,0,0.6);
                 cursor: default;
             }
             #hub-media-viewer .viewer-actions {
