@@ -3507,6 +3507,39 @@ class CommunicationHubController extends Controller
         // A query SQL já filtra a maioria, mas validação final garante precisão
         $messages = [];
         $excludedCount = 0;
+        
+        // OTIMIZAÇÃO: Batch query para todas as mídias de uma vez (em vez de N queries)
+        // Isso reduz de 500+ queries para apenas 1 query
+        $mediaCache = [];
+        if (!empty($filteredEvents)) {
+            $eventIds = array_column($filteredEvents, 'event_id');
+            if (!empty($eventIds)) {
+                try {
+                    $placeholders = implode(',', array_fill(0, count($eventIds), '?'));
+                    $mediaStmt = $db->prepare("
+                        SELECT * FROM communication_media 
+                        WHERE event_id IN ({$placeholders})
+                    ");
+                    $mediaStmt->execute($eventIds);
+                    $allMedia = $mediaStmt->fetchAll(\PDO::FETCH_ASSOC);
+                    
+                    // Indexa por event_id para lookup O(1)
+                    foreach ($allMedia as $media) {
+                        // Gera URL da mídia
+                        $mediaUrl = null;
+                        if (!empty($media['stored_path'])) {
+                            $mediaUrl = \PixelHub\Services\WhatsAppMediaService::getMediaUrl($media['stored_path']);
+                        }
+                        $media['url'] = $mediaUrl;
+                        $mediaCache[$media['event_id']] = $media;
+                    }
+                    error_log("[CommunicationHub] OTIMIZAÇÃO: Batch query carregou " . count($allMedia) . " mídias em 1 query (eventos: " . count($eventIds) . ")");
+                } catch (\Exception $e) {
+                    error_log("[CommunicationHub] Erro no batch query de mídias: " . $e->getMessage());
+                }
+            }
+        }
+        
         foreach ($filteredEvents as $event) {
             $payload = json_decode($event['payload'], true);
             $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
@@ -3668,48 +3701,45 @@ class CommunicationHubController extends Controller
                 ?? $payload['raw']['payload']['caption']  // WPPConnect image/video caption
                 ?? '';
             
-            // Processa mídia base64 se ainda não foi processada (áudio OGG, imagens JPEG/PNG)
-            // Isso garante que mídias em base64 sejam processadas e salvas em communication_media
-            try {
-                \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($event);
-            } catch (\Exception $e) {
-                error_log("[CommunicationHub] Erro ao processar mídia do evento: " . $e->getMessage());
+            // OTIMIZAÇÃO: Usa cache de mídia (batch query) em vez de queries individuais
+            // Antes: processMediaFromEvent + getMediaByEventId = 2 queries por mensagem (N*2 queries)
+            // Agora: lookup no cache = O(1), apenas 1 query total para todas as mídias
+            $mediaInfo = $mediaCache[$event['event_id']] ?? null;
+            
+            // Se mídia não está no cache mas evento indica que TEM mídia, processa sob demanda
+            if (!$mediaInfo) {
+                $eventType = $payload['type'] ?? $payload['raw']['payload']['type'] ?? null;
+                $hasMediaIndicator = in_array($eventType, ['audio', 'ptt', 'image', 'video', 'document', 'sticker']);
+                
+                if ($hasMediaIndicator) {
+                    try {
+                        // Processa mídia apenas se necessário (lazy loading)
+                        $processedMedia = \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($event);
+                        if ($processedMedia) {
+                            $mediaInfo = $processedMedia;
+                        }
+                    } catch (\Exception $e) {
+                        error_log("[CommunicationHub] Erro ao processar mídia sob demanda: " . $e->getMessage());
+                    }
+                }
             }
             
-            // Busca informações da mídia processada (sempre verifica, mesmo se há conteúdo)
-            // Isso permite detectar mídias que foram processadas de base64 no campo text
-            $mediaInfo = null;
-            try {
-                $mediaInfo = \PixelHub\Services\WhatsAppMediaService::getMediaByEventId($event['event_id']);
-                
-                // Se encontrou mídia processada, limpa o conteúdo para não mostrar base64 ou dados brutos
-                if ($mediaInfo && !empty($content)) {
-                    // Verifica se o conteúdo parece ser base64 (áudio ou imagem codificada)
-                    if (strlen($content) > 100 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', $content)) {
-                        // Tenta decodificar para verificar se é base64 válido
-                        $textCleaned = preg_replace('/\s+/', '', $content);
-                        $decoded = base64_decode($textCleaned, true);
-                        if ($decoded !== false) {
-                            // Verifica se é áudio OGG, imagem JPEG ou PNG
-                            $isOgg = substr($decoded, 0, 4) === 'OggS';
-                            $isJpeg = substr($textCleaned, 0, 4) === '/9j/';
-                            $isPng = substr($textCleaned, 0, 12) === 'iVBORw0KGgo';
-                            
-                            if ($isOgg || $isJpeg || $isPng || strlen($decoded) > 1000) {
-                                // É mídia em base64, limpa o conteúdo
-                                $content = '';
-                            }
-                        }
-                    } else {
-                        // Se o conteúdo é muito longo e há mídia processada, provavelmente é dados brutos
-                        // Limpa para não poluir a interface
-                        if (strlen($content) > 500) {
+            // Se encontrou mídia, limpa conteúdo se for base64
+            if ($mediaInfo && !empty($content)) {
+                if (strlen($content) > 100 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', $content)) {
+                    $textCleaned = preg_replace('/\s+/', '', $content);
+                    $decoded = base64_decode($textCleaned, true);
+                    if ($decoded !== false) {
+                        $isOgg = substr($decoded, 0, 4) === 'OggS';
+                        $isJpeg = substr($textCleaned, 0, 4) === '/9j/';
+                        $isPng = substr($textCleaned, 0, 12) === 'iVBORw0KGgo';
+                        if ($isOgg || $isJpeg || $isPng || strlen($decoded) > 1000) {
                             $content = '';
                         }
                     }
+                } elseif (strlen($content) > 500) {
+                    $content = '';
                 }
-            } catch (\Exception $e) {
-                error_log("[CommunicationHub] Erro ao buscar mídia: " . $e->getMessage());
             }
             
             // Se não encontrou mídia e não há conteúdo, mostra tipo de mídia
