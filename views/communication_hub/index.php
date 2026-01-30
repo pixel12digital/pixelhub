@@ -1212,6 +1212,52 @@ body.communication-hub-page {
     justify-content: center;
     gap: 8px;
 }
+
+/* Spinner de transcrição */
+.transcription-spinner {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border: 2px solid #ccc;
+    border-top-color: #666;
+    border-radius: 50%;
+    animation: transcription-spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+@keyframes transcription-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Botão de transcrição */
+.transcribe-btn {
+    transition: background 0.2s;
+}
+
+.transcribe-btn:hover {
+    background: #e0e0e0 !important;
+}
+
+.transcribe-btn:disabled {
+    cursor: wait;
+}
+
+/* Área de transcrição */
+.transcription-area summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.transcription-area summary::-webkit-details-marker {
+    display: none;
+}
+
+.transcription-area[open] summary {
+    margin-bottom: 4px;
+}
 </style>
 
 <div class="communication-hub-container">
@@ -2611,15 +2657,133 @@ function escapeAttr(value) {
         .replace(/>/g, '&gt;');
 }
 
+// =========================================================================
+// FUNÇÕES DE TRANSCRIÇÃO DE ÁUDIO
+// =========================================================================
+
+/**
+ * Inicia transcrição de um áudio
+ * @param {HTMLElement} btn - Botão que foi clicado
+ * @param {string} eventId - ID do evento que contém o áudio
+ */
+async function transcribeAudio(btn, eventId) {
+    if (!eventId) {
+        console.error('[Transcription] event_id não fornecido');
+        return;
+    }
+    
+    const container = btn.closest('div');
+    const originalHtml = btn.outerHTML;
+    
+    // Mostra loading
+    btn.disabled = true;
+    btn.innerHTML = '<span class="transcription-spinner"></span> Transcrevendo...';
+    btn.style.background = '#e0e0e0';
+    
+    try {
+        const response = await fetch('<?= pixelhub_url('/communication-hub/transcribe') ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'event_id=' + encodeURIComponent(eventId)
+        });
+        
+        const data = await response.json();
+        console.log('[Transcription] Resposta:', data);
+        
+        if (data.success && data.status === 'completed' && data.transcription) {
+            // Transcrição concluída - substitui botão pela área de transcrição
+            showTranscription(btn, data.transcription);
+        } else if (data.success && data.status === 'processing') {
+            // Em processamento - inicia polling
+            btn.innerHTML = '<span class="transcription-spinner"></span> Processando...';
+            pollTranscriptionStatus(btn, eventId, 0);
+        } else {
+            // Erro
+            console.error('[Transcription] Erro:', data.error);
+            btn.outerHTML = `
+                <button type="button" class="transcribe-btn" onclick="transcribeAudio(this, '${escapeAttr(eventId)}')" 
+                        style="margin-top: 6px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer; color: #856404;">
+                    🔄 Tentar novamente
+                </button>
+            `;
+        }
+    } catch (error) {
+        console.error('[Transcription] Exceção:', error);
+        btn.outerHTML = originalHtml;
+    }
+}
+
+/**
+ * Polling para verificar status da transcrição
+ * @param {HTMLElement} btn - Elemento do botão/status
+ * @param {string} eventId - ID do evento
+ * @param {number} attempts - Número de tentativas já feitas
+ */
+async function pollTranscriptionStatus(btn, eventId, attempts) {
+    const maxAttempts = 30; // 30 tentativas * 2 segundos = 60 segundos max
+    
+    if (attempts >= maxAttempts) {
+        btn.outerHTML = `
+            <button type="button" class="transcribe-btn" onclick="transcribeAudio(this, '${escapeAttr(eventId)}')" 
+                    style="margin-top: 6px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer; color: #856404;">
+                ⏱️ Timeout - Tentar novamente
+            </button>
+        `;
+        return;
+    }
+    
+    await new Promise(r => setTimeout(r, 2000)); // Aguarda 2 segundos
+    
+    try {
+        const response = await fetch('<?= pixelhub_url('/communication-hub/transcription-status') ?>?event_id=' + encodeURIComponent(eventId));
+        const data = await response.json();
+        
+        if (data.success && data.status === 'completed' && data.transcription) {
+            showTranscription(btn, data.transcription);
+        } else if (data.status === 'processing') {
+            // Ainda processando - continua polling
+            pollTranscriptionStatus(btn, eventId, attempts + 1);
+        } else if (data.status === 'failed') {
+            btn.outerHTML = `
+                <button type="button" class="transcribe-btn" onclick="transcribeAudio(this, '${escapeAttr(eventId)}')" 
+                        style="margin-top: 6px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer; color: #856404;">
+                    🔄 Falhou - Tentar novamente
+                </button>
+            `;
+        } else {
+            // Status desconhecido - continua polling
+            pollTranscriptionStatus(btn, eventId, attempts + 1);
+        }
+    } catch (error) {
+        console.error('[Transcription] Erro no polling:', error);
+        pollTranscriptionStatus(btn, eventId, attempts + 1);
+    }
+}
+
+/**
+ * Exibe a transcrição na UI
+ * @param {HTMLElement} btn - Elemento do botão a ser substituído
+ * @param {string} transcription - Texto da transcrição
+ */
+function showTranscription(btn, transcription) {
+    btn.outerHTML = `
+        <details class="transcription-area" style="margin-top: 6px; padding: 6px 8px; background: #f5f5f5; border-radius: 6px; font-size: 12px;" open>
+            <summary style="cursor: pointer; color: #023A8D; font-weight: 500;">📝 Ver transcrição</summary>
+            <div style="margin-top: 6px; color: #333; line-height: 1.4; white-space: pre-wrap;">${escapeHtml(transcription)}</div>
+        </details>
+    `;
+}
+
 /**
  * Renderiza player de mídia baseado no tipo
  */
-function renderMediaPlayer(media) {
+function renderMediaPlayer(media, eventId = null) {
     if (!media || !media.url) return '';
     
     const mimeType = (media.mime_type || '').toLowerCase();
     const mediaType = (media.media_type || '').toLowerCase();
     const safeUrl = escapeAttr(media.url);
+    const safeEventId = eventId ? escapeAttr(eventId) : (media.event_id ? escapeAttr(media.event_id) : '');
     
     // Determina tipo de mídia
     const isAudio = mimeType.startsWith('audio/') || mediaType === 'audio' || mediaType === 'voice';
@@ -2634,6 +2798,43 @@ function renderMediaPlayer(media) {
         mediaHtml = `<audio controls preload="none" src="${safeUrl}" 
             onmouseenter="if(this.preload==='none'){this.preload='metadata';}" 
             onplay="if(this.preload==='none'){this.preload='metadata';}"></audio>`;
+        
+        // Adiciona botão de transcrição e área de transcrição para áudios
+        const hasTranscription = media.transcription && media.transcription.trim();
+        const transcriptionStatus = media.transcription_status || null;
+        
+        if (hasTranscription) {
+            // Já tem transcrição - mostra área expansível
+            mediaHtml += `
+                <details class="transcription-area" style="margin-top: 6px; padding: 6px 8px; background: #f5f5f5; border-radius: 6px; font-size: 12px;">
+                    <summary style="cursor: pointer; color: #023A8D; font-weight: 500;">📝 Ver transcrição</summary>
+                    <div style="margin-top: 6px; color: #333; line-height: 1.4; white-space: pre-wrap;">${escapeHtml(media.transcription)}</div>
+                </details>
+            `;
+        } else if (transcriptionStatus === 'processing') {
+            // Em processamento
+            mediaHtml += `
+                <div class="transcription-status" style="margin-top: 6px; font-size: 11px; color: #667781;">
+                    <span class="transcription-spinner"></span> Transcrevendo...
+                </div>
+            `;
+        } else if (transcriptionStatus === 'failed') {
+            // Falhou - permite tentar novamente
+            mediaHtml += `
+                <button type="button" class="transcribe-btn" onclick="transcribeAudio(this, '${safeEventId}')" 
+                        style="margin-top: 6px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer; color: #856404;">
+                    🔄 Tentar novamente
+                </button>
+            `;
+        } else if (safeEventId) {
+            // Sem transcrição - mostra botão para transcrever
+            mediaHtml += `
+                <button type="button" class="transcribe-btn" onclick="transcribeAudio(this, '${safeEventId}')" 
+                        style="margin-top: 6px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer;">
+                    🎤 Transcrever
+                </button>
+            `;
+        }
     } else if (isImage) {
         // Envolve imagem com botão clicável para abrir viewer
         // CSS controla tamanho e proporção (hub-media-thumb)
@@ -3042,8 +3243,8 @@ function renderConversation(thread, messages, channel) {
             // CORREÇÃO: Timestamps de mensagens já estão em Brasília - exibe direto
             const timeStr = formatMessageTimestamp(msg.timestamp);
             
-            // Renderiza mídia se existir
-            const mediaHtml = (msg.media && msg.media.url) ? renderMediaPlayer(msg.media) : '';
+            // Renderiza mídia se existir (passa event_id para transcrição)
+            const mediaHtml = (msg.media && msg.media.url) ? renderMediaPlayer(msg.media, msg.id) : '';
             
             // Conteúdo da mensagem (só mostra se não estiver vazio e não for placeholder de áudio com mídia)
             const content = msg.content || '';
@@ -4633,8 +4834,8 @@ function addMessageToPanel(message) {
     
     const isOutbound = direction === 'outbound';
     
-    // Renderiza mídia se existir
-    const mediaHtml = (message.media && message.media.url) ? renderMediaPlayer(message.media) : '';
+    // Renderiza mídia se existir (passa event_id para transcrição)
+    const mediaHtml = (message.media && message.media.url) ? renderMediaPlayer(message.media, msgId) : '';
     console.log('[Hub] mediaHtml gerado:', mediaHtml ? 'SIM (' + mediaHtml.length + ' chars)' : 'VAZIO');
     
     // Conteúdo da mensagem (só mostra se não estiver vazio e não for placeholder de áudio com mídia)

@@ -707,7 +707,7 @@ class WhatsAppMediaService
         
         // Retorna objeto media completo com todos os campos necessários
         // Formato padronizado usado em todas as respostas de mensagens com mídia
-        return [
+        $result = [
             'id' => (int) $media['id'],
             'event_id' => $media['event_id'],
             'type' => $media['media_type'], // Campo 'type' para compatibilidade
@@ -720,6 +720,16 @@ class WhatsAppMediaService
             'stored_path' => $media['stored_path'], // Campo original mantido
             'file_name' => $media['file_name']
         ];
+        
+        // Adiciona campos de transcrição se existirem
+        if (array_key_exists('transcription', $media)) {
+            $result['transcription'] = $media['transcription'];
+            $result['transcription_status'] = $media['transcription_status'] ?? null;
+            $result['transcription_error'] = $media['transcription_error'] ?? null;
+            $result['transcription_at'] = $media['transcription_at'] ?? null;
+        }
+        
+        return $result;
     }
 }
 

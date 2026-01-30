@@ -6405,5 +6405,85 @@ class CommunicationHubController extends Controller
         // Números não correspondem
         return false;
     }
+    
+    // =========================================================================
+    // TRANSCRIÇÃO DE ÁUDIO
+    // =========================================================================
+    
+    /**
+     * Transcreve um áudio sob demanda
+     * 
+     * POST /communication-hub/transcribe
+     * Body: event_id (string) - ID do evento que contém o áudio
+     * 
+     * @return void JSON response
+     */
+    public function transcribe(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+        
+        // Aceita tanto form data quanto JSON
+        $eventId = $_POST['event_id'] ?? null;
+        if (!$eventId) {
+            $input = json_decode(file_get_contents('php://input'), true);
+            $eventId = $input['event_id'] ?? null;
+        }
+        
+        if (empty($eventId)) {
+            $this->json(['success' => false, 'error' => 'event_id é obrigatório'], 400);
+            return;
+        }
+        
+        try {
+            $result = \PixelHub\Services\AudioTranscriptionService::transcribeByEventId($eventId);
+            
+            if ($result['success']) {
+                $this->json([
+                    'success' => true,
+                    'status' => $result['status'] ?? 'completed',
+                    'transcription' => $result['transcription'] ?? null,
+                    'cached' => $result['cached'] ?? false,
+                    'message' => $result['message'] ?? null
+                ]);
+            } else {
+                $this->json([
+                    'success' => false,
+                    'error' => $result['error'] ?? 'Erro desconhecido'
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro na transcrição: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+    
+    /**
+     * Retorna status da transcrição de um áudio
+     * 
+     * GET /communication-hub/transcription-status?event_id=xxx
+     * 
+     * @return void JSON response
+     */
+    public function getTranscriptionStatus(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+        
+        $eventId = $_GET['event_id'] ?? null;
+        
+        if (empty($eventId)) {
+            $this->json(['success' => false, 'error' => 'event_id é obrigatório'], 400);
+            return;
+        }
+        
+        try {
+            $result = \PixelHub\Services\AudioTranscriptionService::getStatus($eventId);
+            $this->json($result);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao obter status da transcrição: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
 }
 
