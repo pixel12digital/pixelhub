@@ -64,10 +64,8 @@ $baseUrl = pixelhub_url('');
                     $msgId = $msg['id'] ?? '';
                     $msgTimestamp = $msg['timestamp'] ?? $msg['created_at'] ?? 'now';
                     
-                    // DEBUG TEMPORÁRIO: Log do timestamp raw
-                    error_log("[THREAD DEBUG TIMESTAMP] msgId={$msgId}, raw_timestamp={$msgTimestamp}");
-                    
                     // Parse manual do timestamp para evitar conversão de timezone
+                    // communication_events.created_at está em Brasília - exibe direto
                     $msgDateStr = 'Agora';
                     if (preg_match('/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/', $msgTimestamp, $m)) {
                         $msgDateStr = "{$m[3]}/{$m[2]} {$m[4]}:{$m[5]}";
@@ -170,7 +168,7 @@ $baseUrl = pixelhub_url('');
                             </div>
                             <?php endif; ?>
                             <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: right;">
-                                <?= $msgDateStr ?> <!-- DEBUG: raw=<?= htmlspecialchars($msgTimestamp) ?> -->
+                                <?= $msgDateStr ?>
                             </div>
                         </div>
                     </div>

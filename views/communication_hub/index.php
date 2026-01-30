@@ -2520,6 +2520,10 @@ document.getElementById('new-message-modal')?.addEventListener('click', function
  * Formata data/hora para exibição na lista de conversas
  * conversations.last_message_at está em UTC, converte para Brasília
  */
+/**
+ * Formata timestamp para lista de conversas (converte UTC → Brasília)
+ * Usado para: conversations.last_message_at (armazenado em UTC)
+ */
 function formatDateBrasilia(dateStr) {
     if (!dateStr || dateStr === 'now') return 'Agora';
     
@@ -2548,6 +2552,36 @@ function formatDateBrasilia(dateStr) {
         return formatted.replace(',', '').replace(/\/\d{4}/, '');
     } catch (e) {
         console.warn('[Hub] Erro ao formatar data:', dateStr, e);
+        return 'Agora';
+    }
+}
+
+/**
+ * Formata timestamp de mensagens (exibe direto, SEM conversão de timezone)
+ * Usado para: communication_events.created_at (armazenado em Brasília)
+ */
+function formatMessageTimestamp(dateStr) {
+    if (!dateStr || dateStr === 'now') return 'Agora';
+    
+    try {
+        // Timestamps de mensagens JÁ estão em Brasília
+        // Parse manual para evitar conversão de timezone
+        const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+        if (match) {
+            const [, year, month, day, hour, minute] = match;
+            return `${day}/${month} ${hour}:${minute}`;
+        }
+        
+        // Fallback: tenta extrair de formato ISO
+        const isoMatch = dateStr.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (isoMatch) {
+            const [, year, month, day, hour, minute] = isoMatch;
+            return `${day}/${month} ${hour}:${minute}`;
+        }
+        
+        return 'Agora';
+    } catch (e) {
+        console.warn('[Hub] Erro ao formatar timestamp de mensagem:', dateStr, e);
         return 'Agora';
     }
 }
@@ -3005,8 +3039,8 @@ function renderConversation(thread, messages, channel) {
     } else {
         messages.forEach(msg => {
             const isOutbound = msg.direction === 'outbound';
-            // CORREÇÃO: Usa formatDateBrasilia para garantir fuso horário correto
-            const timeStr = formatDateBrasilia(msg.timestamp);
+            // CORREÇÃO: Timestamps de mensagens já estão em Brasília - exibe direto
+            const timeStr = formatMessageTimestamp(msg.timestamp);
             
             // Renderiza mídia se existir
             const mediaHtml = (msg.media && msg.media.url) ? renderMediaPlayer(msg.media) : '';
@@ -4594,8 +4628,8 @@ function addMessageToPanel(message) {
     const content = message.content || '';
     const timestamp = message.timestamp || new Date().toISOString();
     
-    // CORREÇÃO: Usa formatDateBrasilia para garantir fuso horário correto
-    const timeStr = formatDateBrasilia(timestamp);
+    // CORREÇÃO: Timestamps de mensagens já estão em Brasília - exibe direto
+    const timeStr = formatMessageTimestamp(timestamp);
     
     const isOutbound = direction === 'outbound';
     
