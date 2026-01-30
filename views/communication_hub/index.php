@@ -1309,26 +1309,32 @@ body.communication-hub-page {
 .transcription-toggle {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     background: none;
     border: none;
-    padding: 4px 0;
+    padding: 6px 8px;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 12px;
     color: #666;
+    border-radius: 4px;
+    width: 100%;
+    text-align: left;
 }
 
 .transcription-toggle:hover {
+    background: rgba(0,0,0,0.04);
     color: #333;
 }
 
 .transcription-chevron {
-    font-size: 10px;
-    transition: transform 0.15s;
+    font-size: 12px;
+    color: #888;
+    font-weight: bold;
+    min-width: 12px;
 }
 
 .transcription-accordion[data-open="true"] .transcription-chevron {
-    transform: rotate(90deg);
+    /* Chevron muda de ▸ para ▾ via JS */
 }
 
 .transcription-label {
@@ -2982,6 +2988,12 @@ function toggleTranscription(btn) {
     
     const isOpen = accordion.getAttribute('data-open') === 'true';
     accordion.setAttribute('data-open', !isOpen);
+    
+    // Atualiza o chevron: ▸ (fechado) → ▾ (aberto)
+    const chevron = accordion.querySelector('.transcription-chevron');
+    if (chevron) {
+        chevron.textContent = isOpen ? '▸' : '▾';
+    }
 }
 
 /**
@@ -3076,14 +3088,7 @@ function renderMediaPlayer(media, eventId = null) {
         mediaHtml = `<a href="${safeUrl}" target="_blank" style="color: #023A8D; text-decoration: none; font-weight: 600;">📎 ${escapeHtml(typeLabel)}</a>`;
     }
     
-    // Adiciona label do tipo/mime se disponível (opcional, pequeno)
-    let labelHtml = '';
-    if (mimeType || mediaType) {
-        const label = mimeType || mediaType;
-        labelHtml = `<div style="font-size: 10px; color: #667781; margin-top: 4px; opacity: 0.7;">${escapeHtml(label)}</div>`;
-    }
-    
-    return `<div style="margin-bottom: 8px;">${mediaHtml}${labelHtml}</div>`;
+    return `<div style="margin-bottom: 8px;">${mediaHtml}</div>`;
 }
 
 const ConversationState = {
