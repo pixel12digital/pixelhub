@@ -1213,50 +1213,156 @@ body.communication-hub-page {
     gap: 8px;
 }
 
-/* Spinner de transcrição */
-.transcription-spinner {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border: 2px solid #ccc;
-    border-top-color: #666;
-    border-radius: 50%;
-    animation: transcription-spin 0.8s linear infinite;
-    vertical-align: middle;
-    margin-right: 4px;
-}
+/* ========== TRANSCRIÇÃO DE ÁUDIO (estilo discreto) ========== */
 
-@keyframes transcription-spin {
-    to { transform: rotate(360deg); }
-}
-
-/* Botão de transcrição */
-.transcribe-btn {
-    transition: background 0.2s;
-}
-
-.transcribe-btn:hover {
-    background: #e0e0e0 !important;
-}
-
-.transcribe-btn:disabled {
-    cursor: wait;
-}
-
-/* Área de transcrição */
-.transcription-area summary {
-    list-style: none;
+/* Container do player com menu */
+.audio-player-container {
     display: flex;
     align-items: center;
     gap: 4px;
 }
 
-.transcription-area summary::-webkit-details-marker {
-    display: none;
+.audio-player-container audio {
+    flex: 1;
+    max-width: 240px;
 }
 
-.transcription-area[open] summary {
-    margin-bottom: 4px;
+/* Menu de 3 pontinhos */
+.audio-menu-wrapper {
+    position: relative;
+}
+
+.audio-menu-btn {
+    background: transparent;
+    border: none;
+    font-size: 16px;
+    color: #999;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    line-height: 1;
+}
+
+.audio-menu-btn:hover {
+    background: rgba(0,0,0,0.05);
+    color: #666;
+}
+
+.audio-menu-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    min-width: 140px;
+    z-index: 100;
+}
+
+.audio-menu-dropdown.open {
+    display: block;
+}
+
+.audio-menu-dropdown button {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    text-align: left;
+    font-size: 13px;
+    color: #333;
+    cursor: pointer;
+}
+
+.audio-menu-dropdown button:hover {
+    background: #f5f5f5;
+}
+
+/* Accordion de transcrição (discreto, com chevron) */
+.transcription-accordion {
+    margin-top: 6px;
+}
+
+.transcription-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    padding: 4px 0;
+    cursor: pointer;
+    font-size: 11px;
+    color: #666;
+}
+
+.transcription-toggle:hover {
+    color: #333;
+}
+
+.transcription-chevron {
+    font-size: 10px;
+    transition: transform 0.15s;
+}
+
+.transcription-accordion[data-open="true"] .transcription-chevron {
+    transform: rotate(90deg);
+}
+
+.transcription-label {
+    font-weight: 500;
+}
+
+.transcription-content {
+    display: none;
+    margin-top: 4px;
+    padding: 8px 10px;
+    background: #f8f8f8;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #333;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.transcription-accordion[data-open="true"] .transcription-content {
+    display: block;
+}
+
+/* Badges de status (discretos, monocromáticos) */
+.transcription-status-badge {
+    margin-top: 6px;
+    font-size: 10px;
+    color: #888;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.transcription-status-badge.failed {
+    color: #999;
+}
+
+.transcription-status-badge.failed:hover {
+    color: #666;
+    text-decoration: underline;
+}
+
+/* Spinner (discreto) */
+.transcription-spinner {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border: 1.5px solid #ccc;
+    border-top-color: #888;
+    border-radius: 50%;
+    animation: transcription-spin 0.8s linear infinite;
+}
+
+@keyframes transcription-spin {
+    to { transform: rotate(360deg); }
 }
 </style>
 
@@ -2672,13 +2778,22 @@ async function transcribeAudio(btn, eventId) {
         return;
     }
     
-    const container = btn.closest('div');
-    const originalHtml = btn.outerHTML;
+    // Encontra o container do media player
+    const mediaContainer = btn.closest('div[style*="margin-bottom"]') || btn.closest('.message-bubble')?.querySelector('div[style*="margin-bottom"]') || btn.parentElement;
     
-    // Mostra loading
-    btn.disabled = true;
-    btn.innerHTML = '<span class="transcription-spinner"></span> Transcrevendo...';
-    btn.style.background = '#e0e0e0';
+    // Cria badge de status discreto
+    let statusBadge = mediaContainer.querySelector('.transcription-status-badge');
+    if (!statusBadge) {
+        statusBadge = document.createElement('div');
+        statusBadge.className = 'transcription-status-badge processing';
+        mediaContainer.appendChild(statusBadge);
+    }
+    statusBadge.innerHTML = '<span class="transcription-spinner"></span> Processando...';
+    statusBadge.className = 'transcription-status-badge processing';
+    
+    // Esconde menu de áudio se veio de lá
+    const menuWrapper = mediaContainer.querySelector('.audio-menu-wrapper');
+    if (menuWrapper) menuWrapper.style.display = 'none';
     
     try {
         const response = await fetch('<?= pixelhub_url('/communication-hub/transcribe') ?>', {
@@ -2691,25 +2806,23 @@ async function transcribeAudio(btn, eventId) {
         console.log('[Transcription] Resposta:', data);
         
         if (data.success && data.status === 'completed' && data.transcription) {
-            // Transcrição concluída - substitui botão pela área de transcrição
-            showTranscription(btn, data.transcription);
+            // Transcrição concluída
+            showTranscription(statusBadge, data.transcription);
         } else if (data.success && data.status === 'processing') {
             // Em processamento - inicia polling
-            btn.innerHTML = '<span class="transcription-spinner"></span> Processando...';
-            pollTranscriptionStatus(btn, eventId, 0);
+            pollTranscriptionStatus(statusBadge, eventId, 0);
         } else {
-            // Erro
+            // Erro - badge discreto com retry
             console.error('[Transcription] Erro:', data.error);
-            btn.outerHTML = `
-                <button type="button" class="transcribe-btn" onclick="transcribeAudio(this, '${escapeAttr(eventId)}')" 
-                        style="margin-top: 6px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer; color: #856404;">
-                    🔄 Tentar novamente
-                </button>
-            `;
+            statusBadge.className = 'transcription-status-badge failed';
+            statusBadge.innerHTML = 'Falhou · <span style="text-decoration:underline;cursor:pointer" onclick="transcribeAudio(this,\'' + escapeAttr(eventId) + '\')">Tentar novamente</span>';
+            if (menuWrapper) menuWrapper.style.display = '';
         }
     } catch (error) {
         console.error('[Transcription] Exceção:', error);
-        btn.outerHTML = originalHtml;
+        statusBadge.className = 'transcription-status-badge failed';
+        statusBadge.innerHTML = 'Erro · <span style="text-decoration:underline;cursor:pointer" onclick="transcribeAudio(this,\'' + escapeAttr(eventId) + '\')">Tentar novamente</span>';
+        if (menuWrapper) menuWrapper.style.display = '';
     }
 }
 
@@ -2719,16 +2832,12 @@ async function transcribeAudio(btn, eventId) {
  * @param {string} eventId - ID do evento
  * @param {number} attempts - Número de tentativas já feitas
  */
-async function pollTranscriptionStatus(btn, eventId, attempts) {
+async function pollTranscriptionStatus(badge, eventId, attempts) {
     const maxAttempts = 30; // 30 tentativas * 2 segundos = 60 segundos max
     
     if (attempts >= maxAttempts) {
-        btn.outerHTML = `
-            <button type="button" class="transcribe-btn" onclick="transcribeAudio(this, '${escapeAttr(eventId)}')" 
-                    style="margin-top: 6px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer; color: #856404;">
-                ⏱️ Timeout - Tentar novamente
-            </button>
-        `;
+        badge.className = 'transcription-status-badge failed';
+        badge.innerHTML = 'Timeout · <span style="text-decoration:underline;cursor:pointer" onclick="transcribeAudio(this,\'' + escapeAttr(eventId) + '\')">Tentar novamente</span>';
         return;
     }
     
@@ -2739,39 +2848,98 @@ async function pollTranscriptionStatus(btn, eventId, attempts) {
         const data = await response.json();
         
         if (data.success && data.status === 'completed' && data.transcription) {
-            showTranscription(btn, data.transcription);
+            showTranscription(badge, data.transcription);
         } else if (data.status === 'processing') {
             // Ainda processando - continua polling
-            pollTranscriptionStatus(btn, eventId, attempts + 1);
+            pollTranscriptionStatus(badge, eventId, attempts + 1);
         } else if (data.status === 'failed') {
-            btn.outerHTML = `
-                <button type="button" class="transcribe-btn" onclick="transcribeAudio(this, '${escapeAttr(eventId)}')" 
-                        style="margin-top: 6px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer; color: #856404;">
-                    🔄 Falhou - Tentar novamente
-                </button>
-            `;
+            badge.className = 'transcription-status-badge failed';
+            badge.innerHTML = 'Falhou · <span style="text-decoration:underline;cursor:pointer" onclick="transcribeAudio(this,\'' + escapeAttr(eventId) + '\')">Tentar novamente</span>';
         } else {
             // Status desconhecido - continua polling
-            pollTranscriptionStatus(btn, eventId, attempts + 1);
+            pollTranscriptionStatus(badge, eventId, attempts + 1);
         }
     } catch (error) {
         console.error('[Transcription] Erro no polling:', error);
-        pollTranscriptionStatus(btn, eventId, attempts + 1);
+        pollTranscriptionStatus(badge, eventId, attempts + 1);
     }
 }
 
 /**
- * Exibe a transcrição na UI
- * @param {HTMLElement} btn - Elemento do botão a ser substituído
+ * Exibe a transcrição na UI (formato accordion discreto)
+ * @param {HTMLElement} btn - Elemento do botão/badge a ser substituído
  * @param {string} transcription - Texto da transcrição
  */
 function showTranscription(btn, transcription) {
-    btn.outerHTML = `
-        <details class="transcription-area" style="margin-top: 6px; padding: 6px 8px; background: #f5f5f5; border-radius: 6px; font-size: 12px;" open>
-            <summary style="cursor: pointer; color: #023A8D; font-weight: 500;">📝 Ver transcrição</summary>
-            <div style="margin-top: 6px; color: #333; line-height: 1.4; white-space: pre-wrap;">${escapeHtml(transcription)}</div>
-        </details>
+    // Encontra o container pai (pode ser badge de status ou menu)
+    const container = btn.closest('.audio-player-container')?.parentElement || btn.parentElement;
+    
+    // Remove elementos antigos de transcrição se existirem
+    const oldBadge = container.querySelector('.transcription-status-badge');
+    if (oldBadge) oldBadge.remove();
+    
+    // Cria o accordion de transcrição
+    const accordion = document.createElement('div');
+    accordion.className = 'transcription-accordion';
+    accordion.setAttribute('data-open', 'true');
+    accordion.innerHTML = `
+        <button type="button" class="transcription-toggle" onclick="toggleTranscription(this)">
+            <span class="transcription-chevron">▸</span>
+            <span class="transcription-label">Transcrição</span>
+        </button>
+        <div class="transcription-content">${escapeHtml(transcription)}</div>
     `;
+    
+    container.appendChild(accordion);
+    
+    // Remove o elemento original (se for badge/botão)
+    if (btn.classList.contains('transcription-status-badge')) {
+        btn.remove();
+    }
+}
+
+/**
+ * Toggle do menu de 3 pontinhos do áudio
+ */
+function toggleAudioMenu(btn) {
+    const dropdown = btn.nextElementSibling;
+    const isOpen = dropdown.classList.contains('open');
+    
+    // Fecha todos os outros menus abertos
+    document.querySelectorAll('.audio-menu-dropdown.open').forEach(d => d.classList.remove('open'));
+    
+    if (!isOpen) {
+        dropdown.classList.add('open');
+        
+        // Fecha ao clicar fora
+        setTimeout(() => {
+            document.addEventListener('click', function closeMenu(e) {
+                if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.classList.remove('open');
+                    document.removeEventListener('click', closeMenu);
+                }
+            });
+        }, 10);
+    }
+}
+
+/**
+ * Fecha o menu de áudio
+ */
+function closeAudioMenu(btn) {
+    const dropdown = btn.closest('.audio-menu-dropdown');
+    if (dropdown) dropdown.classList.remove('open');
+}
+
+/**
+ * Toggle do accordion de transcrição
+ */
+function toggleTranscription(btn) {
+    const accordion = btn.closest('.transcription-accordion');
+    if (!accordion) return;
+    
+    const isOpen = accordion.getAttribute('data-open') === 'true';
+    accordion.setAttribute('data-open', !isOpen);
 }
 
 /**
@@ -2793,47 +2961,53 @@ function renderMediaPlayer(media, eventId = null) {
     let mediaHtml = '';
     
     if (isAudio) {
-        // OTIMIZAÇÃO: preload="none" para evitar sobrecarga do servidor (HTTP 508)
-        // Metadados são carregados quando o usuário interage com o player
-        mediaHtml = `<audio controls preload="none" src="${safeUrl}" 
-            onmouseenter="if(this.preload==='none'){this.preload='metadata';}" 
-            onplay="if(this.preload==='none'){this.preload='metadata';}"></audio>`;
-        
-        // Adiciona botão de transcrição e área de transcrição para áudios
         const hasTranscription = media.transcription && media.transcription.trim();
         const transcriptionStatus = media.transcription_status || null;
         
-        if (hasTranscription) {
-            // Já tem transcrição - mostra área expansível
+        // Container do player com menu de ações
+        mediaHtml = `<div class="audio-player-container">
+            <audio controls preload="none" src="${safeUrl}" 
+                onmouseenter="if(this.preload==='none'){this.preload='metadata';}" 
+                onplay="if(this.preload==='none'){this.preload='metadata';}"></audio>`;
+        
+        // Menu de 3 pontinhos (apenas se tiver event_id e não tiver transcrição completa)
+        if (safeEventId && !hasTranscription && transcriptionStatus !== 'processing') {
             mediaHtml += `
-                <details class="transcription-area" style="margin-top: 6px; padding: 6px 8px; background: #f5f5f5; border-radius: 6px; font-size: 12px;">
-                    <summary style="cursor: pointer; color: #023A8D; font-weight: 500;">📝 Ver transcrição</summary>
-                    <div style="margin-top: 6px; color: #333; line-height: 1.4; white-space: pre-wrap;">${escapeHtml(media.transcription)}</div>
-                </details>
-            `;
-        } else if (transcriptionStatus === 'processing') {
-            // Em processamento
-            mediaHtml += `
-                <div class="transcription-status" style="margin-top: 6px; font-size: 11px; color: #667781;">
-                    <span class="transcription-spinner"></span> Transcrevendo...
+            <div class="audio-menu-wrapper">
+                <button type="button" class="audio-menu-btn" onclick="toggleAudioMenu(this)" title="Mais opções">⋮</button>
+                <div class="audio-menu-dropdown">
+                    <button type="button" onclick="transcribeAudio(this, '${safeEventId}'); closeAudioMenu(this);">
+                        Transcrever áudio
+                    </button>
                 </div>
-            `;
+            </div>`;
+        }
+        
+        mediaHtml += `</div>`;
+        
+        // Área de transcrição (abaixo do player)
+        if (hasTranscription) {
+            // Tem transcrição - accordion discreto com chevron
+            mediaHtml += `
+                <div class="transcription-accordion" data-open="false">
+                    <button type="button" class="transcription-toggle" onclick="toggleTranscription(this)">
+                        <span class="transcription-chevron">▸</span>
+                        <span class="transcription-label">Transcrição</span>
+                    </button>
+                    <div class="transcription-content">${escapeHtml(media.transcription)}</div>
+                </div>`;
+        } else if (transcriptionStatus === 'processing') {
+            // Em processamento - badge textual discreto
+            mediaHtml += `
+                <div class="transcription-status-badge processing">
+                    <span class="transcription-spinner"></span> Processando...
+                </div>`;
         } else if (transcriptionStatus === 'failed') {
-            // Falhou - permite tentar novamente
+            // Falhou - badge discreto com retry no menu
             mediaHtml += `
-                <button type="button" class="transcribe-btn" onclick="transcribeAudio(this, '${safeEventId}')" 
-                        style="margin-top: 6px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer; color: #856404;">
-                    🔄 Tentar novamente
-                </button>
-            `;
-        } else if (safeEventId) {
-            // Sem transcrição - mostra botão para transcrever
-            mediaHtml += `
-                <button type="button" class="transcribe-btn" onclick="transcribeAudio(this, '${safeEventId}')" 
-                        style="margin-top: 6px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer;">
-                    🎤 Transcrever
-                </button>
-            `;
+                <div class="transcription-status-badge failed" onclick="transcribeAudio(this, '${safeEventId}')" style="cursor:pointer;" title="Clique para tentar novamente">
+                    Transcrição falhou · Tentar novamente
+                </div>`;
         }
     } else if (isImage) {
         // Envolve imagem com botão clicável para abrir viewer
