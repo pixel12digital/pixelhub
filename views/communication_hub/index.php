@@ -1404,10 +1404,12 @@ body.communication-hub-page {
                             <div style="font-size: 11px; color: #667781; margin-top: 6px;">
                                 <?php
                                 $lastActivity = $lead['last_activity'] ?? 'now';
+                                $dateStr = 'Agora';
                                 try {
-                                    // Timestamps do banco JÁ estão em Brasília
-                                    $dateTime = new DateTime($lastActivity);
-                                    $dateStr = $dateTime->format('d/m H:i');
+                                    // Parse manual do timestamp para evitar conversão de timezone
+                                    if (preg_match('/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/', $lastActivity, $m)) {
+                                        $dateStr = "{$m[3]}/{$m[2]} {$m[4]}:{$m[5]}";
+                                    }
                                 } catch (Exception $e) {
                                     $dateStr = 'Agora';
                                 }
@@ -1537,14 +1539,16 @@ body.communication-hub-page {
                                 $dateStr = 'Agora';
                                 if ($lastActivity) {
                                     try {
-                                        // Timestamps do banco JÁ estão em Brasília
-                                        // Remove timezone info se houver e formata diretamente
+                                        // Parse manual do timestamp para evitar conversão de timezone
+                                        // Timestamps do banco vêm no formato "YYYY-MM-DD HH:MM:SS"
                                         $cleanTimestamp = preg_replace('/[+-]\d{2}:\d{2}$/', '', $lastActivity);
                                         $cleanTimestamp = str_replace('T', ' ', $cleanTimestamp);
-                                        $cleanTimestamp = preg_replace('/\.\d+$/', '', $cleanTimestamp); // Remove milliseconds
+                                        $cleanTimestamp = preg_replace('/\.\d+$/', '', $cleanTimestamp);
                                         
-                                        $dateTime = new DateTime($cleanTimestamp);
-                                        $dateStr = $dateTime->format('d/m H:i');
+                                        // Extrai componentes diretamente com regex
+                                        if (preg_match('/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/', $cleanTimestamp, $m)) {
+                                            $dateStr = "{$m[3]}/{$m[2]} {$m[4]}:{$m[5]}";
+                                        }
                                     } catch (Exception $e) {
                                         $dateStr = 'Agora';
                                     }

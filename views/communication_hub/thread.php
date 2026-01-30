@@ -63,9 +63,11 @@ $baseUrl = pixelhub_url('');
                     $isOutbound = ($msg['direction'] ?? $msg['role'] ?? '') === 'outbound' || ($msg['role'] ?? '') === 'assistant';
                     $msgId = $msg['id'] ?? '';
                     $msgTimestamp = $msg['timestamp'] ?? $msg['created_at'] ?? 'now';
-                    // Timestamps do banco JÁ estão em Brasília (servidor em America/Sao_Paulo)
-                    // Cria DateTime sem conversão de timezone
-                    $msgDateTime = new DateTime($msgTimestamp);
+                    // Parse manual do timestamp para evitar conversão de timezone
+                    $msgDateStr = 'Agora';
+                    if (preg_match('/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/', $msgTimestamp, $m)) {
+                        $msgDateStr = "{$m[3]}/{$m[2]} {$m[4]}:{$m[5]}";
+                    }
                     ?>
                     <div class="message-bubble <?= $isOutbound ? 'outbound' : 'inbound' ?>" 
                          data-message-id="<?= htmlspecialchars($msgId) ?>"
@@ -164,7 +166,7 @@ $baseUrl = pixelhub_url('');
                             </div>
                             <?php endif; ?>
                             <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: right;">
-                                <?= $msgDateTime->format('d/m H:i') ?>
+                                <?= $msgDateStr ?>
                             </div>
                         </div>
                     </div>
