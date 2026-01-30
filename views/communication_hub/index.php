@@ -1164,59 +1164,58 @@ body.communication-hub-page {
 }
 
 /* ==========================================================================
-   Thumbnails de Mídia (estilo WhatsApp)
-   - Container com tamanho fixo
-   - Imagem mantém proporção, centralizada, com crop se necessário
+   THUMBNAIL de Mídia (estilo WhatsApp)
+   - Regras SEPARADAS do viewer
+   - Container com aspect-ratio ou dimensões definidas
+   - Imagem usa object-fit: cover (crop centralizado, NUNCA distorce)
    ========================================================================== */
 .hub-media-open {
+    /* Reset button */
     background: none;
     border: none;
     padding: 0;
     cursor: pointer;
-    display: block;
+    /* Layout */
+    display: inline-block;
     position: relative;
     overflow: hidden;
-    border-radius: 10px;
-    /* Container maior para melhor visualização */
-    max-width: 320px;
-    max-height: 320px;
-    min-width: 120px;
-    min-height: 100px;
+    border-radius: 8px;
+    /* NÃO definir width/height aqui - deixar imagem determinar */
 }
 
 .hub-media-thumb {
+    /* CRÍTICO: NÃO usar width:100% + height:100% juntos */
     display: block;
-    width: 100%;
-    height: 100%;
-    max-width: 320px;
-    max-height: 320px;
-    min-height: 100px;
-    /* Mantém proporção, centraliza, corta excesso */
-    object-fit: cover;
-    object-position: center;
-    border-radius: 10px;
-    background: #f0f0f0;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    /* Limites máximos */
+    max-width: 280px;
+    max-height: 280px;
+    /* Largura automática baseada na imagem */
+    width: auto;
+    height: auto;
+    /* Proporção SEMPRE preservada */
+    border-radius: 8px;
+    background: #e8e8e8;
+    /* Hover effect */
+    transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
 .hub-media-open:hover .hub-media-thumb {
     transform: scale(1.02);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    opacity: 0.95;
 }
 
-/* Placeholder de erro */
+/* Placeholder de erro - thumbnail */
 .hub-media-open .img-error-placeholder {
     display: none;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-width: 100px;
-    min-height: 80px;
-    max-width: 280px;
-    background: #f5f5f5;
+    width: 150px;
+    height: 100px;
+    background: #f0f0f0;
     border-radius: 8px;
-    padding: 16px;
-    gap: 8px;
+    padding: 12px;
+    gap: 6px;
 }
 </style>
 
@@ -2886,42 +2885,51 @@ function openMediaViewer(src) {
         return;
     }
     
-    // Reset: remove dimensões anteriores para nova imagem
+    // Reset: limpa dimensões anteriores
     img.style.width = '';
     img.style.height = '';
+    img.removeAttribute('width');
+    img.removeAttribute('height');
     
-    // Função para escalar imagem mantendo proporção
+    // Função para escalar imagem mantendo proporção (VIEWER)
     function scaleImageToFit() {
-        const maxW = window.innerWidth * 0.92;
-        const maxH = window.innerHeight * 0.92;
+        const maxW = window.innerWidth * 0.90;  // 90% viewport
+        const maxH = window.innerHeight * 0.90;
         const natW = img.naturalWidth;
         const natH = img.naturalHeight;
         
-        if (!natW || !natH) return;
+        if (!natW || !natH) {
+            console.warn('[Viewer] Imagem sem dimensões naturais');
+            return;
+        }
         
-        // Calcula escala para caber na viewport
+        // Calcula escala para caber na viewport mantendo proporção
         const scaleW = maxW / natW;
         const scaleH = maxH / natH;
         const scale = Math.min(scaleW, scaleH);
         
-        // Aplica escala (escala para cima se imagem for pequena)
-        const newW = Math.round(natW * scale);
-        const newH = Math.round(natH * scale);
+        // Aplica dimensões calculadas
+        const finalW = Math.round(natW * scale);
+        const finalH = Math.round(natH * scale);
         
-        img.style.width = newW + 'px';
-        img.style.height = newH + 'px';
+        img.style.width = finalW + 'px';
+        img.style.height = finalH + 'px';
+        
+        console.log('[Viewer] Imagem escalada:', { natW, natH, finalW, finalH, scale: scale.toFixed(2) });
     }
     
-    // Quando imagem carregar, escala
-    img.onload = scaleImageToFit;
+    // Handler de carregamento
+    img.onload = function() {
+        scaleImageToFit();
+    };
     
-    // Se imagem já está em cache, escala imediatamente
-    if (img.complete && img.naturalWidth) {
+    // Define a imagem (PRIMEIRO define src, DEPOIS espera onload)
+    img.src = src;
+    
+    // Se já estava em cache (mesmo src), força recálculo
+    if (img.complete && img.naturalWidth > 0) {
         scaleImageToFit();
     }
-    
-    // Define a imagem
-    img.src = src;
     
     // Define o link de download
     downloadBtn.onclick = function() {
@@ -3171,16 +3179,19 @@ function renderConversation(thread, messages, channel) {
                 align-items: center;
                 justify-content: center;
             }
+            /* VIEWER: regras ISOLADAS do thumbnail */
             #hub-media-viewer-img {
-                /* Fit: escala mantendo proporção */
-                max-width: 92vw;
-                max-height: 92vh;
+                /* CRÍTICO: Dimensões controladas via JavaScript */
+                /* max apenas como fallback de segurança */
+                max-width: 92vw !important;
+                max-height: 92vh !important;
+                /* NUNCA herdar regras de thumbnail */
+                object-fit: contain !important;
+                /* Visual */
                 border-radius: 6px;
                 box-shadow: 0 12px 48px rgba(0,0,0,0.7);
                 cursor: default;
                 background: transparent;
-                /* Transição suave ao redimensionar */
-                transition: width 0.1s ease, height 0.1s ease;
             }
             #hub-media-viewer .viewer-actions {
                 position: absolute;
