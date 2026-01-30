@@ -4,7 +4,7 @@ namespace PixelHub\Services;
 
 use PixelHub\Core\Env;
 use PixelHub\Core\CryptoHelper;
-use PixelHub\Core\Database;
+use PixelHub\Core\DB;
 use PDO;
 
 /**
@@ -30,7 +30,7 @@ class AudioTranscriptionService
      */
     public static function transcribe(int $mediaId): array
     {
-        $db = Database::getInstance();
+        $db = DB::getConnection();
         
         try {
             // 1. Busca informações da mídia
@@ -79,8 +79,8 @@ class AudioTranscriptionService
                 return ['success' => false, 'error' => 'Caminho do arquivo não definido'];
             }
             
-            // Monta caminho absoluto
-            $basePath = defined('STORAGE_PATH') ? STORAGE_PATH : __DIR__ . '/../../storage';
+            // Monta caminho absoluto (mesmo padrão do WhatsAppMediaService)
+            $basePath = __DIR__ . '/../../storage';
             $fullPath = $basePath . '/' . ltrim($storagePath, '/');
             
             if (!file_exists($fullPath)) {
@@ -137,7 +137,7 @@ class AudioTranscriptionService
      */
     public static function transcribeByEventId(string $eventId): array
     {
-        $db = Database::getInstance();
+        $db = DB::getConnection();
         
         // Busca mídia pelo event_id
         $stmt = $db->prepare("SELECT id FROM communication_media WHERE event_id = ? LIMIT 1");
@@ -159,7 +159,7 @@ class AudioTranscriptionService
      */
     public static function getStatus(string $eventId): array
     {
-        $db = Database::getInstance();
+        $db = DB::getConnection();
         
         $stmt = $db->prepare("
             SELECT transcription, transcription_status, transcription_error, transcription_at
@@ -190,7 +190,7 @@ class AudioTranscriptionService
      */
     public static function getStats(): array
     {
-        $db = Database::getInstance();
+        $db = DB::getConnection();
         
         $stmt = $db->query("
             SELECT 
@@ -325,7 +325,7 @@ class AudioTranscriptionService
      */
     private static function updateTranscriptionStatus(int $mediaId, string $status, ?string $error = null): void
     {
-        $db = Database::getInstance();
+        $db = DB::getConnection();
         
         $stmt = $db->prepare("
             UPDATE communication_media 
@@ -341,7 +341,7 @@ class AudioTranscriptionService
      */
     private static function saveTranscription(int $mediaId, string $transcription): void
     {
-        $db = Database::getInstance();
+        $db = DB::getConnection();
         
         $stmt = $db->prepare("
             UPDATE communication_media 
