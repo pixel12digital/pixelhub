@@ -1533,13 +1533,24 @@ body.communication-hub-page {
                             </div>
                             <div style="display: flex; justify-content: flex-end; align-items: center; font-size: 11px; color: #667781;">
                                 <?php
-                                $lastActivity = $thread['last_activity'] ?? ($thread['created_at'] ?? 'now');
-                                try {
-                                    $dateTime = new DateTime($lastActivity, new DateTimeZone('UTC'));
-                                    $dateTime->setTimezone(new DateTimeZone('America/Sao_Paulo'));
-                                    $dateStr = $dateTime->format('d/m H:i');
-                                } catch (Exception $e) {
-                                    $dateStr = 'Agora';
+                                $lastActivity = $thread['last_activity'] ?? ($thread['created_at'] ?? null);
+                                $dateStr = 'Agora';
+                                if ($lastActivity) {
+                                    try {
+                                        // Remove qualquer timezone existente e força interpretação como UTC
+                                        $cleanTimestamp = preg_replace('/[+-]\d{2}:\d{2}$/', '', $lastActivity);
+                                        $cleanTimestamp = str_replace('T', ' ', $cleanTimestamp);
+                                        $cleanTimestamp = preg_replace('/\.\d+$/', '', $cleanTimestamp); // Remove milliseconds
+                                        
+                                        // Cria DateTime em UTC
+                                        $dateTime = DateTime::createFromFormat('Y-m-d H:i:s', $cleanTimestamp, new DateTimeZone('UTC'));
+                                        if ($dateTime) {
+                                            $dateTime->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+                                            $dateStr = $dateTime->format('d/m H:i');
+                                        }
+                                    } catch (Exception $e) {
+                                        $dateStr = 'Agora';
+                                    }
                                 }
                                 ?>
                                 <span><?= $dateStr ?></span>
