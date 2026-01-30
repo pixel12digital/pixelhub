@@ -1184,12 +1184,14 @@ body.communication-hub-page {
     line-height: 0; /* Remove espaço extra de inline */
 }
 
-/* Imagem thumbnail - PROPORCIONAL por definição */
+/* Imagem thumbnail - PROPORCIONAL + tamanho adequado */
 .hub-media-thumb {
     display: block;
-    /* CRÍTICO: só max-width, height auto = NUNCA distorce */
-    max-width: 300px;
-    height: auto !important; /* Força auto, impede override */
+    /* Tamanho: mínimo visível, máximo razoável */
+    min-width: 200px;
+    max-width: 320px;
+    width: auto;
+    height: auto !important; /* NUNCA força height = NUNCA distorce */
     /* Visual */
     border-radius: 8px;
     background: #f0f0f0;
@@ -2880,14 +2882,38 @@ function openMediaViewer(src) {
         return;
     }
     
-    // IMPORTANTE: Limpa QUALQUER estilo inline que possa causar distorção
-    // O CSS (max-width: 90vw, max-height: 90vh, width/height: auto) cuida de tudo
+    // Limpa estilos anteriores
     img.removeAttribute('style');
     img.removeAttribute('width');
     img.removeAttribute('height');
     
-    // Define a imagem - CSS faz o resto automaticamente
+    // Função para escalar imagem (PARA CIMA se necessário)
+    function fitToViewport() {
+        const vw = window.innerWidth * 0.88;
+        const vh = window.innerHeight * 0.88;
+        const nw = img.naturalWidth;
+        const nh = img.naturalHeight;
+        
+        if (!nw || !nh) return;
+        
+        // Calcula escala para caber na viewport
+        const scale = Math.min(vw / nw, vh / nh);
+        
+        // Aplica dimensões (escala para cima OU para baixo conforme necessário)
+        img.style.width = Math.round(nw * scale) + 'px';
+        img.style.height = Math.round(nh * scale) + 'px';
+    }
+    
+    // Quando carregar, ajusta tamanho
+    img.onload = fitToViewport;
+    
+    // Define a imagem
     img.src = src;
+    
+    // Se já em cache, ajusta imediatamente
+    if (img.complete && img.naturalWidth) {
+        fitToViewport();
+    }
     
     // Define o link de download
     downloadBtn.onclick = function() {
