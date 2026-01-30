@@ -1406,10 +1406,12 @@ body.communication-hub-page {
                                 $lastActivity = $lead['last_activity'] ?? 'now';
                                 $dateStr = 'Agora';
                                 try {
-                                    // Parse manual do timestamp para evitar conversão de timezone
-                                    if (preg_match('/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/', $lastActivity, $m)) {
-                                        $dateStr = "{$m[3]}/{$m[2]} {$m[4]}:{$m[5]}";
-                                    }
+                                    // conversations.last_message_at está em UTC
+                                    // Converte para Brasília (UTC-3)
+                                    $cleanTimestamp = preg_replace('/\.\d+$/', '', $lastActivity);
+                                    $dt = new DateTime($cleanTimestamp, new DateTimeZone('UTC'));
+                                    $dt->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+                                    $dateStr = $dt->format('d/m H:i');
                                 } catch (Exception $e) {
                                     $dateStr = 'Agora';
                                 }
@@ -1539,16 +1541,16 @@ body.communication-hub-page {
                                 $dateStr = 'Agora';
                                 if ($lastActivity) {
                                     try {
-                                        // Parse manual do timestamp para evitar conversão de timezone
-                                        // Timestamps do banco vêm no formato "YYYY-MM-DD HH:MM:SS"
+                                        // conversations.last_message_at está em UTC
+                                        // Precisa converter para Brasília (UTC-3)
                                         $cleanTimestamp = preg_replace('/[+-]\d{2}:\d{2}$/', '', $lastActivity);
                                         $cleanTimestamp = str_replace('T', ' ', $cleanTimestamp);
                                         $cleanTimestamp = preg_replace('/\.\d+$/', '', $cleanTimestamp);
                                         
-                                        // Extrai componentes diretamente com regex
-                                        if (preg_match('/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/', $cleanTimestamp, $m)) {
-                                            $dateStr = "{$m[3]}/{$m[2]} {$m[4]}:{$m[5]}";
-                                        }
+                                        // Cria DateTime em UTC e converte para Brasília
+                                        $dt = new DateTime($cleanTimestamp, new DateTimeZone('UTC'));
+                                        $dt->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+                                        $dateStr = $dt->format('d/m H:i');
                                     } catch (Exception $e) {
                                         $dateStr = 'Agora';
                                     }
@@ -2515,32 +2517,35 @@ document.getElementById('new-message-modal')?.addEventListener('click', function
 // ============================================================================
 
 /**
- * Formata data/hora para exibição
- * Timestamps do banco JÁ estão em Brasília (servidor em America/Sao_Paulo)
- * Exibe diretamente sem conversão de timezone
+ * Formata data/hora para exibição na lista de conversas
+ * conversations.last_message_at está em UTC, converte para Brasília
  */
 function formatDateBrasilia(dateStr) {
     if (!dateStr || dateStr === 'now') return 'Agora';
     
     try {
-        // Timestamps do banco JÁ estão em Brasília
-        // Parse manual para evitar conversão de timezone do navegador
-        const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
-        if (match) {
-            const [, year, month, day, hour, minute] = match;
-            return `${day}/${month} ${hour}:${minute}`;
+        // Timestamps da tabela conversations estão em UTC
+        // Adiciona 'Z' para indicar UTC e deixa toLocaleString converter para Brasília
+        let isoStr = dateStr;
+        if (!dateStr.includes('T') && !dateStr.includes('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
+            isoStr = dateStr.replace(' ', 'T') + 'Z';
         }
         
-        // Fallback: tenta parse padrão
-        const dateTime = new Date(dateStr.replace(' ', 'T'));
+        const dateTime = new Date(isoStr);
         if (isNaN(dateTime.getTime())) return 'Agora';
         
-        const day = String(dateTime.getDate()).padStart(2, '0');
-        const month = String(dateTime.getMonth() + 1).padStart(2, '0');
-        const hour = String(dateTime.getHours()).padStart(2, '0');
-        const minute = String(dateTime.getMinutes()).padStart(2, '0');
+        // Converte para Brasília
+        const options = { 
+            timeZone: 'America/Sao_Paulo',
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        };
         
-        return `${day}/${month} ${hour}:${minute}`;
+        const formatted = dateTime.toLocaleString('pt-BR', options);
+        return formatted.replace(',', '').replace(/\/\d{4}/, '');
     } catch (e) {
         console.warn('[Hub] Erro ao formatar data:', dateStr, e);
         return 'Agora';
