@@ -602,9 +602,6 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/communication-hub/messages/new', 'CommunicationHubController@getNewMessages');
     $router->get('/communication-hub/message', 'CommunicationHubController@getMessage');
     $router->get('/communication-hub/media', 'CommunicationHubController@serveMedia');
-    // Transcrição de áudio sob demanda
-    $router->post('/communication-hub/transcribe', 'CommunicationHubController@transcribe');
-    $router->get('/communication-hub/transcription-status', 'CommunicationHubController@getTranscriptionStatus');
     // Incoming Leads actions
     $router->post('/communication-hub/incoming-lead/create-tenant', 'CommunicationHubController@createTenantFromIncomingLead');
     $router->post('/communication-hub/incoming-lead/link-tenant', 'CommunicationHubController@linkIncomingLeadToTenant');

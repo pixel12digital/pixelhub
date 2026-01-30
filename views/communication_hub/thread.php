@@ -118,12 +118,7 @@ $baseUrl = pixelhub_url('');
                                         </video>
                                     </div>
                                 <?php elseif (strpos($mimeType, 'audio/') === 0 || in_array($mediaType, ['audio', 'voice'])): ?>
-                                    <?php
-                                    $hasTranscription = !empty($media['transcription']);
-                                    $transcriptionStatus = $media['transcription_status'] ?? null;
-                                    $eventIdForTranscription = $media['event_id'] ?? $msgId;
-                                    ?>
-                                    <div class="audio-player-container" data-event-id="<?= htmlspecialchars($eventIdForTranscription) ?>" style="margin-bottom: 8px; padding: 10px 12px; background: <?= $isOutbound ? 'rgba(0,0,0,0.06)' : 'rgba(2,58,141,0.08)' ?>; border-radius: 12px; min-width: 200px;">
+                                    <div class="audio-player-container" style="margin-bottom: 8px; padding: 10px 12px; background: <?= $isOutbound ? 'rgba(0,0,0,0.06)' : 'rgba(2,58,141,0.08)' ?>; border-radius: 12px; min-width: 200px;">
                                         <div style="display: flex; align-items: center; gap: 10px;">
                                             <div class="audio-icon" style="width: 40px; height: 40px; background: <?= $isOutbound ? '#128C7E' : '#023A8D' ?>; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
@@ -135,53 +130,9 @@ $baseUrl = pixelhub_url('');
                                                 <source src="<?= htmlspecialchars($media['url']) ?>" type="<?= htmlspecialchars($media['mime_type'] ?: 'audio/ogg') ?>">
                                             </audio>
                                         </div>
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-                                            <?php if (!empty($media['file_size'])): ?>
-                                                <span style="font-size: 10px; color: #666;">
-                                                    <?= number_format($media['file_size'] / 1024, 1) ?> KB
-                                                </span>
-                                            <?php else: ?>
-                                                <span></span>
-                                            <?php endif; ?>
-                                            <!-- Botão Transcrever (discreto) -->
-                                            <?php if (!$hasTranscription && $transcriptionStatus !== 'processing'): ?>
-                                                <button type="button" 
-                                                        class="transcribe-btn" 
-                                                        data-event-id="<?= htmlspecialchars($eventIdForTranscription) ?>"
-                                                        onclick="transcribeAudio(this, '<?= htmlspecialchars($eventIdForTranscription) ?>')"
-                                                        style="font-size: 10px; color: #666; background: none; border: none; cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: all 0.2s;"
-                                                        onmouseover="this.style.background='rgba(0,0,0,0.1)'; this.style.color='#023A8D';"
-                                                        onmouseout="this.style.background='none'; this.style.color='#666';"
-                                                        title="Transcrever este áudio">
-                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 2px;">
-                                                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                                                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                                                        <line x1="12" y1="19" x2="12" y2="23"/>
-                                                        <line x1="8" y1="23" x2="16" y2="23"/>
-                                                    </svg>
-                                                    Transcrever
-                                                </button>
-                                            <?php elseif ($transcriptionStatus === 'processing'): ?>
-                                                <span class="transcription-status" style="font-size: 10px; color: #666;">
-                                                    <span class="spinner" style="display: inline-block; width: 10px; height: 10px; border: 2px solid #ccc; border-top-color: #023A8D; border-radius: 50%; animation: spin 1s linear infinite; vertical-align: middle; margin-right: 4px;"></span>
-                                                    Transcrevendo...
-                                                </span>
-                                            <?php endif; ?>
-                                        </div>
-                                        <!-- Área de transcrição (colapsável) -->
-                                        <?php if ($hasTranscription): ?>
-                                            <div class="transcription-area" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.1);">
-                                                <details>
-                                                    <summary style="font-size: 10px; color: #666; cursor: pointer; user-select: none;">
-                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 2px;">
-                                                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                                                        </svg>
-                                                        Ver transcrição
-                                                    </summary>
-                                                    <div style="font-size: 12px; color: #333; margin-top: 6px; padding: 8px; background: rgba(255,255,255,0.5); border-radius: 6px; line-height: 1.4; white-space: pre-wrap;">
-                                                        <?= htmlspecialchars($media['transcription']) ?>
-                                                    </div>
-                                                </details>
+                                        <?php if (!empty($media['file_size'])): ?>
+                                            <div style="font-size: 10px; color: #666; margin-top: 4px; text-align: right;">
+                                                <?= number_format($media['file_size'] / 1024, 1) ?> KB
                                             </div>
                                         <?php endif; ?>
                                         <!-- Fallback: link para download se áudio não carregar -->
@@ -281,170 +232,7 @@ $baseUrl = pixelhub_url('');
     </div>
 </div>
 
-<style>
-/* Spinner animation para transcrição */
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-</style>
-
 <script>
-// ============================================================================
-// Transcrição de Áudio
-// ============================================================================
-
-/**
- * Dispara transcrição de um áudio específico
- * @param {HTMLElement} btn - Botão que foi clicado
- * @param {string} eventId - ID do evento/mídia
- */
-async function transcribeAudio(btn, eventId) {
-    if (!eventId) {
-        console.error('[Transcribe] eventId não fornecido');
-        return;
-    }
-    
-    // Encontra o container do audio player
-    const container = btn.closest('.audio-player-container');
-    if (!container) {
-        console.error('[Transcribe] Container não encontrado');
-        return;
-    }
-    
-    // Desabilita botão e mostra loading
-    btn.disabled = true;
-    btn.innerHTML = `
-        <span class="spinner" style="display: inline-block; width: 10px; height: 10px; border: 2px solid #ccc; border-top-color: #023A8D; border-radius: 50%; animation: spin 1s linear infinite; vertical-align: middle; margin-right: 4px;"></span>
-        Transcrevendo...
-    `;
-    btn.style.cursor = 'default';
-    btn.onmouseover = null;
-    btn.onmouseout = null;
-    
-    try {
-        const response = await fetch('<?= pixelhub_url('/communication-hub/transcribe') ?>', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: 'event_id=' + encodeURIComponent(eventId)
-        });
-        
-        const result = await response.json();
-        console.log('[Transcribe] Resultado:', result);
-        
-        if (result.success && result.status === 'completed' && result.transcription) {
-            // Sucesso: mostra a transcrição
-            showTranscription(container, result.transcription);
-            // Remove o botão
-            btn.remove();
-        } else if (result.success && result.status === 'processing') {
-            // Ainda processando: polling
-            pollTranscriptionStatus(container, eventId, btn);
-        } else {
-            // Erro
-            btn.innerHTML = `
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 2px;">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="8" x2="12" y2="12"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                Erro
-            `;
-            btn.title = result.error || 'Erro ao transcrever';
-            btn.style.color = '#dc3545';
-            
-            // Reabilita após 3s
-            setTimeout(() => {
-                btn.disabled = false;
-                btn.innerHTML = `
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 2px;">
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                        <line x1="12" y1="19" x2="12" y2="23"/>
-                        <line x1="8" y1="23" x2="16" y2="23"/>
-                    </svg>
-                    Tentar novamente
-                `;
-                btn.style.color = '#666';
-                btn.style.cursor = 'pointer';
-            }, 3000);
-        }
-    } catch (error) {
-        console.error('[Transcribe] Erro:', error);
-        btn.innerHTML = 'Erro';
-        btn.style.color = '#dc3545';
-    }
-}
-
-/**
- * Polling para verificar status da transcrição
- */
-async function pollTranscriptionStatus(container, eventId, btn, attempts = 0) {
-    if (attempts > 30) { // Máximo 30 tentativas (~60s)
-        btn.innerHTML = 'Timeout';
-        btn.style.color = '#dc3545';
-        return;
-    }
-    
-    try {
-        const response = await fetch('<?= pixelhub_url('/communication-hub/transcription-status') ?>?event_id=' + encodeURIComponent(eventId));
-        const result = await response.json();
-        
-        if (result.success && result.status === 'completed' && result.transcription) {
-            showTranscription(container, result.transcription);
-            btn.remove();
-        } else if (result.status === 'failed') {
-            btn.innerHTML = 'Falhou';
-            btn.title = result.error || 'Erro ao transcrever';
-            btn.style.color = '#dc3545';
-        } else {
-            // Ainda processando: aguarda e tenta novamente
-            setTimeout(() => pollTranscriptionStatus(container, eventId, btn, attempts + 1), 2000);
-        }
-    } catch (error) {
-        console.error('[Transcribe Poll] Erro:', error);
-        setTimeout(() => pollTranscriptionStatus(container, eventId, btn, attempts + 1), 2000);
-    }
-}
-
-/**
- * Exibe a transcrição no container do áudio
- */
-function showTranscription(container, transcription) {
-    // Remove área de transcrição existente se houver
-    const existingArea = container.querySelector('.transcription-area');
-    if (existingArea) {
-        existingArea.remove();
-    }
-    
-    // Cria nova área de transcrição
-    const transcriptionArea = document.createElement('div');
-    transcriptionArea.className = 'transcription-area';
-    transcriptionArea.style.cssText = 'margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.1);';
-    transcriptionArea.innerHTML = `
-        <details open>
-            <summary style="font-size: 10px; color: #666; cursor: pointer; user-select: none;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 2px;">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                </svg>
-                Transcrição
-            </summary>
-            <div style="font-size: 12px; color: #333; margin-top: 6px; padding: 8px; background: rgba(255,255,255,0.5); border-radius: 6px; line-height: 1.4; white-space: pre-wrap;">
-                ${escapeHtml(transcription)}
-            </div>
-        </details>
-    `;
-    
-    // Insere antes do noscript (se existir) ou no final
-    const noscript = container.querySelector('noscript');
-    if (noscript) {
-        container.insertBefore(transcriptionArea, noscript);
-    } else {
-        container.appendChild(transcriptionArea);
-    }
-}
-
 // ============================================================================
 // Utilitários de Formatação
 // ============================================================================
