@@ -611,6 +611,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/communication-hub/conversation/update-contact-name', 'CommunicationHubController@updateContactName');
     $router->post('/communication-hub/conversation/merge', 'CommunicationHubController@mergeConversations');
     $router->post('/communication-hub/conversation/delete', 'CommunicationHubController@deleteConversation');
+    $router->post('/communication-hub/conversation/unlink', 'CommunicationHubController@unlinkConversation');
     
     // Transcrição de áudio sob demanda
     $router->post('/communication-hub/transcribe', 'CommunicationHubController@transcribe');

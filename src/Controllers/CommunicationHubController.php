@@ -5729,6 +5729,82 @@ class CommunicationHubController extends Controller
     }
 
     /**
+     * Desvincula uma conversa de um tenant (move para "Não vinculados")
+     * 
+     * POST /communication-hub/conversation/unlink
+     * 
+     * Body JSON:
+     * - conversation_id: int (obrigatório)
+     * 
+     * Resultado:
+     * - tenant_id = NULL
+     * - is_incoming_lead = 1
+     * - Conversa aparece em "Não vinculados"
+     */
+    public function unlinkConversation(): void
+    {
+        Auth::requireInternal();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $conversationId = isset($input['conversation_id']) ? (int) $input['conversation_id'] : 0;
+
+        if ($conversationId <= 0) {
+            $this->json(['success' => false, 'error' => 'conversation_id é obrigatório'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            // Verifica se a conversa existe e tem tenant vinculado
+            $checkStmt = $db->prepare("
+                SELECT id, contact_name, contact_external_id, tenant_id 
+                FROM conversations WHERE id = ?
+            ");
+            $checkStmt->execute([$conversationId]);
+            $conversation = $checkStmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$conversation) {
+                $this->json(['success' => false, 'error' => 'Conversa não encontrada'], 404);
+                return;
+            }
+
+            if (empty($conversation['tenant_id'])) {
+                $this->json(['success' => false, 'error' => 'Conversa já está desvinculada'], 400);
+                return;
+            }
+
+            // Desvincula: tenant_id = NULL, is_incoming_lead = 1
+            $updateStmt = $db->prepare("
+                UPDATE conversations 
+                SET tenant_id = NULL, 
+                    is_incoming_lead = 1,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $updateStmt->execute([$conversationId]);
+
+            error_log(sprintf(
+                "[CommunicationHub] Conversa %d DESVINCULADA: contato=%s, numero=%s, antigo_tenant_id=%d",
+                $conversationId,
+                $conversation['contact_name'] ?? 'N/A',
+                $conversation['contact_external_id'] ?? 'N/A',
+                $conversation['tenant_id']
+            ));
+
+            $this->json([
+                'success' => true,
+                'conversation_id' => $conversationId,
+                'message' => 'Conversa desvinculada com sucesso. Agora aparece em "Não vinculados".'
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao desvincular conversa: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Atualiza o nome de exibição do contato em uma conversa
      * 
      * POST /communication-hub/conversation/update-contact-name

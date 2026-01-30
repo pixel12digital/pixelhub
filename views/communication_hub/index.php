@@ -1679,6 +1679,12 @@ body.communication-hub-page {
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                                 Editar nome
                                             </button>
+                                            <?php if (!empty($thread['tenant_id'])): ?>
+                                            <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); unlinkConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                                                Desvincular
+                                            </button>
+                                            <?php endif; ?>
                                             <button type="button" class="conversation-menu-item danger" onclick="event.stopPropagation(); deleteConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                                                 Excluir
@@ -2437,6 +2443,12 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                     Editar nome
                                 </button>
+                                ${thread.tenant_id ? `
+                                <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); unlinkConversation(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || 'Conversa')}'); closeConversationMenu(this);">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                                    Desvincular
+                                </button>
+                                ` : ''}
                                 <button type="button" class="conversation-menu-item danger" onclick="event.stopPropagation(); deleteConversation(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || 'Conversa')}'); closeConversationMenu(this);">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                                     Excluir
@@ -5736,6 +5748,39 @@ async function deleteConversation(conversationId, contactName) {
     } catch (error) {
         console.error('Erro ao excluir conversa:', error);
         showToast('Erro ao excluir conversa', 'error');
+    }
+}
+
+/**
+ * Desvincula uma conversa de um tenant (move para "Não vinculados")
+ */
+async function unlinkConversation(conversationId, contactName) {
+    if (!confirm(`Desvincular a conversa com "${contactName}" do cliente?\n\nA conversa será movida para "Não vinculados".`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/communication-hub/conversation/unlink', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                conversation_id: conversationId
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Conversa desvinculada com sucesso', 'success');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast(result.error || 'Erro ao desvincular conversa', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao desvincular conversa:', error);
+        showToast('Erro ao desvincular conversa', 'error');
     }
 }
 
