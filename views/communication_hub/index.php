@@ -2886,6 +2886,40 @@ function openMediaViewer(src) {
         return;
     }
     
+    // Reset: remove dimensões anteriores para nova imagem
+    img.style.width = '';
+    img.style.height = '';
+    
+    // Função para escalar imagem mantendo proporção
+    function scaleImageToFit() {
+        const maxW = window.innerWidth * 0.92;
+        const maxH = window.innerHeight * 0.92;
+        const natW = img.naturalWidth;
+        const natH = img.naturalHeight;
+        
+        if (!natW || !natH) return;
+        
+        // Calcula escala para caber na viewport
+        const scaleW = maxW / natW;
+        const scaleH = maxH / natH;
+        const scale = Math.min(scaleW, scaleH);
+        
+        // Aplica escala (escala para cima se imagem for pequena)
+        const newW = Math.round(natW * scale);
+        const newH = Math.round(natH * scale);
+        
+        img.style.width = newW + 'px';
+        img.style.height = newH + 'px';
+    }
+    
+    // Quando imagem carregar, escala
+    img.onload = scaleImageToFit;
+    
+    // Se imagem já está em cache, escala imediatamente
+    if (img.complete && img.naturalWidth) {
+        scaleImageToFit();
+    }
+    
     // Define a imagem
     img.src = src;
     
@@ -3138,16 +3172,15 @@ function renderConversation(thread, messages, channel) {
                 justify-content: center;
             }
             #hub-media-viewer-img {
-                /* Fit: PREENCHE viewport mantendo proporção */
-                width: 92vw;
-                height: 92vh;
+                /* Fit: escala mantendo proporção */
                 max-width: 92vw;
                 max-height: 92vh;
-                object-fit: contain;
                 border-radius: 6px;
                 box-shadow: 0 12px 48px rgba(0,0,0,0.7);
                 cursor: default;
                 background: transparent;
+                /* Transição suave ao redimensionar */
+                transition: width 0.1s ease, height 0.1s ease;
             }
             #hub-media-viewer .viewer-actions {
                 position: absolute;
