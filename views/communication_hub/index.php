@@ -1184,14 +1184,12 @@ body.communication-hub-page {
     line-height: 0; /* Remove espaço extra de inline */
 }
 
-/* Imagem thumbnail - PROPORCIONAL + tamanho adequado */
+/* Imagem thumbnail - PROPORCIONAL (sem min-width na imagem!) */
 .hub-media-thumb {
     display: block;
-    /* Tamanho: mínimo visível, máximo razoável */
-    min-width: 200px;
-    max-width: 320px;
-    width: auto;
-    height: auto !important; /* NUNCA força height = NUNCA distorce */
+    /* REGRA DE OURO: só max-width + height auto = NUNCA distorce */
+    max-width: 280px;
+    height: auto;
     /* Visual */
     border-radius: 8px;
     background: #f0f0f0;
