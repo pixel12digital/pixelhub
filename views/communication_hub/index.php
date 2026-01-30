@@ -2504,19 +2504,19 @@ document.getElementById('new-message-modal')?.addEventListener('click', function
 
 /**
  * Formata data/hora para exibição no fuso de Brasília
- * Os timestamps do banco vêm em formato "YYYY-MM-DD HH:MM:SS" JÁ no fuso de Brasília
- * (MySQL na HostMedia está configurado para America/Sao_Paulo)
+ * Os timestamps do banco vêm em formato "YYYY-MM-DD HH:MM:SS" em UTC
+ * Converte para horário de Brasília (America/Sao_Paulo, UTC-3)
  */
 function formatDateBrasilia(dateStr) {
     if (!dateStr || dateStr === 'now') return 'Agora';
     
     try {
-        // CORREÇÃO: Timestamps do banco JÁ estão em Brasília (UTC-3)
-        // Adiciona offset -03:00 ao invés de 'Z' (UTC)
+        // Timestamps do banco estão em UTC
+        // Adiciona 'Z' para indicar UTC, depois converte para Brasília
         let isoStr = dateStr;
         if (!dateStr.includes('T') && !dateStr.includes('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
-            // Formato "YYYY-MM-DD HH:MM:SS" (Brasília) - adiciona T e offset -03:00
-            isoStr = dateStr.replace(' ', 'T') + '-03:00';
+            // Formato "YYYY-MM-DD HH:MM:SS" (UTC) - adiciona T e Z
+            isoStr = dateStr.replace(' ', 'T') + 'Z';
         }
         
         const dateTime = new Date(isoStr);
