@@ -6067,6 +6067,149 @@ class CommunicationHubController extends Controller
     }
     
     /**
+     * Dispara transcrição de áudio sob demanda
+     * 
+     * POST /communication-hub/transcribe
+     * Body: { event_id: string }
+     * 
+     * Não bloqueia - dispara em background e retorna imediatamente.
+     */
+    public function transcribe(): void
+    {
+        Auth::requireInternal();
+        
+        header('Content-Type: application/json');
+        
+        $eventId = $_POST['event_id'] ?? $_GET['event_id'] ?? null;
+        
+        if (empty($eventId)) {
+            echo json_encode(['success' => false, 'error' => 'event_id é obrigatório']);
+            return;
+        }
+        
+        try {
+            $db = DB::getConnection();
+            
+            // Busca mídia pelo event_id
+            $stmt = $db->prepare("
+                SELECT cm.id, cm.event_id, cm.media_type, cm.stored_path, 
+                       cm.transcription_status, cm.transcription
+                FROM communication_media cm
+                WHERE cm.event_id = ?
+            ");
+            $stmt->execute([$eventId]);
+            $media = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if (!$media) {
+                echo json_encode(['success' => false, 'error' => 'Mídia não encontrada']);
+                return;
+            }
+            
+            if ($media['media_type'] !== 'audio') {
+                echo json_encode(['success' => false, 'error' => 'Mídia não é um áudio']);
+                return;
+            }
+            
+            // Se já está transcrito, retorna a transcrição existente
+            if ($media['transcription_status'] === 'completed' && !empty($media['transcription'])) {
+                echo json_encode([
+                    'success' => true,
+                    'status' => 'completed',
+                    'transcription' => $media['transcription']
+                ]);
+                return;
+            }
+            
+            // Se já está processando, retorna status
+            if ($media['transcription_status'] === 'processing') {
+                echo json_encode([
+                    'success' => true,
+                    'status' => 'processing',
+                    'message' => 'Transcrição em andamento'
+                ]);
+                return;
+            }
+            
+            // Marca como processando antes de iniciar
+            $stmt = $db->prepare("
+                UPDATE communication_media 
+                SET transcription_status = 'processing', transcription_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$media['id']]);
+            
+            // Dispara transcrição (síncrona por simplicidade, mas rápida ~2-5s)
+            // Em produção com alto volume, isso poderia ser feito via queue
+            $result = \PixelHub\Services\AudioTranscriptionService::transcribe($media['id']);
+            
+            if ($result['success']) {
+                echo json_encode([
+                    'success' => true,
+                    'status' => 'completed',
+                    'transcription' => $result['transcription']
+                ]);
+            } else {
+                echo json_encode([
+                    'success' => false,
+                    'status' => 'failed',
+                    'error' => $result['error'] ?? 'Erro desconhecido'
+                ]);
+            }
+            
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub::transcribe] Erro: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'Erro interno: ' . $e->getMessage()]);
+        }
+    }
+    
+    /**
+     * Retorna status/transcrição de um áudio
+     * 
+     * GET /communication-hub/transcription-status?event_id=xxx
+     */
+    public function getTranscriptionStatus(): void
+    {
+        Auth::requireInternal();
+        
+        header('Content-Type: application/json');
+        
+        $eventId = $_GET['event_id'] ?? null;
+        
+        if (empty($eventId)) {
+            echo json_encode(['success' => false, 'error' => 'event_id é obrigatório']);
+            return;
+        }
+        
+        try {
+            $db = DB::getConnection();
+            
+            $stmt = $db->prepare("
+                SELECT transcription_status, transcription, transcription_error
+                FROM communication_media
+                WHERE event_id = ? AND media_type = 'audio'
+            ");
+            $stmt->execute([$eventId]);
+            $media = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if (!$media) {
+                echo json_encode(['success' => false, 'error' => 'Áudio não encontrado']);
+                return;
+            }
+            
+            echo json_encode([
+                'success' => true,
+                'status' => $media['transcription_status'] ?? 'pending',
+                'transcription' => $media['transcription'],
+                'error' => $media['transcription_error']
+            ]);
+            
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub::getTranscriptionStatus] Erro: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'Erro interno']);
+        }
+    }
+    
+    /**
      * Normaliza channel_id para comparação (lowercase, remove espaços)
      * 
      * @param string|null $channelId
