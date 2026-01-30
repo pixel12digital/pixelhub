@@ -24,7 +24,37 @@ curl -s "https://hub.pixel12digital.com.br/clear-opcache.php"
 
 ## Tags de Restauração
 
-### `v1.2.1-stable-batch-media` (29/01/2026) - ATUAL
+### `v1.3.0-stable-full-media` (30/01/2026) - ATUAL ⭐ MARCO IMPORTANTE
+
+**Commit:** `4bc6683`
+
+**Descrição:** Marco estável completo - envio e recebimento de **imagens, áudios, vídeos e textos** funcionando corretamente. Este é o ponto de referência principal para reverter caso novas implementações introduzam bugs.
+
+**Funcionalidades confirmadas:**
+- ✅ **Imagens**: download do arquivo original (não thumbnail), exibição proporcional
+- ✅ **Áudios/PTT**: recebimento e reprodução corretos
+- ✅ **Vídeos**: download completo via API (não apenas preview)
+- ✅ **Textos**: envio e recebimento normal
+- ✅ **Viewer de mídia**: modal proporcional, sem distorção, fit-to-screen
+- ✅ **Thumbnails**: proporcionais, sem esticamento
+- ✅ **Timezone**: conversão correta UTC → Brasília (conversas e mensagens)
+
+**Fixes incluídos desde v1.2.1:**
+1. `dac2b80` - Ignora thumbnail base64 para TODAS mídias - baixa arquivo completo via API
+2. `0d17f95` - Thumbnail CSS corrigido (só max-width + height auto)
+3. `75f777d` - Timestamps tratados como UTC e convertidos para Brasília
+4. `4bc6683` - Conversão explícita UTC→Brasília na lista de conversas
+
+**Para restaurar:**
+```bash
+git fetch --tags
+git checkout v1.3.0-stable-full-media
+curl -s "https://hub.pixel12digital.com.br/clear-opcache.php"
+```
+
+---
+
+### `v1.2.1-stable-batch-media` (29/01/2026)
 
 **Commit:** `9a7861f`
 
@@ -94,6 +124,41 @@ curl -s "https://hub.pixel12digital.com.br/clear-opcache.php"
 ---
 
 ## Histórico de Problemas Resolvidos
+
+### Imagens salvas como thumbnail (30/01/2026)
+
+**Sintomas:**
+- Imagens apareciam pequenas e com baixa resolução tanto no thumbnail quanto no viewer
+- Mesmo ampliando, a qualidade era ruim (pixelada)
+- Proporções corretas mas resolução muito baixa
+
+**Causa raiz:**
+- Sistema salvava base64 do campo `text` do webhook como imagem final
+- Esse campo contém apenas o **thumbnail/preview** (baixa resolução)
+- A imagem original deve ser baixada via API `downloadMedia` usando o `mediaId`
+
+**Solução:**
+- Modificado `WhatsAppMediaService.php` para ignorar base64 no campo `text` para tipos: image, video, document, sticker
+- Sistema agora sempre baixa o arquivo completo via API do gateway
+
+---
+
+### Timezone incorreto na lista de conversas (30/01/2026)
+
+**Sintomas:**
+- Horário nas conversas mostrava 3 horas a mais
+- Mensagens individuais mostravam horário correto
+
+**Causa raiz:**
+- Timestamps do banco (UTC) não estavam sendo convertidos para Brasília (UTC-3)
+- PHP DateTime não interpretava corretamente strings sem timezone explícito
+
+**Solução:**
+- Parsing explícito do timestamp removendo qualquer timezone existente
+- Interpretação forçada como UTC
+- Conversão para `America/Sao_Paulo`
+
+---
 
 ### Fase 1 Performance causou erro 500 (29/01/2026)
 
