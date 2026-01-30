@@ -63,6 +63,10 @@ $baseUrl = pixelhub_url('');
                     $isOutbound = ($msg['direction'] ?? $msg['role'] ?? '') === 'outbound' || ($msg['role'] ?? '') === 'assistant';
                     $msgId = $msg['id'] ?? '';
                     $msgTimestamp = $msg['timestamp'] ?? $msg['created_at'] ?? 'now';
+                    
+                    // DEBUG TEMPORÁRIO: Log do timestamp raw
+                    error_log("[THREAD DEBUG TIMESTAMP] msgId={$msgId}, raw_timestamp={$msgTimestamp}");
+                    
                     // Parse manual do timestamp para evitar conversão de timezone
                     $msgDateStr = 'Agora';
                     if (preg_match('/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/', $msgTimestamp, $m)) {
