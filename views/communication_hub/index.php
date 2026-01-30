@@ -6267,9 +6267,9 @@ async function updateContactName(event) {
         
         if (result.success) {
             closeEditContactNameModal();
-            // Recarrega a lista de conversas para mostrar nome atualizado
-            await loadConversationList();
-            showNotification('Nome atualizado com sucesso!', 'success');
+            showToast('Nome atualizado com sucesso!', 'success');
+            // Recarrega a página para mostrar nome atualizado
+            setTimeout(() => location.reload(), 500);
         } else {
             alert('Erro ao atualizar nome: ' + (result.error || 'Erro desconhecido'));
         }
