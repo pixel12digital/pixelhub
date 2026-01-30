@@ -952,6 +952,21 @@ class ConversationService
         // vinculação incorreta de números novos ao tenant do canal (ex: SO OBRAS).
         // Se o tenant_id vier NULL do evento, mantém NULL para que apareça em "Não vinculados"
         
+        // CORREÇÃO 2: Valida se o telefone do contato corresponde ao telefone do tenant
+        // Antes de vincular automaticamente, verifica se o número realmente pertence ao tenant
+        // Isso evita casos como "William" (17) 98158-5977 ser vinculado a "Roberta" incorretamente
+        $contactExternalId = $channelInfo['contact_external_id'] ?? '';
+        if ($tenantId !== null && !empty($contactExternalId)) {
+            if (!self::validatePhoneBelongsToTenant($contactExternalId, $tenantId)) {
+                error_log(sprintf(
+                    '[CONVERSATION CREATE] Vinculação REJEITADA: contato=%s não pertence ao tenant_id=%d - conversa irá para "Não vinculados"',
+                    $contactExternalId,
+                    $tenantId
+                ));
+                $tenantId = null; // Não vincular - vai para "Não vinculados"
+            }
+        }
+        
         // Extrai timestamp da mensagem para last_message_at
         $messageTimestamp = self::extractMessageTimestamp($eventData);
 
@@ -1176,6 +1191,20 @@ class ConversationService
             // vinculação incorreta de números novos ao tenant do canal (ex: SO OBRAS).
             // Se o tenant_id vier NULL do evento, mantém NULL para que apareça em "Não vinculados"
             $tenantId = $eventData['tenant_id'] ?? null;
+            
+            // CORREÇÃO 2: Valida se o telefone do contato corresponde ao telefone do tenant
+            // Antes de vincular automaticamente, verifica se o número realmente pertence ao tenant
+            $contactExternalId = $channelInfo['contact_external_id'] ?? '';
+            if ($tenantId !== null && !empty($contactExternalId)) {
+                if (!self::validatePhoneBelongsToTenant($contactExternalId, $tenantId)) {
+                    error_log(sprintf(
+                        '[CONVERSATION UPDATE] Vinculação REJEITADA: contato=%s não pertence ao tenant_id=%d - mantendo sem vincular',
+                        $contactExternalId,
+                        $tenantId
+                    ));
+                    $tenantId = null; // Não vincular
+                }
+            }
             
             // Atualiza tenant_id se fornecido/resolvido e ainda não existe
             // Também atualiza is_incoming_lead: se tenant_id é NULL, marca como incoming_lead = 1
@@ -1995,6 +2024,118 @@ class ConversationService
             return true;
         } catch (\Exception $e) {
             error_log('[LID_PHONE_MAPPING] Erro ao criar mapeamento: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Valida se o telefone do contato corresponde ao telefone do tenant
+     * 
+     * CORREÇÃO: Evita vinculação automática incorreta de conversas a tenants
+     * quando o número do contato não pertence ao tenant.
+     * 
+     * @param string $contactExternalId Telefone/ID do contato (pode conter @lid)
+     * @param int $tenantId ID do tenant a validar
+     * @return bool True se o telefone corresponde, False caso contrário
+     */
+    private static function validatePhoneBelongsToTenant(string $contactExternalId, int $tenantId): bool
+    {
+        try {
+            $db = DB::getConnection();
+            
+            // Busca telefone do tenant
+            $stmt = $db->prepare("SELECT phone FROM tenants WHERE id = ? LIMIT 1");
+            $stmt->execute([$tenantId]);
+            $tenant = $stmt->fetch();
+            
+            if (!$tenant || empty($tenant['phone'])) {
+                // Se tenant não tem telefone cadastrado, não valida (permite vincular)
+                // Isso mantém comportamento para tenants sem telefone
+                error_log(sprintf(
+                    '[TENANT_PHONE_VALIDATION] Tenant ID=%d não tem telefone cadastrado - permitindo vinculação',
+                    $tenantId
+                ));
+                return true;
+            }
+            
+            // Normaliza ambos os números
+            $normalizePhone = function($phone) {
+                if (empty($phone)) return null;
+                // Remove @lid e tudo após @
+                $cleaned = preg_replace('/@.*$/', '', (string) $phone);
+                // Remove tudo exceto dígitos
+                return preg_replace('/[^0-9]/', '', $cleaned);
+            };
+            
+            $contactPhone = $normalizePhone($contactExternalId);
+            $tenantPhone = $normalizePhone($tenant['phone']);
+            
+            if (empty($contactPhone)) {
+                error_log(sprintf(
+                    '[TENANT_PHONE_VALIDATION] Contato sem telefone válido: %s - rejeitando vinculação',
+                    $contactExternalId
+                ));
+                return false;
+            }
+            
+            // Comparação exata
+            if ($contactPhone === $tenantPhone) {
+                return true;
+            }
+            
+            // Se são números BR (começam com 55 e têm pelo menos 12 dígitos), 
+            // tenta comparar com/sem 9º dígito
+            if (strlen($contactPhone) >= 12 && strlen($tenantPhone) >= 12 && 
+                substr($contactPhone, 0, 2) === '55' && substr($tenantPhone, 0, 2) === '55') {
+                
+                // Remove 9º dígito de ambos para comparação (13 dígitos = 55 + DDD + 9 + 8 dígitos)
+                if (strlen($contactPhone) === 13 && strlen($tenantPhone) === 13) {
+                    $contactWithout9th = substr($contactPhone, 0, 4) . substr($contactPhone, 5);
+                    $tenantWithout9th = substr($tenantPhone, 0, 4) . substr($tenantPhone, 5);
+                    
+                    if ($contactWithout9th === $tenantWithout9th) {
+                        return true;
+                    }
+                }
+                
+                // Tenta adicionar 9º dígito em ambos (12 dígitos = 55 + DDD + 8 dígitos)
+                if (strlen($contactPhone) === 12 && strlen($tenantPhone) === 12) {
+                    $contactWith9th = substr($contactPhone, 0, 4) . '9' . substr($contactPhone, 4);
+                    $tenantWith9th = substr($tenantPhone, 0, 4) . '9' . substr($tenantPhone, 4);
+                    
+                    if ($contactWith9th === $tenantWith9th) {
+                        return true;
+                    }
+                }
+                
+                // Comparação cruzada: contato com 13 dígitos vs tenant com 12 (ou vice-versa)
+                if (strlen($contactPhone) === 13 && strlen($tenantPhone) === 12) {
+                    $contactWithout9th = substr($contactPhone, 0, 4) . substr($contactPhone, 5);
+                    if ($contactWithout9th === $tenantPhone) {
+                        return true;
+                    }
+                }
+                
+                if (strlen($contactPhone) === 12 && strlen($tenantPhone) === 13) {
+                    $tenantWithout9th = substr($tenantPhone, 0, 4) . substr($tenantPhone, 5);
+                    if ($contactPhone === $tenantWithout9th) {
+                        return true;
+                    }
+                }
+            }
+            
+            // Números não correspondem
+            error_log(sprintf(
+                '[TENANT_PHONE_VALIDATION] Telefone NÃO corresponde: contato=%s, tenant=%s (tenant_id=%d) - rejeitando vinculação',
+                $contactPhone,
+                $tenantPhone,
+                $tenantId
+            ));
+            return false;
+            
+        } catch (\Exception $e) {
+            error_log('[TENANT_PHONE_VALIDATION] Erro ao validar: ' . $e->getMessage());
+            // Em caso de erro, não vincula (segurança)
             return false;
         }
     }
