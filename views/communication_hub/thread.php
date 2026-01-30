@@ -170,7 +170,7 @@ $baseUrl = pixelhub_url('');
                             </div>
                             <?php endif; ?>
                             <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: right;">
-                                <?= $msgDateStr ?>
+                                <?= $msgDateStr ?> <!-- DEBUG: raw=<?= htmlspecialchars($msgTimestamp) ?> -->
                             </div>
                         </div>
                     </div>
