@@ -1248,6 +1248,26 @@ body.communication-hub-page {
     color: #666;
 }
 
+/* Botão de transcrição - ícone discreto */
+.audio-transcribe-btn {
+    background: transparent;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+}
+
+.audio-transcribe-btn:hover {
+    background: rgba(0,0,0,0.05);
+    color: #666;
+}
+
 .audio-menu-dropdown {
     display: none;
     position: absolute;
@@ -2992,17 +3012,12 @@ function renderMediaPlayer(media, eventId = null) {
                 onmouseenter="if(this.preload==='none'){this.preload='metadata';}" 
                 onplay="if(this.preload==='none'){this.preload='metadata';}"></audio>`;
         
-        // Menu de 3 pontinhos (apenas se tiver event_id e não tiver transcrição completa)
+        // Botão de transcrição (apenas se tiver event_id e não tiver transcrição completa)
         if (safeEventId && !hasTranscription && transcriptionStatus !== 'processing') {
             mediaHtml += `
-            <div class="audio-menu-wrapper">
-                <button type="button" class="audio-menu-btn" onclick="toggleAudioMenu(this)" title="Mais opções">⋮</button>
-                <div class="audio-menu-dropdown">
-                    <button type="button" onclick="transcribeAudio(this, '${safeEventId}'); closeAudioMenu(this);">
-                        Transcrever áudio
-                    </button>
-                </div>
-            </div>`;
+            <button type="button" class="audio-transcribe-btn" onclick="transcribeAudio(this, '${safeEventId}')" title="Transcrever áudio">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+            </button>`;
         }
         
         mediaHtml += `</div>`;
