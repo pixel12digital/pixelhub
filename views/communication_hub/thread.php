@@ -63,10 +63,9 @@ $baseUrl = pixelhub_url('');
                     $isOutbound = ($msg['direction'] ?? $msg['role'] ?? '') === 'outbound' || ($msg['role'] ?? '') === 'assistant';
                     $msgId = $msg['id'] ?? '';
                     $msgTimestamp = $msg['timestamp'] ?? $msg['created_at'] ?? 'now';
-                    // CORREÇÃO: Timestamps do banco estão em UTC (servidor MySQL em UTC)
-                    // Cria DateTime em UTC e converte para Brasília para exibição
-                    $msgDateTime = new DateTime($msgTimestamp, new DateTimeZone('UTC'));
-                    $msgDateTime->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+                    // Timestamps do banco JÁ estão em Brasília (servidor em America/Sao_Paulo)
+                    // Cria DateTime sem conversão de timezone
+                    $msgDateTime = new DateTime($msgTimestamp);
                     ?>
                     <div class="message-bubble <?= $isOutbound ? 'outbound' : 'inbound' ?>" 
                          data-message-id="<?= htmlspecialchars($msgId) ?>"
@@ -239,39 +238,32 @@ $baseUrl = pixelhub_url('');
 // ============================================================================
 
 /**
- * Formata timestamp para exibição no fuso de Brasília
- * CORREÇÃO: Timestamps do banco estão em UTC (servidor MySQL em UTC)
- * Converte automaticamente para Brasília na exibição
+ * Formata timestamp para exibição
+ * Timestamps do banco estão em horário de Brasília (servidor em America/Sao_Paulo)
+ * Exibe diretamente sem conversão de timezone
  */
 function formatTimestampBrasilia(dateStr) {
     if (!dateStr || dateStr === 'now') return 'Agora';
     
     try {
-        // CORREÇÃO: Timestamps do banco estão em UTC (servidor em UTC)
-        // Adiciona 'Z' (UTC) para interpretação correta
-        let isoStr = dateStr;
-        if (!dateStr.includes('T') && !dateStr.includes('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
-            // Formato "YYYY-MM-DD HH:MM:SS" (UTC) - adiciona T e Z
-            isoStr = dateStr.replace(' ', 'T') + 'Z';
+        // Timestamps do banco JÁ estão em Brasília
+        // Parse manual para evitar conversão de timezone do navegador
+        const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+        if (match) {
+            const [, year, month, day, hour, minute] = match;
+            return `${day}/${month} ${hour}:${minute}`;
         }
         
-        const dateTime = new Date(isoStr);
+        // Fallback: tenta parse padrão
+        const dateTime = new Date(dateStr.replace(' ', 'T'));
         if (isNaN(dateTime.getTime())) return 'Agora';
         
-        // Formata para exibição em Brasília (UTC-3)
-        // toLocaleString converte automaticamente de UTC para America/Sao_Paulo
-        const options = { 
-            timeZone: 'America/Sao_Paulo',
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        };
+        const day = String(dateTime.getDate()).padStart(2, '0');
+        const month = String(dateTime.getMonth() + 1).padStart(2, '0');
+        const hour = String(dateTime.getHours()).padStart(2, '0');
+        const minute = String(dateTime.getMinutes()).padStart(2, '0');
         
-        const formatted = dateTime.toLocaleString('pt-BR', options);
-        // Retorna no formato "dd/mm HH:MM"
-        return formatted.replace(',', '').replace(/\/\d{4}/, '');
+        return `${day}/${month} ${hour}:${minute}`;
     } catch (e) {
         console.warn('[Thread] Erro ao formatar data:', dateStr, e);
         return 'Agora';

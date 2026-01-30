@@ -1405,8 +1405,8 @@ body.communication-hub-page {
                                 <?php
                                 $lastActivity = $lead['last_activity'] ?? 'now';
                                 try {
-                                    $dateTime = new DateTime($lastActivity, new DateTimeZone('UTC'));
-                                    $dateTime->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+                                    // Timestamps do banco JÁ estão em Brasília
+                                    $dateTime = new DateTime($lastActivity);
                                     $dateStr = $dateTime->format('d/m H:i');
                                 } catch (Exception $e) {
                                     $dateStr = 'Agora';
@@ -1537,17 +1537,14 @@ body.communication-hub-page {
                                 $dateStr = 'Agora';
                                 if ($lastActivity) {
                                     try {
-                                        // Remove qualquer timezone existente e força interpretação como UTC
+                                        // Timestamps do banco JÁ estão em Brasília
+                                        // Remove timezone info se houver e formata diretamente
                                         $cleanTimestamp = preg_replace('/[+-]\d{2}:\d{2}$/', '', $lastActivity);
                                         $cleanTimestamp = str_replace('T', ' ', $cleanTimestamp);
                                         $cleanTimestamp = preg_replace('/\.\d+$/', '', $cleanTimestamp); // Remove milliseconds
                                         
-                                        // Cria DateTime em UTC
-                                        $dateTime = DateTime::createFromFormat('Y-m-d H:i:s', $cleanTimestamp, new DateTimeZone('UTC'));
-                                        if ($dateTime) {
-                                            $dateTime->setTimezone(new DateTimeZone('America/Sao_Paulo'));
-                                            $dateStr = $dateTime->format('d/m H:i');
-                                        }
+                                        $dateTime = new DateTime($cleanTimestamp);
+                                        $dateStr = $dateTime->format('d/m H:i');
                                     } catch (Exception $e) {
                                         $dateStr = 'Agora';
                                     }
@@ -2514,38 +2511,32 @@ document.getElementById('new-message-modal')?.addEventListener('click', function
 // ============================================================================
 
 /**
- * Formata data/hora para exibição no fuso de Brasília
- * Os timestamps do banco vêm em formato "YYYY-MM-DD HH:MM:SS" em UTC
- * Converte para horário de Brasília (America/Sao_Paulo, UTC-3)
+ * Formata data/hora para exibição
+ * Timestamps do banco JÁ estão em Brasília (servidor em America/Sao_Paulo)
+ * Exibe diretamente sem conversão de timezone
  */
 function formatDateBrasilia(dateStr) {
     if (!dateStr || dateStr === 'now') return 'Agora';
     
     try {
-        // Timestamps do banco estão em UTC
-        // Adiciona 'Z' para indicar UTC, depois converte para Brasília
-        let isoStr = dateStr;
-        if (!dateStr.includes('T') && !dateStr.includes('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
-            // Formato "YYYY-MM-DD HH:MM:SS" (UTC) - adiciona T e Z
-            isoStr = dateStr.replace(' ', 'T') + 'Z';
+        // Timestamps do banco JÁ estão em Brasília
+        // Parse manual para evitar conversão de timezone do navegador
+        const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+        if (match) {
+            const [, year, month, day, hour, minute] = match;
+            return `${day}/${month} ${hour}:${minute}`;
         }
         
-        const dateTime = new Date(isoStr);
+        // Fallback: tenta parse padrão
+        const dateTime = new Date(dateStr.replace(' ', 'T'));
         if (isNaN(dateTime.getTime())) return 'Agora';
         
-        // Formata para exibição em Brasília (UTC-3)
-        const options = { 
-            timeZone: 'America/Sao_Paulo',
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        };
+        const day = String(dateTime.getDate()).padStart(2, '0');
+        const month = String(dateTime.getMonth() + 1).padStart(2, '0');
+        const hour = String(dateTime.getHours()).padStart(2, '0');
+        const minute = String(dateTime.getMinutes()).padStart(2, '0');
         
-        const formatted = dateTime.toLocaleString('pt-BR', options);
-        // Retorna no formato "dd/mm HH:MM"
-        return formatted.replace(',', '').replace(/\/\d{4}/, '');
+        return `${day}/${month} ${hour}:${minute}`;
     } catch (e) {
         console.warn('[Hub] Erro ao formatar data:', dateStr, e);
         return 'Agora';
