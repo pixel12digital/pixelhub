@@ -1164,58 +1164,53 @@ body.communication-hub-page {
 }
 
 /* ==========================================================================
-   THUMBNAIL de Mídia (estilo WhatsApp)
-   - Regras SEPARADAS do viewer
-   - Container com aspect-ratio ou dimensões definidas
-   - Imagem usa object-fit: cover (crop centralizado, NUNCA distorce)
+   THUMBNAIL de Mídia (estilo WhatsApp) - REGRAS ISOLADAS
+   
+   PRINCÍPIO: Imagem NUNCA pode ter width E height definidos ao mesmo tempo
+   (exceto com object-fit que compensa). Aqui usamos approach simples:
+   só max-width, height fica auto = proporção garantida.
    ========================================================================== */
+
+/* Container do thumbnail - apenas estrutural */
 .hub-media-open {
-    /* Reset button */
-    background: none;
+    background: transparent;
     border: none;
     padding: 0;
+    margin: 0;
     cursor: pointer;
-    /* Layout */
     display: inline-block;
-    position: relative;
+    border-radius: 8px;
     overflow: hidden;
-    border-radius: 8px;
-    /* NÃO definir width/height aqui - deixar imagem determinar */
+    line-height: 0; /* Remove espaço extra de inline */
 }
 
+/* Imagem thumbnail - PROPORCIONAL por definição */
 .hub-media-thumb {
-    /* CRÍTICO: NÃO usar width:100% + height:100% juntos */
     display: block;
-    /* Limites máximos */
-    max-width: 280px;
-    max-height: 280px;
-    /* Largura automática baseada na imagem */
-    width: auto;
-    height: auto;
-    /* Proporção SEMPRE preservada */
+    /* CRÍTICO: só max-width, height auto = NUNCA distorce */
+    max-width: 300px;
+    height: auto !important; /* Força auto, impede override */
+    /* Visual */
     border-radius: 8px;
-    background: #e8e8e8;
-    /* Hover effect */
-    transition: transform 0.15s ease, opacity 0.15s ease;
+    background: #f0f0f0;
 }
 
+/* Hover sutil */
 .hub-media-open:hover .hub-media-thumb {
-    transform: scale(1.02);
-    opacity: 0.95;
+    filter: brightness(0.95);
 }
 
-/* Placeholder de erro - thumbnail */
+/* Placeholder de erro */
 .hub-media-open .img-error-placeholder {
     display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
     width: 150px;
     height: 100px;
     background: #f0f0f0;
     border-radius: 8px;
-    padding: 12px;
-    gap: 6px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
 </style>
 
@@ -2885,51 +2880,14 @@ function openMediaViewer(src) {
         return;
     }
     
-    // Reset: limpa dimensões anteriores
-    img.style.width = '';
-    img.style.height = '';
+    // IMPORTANTE: Limpa QUALQUER estilo inline que possa causar distorção
+    // O CSS (max-width: 90vw, max-height: 90vh, width/height: auto) cuida de tudo
+    img.removeAttribute('style');
     img.removeAttribute('width');
     img.removeAttribute('height');
     
-    // Função para escalar imagem mantendo proporção (VIEWER)
-    function scaleImageToFit() {
-        const maxW = window.innerWidth * 0.90;  // 90% viewport
-        const maxH = window.innerHeight * 0.90;
-        const natW = img.naturalWidth;
-        const natH = img.naturalHeight;
-        
-        if (!natW || !natH) {
-            console.warn('[Viewer] Imagem sem dimensões naturais');
-            return;
-        }
-        
-        // Calcula escala para caber na viewport mantendo proporção
-        const scaleW = maxW / natW;
-        const scaleH = maxH / natH;
-        const scale = Math.min(scaleW, scaleH);
-        
-        // Aplica dimensões calculadas
-        const finalW = Math.round(natW * scale);
-        const finalH = Math.round(natH * scale);
-        
-        img.style.width = finalW + 'px';
-        img.style.height = finalH + 'px';
-        
-        console.log('[Viewer] Imagem escalada:', { natW, natH, finalW, finalH, scale: scale.toFixed(2) });
-    }
-    
-    // Handler de carregamento
-    img.onload = function() {
-        scaleImageToFit();
-    };
-    
-    // Define a imagem (PRIMEIRO define src, DEPOIS espera onload)
+    // Define a imagem - CSS faz o resto automaticamente
     img.src = src;
-    
-    // Se já estava em cache (mesmo src), força recálculo
-    if (img.complete && img.naturalWidth > 0) {
-        scaleImageToFit();
-    }
     
     // Define o link de download
     downloadBtn.onclick = function() {
@@ -3179,18 +3137,20 @@ function renderConversation(thread, messages, channel) {
                 align-items: center;
                 justify-content: center;
             }
-            /* VIEWER: regras ISOLADAS do thumbnail */
+            /* ==============================================
+               VIEWER: regras 100% ISOLADAS do thumbnail
+               PRINCÍPIO: max-width + max-height + height:auto
+               = escala proporcionalmente, nunca distorce
+               ============================================== */
             #hub-media-viewer-img {
-                /* CRÍTICO: Dimensões controladas via JavaScript */
-                /* max apenas como fallback de segurança */
-                max-width: 92vw !important;
-                max-height: 92vh !important;
-                /* NUNCA herdar regras de thumbnail */
-                object-fit: contain !important;
+                /* REGRA DE OURO: só limites máximos, dimensões auto */
+                max-width: 90vw;
+                max-height: 90vh;
+                width: auto;
+                height: auto;
                 /* Visual */
-                border-radius: 6px;
-                box-shadow: 0 12px 48px rgba(0,0,0,0.7);
-                cursor: default;
+                border-radius: 8px;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.6);
                 background: transparent;
             }
             #hub-media-viewer .viewer-actions {
