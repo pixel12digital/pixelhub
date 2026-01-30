@@ -1613,11 +1613,12 @@ body.communication-hub-page {
                                     <?php 
                                     // Sempre mostra tenant_name quando existir, mesmo que tenha contact_name
                                     // Isso permite identificar que múltiplos contatos pertencem ao mesmo tenant
-                                    // Tornado clicável para permitir alteração
+                                    // Clicável para abrir página do tenant
                                     if (isset($thread['tenant_name']) && $thread['tenant_name'] !== 'Sem tenant' && !empty($thread['tenant_id'])): ?>
-                                        <span onclick="event.stopPropagation(); openChangeTenantModal(<?= $thread['conversation_id'] ?? 0 ?>, '<?= htmlspecialchars($thread['contact_name'] ?? '', ENT_QUOTES) ?>', <?= $thread['tenant_id'] ?>, '<?= htmlspecialchars($thread['tenant_name'], ENT_QUOTES) ?>')" 
-                                              style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" 
-                                              title="Clique para alterar o cliente vinculado">• <?= htmlspecialchars($thread['tenant_name']) ?></span>
+                                        <a href="<?= pixelhub_url('/tenants/view?id=' . $thread['tenant_id']) ?>" 
+                                           onclick="event.stopPropagation();" 
+                                           style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" 
+                                           title="Clique para ver detalhes do cliente">• <?= htmlspecialchars($thread['tenant_name']) ?></a>
                                     <?php elseif (!isset($thread['tenant_name']) || $thread['tenant_id'] === null): ?>
                                         <span style="opacity: 0.7; font-size: 10px;">• Sem tenant</span>
                                     <?php endif; ?>
@@ -1678,6 +1679,10 @@ body.communication-hub-page {
                                             <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); openEditContactNameModal(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                                 Editar nome
+                                            </button>
+                                            <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); openChangeTenantModal(<?= $conversationId ?>, '<?= $contactName ?>', <?= $thread['tenant_id'] ?? 'null' ?>, '<?= htmlspecialchars($thread['tenant_name'] ?? '', ENT_QUOTES) ?>'); closeConversationMenu(this);">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                                Alterar Cliente
                                             </button>
                                             <?php if (!empty($thread['tenant_id'])): ?>
                                             <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); unlinkConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
@@ -2376,9 +2381,10 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                                 <span>Chat Interno</span>
                             `}
                             ${thread.tenant_name && thread.tenant_name !== 'Sem tenant' && thread.tenant_id ? 
-                                `<span onclick="event.stopPropagation(); openChangeTenantModal(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || '')}', ${thread.tenant_id}, '${escapeHtml(thread.tenant_name)}')" 
-                                      style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" 
-                                      title="Clique para alterar o cliente vinculado">• ${tenantName}</span>` : 
+                                `<a href="/tenants/view?id=${thread.tenant_id}" 
+                                   onclick="event.stopPropagation();" 
+                                   style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" 
+                                   title="Clique para ver detalhes do cliente">• ${tenantName}</a>` : 
                                 (!thread.tenant_name || thread.tenant_id === null ? 
                                     '<span style="opacity: 0.7; font-size: 10px;">• Sem tenant</span>' : '')
                             }
@@ -2442,6 +2448,10 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                                 <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); openEditContactNameModal(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || '')}'); closeConversationMenu(this);">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                     Editar nome
+                                </button>
+                                <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); openChangeTenantModal(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || '')}', ${thread.tenant_id || 'null'}, '${escapeHtml(thread.tenant_name || '')}'); closeConversationMenu(this);">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                    Alterar Cliente
                                 </button>
                                 ${thread.tenant_id ? `
                                 <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); unlinkConversation(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || 'Conversa')}'); closeConversationMenu(this);">
