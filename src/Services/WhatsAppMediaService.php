@@ -105,23 +105,28 @@ class WhatsAppMediaService
         }
         
         // Se detectou áudio em base64, processa diretamente
+        // ÁUDIO: O campo text geralmente contém o áudio completo (PTT/voice messages)
         if ($base64AudioData) {
             return self::processBase64Audio($event, $base64AudioData);
         }
         
-        // Se detectou imagem em base64, processa diretamente
-        // MAS: Não processar se for VÍDEO - a imagem seria só thumbnail
+        // IMAGEM/VÍDEO/DOCUMENTO: O campo text contém apenas THUMBNAIL (preview baixa resolução)
+        // SEMPRE ignorar base64 de imagem no campo text e fazer download do arquivo completo via API
         if ($base64ImageData && $base64ImageType) {
-            // Verifica se é realmente uma imagem e não thumbnail de vídeo
-            $isVideoEvent = ($wppConnectMediaType === 'video') 
-                || ($baileysMediaType === 'video')
-                || (isset($rawPayload['type']) && $rawPayload['type'] === 'video');
+            // Detecta tipo do evento para log
+            $eventType = $wppConnectMediaType 
+                ?? $baileysMediaType 
+                ?? $rawPayload['type'] 
+                ?? 'unknown';
             
-            if (!$isVideoEvent) {
-                return self::processBase64Image($event, $base64ImageData, $base64ImageType);
-            } else {
-                error_log("[WhatsAppMediaService] Ignorando thumbnail base64 - evento é de vídeo, será feito download do arquivo completo");
-            }
+            // Lista de tipos que têm thumbnails no campo text (NÃO é a mídia completa)
+            $typesWithThumbnail = ['image', 'video', 'document', 'sticker'];
+            
+            // SEMPRE ignorar - o campo text contém thumbnail, não a imagem original
+            // A imagem completa será baixada via downloadMedia() usando o mediaId
+            error_log("[WhatsAppMediaService] Ignorando base64 no campo text (thumbnail/preview) - tipo: {$eventType}, tamanho: " . strlen($base64ImageData) . " bytes. Será feito download do arquivo completo via API.");
+            
+            // NÃO retorna aqui - continua para fazer download do arquivo completo
         }
         
         // Extrai mediaId (suporta múltiplos formatos: Baileys, WPP Connect, padrão)
