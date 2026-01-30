@@ -1176,31 +1176,32 @@ body.communication-hub-page {
     display: block;
     position: relative;
     overflow: hidden;
-    border-radius: 8px;
-    /* Container fixo estilo WhatsApp */
-    max-width: 280px;
-    max-height: 280px;
-    min-width: 100px;
-    min-height: 80px;
+    border-radius: 10px;
+    /* Container maior para melhor visualização */
+    max-width: 320px;
+    max-height: 320px;
+    min-width: 120px;
+    min-height: 100px;
 }
 
 .hub-media-thumb {
     display: block;
     width: 100%;
     height: 100%;
-    max-width: 280px;
-    max-height: 280px;
-    min-height: 80px;
+    max-width: 320px;
+    max-height: 320px;
+    min-height: 100px;
     /* Mantém proporção, centraliza, corta excesso */
     object-fit: cover;
     object-position: center;
-    border-radius: 8px;
+    border-radius: 10px;
     background: #f0f0f0;
-    transition: transform 0.15s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .hub-media-open:hover .hub-media-thumb {
     transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
 /* Placeholder de erro */
@@ -3137,15 +3138,16 @@ function renderConversation(thread, messages, channel) {
                 justify-content: center;
             }
             #hub-media-viewer-img {
-                /* Fit: ocupa máximo da tela mantendo proporção */
+                /* Fit: PREENCHE viewport mantendo proporção */
+                width: 92vw;
+                height: 92vh;
                 max-width: 92vw;
                 max-height: 92vh;
-                width: auto;
-                height: auto;
                 object-fit: contain;
                 border-radius: 6px;
-                box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+                box-shadow: 0 12px 48px rgba(0,0,0,0.7);
                 cursor: default;
+                background: transparent;
             }
             #hub-media-viewer .viewer-actions {
                 position: absolute;
