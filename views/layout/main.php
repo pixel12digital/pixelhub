@@ -487,6 +487,90 @@
             color: #6b7280;
         }
         
+        /* Inbox áudio: Recording / Preview (igual ao Painel de Comunicação) */
+        .inbox-rec-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+            flex-wrap: wrap;
+        }
+        .inbox-rec-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            min-width: 120px;
+        }
+        .inbox-rec-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #d93025;
+            animation: inbox-rec-pulse 1s ease-in-out infinite;
+            flex-shrink: 0;
+        }
+        @keyframes inbox-rec-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .inbox-rec-time {
+            font-variant-numeric: tabular-nums;
+            min-width: 48px;
+            color: #54656f;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .inbox-rec-max {
+            color: #999;
+            font-size: 12px;
+            margin-left: 2px;
+        }
+        .inbox-audio-preview {
+            flex: 1;
+            height: 36px;
+            min-width: 180px;
+            max-width: 100%;
+        }
+        .inbox-audio-preview::-webkit-media-controls-panel { background-color: #fff; }
+        .inbox-audio-preview::-webkit-media-controls-play-button,
+        .inbox-audio-preview::-webkit-media-controls-current-time-display,
+        .inbox-audio-preview::-webkit-media-controls-time-remaining-display,
+        .inbox-audio-preview::-webkit-media-controls-timeline { color: #54656f; }
+        .inbox-icon-btn {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 50%;
+            background: transparent;
+            color: #54656f;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .inbox-icon-btn:hover {
+            background: rgba(0,0,0,.06);
+        }
+        .inbox-icon-btn svg { display: block; }
+        .inbox-icon-btn.inbox-send {
+            background: rgba(0,0,0,.06);
+            color: #023A8D;
+        }
+        .inbox-icon-btn.inbox-send:hover {
+            background: rgba(0,0,0,.10);
+        }
+        .inbox-sending {
+            flex: 1;
+            text-align: center;
+            color: #54656f;
+            font-size: 14px;
+            font-style: italic;
+        }
+        
         /* Mobile responsivo */
         @media (max-width: 768px) {
             .inbox-drawer {
@@ -1537,14 +1621,36 @@
                         <button type="button" onclick="removeInboxMediaPreview()" style="margin-left: auto; background: #ff4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">✕</button>
                     </div>
                 </div>
-                <!-- Preview de gravação de áudio -->
-                <div id="inboxRecordingUI" style="display: none; padding: 8px 12px; background: #fff3f3; border-radius: 8px; margin: 8px; border: 1px solid #ffcccc;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="color: #ff4444; animation: pulse 1s infinite;">🔴</span>
-                        <span id="inboxRecordingTime" style="font-size: 14px; font-weight: 500;">0:00</span>
-                        <button type="button" onclick="cancelInboxRecording()" style="margin-left: auto; background: #999; color: white; border: none; border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 12px;">Cancelar</button>
-                        <button type="button" onclick="stopInboxRecording()" style="background: #023A8D; color: white; border: none; border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 12px;">Enviar</button>
+                <!-- Estado Recording: timer + Parar + Cancelar (mesmo comportamento do Painel de Comunicação) -->
+                <div id="inboxRecordingUI" class="inbox-rec-wrap" style="display: none;">
+                    <div class="inbox-rec-status">
+                        <span class="inbox-rec-dot" aria-hidden="true"></span>
+                        <span class="inbox-rec-time" id="inboxRecordingTime">0:00</span>
+                        <span class="inbox-rec-max" id="inboxRecMax">/ 2:00</span>
                     </div>
+                    <button type="button" class="inbox-icon-btn" id="inboxBtnRecStop" title="Parar gravação" aria-label="Parar gravação">
+                        <svg viewBox="0 0 24 24" width="18" height="18"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
+                    </button>
+                    <button type="button" class="inbox-icon-btn" id="inboxBtnRecCancel" title="Cancelar" aria-label="Cancelar">
+                        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 6h18" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 6V4h8v2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 6l1 16h10l1-16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+                    </button>
+                </div>
+                <!-- Estado Preview: player + lixeira + microfone + enviar (igual ao Painel) -->
+                <div id="inboxAudioPreviewUI" class="inbox-rec-wrap" style="display: none;">
+                    <audio id="inboxAudioPreview" controls class="inbox-audio-preview"></audio>
+                    <button type="button" class="inbox-icon-btn" id="inboxBtnReviewCancel" title="Cancelar" aria-label="Cancelar">
+                        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 6h18" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 6V4h8v2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 6l1 16h10l1-16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+                    </button>
+                    <button type="button" class="inbox-icon-btn" id="inboxBtnReviewRerecord" title="Regravar" aria-label="Regravar">
+                        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 14a3 3 0 003-3V6a3 3 0 10-6 0v5a3 3 0 003 3zm5-3a5 0 01-10 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 19v3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 22h8" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                    </button>
+                    <button type="button" class="inbox-icon-btn inbox-send" id="inboxBtnReviewSend" title="Enviar áudio" aria-label="Enviar áudio">
+                        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 2L11 13" fill="none" stroke="currentColor" stroke-width="2"/><path d="M22 2l-7 20-4-9-9-4 20-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+                    </button>
+                </div>
+                <!-- Estado Sending -->
+                <div id="inboxAudioSendingUI" class="inbox-rec-wrap" style="display: none;">
+                    <span class="inbox-sending">Enviando...</span>
                 </div>
                 <div class="inbox-drawer-input">
                     <button type="button" class="inbox-media-btn" id="inboxBtnAttach" onclick="triggerInboxFileInput()" title="Anexar arquivo">
@@ -1778,16 +1884,20 @@
             InboxMediaState.type = null;
         }
         
-        // ===== ESTADO DE GRAVAÇÃO DE ÁUDIO =====
+        // ===== ESTADO DE GRAVAÇÃO DE ÁUDIO (idle | recording | preview | sending) =====
         const InboxAudioState = {
+            state: 'idle',
             isRecording: false,
             recorder: null,
             stream: null,
             chunks: [],
             blob: null,
             startTime: null,
-            timerInterval: null
+            timerInterval: null,
+            audioPreviewUrl: null
         };
+        const INBOX_MAX_RECORDING_MS = 120000; // 2 min
+        const INBOX_MIN_AUDIO_BYTES = 2000;
         
         // ===== FUNÇÕES DE MÍDIA (Anexos) =====
         window.triggerInboxFileInput = function() {
@@ -1807,6 +1917,17 @@
                     }
                 });
             }
+            // Botões de áudio Inbox (igual ao Painel: Parar, Cancelar, Lixeira, Regravar, Enviar)
+            const btnRecStop = document.getElementById('inboxBtnRecStop');
+            const btnRecCancel = document.getElementById('inboxBtnRecCancel');
+            const btnReviewCancel = document.getElementById('inboxBtnReviewCancel');
+            const btnReviewRerecord = document.getElementById('inboxBtnReviewRerecord');
+            const btnReviewSend = document.getElementById('inboxBtnReviewSend');
+            if (btnRecStop) btnRecStop.addEventListener('click', stopInboxRecording);
+            if (btnRecCancel) btnRecCancel.addEventListener('click', cancelInboxRecording);
+            if (btnReviewCancel) btnReviewCancel.addEventListener('click', cancelInboxPreview);
+            if (btnReviewRerecord) btnReviewRerecord.addEventListener('click', rerecordInboxAudio);
+            if (btnReviewSend) btnReviewSend.addEventListener('click', sendInboxAudioFromPreview);
         });
         
         function processInboxMediaFile(file) {
@@ -1887,21 +2008,40 @@
             updateInboxSendMicVisibility();
         };
         
-        // ===== FUNÇÕES DE GRAVAÇÃO DE ÁUDIO =====
+        // ===== FUNÇÕES DE GRAVAÇÃO DE ÁUDIO (igual ao Painel: idle → recording → preview → enviar) =====
+        function setInboxAudioUI(state) {
+            const inputUI = document.querySelector('.inbox-drawer-input');
+            const recordingUI = document.getElementById('inboxRecordingUI');
+            const previewUI = document.getElementById('inboxAudioPreviewUI');
+            const sendingUI = document.getElementById('inboxAudioSendingUI');
+            const timeEl = document.getElementById('inboxRecordingTime');
+            const recMaxEl = document.getElementById('inboxRecMax');
+            const audioEl = document.getElementById('inboxAudioPreview');
+            
+            if (inputUI) inputUI.style.display = state === 'idle' ? 'flex' : 'none';
+            if (recordingUI) recordingUI.style.display = state === 'recording' ? 'flex' : 'none';
+            if (previewUI) previewUI.style.display = state === 'preview' ? 'flex' : 'none';
+            if (sendingUI) sendingUI.style.display = state === 'sending' ? 'flex' : 'none';
+            
+            if (state === 'idle' && timeEl) timeEl.textContent = '0:00';
+            if (recMaxEl) recMaxEl.style.display = state === 'recording' ? '' : 'none';
+            if (audioEl && state !== 'preview' && audioEl.src) {
+                URL.revokeObjectURL(audioEl.src);
+                audioEl.src = '';
+                audioEl.load();
+            }
+        }
+        
         window.startInboxRecording = async function() {
-            if (InboxAudioState.isRecording) return;
+            if (InboxAudioState.isRecording || InboxAudioState.state === 'preview') return;
             
             try {
-                // Verifica suporte
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     alert('Seu navegador não suporta gravação de áudio.');
                     return;
                 }
                 
-                // Solicita permissão do microfone
                 InboxAudioState.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
-                // Configura gravação
                 const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : '';
                 const options = { audioBitsPerSecond: 24000 };
                 if (mimeType) options.mimeType = mimeType;
@@ -1919,28 +2059,22 @@
                 
                 InboxAudioState.recorder.start();
                 InboxAudioState.isRecording = true;
+                InboxAudioState.state = 'recording';
                 InboxAudioState.startTime = Date.now();
+                setInboxAudioUI('recording');
                 
-                // UI de gravação
-                const recordingUI = document.getElementById('inboxRecordingUI');
-                const inputUI = document.querySelector('.inbox-drawer-input');
-                if (recordingUI) recordingUI.style.display = 'block';
-                if (inputUI) inputUI.style.display = 'none';
-                
-                // Timer
                 const timeEl = document.getElementById('inboxRecordingTime');
+                if (timeEl) timeEl.textContent = '0:00';
+                
                 InboxAudioState.timerInterval = setInterval(() => {
-                    if (timeEl && InboxAudioState.startTime) {
-                        const elapsed = Date.now() - InboxAudioState.startTime;
-                        const s = Math.floor(elapsed / 1000);
-                        const mm = Math.floor(s / 60);
-                        const ss = String(s % 60).padStart(2, '0');
-                        timeEl.textContent = `${mm}:${ss}`;
-                        
-                        // Máximo 2 minutos
-                        if (elapsed >= 120000) {
-                            stopInboxRecording();
-                        }
+                    if (!timeEl || !InboxAudioState.startTime) return;
+                    const elapsed = Date.now() - InboxAudioState.startTime;
+                    const s = Math.floor(elapsed / 1000);
+                    const mm = Math.floor(s / 60);
+                    const ss = String(s % 60).padStart(2, '0');
+                    timeEl.textContent = `${mm}:${ss}`;
+                    if (elapsed >= INBOX_MAX_RECORDING_MS) {
+                        stopInboxRecording();
                     }
                 }, 200);
                 
@@ -1952,40 +2086,41 @@
             }
         };
         
-        window.stopInboxRecording = async function() {
+        window.stopInboxRecording = function() {
             if (!InboxAudioState.isRecording || !InboxAudioState.recorder) return;
             
-            // Para o timer
             if (InboxAudioState.timerInterval) {
                 clearInterval(InboxAudioState.timerInterval);
                 InboxAudioState.timerInterval = null;
             }
             
-            // Para a gravação
             InboxAudioState.recorder.stop();
             InboxAudioState.isRecording = false;
             
-            // Aguarda o blob estar pronto
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            // Para o stream
             if (InboxAudioState.stream) {
                 InboxAudioState.stream.getTracks().forEach(track => track.stop());
+                InboxAudioState.stream = null;
             }
             
-            // UI volta ao normal
-            const recordingUI = document.getElementById('inboxRecordingUI');
-            const inputUI = document.querySelector('.inbox-drawer-input');
-            if (recordingUI) recordingUI.style.display = 'none';
-            if (inputUI) inputUI.style.display = 'flex';
-            
-            // Envia o áudio
-            if (InboxAudioState.blob && InboxAudioState.blob.size > 0) {
-                console.log('[Inbox] Enviando áudio:', InboxAudioState.blob.size, 'bytes');
-                await sendInboxAudio(InboxAudioState.blob);
-            }
-            
-            resetInboxAudioState();
+            setTimeout(() => {
+                if (!InboxAudioState.blob || InboxAudioState.blob.size < INBOX_MIN_AUDIO_BYTES) {
+                    resetInboxAudioState();
+                    alert('Áudio muito curto. Grave um pouco mais.');
+                    return;
+                }
+                
+                const audioEl = document.getElementById('inboxAudioPreview');
+                if (audioEl) {
+                    if (InboxAudioState.audioPreviewUrl) URL.revokeObjectURL(InboxAudioState.audioPreviewUrl);
+                    InboxAudioState.audioPreviewUrl = URL.createObjectURL(InboxAudioState.blob);
+                    audioEl.src = InboxAudioState.audioPreviewUrl;
+                    audioEl.load();
+                }
+                
+                InboxAudioState.state = 'preview';
+                setInboxAudioUI('preview');
+                console.log('[Inbox] Preview de áudio exibido');
+            }, 150);
         };
         
         window.cancelInboxRecording = function() {
@@ -1993,36 +2128,73 @@
                 clearInterval(InboxAudioState.timerInterval);
                 InboxAudioState.timerInterval = null;
             }
-            
             if (InboxAudioState.recorder && InboxAudioState.recorder.state !== 'inactive') {
-                InboxAudioState.recorder.stop();
+                try { InboxAudioState.recorder.stop(); } catch (e) {}
             }
-            
             if (InboxAudioState.stream) {
                 InboxAudioState.stream.getTracks().forEach(track => track.stop());
             }
-            
-            // UI volta ao normal
-            const recordingUI = document.getElementById('inboxRecordingUI');
-            const inputUI = document.querySelector('.inbox-drawer-input');
-            if (recordingUI) recordingUI.style.display = 'none';
-            if (inputUI) inputUI.style.display = 'flex';
-            
             resetInboxAudioState();
             console.log('[Inbox] Gravação cancelada');
         };
         
+        window.cancelInboxPreview = function() {
+            resetInboxAudioState();
+            console.log('[Inbox] Preview cancelado');
+        };
+        
+        window.rerecordInboxAudio = async function() {
+            resetInboxAudioState();
+            try {
+                await startInboxRecording();
+            } catch (e) {
+                alert('Não foi possível reiniciar a gravação.');
+            }
+        };
+        
+        window.sendInboxAudioFromPreview = async function() {
+            if (!InboxAudioState.blob || InboxAudioState.blob.size < INBOX_MIN_AUDIO_BYTES) {
+                alert('Áudio muito curto. Grave novamente.');
+                return;
+            }
+            const blobToSend = InboxAudioState.blob;
+            InboxAudioState.state = 'sending';
+            setInboxAudioUI('sending');
+            try {
+                await sendInboxAudio(blobToSend);
+            } finally {
+                resetInboxAudioState();
+            }
+        };
+        
         function resetInboxAudioState() {
-            InboxAudioState.isRecording = false;
-            InboxAudioState.recorder = null;
-            InboxAudioState.stream = null;
-            InboxAudioState.chunks = [];
-            InboxAudioState.blob = null;
-            InboxAudioState.startTime = null;
             if (InboxAudioState.timerInterval) {
                 clearInterval(InboxAudioState.timerInterval);
                 InboxAudioState.timerInterval = null;
             }
+            if (InboxAudioState.recorder && InboxAudioState.recorder.state !== 'inactive') {
+                try { InboxAudioState.recorder.stop(); } catch (e) {}
+            }
+            if (InboxAudioState.stream) {
+                InboxAudioState.stream.getTracks().forEach(track => track.stop());
+                InboxAudioState.stream = null;
+            }
+            if (InboxAudioState.audioPreviewUrl) {
+                try { URL.revokeObjectURL(InboxAudioState.audioPreviewUrl); } catch (e) {}
+                InboxAudioState.audioPreviewUrl = null;
+            }
+            const audioEl = document.getElementById('inboxAudioPreview');
+            if (audioEl && audioEl.src) {
+                audioEl.src = '';
+                audioEl.load();
+            }
+            InboxAudioState.state = 'idle';
+            InboxAudioState.isRecording = false;
+            InboxAudioState.recorder = null;
+            InboxAudioState.chunks = [];
+            InboxAudioState.blob = null;
+            InboxAudioState.startTime = null;
+            setInboxAudioUI('idle');
         }
         
         async function sendInboxAudio(blob) {
