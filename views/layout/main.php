@@ -463,6 +463,14 @@
             width: 20px;
             height: 20px;
         }
+        .inbox-drawer-input .inbox-media-btn.recording {
+            background: #ffebee;
+            color: #ff4444;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
         .inbox-drawer-placeholder {
             flex: 1;
             display: flex;
@@ -1521,14 +1529,31 @@
                 <div class="inbox-drawer-messages" id="inboxMessages">
                     <!-- Mensagens carregadas via JS -->
                 </div>
+                <!-- Preview de mídia (antes do input) -->
+                <div id="inboxMediaPreview" style="display: none; padding: 8px 12px; background: #f5f5f5; border-radius: 8px; margin: 8px; border: 1px solid #e0e0e0;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <img id="inboxMediaThumb" src="" alt="Preview" style="display: none; width: 60px; height: 60px; border-radius: 6px; object-fit: cover;">
+                        <span id="inboxMediaDocName" style="display: none; font-size: 13px; color: #333;">📄 arquivo.pdf</span>
+                        <button type="button" onclick="removeInboxMediaPreview()" style="margin-left: auto; background: #ff4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">✕</button>
+                    </div>
+                </div>
+                <!-- Preview de gravação de áudio -->
+                <div id="inboxRecordingUI" style="display: none; padding: 8px 12px; background: #fff3f3; border-radius: 8px; margin: 8px; border: 1px solid #ffcccc;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="color: #ff4444; animation: pulse 1s infinite;">🔴</span>
+                        <span id="inboxRecordingTime" style="font-size: 14px; font-weight: 500;">0:00</span>
+                        <button type="button" onclick="cancelInboxRecording()" style="margin-left: auto; background: #999; color: white; border: none; border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 12px;">Cancelar</button>
+                        <button type="button" onclick="stopInboxRecording()" style="background: #023A8D; color: white; border: none; border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 12px;">Enviar</button>
+                    </div>
+                </div>
                 <div class="inbox-drawer-input">
-                    <button type="button" class="inbox-media-btn" onclick="alert('Anexo: em breve!')" title="Anexar arquivo">
+                    <button type="button" class="inbox-media-btn" id="inboxBtnAttach" onclick="triggerInboxFileInput()" title="Anexar arquivo">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
                         </svg>
                     </button>
-                    <input type="text" id="inboxMessageInput" placeholder="Digite sua mensagem..." onkeypress="handleInboxInputKeypress(event)">
-                    <button type="button" class="inbox-media-btn" onclick="alert('Áudio: em breve!')" title="Gravar áudio">
+                    <input type="text" id="inboxMessageInput" placeholder="Digite sua mensagem..." onkeypress="handleInboxInputKeypress(event)" oninput="updateInboxSendMicVisibility()">
+                    <button type="button" class="inbox-media-btn" id="inboxBtnMic" onclick="startInboxRecording()" title="Gravar áudio">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                             <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
@@ -1536,8 +1561,10 @@
                             <line x1="8" y1="23" x2="16" y2="23"></line>
                         </svg>
                     </button>
-                    <button type="button" onclick="sendInboxMessage()">Enviar</button>
+                    <button type="button" id="inboxBtnSend" onclick="sendInboxMessage()" style="display: none;">Enviar</button>
                 </div>
+                <!-- Input file oculto -->
+                <input type="file" id="inboxFileInput" accept="image/*,.pdf,.doc,.docx" style="display: none;">
             </div>
             <!-- Placeholder quando nenhuma conversa selecionada -->
             <div class="inbox-drawer-placeholder" id="inboxPlaceholder">
@@ -1732,6 +1759,345 @@
         // URL base - vazia para usar URLs relativas (funciona em qualquer ambiente)
         const INBOX_BASE_URL = '';
         
+        // ===== ESTADO DE MÍDIA (Anexos) =====
+        const InboxMediaState = {
+            file: null,
+            base64: null,
+            mimeType: null,
+            fileName: null,
+            fileSize: null,
+            type: null // 'image' ou 'document'
+        };
+        
+        function clearInboxMediaState() {
+            InboxMediaState.file = null;
+            InboxMediaState.base64 = null;
+            InboxMediaState.mimeType = null;
+            InboxMediaState.fileName = null;
+            InboxMediaState.fileSize = null;
+            InboxMediaState.type = null;
+        }
+        
+        // ===== ESTADO DE GRAVAÇÃO DE ÁUDIO =====
+        const InboxAudioState = {
+            isRecording: false,
+            recorder: null,
+            stream: null,
+            chunks: [],
+            blob: null,
+            startTime: null,
+            timerInterval: null
+        };
+        
+        // ===== FUNÇÕES DE MÍDIA (Anexos) =====
+        window.triggerInboxFileInput = function() {
+            const fileInput = document.getElementById('inboxFileInput');
+            if (fileInput) fileInput.click();
+        };
+        
+        // Handler quando arquivo é selecionado
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('inboxFileInput');
+            if (fileInput) {
+                fileInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        console.log('[Inbox] Arquivo selecionado:', file.name);
+                        processInboxMediaFile(file);
+                    }
+                });
+            }
+        });
+        
+        function processInboxMediaFile(file) {
+            if (!file) return;
+            
+            // Valida tamanho (máx 16MB)
+            if (file.size > 16 * 1024 * 1024) {
+                alert('Arquivo muito grande. Máximo permitido: 16MB');
+                return;
+            }
+            
+            // Valida tipo
+            const allowedTypes = [
+                'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+                'application/pdf',
+                'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            ];
+            if (!allowedTypes.includes(file.type)) {
+                alert('Tipo de arquivo não suportado. Use: imagens (JPG, PNG, GIF, WebP), PDF ou DOC/DOCX.');
+                return;
+            }
+            
+            const isImage = file.type.startsWith('image/');
+            InboxMediaState.type = isImage ? 'image' : 'document';
+            InboxMediaState.file = file;
+            InboxMediaState.mimeType = file.type;
+            InboxMediaState.fileName = file.name;
+            InboxMediaState.fileSize = file.size;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const result = e.target.result;
+                InboxMediaState.base64 = result.split(',')[1];
+                showInboxMediaPreview(file, result);
+            };
+            reader.onerror = function() {
+                alert('Erro ao ler arquivo.');
+                clearInboxMediaState();
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function showInboxMediaPreview(file, dataUrl) {
+            const container = document.getElementById('inboxMediaPreview');
+            const thumb = document.getElementById('inboxMediaThumb');
+            const docName = document.getElementById('inboxMediaDocName');
+            
+            if (!container) return;
+            
+            const isImage = file.type.startsWith('image/');
+            
+            if (isImage && thumb) {
+                thumb.src = dataUrl;
+                thumb.style.display = 'block';
+                if (docName) docName.style.display = 'none';
+            } else if (docName) {
+                docName.textContent = '📄 ' + file.name;
+                docName.style.display = 'block';
+                if (thumb) thumb.style.display = 'none';
+            }
+            
+            container.style.display = 'block';
+            updateInboxSendMicVisibility();
+        }
+        
+        window.removeInboxMediaPreview = function() {
+            clearInboxMediaState();
+            const container = document.getElementById('inboxMediaPreview');
+            const thumb = document.getElementById('inboxMediaThumb');
+            const docName = document.getElementById('inboxMediaDocName');
+            const fileInput = document.getElementById('inboxFileInput');
+            
+            if (container) container.style.display = 'none';
+            if (thumb) { thumb.style.display = 'none'; thumb.src = ''; }
+            if (docName) docName.style.display = 'none';
+            if (fileInput) fileInput.value = '';
+            
+            updateInboxSendMicVisibility();
+        };
+        
+        // ===== FUNÇÕES DE GRAVAÇÃO DE ÁUDIO =====
+        window.startInboxRecording = async function() {
+            if (InboxAudioState.isRecording) return;
+            
+            try {
+                // Verifica suporte
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    alert('Seu navegador não suporta gravação de áudio.');
+                    return;
+                }
+                
+                // Solicita permissão do microfone
+                InboxAudioState.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Configura gravação
+                const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : '';
+                const options = { audioBitsPerSecond: 24000 };
+                if (mimeType) options.mimeType = mimeType;
+                
+                InboxAudioState.recorder = new MediaRecorder(InboxAudioState.stream, options);
+                InboxAudioState.chunks = [];
+                
+                InboxAudioState.recorder.ondataavailable = (e) => {
+                    if (e.data && e.data.size) InboxAudioState.chunks.push(e.data);
+                };
+                
+                InboxAudioState.recorder.onstop = () => {
+                    InboxAudioState.blob = new Blob(InboxAudioState.chunks, { type: InboxAudioState.recorder.mimeType || 'audio/ogg' });
+                };
+                
+                InboxAudioState.recorder.start();
+                InboxAudioState.isRecording = true;
+                InboxAudioState.startTime = Date.now();
+                
+                // UI de gravação
+                const recordingUI = document.getElementById('inboxRecordingUI');
+                const inputUI = document.querySelector('.inbox-drawer-input');
+                if (recordingUI) recordingUI.style.display = 'block';
+                if (inputUI) inputUI.style.display = 'none';
+                
+                // Timer
+                const timeEl = document.getElementById('inboxRecordingTime');
+                InboxAudioState.timerInterval = setInterval(() => {
+                    if (timeEl && InboxAudioState.startTime) {
+                        const elapsed = Date.now() - InboxAudioState.startTime;
+                        const s = Math.floor(elapsed / 1000);
+                        const mm = Math.floor(s / 60);
+                        const ss = String(s % 60).padStart(2, '0');
+                        timeEl.textContent = `${mm}:${ss}`;
+                        
+                        // Máximo 2 minutos
+                        if (elapsed >= 120000) {
+                            stopInboxRecording();
+                        }
+                    }
+                }, 200);
+                
+                console.log('[Inbox] Gravação iniciada');
+            } catch (err) {
+                console.error('[Inbox] Erro ao iniciar gravação:', err);
+                alert('Erro ao acessar microfone. Verifique as permissões.');
+                resetInboxAudioState();
+            }
+        };
+        
+        window.stopInboxRecording = async function() {
+            if (!InboxAudioState.isRecording || !InboxAudioState.recorder) return;
+            
+            // Para o timer
+            if (InboxAudioState.timerInterval) {
+                clearInterval(InboxAudioState.timerInterval);
+                InboxAudioState.timerInterval = null;
+            }
+            
+            // Para a gravação
+            InboxAudioState.recorder.stop();
+            InboxAudioState.isRecording = false;
+            
+            // Aguarda o blob estar pronto
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Para o stream
+            if (InboxAudioState.stream) {
+                InboxAudioState.stream.getTracks().forEach(track => track.stop());
+            }
+            
+            // UI volta ao normal
+            const recordingUI = document.getElementById('inboxRecordingUI');
+            const inputUI = document.querySelector('.inbox-drawer-input');
+            if (recordingUI) recordingUI.style.display = 'none';
+            if (inputUI) inputUI.style.display = 'flex';
+            
+            // Envia o áudio
+            if (InboxAudioState.blob && InboxAudioState.blob.size > 0) {
+                console.log('[Inbox] Enviando áudio:', InboxAudioState.blob.size, 'bytes');
+                await sendInboxAudio(InboxAudioState.blob);
+            }
+            
+            resetInboxAudioState();
+        };
+        
+        window.cancelInboxRecording = function() {
+            if (InboxAudioState.timerInterval) {
+                clearInterval(InboxAudioState.timerInterval);
+                InboxAudioState.timerInterval = null;
+            }
+            
+            if (InboxAudioState.recorder && InboxAudioState.recorder.state !== 'inactive') {
+                InboxAudioState.recorder.stop();
+            }
+            
+            if (InboxAudioState.stream) {
+                InboxAudioState.stream.getTracks().forEach(track => track.stop());
+            }
+            
+            // UI volta ao normal
+            const recordingUI = document.getElementById('inboxRecordingUI');
+            const inputUI = document.querySelector('.inbox-drawer-input');
+            if (recordingUI) recordingUI.style.display = 'none';
+            if (inputUI) inputUI.style.display = 'flex';
+            
+            resetInboxAudioState();
+            console.log('[Inbox] Gravação cancelada');
+        };
+        
+        function resetInboxAudioState() {
+            InboxAudioState.isRecording = false;
+            InboxAudioState.recorder = null;
+            InboxAudioState.stream = null;
+            InboxAudioState.chunks = [];
+            InboxAudioState.blob = null;
+            InboxAudioState.startTime = null;
+            if (InboxAudioState.timerInterval) {
+                clearInterval(InboxAudioState.timerInterval);
+                InboxAudioState.timerInterval = null;
+            }
+        }
+        
+        async function sendInboxAudio(blob) {
+            if (!InboxState.currentThreadId || !InboxState.currentChannel) {
+                alert('Selecione uma conversa primeiro.');
+                return;
+            }
+            
+            try {
+                // Converte blob para base64
+                const base64 = await blobToBase64(blob);
+                
+                const payload = {
+                    channel: InboxState.currentChannel,
+                    to: sessionStorage.getItem('inbox_selected_phone') || '',
+                    thread_id: InboxState.currentThreadId,
+                    tenant_id: sessionStorage.getItem('inbox_selected_tenant_id') || '',
+                    channel_id: sessionStorage.getItem('inbox_selected_channel_id') || '',
+                    type: 'audio',
+                    base64Ptt: base64
+                };
+                
+                console.log('[Inbox] Enviando áudio via API');
+                
+                const response = await fetch(INBOX_BASE_URL + '/communication-hub/send-message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log('[Inbox] Áudio enviado com sucesso');
+                    // Recarrega mensagens
+                    if (InboxState.currentThreadId && InboxState.currentChannel) {
+                        loadInboxConversation(InboxState.currentThreadId, InboxState.currentChannel);
+                    }
+                } else {
+                    throw new Error(result.error || 'Erro ao enviar áudio');
+                }
+            } catch (err) {
+                console.error('[Inbox] Erro ao enviar áudio:', err);
+                alert('Erro ao enviar áudio: ' + err.message);
+            }
+        }
+        
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const result = reader.result;
+                    // Remove o prefixo "data:...;base64,"
+                    const base64 = result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+        
+        // ===== VISIBILIDADE SEND/MIC =====
+        window.updateInboxSendMicVisibility = function() {
+            const input = document.getElementById('inboxMessageInput');
+            const btnSend = document.getElementById('inboxBtnSend');
+            const btnMic = document.getElementById('inboxBtnMic');
+            
+            const hasText = input && input.value.trim().length > 0;
+            const hasMedia = InboxMediaState.base64 !== null;
+            const hasContent = hasText || hasMedia;
+            
+            if (btnSend) btnSend.style.display = hasContent ? 'block' : 'none';
+            if (btnMic) btnMic.style.display = hasContent ? 'none' : 'block';
+        };
+        
         // ===== ABRIR/FECHAR DRAWER =====
         window.toggleInboxDrawer = function() {
             if (InboxState.isOpen) {
@@ -1900,6 +2266,12 @@
                     renderInboxHeader(result.thread);
                     renderInboxMessages(result.messages || []);
                     
+                    // Salva dados extras para envio de mensagens
+                    const thread = result.thread;
+                    sessionStorage.setItem('inbox_selected_phone', thread.phone || thread.to || '');
+                    sessionStorage.setItem('inbox_selected_tenant_id', thread.tenant_id || '');
+                    sessionStorage.setItem('inbox_selected_channel_id', thread.channel_id || '');
+                    
                     // Salva marcadores para polling de novas mensagens
                     const msgs = result.messages || [];
                     if (msgs.length > 0) {
@@ -2020,43 +2392,102 @@
         
         window.sendInboxMessage = async function() {
             const input = document.getElementById('inboxMessageInput');
-            if (!input || !InboxState.currentThreadId) return;
+            if (!InboxState.currentThreadId) return;
             
-            const message = input.value.trim();
-            if (!message) return;
+            const message = input ? input.value.trim() : '';
+            const hasMedia = InboxMediaState.base64 !== null;
+            
+            if (!message && !hasMedia) return;
             
             // Limpa input imediatamente
-            input.value = '';
+            if (input) input.value = '';
             
             // Adiciona mensagem otimista na tela
             const container = document.getElementById('inboxMessages');
             if (container) {
                 const msgEl = document.createElement('div');
                 msgEl.className = 'msg outbound';
-                msgEl.innerHTML = `${escapeInboxHtml(message)}<div class="msg-time">Enviando...</div>`;
+                
+                let content = '';
+                if (hasMedia && InboxMediaState.type === 'image') {
+                    content = `<img src="data:${InboxMediaState.mimeType};base64,${InboxMediaState.base64}" style="max-width: 200px; border-radius: 8px;">`;
+                    if (message) content += `<div style="margin-top: 6px;">${escapeInboxHtml(message)}</div>`;
+                } else if (hasMedia && InboxMediaState.type === 'document') {
+                    content = `📎 ${InboxMediaState.fileName}`;
+                } else {
+                    content = escapeInboxHtml(message);
+                }
+                
+                msgEl.innerHTML = `${content}<div class="msg-time">Enviando...</div>`;
                 container.appendChild(msgEl);
                 container.scrollTop = container.scrollHeight;
             }
             
             try {
-                const formData = new FormData();
-                formData.append('thread_id', InboxState.currentThreadId);
-                formData.append('channel', InboxState.currentChannel);
-                formData.append('message', message);
+                let payload;
                 
-                const response = await fetch(INBOX_BASE_URL + '/communication-hub/send', {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-                
-                if (!result.success) {
-                    console.error('[Inbox] Erro ao enviar:', result.error);
-                    alert('Erro ao enviar mensagem: ' + (result.error || 'Erro desconhecido'));
+                if (hasMedia) {
+                    // Envia mídia
+                    payload = {
+                        channel: InboxState.currentChannel,
+                        to: sessionStorage.getItem('inbox_selected_phone') || '',
+                        thread_id: InboxState.currentThreadId,
+                        tenant_id: sessionStorage.getItem('inbox_selected_tenant_id') || '',
+                        channel_id: sessionStorage.getItem('inbox_selected_channel_id') || '',
+                        type: InboxMediaState.type,
+                        caption: message || null
+                    };
+                    
+                    if (InboxMediaState.type === 'image') {
+                        payload.base64Image = InboxMediaState.base64;
+                    } else {
+                        payload.base64Document = InboxMediaState.base64;
+                        payload.fileName = InboxMediaState.fileName;
+                    }
+                    
+                    console.log('[Inbox] Enviando mídia:', { type: InboxMediaState.type, fileName: InboxMediaState.fileName });
+                    
+                    const response = await fetch(INBOX_BASE_URL + '/communication-hub/send-message', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    
+                    if (!result.success) {
+                        throw new Error(result.error || 'Erro ao enviar mídia');
+                    }
+                    
+                    removeInboxMediaPreview();
+                } else {
+                    // Envia texto normal
+                    payload = {
+                        channel: InboxState.currentChannel,
+                        to: sessionStorage.getItem('inbox_selected_phone') || '',
+                        thread_id: InboxState.currentThreadId,
+                        tenant_id: sessionStorage.getItem('inbox_selected_tenant_id') || '',
+                        channel_id: sessionStorage.getItem('inbox_selected_channel_id') || '',
+                        type: 'text',
+                        message: message
+                    };
+                    
+                    const response = await fetch(INBOX_BASE_URL + '/communication-hub/send-message', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    
+                    if (!result.success) {
+                        throw new Error(result.error || 'Erro ao enviar mensagem');
+                    }
                 }
+                
+                updateInboxSendMicVisibility();
+                
             } catch (error) {
                 console.error('[Inbox] Erro ao enviar:', error);
-                alert('Erro ao enviar mensagem');
+                alert('Erro ao enviar: ' + error.message);
             }
         };
         
