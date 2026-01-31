@@ -22,6 +22,8 @@
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+            z-index: 100;
         }
         .header h1 {
             font-size: 20px;
@@ -130,11 +132,11 @@
             display: flex;
             min-height: calc(100vh - 60px);
         }
-        /* ===== SIDEBAR FIXO E ESTÁVEL ===== */
+        
+        /* ===== SIDEBAR COM ÍCONES (RECOLHIDA POR PADRÃO) ===== */
         .sidebar {
-            width: 220px;
-            min-width: 220px;
-            max-width: 220px;
+            width: 64px;
+            min-width: 64px;
             background: #ffffff;
             border-right: 1px solid #e5e7eb;
             padding: 12px 0;
@@ -144,9 +146,11 @@
             overflow-y: auto;
             overflow-x: hidden;
             flex-shrink: 0;
-            /* Scrollbar mais sutil */
+            transition: width 0.25s ease, min-width 0.25s ease;
+            z-index: 50;
+            /* Scrollbar sutil */
             scrollbar-width: thin;
-            scrollbar-color: #cbd5e1 transparent;
+            scrollbar-color: transparent transparent;
         }
         .sidebar::-webkit-scrollbar {
             width: 6px;
@@ -155,19 +159,57 @@
             background: transparent;
         }
         .sidebar::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
+            background: transparent;
             border-radius: 3px;
         }
-        .sidebar::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
+        /* Mostra scrollbar no hover */
+        .sidebar:hover::-webkit-scrollbar-thumb,
+        .sidebar.expanded::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
         }
+        .sidebar:hover {
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        
+        /* Sidebar expandida (hover ou toggle mobile) */
+        .sidebar:hover,
+        .sidebar.expanded {
+            width: 260px;
+            min-width: 260px;
+        }
+        
+        /* Toggle para mobile */
+        .sidebar-toggle {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 48px;
+            height: 48px;
+            background: #023A8D;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 200;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            align-items: center;
+            justify-content: center;
+        }
+        .sidebar-toggle svg {
+            width: 24px;
+            height: 24px;
+        }
+        
         /* Container para alinhar ícone e texto */
         .sidebar-item-content {
             display: flex;
             align-items: center;
             gap: 12px;
             position: relative;
+            min-width: 0;
         }
+        
         /* Ícone do menu */
         .sidebar-icon {
             width: 20px;
@@ -177,7 +219,7 @@
             align-items: center;
             justify-content: center;
             opacity: 0.65;
-            transition: opacity 0.2s ease, transform 0.2s ease;
+            transition: opacity 0.2s ease;
         }
         .sidebar-icon svg {
             width: 100%;
@@ -193,34 +235,53 @@
         .sidebar a.sub-item.active .sidebar-icon {
             opacity: 1;
         }
-        /* Texto do menu - sempre visível */
+        
+        /* Texto do menu - escondido quando recolhido */
         .sidebar-text {
             white-space: nowrap;
             font-size: 13px;
             font-weight: 500;
             overflow: hidden;
             text-overflow: ellipsis;
+            opacity: 0;
+            transform: translateX(-8px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
         }
+        .sidebar:hover .sidebar-text,
+        .sidebar.expanded .sidebar-text {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
         /* Divisores do menu */
         .sidebar-divider {
             height: 1px;
             background: #e5e7eb;
+            margin: 8px 12px;
+        }
+        .sidebar:hover .sidebar-divider,
+        .sidebar.expanded .sidebar-divider {
             margin: 8px 16px;
         }
-        /* Links de topo (Dashboard) */
+        
+        /* Links de topo (Dashboard, Comunicação) */
         .sidebar-top-link {
             display: flex;
             align-items: center;
-            padding: 10px 16px;
+            padding: 10px 22px;
             margin: 2px 8px;
             color: #64748b;
             text-decoration: none;
             font-size: 13px;
             border-radius: 8px;
-            transition: background 0.2s ease, color 0.2s ease;
+            transition: background 0.2s ease, color 0.2s ease, padding 0.2s ease;
             position: relative;
             min-height: 40px;
             cursor: pointer;
+        }
+        .sidebar:hover .sidebar-top-link,
+        .sidebar.expanded .sidebar-top-link {
+            padding: 10px 16px;
         }
         .sidebar-top-link:hover {
             background: #f1f5f9;
@@ -231,7 +292,7 @@
             color: #023A8D;
             font-weight: 600;
         }
-        .sidebar-top-link.active::before {
+        .sidebar-top-link.active::after {
             content: '';
             position: absolute;
             left: 0;
@@ -242,14 +303,51 @@
             background: #023A8D;
             border-radius: 0 2px 2px 0;
         }
-        /* Módulos do menu (accordion) */
+        
+        /* Tooltip quando recolhido */
+        .sidebar-top-link[data-title]::before,
+        .sidebar-module-header[data-title]::before {
+            content: attr(data-title);
+            position: absolute;
+            left: calc(100% + 12px);
+            top: 50%;
+            transform: translateY(-50%);
+            background: #1f2937;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.15s ease, visibility 0.15s ease;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .sidebar-top-link[data-title]:hover::before,
+        .sidebar-module-header[data-title]:hover::before {
+            opacity: 1;
+            visibility: visible;
+        }
+        /* Esconde tooltip quando expandido */
+        .sidebar:hover .sidebar-top-link[data-title]::before,
+        .sidebar:hover .sidebar-module-header[data-title]::before,
+        .sidebar.expanded .sidebar-top-link[data-title]::before,
+        .sidebar.expanded .sidebar-module-header[data-title]::before {
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        
+        /* Módulos do menu (accordion principal) */
         .sidebar-module {
             margin-bottom: 2px;
         }
         .sidebar-module-header {
             display: flex;
             align-items: center;
-            padding: 10px 16px;
+            padding: 10px 22px;
             margin: 2px 8px;
             color: #64748b;
             text-decoration: none;
@@ -257,10 +355,14 @@
             font-weight: 500;
             cursor: pointer;
             border-radius: 8px;
-            transition: background 0.2s ease, color 0.2s ease;
+            transition: background 0.2s ease, color 0.2s ease, padding 0.2s ease;
             user-select: none;
             position: relative;
             min-height: 40px;
+        }
+        .sidebar:hover .sidebar-module-header,
+        .sidebar.expanded .sidebar-module-header {
+            padding: 10px 16px;
         }
         .sidebar-module-header:hover {
             background: #f1f5f9;
@@ -271,7 +373,7 @@
             color: #023A8D;
             font-weight: 600;
         }
-        .sidebar-module-header.active::before {
+        .sidebar-module-header.active::after {
             content: '';
             position: absolute;
             left: 0;
@@ -282,10 +384,11 @@
             background: #023A8D;
             border-radius: 0 2px 2px 0;
         }
-        /* Indicador de expansão (seta) */
-        .sidebar-module-header.has-children .sidebar-chevron {
+        
+        /* Chevron (seta de expansão) */
+        .sidebar-chevron {
             margin-left: auto;
-            opacity: 0.6;
+            opacity: 0;
             transform: rotate(0deg);
             transition: transform 0.2s ease, opacity 0.2s ease;
             flex-shrink: 0;
@@ -295,29 +398,33 @@
             align-items: center;
             justify-content: center;
         }
+        .sidebar:hover .sidebar-chevron,
+        .sidebar.expanded .sidebar-chevron {
+            opacity: 0.6;
+        }
         .sidebar-module-header.is-open .sidebar-chevron {
             transform: rotate(180deg);
         }
         .sidebar-module-header:hover .sidebar-chevron {
             opacity: 1;
         }
-        /* Conteúdo dos subitens - accordion com animação suave */
+        
+        /* Conteúdo dos módulos - accordion com animação suave */
         .sidebar-module-content {
             max-height: 0;
             overflow: hidden;
-            margin-top: 0;
-            transition: max-height 0.25s ease-out, margin-top 0.25s ease-out;
+            transition: max-height 0.25s ease-out;
         }
         .sidebar-module-content.is-open {
-            max-height: 500px; /* altura máxima suficiente para qualquer submenu */
-            margin-top: 2px;
-            transition: max-height 0.3s ease-in, margin-top 0.25s ease-in;
+            max-height: 600px;
+            transition: max-height 0.3s ease-in;
         }
-        /* Subitens */
+        
+        /* Subitens simples */
         .sidebar a.sub-item {
             display: flex;
             align-items: center;
-            padding: 8px 16px 8px 44px;
+            padding: 8px 16px 8px 52px;
             margin: 1px 8px;
             color: #64748b;
             text-decoration: none;
@@ -325,7 +432,14 @@
             border-radius: 6px;
             transition: background 0.2s ease, color 0.2s ease;
             position: relative;
-            min-height: 36px;
+            min-height: 34px;
+            opacity: 0;
+            transform: translateX(-8px);
+        }
+        .sidebar:hover a.sub-item,
+        .sidebar.expanded a.sub-item {
+            opacity: 1;
+            transform: translateX(0);
         }
         .sidebar a.sub-item:hover {
             background: #f8fafc;
@@ -339,38 +453,145 @@
         .sidebar a.sub-item.active::before {
             content: '';
             position: absolute;
-            left: 32px;
+            left: 40px;
             top: 50%;
             transform: translateY(-50%);
             width: 5px;
             height: 5px;
             background: #023A8D;
             border-radius: 50%;
-            opacity: 0.8;
         }
-        .sidebar a.sub-item:hover::before {
-            opacity: 0.6;
+        
+        /* ===== SUBGRUPOS COLAPSÁVEIS (dentro de Configurações) ===== */
+        .sidebar-subgroup {
+            margin: 4px 0;
         }
-        .sidebar a.sub-item.active:hover::before {
-            opacity: 1;
-        }
-        /* Títulos internos (não clicáveis) */
-        .sidebar-internal-title {
-            padding: 8px 16px 4px 44px;
-            font-size: 10px;
+        .sidebar-subgroup-header {
+            display: flex;
+            align-items: center;
+            padding: 6px 16px 6px 44px;
+            margin: 0 8px;
             color: #94a3b8;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-top: 8px;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.2s ease, color 0.2s ease;
+            user-select: none;
+            opacity: 0;
+            transform: translateX(-8px);
         }
-        /* Ajuste para subitens de terceiro nível */
-        .sidebar a.sub-item[style*="padding-left: 56px"] {
-            padding-left: 56px !important;
+        .sidebar:hover .sidebar-subgroup-header,
+        .sidebar.expanded .sidebar-subgroup-header {
+            opacity: 1;
+            transform: translateX(0);
         }
+        .sidebar-subgroup-header:hover {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        .sidebar-subgroup-header.is-open {
+            color: #475569;
+        }
+        .sidebar-subgroup-chevron {
+            margin-left: auto;
+            opacity: 0.5;
+            transform: rotate(0deg);
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            width: 12px;
+            height: 12px;
+        }
+        .sidebar-subgroup-header.is-open .sidebar-subgroup-chevron {
+            transform: rotate(180deg);
+        }
+        .sidebar-subgroup-header:hover .sidebar-subgroup-chevron {
+            opacity: 1;
+        }
+        .sidebar-subgroup-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease-out;
+        }
+        .sidebar-subgroup-content.is-open {
+            max-height: 300px;
+            transition: max-height 0.25s ease-in;
+        }
+        .sidebar-subgroup-content a.sub-item {
+            padding-left: 56px;
+            font-size: 12px;
+            min-height: 32px;
+        }
+        .sidebar-subgroup-content a.sub-item.active::before {
+            left: 44px;
+        }
+        
+        /* Subitem de terceiro nível (ex: Testes & Logs) */
+        .sidebar a.sub-item.level-3 {
+            padding-left: 64px;
+            font-size: 11.5px;
+            min-height: 30px;
+            color: #94a3b8;
+        }
+        .sidebar a.sub-item.level-3:hover {
+            color: #64748b;
+        }
+        .sidebar a.sub-item.level-3.active {
+            color: #023A8D;
+        }
+        .sidebar a.sub-item.level-3.active::before {
+            left: 52px;
+            width: 4px;
+            height: 4px;
+        }
+        
+        /* ===== RESPONSIVO / MOBILE ===== */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 60px;
+                width: 0;
+                min-width: 0;
+                z-index: 100;
+                box-shadow: none;
+                transition: width 0.3s ease, min-width 0.3s ease, box-shadow 0.3s ease;
+            }
+            .sidebar.expanded {
+                width: 280px;
+                min-width: 280px;
+                box-shadow: 4px 0 20px rgba(0,0,0,0.15);
+            }
+            .sidebar:hover {
+                width: 0;
+                min-width: 0;
+            }
+            .sidebar-toggle {
+                display: flex;
+            }
+            .sidebar-text,
+            .sidebar a.sub-item,
+            .sidebar-chevron,
+            .sidebar-subgroup-header {
+                opacity: 0;
+            }
+            .sidebar.expanded .sidebar-text,
+            .sidebar.expanded a.sub-item,
+            .sidebar.expanded .sidebar-chevron,
+            .sidebar.expanded .sidebar-subgroup-header {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            .content {
+                margin-left: 0 !important;
+            }
+        }
+        
         .content {
             flex: 1;
             padding: 30px;
+            min-width: 0;
         }
         .content-header {
             margin-bottom: 30px;
@@ -466,7 +687,7 @@
     </header>
     
     <div class="container">
-        <nav class="sidebar">
+        <nav class="sidebar" id="sidebar">
             <?php
             // Função auxiliar para verificar se uma rota está ativa
             $currentUri = $_SERVER['REQUEST_URI'] ?? '';
@@ -511,7 +732,7 @@
             $clientesExpanded = $shouldExpand(['/tenants']);
             ?>
             <div class="sidebar-module" data-module="clientes">
-                <div class="sidebar-module-header has-children <?= $clientesActive ? 'active' : '' ?> <?= $clientesExpanded ? 'is-open' : '' ?>" data-title="Clientes">
+                <div class="sidebar-module-header <?= $clientesActive ? 'active' : '' ?> <?= $clientesExpanded ? 'is-open' : '' ?>" data-title="Clientes">
                     <span class="sidebar-item-content">
                         <span class="sidebar-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -558,7 +779,7 @@
             $agendaExpanded = $shouldExpand(['/agenda', '/agenda/semana', '/agenda/stats', '/agenda/bloco']);
             ?>
             <div class="sidebar-module" data-module="agenda">
-                <div class="sidebar-module-header has-children <?= $agendaActive ? 'active' : '' ?> <?= $agendaExpanded ? 'is-open' : '' ?>" data-title="Agenda">
+                <div class="sidebar-module-header <?= $agendaActive ? 'active' : '' ?> <?= $agendaExpanded ? 'is-open' : '' ?>" data-title="Agenda">
                     <span class="sidebar-item-content">
                         <span class="sidebar-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -595,7 +816,7 @@
             $financeiroExpanded = $shouldExpand(['/billing/overview', '/billing/collections', '/recurring-contracts']);
             ?>
             <div class="sidebar-module" data-module="financeiro">
-                <div class="sidebar-module-header has-children <?= $financeiroActive ? 'active' : '' ?> <?= $financeiroExpanded ? 'is-open' : '' ?>" data-title="Financeiro">
+                <div class="sidebar-module-header <?= $financeiroActive ? 'active' : '' ?> <?= $financeiroExpanded ? 'is-open' : '' ?>" data-title="Financeiro">
                     <span class="sidebar-item-content">
                         <span class="sidebar-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -630,7 +851,7 @@
             $servicosExpanded = $shouldExpand(['/services', '/hosting', '/hosting-plans', '/service-orders']);
             ?>
             <div class="sidebar-module" data-module="servicos">
-                <div class="sidebar-module-header has-children <?= $servicosActive ? 'active' : '' ?> <?= $servicosExpanded ? 'is-open' : '' ?>" data-title="Serviços">
+                <div class="sidebar-module-header <?= $servicosActive ? 'active' : '' ?> <?= $servicosExpanded ? 'is-open' : '' ?>" data-title="Serviços">
                     <span class="sidebar-item-content">
                         <span class="sidebar-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -669,7 +890,7 @@
             $projetosExpanded = $shouldExpand(['/projects/board', '/projects', '/screen-recordings', '/contracts', '/tickets']);
             ?>
             <div class="sidebar-module" data-module="projetos">
-                <div class="sidebar-module-header has-children <?= $projetosActive ? 'active' : '' ?> <?= $projetosExpanded ? 'is-open' : '' ?>" data-title="Projetos & Tarefas">
+                <div class="sidebar-module-header <?= $projetosActive ? 'active' : '' ?> <?= $projetosExpanded ? 'is-open' : '' ?>" data-title="Projetos & Tarefas">
                     <span class="sidebar-item-content">
                         <span class="sidebar-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -709,18 +930,27 @@
             
             <div class="sidebar-divider"></div>
             
-            <!-- Configurações -->
+            <!-- Configurações (com subgrupos colapsáveis) -->
             <?php
             $configuracoesActive = $isActive(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates', '/settings/contract-clauses', '/settings/company', '/diagnostic/financial', '/diagnostic/communication', '/settings/asaas', '/settings/ai', '/settings/whatsapp-gateway', '/settings/communication-events', '/owner/shortcuts']);
             $configuracoesExpanded = $shouldExpand(['/billing/service-types', '/settings/hosting-providers', '/settings/whatsapp-templates', '/settings/contract-clauses', '/settings/company', '/diagnostic/financial', '/diagnostic/communication', '/settings/asaas', '/settings/ai', '/settings/whatsapp-gateway', '/settings/communication-events', '/owner/shortcuts']);
+            
+            // Determinar qual subgrupo deve estar aberto baseado na rota atual
+            $diagnosticoOpen = $shouldExpand(['/diagnostic/financial', '/diagnostic/communication']);
+            $empresaOpen = $shouldExpand(['/settings/company']);
+            $financeiroConfigOpen = $shouldExpand(['/billing/service-types', '/settings/asaas']);
+            $integracoesOpen = $shouldExpand(['/settings/whatsapp-gateway', '/settings/ai']);
+            $mensagensOpen = $shouldExpand(['/settings/whatsapp-templates', '/settings/communication-events']);
+            $contratosOpen = $shouldExpand(['/settings/contract-clauses']);
+            $infraOpen = $shouldExpand(['/settings/hosting-providers', '/owner/shortcuts']);
             ?>
             <div class="sidebar-module" data-module="configuracoes">
-                <div class="sidebar-module-header has-children <?= $configuracoesActive ? 'active' : '' ?> <?= $configuracoesExpanded ? 'is-open' : '' ?>" data-title="Configurações">
+                <div class="sidebar-module-header <?= $configuracoesActive ? 'active' : '' ?> <?= $configuracoesExpanded ? 'is-open' : '' ?>" data-title="Configurações">
                     <span class="sidebar-item-content">
                         <span class="sidebar-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="3"></circle>
-                                <path d="M12 1v6m0 6v6m9-9h-6m-6 0H3m15.364 6.364l-4.243-4.243m-4.242 0L5.636 17.364M18.364 6.636l-4.243 4.243m0-4.242L6.636 5.636"></path>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                             </svg>
                         </span>
                         <span class="sidebar-text">Configurações</span>
@@ -732,52 +962,130 @@
                     </span>
                 </div>
                 <div class="sidebar-module-content <?= $configuracoesExpanded ? 'is-open' : '' ?>">
-                    <div class="sidebar-internal-title">Diagnóstico</div>
-                    <a href="<?= pixelhub_url('/diagnostic/financial') ?>" class="sub-item <?= (strpos($currentUri, '/diagnostic/financial') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Financeiro</span>
-                    </a>
-                    <a href="<?= pixelhub_url('/diagnostic/communication') ?>" class="sub-item <?= (strpos($currentUri, '/diagnostic/communication') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Comunicação</span>
-                    </a>
-                    <div class="sidebar-internal-title">Empresa</div>
-                    <a href="<?= pixelhub_url('/settings/company') ?>" class="sub-item <?= (strpos($currentUri, '/settings/company') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Dados da Empresa</span>
-                    </a>
-                    <div class="sidebar-internal-title">Financeiro</div>
-                    <a href="<?= pixelhub_url('/billing/service-types') ?>" class="sub-item <?= (strpos($currentUri, '/billing/service-types') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Categorias de Contratos</span>
-                    </a>
-                    <a href="<?= pixelhub_url('/settings/asaas') ?>" class="sub-item <?= (strpos($currentUri, '/settings/asaas') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Configurações Asaas</span>
-                    </a>
-                    <div class="sidebar-internal-title">Integrações</div>
-                    <a href="<?= pixelhub_url('/settings/whatsapp-gateway') ?>" class="sub-item <?= (strpos($currentUri, '/settings/whatsapp-gateway') !== false && strpos($currentUri, '/settings/whatsapp-gateway/test') === false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">WhatsApp Gateway</span>
-                    </a>
-                    <a href="<?= pixelhub_url('/settings/whatsapp-gateway/test') ?>" class="sub-item <?= (strpos($currentUri, '/settings/whatsapp-gateway/test') !== false) ? 'active' : '' ?>" style="padding-left: 56px;">
-                        <span class="sidebar-text">→ Testes & Logs</span>
-                    </a>
-                    <a href="<?= pixelhub_url('/settings/ai') ?>" class="sub-item <?= (strpos($currentUri, '/settings/ai') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Configurações IA</span>
-                    </a>
-                    <div class="sidebar-internal-title">Mensagens</div>
-                    <a href="<?= pixelhub_url('/settings/whatsapp-templates') ?>" class="sub-item <?= (strpos($currentUri, '/settings/whatsapp-templates') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Mensagens WhatsApp</span>
-                    </a>
-                    <a href="<?= pixelhub_url('/settings/communication-events') ?>" class="sub-item <?= (strpos($currentUri, '/settings/communication-events') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Central de Eventos</span>
-                    </a>
-                    <div class="sidebar-internal-title">Contratos</div>
-                    <a href="<?= pixelhub_url('/settings/contract-clauses') ?>" class="sub-item <?= (strpos($currentUri, '/settings/contract-clauses') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Cláusulas de Contrato</span>
-                    </a>
-                    <div class="sidebar-internal-title">Infraestrutura</div>
-                    <a href="<?= pixelhub_url('/settings/hosting-providers') ?>" class="sub-item <?= (strpos($currentUri, '/settings/hosting-providers') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Provedores de Hospedagem</span>
-                    </a>
-                    <a href="<?= pixelhub_url('/owner/shortcuts') ?>" class="sub-item <?= (strpos($currentUri, '/owner/shortcuts') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Acessos & Links</span>
-                    </a>
+                    
+                    <!-- Subgrupo: Diagnóstico -->
+                    <div class="sidebar-subgroup" data-subgroup="diagnostico">
+                        <div class="sidebar-subgroup-header <?= $diagnosticoOpen ? 'is-open' : '' ?>">
+                            <span>Diagnóstico</span>
+                            <svg class="sidebar-subgroup-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M6 9l6 6 6-6"></path>
+                            </svg>
+                        </div>
+                        <div class="sidebar-subgroup-content <?= $diagnosticoOpen ? 'is-open' : '' ?>">
+                            <a href="<?= pixelhub_url('/diagnostic/financial') ?>" class="sub-item <?= (strpos($currentUri, '/diagnostic/financial') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Financeiro</span>
+                            </a>
+                            <a href="<?= pixelhub_url('/diagnostic/communication') ?>" class="sub-item <?= (strpos($currentUri, '/diagnostic/communication') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Comunicação</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Subgrupo: Empresa -->
+                    <div class="sidebar-subgroup" data-subgroup="empresa">
+                        <div class="sidebar-subgroup-header <?= $empresaOpen ? 'is-open' : '' ?>">
+                            <span>Empresa</span>
+                            <svg class="sidebar-subgroup-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M6 9l6 6 6-6"></path>
+                            </svg>
+                        </div>
+                        <div class="sidebar-subgroup-content <?= $empresaOpen ? 'is-open' : '' ?>">
+                            <a href="<?= pixelhub_url('/settings/company') ?>" class="sub-item <?= (strpos($currentUri, '/settings/company') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Dados da Empresa</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Subgrupo: Financeiro -->
+                    <div class="sidebar-subgroup" data-subgroup="financeiro-config">
+                        <div class="sidebar-subgroup-header <?= $financeiroConfigOpen ? 'is-open' : '' ?>">
+                            <span>Financeiro</span>
+                            <svg class="sidebar-subgroup-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M6 9l6 6 6-6"></path>
+                            </svg>
+                        </div>
+                        <div class="sidebar-subgroup-content <?= $financeiroConfigOpen ? 'is-open' : '' ?>">
+                            <a href="<?= pixelhub_url('/billing/service-types') ?>" class="sub-item <?= (strpos($currentUri, '/billing/service-types') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Categorias de Contratos</span>
+                            </a>
+                            <a href="<?= pixelhub_url('/settings/asaas') ?>" class="sub-item <?= (strpos($currentUri, '/settings/asaas') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Configurações Asaas</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Subgrupo: Integrações -->
+                    <div class="sidebar-subgroup" data-subgroup="integracoes">
+                        <div class="sidebar-subgroup-header <?= $integracoesOpen ? 'is-open' : '' ?>">
+                            <span>Integrações</span>
+                            <svg class="sidebar-subgroup-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M6 9l6 6 6-6"></path>
+                            </svg>
+                        </div>
+                        <div class="sidebar-subgroup-content <?= $integracoesOpen ? 'is-open' : '' ?>">
+                            <a href="<?= pixelhub_url('/settings/whatsapp-gateway') ?>" class="sub-item <?= (strpos($currentUri, '/settings/whatsapp-gateway') !== false && strpos($currentUri, '/settings/whatsapp-gateway/test') === false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">WhatsApp Gateway</span>
+                            </a>
+                            <a href="<?= pixelhub_url('/settings/whatsapp-gateway/test') ?>" class="sub-item level-3 <?= (strpos($currentUri, '/settings/whatsapp-gateway/test') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Testes & Logs</span>
+                            </a>
+                            <a href="<?= pixelhub_url('/settings/ai') ?>" class="sub-item <?= (strpos($currentUri, '/settings/ai') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Configurações IA</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Subgrupo: Mensagens -->
+                    <div class="sidebar-subgroup" data-subgroup="mensagens">
+                        <div class="sidebar-subgroup-header <?= $mensagensOpen ? 'is-open' : '' ?>">
+                            <span>Mensagens</span>
+                            <svg class="sidebar-subgroup-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M6 9l6 6 6-6"></path>
+                            </svg>
+                        </div>
+                        <div class="sidebar-subgroup-content <?= $mensagensOpen ? 'is-open' : '' ?>">
+                            <a href="<?= pixelhub_url('/settings/whatsapp-templates') ?>" class="sub-item <?= (strpos($currentUri, '/settings/whatsapp-templates') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Mensagens WhatsApp</span>
+                            </a>
+                            <a href="<?= pixelhub_url('/settings/communication-events') ?>" class="sub-item <?= (strpos($currentUri, '/settings/communication-events') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Central de Eventos</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Subgrupo: Contratos -->
+                    <div class="sidebar-subgroup" data-subgroup="contratos">
+                        <div class="sidebar-subgroup-header <?= $contratosOpen ? 'is-open' : '' ?>">
+                            <span>Contratos</span>
+                            <svg class="sidebar-subgroup-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M6 9l6 6 6-6"></path>
+                            </svg>
+                        </div>
+                        <div class="sidebar-subgroup-content <?= $contratosOpen ? 'is-open' : '' ?>">
+                            <a href="<?= pixelhub_url('/settings/contract-clauses') ?>" class="sub-item <?= (strpos($currentUri, '/settings/contract-clauses') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Cláusulas de Contrato</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Subgrupo: Infraestrutura -->
+                    <div class="sidebar-subgroup" data-subgroup="infraestrutura">
+                        <div class="sidebar-subgroup-header <?= $infraOpen ? 'is-open' : '' ?>">
+                            <span>Infraestrutura</span>
+                            <svg class="sidebar-subgroup-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M6 9l6 6 6-6"></path>
+                            </svg>
+                        </div>
+                        <div class="sidebar-subgroup-content <?= $infraOpen ? 'is-open' : '' ?>">
+                            <a href="<?= pixelhub_url('/settings/hosting-providers') ?>" class="sub-item <?= (strpos($currentUri, '/settings/hosting-providers') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Provedores de Hospedagem</span>
+                            </a>
+                            <a href="<?= pixelhub_url('/owner/shortcuts') ?>" class="sub-item <?= (strpos($currentUri, '/owner/shortcuts') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Acessos & Links</span>
+                            </a>
+                        </div>
+                    </div>
+                    
                 </div>
             </div>
         </nav>
@@ -787,53 +1095,75 @@
         </main>
     </div>
     
+    <!-- Toggle para mobile -->
+    <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+    </button>
+    
     <script>
         /**
-         * Sistema de Accordion para o Menu Lateral
-         * 
-         * Funcionalidade:
-         * - Cada módulo de topo (com subitens) pode ser expandido/recolhido
-         * - Apenas um módulo pode estar expandido por vez
-         * - O módulo que contém a página atual é expandido automaticamente
-         * 
-         * Classes utilizadas:
-         * - .sidebar-module: Container do módulo
-         * - .sidebar-module-header: Cabeçalho clicável do módulo
-         * - .sidebar-module-header.has-children: Indica que tem subitens
-         * - .sidebar-module-header.is-open: Módulo expandido
-         * - .sidebar-module-header.active: Módulo contém página ativa
-         * - .sidebar-module-content: Container dos subitens
-         * - .sidebar-module-content.is-open: Subitens visíveis
+         * Sistema de Sidebar com Ícones + Expansão + Acordeão
          */
         (function() {
-            // Encontra todos os módulos do menu
+            const sidebar = document.getElementById('sidebar');
             const modules = document.querySelectorAll('.sidebar-module');
+            const subgroups = document.querySelectorAll('.sidebar-subgroup');
             
-            // Para cada módulo, adiciona listener de clique no cabeçalho
+            // ===== Accordion para módulos principais =====
             modules.forEach(function(module) {
                 const header = module.querySelector('.sidebar-module-header');
                 const content = module.querySelector('.sidebar-module-content');
                 
-                // Só adiciona listener se o módulo tiver subitens
-                if (header && content && header.classList.contains('has-children')) {
+                if (header && content) {
                     header.addEventListener('click', function(e) {
                         e.preventDefault();
-                        
-                        // Verifica se o módulo clicado já está aberto
                         const isCurrentlyOpen = header.classList.contains('is-open');
                         
-                        // Fecha todos os módulos
+                        // Fecha todos os módulos (accordion)
                         modules.forEach(function(otherModule) {
                             const otherHeader = otherModule.querySelector('.sidebar-module-header');
                             const otherContent = otherModule.querySelector('.sidebar-module-content');
-                            
                             if (otherHeader && otherContent) {
                                 otherHeader.classList.remove('is-open');
                                 otherContent.classList.remove('is-open');
                             }
                         });
                         
-                        // Se o módulo clicado não estava aberto, abre ele
+                        // Abre o módulo clicado se não estava aberto
+                        if (!isCurrentlyOpen) {
+                            header.classList.add('is-open');
+                            content.classList.add('is-open');
+                        }
+                    });
+                }
+            });
+            
+            // ===== Accordion para subgrupos (dentro de Configurações) =====
+            subgroups.forEach(function(subgroup) {
+                const header = subgroup.querySelector('.sidebar-subgroup-header');
+                const content = subgroup.querySelector('.sidebar-subgroup-content');
+                
+                if (header && content) {
+                    header.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const isCurrentlyOpen = header.classList.contains('is-open');
+                        
+                        // Fecha todos os subgrupos (accordion)
+                        subgroups.forEach(function(otherSubgroup) {
+                            const otherHeader = otherSubgroup.querySelector('.sidebar-subgroup-header');
+                            const otherContent = otherSubgroup.querySelector('.sidebar-subgroup-content');
+                            if (otherHeader && otherContent) {
+                                otherHeader.classList.remove('is-open');
+                                otherContent.classList.remove('is-open');
+                            }
+                        });
+                        
+                        // Abre o subgrupo clicado se não estava aberto
                         if (!isCurrentlyOpen) {
                             header.classList.add('is-open');
                             content.classList.add('is-open');
@@ -842,6 +1172,23 @@
                 }
             });
         })();
+        
+        // ===== Toggle para mobile =====
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('expanded');
+        }
+        
+        // Fecha sidebar no mobile ao clicar fora
+        document.addEventListener('click', function(event) {
+            const sidebar = document.getElementById('sidebar');
+            const toggle = document.getElementById('sidebarToggle');
+            if (window.innerWidth <= 768 && sidebar.classList.contains('expanded')) {
+                if (!sidebar.contains(event.target) && !toggle.contains(event.target)) {
+                    sidebar.classList.remove('expanded');
+                }
+            }
+        });
     </script>
     
     <!-- Script do menu dropdown do usuário -->
@@ -903,4 +1250,3 @@
     </script>
 </body>
 </html>
-
