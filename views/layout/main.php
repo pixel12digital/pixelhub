@@ -39,47 +39,65 @@
             font-size: 20px;
             font-weight: 600;
         }
-        .header-user {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-        .header-user span {
-            font-size: 14px;
-        }
-        .header-user a {
-            color: white;
-            text-decoration: none;
-            font-size: 14px;
-            padding: 5px 10px;
-            border: 1px solid rgba(255,255,255,0.3);
-            border-radius: 4px;
-            transition: background 0.3s;
-        }
-        .header-user a:hover {
-            background: rgba(255,255,255,0.1);
-        }
+        /* ===== MENU DE USUÁRIO (estilo SaaS profissional) ===== */
         .header-user-menu {
             position: relative;
             display: inline-block;
         }
         .header-user-menu-toggle {
-            background: rgba(255,255,255,0.2);
+            background: transparent;
             color: white;
-            border: 1px solid rgba(255,255,255,0.3);
-            padding: 6px 12px;
-            border-radius: 4px;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            transition: background 0.3s;
+            gap: 10px;
+            transition: background 0.2s ease;
         }
         .header-user-menu-toggle:hover {
-            background: rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.1);
         }
+        /* Avatar com inicial */
+        .header-user-avatar {
+            width: 32px;
+            height: 32px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: white;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+        .header-user-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            line-height: 1.2;
+        }
+        .header-user-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: white;
+        }
+        .header-user-role {
+            font-size: 11px;
+            color: rgba(255,255,255,0.7);
+        }
+        .header-user-chevron {
+            opacity: 0.7;
+            transition: transform 0.2s ease;
+            flex-shrink: 0;
+        }
+        .header-user-menu-toggle[aria-expanded="true"] .header-user-chevron {
+            transform: rotate(180deg);
+        }
+        /* Dropdown */
         .header-user-menu-dropdown {
             display: none;
             position: absolute;
@@ -87,36 +105,42 @@
             top: calc(100% + 8px);
             background: white;
             border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            min-width: 220px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            min-width: 200px;
             z-index: 1000;
             overflow: hidden;
+            border: 1px solid #e5e7eb;
         }
         .header-user-menu-dropdown.show {
             display: block;
         }
-        .header-user-menu-dropdown .user-info {
-            padding: 16px;
-            border-bottom: 1px solid #eee;
-            background: #f8f9fa;
+        .header-user-menu-dropdown .dropdown-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f9fafb;
         }
-        .header-user-menu-dropdown .user-info .user-name {
+        .header-user-menu-dropdown .dropdown-header .user-name {
             font-weight: 600;
-            color: #333;
+            color: #111827;
             font-size: 14px;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
-        .header-user-menu-dropdown .user-info .user-email {
+        .header-user-menu-dropdown .dropdown-header .user-email {
             font-size: 12px;
-            color: #666;
+            color: #6b7280;
+        }
+        .header-user-menu-dropdown .dropdown-body {
+            padding: 4px 0;
         }
         .header-user-menu-dropdown .menu-item {
-            display: block;
-            padding: 12px 16px;
-            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            color: #374151;
             text-decoration: none;
-            font-size: 14px;
-            transition: background 0.2s;
+            font-size: 13px;
+            transition: background 0.15s ease;
             border: none;
             background: none;
             width: 100%;
@@ -124,19 +148,30 @@
             cursor: pointer;
         }
         .header-user-menu-dropdown .menu-item:hover {
-            background: #f0f0f0;
+            background: #f3f4f6;
         }
-        .header-user-menu-dropdown .menu-item.danger {
-            color: #dc3545;
+        .header-user-menu-dropdown .menu-item svg {
+            width: 16px;
+            height: 16px;
+            opacity: 0.6;
+            flex-shrink: 0;
         }
-        .header-user-menu-dropdown .menu-item.danger:hover {
-            background: #fee;
-            color: #c82333;
+        .header-user-menu-dropdown .menu-item:hover svg {
+            opacity: 0.8;
         }
         .header-user-menu-dropdown .menu-divider {
             height: 1px;
-            background: #eee;
+            background: #e5e7eb;
             margin: 4px 0;
+        }
+        .header-user-menu-dropdown .menu-item.danger {
+            color: #dc2626;
+        }
+        .header-user-menu-dropdown .menu-item.danger:hover {
+            background: #fef2f2;
+        }
+        .header-user-menu-dropdown .menu-item.danger svg {
+            color: #dc2626;
         }
         .container {
             display: flex;
@@ -659,43 +694,46 @@
     ?>
     <header class="header">
         <h1>Pixel Hub</h1>
-        <div class="header-user">
-            <a href="<?= pixelhub_url('/wizard/new-project') ?>" 
-               style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; font-weight: 600; margin-right: 10px; transition: background 0.3s; display: inline-flex; align-items: center; gap: 6px;"
-               onmouseover="this.style.background='rgba(255,255,255,0.3)'"
-               onmouseout="this.style.background='rgba(255,255,255,0.2)'"
-               title="Criar novo projeto">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 2v20M2 12h20"/>
+        
+        <!-- Menu de Usuário (estilo SaaS) -->
+        <div class="header-user-menu">
+            <?php 
+            $userName = $user['name'] ?? 'Usuário';
+            $userEmail = $user['email'] ?? '';
+            $userInitial = strtoupper(substr($userName, 0, 1));
+            ?>
+            <button type="button" class="header-user-menu-toggle" onclick="toggleUserMenu()" aria-expanded="false">
+                <span class="header-user-avatar"><?= $userInitial ?></span>
+                <span class="header-user-info">
+                    <span class="header-user-name"><?= htmlspecialchars($userName) ?></span>
+                    <span class="header-user-role">Administrador</span>
+                </span>
+                <svg class="header-user-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 9l6 6 6-6"/>
                 </svg>
-                Novo Projeto
-            </a>
-            <button type="button"
-                    onclick="startGlobalScreenRecording()"
-                    style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; margin-right: 10px; transition: background 0.3s; display: inline-flex; align-items: center; gap: 6px;"
-                    onmouseover="this.style.background='rgba(255,255,255,0.3)'"
-                    onmouseout="this.style.background='rgba(255,255,255,0.2)'"
-                    title="Gravar tela (contexto inteligente)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="2" y="4" width="20" height="16" rx="2"/>
-                    <path d="M10 4v4M14 4v4M4 8h16"/>
-                </svg>
-                Gravar tela
             </button>
-            <div class="header-user-menu">
-                <button type="button" class="header-user-menu-toggle" onclick="toggleUserMenu()">
-                    <span><?= htmlspecialchars($user['name'] ?? 'Usuário') ?></span>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M6 9l6 6 6-6"/>
-                    </svg>
-                </button>
-                <div class="header-user-menu-dropdown" id="userMenuDropdown">
-                    <div class="user-info">
-                        <div class="user-name"><?= htmlspecialchars($user['name'] ?? 'Usuário') ?></div>
-                        <div class="user-email"><?= htmlspecialchars($user['email'] ?? '') ?></div>
-                    </div>
+            <div class="header-user-menu-dropdown" id="userMenuDropdown">
+                <div class="dropdown-header">
+                    <div class="user-name"><?= htmlspecialchars($userName) ?></div>
+                    <div class="user-email"><?= htmlspecialchars($userEmail) ?></div>
+                </div>
+                <div class="dropdown-body">
+                    <a href="<?= pixelhub_url('/settings/company') ?>" class="menu-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                        Configurações
+                    </a>
                     <div class="menu-divider"></div>
-                    <a href="<?= pixelhub_url('/logout') ?>" class="menu-item danger">Sair</a>
+                    <a href="<?= pixelhub_url('/logout') ?>" class="menu-item danger">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        Sair
+                    </a>
                 </div>
             </div>
         </div>
@@ -1210,15 +1248,21 @@
     <script>
         function toggleUserMenu() {
             const dropdown = document.getElementById('userMenuDropdown');
-            if (dropdown) {
-                dropdown.classList.toggle('show');
+            const toggle = document.querySelector('.header-user-menu-toggle');
+            if (dropdown && toggle) {
+                const isOpen = dropdown.classList.toggle('show');
+                toggle.setAttribute('aria-expanded', isOpen);
             }
         }
         
         function closeUserMenu() {
             const dropdown = document.getElementById('userMenuDropdown');
+            const toggle = document.querySelector('.header-user-menu-toggle');
             if (dropdown) {
                 dropdown.classList.remove('show');
+            }
+            if (toggle) {
+                toggle.setAttribute('aria-expanded', 'false');
             }
         }
         
@@ -1226,8 +1270,12 @@
         document.addEventListener('click', function(event) {
             const menu = document.querySelector('.header-user-menu');
             const dropdown = document.getElementById('userMenuDropdown');
+            const toggle = document.querySelector('.header-user-menu-toggle');
             if (menu && dropdown && !menu.contains(event.target)) {
                 dropdown.classList.remove('show');
+                if (toggle) {
+                    toggle.setAttribute('aria-expanded', 'false');
+                }
             }
         });
     </script>
