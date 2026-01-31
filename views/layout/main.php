@@ -2035,22 +2035,21 @@
                 // Converte blob para base64
                 const base64 = await blobToBase64(blob);
                 
-                const payload = {
-                    channel: InboxState.currentChannel,
-                    to: sessionStorage.getItem('inbox_selected_phone') || '',
-                    thread_id: InboxState.currentThreadId,
-                    tenant_id: sessionStorage.getItem('inbox_selected_tenant_id') || '',
-                    channel_id: sessionStorage.getItem('inbox_selected_channel_id') || '',
-                    type: 'audio',
-                    base64Ptt: base64
-                };
+                // Usa FormData pois o endpoint espera $_POST
+                const formData = new FormData();
+                formData.append('channel', InboxState.currentChannel);
+                formData.append('to', sessionStorage.getItem('inbox_selected_phone') || '');
+                formData.append('thread_id', InboxState.currentThreadId);
+                formData.append('tenant_id', sessionStorage.getItem('inbox_selected_tenant_id') || '');
+                formData.append('channel_id', sessionStorage.getItem('inbox_selected_channel_id') || '');
+                formData.append('type', 'audio');
+                formData.append('base64Ptt', base64);
                 
                 console.log('[Inbox] Enviando áudio via API');
                 
-                const response = await fetch(INBOX_BASE_URL + '/communication-hub/send-message', {
+                const response = await fetch(INBOX_BASE_URL + '/communication-hub/send', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: formData
                 });
                 
                 const result = await response.json();
@@ -2424,63 +2423,45 @@
             }
             
             try {
-                let payload;
+                // Usa FormData pois o endpoint /communication-hub/send espera $_POST
+                const formData = new FormData();
+                formData.append('channel', InboxState.currentChannel);
+                formData.append('to', sessionStorage.getItem('inbox_selected_phone') || '');
+                formData.append('thread_id', InboxState.currentThreadId);
+                formData.append('tenant_id', sessionStorage.getItem('inbox_selected_tenant_id') || '');
+                formData.append('channel_id', sessionStorage.getItem('inbox_selected_channel_id') || '');
                 
                 if (hasMedia) {
                     // Envia mídia
-                    payload = {
-                        channel: InboxState.currentChannel,
-                        to: sessionStorage.getItem('inbox_selected_phone') || '',
-                        thread_id: InboxState.currentThreadId,
-                        tenant_id: sessionStorage.getItem('inbox_selected_tenant_id') || '',
-                        channel_id: sessionStorage.getItem('inbox_selected_channel_id') || '',
-                        type: InboxMediaState.type,
-                        caption: message || null
-                    };
+                    formData.append('type', InboxMediaState.type);
+                    if (message) formData.append('caption', message);
                     
                     if (InboxMediaState.type === 'image') {
-                        payload.base64Image = InboxMediaState.base64;
+                        formData.append('base64Image', InboxMediaState.base64);
                     } else {
-                        payload.base64Document = InboxMediaState.base64;
-                        payload.fileName = InboxMediaState.fileName;
+                        formData.append('base64Document', InboxMediaState.base64);
+                        formData.append('fileName', InboxMediaState.fileName);
                     }
                     
                     console.log('[Inbox] Enviando mídia:', { type: InboxMediaState.type, fileName: InboxMediaState.fileName });
-                    
-                    const response = await fetch(INBOX_BASE_URL + '/communication-hub/send-message', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    const result = await response.json();
-                    
-                    if (!result.success) {
-                        throw new Error(result.error || 'Erro ao enviar mídia');
-                    }
-                    
-                    removeInboxMediaPreview();
                 } else {
                     // Envia texto normal
-                    payload = {
-                        channel: InboxState.currentChannel,
-                        to: sessionStorage.getItem('inbox_selected_phone') || '',
-                        thread_id: InboxState.currentThreadId,
-                        tenant_id: sessionStorage.getItem('inbox_selected_tenant_id') || '',
-                        channel_id: sessionStorage.getItem('inbox_selected_channel_id') || '',
-                        type: 'text',
-                        message: message
-                    };
-                    
-                    const response = await fetch(INBOX_BASE_URL + '/communication-hub/send-message', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    const result = await response.json();
-                    
-                    if (!result.success) {
-                        throw new Error(result.error || 'Erro ao enviar mensagem');
-                    }
+                    formData.append('type', 'text');
+                    formData.append('message', message);
+                }
+                
+                const response = await fetch(INBOX_BASE_URL + '/communication-hub/send', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Erro ao enviar');
+                }
+                
+                if (hasMedia) {
+                    removeInboxMediaPreview();
                 }
                 
                 updateInboxSendMicVisibility();

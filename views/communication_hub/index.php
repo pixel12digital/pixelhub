@@ -1309,32 +1309,26 @@ body.communication-hub-page {
 .transcription-toggle {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     background: none;
     border: none;
-    padding: 6px 8px;
+    padding: 4px 0;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11px;
     color: #666;
-    border-radius: 4px;
-    width: 100%;
-    text-align: left;
 }
 
 .transcription-toggle:hover {
-    background: rgba(0,0,0,0.04);
     color: #333;
 }
 
 .transcription-chevron {
-    font-size: 12px;
-    color: #888;
-    font-weight: bold;
-    min-width: 12px;
+    font-size: 10px;
+    transition: transform 0.15s;
 }
 
 .transcription-accordion[data-open="true"] .transcription-chevron {
-    /* Chevron muda de ▸ para ▾ via JS */
+    transform: rotate(90deg);
 }
 
 .transcription-label {
@@ -2129,67 +2123,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     startListPolling();
     
-    // [Fase 3] Salva filtros no sessionStorage quando mudam (para restaurar ao voltar)
-    const filterChannel = document.getElementById('filter-channel');
-    const filterStatus = document.getElementById('filter-status');
-    const filterTenant = document.getElementById('clienteTenantId');
-    
-    if (filterChannel) {
-        filterChannel.addEventListener('change', function() {
-            sessionStorage.setItem('hub_filter_channel', this.value);
-        });
-    }
-    if (filterStatus) {
-        filterStatus.addEventListener('change', function() {
-            sessionStorage.setItem('hub_filter_status', this.value);
-        });
-    }
-    if (filterTenant) {
-        // Observer para detectar mudanças no hidden input (alterado via JS)
-        const tenantObserver = new MutationObserver(function() {
-            sessionStorage.setItem('hub_filter_tenant', filterTenant.value);
-        });
-        tenantObserver.observe(filterTenant, { attributes: true, attributeFilter: ['value'] });
-        // Também salva se valor mudar diretamente
-        filterTenant.addEventListener('change', function() {
-            sessionStorage.setItem('hub_filter_tenant', this.value);
-        });
-    }
-    
-    // [Fase 3] Restaura filtros salvos se não houver na URL
-    // Só restaura se: (1) não há params de filtro na URL, (2) há valores salvos diferentes do default
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasFilterInUrl = urlParams.has('channel') || urlParams.has('status') || urlParams.has('tenant_id');
-    
-    if (!hasFilterInUrl) {
-        const savedChannel = sessionStorage.getItem('hub_filter_channel');
-        const savedStatus = sessionStorage.getItem('hub_filter_status');
-        const savedTenant = sessionStorage.getItem('hub_filter_tenant');
-        
-        // Só restaura se pelo menos um filtro salvo é diferente do default
-        const needsRestore = (savedChannel && savedChannel !== 'all') ||
-                            (savedStatus && savedStatus !== 'active') ||
-                            (savedTenant && savedTenant !== '');
-        
-        if (needsRestore) {
-            console.log('[Hub] Restaurando filtros salvos:', { savedChannel, savedStatus, savedTenant });
-            
-            // Aplica valores aos campos
-            if (savedChannel && filterChannel) filterChannel.value = savedChannel;
-            if (savedStatus && filterStatus) filterStatus.value = savedStatus;
-            if (savedTenant && filterTenant) filterTenant.value = savedTenant;
-            
-            // Submete form para aplicar filtros (redireciona com params na URL)
-            const form = document.getElementById('communication-filters-form');
-            if (form) {
-                form.submit();
-                return; // Para execução aqui, o form vai redirecionar
-            }
-        }
-    }
-    
     // Verifica se há conversa para reabrir (URL params ou sessionStorage)
     // IMPORTANTE: Se usuário clicar em outra thread, ignora restore
+    const urlParams = new URLSearchParams(window.location.search);
     const threadIdFromUrl = urlParams.get('thread_id');
     const channelFromUrl = urlParams.get('channel') || 'whatsapp';
     
@@ -2199,10 +2135,21 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (threadId) {
         console.log('[Hub] Reabrindo conversa salva:', threadId, channel);
+        console.log('[LOG TEMPORARIO] DOMContentLoaded - Reabrindo thread_id=' + threadId);
         
-        // [Fase 2] Restauração simplificada - confia no loadConversation que trata erros graciosamente
-        // Se a conversa não existir, loadConversation (Fase 1) limpa URL/sessionStorage automaticamente
-        loadConversation(threadId, channel);
+        // VALIDA: Se thread salva ainda existe na lista atual
+        // Aguarda lista carregar primeiro
+        setTimeout(() => {
+            const savedThreadExists = document.querySelector(`[data-thread-id="${threadId}"]`);
+            if (savedThreadExists) {
+                // Thread existe, pode reabrir
+                loadConversation(threadId, channel);
+            } else {
+                // Thread não existe mais ou usuário clicou em outra - não força reabertura
+                console.log('[Hub] Thread salva não encontrada na lista, não reabre automaticamente');
+                console.log('[LOG TEMPORARIO] DOMContentLoaded - Thread salva NÃO encontrada, não reabre');
+            }
+        }, 500);
     }
 });
 
@@ -3035,12 +2982,6 @@ function toggleTranscription(btn) {
     
     const isOpen = accordion.getAttribute('data-open') === 'true';
     accordion.setAttribute('data-open', !isOpen);
-    
-    // Atualiza o chevron: ▸ (fechado) → ▾ (aberto)
-    const chevron = accordion.querySelector('.transcription-chevron');
-    if (chevron) {
-        chevron.textContent = isOpen ? '▸' : '▾';
-    }
 }
 
 /**
@@ -3135,7 +3076,14 @@ function renderMediaPlayer(media, eventId = null) {
         mediaHtml = `<a href="${safeUrl}" target="_blank" style="color: #023A8D; text-decoration: none; font-weight: 600;">📎 ${escapeHtml(typeLabel)}</a>`;
     }
     
-    return `<div style="margin-bottom: 8px;">${mediaHtml}</div>`;
+    // Adiciona label do tipo/mime se disponível (opcional, pequeno)
+    let labelHtml = '';
+    if (mimeType || mediaType) {
+        const label = mimeType || mediaType;
+        labelHtml = `<div style="font-size: 10px; color: #667781; margin-top: 4px; opacity: 0.7;">${escapeHtml(label)}</div>`;
+    }
+    
+    return `<div style="margin-bottom: 8px;">${mediaHtml}${labelHtml}</div>`;
 }
 
 const ConversationState = {
@@ -3202,27 +3150,11 @@ function clearUnreadBadgeForThread(threadId) {
     });
 }
 
-// ============================================================================
-// Fase 1: AbortController para evitar race condition em troca rápida de conversas
-// Flag de segurança: setar para false desativa completamente o AbortController
-// ============================================================================
-const HUB_SAFE_ABORT_ENABLED = true;
-let currentLoadController = null;
-
 async function loadConversation(threadId, channel) {
     console.log('[Hub] Carregando conversa:', threadId, channel);
     
     // Para polling anterior se existir (limpa completamente antes de iniciar nova)
     stopConversationPolling();
-    
-    // [Fase 1] Cancela fetch anterior se existir (evita race condition A→B→C)
-    if (HUB_SAFE_ABORT_ENABLED && currentLoadController) {
-        console.log('[Hub] Cancelando fetch anterior (troca rápida de conversa)');
-        currentLoadController.abort();
-    }
-    if (HUB_SAFE_ABORT_ENABLED) {
-        currentLoadController = new AbortController();
-    }
     
     // Limpa estado anterior COMPLETAMENTE antes de carregar nova conversa
     // Isso garante que não há preservação de estado errado entre conversas
@@ -3274,12 +3206,7 @@ async function loadConversation(threadId, channel) {
         const url = '<?= pixelhub_url('/communication-hub/thread-data') ?>?' + 
                    new URLSearchParams({ thread_id: threadId, channel: channel });
         console.log('[Hub] Carregando conversa - URL:', url);
-        
-        // [Fase 1] Usa AbortController se habilitado
-        const fetchOptions = HUB_SAFE_ABORT_ENABLED && currentLoadController 
-            ? { signal: currentLoadController.signal } 
-            : {};
-        const response = await fetch(url, fetchOptions);
+        const response = await fetch(url);
         
         if (!response.ok) {
             console.error('[Hub] Erro HTTP:', response.status, response.statusText);
@@ -3320,28 +3247,8 @@ async function loadConversation(threadId, channel) {
         startConversationPolling();
         
     } catch (error) {
-        // [Fase 1] AbortError = fetch cancelado por troca de conversa, sai silenciosamente
-        if (HUB_SAFE_ABORT_ENABLED && error.name === 'AbortError') {
-            console.log('[Hub] Fetch cancelado (usuário trocou de conversa) - ignorando');
-            return;
-        }
-        
         console.error('[Hub] Erro ao carregar conversa:', error);
-        
-        // [Fase 1] Limpa estado relacionado à thread para evitar inconsistência
-        // (limpa apenas thread_id/channel, não outros dados do hub)
-        sessionStorage.removeItem('hub_selected_thread_id');
-        sessionStorage.removeItem('hub_selected_channel');
-        ConversationState.currentThreadId = null;
-        ConversationState.currentChannel = null;
-        
-        // Limpa URL params de thread (mantém filtros)
-        const cleanUrl = new URL(window.location);
-        cleanUrl.searchParams.delete('thread_id');
-        cleanUrl.searchParams.delete('channel');
-        window.history.replaceState({}, '', cleanUrl);
-        
-        content.innerHTML = '<div style="flex: 1; display: flex; align-items: center; justify-content: center;"><div style="text-align: center; color: #dc3545;"><p>Erro ao carregar conversa</p><p style="font-size: 13px;">' + escapeHtml(error.message) + '</p><p style="font-size: 12px; color: #666; margin-top: 12px;">Selecione outra conversa na lista.</p></div></div>';
+        content.innerHTML = '<div style="flex: 1; display: flex; align-items: center; justify-content: center;"><div style="text-align: center; color: #dc3545;"><p>Erro ao carregar conversa</p><p style="font-size: 13px;">' + escapeHtml(error.message) + '</p></div></div>';
     }
 }
 
