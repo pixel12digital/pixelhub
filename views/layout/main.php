@@ -1723,7 +1723,10 @@
             currentChannel: null,
             currentLoadController: null,
             pollingInterval: null,
-            lastUpdateTs: null
+            messagePollingInterval: null,
+            lastUpdateTs: null,
+            lastMessageTs: null,
+            lastMessageId: null
         };
         
         // URL base - vazia para usar URLs relativas (funciona em qualquer ambiente)
@@ -1897,6 +1900,17 @@
                     renderInboxHeader(result.thread);
                     renderInboxMessages(result.messages || []);
                     
+                    // Salva marcadores para polling de novas mensagens
+                    const msgs = result.messages || [];
+                    if (msgs.length > 0) {
+                        const lastMsg = msgs[msgs.length - 1];
+                        InboxState.lastMessageTs = lastMsg.timestamp || lastMsg.created_at;
+                        InboxState.lastMessageId = lastMsg.id || lastMsg.event_id;
+                    } else {
+                        InboxState.lastMessageTs = null;
+                        InboxState.lastMessageId = null;
+                    }
+                    
                     // Zera badge de não lidas na lista
                     const convEl = document.querySelector(`.inbox-drawer-conversation[data-thread-id="${threadId}"]`);
                     if (convEl) {
@@ -2050,17 +2064,29 @@
         function startInboxPolling() {
             if (InboxState.pollingInterval) return;
             
+            // Polling da lista de conversas (15s)
             InboxState.pollingInterval = setInterval(() => {
                 if (InboxState.isOpen) {
                     checkInboxUpdates();
                 }
-            }, 15000); // 15 segundos
+            }, 15000);
+            
+            // Polling de mensagens na conversa aberta (5s)
+            InboxState.messagePollingInterval = setInterval(() => {
+                if (InboxState.isOpen && InboxState.currentThreadId) {
+                    checkInboxNewMessages();
+                }
+            }, 5000);
         }
         
         function stopInboxPolling() {
             if (InboxState.pollingInterval) {
                 clearInterval(InboxState.pollingInterval);
                 InboxState.pollingInterval = null;
+            }
+            if (InboxState.messagePollingInterval) {
+                clearInterval(InboxState.messagePollingInterval);
+                InboxState.messagePollingInterval = null;
             }
         }
         
@@ -2084,6 +2110,109 @@
             } catch (error) {
                 console.error('[Inbox] Erro no polling:', error);
             }
+        }
+        
+        // Verifica novas mensagens na conversa aberta
+        async function checkInboxNewMessages() {
+            if (!InboxState.currentThreadId || !InboxState.lastMessageTs) return;
+            
+            try {
+                const params = new URLSearchParams({
+                    thread_id: InboxState.currentThreadId,
+                    after_timestamp: InboxState.lastMessageTs
+                });
+                if (InboxState.lastMessageId) {
+                    params.set('after_event_id', InboxState.lastMessageId);
+                }
+                
+                const url = INBOX_BASE_URL + '/communication-hub/messages/check?' + params.toString();
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.success && result.has_new) {
+                    console.log('[Inbox] Novas mensagens detectadas, buscando...');
+                    fetchInboxNewMessages();
+                }
+            } catch (error) {
+                // Silencioso
+            }
+        }
+        
+        // Busca novas mensagens e adiciona à conversa
+        async function fetchInboxNewMessages() {
+            if (!InboxState.currentThreadId || !InboxState.lastMessageTs) return;
+            
+            try {
+                const params = new URLSearchParams({
+                    thread_id: InboxState.currentThreadId,
+                    after_timestamp: InboxState.lastMessageTs
+                });
+                if (InboxState.lastMessageId) {
+                    params.set('after_event_id', InboxState.lastMessageId);
+                }
+                
+                const url = INBOX_BASE_URL + '/communication-hub/messages/new?' + params.toString();
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.success && result.messages && result.messages.length > 0) {
+                    console.log('[Inbox] Novas mensagens:', result.messages.length);
+                    appendInboxMessages(result.messages);
+                    
+                    // Atualiza marcadores
+                    const lastMsg = result.messages[result.messages.length - 1];
+                    if (lastMsg) {
+                        InboxState.lastMessageTs = lastMsg.timestamp || lastMsg.created_at;
+                        InboxState.lastMessageId = lastMsg.id || lastMsg.event_id;
+                    }
+                }
+            } catch (error) {
+                console.error('[Inbox] Erro ao buscar novas mensagens:', error);
+            }
+        }
+        
+        // Adiciona novas mensagens ao container (sem recarregar tudo)
+        function appendInboxMessages(messages) {
+            const container = document.getElementById('inboxMessages');
+            if (!container || !messages || messages.length === 0) return;
+            
+            messages.forEach(msg => {
+                const direction = msg.direction === 'outbound' ? 'outbound' : 'inbound';
+                const time = msg.timestamp || msg.created_at || '';
+                const formattedTime = time ? formatInboxTime(time) : '';
+                
+                let content = msg.content || msg.body || msg.text || '';
+                let renderedContent = '';
+                
+                const media = msg.media;
+                if (media && media.url) {
+                    const mediaType = media.media_type || media.type || '';
+                    if (mediaType === 'image') {
+                        renderedContent = `<img src="${media.url}" style="max-width: 200px; border-radius: 8px; cursor: pointer;" onclick="window.open('${media.url}', '_blank')">`;
+                    } else if (mediaType === 'audio' || mediaType === 'ptt') {
+                        renderedContent = `<audio controls src="${media.url}" style="max-width: 250px;"></audio>`;
+                    } else if (mediaType === 'video') {
+                        renderedContent = `<video controls src="${media.url}" style="max-width: 200px; border-radius: 8px;"></video>`;
+                    } else {
+                        renderedContent = `<a href="${media.url}" target="_blank" style="color: #023A8D;">📎 Mídia</a>`;
+                    }
+                    if (content && content.trim()) {
+                        renderedContent += `<div style="margin-top: 6px;">${escapeInboxHtml(content)}</div>`;
+                    }
+                } else if (content && content.trim()) {
+                    renderedContent = escapeInboxHtml(content);
+                } else {
+                    renderedContent = '<em style="color: #999;">[Mídia]</em>';
+                }
+                
+                const msgEl = document.createElement('div');
+                msgEl.className = `msg ${direction}`;
+                msgEl.innerHTML = `${renderedContent}<div class="msg-time">${formattedTime}</div>`;
+                container.appendChild(msgEl);
+            });
+            
+            // Scroll para última mensagem
+            container.scrollTop = container.scrollHeight;
         }
         
         // ===== BADGE NO HEADER =====
