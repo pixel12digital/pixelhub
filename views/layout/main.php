@@ -449,6 +449,20 @@
         .inbox-drawer-input button:hover {
             background: #012d6e;
         }
+        .inbox-drawer-input .inbox-media-btn {
+            background: transparent;
+            color: #6b7280;
+            padding: 10px;
+            border-radius: 50%;
+        }
+        .inbox-drawer-input .inbox-media-btn:hover {
+            background: #f3f4f6;
+            color: #023A8D;
+        }
+        .inbox-drawer-input .inbox-media-btn svg {
+            width: 20px;
+            height: 20px;
+        }
         .inbox-drawer-placeholder {
             flex: 1;
             display: flex;
@@ -1508,7 +1522,20 @@
                     <!-- Mensagens carregadas via JS -->
                 </div>
                 <div class="inbox-drawer-input">
+                    <button type="button" class="inbox-media-btn" onclick="alert('Anexo: em breve!')" title="Anexar arquivo">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                        </svg>
+                    </button>
                     <input type="text" id="inboxMessageInput" placeholder="Digite sua mensagem..." onkeypress="handleInboxInputKeypress(event)">
+                    <button type="button" class="inbox-media-btn" onclick="alert('Áudio: em breve!')" title="Gravar áudio">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" y1="19" x2="12" y2="23"></line>
+                            <line x1="8" y1="23" x2="16" y2="23"></line>
+                        </svg>
+                    </button>
                     <button type="button" onclick="sendInboxMessage()">Enviar</button>
                 </div>
             </div>
@@ -1910,6 +1937,8 @@
             const container = document.getElementById('inboxMessages');
             if (!container) return;
             
+            console.log('[Inbox] Renderizando mensagens:', messages);
+            
             if (!messages || messages.length === 0) {
                 container.innerHTML = '<div class="inbox-drawer-loading">Nenhuma mensagem</div>';
                 return;
@@ -1917,21 +1946,45 @@
             
             let html = '';
             messages.forEach(msg => {
-                const direction = msg.direction || (msg.from_me ? 'outbound' : 'inbound');
-                const time = msg.created_at ? formatInboxTime(msg.created_at) : '';
-                let content = escapeInboxHtml(msg.body || msg.content || '');
+                // Debug: mostra estrutura da mensagem
+                console.log('[Inbox] Mensagem:', msg);
                 
-                // Suporte básico a mídia
+                // Detecta direção - tenta vários campos possíveis
+                let direction = 'inbound';
+                if (msg.direction === 'outbound' || msg.direction === 'out' || 
+                    msg.from_me === true || msg.from_me === 1 || msg.from_me === '1' ||
+                    msg.is_from_me === true || msg.is_from_me === 1) {
+                    direction = 'outbound';
+                }
+                
+                const time = msg.created_at || msg.timestamp || '';
+                const formattedTime = time ? formatInboxTime(time) : '';
+                
+                // Extrai conteúdo - tenta vários campos possíveis
+                let content = msg.body || msg.content || msg.text || msg.message || '';
+                
+                // Suporte a mídia
                 if (msg.media_type === 'image' && msg.media_url) {
-                    content = `<img src="${msg.media_url}" style="max-width: 200px; border-radius: 8px;">`;
-                } else if (msg.media_type === 'audio' && msg.media_url) {
+                    content = `<img src="${msg.media_url}" style="max-width: 200px; border-radius: 8px;" onerror="this.style.display='none'">`;
+                } else if ((msg.media_type === 'audio' || msg.media_type === 'ptt') && msg.media_url) {
                     content = `<audio controls src="${msg.media_url}" style="max-width: 100%;"></audio>`;
+                } else if (msg.media_type === 'video' && msg.media_url) {
+                    content = `<video controls src="${msg.media_url}" style="max-width: 200px; border-radius: 8px;"></video>`;
+                } else if (msg.media_type === 'document' && msg.media_url) {
+                    content = `<a href="${msg.media_url}" target="_blank" style="color: #023A8D;">📎 ${msg.file_name || 'Documento'}</a>`;
+                } else {
+                    content = escapeInboxHtml(content);
+                }
+                
+                // Se não tem conteúdo, mostra placeholder
+                if (!content || content.trim() === '') {
+                    content = '<em style="color: #999;">[Mídia não disponível]</em>';
                 }
                 
                 html += `
                     <div class="msg ${direction}">
                         ${content}
-                        <div class="msg-time">${time}</div>
+                        <div class="msg-time">${formattedTime}</div>
                     </div>
                 `;
             });
