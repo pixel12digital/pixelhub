@@ -2160,8 +2160,33 @@
             const blobToSend = InboxAudioState.blob;
             InboxAudioState.state = 'sending';
             setInboxAudioUI('sending');
+            
+            // Optimistic UI: insere mensagem de áudio na lista antes do envio
+            const container = document.getElementById('inboxMessages');
+            let optimisticEl = null;
+            let audioUrl = null;
+            if (container) {
+                audioUrl = URL.createObjectURL(blobToSend);
+                optimisticEl = document.createElement('div');
+                optimisticEl.className = 'msg outbound';
+                optimisticEl.setAttribute('data-inbox-optimistic', '1');
+                optimisticEl.innerHTML = '<audio controls style="max-width: 250px;"></audio><div class="msg-time">Enviando...</div>';
+                const audioEl = optimisticEl.querySelector('audio');
+                if (audioEl) audioEl.src = audioUrl;
+                container.appendChild(optimisticEl);
+                container.scrollTop = container.scrollHeight;
+            }
+            
             try {
                 await sendInboxAudio(blobToSend);
+                if (optimisticEl) {
+                    const timeEl = optimisticEl.querySelector('.msg-time');
+                    if (timeEl) timeEl.textContent = 'agora';
+                }
+            } catch (err) {
+                if (optimisticEl && optimisticEl.parentNode) optimisticEl.remove();
+                if (audioUrl) URL.revokeObjectURL(audioUrl);
+                alert('Erro ao enviar áudio: ' + err.message);
             } finally {
                 resetInboxAudioState();
             }
@@ -2228,16 +2253,13 @@
                 
                 if (result.success) {
                     console.log('[Inbox] Áudio enviado com sucesso');
-                    // Recarrega mensagens
-                    if (InboxState.currentThreadId && InboxState.currentChannel) {
-                        loadInboxConversation(InboxState.currentThreadId, InboxState.currentChannel);
-                    }
+                    // Optimistic UI: não recarrega a conversa; a mensagem otimista já está na tela
                 } else {
                     throw new Error(result.error || 'Erro ao enviar áudio');
                 }
             } catch (err) {
                 console.error('[Inbox] Erro ao enviar áudio:', err);
-                alert('Erro ao enviar áudio: ' + err.message);
+                throw err;
             }
         }
         
@@ -2577,11 +2599,13 @@
             // Limpa input imediatamente
             if (input) input.value = '';
             
-            // Adiciona mensagem otimista na tela
+            // Optimistic UI: adiciona mensagem na tela antes do envio
             const container = document.getElementById('inboxMessages');
+            let optimisticEl = null;
             if (container) {
-                const msgEl = document.createElement('div');
-                msgEl.className = 'msg outbound';
+                optimisticEl = document.createElement('div');
+                optimisticEl.className = 'msg outbound';
+                optimisticEl.setAttribute('data-inbox-optimistic', '1');
                 
                 let content = '';
                 if (hasMedia && InboxMediaState.type === 'image') {
@@ -2593,8 +2617,8 @@
                     content = escapeInboxHtml(message);
                 }
                 
-                msgEl.innerHTML = `${content}<div class="msg-time">Enviando...</div>`;
-                container.appendChild(msgEl);
+                optimisticEl.innerHTML = `${content}<div class="msg-time">Enviando...</div>`;
+                container.appendChild(optimisticEl);
                 container.scrollTop = container.scrollHeight;
             }
             
@@ -2642,8 +2666,17 @@
                 
                 updateInboxSendMicVisibility();
                 
+                // Sucesso: mantém mensagem otimista, só atualiza o horário (não recarrega)
+                if (optimisticEl) {
+                    const timeEl = optimisticEl.querySelector('.msg-time');
+                    if (timeEl) timeEl.textContent = 'agora';
+                }
+                
             } catch (error) {
                 console.error('[Inbox] Erro ao enviar:', error);
+                if (optimisticEl && optimisticEl.parentNode) {
+                    optimisticEl.remove();
+                }
                 alert('Erro ao enviar: ' + error.message);
             }
         };
