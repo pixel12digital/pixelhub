@@ -3155,11 +3155,27 @@ function clearUnreadBadgeForThread(threadId) {
     });
 }
 
+// ============================================================================
+// Fase 1: AbortController para evitar race condition em troca rápida de conversas
+// Flag de segurança: setar para false desativa completamente o AbortController
+// ============================================================================
+const HUB_SAFE_ABORT_ENABLED = true;
+let currentLoadController = null;
+
 async function loadConversation(threadId, channel) {
     console.log('[Hub] Carregando conversa:', threadId, channel);
     
     // Para polling anterior se existir (limpa completamente antes de iniciar nova)
     stopConversationPolling();
+    
+    // [Fase 1] Cancela fetch anterior se existir (evita race condition A→B→C)
+    if (HUB_SAFE_ABORT_ENABLED && currentLoadController) {
+        console.log('[Hub] Cancelando fetch anterior (troca rápida de conversa)');
+        currentLoadController.abort();
+    }
+    if (HUB_SAFE_ABORT_ENABLED) {
+        currentLoadController = new AbortController();
+    }
     
     // Limpa estado anterior COMPLETAMENTE antes de carregar nova conversa
     // Isso garante que não há preservação de estado errado entre conversas
@@ -3211,7 +3227,12 @@ async function loadConversation(threadId, channel) {
         const url = '<?= pixelhub_url('/communication-hub/thread-data') ?>?' + 
                    new URLSearchParams({ thread_id: threadId, channel: channel });
         console.log('[Hub] Carregando conversa - URL:', url);
-        const response = await fetch(url);
+        
+        // [Fase 1] Usa AbortController se habilitado
+        const fetchOptions = HUB_SAFE_ABORT_ENABLED && currentLoadController 
+            ? { signal: currentLoadController.signal } 
+            : {};
+        const response = await fetch(url, fetchOptions);
         
         if (!response.ok) {
             console.error('[Hub] Erro HTTP:', response.status, response.statusText);
@@ -3252,8 +3273,28 @@ async function loadConversation(threadId, channel) {
         startConversationPolling();
         
     } catch (error) {
+        // [Fase 1] AbortError = fetch cancelado por troca de conversa, sai silenciosamente
+        if (HUB_SAFE_ABORT_ENABLED && error.name === 'AbortError') {
+            console.log('[Hub] Fetch cancelado (usuário trocou de conversa) - ignorando');
+            return;
+        }
+        
         console.error('[Hub] Erro ao carregar conversa:', error);
-        content.innerHTML = '<div style="flex: 1; display: flex; align-items: center; justify-content: center;"><div style="text-align: center; color: #dc3545;"><p>Erro ao carregar conversa</p><p style="font-size: 13px;">' + escapeHtml(error.message) + '</p></div></div>';
+        
+        // [Fase 1] Limpa estado relacionado à thread para evitar inconsistência
+        // (limpa apenas thread_id/channel, não outros dados do hub)
+        sessionStorage.removeItem('hub_selected_thread_id');
+        sessionStorage.removeItem('hub_selected_channel');
+        ConversationState.currentThreadId = null;
+        ConversationState.currentChannel = null;
+        
+        // Limpa URL params de thread (mantém filtros)
+        const cleanUrl = new URL(window.location);
+        cleanUrl.searchParams.delete('thread_id');
+        cleanUrl.searchParams.delete('channel');
+        window.history.replaceState({}, '', cleanUrl);
+        
+        content.innerHTML = '<div style="flex: 1; display: flex; align-items: center; justify-content: center;"><div style="text-align: center; color: #dc3545;"><p>Erro ao carregar conversa</p><p style="font-size: 13px;">' + escapeHtml(error.message) + '</p><p style="font-size: 12px; color: #666; margin-top: 12px;">Selecione outra conversa na lista.</p></div></div>';
     }
 }
 
