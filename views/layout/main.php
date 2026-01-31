@@ -22,8 +22,18 @@
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            position: relative;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
             z-index: 100;
+        }
+        
+        /* Spacer para compensar header fixo */
+        .header-spacer {
+            height: 60px;
+            flex-shrink: 0;
         }
         .header h1 {
             font-size: 20px;
@@ -131,6 +141,7 @@
         .container {
             display: flex;
             min-height: calc(100vh - 60px);
+            margin-top: 60px; /* Compensa header fixo */
         }
         
         /* ===== SIDEBAR COM ÍCONES (RECOLHIDA POR PADRÃO) ===== */
@@ -140,8 +151,9 @@
             background: #ffffff;
             border-right: 1px solid #e5e7eb;
             padding: 12px 0;
-            position: sticky;
-            top: 0;
+            position: fixed;
+            top: 60px; /* Abaixo do header fixo */
+            left: 0;
             height: calc(100vh - 60px);
             overflow-y: auto;
             overflow-x: hidden;
@@ -592,7 +604,10 @@
             flex: 1;
             padding: 30px;
             min-width: 0;
+            margin-left: 64px; /* Compensa sidebar fixa (largura recolhida) */
+            transition: margin-left 0.25s ease;
         }
+        /* Quando sidebar está expandida via hover, o conteúdo não precisa se mover */
         .content-header {
             margin-bottom: 30px;
         }
