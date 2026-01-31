@@ -2141,21 +2141,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (threadId) {
         console.log('[Hub] Reabrindo conversa salva:', threadId, channel);
-        console.log('[LOG TEMPORARIO] DOMContentLoaded - Reabrindo thread_id=' + threadId);
         
-        // VALIDA: Se thread salva ainda existe na lista atual
-        // Aguarda lista carregar primeiro
-        setTimeout(() => {
-            const savedThreadExists = document.querySelector(`[data-thread-id="${threadId}"]`);
-            if (savedThreadExists) {
-                // Thread existe, pode reabrir
-                loadConversation(threadId, channel);
-            } else {
-                // Thread não existe mais ou usuário clicou em outra - não força reabertura
-                console.log('[Hub] Thread salva não encontrada na lista, não reabre automaticamente');
-                console.log('[LOG TEMPORARIO] DOMContentLoaded - Thread salva NÃO encontrada, não reabre');
-            }
-        }, 500);
+        // [Fase 2] Restauração simplificada - confia no loadConversation que trata erros graciosamente
+        // Se a conversa não existir, loadConversation (Fase 1) limpa URL/sessionStorage automaticamente
+        loadConversation(threadId, channel);
     }
 });
 
