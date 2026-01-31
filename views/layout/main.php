@@ -173,6 +173,320 @@
         .header-user-menu-dropdown .menu-item.danger svg {
             color: #dc2626;
         }
+        
+        /* ===== INBOX GLOBAL BUTTON ===== */
+        .header-inbox-btn {
+            position: relative;
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-right: 16px;
+            transition: background 0.2s ease;
+        }
+        .header-inbox-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        .header-inbox-btn svg {
+            width: 22px;
+            height: 22px;
+        }
+        .header-inbox-badge {
+            position: absolute;
+            top: 2px;
+            right: 4px;
+            background: #ef4444;
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+        }
+        
+        /* ===== INBOX DRAWER ===== */
+        .inbox-drawer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .inbox-drawer-overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+        .inbox-drawer {
+            position: fixed;
+            top: 0;
+            right: -850px;
+            width: 850px;
+            max-width: 95vw;
+            height: 100vh;
+            background: #fff;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+            transition: right 0.3s ease;
+        }
+        .inbox-drawer.open {
+            right: 0;
+        }
+        .inbox-drawer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            background: #023A8D;
+            color: white;
+            flex-shrink: 0;
+        }
+        .inbox-drawer-header h2 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .inbox-drawer-close {
+            background: transparent;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            transition: background 0.2s ease;
+        }
+        .inbox-drawer-close:hover {
+            background: rgba(255,255,255,0.15);
+        }
+        .inbox-drawer-close svg {
+            width: 20px;
+            height: 20px;
+        }
+        .inbox-drawer-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        .inbox-drawer-list {
+            width: 280px;
+            min-width: 280px;
+            border-right: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            background: #f9fafb;
+        }
+        .inbox-drawer-list-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            background: white;
+        }
+        .inbox-drawer-list-header select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 13px;
+            background: white;
+        }
+        .inbox-drawer-list-scroll {
+            flex: 1;
+            overflow-y: auto;
+        }
+        .inbox-drawer-conversation {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            cursor: pointer;
+            transition: background 0.15s ease;
+            background: white;
+        }
+        .inbox-drawer-conversation:hover {
+            background: #f3f4f6;
+        }
+        .inbox-drawer-conversation.active {
+            background: #e0f2fe;
+            border-left: 3px solid #023A8D;
+        }
+        .inbox-drawer-conversation .conv-name {
+            font-weight: 600;
+            font-size: 14px;
+            color: #111827;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .inbox-drawer-conversation .conv-name .conv-time {
+            font-weight: 400;
+            font-size: 11px;
+            color: #6b7280;
+        }
+        .inbox-drawer-conversation .conv-preview {
+            font-size: 13px;
+            color: #6b7280;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .inbox-drawer-conversation .conv-unread {
+            background: #023A8D;
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 5px;
+            margin-left: 8px;
+        }
+        .inbox-drawer-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #f0f2f5;
+        }
+        .inbox-drawer-chat-header {
+            padding: 14px 20px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .inbox-drawer-chat-header .chat-avatar {
+            width: 40px;
+            height: 40px;
+            background: #023A8D;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .inbox-drawer-chat-header .chat-info h3 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: #111827;
+        }
+        .inbox-drawer-chat-header .chat-info span {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .inbox-drawer-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+        }
+        .inbox-drawer-messages .msg {
+            max-width: 70%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .inbox-drawer-messages .msg.inbound {
+            background: white;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        .inbox-drawer-messages .msg.outbound {
+            background: #dcf8c6;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        .inbox-drawer-messages .msg .msg-time {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 4px;
+            text-align: right;
+        }
+        .inbox-drawer-input {
+            padding: 12px 20px;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 12px;
+        }
+        .inbox-drawer-input input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 24px;
+            font-size: 14px;
+            outline: none;
+        }
+        .inbox-drawer-input input:focus {
+            border-color: #023A8D;
+        }
+        .inbox-drawer-input button {
+            background: #023A8D;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 24px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .inbox-drawer-input button:hover {
+            background: #012d6e;
+        }
+        .inbox-drawer-placeholder {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .inbox-drawer-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+        
+        /* Mobile responsivo */
+        @media (max-width: 768px) {
+            .inbox-drawer {
+                width: 100vw;
+                max-width: 100vw;
+                right: -100vw;
+            }
+            .inbox-drawer-list {
+                width: 100%;
+                min-width: 100%;
+            }
+            .inbox-drawer-chat {
+                display: none;
+            }
+            .inbox-drawer.chat-open .inbox-drawer-list {
+                display: none;
+            }
+            .inbox-drawer.chat-open .inbox-drawer-chat {
+                display: flex;
+            }
+        }
+        
         .container {
             display: flex;
             min-height: calc(100vh - 60px);
@@ -695,6 +1009,15 @@
     <header class="header">
         <h1>Pixel Hub</h1>
         
+        <!-- Inbox Global Button -->
+        <button type="button" class="header-inbox-btn" onclick="toggleInboxDrawer()" title="Inbox de Mensagens (Ctrl+I)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+            </svg>
+            <span class="header-inbox-badge" id="inboxBadge" style="display: none;">0</span>
+        </button>
+        
         <!-- Menu de Usuário (estilo SaaS) -->
         <div class="header-user-menu">
             <?php 
@@ -1148,6 +1471,54 @@
         </main>
     </div>
     
+    <!-- ===== INBOX DRAWER GLOBAL ===== -->
+    <div class="inbox-drawer-overlay" id="inboxOverlay" onclick="closeInboxDrawer()"></div>
+    <div class="inbox-drawer" id="inboxDrawer">
+        <div class="inbox-drawer-header">
+            <h2>Inbox</h2>
+            <button type="button" class="inbox-drawer-close" onclick="closeInboxDrawer()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="inbox-drawer-body">
+            <!-- Lista de Conversas -->
+            <div class="inbox-drawer-list">
+                <div class="inbox-drawer-list-header">
+                    <select id="inboxFilterStatus" onchange="loadInboxConversations()">
+                        <option value="active">Ativas</option>
+                        <option value="all">Todas</option>
+                        <option value="archived">Arquivadas</option>
+                    </select>
+                </div>
+                <div class="inbox-drawer-list-scroll" id="inboxListScroll">
+                    <div class="inbox-drawer-loading" id="inboxListLoading">
+                        Carregando conversas...
+                    </div>
+                </div>
+            </div>
+            <!-- Painel de Chat -->
+            <div class="inbox-drawer-chat" id="inboxChat" style="display: none;">
+                <div class="inbox-drawer-chat-header" id="inboxChatHeader">
+                    <!-- Preenchido via JS -->
+                </div>
+                <div class="inbox-drawer-messages" id="inboxMessages">
+                    <!-- Mensagens carregadas via JS -->
+                </div>
+                <div class="inbox-drawer-input">
+                    <input type="text" id="inboxMessageInput" placeholder="Digite sua mensagem..." onkeypress="handleInboxInputKeypress(event)">
+                    <button type="button" onclick="sendInboxMessage()">Enviar</button>
+                </div>
+            </div>
+            <!-- Placeholder quando nenhuma conversa selecionada -->
+            <div class="inbox-drawer-placeholder" id="inboxPlaceholder">
+                Selecione uma conversa para começar
+            </div>
+        </div>
+    </div>
+    
     <!-- Toggle para mobile -->
     <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1310,6 +1681,417 @@
                 window.PixelHubScreenRecorder.open(null, 'library');
             }
         }
+    </script>
+    
+    <!-- ===== INBOX DRAWER GLOBAL SCRIPT ===== -->
+    <script>
+    (function() {
+        'use strict';
+        
+        // Estado do Inbox Drawer
+        const InboxState = {
+            isOpen: false,
+            conversations: [],
+            currentThreadId: null,
+            currentChannel: null,
+            currentLoadController: null,
+            pollingInterval: null,
+            lastUpdateTs: null
+        };
+        
+        const INBOX_BASE_URL = '<?= pixelhub_url('') ?>';
+        
+        // ===== ABRIR/FECHAR DRAWER =====
+        window.toggleInboxDrawer = function() {
+            if (InboxState.isOpen) {
+                closeInboxDrawer();
+            } else {
+                openInboxDrawer();
+            }
+        };
+        
+        window.openInboxDrawer = function() {
+            const drawer = document.getElementById('inboxDrawer');
+            const overlay = document.getElementById('inboxOverlay');
+            if (!drawer || !overlay) return;
+            
+            drawer.classList.add('open');
+            overlay.classList.add('open');
+            InboxState.isOpen = true;
+            
+            // Carrega conversas se ainda não carregou
+            loadInboxConversations();
+            
+            // Restaura última conversa se existir
+            const savedThreadId = sessionStorage.getItem('inbox_selected_thread_id');
+            const savedChannel = sessionStorage.getItem('inbox_selected_channel');
+            if (savedThreadId && savedChannel) {
+                setTimeout(() => loadInboxConversation(savedThreadId, savedChannel), 300);
+            }
+            
+            // Inicia polling leve
+            startInboxPolling();
+        };
+        
+        window.closeInboxDrawer = function() {
+            const drawer = document.getElementById('inboxDrawer');
+            const overlay = document.getElementById('inboxOverlay');
+            if (!drawer || !overlay) return;
+            
+            drawer.classList.remove('open');
+            overlay.classList.remove('open');
+            InboxState.isOpen = false;
+            
+            // Para polling
+            stopInboxPolling();
+        };
+        
+        // Atalho de teclado (Ctrl+I ou Escape)
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+                e.preventDefault();
+                toggleInboxDrawer();
+            }
+            if (e.key === 'Escape' && InboxState.isOpen) {
+                closeInboxDrawer();
+            }
+        });
+        
+        // ===== CARREGAR LISTA DE CONVERSAS =====
+        window.loadInboxConversations = async function() {
+            const listScroll = document.getElementById('inboxListScroll');
+            const loading = document.getElementById('inboxListLoading');
+            const filterStatus = document.getElementById('inboxFilterStatus');
+            
+            if (!listScroll) return;
+            
+            // Mostra loading
+            if (loading) loading.style.display = 'flex';
+            
+            try {
+                const status = filterStatus ? filterStatus.value : 'active';
+                const url = INBOX_BASE_URL + '/communication-hub/conversations-list?status=' + status;
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.success) {
+                    InboxState.conversations = result.threads || [];
+                    InboxState.lastUpdateTs = result.latest_update_ts || null;
+                    renderInboxList(InboxState.conversations);
+                    updateInboxBadge();
+                }
+            } catch (error) {
+                console.error('[Inbox] Erro ao carregar conversas:', error);
+                listScroll.innerHTML = '<div class="inbox-drawer-loading">Erro ao carregar</div>';
+            } finally {
+                if (loading) loading.style.display = 'none';
+            }
+        };
+        
+        function renderInboxList(conversations) {
+            const listScroll = document.getElementById('inboxListScroll');
+            if (!listScroll) return;
+            
+            if (!conversations || conversations.length === 0) {
+                listScroll.innerHTML = '<div class="inbox-drawer-loading">Nenhuma conversa encontrada</div>';
+                return;
+            }
+            
+            let html = '';
+            conversations.forEach(conv => {
+                const isActive = InboxState.currentThreadId === conv.thread_id;
+                const unreadBadge = conv.unread_count > 0 
+                    ? `<span class="conv-unread">${conv.unread_count}</span>` 
+                    : '';
+                const time = conv.last_activity ? formatInboxTime(conv.last_activity) : '';
+                const preview = escapeInboxHtml(conv.last_message_preview || conv.phone || '');
+                
+                html += `
+                    <div class="inbox-drawer-conversation ${isActive ? 'active' : ''}" 
+                         data-thread-id="${conv.thread_id}" 
+                         data-channel="${conv.channel || 'whatsapp'}"
+                         onclick="loadInboxConversation('${conv.thread_id}', '${conv.channel || 'whatsapp'}')">
+                        <div class="conv-name">
+                            <span>${escapeInboxHtml(conv.contact_name || conv.phone || 'Sem nome')}</span>
+                            <span class="conv-time">${time}${unreadBadge}</span>
+                        </div>
+                        <div class="conv-preview">${preview}</div>
+                    </div>
+                `;
+            });
+            
+            listScroll.innerHTML = html;
+        }
+        
+        // ===== CARREGAR CONVERSA =====
+        window.loadInboxConversation = async function(threadId, channel) {
+            console.log('[Inbox] Carregando conversa:', threadId, channel);
+            
+            // Cancela fetch anterior (AbortController - mesmo padrão Fase 1)
+            if (InboxState.currentLoadController) {
+                InboxState.currentLoadController.abort();
+            }
+            InboxState.currentLoadController = new AbortController();
+            
+            // Atualiza estado
+            InboxState.currentThreadId = threadId;
+            InboxState.currentChannel = channel;
+            
+            // Salva no sessionStorage
+            sessionStorage.setItem('inbox_selected_thread_id', threadId);
+            sessionStorage.setItem('inbox_selected_channel', channel);
+            
+            // Atualiza visual da lista
+            document.querySelectorAll('.inbox-drawer-conversation').forEach(el => {
+                el.classList.toggle('active', el.dataset.threadId === threadId);
+            });
+            
+            // Mostra painel de chat
+            const chat = document.getElementById('inboxChat');
+            const placeholder = document.getElementById('inboxPlaceholder');
+            const messages = document.getElementById('inboxMessages');
+            const header = document.getElementById('inboxChatHeader');
+            
+            if (placeholder) placeholder.style.display = 'none';
+            if (chat) chat.style.display = 'flex';
+            if (messages) messages.innerHTML = '<div class="inbox-drawer-loading">Carregando...</div>';
+            
+            // Mobile: abre painel de chat
+            const drawer = document.getElementById('inboxDrawer');
+            if (drawer) drawer.classList.add('chat-open');
+            
+            try {
+                const url = INBOX_BASE_URL + '/communication-hub/thread-data?thread_id=' + threadId + '&channel=' + channel;
+                const response = await fetch(url, { signal: InboxState.currentLoadController.signal });
+                const result = await response.json();
+                
+                if (result.success && result.thread) {
+                    renderInboxHeader(result.thread);
+                    renderInboxMessages(result.messages || []);
+                    
+                    // Zera badge de não lidas na lista
+                    const convEl = document.querySelector(`.inbox-drawer-conversation[data-thread-id="${threadId}"]`);
+                    if (convEl) {
+                        const badge = convEl.querySelector('.conv-unread');
+                        if (badge) badge.remove();
+                    }
+                } else {
+                    throw new Error(result.error || 'Erro ao carregar');
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.log('[Inbox] Fetch cancelado (troca de conversa)');
+                    return;
+                }
+                console.error('[Inbox] Erro:', error);
+                if (messages) messages.innerHTML = '<div class="inbox-drawer-loading">Erro ao carregar conversa</div>';
+            }
+        };
+        
+        function renderInboxHeader(thread) {
+            const header = document.getElementById('inboxChatHeader');
+            if (!header) return;
+            
+            const name = thread.contact_name || thread.phone || 'Sem nome';
+            const initial = name.charAt(0).toUpperCase();
+            const phone = thread.phone || '';
+            
+            header.innerHTML = `
+                <div class="chat-avatar">${initial}</div>
+                <div class="chat-info">
+                    <h3>${escapeInboxHtml(name)}</h3>
+                    <span>${escapeInboxHtml(phone)}</span>
+                </div>
+            `;
+        }
+        
+        function renderInboxMessages(messages) {
+            const container = document.getElementById('inboxMessages');
+            if (!container) return;
+            
+            if (!messages || messages.length === 0) {
+                container.innerHTML = '<div class="inbox-drawer-loading">Nenhuma mensagem</div>';
+                return;
+            }
+            
+            let html = '';
+            messages.forEach(msg => {
+                const direction = msg.direction || (msg.from_me ? 'outbound' : 'inbound');
+                const time = msg.created_at ? formatInboxTime(msg.created_at) : '';
+                let content = escapeInboxHtml(msg.body || msg.content || '');
+                
+                // Suporte básico a mídia
+                if (msg.media_type === 'image' && msg.media_url) {
+                    content = `<img src="${msg.media_url}" style="max-width: 200px; border-radius: 8px;">`;
+                } else if (msg.media_type === 'audio' && msg.media_url) {
+                    content = `<audio controls src="${msg.media_url}" style="max-width: 100%;"></audio>`;
+                }
+                
+                html += `
+                    <div class="msg ${direction}">
+                        ${content}
+                        <div class="msg-time">${time}</div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        // ===== ENVIAR MENSAGEM =====
+        window.handleInboxInputKeypress = function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendInboxMessage();
+            }
+        };
+        
+        window.sendInboxMessage = async function() {
+            const input = document.getElementById('inboxMessageInput');
+            if (!input || !InboxState.currentThreadId) return;
+            
+            const message = input.value.trim();
+            if (!message) return;
+            
+            // Limpa input imediatamente
+            input.value = '';
+            
+            // Adiciona mensagem otimista na tela
+            const container = document.getElementById('inboxMessages');
+            if (container) {
+                const msgEl = document.createElement('div');
+                msgEl.className = 'msg outbound';
+                msgEl.innerHTML = `${escapeInboxHtml(message)}<div class="msg-time">Enviando...</div>`;
+                container.appendChild(msgEl);
+                container.scrollTop = container.scrollHeight;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('thread_id', InboxState.currentThreadId);
+                formData.append('channel', InboxState.currentChannel);
+                formData.append('message', message);
+                
+                const response = await fetch(INBOX_BASE_URL + '/communication-hub/send', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (!result.success) {
+                    console.error('[Inbox] Erro ao enviar:', result.error);
+                    alert('Erro ao enviar mensagem: ' + (result.error || 'Erro desconhecido'));
+                }
+            } catch (error) {
+                console.error('[Inbox] Erro ao enviar:', error);
+                alert('Erro ao enviar mensagem');
+            }
+        };
+        
+        // ===== POLLING =====
+        function startInboxPolling() {
+            if (InboxState.pollingInterval) return;
+            
+            InboxState.pollingInterval = setInterval(() => {
+                if (InboxState.isOpen) {
+                    checkInboxUpdates();
+                }
+            }, 15000); // 15 segundos
+        }
+        
+        function stopInboxPolling() {
+            if (InboxState.pollingInterval) {
+                clearInterval(InboxState.pollingInterval);
+                InboxState.pollingInterval = null;
+            }
+        }
+        
+        async function checkInboxUpdates() {
+            try {
+                const filterStatus = document.getElementById('inboxFilterStatus');
+                const status = filterStatus ? filterStatus.value : 'active';
+                const params = new URLSearchParams({ status });
+                if (InboxState.lastUpdateTs) {
+                    params.set('after_timestamp', InboxState.lastUpdateTs);
+                }
+                
+                const url = INBOX_BASE_URL + '/communication-hub/check-updates?' + params.toString();
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.success && result.has_updates) {
+                    console.log('[Inbox] Atualizações detectadas, recarregando lista');
+                    loadInboxConversations();
+                }
+            } catch (error) {
+                console.error('[Inbox] Erro no polling:', error);
+            }
+        }
+        
+        // ===== BADGE NO HEADER =====
+        function updateInboxBadge() {
+            const badge = document.getElementById('inboxBadge');
+            if (!badge) return;
+            
+            let totalUnread = 0;
+            InboxState.conversations.forEach(conv => {
+                totalUnread += parseInt(conv.unread_count || 0, 10);
+            });
+            
+            if (totalUnread > 0) {
+                badge.textContent = totalUnread > 99 ? '99+' : totalUnread;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+        
+        // Atualiza badge periodicamente mesmo com drawer fechado
+        setInterval(() => {
+            if (!InboxState.isOpen) {
+                fetchUnreadCount();
+            }
+        }, 60000); // 1 minuto
+        
+        async function fetchUnreadCount() {
+            try {
+                const url = INBOX_BASE_URL + '/communication-hub/conversations-list?status=active';
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.success) {
+                    InboxState.conversations = result.threads || [];
+                    updateInboxBadge();
+                }
+            } catch (error) {
+                // Silencioso
+            }
+        }
+        
+        // Carrega badge inicial após 3 segundos
+        setTimeout(fetchUnreadCount, 3000);
+        
+        // ===== HELPERS =====
+        function formatInboxTime(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) return 'agora';
+            if (diff < 3600000) return Math.floor(diff / 60000) + 'min';
+            if (diff < 86400000) return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        }
+        
+        function escapeInboxHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+    })();
     </script>
 </body>
 </html>
