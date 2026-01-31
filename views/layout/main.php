@@ -1699,7 +1699,8 @@
             lastUpdateTs: null
         };
         
-        const INBOX_BASE_URL = '<?= pixelhub_url('') ?>';
+        // URL base - vazia para usar URLs relativas (funciona em qualquer ambiente)
+        const INBOX_BASE_URL = '';
         
         // ===== ABRIR/FECHAR DRAWER =====
         window.toggleInboxDrawer = function() {
