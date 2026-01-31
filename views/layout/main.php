@@ -2267,9 +2267,13 @@
                     
                     // Salva dados extras para envio de mensagens
                     const thread = result.thread;
-                    sessionStorage.setItem('inbox_selected_phone', thread.phone || thread.to || '');
+                    // O campo 'contact' contém o número (contact_external_id formatado)
+                    // Pode estar no formato: 5547996164699@c.us ou 5547996164699@lid ou só o número
+                    const phoneValue = thread.contact || thread.contact_external_id || thread.phone || thread.to || '';
+                    sessionStorage.setItem('inbox_selected_phone', phoneValue);
                     sessionStorage.setItem('inbox_selected_tenant_id', thread.tenant_id || '');
                     sessionStorage.setItem('inbox_selected_channel_id', thread.channel_id || '');
+                    console.log('[Inbox] Dados salvos - phone:', phoneValue, 'tenant_id:', thread.tenant_id, 'channel_id:', thread.channel_id);
                     
                     // Salva marcadores para polling de novas mensagens
                     const msgs = result.messages || [];
