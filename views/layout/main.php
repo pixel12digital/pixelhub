@@ -1937,7 +1937,7 @@
             const container = document.getElementById('inboxMessages');
             if (!container) return;
             
-            console.log('[Inbox] Renderizando mensagens:', messages);
+            console.log('[Inbox] Renderizando mensagens:', messages?.length || 0);
             
             if (!messages || messages.length === 0) {
                 container.innerHTML = '<div class="inbox-drawer-loading">Nenhuma mensagem</div>';
@@ -1946,44 +1946,47 @@
             
             let html = '';
             messages.forEach(msg => {
-                // Debug: mostra estrutura da mensagem
-                console.log('[Inbox] Mensagem:', msg);
+                // Direção: usa campo 'direction' do backend
+                const direction = msg.direction === 'outbound' ? 'outbound' : 'inbound';
                 
-                // Detecta direção - tenta vários campos possíveis
-                let direction = 'inbound';
-                if (msg.direction === 'outbound' || msg.direction === 'out' || 
-                    msg.from_me === true || msg.from_me === 1 || msg.from_me === '1' ||
-                    msg.is_from_me === true || msg.is_from_me === 1) {
-                    direction = 'outbound';
-                }
-                
-                const time = msg.created_at || msg.timestamp || '';
+                // Timestamp: backend usa 'timestamp'
+                const time = msg.timestamp || msg.created_at || '';
                 const formattedTime = time ? formatInboxTime(time) : '';
                 
-                // Extrai conteúdo - tenta vários campos possíveis
-                let content = msg.body || msg.content || msg.text || msg.message || '';
+                // Conteúdo: backend usa 'content'
+                let content = msg.content || msg.body || msg.text || '';
+                let renderedContent = '';
                 
-                // Suporte a mídia
-                if (msg.media_type === 'image' && msg.media_url) {
-                    content = `<img src="${msg.media_url}" style="max-width: 200px; border-radius: 8px;" onerror="this.style.display='none'">`;
-                } else if ((msg.media_type === 'audio' || msg.media_type === 'ptt') && msg.media_url) {
-                    content = `<audio controls src="${msg.media_url}" style="max-width: 100%;"></audio>`;
-                } else if (msg.media_type === 'video' && msg.media_url) {
-                    content = `<video controls src="${msg.media_url}" style="max-width: 200px; border-radius: 8px;"></video>`;
-                } else if (msg.media_type === 'document' && msg.media_url) {
-                    content = `<a href="${msg.media_url}" target="_blank" style="color: #023A8D;">📎 ${msg.file_name || 'Documento'}</a>`;
+                // Verifica se tem mídia (objeto 'media' do backend)
+                const media = msg.media;
+                if (media && media.url) {
+                    const mediaType = media.media_type || media.type || '';
+                    if (mediaType === 'image') {
+                        renderedContent = `<img src="${media.url}" style="max-width: 200px; border-radius: 8px; cursor: pointer;" onclick="window.open('${media.url}', '_blank')" onerror="this.outerHTML='<em>[Imagem não disponível]</em>'">`;
+                    } else if (mediaType === 'audio' || mediaType === 'ptt') {
+                        renderedContent = `<audio controls src="${media.url}" style="max-width: 250px;"></audio>`;
+                    } else if (mediaType === 'video') {
+                        renderedContent = `<video controls src="${media.url}" style="max-width: 200px; border-radius: 8px;"></video>`;
+                    } else if (mediaType === 'document' || mediaType === 'file') {
+                        renderedContent = `<a href="${media.url}" target="_blank" style="color: #023A8D; text-decoration: none;">📎 ${media.file_name || 'Documento'}</a>`;
+                    } else {
+                        renderedContent = `<a href="${media.url}" target="_blank" style="color: #023A8D;">📎 Mídia</a>`;
+                    }
+                    // Se tem legenda (caption), adiciona abaixo
+                    if (content && content.trim()) {
+                        renderedContent += `<div style="margin-top: 6px;">${escapeInboxHtml(content)}</div>`;
+                    }
+                } else if (content && content.trim()) {
+                    // Só texto
+                    renderedContent = escapeInboxHtml(content);
                 } else {
-                    content = escapeInboxHtml(content);
-                }
-                
-                // Se não tem conteúdo, mostra placeholder
-                if (!content || content.trim() === '') {
-                    content = '<em style="color: #999;">[Mídia não disponível]</em>';
+                    // Sem conteúdo e sem mídia
+                    renderedContent = '<em style="color: #999;">[Mídia não disponível]</em>';
                 }
                 
                 html += `
                     <div class="msg ${direction}">
-                        ${content}
+                        ${renderedContent}
                         <div class="msg-time">${formattedTime}</div>
                     </div>
                 `;
