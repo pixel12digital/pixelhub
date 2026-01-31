@@ -130,20 +130,36 @@
             display: flex;
             min-height: calc(100vh - 60px);
         }
-        /* ===== SIDEBAR MODERNO E COMPACTO ===== */
+        /* ===== SIDEBAR FIXO E ESTÁVEL ===== */
         .sidebar {
-            width: 72px;
+            width: 220px;
+            min-width: 220px;
+            max-width: 220px;
             background: #ffffff;
             border-right: 1px solid #e5e7eb;
             padding: 12px 0;
-            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            overflow: visible;
-            position: relative;
+            position: sticky;
+            top: 0;
+            height: calc(100vh - 60px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            flex-shrink: 0;
+            /* Scrollbar mais sutil */
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
         }
-        /* Quando o sidebar está expandido (hover ou classe) */
-        .sidebar:hover,
-        .sidebar.expanded {
-            width: 240px;
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .sidebar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
         /* Container para alinhar ícone e texto */
         .sidebar-item-content {
@@ -177,32 +193,19 @@
         .sidebar a.sub-item.active .sidebar-icon {
             opacity: 1;
         }
-        /* Texto do menu - escondido por padrão, aparece no hover */
+        /* Texto do menu - sempre visível */
         .sidebar-text {
             white-space: nowrap;
-            opacity: 0;
-            transform: translateX(-8px);
-            transition: opacity 0.2s ease, transform 0.2s ease;
-            pointer-events: none;
             font-size: 13px;
             font-weight: 500;
-        }
-        .sidebar:hover .sidebar-text,
-        .sidebar.expanded .sidebar-text {
-            opacity: 1;
-            transform: translateX(0);
-            pointer-events: auto;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         /* Divisores do menu */
         .sidebar-divider {
             height: 1px;
             background: #e5e7eb;
             margin: 8px 16px;
-            transition: margin 0.3s ease;
-        }
-        .sidebar:hover .sidebar-divider,
-        .sidebar.expanded .sidebar-divider {
-            margin: 8px 20px;
         }
         /* Links de topo (Dashboard) */
         .sidebar-top-link {
@@ -214,50 +217,10 @@
             text-decoration: none;
             font-size: 13px;
             border-radius: 8px;
-            transition: all 0.2s ease;
+            transition: background 0.2s ease, color 0.2s ease;
             position: relative;
             min-height: 40px;
             cursor: pointer;
-        }
-        .sidebar:hover .sidebar-top-link,
-        .sidebar.expanded .sidebar-top-link {
-            padding: 10px 16px;
-        }
-        /* Tooltip quando sidebar está colapsado (apenas quando não está expandido) */
-        .sidebar-top-link::before,
-        .sidebar-module-header::before {
-            content: attr(data-title);
-            position: absolute;
-            left: calc(100% + 12px);
-            top: 50%;
-            transform: translateY(-50%) translateX(-8px);
-            background: #1f2937;
-            color: white;
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 500;
-            white-space: nowrap;
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
-            transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
-            z-index: 1000;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        }
-        .sidebar-top-link:hover::before,
-        .sidebar-module-header:hover::before {
-            opacity: 1;
-            visibility: visible;
-            transform: translateY(-50%) translateX(0);
-        }
-        /* Esconde tooltip quando sidebar está expandido */
-        .sidebar:hover .sidebar-top-link::before,
-        .sidebar:hover .sidebar-module-header::before,
-        .sidebar.expanded .sidebar-top-link::before,
-        .sidebar.expanded .sidebar-module-header::before {
-            opacity: 0 !important;
-            visibility: hidden !important;
         }
         .sidebar-top-link:hover {
             background: #f1f5f9;
@@ -294,14 +257,10 @@
             font-weight: 500;
             cursor: pointer;
             border-radius: 8px;
-            transition: all 0.2s ease;
+            transition: background 0.2s ease, color 0.2s ease;
             user-select: none;
             position: relative;
             min-height: 40px;
-        }
-        .sidebar:hover .sidebar-module-header,
-        .sidebar.expanded .sidebar-module-header {
-            padding: 10px 16px;
         }
         .sidebar-module-header:hover {
             background: #f1f5f9;
@@ -326,9 +285,9 @@
         /* Indicador de expansão (seta) */
         .sidebar-module-header.has-children .sidebar-chevron {
             margin-left: auto;
-            opacity: 0;
-            transform: rotate(-90deg);
-            transition: all 0.2s ease;
+            opacity: 0.6;
+            transform: rotate(0deg);
+            transition: transform 0.2s ease, opacity 0.2s ease;
             flex-shrink: 0;
             width: 16px;
             height: 16px;
@@ -336,25 +295,23 @@
             align-items: center;
             justify-content: center;
         }
-        .sidebar:hover .sidebar-module-header.has-children .sidebar-chevron,
-        .sidebar.expanded .sidebar-module-header.has-children .sidebar-chevron {
-            opacity: 0.6;
-            transform: rotate(0deg);
-        }
         .sidebar-module-header.is-open .sidebar-chevron {
             transform: rotate(180deg);
         }
         .sidebar-module-header:hover .sidebar-chevron {
             opacity: 1;
         }
-        /* Conteúdo dos subitens */
+        /* Conteúdo dos subitens - accordion com animação suave */
         .sidebar-module-content {
-            display: none;
+            max-height: 0;
             overflow: hidden;
-            margin-top: 2px;
+            margin-top: 0;
+            transition: max-height 0.25s ease-out, margin-top 0.25s ease-out;
         }
         .sidebar-module-content.is-open {
-            display: block;
+            max-height: 500px; /* altura máxima suficiente para qualquer submenu */
+            margin-top: 2px;
+            transition: max-height 0.3s ease-in, margin-top 0.25s ease-in;
         }
         /* Subitens */
         .sidebar a.sub-item {
@@ -366,16 +323,9 @@
             text-decoration: none;
             font-size: 12.5px;
             border-radius: 6px;
-            transition: all 0.2s ease;
+            transition: background 0.2s ease, color 0.2s ease;
             position: relative;
             min-height: 36px;
-            opacity: 0;
-            transform: translateX(-8px);
-        }
-        .sidebar:hover a.sub-item,
-        .sidebar.expanded a.sub-item {
-            opacity: 1;
-            transform: translateX(0);
         }
         .sidebar a.sub-item:hover {
             background: #f8fafc;
@@ -413,14 +363,6 @@
             text-transform: uppercase;
             letter-spacing: 0.8px;
             margin-top: 8px;
-            opacity: 0;
-            transform: translateX(-8px);
-            transition: all 0.2s ease;
-        }
-        .sidebar:hover .sidebar-internal-title,
-        .sidebar.expanded .sidebar-internal-title {
-            opacity: 1;
-            transform: translateX(0);
         }
         /* Ajuste para subitens de terceiro nível */
         .sidebar a.sub-item[style*="padding-left: 56px"] {
