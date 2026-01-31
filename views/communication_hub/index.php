@@ -2129,9 +2129,67 @@ document.addEventListener('DOMContentLoaded', function() {
     
     startListPolling();
     
+    // [Fase 3] Salva filtros no sessionStorage quando mudam (para restaurar ao voltar)
+    const filterChannel = document.getElementById('filter-channel');
+    const filterStatus = document.getElementById('filter-status');
+    const filterTenant = document.getElementById('clienteTenantId');
+    
+    if (filterChannel) {
+        filterChannel.addEventListener('change', function() {
+            sessionStorage.setItem('hub_filter_channel', this.value);
+        });
+    }
+    if (filterStatus) {
+        filterStatus.addEventListener('change', function() {
+            sessionStorage.setItem('hub_filter_status', this.value);
+        });
+    }
+    if (filterTenant) {
+        // Observer para detectar mudanças no hidden input (alterado via JS)
+        const tenantObserver = new MutationObserver(function() {
+            sessionStorage.setItem('hub_filter_tenant', filterTenant.value);
+        });
+        tenantObserver.observe(filterTenant, { attributes: true, attributeFilter: ['value'] });
+        // Também salva se valor mudar diretamente
+        filterTenant.addEventListener('change', function() {
+            sessionStorage.setItem('hub_filter_tenant', this.value);
+        });
+    }
+    
+    // [Fase 3] Restaura filtros salvos se não houver na URL
+    // Só restaura se: (1) não há params de filtro na URL, (2) há valores salvos diferentes do default
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasFilterInUrl = urlParams.has('channel') || urlParams.has('status') || urlParams.has('tenant_id');
+    
+    if (!hasFilterInUrl) {
+        const savedChannel = sessionStorage.getItem('hub_filter_channel');
+        const savedStatus = sessionStorage.getItem('hub_filter_status');
+        const savedTenant = sessionStorage.getItem('hub_filter_tenant');
+        
+        // Só restaura se pelo menos um filtro salvo é diferente do default
+        const needsRestore = (savedChannel && savedChannel !== 'all') ||
+                            (savedStatus && savedStatus !== 'active') ||
+                            (savedTenant && savedTenant !== '');
+        
+        if (needsRestore) {
+            console.log('[Hub] Restaurando filtros salvos:', { savedChannel, savedStatus, savedTenant });
+            
+            // Aplica valores aos campos
+            if (savedChannel && filterChannel) filterChannel.value = savedChannel;
+            if (savedStatus && filterStatus) filterStatus.value = savedStatus;
+            if (savedTenant && filterTenant) filterTenant.value = savedTenant;
+            
+            // Submete form para aplicar filtros (redireciona com params na URL)
+            const form = document.getElementById('communication-filters-form');
+            if (form) {
+                form.submit();
+                return; // Para execução aqui, o form vai redirecionar
+            }
+        }
+    }
+    
     // Verifica se há conversa para reabrir (URL params ou sessionStorage)
     // IMPORTANTE: Se usuário clicar em outra thread, ignora restore
-    const urlParams = new URLSearchParams(window.location.search);
     const threadIdFromUrl = urlParams.get('thread_id');
     const channelFromUrl = urlParams.get('channel') || 'whatsapp';
     
