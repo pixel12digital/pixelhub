@@ -339,8 +339,8 @@
             min-height: 0;
         }
         .inbox-drawer-list {
-            width: 280px;
-            min-width: 280px;
+            width: 320px;
+            min-width: 320px;
             border-right: 1px solid #e5e7eb;
             display: flex;
             flex-direction: column;
@@ -425,6 +425,8 @@
             font-weight: 400;
             font-size: 11px;
             color: #6b7280;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
         /* Zona de respiro à direita: conteúdo nunca entra na área do menu ⋮ */
         .inbox-drawer-conversation .conv-content {
@@ -3006,7 +3008,7 @@
                              data-channel="${escapeInboxHtml(channel)}"
                              onclick="loadInboxConversation('${threadId}', '${channel}')">
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
-                                <div style="flex: 1; min-width: 0;">
+                                <div class="conv-content">
                                     <div class="conv-name">
                                         <span>${contactName}</span>
                                         <span class="conv-time">${time}${unreadBadge}</span>
@@ -3032,7 +3034,6 @@
                             <div class="incoming-lead-actions" style="margin-top: 8px;">
                                 <button type="button" class="incoming-lead-btn-primary" onclick="event.stopPropagation(); this.closest('.inbox-drawer-conversation')?.querySelector('.incoming-lead-menu-dropdown')?.classList.remove('show'); inboxOpenLinkTenantModal(${convId}, '${contactName}')">Vincular</button>
                             </div>
-                            <div style="font-size: 11px; color: #667781; margin-top: 6px;">${time}</div>
                         </div>
                     `;
                 });
@@ -3099,7 +3100,6 @@
                                 </div>
                             </div>
                         </div>
-                        <div style="font-size: 11px; color: #667781; text-align: right;">${time}</div>
                     </div>
                 `;
             });
