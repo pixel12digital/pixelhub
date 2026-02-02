@@ -1257,8 +1257,8 @@
             
             <!-- Agenda -->
             <?php
-            $agendaActive = $isActive(['/agenda', '/agenda/semana', '/agenda/stats', '/agenda/bloco']);
-            $agendaExpanded = $shouldExpand(['/agenda', '/agenda/semana', '/agenda/stats', '/agenda/bloco']);
+            $agendaActive = $isActive(['/agenda', '/agenda/semana', '/agenda/stats', '/agenda/weekly-report', '/agenda/bloco']);
+            $agendaExpanded = $shouldExpand(['/agenda', '/agenda/semana', '/agenda/stats', '/agenda/weekly-report', '/agenda/bloco']);
             ?>
             <div class="sidebar-module" data-module="agenda">
                 <div class="sidebar-module-header <?= $agendaActive ? 'active' : '' ?> <?= $agendaExpanded ? 'is-open' : '' ?>" data-title="Agenda">
@@ -1280,7 +1280,7 @@
                     </span>
                 </div>
                 <div class="sidebar-module-content <?= $agendaExpanded ? 'is-open' : '' ?>">
-                    <a href="<?= pixelhub_url('/agenda') ?>" class="sub-item <?= (strpos($currentUri, '/agenda') !== false && strpos($currentUri, '/agenda/semana') === false && strpos($currentUri, '/agenda/stats') === false && strpos($currentUri, '/agenda/bloco') === false) ? 'active' : '' ?>">
+                    <a href="<?= pixelhub_url('/agenda') ?>" class="sub-item <?= (strpos($currentUri, '/agenda') !== false && strpos($currentUri, '/agenda/semana') === false && strpos($currentUri, '/agenda/stats') === false && strpos($currentUri, '/agenda/weekly-report') === false && strpos($currentUri, '/agenda/bloco') === false) ? 'active' : '' ?>">
                         <span class="sidebar-text">Agenda Diária</span>
                     </a>
                     <a href="<?= pixelhub_url('/agenda/semana') ?>" class="sub-item <?= (strpos($currentUri, '/agenda/semana') !== false) ? 'active' : '' ?>">
@@ -1288,6 +1288,9 @@
                     </a>
                     <a href="<?= pixelhub_url('/agenda/stats') ?>" class="sub-item <?= (strpos($currentUri, '/agenda/stats') !== false) ? 'active' : '' ?>">
                         <span class="sidebar-text">Resumo Semanal</span>
+                    </a>
+                    <a href="<?= pixelhub_url('/agenda/weekly-report') ?>" class="sub-item <?= (strpos($currentUri, '/agenda/weekly-report') !== false) ? 'active' : '' ?>">
+                        <span class="sidebar-text">Relatório de Produtividade</span>
                     </a>
                 </div>
             </div>

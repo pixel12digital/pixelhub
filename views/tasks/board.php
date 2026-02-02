@@ -2759,6 +2759,9 @@ ob_start();
                 html += '<div style="margin-top: 5px; white-space: pre-wrap;">' + escapeHtml(data.completion_note) + '</div>';
                 html += '</div>';
             }
+            html += '<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #c8e6c9; font-size: 12px; color: #388e3c;">';
+            html += 'Esta tarefa aparecerá no <a href="<?= pixelhub_url('/agenda/weekly-report') ?>" style="color: #2e7d32; font-weight: 600;">Relatório de Produtividade</a> (Agenda → Relatório de Produtividade).';
+            html += '</div>';
             html += '</div>';
         }
         html += '</div>';

@@ -1976,6 +1976,10 @@ class AgendaService
         $stmt->execute([$dataInicioStr, $dataFimStr]);
         $blocosCancelados = $stmt->fetchAll();
         
+        // Tarefas concluídas por data de conclusão (completed_at) - evolução futura
+        // Inclui TODAS as tarefas concluídas no período, independente de vínculo com agenda
+        $tarefasConcluidasPorData = \PixelHub\Services\TaskService::getTasksCompletedInPeriod($dataInicioStr, $dataFimStr);
+        
         return [
             'periodo' => [
                 'inicio' => $dataInicioStr,
@@ -1983,6 +1987,7 @@ class AgendaService
             ],
             'horas_por_tipo' => $horasPorTipo,
             'tarefas_por_tipo' => $tarefasPorTipo,
+            'tarefas_concluidas_por_data' => $tarefasConcluidasPorData,
             'horas_por_projeto' => $horasPorProjeto,
             'blocos_cancelados' => $blocosCancelados,
         ];

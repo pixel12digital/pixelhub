@@ -773,6 +773,59 @@ class TaskService
     }
 
     /**
+     * Lista tarefas concluídas em um período (por data de conclusão completed_at)
+     * Usado no relatório semanal de produtividade - evolução futura
+     *
+     * @param string $dataInicio Y-m-d (inclusive)
+     * @param string $dataFim Y-m-d (inclusive)
+     * @return array Lista de tarefas com project_name, tenant_name, completed_by_name
+     */
+    public static function getTasksCompletedInPeriod(string $dataInicio, string $dataFim): array
+    {
+        $db = DB::getConnection();
+        $dataFimEnd = $dataFim . ' 23:59:59';
+
+        try {
+            $stmt = $db->prepare("
+                SELECT t.id, t.title, t.completed_at, t.completed_by,
+                       p.name as project_name,
+                       t2.name as tenant_name,
+                       completed_user.name as completed_by_name
+                FROM tasks t
+                INNER JOIN projects p ON t.project_id = p.id
+                LEFT JOIN tenants t2 ON p.tenant_id = t2.id
+                LEFT JOIN users completed_user ON completed_user.id = t.completed_by
+                WHERE t.status = 'concluida'
+                AND t.completed_at IS NOT NULL
+                AND t.completed_at >= ?
+                AND t.completed_at <= ?
+                AND t.deleted_at IS NULL
+                ORDER BY t.completed_at ASC
+            ");
+            $stmt->execute([$dataInicio . ' 00:00:00', $dataFimEnd]);
+        } catch (\PDOException $e) {
+            $stmt = $db->prepare("
+                SELECT t.id, t.title, t.completed_at, t.completed_by,
+                       p.name as project_name,
+                       t2.name as tenant_name,
+                       completed_user.name as completed_by_name
+                FROM tasks t
+                INNER JOIN projects p ON t.project_id = p.id
+                LEFT JOIN tenants t2 ON p.tenant_id = t2.id
+                LEFT JOIN users completed_user ON completed_user.id = t.completed_by
+                WHERE t.status = 'concluida'
+                AND t.completed_at IS NOT NULL
+                AND t.completed_at >= ?
+                AND t.completed_at <= ?
+                ORDER BY t.completed_at ASC
+            ");
+            $stmt->execute([$dataInicio . ' 00:00:00', $dataFimEnd]);
+        }
+
+        return $stmt->fetchAll();
+    }
+
+    /**
      * Exclui uma tarefa (soft delete)
      * Define deleted_at = NOW() sem remover o registro do banco
      * 
