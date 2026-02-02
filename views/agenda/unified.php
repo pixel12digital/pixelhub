@@ -11,72 +11,122 @@ $isHoje = ($viewMode === 'hoje');
         justify-content: space-between;
         align-items: center;
         flex-wrap: wrap;
-        gap: 15px;
-        margin-bottom: 24px;
+        gap: 16px;
+        margin-bottom: 28px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #e8e8e8;
     }
     .agenda-unified-nav {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
         flex-wrap: wrap;
     }
-    .agenda-unified-nav a {
-        padding: 8px 16px;
-        background: #f0f0f0;
-        color: #333;
+    .agenda-unified-nav .btn-nav {
+        padding: 8px 14px;
+        background: #f5f5f5;
+        color: #555;
         text-decoration: none;
         border-radius: 6px;
         font-size: 14px;
         font-weight: 500;
-        transition: background 0.2s;
+        border: 1px solid #e8e8e8;
+        transition: background 0.2s, border-color 0.2s;
     }
-    .agenda-unified-nav a:hover {
-        background: #e0e0e0;
+    .agenda-unified-nav .btn-nav:hover {
+        background: #ebebeb;
+        border-color: #ddd;
+        color: #333;
     }
-    .agenda-unified-nav a.btn-active {
+    .agenda-unified-nav .btn-nav.btn-active {
         background: #023A8D;
         color: white;
+        border-color: #023A8D;
+    }
+    .agenda-unified-nav .btn-nav.btn-active:hover {
+        background: #022a6d;
+        border-color: #022a6d;
     }
     .agenda-unified-period {
-        font-size: 18px;
+        font-size: 15px;
         font-weight: 600;
+        color: #444;
+        padding: 0 4px;
+    }
+    .agenda-unified-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .agenda-unified-actions .btn-primary {
+        padding: 8px 16px;
+        background: #023A8D;
+        color: white;
+        text-decoration: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        transition: background 0.2s;
+    }
+    .agenda-unified-actions .btn-primary:hover {
+        background: #022a6d;
+    }
+    .agenda-unified-actions .btn-secondary {
+        padding: 8px 14px;
+        background: #fff;
+        color: #555;
+        text-decoration: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        border: 1px solid #ddd;
+        transition: background 0.2s, border-color 0.2s;
+    }
+    .agenda-unified-actions .btn-secondary:hover {
+        background: #f8f8f8;
+        border-color: #ccc;
         color: #333;
     }
     .agenda-section {
         background: white;
         border-radius: 8px;
         padding: 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        margin-bottom: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        border: 1px solid #eee;
     }
     .agenda-section h3 {
         margin: 0 0 16px 0;
-        font-size: 16px;
-        color: #555;
-        border-bottom: 2px solid #f0f0f0;
-        padding-bottom: 10px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #444;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 12px;
     }
     .agenda-item {
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 12px 0;
-        border-bottom: 1px solid #f5f5f5;
+        gap: 14px;
+        padding: 14px 20px;
+        margin: 0 -20px;
+        border-radius: 6px;
         text-decoration: none;
         color: inherit;
         transition: background 0.2s;
+        border: 1px solid transparent;
     }
-    .agenda-item:last-child {
-        border-bottom: none;
+    .agenda-item + .agenda-item {
+        margin-top: 4px;
     }
     .agenda-item:hover {
-        background: #f9f9f9;
-        margin: 0 -12px;
-        padding: 12px;
+        background: #f8f9fa;
+        border-color: #eee;
     }
     .agenda-item-icon {
-        width: 36px;
-        height: 36px;
+        width: 40px;
+        height: 40px;
         border-radius: 8px;
         display: flex;
         align-items: center;
@@ -84,7 +134,11 @@ $isHoje = ($viewMode === 'hoje');
         font-size: 16px;
         flex-shrink: 0;
     }
-    .agenda-item-icon.task { background: #e3f2fd; color: #1976d2; }
+    .agenda-item-icon.task { background: #f0f4f8; color: #1976d2; }
+    .agenda-item-icon.task.status-backlog { background: #f5f5f5; color: #757575; }
+    .agenda-item-icon.task.status-andamento { background: #e3f2fd; color: #1976d2; }
+    .agenda-item-icon.task.status-aguardando { background: #fff3e0; color: #f57c00; }
+    .agenda-item-icon.task.status-concluida { background: #e8f5e9; color: #388e3c; }
     .agenda-item-icon.project { background: #e8f5e9; color: #388e3c; }
     .agenda-item-icon.manual { background: #fff3e0; color: #f57c00; }
     .agenda-item-content {
@@ -94,50 +148,60 @@ $isHoje = ($viewMode === 'hoje');
     .agenda-item-title {
         font-weight: 600;
         color: #333;
-        margin-bottom: 2px;
+        margin-bottom: 4px;
+        font-size: 15px;
     }
     .agenda-item-meta {
-        font-size: 12px;
-        color: #888;
+        font-size: 13px;
+        color: #777;
     }
     .agenda-item-badge {
         font-size: 11px;
-        padding: 2px 8px;
-        border-radius: 10px;
+        padding: 4px 10px;
+        border-radius: 12px;
         font-weight: 600;
+        flex-shrink: 0;
     }
+    .agenda-item-badge.badge-backlog { background: #f5f5f5; color: #616161; }
+    .agenda-item-badge.badge-andamento { background: #e3f2fd; color: #1565c0; }
+    .agenda-item-badge.badge-aguardando { background: #fff3e0; color: #e65100; }
+    .agenda-item-badge.badge-concluida { background: #e8f5e9; color: #2e7d32; }
+    .agenda-item-badge.badge-projeto { background: #e8f5e9; color: #2e7d32; }
     .agenda-day-column {
-        margin-bottom: 24px;
+        margin-bottom: 28px;
     }
     .agenda-day-header {
         font-weight: 600;
+        font-size: 15px;
         color: #023A8D;
-        margin-bottom: 12px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid #e0e0e0;
+        margin-bottom: 14px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
     }
-    .agenda-blocos-link {
+    .agenda-footer-link {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
         padding: 10px 16px;
-        background: #f5f5f5;
+        background: #fff;
         color: #555;
         text-decoration: none;
         border-radius: 6px;
         font-size: 14px;
-        margin-top: 20px;
-        transition: background 0.2s;
+        font-weight: 500;
+        border: 1px solid #ddd;
+        transition: background 0.2s, border-color 0.2s;
     }
-    .agenda-blocos-link:hover {
-        background: #e8e8e8;
+    .agenda-footer-link:hover {
+        background: #f8f8f8;
+        border-color: #ccc;
         color: #333;
     }
     .agenda-empty {
         text-align: center;
-        padding: 40px 20px;
-        color: #888;
+        padding: 48px 24px;
+        color: #777;
         font-size: 15px;
+        line-height: 1.6;
     }
 </style>
 
@@ -154,18 +218,18 @@ $isHoje = ($viewMode === 'hoje');
 
 <div class="agenda-unified-header">
     <div class="agenda-unified-nav">
-        <a href="<?= pixelhub_url('/agenda?view=hoje&data=' . $todayStr) ?>" class="<?= $isHoje ? 'btn-active' : '' ?>">Hoje</a>
-        <a href="<?= pixelhub_url('/agenda?view=semana&data=' . $dataStr) ?>" class="<?= !$isHoje ? 'btn-active' : '' ?>">Esta semana</a>
-        <span style="color: #999; padding: 0 8px;">|</span>
-        <a href="<?= $prevUrl ?>">← Anterior</a>
+        <a href="<?= pixelhub_url('/agenda?view=hoje&data=' . $todayStr) ?>" class="btn-nav <?= $isHoje ? 'btn-active' : '' ?>">Hoje</a>
+        <a href="<?= pixelhub_url('/agenda?view=semana&data=' . $dataStr) ?>" class="btn-nav <?= !$isHoje ? 'btn-active' : '' ?>">Esta semana</a>
+        <span style="color: #ccc; font-weight: 300;">|</span>
+        <a href="<?= $prevUrl ?>" class="btn-nav">← Anterior</a>
         <span class="agenda-unified-period"><?= htmlspecialchars($periodLabel) ?></span>
-        <a href="<?= $nextUrl ?>">Próximo →</a>
-        <a href="<?= pixelhub_url('/agenda?view=' . $viewMode . '&data=' . $todayStr) ?>" style="margin-left: 8px;">Ir para hoje</a>
+        <a href="<?= $nextUrl ?>" class="btn-nav">Próximo →</a>
+        <a href="<?= pixelhub_url('/agenda?view=' . $viewMode . '&data=' . $todayStr) ?>" class="btn-nav">Ir para hoje</a>
     </div>
-    <div>
-        <a href="<?= pixelhub_url('/agenda/manual-item/novo?data=' . $dataStr) ?>" class="agenda-blocos-link" style="background: #023A8D; color: white;">+ Compromisso</a>
-        <a href="<?= pixelhub_url('/agenda/timeline') ?>" class="agenda-blocos-link" style="margin-left: 8px;">Visão macro (projetos)</a>
-        <a href="<?= pixelhub_url('/agenda/blocos?data=' . $dataStr) ?>" class="agenda-blocos-link" style="margin-left: 8px;">Blocos de tempo</a>
+    <div class="agenda-unified-actions">
+        <a href="<?= pixelhub_url('/agenda/manual-item/novo?data=' . $dataStr) ?>" class="btn-primary">+ Compromisso</a>
+        <a href="<?= pixelhub_url('/agenda/timeline') ?>" class="btn-secondary">Visão macro</a>
+        <a href="<?= pixelhub_url('/agenda/blocos?data=' . $dataStr) ?>" class="btn-secondary">Blocos de tempo</a>
     </div>
 </div>
 
@@ -187,18 +251,20 @@ $isHoje = ($viewMode === 'hoje');
         <?php if (!empty($tasks)): ?>
         <div class="agenda-section">
             <h3>Tarefas (<?= count($tasks) ?>)</h3>
-            <?php foreach ($tasks as $t): ?>
+            <?php foreach ($tasks as $t):
+                $status = $t['status'] ?? 'backlog';
+                $statusLabels = ['backlog' => 'Backlog', 'em_andamento' => 'Em andamento', 'aguardando_cliente' => 'Aguardando cliente', 'concluida' => 'Concluída'];
+                $statusLabel = $statusLabels[$status] ?? $status;
+                $statusMap = ['backlog' => 'backlog', 'em_andamento' => 'andamento', 'aguardando_cliente' => 'aguardando', 'concluida' => 'concluida'];
+                $statusClass = $statusMap[$status] ?? 'backlog';
+            ?>
                 <a href="<?= pixelhub_url('/projects/board?project_id=' . (int)$t['project_id']) ?>#task-<?= (int)$t['id'] ?>" class="agenda-item">
-                    <span class="agenda-item-icon task">✓</span>
+                    <span class="agenda-item-icon task status-<?= $statusClass ?>">✓</span>
                     <div class="agenda-item-content">
                         <div class="agenda-item-title"><?= htmlspecialchars($t['title']) ?></div>
                         <div class="agenda-item-meta"><?= htmlspecialchars($t['project_name'] ?? '') ?> · <?= htmlspecialchars($t['tenant_name'] ?? 'Interno') ?></div>
                     </div>
-                    <?php
-                    $statusLabels = ['backlog' => 'Backlog', 'em_andamento' => 'Em andamento', 'aguardando_cliente' => 'Aguardando cliente', 'concluida' => 'Concluída'];
-                    $statusLabel = $statusLabels[$t['status'] ?? ''] ?? ($t['status'] ?? '');
-                    ?>
-                    <span class="agenda-item-badge" style="background: #e3f2fd; color: #1976d2;"><?= htmlspecialchars($statusLabel) ?></span>
+                    <span class="agenda-item-badge badge-<?= $statusClass ?>"><?= htmlspecialchars($statusLabel) ?></span>
                 </a>
             <?php endforeach; ?>
         </div>
@@ -214,6 +280,7 @@ $isHoje = ($viewMode === 'hoje');
                         <div class="agenda-item-title"><?= htmlspecialchars($p['name']) ?></div>
                         <div class="agenda-item-meta"><?= htmlspecialchars($p['tenant_name'] ?? 'Interno') ?> · Prazo: <?= $p['due_date'] ? date('d/m/Y', strtotime($p['due_date'])) : '-' ?></div>
                     </div>
+                    <span class="agenda-item-badge badge-projeto">Projeto</span>
                 </a>
             <?php endforeach; ?>
         </div>
@@ -264,14 +331,18 @@ $isHoje = ($viewMode === 'hoje');
             <?php if (count($day['tasks']) + count($day['projects']) + count($day['manual_items']) === 0) continue; ?>
             <div class="agenda-section agenda-day-column">
                 <h3 class="agenda-day-header"><?= htmlspecialchars($day['date_formatted']) ?></h3>
-                <?php foreach ($day['tasks'] as $t): ?>
+                <?php foreach ($day['tasks'] as $t):
+                    $status = $t['status'] ?? 'backlog';
+                    $statusMap = ['backlog' => 'backlog', 'em_andamento' => 'andamento', 'aguardando_cliente' => 'aguardando'];
+                    $statusClass = $statusMap[$status] ?? 'backlog';
+                ?>
                     <a href="<?= pixelhub_url('/projects/board?project_id=' . (int)$t['project_id']) ?>#task-<?= (int)$t['id'] ?>" class="agenda-item">
-                        <span class="agenda-item-icon task">✓</span>
+                        <span class="agenda-item-icon task status-<?= $statusClass ?>">✓</span>
                         <div class="agenda-item-content">
                             <div class="agenda-item-title"><?= htmlspecialchars($t['title']) ?></div>
                             <div class="agenda-item-meta"><?= htmlspecialchars($t['project_name'] ?? '') ?></div>
                         </div>
-                        <span class="agenda-item-badge" style="background: #e3f2fd; color: #1976d2;">Tarefa</span>
+                        <span class="agenda-item-badge badge-<?= $statusClass ?>">Tarefa</span>
                     </a>
                 <?php endforeach; ?>
                 <?php foreach ($day['projects'] as $p): ?>
@@ -298,8 +369,8 @@ $isHoje = ($viewMode === 'hoje');
     <?php endif; ?>
 <?php endif; ?>
 
-<div style="margin-top: 24px;">
-    <a href="<?= pixelhub_url('/agenda/weekly-report') ?>" class="agenda-blocos-link">Relatório de Produtividade</a>
+<div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #eee;">
+    <a href="<?= pixelhub_url('/agenda/weekly-report') ?>" class="agenda-footer-link">Relatório de Produtividade</a>
 </div>
 
 <?php
