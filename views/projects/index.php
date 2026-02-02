@@ -244,7 +244,7 @@ ob_start();
         <label for="filter_status">Status</label>
         <select id="filter_status" onchange="applyFilters()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             <option value="">Todos</option>
-            <option value="ativo" <?= ($selectedStatus === 'ativo') ? 'selected' : '' ?>>Ativo</option>
+            <option value="ativo" <?= (($selectedStatus ?? 'ativo') === 'ativo') ? 'selected' : '' ?>>Ativo</option>
             <option value="arquivado" <?= ($selectedStatus === 'arquivado') ? 'selected' : '' ?>>Arquivado</option>
         </select>
     </div>

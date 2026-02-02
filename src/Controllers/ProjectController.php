@@ -38,7 +38,7 @@ class ProjectController extends Controller
         
         // Filtros
         $tenantId = isset($_GET['tenant_id']) && $_GET['tenant_id'] !== '' ? (int) $_GET['tenant_id'] : null;
-        $status = isset($_GET['status']) && $_GET['status'] !== '' ? $_GET['status'] : null;
+        $status = isset($_GET['status']) && $_GET['status'] !== '' ? $_GET['status'] : 'ativo';
         $type = isset($_GET['type']) && $_GET['type'] !== '' ? $_GET['type'] : null;
         
         // Busca projetos
