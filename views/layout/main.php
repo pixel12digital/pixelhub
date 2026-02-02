@@ -763,8 +763,7 @@
             gap: 2px;
             flex-shrink: 0;
         }
-        .inbox-drawer .inbox-transcribe-icon,
-        .inbox-drawer .inbox-audio-menu-btn {
+        .inbox-drawer .inbox-transcribe-icon {
             background: transparent;
             border: none;
             color: #6b7280;
@@ -775,9 +774,10 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            width: 24px;
+            height: 24px;
         }
-        .inbox-drawer .inbox-transcribe-icon:hover,
-        .inbox-drawer .inbox-audio-menu-btn:hover {
+        .inbox-drawer .inbox-transcribe-icon:hover {
             background: rgba(0,0,0,0.05);
             color: #374151;
         }
@@ -807,8 +807,8 @@
         }
         .inbox-drawer .inbox-transcription-spinner {
             display: none;
-            width: 12px;
-            height: 12px;
+            width: 16px;
+            height: 16px;
             border: 1.5px solid #d1d5db;
             border-top-color: #6b7280;
             border-radius: 50%;
@@ -3577,7 +3577,7 @@
             const hasTranscription = media.transcription && media.transcription.trim();
             const transcriptionStatus = media.transcription_status || null;
             const safeEventId = eventId.replace(/'/g, "\\'");
-            const transcribeSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>';
+            const transcribeSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>';
             let iconClass = 'inbox-transcribe-icon';
             let iconTitle = 'Transcrever';
             let iconOnclick = '';
@@ -3599,7 +3599,7 @@
             if (eventId) {
                 html += '<button type="button" class="' + iconClass + '" data-event-id="' + escapeInboxHtml(eventId) + '" data-has-transcription="' + (hasTranscription ? '1' : '0') + '" title="' + escapeInboxHtml(iconTitle) + '" ' + iconOnclick + '>' + transcribeSvg + '<span class="inbox-transcription-spinner"></span></button>';
             }
-            html += '<button type="button" class="inbox-audio-menu-btn" aria-label="Mais opções">⋮</button></div></div>';
+            html += '</div></div>';
             if (hasTranscription) {
                 html += '<div class="inbox-transcription-body" data-event-id="' + escapeInboxHtml(eventId) + '">' + escapeInboxHtml(media.transcription) + '</div>';
             }
