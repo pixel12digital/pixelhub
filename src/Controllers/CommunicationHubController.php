@@ -1836,6 +1836,13 @@ class CommunicationHubController extends Controller
                             $eventPayload['text'] = $message;
                         }
                         
+                        // Idempotência: inclui message_id no payload para deduplicar com webhook
+                        $gatewayMessageId = $result['message_id'] ?? null;
+                        if ($gatewayMessageId !== null) {
+                            $eventPayload['id'] = $gatewayMessageId;
+                            $eventPayload['message_id'] = $gatewayMessageId;
+                        }
+                        
                         // CORREÇÃO: Normaliza channel_id no metadata para garantir busca consistente
                         // Eventos inbound têm metadata.channel_id normalizado, outbound precisa ter também
                         $normalizedChannelId = strtolower(str_replace(' ', '', $targetChannelId));

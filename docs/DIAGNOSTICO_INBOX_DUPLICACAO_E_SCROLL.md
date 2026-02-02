@@ -1,32 +1,59 @@
 # Diagnóstico: Inbox — duplicação de mensagem enviada + scroll inicial
 
-**Data:** 29/01/2026
+**Data:** 29/01/2026  
+**Atualizado:** 29/01/2026 — causa raiz backend confirmada
 
 ---
 
 ## 1. Duplicação de mensagem enviada
 
-### Onde acontece
+### 1.1 Causa raiz: backend (persistência)
 
-**Na renderização (frontend), não na persistência.** O backend salva 1 registro por envio. A duplicação visual ocorre porque:
+**O backend grava 2 eventos distintos no banco para cada mensagem enviada.** A duplicação visual ocorre porque a API `thread-data` e `messages/new` retornam ambos os eventos, e o frontend exibe cada um (cada um tem `event_id` diferente).
 
-1. **Optimistic UI** adiciona a mensagem ao DOM antes do envio (`sendInboxMessage`).
-2. **Polling** (5s) chama `fetchInboxNewMessages` → `appendInboxMessages` com as mensagens retornadas pela API.
-3. Quando o poll retorna a mensagem enviada, `appendInboxMessages` remove a otimista e adiciona a real.
-4. **Causa da duplicação:** `appendInboxMessages` pode ser chamada duas vezes com a mesma mensagem (race entre polls ou API retornando duplicata), ou a otimista não é removida em algum fluxo e a real é adicionada em seguida.
+| Origem | Arquivo | Momento | source_system | payload |
+|--------|---------|---------|---------------|---------|
+| **1** | `CommunicationHubController::send()` | Após envio bem-sucedido ao gateway | `pixelhub_operator` | `{ to, timestamp, channel_id, type, message }` — **sem** `message_id` |
+| **2** | `WhatsAppWebhookController::handle()` | Webhook `message.sent` / `message` (fromMe) do gateway | `wpp_gateway` | Payload bruto do gateway (estrutura diferente) |
 
-### Arquivo/trecho
+**Por que a idempotência não evita duplicação**
+
+`EventIngestionService::calculateIdempotencyKey()` usa:
+
+```
+idempotency_key = sourceSystem + ":" + eventType + ":" + (externalId OU hash do payload)
+```
+
+- **source_system diferente** → `pixelhub_operator` vs `wpp_gateway` → chaves diferentes.
+- **Payload interno** não inclui `message_id` no payload (está só em `metadata`); `calculateIdempotencyKey` só olha o payload.
+- **Payload do webhook** tem estrutura diferente (raw, event, message.key.id, etc.).
+- Resultado: duas chaves distintas → dois inserts em `communication_events`.
+
+**Evidência:** `docs/INVESTIGACAO_INBOX_ROBSON_4234.md` (6.2) — "2 eventos outbound duplicados" na resposta da API.
+
+### 1.2 Correções de frontend (já aplicadas)
+
+Mesmo com deduplicação no frontend, se o backend retornar 2 eventos com `event_id` diferentes, ambos são exibidos. A deduplicação por `data-msg-id` só evita o mesmo evento ser inserido duas vezes.
 
 - **Arquivo:** `views/layout/main.php`
 - **Função:** `appendInboxMessages` (~linha 3733)
-- **Problema:** Não havia deduplicação por `event_id`; mensagens idênticas eram adicionadas mais de uma vez.
-
-### Correção aplicada
-
-- Inclusão de `data-msg-id` em cada `.msg` (em `renderInboxMessages` e `appendInboxMessages`).
-- Antes de inserir, checagem se já existe `.msg[data-msg-id="X"]` no container; em caso positivo, a mensagem é ignorada.
+- Inclusão de `data-msg-id` em cada `.msg`.
 - Fallback para mensagens sem `id`: chave composta `direction|content|timestamp` em `data-dedupe-key`.
-- **Áudio (02/2026):** `msgId` passa a incluir `msg.media?.event_id`. Para outgoing audio sem id, dedupe por `outbound|audio|media.url|timestamp`. Guard contra `fetchInboxNewMessages` concorrente. Optimistic recebe `data-msg-id` do `event_id` retornado pelo send.
+- **Áudio (02/2026):** `msgId` inclui `msg.media?.event_id`; dedupe por `outbound|audio|media.url|timestamp`.
+
+### 1.3 Correção aplicada (29/01/2026)
+
+**Opção A — Idempotência unificada para outbound**
+
+1. **CommunicationHubController::send()**  
+   - Inclusão de `id` e `message_id` no payload do evento quando `$result['message_id']` existe (resposta do gateway).
+
+2. **EventIngestionService::calculateIdempotencyKey()**  
+   - Para `whatsapp.outbound.message`, uso de chave `whatsapp.outbound.message:{message_id}` (sem `source_system`).  
+   - Extração de `message_id` de: `payload.id`, `payload.message_id`, `payload.message.key.id`, `payload.message.id`, `metadata.message_id`.  
+   - Assim, o evento do send interno e o do webhook geram a mesma chave e o segundo é descartado.
+
+**Observação:** Se o gateway não retornar `message_id` (ex.: WPPConnect em alguns casos), a deduplicação não ocorre e pode haver duplicação. O gateway deveria sempre retornar o ID da mensagem.
 
 ---
 

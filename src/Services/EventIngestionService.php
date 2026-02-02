@@ -55,11 +55,12 @@ class EventIngestionService
         $traceId = $eventData['trace_id'] ?? self::generateUuid();
         $correlationId = $eventData['correlation_id'] ?? null;
 
-        // Calcula idempotency_key
+        // Calcula idempotency_key (passa metadata para outbound deduplication)
         $idempotencyKey = self::calculateIdempotencyKey(
             $sourceSystem,
             $eventData['payload'] ?? [],
-            $eventType
+            $eventType,
+            $eventData['metadata'] ?? []
         );
 
         // 🔍 PASSO 5: DEDUPLICAÇÃO - Log obrigatório quando descartar
@@ -376,20 +377,34 @@ class EventIngestionService
     /**
      * Calcula chave de idempotência
      * 
+     * Para whatsapp.outbound.message: usa message_id sem source_system, permitindo
+     * deduplicar evento do send interno (pixelhub_operator) com o do webhook (wpp_gateway).
+     *
      * @param string $sourceSystem Sistema de origem
      * @param array $payload Payload do evento
      * @param string $eventType Tipo do evento
+     * @param array $metadata Metadados (ex: metadata.message_id do send interno)
      * @return string Chave de idempotência
      */
-    private static function calculateIdempotencyKey(string $sourceSystem, array $payload, string $eventType): string
+    private static function calculateIdempotencyKey(string $sourceSystem, array $payload, string $eventType, array $metadata = []): string
     {
-        // Tenta extrair ID externo do payload
-        $externalId = $payload['id'] 
-            ?? $payload['external_id'] 
-            ?? $payload['messageId'] 
+        // Tenta extrair ID externo do payload e metadata
+        $externalId = $payload['id']
+            ?? $payload['external_id']
+            ?? $payload['messageId']
             ?? $payload['message_id']
             ?? $payload['payment_id']
+            ?? $payload['message']['id']
+            ?? $payload['message']['key']['id']
+            ?? $payload['raw']['payload']['key']['id']
+            ?? $metadata['message_id']
             ?? null;
+
+        // whatsapp.outbound.message: chave unificada por message_id (ignora source_system)
+        // Evita duplicação entre send interno e webhook message.sent
+        if ($eventType === 'whatsapp.outbound.message' && $externalId !== null) {
+            return sprintf('%s:%s', $eventType, $externalId);
+        }
 
         // Se tiver external_id, usa ele
         if ($externalId !== null) {
