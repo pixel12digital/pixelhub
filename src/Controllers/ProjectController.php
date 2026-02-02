@@ -226,6 +226,7 @@ class ProjectController extends Controller
         }
 
         $redirectToShow = !empty($_POST['redirect_to_show']);
+        $redirectTo = $_POST['redirect_to'] ?? null;
 
         try {
             if ($action === 'unarchive') {
@@ -238,6 +239,9 @@ class ProjectController extends Controller
 
             if ($redirectToShow) {
                 $this->redirect('/projects/show?id=' . $id . '&success=' . $successParam);
+            } elseif ($redirectTo && preg_match('#^/[a-zA-Z0-9/_-]+$#', $redirectTo)) {
+                $sep = strpos($redirectTo, '?') !== false ? '&' : '?';
+                $this->redirect($redirectTo . $sep . 'success=' . $successParam);
             } else {
                 $this->redirect('/projects?success=' . $successParam);
             }

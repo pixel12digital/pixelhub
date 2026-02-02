@@ -95,6 +95,11 @@ ob_start();
 </div>
 <?php endif; ?>
 
+<div style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">
+    <a href="<?= pixelhub_url('/projects') ?>" style="color: #023A8D; text-decoration: none;">Projetos & Tarefas</a>
+    <span style="margin: 0 6px; color: #9ca3af;">/</span>
+    <?= htmlspecialchars($project['name']) ?>
+</div>
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #ddd;">
         <div>
@@ -177,6 +182,11 @@ ob_start();
 
     <!-- Ações Rápidas -->
     <div class="action-buttons">
+        <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id'] . '&create_task=1') ?>" 
+           class="btn btn-primary"
+           style="background: #28a745; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600;">
+            + Nova tarefa
+        </a>
         <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id']) ?>" 
            class="btn btn-primary"
            style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600;">

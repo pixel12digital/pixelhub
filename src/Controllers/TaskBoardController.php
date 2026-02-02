@@ -127,9 +127,19 @@ class TaskBoardController extends Controller
         
         // Busca resumo do projeto se um projeto específico estiver selecionado
         $projectSummary = null;
+        $selectedProject = null;
         if ($projectId) {
             $projectSummary = TaskService::getProjectSummary($projectId);
+            // Busca dados do projeto para breadcrumb e botão arquivar (em allActiveProjects que tem todos)
+            foreach ($allActiveProjects as $p) {
+                if ((int)$p['id'] === $projectId) {
+                    $selectedProject = $p;
+                    break;
+                }
+            }
         }
+        
+        $createTaskOnLoad = isset($_GET['create_task']) && $_GET['create_task'] === '1';
         
         $this->view('tasks.board', [
             'tasks' => $tasks,
@@ -137,6 +147,7 @@ class TaskBoardController extends Controller
             'allActiveProjects' => $allActiveProjects, // Todos os projetos ativos para o modal
             'tenants' => $tenants,
             'selectedProjectId' => $projectId,
+            'selectedProject' => $selectedProject,
             'selectedTenantId' => $tenantId,
             'selectedType' => $type,
             'selectedClientQuery' => $clientQuery,
@@ -145,6 +156,7 @@ class TaskBoardController extends Controller
             'contextProjectId' => $contextProjectId, // Projeto inferido do contexto
             'shouldHideProjectField' => $shouldHideProjectField, // Se deve ocultar campo projeto
             'availableProjectsCount' => $availableProjectsCount, // Quantidade de projetos disponíveis
+            'createTaskOnLoad' => $createTaskOnLoad,
         ]);
     }
 

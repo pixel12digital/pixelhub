@@ -181,8 +181,14 @@ ob_start();
     .filters .form-group label {
         margin-bottom: 5px;
     }
+    .breadcrumb { font-size: 13px; color: #6b7280; margin-bottom: 12px; }
+    .breadcrumb a { color: #023A8D; text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
 </style>
 
+<div class="breadcrumb">
+    <span>Projetos & Tarefas</span>
+</div>
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center;">
     <div>
         <h2>Projetos & Tarefas</h2>

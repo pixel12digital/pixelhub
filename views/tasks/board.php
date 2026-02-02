@@ -267,10 +267,33 @@ ob_start();
         margin-bottom: 0;
     }
     .column-count {
-        font-weight: 400;
+        font-weight: 600;
         font-size: 14px;
-        color: #666;
+        color: #374151;
+        margin-left: 4px;
     }
+    /* Indicador de tarefa atrasada */
+    .kanban-task.task-overdue {
+        border-left: 4px solid #dc2626;
+        background: #fef2f2 !important;
+    }
+    .kanban-task.task-overdue:hover {
+        background: #fee2e2 !important;
+    }
+    /* Breadcrumb */
+    .breadcrumb {
+        font-size: 13px;
+        color: #6b7280;
+        margin-bottom: 12px;
+    }
+    .breadcrumb a {
+        color: #023A8D;
+        text-decoration: none;
+    }
+    .breadcrumb a:hover {
+        text-decoration: underline;
+    }
+    .breadcrumb span { color: #9ca3af; margin: 0 6px; }
     /* Botão de adicionar tarefa no topo da coluna */
     .quick-add-button-top {
         width: 100%;
@@ -712,12 +735,54 @@ ob_start();
     }
 </style>
 
+<?php 
+$breadcrumbItems = [
+    ['label' => 'Projetos & Tarefas', 'url' => pixelhub_url('/projects')],
+];
+if (!empty($selectedProject)) {
+    $breadcrumbItems[] = ['label' => htmlspecialchars($selectedProject['name']), 'url' => pixelhub_url('/projects/show?id=' . $selectedProject['id'])];
+    $breadcrumbItems[] = ['label' => 'Quadro', 'url' => null];
+} else {
+    $breadcrumbItems[] = ['label' => 'Quadro de Tarefas', 'url' => null];
+}
+?>
+<div class="breadcrumb">
+    <?php foreach ($breadcrumbItems as $i => $item): ?>
+        <?php if ($i > 0): ?><span>/</span><?php endif; ?>
+        <?php if ($item['url']): ?>
+            <a href="<?= $item['url'] ?>"><?= $item['label'] ?></a>
+        <?php else: ?>
+            <?= $item['label'] ?>
+        <?php endif; ?>
+    <?php endforeach; ?>
+</div>
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center;">
     <div>
         <h2>Quadro de Tarefas</h2>
         <p>Gerenciamento visual de tarefas em formato Kanban</p>
     </div>
-    <div style="display: flex; gap: 5px;">
+    <div style="display: flex; gap: 5px; flex-wrap: wrap; align-items: center;">
+        <?php if (!empty($selectedProject) && ($selectedProject['status'] ?? 'ativo') === 'ativo'): ?>
+        <form method="POST" action="<?= pixelhub_url('/projects/archive') ?>" style="display: inline;"
+              onsubmit="return confirm('Tem certeza que deseja arquivar o projeto \'<?= htmlspecialchars(addslashes($selectedProject['name'])) ?>\'? Ele será ocultado da lista principal.');">
+            <input type="hidden" name="id" value="<?= (int)$selectedProject['id'] ?>">
+            <input type="hidden" name="action" value="archive">
+            <input type="hidden" name="redirect_to" value="/projects/board">
+            <button type="submit" class="btn-action btn-action-secondary" style="gap: 6px; padding: 6px 12px; font-size: 13px;"
+                    title="Arquivar este projeto">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
+                Arquivar projeto
+            </button>
+        </form>
+        <?php endif; ?>
+        <a href="<?= pixelhub_url('/agenda/weekly-report') ?>" 
+           class="btn-action btn-action-secondary"
+           style="gap: 6px; padding: 6px 12px; font-size: 13px; min-width: auto; height: auto; text-decoration: none;"
+           data-tooltip="Relatório de Produtividade"
+           aria-label="Relatório de Produtividade">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            <span>Relatório</span>
+        </a>
         <?php
         $ticketUrl = pixelhub_url('/tickets/create');
         $ticketParams = [];
@@ -1209,7 +1274,7 @@ ob_start();
             <div class="form-group">
                 <label for="task_project_id">Projeto *</label>
                 <div style="display: flex; gap: 8px; align-items: flex-start;">
-                    <select name="project_id" id="task_project_id" required style="flex: 1;">
+                    <select name="project_id" id="task_project_id" required style="flex: 1;" onchange="if(this.value==='__create_new__'){this.value='';openCreateProjectInline();}">
                     <option value="">Selecione...</option>
                     <?php 
                     // Usa todos os projetos ativos para o modal (igual ao /projects)
@@ -1234,6 +1299,7 @@ ob_start();
                             <?php endif; ?>
                         </option>
                     <?php endforeach; ?>
+                    <option value="__create_new__" style="font-weight: 600; color: #023A8D;">+ Criar novo projeto</option>
                 </select>
                     <button type="button" id="btn-create-project-inline" 
                             style="padding: 8px 14px; background: #e3f2fd; color: #023A8D; border: 1px solid #023A8D; border-radius: 4px; cursor: pointer; white-space: nowrap; font-size: 13px; font-weight: 500; transition: all 0.2s;"
@@ -4191,6 +4257,49 @@ ob_start();
         if (btnNewTask) {
             btnNewTask.addEventListener('click', openCreateTaskModal);
         }
+        
+        <?php if (!empty($createTaskOnLoad)): ?>
+        // Abre modal de nova tarefa ao carregar (vindo da tela do projeto)
+        setTimeout(function() { 
+            openCreateTaskModal(); 
+            if (window.history && window.history.replaceState) {
+                var url = new URL(window.location.href);
+                url.searchParams.delete('create_task');
+                window.history.replaceState({}, '', url.toString());
+            }
+        }, 300);
+        <?php endif; ?>
+        
+        // Atalhos de teclado: N = nova tarefa, Esc = fechar modal, Ctrl+Enter = salvar
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const taskModal = document.getElementById('taskModal');
+                const detailModal = document.getElementById('taskDetailModal');
+                if (taskModal && taskModal.style.display === 'block') {
+                    closeTaskModal();
+                    e.preventDefault();
+                } else if (detailModal && detailModal.style.display === 'flex') {
+                    closeTaskDetailModal();
+                    e.preventDefault();
+                }
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                const taskModal = document.getElementById('taskModal');
+                if (taskModal && taskModal.style.display === 'block') {
+                    const form = document.getElementById('taskForm');
+                    const activeTag = document.activeElement?.tagName?.toLowerCase();
+                    if (form && activeTag !== 'textarea') {
+                        form.requestSubmit();
+                        e.preventDefault();
+                    }
+                }
+            } else if (e.key === 'n' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                const activeTag = document.activeElement?.tagName?.toLowerCase();
+                if (activeTag !== 'input' && activeTag !== 'textarea' && activeTag !== 'select') {
+                    openCreateTaskModal();
+                    e.preventDefault();
+                }
+            }
+        });
 
         document.getElementById('taskForm').addEventListener('submit', function(e) {
             e.preventDefault();

@@ -1,10 +1,20 @@
 <?php
 $checklistTotal = (int) ($task['checklist_total'] ?? 0);
 $checklistDone = (int) ($task['checklist_done'] ?? 0);
+$taskStatus = $task['status'] ?? '';
+$isConcluida = ($taskStatus === 'concluida' || $taskStatus === 'completed' || $taskStatus === 'Concluída');
+$isOverdue = false;
+if (!$isConcluida && !empty($task['due_date'])) {
+    $dueDateStr = $task['due_date'];
+    if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $dueDateStr, $m)) {
+        $isOverdue = strtotime($dueDateStr) < strtotime('today');
+    }
+}
 ?>
-<div class="kanban-task task-card" 
+<div class="kanban-task task-card<?= $isOverdue ? ' task-overdue' : '' ?>" 
      draggable="true"
-     data-task-id="<?= (int)$task['id'] ?>">
+     data-task-id="<?= (int)$task['id'] ?>"
+     <?= $isOverdue ? ' title="Prazo vencido"' : '' ?>>
     <?php if (!isset($selectedProjectId) || !$selectedProjectId && isset($task['project_name'])): ?>
         <span class="task-project-tag"><?= htmlspecialchars($task['project_name']) ?></span>
     <?php endif; ?>
@@ -21,9 +31,6 @@ $checklistDone = (int) ($task['checklist_done'] ?? 0);
     </div>
     <?php 
     // Só exibe badges de agenda se a tarefa NÃO estiver concluída
-    $taskStatus = $task['status'] ?? '';
-    $isConcluida = ($taskStatus === 'concluida' || $taskStatus === 'completed' || $taskStatus === 'Concluída');
-    
     if (!$isConcluida): 
     ?>
         <div style="margin-bottom: 5px;">
