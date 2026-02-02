@@ -1652,7 +1652,7 @@
                         <svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 6h18" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 6V4h8v2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 6l1 16h10l1-16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
                     </button>
                     <button type="button" class="inbox-icon-btn" id="inboxBtnReviewRerecord" title="Regravar" aria-label="Regravar">
-                        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 14a3 3 0 003-3V6a3 3 0 10-6 0v5a3 3 0 003 3zm5-3a5 0 01-10 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 19v3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 22h8" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 14a3 3 0 003-3V6a3 3 0 10-6 0v5a3 3 0 003 3zm5-3a5 5 0 0 1-10 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 19v3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 22h8" fill="none" stroke="currentColor" stroke-width="2"/></svg>
                     </button>
                     <button type="button" class="inbox-icon-btn inbox-send" id="inboxBtnReviewSend" title="Enviar áudio" aria-label="Enviar áudio">
                         <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 2L11 13" fill="none" stroke="currentColor" stroke-width="2"/><path d="M22 2l-7 20-4-9-9-4 20-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
