@@ -2805,9 +2805,40 @@
             if (typeof ignoreConversation === 'function') { ignoreConversation(convId, name); return; }
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
         };
-        window.inboxDeleteConversation = function(convId, name) {
+        window.inboxDeleteConversation = async function(convId, name) {
             if (typeof deleteConversation === 'function') { deleteConversation(convId, name); return; }
-            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+            if (!confirm('EXCLUIR PERMANENTEMENTE a conversa com "' + (name || 'Contato') + '"?\n\n⚠️ Esta ação NÃO pode ser desfeita!\n\nTodas as mensagens serão removidas.')) return;
+            if (!confirm('Tem certeza ABSOLUTA?\n\nConfirme a exclusão de "' + (name || 'Contato') + '".')) return;
+            try {
+                const res = await fetch(INBOX_BASE_URL + '/communication-hub/conversation/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ conversation_id: parseInt(convId) })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    const deletedConvId = parseInt(convId);
+                    const m = InboxState.currentThreadId && String(InboxState.currentThreadId).match(/whatsapp_(\d+)/);
+                    const currentConvId = m ? parseInt(m[1]) : 0;
+                    if (deletedConvId && currentConvId && deletedConvId === currentConvId) {
+                        InboxState.currentThreadId = null;
+                        InboxState.currentChannel = null;
+                        const drawer = document.getElementById('inboxDrawer');
+                        if (drawer) drawer.classList.remove('chat-open');
+                        const chat = document.getElementById('inboxChat');
+                        if (chat) chat.style.display = 'none';
+                        const messages = document.getElementById('inboxMessages');
+                        if (messages) messages.innerHTML = '';
+                    }
+                    alert('Conversa excluída permanentemente.');
+                    if (typeof loadInboxConversations === 'function') loadInboxConversations();
+                } else {
+                    alert('Erro: ' + (result.error || 'Erro ao excluir conversa'));
+                }
+            } catch (err) {
+                console.error('[Inbox] Erro ao excluir:', err);
+                alert('Erro ao excluir conversa. Tente novamente.');
+            }
         };
         window.inboxArchiveConversation = function(convId, name) {
             if (typeof archiveConversation === 'function') { archiveConversation(convId, name); return; }
