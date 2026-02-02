@@ -45,7 +45,7 @@
 ### 2.2 Renderização
 | Aspecto | Painel | Inbox |
 |---------|--------|-------|
-| Mídia | `renderMediaPlayer()` - player rico (áudio com transcrição, imagem com viewer) | Tags simples (img, audio, video, link) |
+| Mídia | `renderMediaPlayer()` - player rico (áudio com transcrição, imagem com viewer) | Áudio com transcrição (botão Transcrever + accordion), img/video/link simples |
 | Texto | `escapeHtml(content)` | `escapeInboxHtml(content)` |
 | Mensagem sem conteúdo nem mídia | **Pula** (não exibe) | Exibe "[Mídia não disponível]" |
 | Timestamp | `formatMessageTimestamp()` (Brasília) | `formatInboxTime()` (relativo) |
@@ -71,6 +71,7 @@
    - Placeholder de áudio `[Áudio]` não é exibido quando há mídia de áudio.
 5. **Filtros (29/01/2026):** Canal, Sessão (WhatsApp), Cliente, Status; botão Nova Conversa (abre Painel em nova aba).
 6. **Menu ⋮ e botão Vincular (29/01/2026):** Menu de três pontos em conversas não vinculadas (Criar Cliente, Ignorar, Excluir) e vinculadas (Arquivar/Ignorar/Desarquivar/Ativar, Editar nome, Alterar Cliente, Desvincular, Excluir); botão Vincular em leads. Fallback: abre Painel em nova aba quando modais não existem (outras páginas).
+7. **Transcrição de áudio (29/01/2026):** Áudios no Inbox têm botão "Transcrever", accordion com transcrição quando já transcrito, e badges de status (Processando/Falhou). Usa os mesmos endpoints do Painel: POST `/communication-hub/transcribe`, GET `/communication-hub/transcription-status`.
 
 ---
 
