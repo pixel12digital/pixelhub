@@ -243,7 +243,7 @@ ob_start();
             </form>
         <?php endif; ?>
         
-        <a href="<?= pixelhub_url('/agenda?data=' . $bloco['data']) ?>" class="btn btn-secondary" style="margin-left: 10px;">Voltar para Agenda</a>
+        <a href="<?= pixelhub_url('/agenda/blocos?data=' . $bloco['data']) ?>" class="btn btn-secondary" style="margin-left: 10px;">Voltar para Blocos</a>
     </div>
 </div>
 

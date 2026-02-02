@@ -160,7 +160,7 @@ ob_start();
 <?php if (empty($stats_by_type)): ?>
     <div class="no-data-message">
         <p>Nenhum bloco cadastrado nesta semana.</p>
-        <p style="font-size: 14px; margin-top: 10px; color: #999;">Gere blocos na <a href="<?= pixelhub_url('/agenda') ?>">Agenda diária</a> para ver as estatísticas.</p>
+        <p style="font-size: 14px; margin-top: 10px; color: #999;">Gere blocos na <a href="<?= pixelhub_url('/agenda/blocos') ?>">Blocos de tempo</a> para ver as estatísticas.</p>
     </div>
 <?php else: ?>
     <!-- Resumo Geral -->

@@ -200,7 +200,7 @@ ob_start();
         <div class="agenda-dia-coluna <?= $isHoje ? 'agenda-dia-hoje' : '' ?>">
             <!-- Cabeçalho do dia -->
             <div class="agenda-dia-header">
-                <a href="<?= pixelhub_url('/agenda?data=' . $dataIso) ?>">
+                <a href="<?= pixelhub_url('/agenda/blocos?data=' . $dataIso) ?>">
                     <?= htmlspecialchars($dia['label_dia']) ?>
                 </a>
             </div>

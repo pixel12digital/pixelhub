@@ -109,7 +109,7 @@ ob_start();
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Criar Bloco</button>
             <?php 
-            $cancelUrl = '/agenda?data=' . $dataStr;
+            $cancelUrl = '/agenda/blocos?data=' . $dataStr;
             if (isset($_GET['task_id']) && (int)$_GET['task_id'] > 0) {
                 $cancelUrl .= '&task_id=' . (int)$_GET['task_id'];
             }

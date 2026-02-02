@@ -453,7 +453,7 @@ function applyFilters() {
     params.set('data', '<?= $dataStr ?>');
     if (tipo) params.set('tipo', tipo);
     if (status) params.set('status', status);
-    window.location.href = '<?= pixelhub_url('/agenda') ?>?' + params.toString();
+    window.location.href = '<?= pixelhub_url('/agenda/blocos') ?>?' + params.toString();
 }
 
 function generateBlocks() {

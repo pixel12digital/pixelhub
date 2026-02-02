@@ -668,6 +668,10 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     
     // Rotas de Agenda
     $router->get('/agenda', 'AgendaController@index');
+    $router->get('/agenda/blocos', 'AgendaController@blocos');
+    $router->get('/agenda/timeline', 'AgendaController@timeline');
+    $router->get('/agenda/manual-item/novo', 'AgendaController@createManualItem');
+    $router->post('/agenda/manual-item/novo', 'AgendaController@storeManualItem');
     $router->get('/agenda/semana', 'AgendaController@semana');
     $router->get('/agenda/stats', 'AgendaController@stats');
     $router->get('/agenda/bloco', 'AgendaController@show');

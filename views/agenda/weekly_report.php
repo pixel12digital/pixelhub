@@ -60,7 +60,7 @@ ob_start();
 
 <div class="report-header" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center; justify-content: space-between;">
     <div style="display: flex; gap: 10px; align-items: center;">
-        <a href="<?= pixelhub_url('/agenda?data=' . $report['periodo']['inicio']) ?>" class="btn btn-secondary">← Voltar para Agenda</a>
+        <a href="<?= pixelhub_url('/agenda') ?>" class="btn btn-secondary">← Voltar para Agenda</a>
         <a href="<?= pixelhub_url('/agenda/stats?week_start=' . $report['periodo']['inicio']) ?>" class="btn btn-secondary">Resumo Semanal</a>
     </div>
     <div style="font-size: 13px; color: #666;">
@@ -76,7 +76,7 @@ ob_start();
     <h4 style="margin: 0 0 8px 0; color: #023A8D; font-size: 14px;">Como incluir tarefas no relatório</h4>
     <p style="margin: 0; font-size: 13px; color: #333; line-height: 1.5;">
         Tarefas concluídas no <strong>Quadro Kanban</strong> aparecem na seção "Tarefas concluídas por data de conclusão" abaixo.
-        Para incluir na seção "Tarefas por tipo de bloco", vincule a tarefa a um bloco na <a href="<?= pixelhub_url('/agenda?data=' . $report['periodo']['inicio']) ?>" style="color: #023A8D; font-weight: 600;">Agenda</a> usando o botão "Agendar na Agenda" no modal da tarefa.
+        Para incluir na seção "Tarefas por tipo de bloco", vincule a tarefa a um bloco em <a href="<?= pixelhub_url('/agenda/blocos?data=' . $report['periodo']['inicio']) ?>" style="color: #023A8D; font-weight: 600;">Blocos de tempo</a> usando o botão "Agendar na Agenda" no modal da tarefa.
     </p>
 </div>
 

@@ -118,7 +118,7 @@ ob_start();
         
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-            <a href="<?= pixelhub_url('/agenda?data=' . $bloco['data']) ?>" class="btn btn-secondary">Cancelar</a>
+            <a href="<?= pixelhub_url('/agenda/blocos?data=' . $bloco['data']) ?>" class="btn btn-secondary">Cancelar</a>
         </div>
     </form>
 </div>

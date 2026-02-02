@@ -2111,5 +2111,307 @@ class AgendaService
             ] : null,
         ];
     }
+
+    /**
+     * Lista itens manuais da agenda para uma data (se tabela existir)
+     */
+    public static function getManualItemsForDate(string $dateStr): array
+    {
+        try {
+            $db = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT id, title, item_date, time_start, time_end, item_type, notes
+                FROM agenda_manual_items
+                WHERE item_date = ?
+                ORDER BY COALESCE(time_start, '00:00:00') ASC, title ASC
+            ");
+            $stmt->execute([$dateStr]);
+            return $stmt->fetchAll();
+        } catch (\PDOException $e) {
+            if (strpos($e->getMessage(), "doesn't exist") !== false) {
+                return [];
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Normaliza horário para formato HH:MM:SS (MySQL TIME)
+     */
+    private static function normalizeTime(string $t): string
+    {
+        if (preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', $t)) {
+            $parts = explode(':', $t);
+            return sprintf('%02d:%02d:%02d', (int)$parts[0], (int)$parts[1], (int)($parts[2] ?? 0));
+        }
+        return $t;
+    }
+
+    /**
+     * Verifica se já existe item manual similar (evitar duplicação)
+     * Considera duplicado: mesmo título, mesma data e mesmo horário de início
+     */
+    public static function findSimilarManualItem(string $title, string $itemDate, ?string $timeStart): ?array
+    {
+        try {
+            $db = DB::getConnection();
+            $timeStart = $timeStart ?: null;
+            if ($timeStart === null) {
+                $stmt = $db->prepare("
+                    SELECT id, title, item_date, time_start
+                    FROM agenda_manual_items
+                    WHERE LOWER(TRIM(title)) = LOWER(TRIM(?))
+                    AND item_date = ?
+                    AND (time_start IS NULL OR time_start = '00:00:00')
+                    LIMIT 1
+                ");
+                $stmt->execute([$title, $itemDate]);
+            } else {
+                $stmt = $db->prepare("
+                    SELECT id, title, item_date, time_start
+                    FROM agenda_manual_items
+                    WHERE LOWER(TRIM(title)) = LOWER(TRIM(?))
+                    AND item_date = ?
+                    AND time_start = ?
+                    LIMIT 1
+                ");
+                $stmt->execute([$title, $itemDate, $timeStart]);
+            }
+            $row = $stmt->fetch();
+            return $row ?: null;
+        } catch (\PDOException $e) {
+            if (strpos($e->getMessage(), "doesn't exist") !== false) {
+                return null;
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Cria item manual na agenda
+     * @return int ID do item criado
+     * @throws \RuntimeException Se houver duplicação ou erro de validação
+     */
+    public static function createManualItem(array $data): int
+    {
+        $title = trim($data['title'] ?? '');
+        $itemDate = $data['item_date'] ?? '';
+        $timeStart = !empty($data['time_start']) ? self::normalizeTime(trim($data['time_start'])) : null;
+        $timeEnd = !empty($data['time_end']) ? self::normalizeTime(trim($data['time_end'])) : null;
+        $itemType = !empty($data['item_type']) ? trim($data['item_type']) : 'outro';
+        $notes = !empty($data['notes']) ? trim($data['notes']) : null;
+        $createdBy = isset($data['created_by']) ? (int)$data['created_by'] : null;
+
+        if (empty($title)) {
+            throw new \RuntimeException('Título é obrigatório.');
+        }
+        if (empty($itemDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $itemDate)) {
+            throw new \RuntimeException('Data inválida.');
+        }
+
+        $similar = self::findSimilarManualItem($title, $itemDate, $timeStart);
+        if ($similar) {
+            throw new \RuntimeException(
+                'Já existe um compromisso com o mesmo título, data e horário. ' .
+                'Edite o existente ou use um título/horário diferente.'
+            );
+        }
+
+        $db = DB::getConnection();
+        $stmt = $db->prepare("
+            INSERT INTO agenda_manual_items (title, item_date, time_start, time_end, item_type, notes, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$title, $itemDate, $timeStart, $timeEnd, $itemType, $notes, $createdBy]);
+        return (int)$db->lastInsertId();
+    }
+
+    /**
+     * Lista itens manuais da agenda para um período
+     */
+    public static function getManualItemsForDateRange(string $startStr, string $endStr): array
+    {
+        try {
+            $db = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT id, title, item_date, time_start, time_end, item_type, notes
+                FROM agenda_manual_items
+                WHERE item_date BETWEEN ? AND ?
+                ORDER BY item_date ASC, COALESCE(time_start, '00:00:00') ASC, title ASC
+            ");
+            $stmt->execute([$startStr, $endStr]);
+            return $stmt->fetchAll();
+        } catch (\PDOException $e) {
+            if (strpos($e->getMessage(), "doesn't exist") !== false) {
+                return [];
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Lista tarefas com prazo em uma data (para agenda unificada "o que fazer")
+     * Exclui tarefas concluídas
+     */
+    public static function getAgendaTasksForDate(string $dateStr): array
+    {
+        $db = DB::getConnection();
+        $hasDeletedAt = self::hasDeletedAtColumn($db);
+        $deletedCond = $hasDeletedAt ? 'AND t.deleted_at IS NULL' : '';
+
+        $stmt = $db->prepare("
+            SELECT t.id, t.title, t.status, t.due_date, t.start_date, t.project_id,
+                   p.name as project_name, t2.name as tenant_name
+            FROM tasks t
+            INNER JOIN projects p ON t.project_id = p.id
+            LEFT JOIN tenants t2 ON p.tenant_id = t2.id
+            WHERE (t.due_date = ? OR t.start_date = ?)
+            AND t.status NOT IN ('concluida', 'completed')
+            $deletedCond
+            ORDER BY t.due_date ASC, t.start_date ASC, t.title ASC
+        ");
+        $stmt->execute([$dateStr, $dateStr]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Lista tarefas com prazo em um período (para agenda unificada "o que fazer")
+     */
+    public static function getAgendaTasksForDateRange(string $startStr, string $endStr): array
+    {
+        $db = DB::getConnection();
+        $hasDeletedAt = self::hasDeletedAtColumn($db);
+        $deletedCond = $hasDeletedAt ? 'AND t.deleted_at IS NULL' : '';
+
+        $stmt = $db->prepare("
+            SELECT t.id, t.title, t.status, t.due_date, t.start_date, t.project_id,
+                   p.name as project_name, t2.name as tenant_name
+            FROM tasks t
+            INNER JOIN projects p ON t.project_id = p.id
+            LEFT JOIN tenants t2 ON p.tenant_id = t2.id
+            WHERE (
+                (t.due_date BETWEEN ? AND ?)
+                OR (t.start_date BETWEEN ? AND ?)
+            )
+            AND t.status NOT IN ('concluida', 'completed')
+            $deletedCond
+            ORDER BY COALESCE(t.due_date, t.start_date) ASC, t.title ASC
+        ");
+        $stmt->execute([$startStr, $endStr, $startStr, $endStr]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Lista projetos ativos com prazo em um período (para agenda unificada e visão macro)
+     */
+    public static function getAgendaProjectsForDateRange(string $startStr, string $endStr): array
+    {
+        $db = DB::getConnection();
+        $stmt = $db->prepare("
+            SELECT p.id, p.name, p.due_date, p.created_at, t.name as tenant_name
+            FROM projects p
+            LEFT JOIN tenants t ON p.tenant_id = t.id
+            WHERE p.due_date BETWEEN ? AND ?
+            AND p.status = 'ativo'
+            ORDER BY p.due_date ASC, p.name ASC
+        ");
+        $stmt->execute([$startStr, $endStr]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Retorna itens da agenda para um dia (tarefas + projetos + itens manuais)
+     */
+    public static function getAgendaItemsForDay(string $dateStr): array
+    {
+        $tasks = self::getAgendaTasksForDate($dateStr);
+        $projects = self::getAgendaProjectsForDateRange($dateStr, $dateStr);
+        $manualItems = self::getManualItemsForDate($dateStr);
+        return [
+            'tasks' => $tasks,
+            'projects' => $projects,
+            'manual_items' => $manualItems,
+            'date' => $dateStr,
+        ];
+    }
+
+    /**
+     * Retorna itens da agenda para uma semana, agrupados por dia
+     */
+    public static function getAgendaItemsForWeek(string $startStr, string $endStr): array
+    {
+        $tasks = self::getAgendaTasksForDateRange($startStr, $endStr);
+        $projects = self::getAgendaProjectsForDateRange($startStr, $endStr);
+        $manualItems = self::getManualItemsForDateRange($startStr, $endStr);
+
+        $byDay = [];
+        $start = new \DateTime($startStr);
+        $end = new \DateTime($endStr);
+        $interval = new \DateInterval('P1D');
+        $period = new \DatePeriod($start, $interval, $end->modify('+1 day'));
+
+        foreach ($period as $d) {
+            $key = $d->format('Y-m-d');
+            $byDay[$key] = [
+                'date' => $key,
+                'date_formatted' => $d->format('d/m/Y'),
+                'tasks' => [],
+                'projects' => [],
+                'manual_items' => [],
+            ];
+        }
+
+        foreach ($tasks as $t) {
+            $d = $t['due_date'] ?? $t['start_date'] ?? null;
+            if ($d && isset($byDay[$d])) {
+                $byDay[$d]['tasks'][] = $t;
+            }
+        }
+        foreach ($projects as $p) {
+            $d = $p['due_date'] ?? null;
+            if ($d && isset($byDay[$d])) {
+                $byDay[$d]['projects'][] = $p;
+            }
+        }
+        foreach ($manualItems as $m) {
+            $d = $m['item_date'] ?? null;
+            if ($d && isset($byDay[$d])) {
+                $byDay[$d]['manual_items'][] = $m;
+            }
+        }
+
+        return [
+            'by_day' => $byDay,
+            'tasks' => $tasks,
+            'projects' => $projects,
+            'manual_items' => $manualItems,
+        ];
+    }
+
+    /**
+     * Lista projetos ativos com prazo para visão macro (timeline)
+     * Período: próximas 4 semanas a partir de hoje
+     */
+    public static function getProjectsForTimeline(?string $startStr = null, ?string $endStr = null): array
+    {
+        $db = DB::getConnection();
+        $tz = new \DateTimeZone('America/Sao_Paulo');
+        $today = (new \DateTime('now', $tz))->format('Y-m-d');
+        $startStr = $startStr ?? $today;
+        $end = $endStr ? new \DateTime($endStr) : (new \DateTime($today, $tz))->modify('+28 days');
+        $endStr = $end->format('Y-m-d');
+
+        $stmt = $db->prepare("
+            SELECT p.id, p.name, p.due_date, p.created_at, t.name as tenant_name
+            FROM projects p
+            LEFT JOIN tenants t ON p.tenant_id = t.id
+            WHERE p.due_date >= ?
+            AND p.status = 'ativo'
+            ORDER BY p.due_date ASC, p.name ASC
+        ");
+        $stmt->execute([$startStr]);
+        $all = $stmt->fetchAll();
+        return array_filter($all, fn($p) => $p['due_date'] <= $endStr);
+    }
 }
 

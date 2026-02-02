@@ -13,9 +13,57 @@ use PixelHub\Services\ProjectService;
 class AgendaController extends Controller
 {
     /**
-     * Exibe a agenda (visão diária/semanal)
+     * Agenda unificada: "O que fazer" (tarefas + projetos + itens manuais) por Hoje/Semana
      */
     public function index(): void
+    {
+        Auth::requireInternal();
+
+        $tz = new \DateTimeZone('America/Sao_Paulo');
+        $viewMode = $_GET['view'] ?? 'hoje'; // hoje | semana
+        $dataStr = $_GET['data'] ?? date('Y-m-d');
+
+        try {
+            $data = new \DateTime($dataStr, $tz);
+        } catch (\Exception $e) {
+            $data = new \DateTime('now', $tz);
+        }
+
+        $todayStr = (new \DateTime('now', $tz))->format('Y-m-d');
+
+        if ($viewMode === 'semana') {
+            $weekday = (int)$data->format('w');
+            $domingo = (clone $data)->modify('-' . $weekday . ' days');
+            $sabado = (clone $domingo)->modify('+6 days');
+            $startStr = $domingo->format('Y-m-d');
+            $endStr = $sabado->format('Y-m-d');
+            $items = AgendaService::getAgendaItemsForWeek($startStr, $endStr);
+            $periodLabel = $domingo->format('d/m') . ' a ' . $sabado->format('d/m/Y');
+            $prevUrl = pixelhub_url('/agenda?view=semana&data=' . (clone $domingo)->modify('-7 days')->format('Y-m-d'));
+            $nextUrl = pixelhub_url('/agenda?view=semana&data=' . (clone $sabado)->modify('+1 day')->format('Y-m-d'));
+        } else {
+            $dateStr = $data->format('Y-m-d');
+            $items = AgendaService::getAgendaItemsForDay($dateStr);
+            $periodLabel = $data->format('d/m/Y');
+            $prevUrl = pixelhub_url('/agenda?view=hoje&data=' . (clone $data)->modify('-1 day')->format('Y-m-d'));
+            $nextUrl = pixelhub_url('/agenda?view=hoje&data=' . (clone $data)->modify('+1 day')->format('Y-m-d'));
+        }
+
+        $this->view('agenda.unified', [
+            'viewMode' => $viewMode,
+            'items' => $items,
+            'periodLabel' => $periodLabel,
+            'dataStr' => $data->format('Y-m-d'),
+            'todayStr' => $todayStr,
+            'prevUrl' => $prevUrl,
+            'nextUrl' => $nextUrl,
+        ]);
+    }
+
+    /**
+     * Blocos de tempo do dia (time blocking - opcional)
+     */
+    public function blocos(): void
     {
         Auth::requireInternal();
         
@@ -514,6 +562,90 @@ class AgendaController extends Controller
         }
     }
     
+    /**
+     * Formulário para criar item manual (compromisso, reunião, etc.)
+     */
+    public function createManualItem(): void
+    {
+        Auth::requireInternal();
+
+        $dataStr = $_GET['data'] ?? date('Y-m-d');
+        $tz = new \DateTimeZone('America/Sao_Paulo');
+        try {
+            $data = new \DateTime($dataStr, $tz);
+        } catch (\Exception $e) {
+            $data = new \DateTime('now', $tz);
+        }
+        $dataStr = $data->format('Y-m-d');
+
+        $this->view('agenda.create_manual_item', [
+            'dataStr' => $dataStr,
+            'itemTypes' => [
+                'reuniao' => 'Reunião',
+                'followup' => 'Follow-up',
+                'entrega' => 'Entrega',
+                'outro' => 'Outro',
+            ],
+        ]);
+    }
+
+    /**
+     * Salva item manual na agenda
+     */
+    public function storeManualItem(): void
+    {
+        Auth::requireInternal();
+
+        $dataStr = $_POST['item_date'] ?? $_POST['data'] ?? date('Y-m-d');
+        $redirectUrl = pixelhub_url('/agenda?view=hoje&data=' . urlencode($dataStr));
+
+        $title = trim($_POST['title'] ?? '');
+        if (empty($title)) {
+            header('Location: ' . pixelhub_url('/agenda/manual-item/novo?data=' . $dataStr . '&erro=' . urlencode('Título é obrigatório.')));
+            exit;
+        }
+
+        try {
+            $user = Auth::user();
+            $userId = $user['id'] ?? null;
+            $id = AgendaService::createManualItem([
+                'title' => $title,
+                'item_date' => $_POST['item_date'] ?? $dataStr,
+                'time_start' => !empty($_POST['time_start']) ? $_POST['time_start'] : null,
+                'time_end' => !empty($_POST['time_end']) ? $_POST['time_end'] : null,
+                'item_type' => $_POST['item_type'] ?? 'outro',
+                'notes' => $_POST['notes'] ?? null,
+                'created_by' => $userId,
+            ]);
+            header('Location: ' . $redirectUrl . '&sucesso=' . urlencode('Compromisso adicionado com sucesso.'));
+            exit;
+        } catch (\RuntimeException $e) {
+            header('Location: ' . pixelhub_url('/agenda/manual-item/novo?data=' . ($_POST['item_date'] ?? $dataStr) . '&erro=' . urlencode($e->getMessage())));
+            exit;
+        } catch (\Exception $e) {
+            error_log("Erro ao criar item manual: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/agenda/manual-item/novo?data=' . $dataStr . '&erro=' . urlencode('Erro ao salvar. Tente novamente.')));
+            exit;
+        }
+    }
+
+    /**
+     * Visão macro: timeline de projetos e prazos
+     */
+    public function timeline(): void
+    {
+        Auth::requireInternal();
+
+        $tz = new \DateTimeZone('America/Sao_Paulo');
+        $today = (new \DateTime('now', $tz))->format('Y-m-d');
+        $projects = AgendaService::getProjectsForTimeline($today, null);
+
+        $this->view('agenda.timeline', [
+            'projects' => $projects,
+            'todayStr' => $today,
+        ]);
+    }
+
     /**
      * Relatório semanal de produtividade
      */
