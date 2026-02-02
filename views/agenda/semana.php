@@ -219,14 +219,6 @@ ob_start();
                             $horaInicio = date('H:i', strtotime($bloco['hora_inicio']));
                             $horaFim = date('H:i', strtotime($bloco['hora_fim']));
                             
-                            $statusLabels = [
-                                'planned' => 'Planejado',
-                                'ongoing' => 'Em Andamento',
-                                'completed' => 'Concluído',
-                                'partial' => 'Parcial',
-                                'canceled' => 'Cancelado',
-                            ];
-                            $statusLabel = $statusLabels[$bloco['status']] ?? $bloco['status'];
                         ?>
                         <div class="agenda-bloco-card <?= $isBlocoAtual ? 'agenda-bloco-atual' : '' ?>"
                              style="border-left-color: <?= htmlspecialchars($corHex) ?>;"
@@ -235,14 +227,16 @@ ob_start();
                             <div class="agenda-bloco-tipo" style="color: <?= htmlspecialchars($corHex) ?>;">
                                 <?= htmlspecialchars($bloco['tipo_nome'] ?? '') ?>
                             </div>
+                            <?php if (!empty($bloco['projeto_foco_nome'])): ?>
+                                <div class="agenda-bloco-info" style="margin-top: 2px;">
+                                    <?= htmlspecialchars($bloco['projeto_foco_nome']) ?>
+                                </div>
+                            <?php endif; ?>
                             <?php if (!empty($bloco['focus_task_title'])): ?>
                                 <div style="font-size: 11px; color: #555; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;">
                                     📌 <?= htmlspecialchars($bloco['focus_task_title']) ?>
                                 </div>
                             <?php endif; ?>
-                            <div class="agenda-bloco-info">
-                                Status: <?= htmlspecialchars($statusLabel) ?>
-                            </div>
                             <?php if (isset($bloco['total_tarefas']) && (int)$bloco['total_tarefas'] > 0): ?>
                                 <div class="agenda-bloco-info">
                                     Tarefas: <?= (int) $bloco['total_tarefas'] ?>
