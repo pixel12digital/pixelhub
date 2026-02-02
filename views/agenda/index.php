@@ -301,6 +301,7 @@ ob_start();
         }
         ?>
         <a href="<?= pixelhub_url($novoBlocoUrl) ?>" class="btn btn-nav">+ Bloco extra</a>
+        <a href="<?= pixelhub_url('/settings/agenda-block-templates') ?>" class="btn btn-nav" style="margin-left: 4px;" title="Editar ou excluir modelos que definem os blocos gerados">Modelos</a>
     </div>
 </div>
 
@@ -333,7 +334,7 @@ ob_start();
 <div class="blocks-list" style="margin-top: 20px;">
     <?php if (empty($blocos)): ?>
         <div class="card">
-            <p>Nenhum bloco encontrado para esta data. Clique em "Gerar Blocos do Dia" para criar os blocos baseados no template.</p>
+            <p>Nenhum bloco encontrado para esta data. Clique em "Gerar Blocos" para criar os blocos baseados nos modelos, ou <a href="<?= pixelhub_url('/settings/agenda-block-templates') ?>">configure os modelos</a> para alterar a estrutura.</p>
         </div>
     <?php else: ?>
         <?php 
