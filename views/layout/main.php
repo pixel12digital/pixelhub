@@ -717,6 +717,101 @@
             padding: 40px;
             color: #6b7280;
         }
+        /* Inbox: imagem clicável para viewer (igual ao Painel de Comunicação) */
+        .inbox-media-open {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+            cursor: pointer;
+            display: inline-block;
+        }
+        .inbox-media-thumb {
+            display: block;
+            max-width: 200px;
+            height: auto;
+            border-radius: 8px;
+        }
+        .inbox-media-open:hover .inbox-media-thumb {
+            filter: brightness(0.95);
+        }
+        /* Inbox: modal viewer de mídia (download, nova aba, fechar) */
+        #inbox-media-viewer {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.92);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            cursor: zoom-out;
+        }
+        #inbox-media-viewer .viewer-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #inbox-media-viewer-img {
+            max-width: 90vw;
+            max-height: 90vh;
+            width: auto;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        }
+        #inbox-media-viewer .viewer-actions {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            z-index: 10001;
+        }
+        #inbox-media-viewer:hover .viewer-actions,
+        #inbox-media-viewer .viewer-actions.visible {
+            opacity: 1;
+        }
+        #inbox-media-viewer .viewer-btn {
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(8px);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s ease, transform 0.15s ease;
+        }
+        #inbox-media-viewer .viewer-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.08);
+        }
+        #inbox-media-viewer .viewer-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+        #inbox-media-viewer .viewer-btn-close {
+            background: rgba(220,53,69,0.7);
+        }
+        #inbox-media-viewer .viewer-btn-close:hover {
+            background: rgba(220,53,69,0.9);
+        }
+        @media (max-width: 768px) {
+            #inbox-media-viewer .viewer-actions { opacity: 1; }
+            #inbox-media-viewer .viewer-btn { width: 48px; height: 48px; }
+        }
         
         /* Inbox áudio: Recording / Preview (igual ao Painel de Comunicação) */
         .inbox-rec-wrap {
@@ -1942,6 +2037,24 @@
         </div>
     </div>
     
+    <!-- Modal Inbox: Viewer de mídia (download, nova aba, fechar - igual ao Painel de Comunicação) -->
+    <div id="inbox-media-viewer">
+        <div class="viewer-container">
+            <div class="viewer-actions">
+                <button id="inbox-media-download" class="viewer-btn" title="Baixar">
+                    <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                </button>
+                <button id="inbox-media-open-new" class="viewer-btn" title="Abrir em nova aba">
+                    <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+                </button>
+                <button id="inbox-media-close" class="viewer-btn viewer-btn-close" title="Fechar">
+                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                </button>
+            </div>
+            <img id="inbox-media-viewer-img" src="" alt="Mídia">
+        </div>
+    </div>
+    
     <!-- Modal Inbox: Vincular a Cliente Existente (quando Painel não carregado) -->
     <div id="inbox-link-tenant-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2100; align-items: center; justify-content: center;">
         <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
@@ -2199,8 +2312,77 @@
             if (fileInput) fileInput.click();
         };
         
+        // Viewer de mídia Inbox (igual ao Painel de Comunicação: ampliar, download, nova aba, fechar)
+        function initInboxMediaViewerOnce() {
+            if (window.__inboxMediaViewerInitialized) return;
+            window.__inboxMediaViewerInitialized = true;
+            document.addEventListener('click', function(e) {
+                const btn = e.target.closest('.inbox-media-open');
+                const img = e.target.closest('.inbox-media-thumb');
+                const target = btn || img;
+                if (target) {
+                    e.preventDefault();
+                    const src = target.getAttribute('data-src') || target.src;
+                    if (src) openInboxMediaViewer(src);
+                    return;
+                }
+                const closeBtn = e.target.closest('#inbox-media-close');
+                if (closeBtn) {
+                    e.preventDefault();
+                    const v = document.getElementById('inbox-media-viewer');
+                    if (v) v.style.display = 'none';
+                    return;
+                }
+                const v = document.getElementById('inbox-media-viewer');
+                if (v && (e.target === v || e.target.classList.contains('viewer-container'))) {
+                    v.style.display = 'none';
+                    return;
+                }
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    const v = document.getElementById('inbox-media-viewer');
+                    if (v && v.style.display !== 'none') v.style.display = 'none';
+                }
+            });
+        }
+        function openInboxMediaViewer(src) {
+            const viewer = document.getElementById('inbox-media-viewer');
+            const img = document.getElementById('inbox-media-viewer-img');
+            const downloadBtn = document.getElementById('inbox-media-download');
+            const openNewBtn = document.getElementById('inbox-media-open-new');
+            if (!viewer || !img || !downloadBtn || !openNewBtn) return;
+            img.removeAttribute('style');
+            img.removeAttribute('width');
+            img.removeAttribute('height');
+            function fitToViewport() {
+                const vw = window.innerWidth * 0.88;
+                const vh = window.innerHeight * 0.88;
+                const nw = img.naturalWidth;
+                const nh = img.naturalHeight;
+                if (!nw || !nh) return;
+                const scale = Math.min(vw / nw, vh / nh);
+                img.style.width = Math.round(nw * scale) + 'px';
+                img.style.height = Math.round(nh * scale) + 'px';
+            }
+            img.onload = fitToViewport;
+            img.src = src;
+            if (img.complete && img.naturalWidth) fitToViewport();
+            downloadBtn.onclick = function() {
+                const a = document.createElement('a');
+                a.href = src;
+                a.download = '';
+                a.click();
+            };
+            openNewBtn.onclick = function() { window.open(src, '_blank'); };
+            const actions = viewer.querySelector('.viewer-actions');
+            if (actions) actions.classList.toggle('visible', window.innerWidth <= 768);
+            viewer.style.display = 'flex';
+        }
+        
         // Handler quando arquivo é selecionado
         document.addEventListener('DOMContentLoaded', function() {
+            initInboxMediaViewerOnce();
             const fileInput = document.getElementById('inboxFileInput');
             if (fileInput) {
                 fileInput.addEventListener('change', function(e) {
@@ -3251,7 +3433,7 @@
                     const mediaType = (media.media_type || media.type || '').toLowerCase();
                     const safeUrl = escapeInboxHtml(media.url);
                     if (mediaType === 'image' || mediaType === 'sticker') {
-                        renderedContent = `<img src="${safeUrl}" style="max-width: 200px; border-radius: 8px; cursor: pointer;" onclick="window.open(this.src, '_blank')" onerror="this.outerHTML='<em>[Imagem não disponível]</em>'">`;
+                        renderedContent = `<button type="button" class="inbox-media-open" data-src="${safeUrl}"><img src="${safeUrl}" class="inbox-media-thumb" data-src="${safeUrl}" loading="lazy" alt="Imagem" onerror="this.outerHTML='<em>[Imagem não disponível]</em>'"></button>`;
                     } else if (mediaType === 'audio' || mediaType === 'ptt' || mediaType === 'voice') {
                         renderedContent = `<audio controls src="${safeUrl}" style="max-width: 250px;"></audio>`;
                     } else if (mediaType === 'video') {
@@ -3323,7 +3505,8 @@
                 
                 let content = '';
                 if (hasMedia && InboxMediaState.type === 'image') {
-                    content = `<img src="data:${InboxMediaState.mimeType};base64,${InboxMediaState.base64}" style="max-width: 200px; border-radius: 8px;">`;
+                    const dataSrc = `data:${InboxMediaState.mimeType};base64,${InboxMediaState.base64}`;
+                    content = `<button type="button" class="inbox-media-open" data-src="${dataSrc.replace(/"/g, '&quot;')}"><img src="${dataSrc}" class="inbox-media-thumb" data-src="${dataSrc.replace(/"/g, '&quot;')}" style="max-width: 200px; border-radius: 8px;"></button>`;
                     if (message) content += `<div style="margin-top: 6px;">${escapeInboxHtml(message)}</div>`;
                 } else if (hasMedia && InboxMediaState.type === 'document') {
                     content = `📎 ${InboxMediaState.fileName}`;
@@ -3525,15 +3708,16 @@
                 
                 const media = msg.media;
                 if (media && media.url) {
-                    const mediaType = media.media_type || media.type || '';
-                    if (mediaType === 'image') {
-                        renderedContent = `<img src="${media.url}" style="max-width: 200px; border-radius: 8px; cursor: pointer;" onclick="window.open('${media.url}', '_blank')">`;
-                    } else if (mediaType === 'audio' || mediaType === 'ptt') {
-                        renderedContent = `<audio controls src="${media.url}" style="max-width: 250px;"></audio>`;
+                    const mediaType = (media.media_type || media.type || '').toLowerCase();
+                    const safeUrl = escapeInboxHtml(media.url);
+                    if (mediaType === 'image' || mediaType === 'sticker') {
+                        renderedContent = `<button type="button" class="inbox-media-open" data-src="${safeUrl}"><img src="${safeUrl}" class="inbox-media-thumb" data-src="${safeUrl}" loading="lazy" alt="Imagem" onerror="this.outerHTML='<em>[Imagem não disponível]</em>'"></button>`;
+                    } else if (mediaType === 'audio' || mediaType === 'ptt' || mediaType === 'voice') {
+                        renderedContent = `<audio controls src="${safeUrl}" style="max-width: 250px;"></audio>`;
                     } else if (mediaType === 'video') {
-                        renderedContent = `<video controls src="${media.url}" style="max-width: 200px; border-radius: 8px;"></video>`;
+                        renderedContent = `<video controls src="${safeUrl}" style="max-width: 200px; border-radius: 8px;"></video>`;
                     } else {
-                        renderedContent = `<a href="${media.url}" target="_blank" style="color: #023A8D;">📎 Mídia</a>`;
+                        renderedContent = `<a href="${safeUrl}" target="_blank" style="color: #023A8D;">📎 Mídia</a>`;
                     }
                     if (content && content.trim()) {
                         renderedContent += `<div style="margin-top: 6px;">${escapeInboxHtml(content)}</div>`;
