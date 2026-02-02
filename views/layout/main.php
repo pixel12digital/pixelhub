@@ -2173,6 +2173,30 @@
         </div>
     </div>
     
+    <?php
+    // Modal "Nova Mensagem" para Inbox (quando não está no Communication Hub)
+    $currentUri = $_SERVER['REQUEST_URI'] ?? '';
+    if (strpos($currentUri, '/communication-hub') === false):
+        $modalTenants = [];
+        $modalSessions = [];
+        try {
+            $db = \PixelHub\Core\DB::getConnection();
+            $stmt = $db->query("SELECT id, name, COALESCE(phone,'') as phone FROM tenants WHERE (is_archived IS NULL OR is_archived = 0) ORDER BY name LIMIT 100");
+            if ($stmt) $modalTenants = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            $stmt = $db->query("SELECT DISTINCT channel_id FROM conversations WHERE channel_type = 'whatsapp' AND channel_id IS NOT NULL AND channel_id != '' ORDER BY channel_id");
+            if ($stmt) {
+                foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $row) {
+                    $id = $row['channel_id'];
+                    $modalSessions[] = ['id' => $id, 'name' => ucwords(str_replace(['_','-'], ' ', $id)), 'status' => 'connected'];
+                }
+            }
+        } catch (\Throwable $e) { /* silencioso */ }
+        $tenants = $modalTenants;
+        $whatsapp_sessions = $modalSessions;
+        require __DIR__ . '/../partials/new_message_modal.php';
+    endif;
+    ?>
+    
     <!-- Toggle para mobile -->
     <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -3244,7 +3268,11 @@
             if (wrap) wrap.style.display = channel === 'whatsapp' ? '' : 'none';
         };
         window.openInboxNovaConversa = function() {
-            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+            if (typeof openNewMessageModal === 'function') {
+                openNewMessageModal();
+            } else {
+                window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+            }
         };
         window.loadInboxFilterOptions = async function() {
             if (InboxState.filterOptionsLoaded) return;
