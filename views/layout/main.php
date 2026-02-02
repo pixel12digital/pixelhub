@@ -257,18 +257,16 @@
         .inbox-drawer.inbox--minimized .inbox-chevron-handle {
             display: flex;
         }
-        .inbox-drawer.inbox--minimized .inbox-chevron-icon {
-            transform: rotate(180deg);
-        }
-        /* Handle da seta (chevron) - centralizado na borda esquerda */
+        /* Handle da seta - ancorado na borda externa direita do painel, fora da lista de conversas */
         .inbox-chevron-handle {
             display: none;
             position: absolute;
-            left: 0;
+            right: 0;
             top: 50%;
             transform: translateY(-50%);
-            width: 40px;
-            height: 56px;
+            width: 28px;
+            min-width: 28px;
+            height: 72px;
             align-items: center;
             justify-content: center;
             background: #023A8D;
@@ -285,9 +283,16 @@
         .inbox-drawer.open:not(.inbox--minimized) .inbox-chevron-handle {
             display: flex;
         }
+        .inbox-drawer.inbox--minimized .inbox-chevron-handle {
+            right: auto;
+            left: 0;
+        }
         .inbox-chevron-handle svg {
             width: 18px;
             height: 18px;
+        }
+        .inbox-drawer.open:not(.inbox--minimized) .inbox-chevron-icon {
+            transform: rotate(180deg);
         }
         .inbox-drawer-header {
             display: flex;
