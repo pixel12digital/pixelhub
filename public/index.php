@@ -557,6 +557,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/settings/agenda-block-types/update', 'AgendaBlockTypesController@update');
     $router->post('/settings/agenda-block-types/delete', 'AgendaBlockTypesController@delete');
     $router->post('/settings/agenda-block-types/restore', 'AgendaBlockTypesController@restore');
+    $router->post('/settings/agenda-block-types/hard-delete', 'AgendaBlockTypesController@hardDelete');
 
     // Rotas de Configurações - Modelos de Blocos de Agenda
     $router->get('/settings/agenda-block-templates', 'AgendaBlockTemplatesController@index');

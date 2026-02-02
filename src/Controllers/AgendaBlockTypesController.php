@@ -226,4 +226,42 @@ class AgendaBlockTypesController extends Controller
             $this->redirect('/settings/agenda-block-types?error=' . urlencode($e->getMessage()));
         }
     }
+
+    /**
+     * Exclui tipo permanentemente (hard delete)
+     * Só permite se não houver modelos nem blocos usando o tipo
+     */
+    public function hardDelete(): void
+    {
+        Auth::requireInternal();
+
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) {
+            $this->redirect('/settings/agenda-block-types?error=missing_id');
+            return;
+        }
+
+        try {
+            $db = DB::getConnection();
+            $stmt = $db->prepare("SELECT COUNT(*) as c FROM agenda_block_templates WHERE tipo_id = ?");
+            $stmt->execute([$id]);
+            $templatesCount = (int)$stmt->fetch(\PDO::FETCH_ASSOC)['c'];
+
+            $stmt = $db->prepare("SELECT COUNT(*) as c FROM agenda_blocks WHERE tipo_id = ?");
+            $stmt->execute([$id]);
+            $blocksCount = (int)$stmt->fetch(\PDO::FETCH_ASSOC)['c'];
+
+            if ($templatesCount > 0 || $blocksCount > 0) {
+                $this->redirect('/settings/agenda-block-types?error=' . urlencode("Não é possível excluir: tipo em uso por {$templatesCount} modelo(s) e {$blocksCount} bloco(s). Desative primeiro."));
+                return;
+            }
+
+            $stmt = $db->prepare("DELETE FROM agenda_block_types WHERE id = ?");
+            $stmt->execute([$id]);
+            $this->redirect('/settings/agenda-block-types?success=hard_deleted');
+        } catch (\Exception $e) {
+            error_log("Erro ao excluir tipo: " . $e->getMessage());
+            $this->redirect('/settings/agenda-block-types?error=' . urlencode($e->getMessage()));
+        }
+    }
 }

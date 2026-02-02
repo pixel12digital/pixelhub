@@ -2,6 +2,11 @@
 ob_start();
 $types = $types ?? [];
 ?>
+<style>
+.btn-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: none; background: none; cursor: pointer; color: #6b7280; border-radius: 4px; transition: color 0.15s, background 0.15s; }
+.btn-icon:hover { color: #374151; background: #f3f4f6; }
+.btn-icon-danger:hover { color: #dc2626; background: #fef2f2; }
+</style>
 
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
     <div>
@@ -31,6 +36,7 @@ $types = $types ?? [];
             elseif ($s === 'updated') echo 'Tipo atualizado com sucesso.';
             elseif ($s === 'deleted') echo 'Tipo desativado. Não aparecerá mais em novos modelos.';
             elseif ($s === 'restored') echo 'Tipo reativado com sucesso.';
+            elseif ($s === 'hard_deleted') echo 'Tipo excluído permanentemente.';
             ?>
         </p>
     </div>
@@ -87,20 +93,33 @@ $types = $types ?? [];
                             <?= (int)($t['templates_count'] ?? 0) ?> modelos · <?= (int)($t['blocks_count'] ?? 0) ?> blocos
                         </td>
                         <td style="padding: 10px 12px; text-align: right;">
-                            <a href="<?= pixelhub_url('/settings/agenda-block-types/edit?id=' . $t['id']) ?>" 
-                               style="color: #1d4ed8; text-decoration: none; font-size: 13px; margin-right: 12px;">Editar</a>
-                            <?php if ($t['ativo']): ?>
-                                <form method="POST" action="<?= pixelhub_url('/settings/agenda-block-types/delete') ?>" 
-                                      style="display: inline;" onsubmit="return confirm('Desativar este tipo? Ele não aparecerá mais em novos modelos.');">
+                            <span style="display: inline-flex; align-items: center; gap: 4px;">
+                                <a href="<?= pixelhub_url('/settings/agenda-block-types/edit?id=' . $t['id']) ?>" 
+                                   class="btn-icon" title="Editar">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                </a>
+                                <?php if ($t['ativo']): ?>
+                                    <form method="POST" action="<?= pixelhub_url('/settings/agenda-block-types/delete') ?>" style="display: inline;" onsubmit="return confirm('Desativar este tipo? Ele não aparecerá mais em novos modelos.');">
+                                        <input type="hidden" name="id" value="<?= (int)$t['id'] ?>">
+                                        <button type="submit" class="btn-icon" title="Desativar">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                                        </button>
+                                    </form>
+                                <?php else: ?>
+                                    <form method="POST" action="<?= pixelhub_url('/settings/agenda-block-types/restore') ?>" style="display: inline;">
+                                        <input type="hidden" name="id" value="<?= (int)$t['id'] ?>">
+                                        <button type="submit" class="btn-icon" title="Reativar">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
+                                <form method="POST" action="<?= pixelhub_url('/settings/agenda-block-types/hard-delete') ?>" style="display: inline;" onsubmit="return confirm('Excluir permanentemente? Só é possível se não houver modelos nem blocos usando este tipo.');">
                                     <input type="hidden" name="id" value="<?= (int)$t['id'] ?>">
-                                    <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 13px; padding: 0;">Desativar</button>
+                                    <button type="submit" class="btn-icon btn-icon-danger" title="Excluir permanentemente">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                    </button>
                                 </form>
-                            <?php else: ?>
-                                <form method="POST" action="<?= pixelhub_url('/settings/agenda-block-types/restore') ?>" style="display: inline;">
-                                    <input type="hidden" name="id" value="<?= (int)$t['id'] ?>">
-                                    <button type="submit" style="background: none; border: none; color: #15803d; cursor: pointer; font-size: 13px; padding: 0;">Reativar</button>
-                                </form>
-                            <?php endif; ?>
+                            </span>
                         </td>
                     </tr>
                 <?php endforeach; ?>
