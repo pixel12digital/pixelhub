@@ -541,15 +541,22 @@ class ConversationService
             return null;
         }
 
-        // Extrai channel_id (session.id) do payload para eventos inbound de WhatsApp
-        // IMPORTANTE: Extrair ANTES de resolver channel_account_id para usar na busca
-        // CORREÇÃO: Sempre extrai para inbound, e armazena source para log
+        // Extrai channel_id (session.id) do payload ou metadata
+        // Inbound: extrai do payload; Outbound: extrai do metadata (enviado pelo send)
         $channelId = null;
         $channelIdSource = null;
-        if ($channelType === 'whatsapp' && ($direction ?? 'inbound') === 'inbound') {
-            $channelId = self::extractChannelIdFromPayload($payload, $metadata);
-            // Armazena source para log posterior (será passado no channelInfo)
-            $channelIdSource = 'extractChannelIdFromPayload';
+        if ($channelType === 'whatsapp') {
+            $dir = $direction ?? 'inbound';
+            if ($dir === 'inbound') {
+                $channelId = self::extractChannelIdFromPayload($payload, $metadata);
+                $channelIdSource = 'extractChannelIdFromPayload';
+            } else {
+                // Outbound: channel_id vem do metadata (CommunicationHubController::send)
+                $channelId = $metadata['channel_id'] ?? $payload['channel_id'] ?? null;
+                if ($channelId) {
+                    $channelIdSource = 'metadata.channel_id';
+                }
+            }
         }
 
         // Resolve channel_account_id usando o channel_id (sessionId) extraído

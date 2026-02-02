@@ -182,14 +182,11 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             if (result.success) {
                 alert('Mensagem enviada com sucesso!');
                 closeNewMessageModal();
-                // Inbox: não recarrega a página; mantém Inbox aberto e abre a nova conversa
-                if (typeof InboxState !== 'undefined' && InboxState.isOpen) {
-                    if (typeof loadInboxConversations === 'function') loadInboxConversations();
-                    if (result.thread_id && typeof loadInboxConversation === 'function') {
-                        setTimeout(function() { loadInboxConversation(result.thread_id, 'whatsapp'); }, 400);
-                    }
-                } else {
-                    location.reload();
+                // Este modal só existe fora do /communication-hub (board, projetos, etc.)
+                // Nunca recarrega: mantém Inbox aberto, atualiza lista e abre a conversa
+                if (typeof loadInboxConversations === 'function') loadInboxConversations();
+                if (result.thread_id && typeof loadInboxConversation === 'function') {
+                    setTimeout(function() { loadInboxConversation(result.thread_id, 'whatsapp'); }, 400);
                 }
             } else {
                 alert('Erro: ' + (result.error || 'Erro ao enviar mensagem'));
