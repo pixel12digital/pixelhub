@@ -239,10 +239,55 @@
             display: flex;
             flex-direction: column;
             box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
-            transition: right 0.3s ease;
+            transition: right 0.3s ease, width 0.3s ease;
         }
         .inbox-drawer.open {
             right: 0;
+        }
+        /* Inbox minimizado: apenas alça visível, sem overlay bloqueando */
+        .inbox-drawer.inbox--minimized {
+            width: 40px;
+            min-width: 40px;
+            max-width: 40px;
+        }
+        .inbox-drawer.inbox--minimized .inbox-drawer-header,
+        .inbox-drawer.inbox--minimized .inbox-drawer-body {
+            display: none;
+        }
+        .inbox-drawer.inbox--minimized .inbox-chevron-handle {
+            display: flex;
+        }
+        .inbox-drawer.inbox--minimized .inbox-chevron-icon {
+            transform: rotate(180deg);
+        }
+        /* Handle da seta (chevron) - centralizado na borda esquerda */
+        .inbox-chevron-handle {
+            display: none;
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 56px;
+            align-items: center;
+            justify-content: center;
+            background: #023A8D;
+            color: white;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px 0 0 6px;
+            z-index: 10;
+            transition: background 0.2s ease;
+        }
+        .inbox-chevron-handle:hover {
+            background: #032d6b;
+        }
+        .inbox-drawer.open:not(.inbox--minimized) .inbox-chevron-handle {
+            display: flex;
+        }
+        .inbox-chevron-handle svg {
+            width: 18px;
+            height: 18px;
         }
         .inbox-drawer-header {
             display: flex;
@@ -742,6 +787,11 @@
                 width: 100vw;
                 max-width: 100vw;
                 right: -100vw;
+            }
+            .inbox-drawer.inbox--minimized {
+                width: 40px;
+                min-width: 40px;
+                max-width: 40px;
             }
             .inbox-drawer-list {
                 width: 100%;
@@ -1748,6 +1798,9 @@
     <!-- ===== INBOX DRAWER GLOBAL ===== -->
     <div class="inbox-drawer-overlay" id="inboxOverlay" onclick="closeInboxDrawer()"></div>
     <div class="inbox-drawer" id="inboxDrawer">
+        <button type="button" class="inbox-chevron-handle" id="inboxChevronHandle" onclick="toggleInboxMinimized(event)" title="Minimizar" aria-label="Minimizar ou expandir Inbox">
+            <svg class="inbox-chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
         <div class="inbox-drawer-header">
             <h2>Inbox</h2>
             <button type="button" class="inbox-drawer-close" onclick="closeInboxDrawer()">
@@ -2560,11 +2613,29 @@
             if (!drawer || !overlay) return;
             
             drawer.classList.remove('open');
+            drawer.classList.remove('inbox--minimized');
             overlay.classList.remove('open');
             InboxState.isOpen = false;
             
             // Para polling
             stopInboxPolling();
+        };
+        
+        /** Minimizar/maximizar Inbox (apenas UI, sem fechar nem recarregar) */
+        window.toggleInboxMinimized = function(e) {
+            if (e) e.stopPropagation();
+            const drawer = document.getElementById('inboxDrawer');
+            const overlay = document.getElementById('inboxOverlay');
+            const handle = document.getElementById('inboxChevronHandle');
+            if (!drawer || !overlay || !drawer.classList.contains('open')) return;
+            const isMinimized = drawer.classList.toggle('inbox--minimized');
+            if (isMinimized) {
+                overlay.classList.remove('open');
+                if (handle) handle.setAttribute('title', 'Expandir');
+            } else {
+                overlay.classList.add('open');
+                if (handle) handle.setAttribute('title', 'Minimizar');
+            }
         };
         
         // Atalho de teclado (Ctrl+I ou Escape)
