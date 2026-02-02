@@ -141,6 +141,49 @@ $emailAccounts = $emailAccounts ?? [];
 }
 </style>
 
+<script>
+function copyInvoiceUrlFromBtn(btn) {
+    var url = btn.getAttribute('data-invoice-url');
+    copyInvoiceUrl(url, btn);
+}
+function copyInvoiceUrl(url, btn) {
+    if (!url) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function() {
+            var originalTitle = btn.getAttribute('data-tooltip');
+            btn.setAttribute('data-tooltip', 'Copiado!');
+            btn.style.background = '#28a745';
+            setTimeout(function() {
+                btn.setAttribute('data-tooltip', originalTitle || 'Copiar link');
+                btn.style.background = '';
+            }, 2000);
+        }).catch(function() {
+            alert('Não foi possível copiar. Tente selecionar o link manualmente.');
+        });
+    } else {
+        var ta = document.createElement('textarea');
+        ta.value = url;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+            document.execCommand('copy');
+            var originalTitle = btn.getAttribute('data-tooltip');
+            btn.setAttribute('data-tooltip', 'Copiado!');
+            btn.style.background = '#28a745';
+            setTimeout(function() {
+                btn.setAttribute('data-tooltip', originalTitle || 'Copiar link');
+                btn.style.background = '';
+            }, 2000);
+        } catch (e) {
+            alert('Não foi possível copiar. Tente selecionar o link manualmente.');
+        }
+        document.body.removeChild(ta);
+    }
+}
+</script>
+
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center;">
     <div>
         <h2><?= htmlspecialchars($tenant['name']) ?></h2>
@@ -1048,48 +1091,6 @@ $emailAccounts = $emailAccounts ?? [];
 
     // Armazena tenant_id globalmente para uso no modal
     window.currentTenantId = <?= $tenant['id'] ?? 0 ?>;
-
-    function copyInvoiceUrlFromBtn(btn) {
-        var url = btn.getAttribute('data-invoice-url');
-        copyInvoiceUrl(url, btn);
-    }
-
-    function copyInvoiceUrl(url, btn) {
-        if (!url) return;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(url).then(function() {
-                var originalTitle = btn.getAttribute('data-tooltip');
-                btn.setAttribute('data-tooltip', 'Copiado!');
-                btn.style.background = '#28a745';
-                setTimeout(function() {
-                    btn.setAttribute('data-tooltip', originalTitle || 'Copiar link');
-                    btn.style.background = '';
-                }, 2000);
-            }).catch(function() {
-                alert('Não foi possível copiar. Tente selecionar o link manualmente.');
-            });
-        } else {
-            var ta = document.createElement('textarea');
-            ta.value = url;
-            ta.style.position = 'fixed';
-            ta.style.opacity = '0';
-            document.body.appendChild(ta);
-            ta.select();
-            try {
-                document.execCommand('copy');
-                var originalTitle = btn.getAttribute('data-tooltip');
-                btn.setAttribute('data-tooltip', 'Copiado!');
-                btn.style.background = '#28a745';
-                setTimeout(function() {
-                    btn.setAttribute('data-tooltip', originalTitle || 'Copiar link');
-                    btn.style.background = '';
-                }, 2000);
-            } catch (e) {
-                alert('Não foi possível copiar. Tente selecionar o link manualmente.');
-            }
-            document.body.removeChild(ta);
-        }
-    }
     </script>
 
     <!-- Scripts para modal de edição dos campos do Asaas -->
