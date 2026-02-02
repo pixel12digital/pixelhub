@@ -3470,8 +3470,10 @@
                     return;
                 }
                 
+                const msgId = (msg.id || msg.event_id || '').toString();
+                const msgIdAttr = msgId ? ` data-msg-id="${escapeInboxHtml(msgId)}"` : '';
                 html += `
-                    <div class="msg ${direction}">
+                    <div class="msg ${direction}"${msgIdAttr}>
                         ${renderedContent}
                         <div class="msg-time">${formattedTime}</div>
                     </div>
@@ -3479,8 +3481,12 @@
             });
             
             container.innerHTML = html;
-            container.scrollTop = container.scrollHeight;
             initInboxMediaLazyLoad(container);
+            requestAnimationFrame(function() {
+                requestAnimationFrame(function() {
+                    container.scrollTop = container.scrollHeight;
+                });
+            });
         }
         
         function initInboxMediaLazyLoad(container) {
@@ -3739,6 +3745,10 @@
                 container.querySelectorAll('[data-inbox-optimistic="1"]').forEach(el => el.remove());
             }
             messages.forEach(msg => {
+                const msgId = (msg.id || msg.event_id || '').toString();
+                if (msgId && Array.from(container.querySelectorAll('.msg[data-msg-id]')).some(el => el.getAttribute('data-msg-id') === msgId)) return;
+                const dedupeKey = !msgId ? (msg.direction + '|' + (msg.content || '').slice(0, 100) + '|' + (msg.timestamp || msg.created_at || '')) : null;
+                if (dedupeKey && Array.from(container.querySelectorAll('.msg[data-dedupe-key]')).some(el => el.getAttribute('data-dedupe-key') === dedupeKey)) return;
                 const direction = msg.direction === 'outbound' ? 'outbound' : 'inbound';
                 const time = msg.timestamp || msg.created_at || '';
                 const formattedTime = time ? formatInboxMessageTimestamp(time) : '';
@@ -3770,12 +3780,16 @@
                 
                 const msgEl = document.createElement('div');
                 msgEl.className = `msg ${direction}`;
+                if (msgId) msgEl.setAttribute('data-msg-id', msgId);
+                if (dedupeKey) msgEl.setAttribute('data-dedupe-key', dedupeKey);
                 msgEl.innerHTML = `${renderedContent}<div class="msg-time">${formattedTime}</div>`;
                 container.appendChild(msgEl);
             });
             
-            // Scroll para última mensagem
-            container.scrollTop = container.scrollHeight;
+            // Scroll para última mensagem (após DOM pronto)
+            requestAnimationFrame(function() {
+                container.scrollTop = container.scrollHeight;
+            });
             initInboxMediaLazyLoad(container);
         }
         
