@@ -174,40 +174,28 @@
             color: #dc2626;
         }
         
-        /* ===== INBOX GLOBAL BUTTON ===== */
-        .header-inbox-btn {
+        /* Badge de mensagens não lidas no ícone Comunicação (sidebar) */
+        .sidebar-icon-comunicacao {
             position: relative;
-            background: transparent;
-            border: none;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            margin-right: 16px;
-            transition: background 0.2s ease;
         }
-        .header-inbox-btn:hover {
-            background: rgba(255,255,255,0.1);
-        }
-        .header-inbox-btn svg {
-            width: 22px;
-            height: 22px;
-        }
-        .header-inbox-badge {
+        .sidebar-inbox-badge {
             position: absolute;
-            top: 2px;
-            right: 4px;
-            background: #ef4444;
+            top: -6px;
+            right: -8px;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 6px;
+            background: #dc2626;
             color: white;
-            font-size: 10px;
-            font-weight: 600;
-            min-width: 18px;
-            height: 18px;
-            border-radius: 9px;
+            font-size: 11px;
+            font-weight: 700;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 0 4px;
+            box-shadow: 0 2px 6px rgba(220,38,38,0.4);
+            border: 2px solid #b91c1c;
+            z-index: 2;
         }
         
         /* ===== INBOX DRAWER ===== */
@@ -1645,7 +1633,7 @@
             
             <div class="sidebar-divider"></div>
             
-            <!-- Comunicação (toggle Inbox; sub-link para Painel) -->
+            <!-- Comunicação (toggle Inbox) - Painel oculto no menu, rota /communication-hub intacta -->
             <div class="sidebar-comunicacao-wrap">
                 <div class="sidebar-top-link sidebar-comunicacao-toggle <?= (strpos($currentUri, '/communication-hub') !== false) ? 'active' : '' ?>" data-title="Comunicação" onclick="sidebarComunicacaoToggle(event)" onkeydown="if(event.key==='Enter'||event.key===' ')sidebarComunicacaoToggle(event)" role="button" tabindex="0">
                     <span class="sidebar-item-content">
@@ -1658,9 +1646,6 @@
                         <span class="sidebar-text">Comunicação</span>
                     </span>
                 </div>
-                <a href="<?= pixelhub_url('/communication-hub') ?>" class="sub-item sidebar-comunicacao-painel <?= (strpos($currentUri, '/communication-hub') !== false) ? 'active' : '' ?>" style="padding-left: 44px; font-size: 12px;">
-                    Painel de Comunicação
-                </a>
             </div>
             
             <div class="sidebar-divider"></div>
