@@ -143,6 +143,14 @@ ob_start();
     </div>
 <?php endif; ?>
 
+<?php if (isset($_GET['erro'])): ?>
+    <div class="card" style="background: #ffebee; border-left: 4px solid #f44336; margin-bottom: 20px; padding: 15px;">
+        <p style="color: #c62828; margin: 0;">
+            <strong>Erro:</strong> <?= htmlspecialchars($_GET['erro']) ?>
+        </p>
+    </div>
+<?php endif; ?>
+
 <?php if (isset($erroGeracao) && $erroGeracao): ?>
     <div class="card" style="background: #ffebee; border-left: 4px solid #f44336; margin-bottom: 20px; padding: 15px;">
         <p style="color: #c62828; margin: 0;">

@@ -508,6 +508,54 @@ class AgendaController extends Controller
     }
     
     /**
+     * Exclui um bloco e redireciona para a agenda do dia
+     */
+    public function delete(): void
+    {
+        Auth::requireInternal();
+
+        $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
+        $dataStr = isset($_POST['date']) ? trim($_POST['date']) : null;
+
+        if ($id <= 0) {
+            $base = pixelhub_url('/agenda/blocos');
+            $redirectUrl = $dataStr
+                ? $base . '?data=' . urlencode($dataStr) . '&erro=' . urlencode('ID do bloco inválido')
+                : $base . '?erro=' . urlencode('ID do bloco inválido');
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+
+        try {
+            AgendaService::deleteBlock($id);
+            $base = pixelhub_url('/agenda/blocos');
+            $redirectUrl = $dataStr
+                ? $base . '?data=' . urlencode($dataStr) . '&sucesso=' . urlencode('Bloco excluído com sucesso')
+                : $base . '?sucesso=' . urlencode('Bloco excluído com sucesso');
+            header('Location: ' . $redirectUrl);
+            exit;
+        } catch (\RuntimeException $e) {
+            error_log("Erro ao excluir bloco: " . $e->getMessage());
+            $erroMsg = urlencode($e->getMessage());
+            $base = pixelhub_url('/agenda/blocos');
+            $redirectUrl = $dataStr
+                ? $base . '?data=' . urlencode($dataStr) . '&erro=' . $erroMsg
+                : $base . '?erro=' . $erroMsg;
+            header('Location: ' . $redirectUrl);
+            exit;
+        } catch (\Exception $e) {
+            error_log("Erro ao excluir bloco: " . $e->getMessage());
+            $erroMsg = urlencode('Erro ao excluir bloco');
+            $base = pixelhub_url('/agenda/blocos');
+            $redirectUrl = $dataStr
+                ? $base . '?data=' . urlencode($dataStr) . '&erro=' . $erroMsg
+                : $base . '?erro=' . $erroMsg;
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+    }
+
+    /**
      * Atualiza projeto foco de um bloco
      */
     public function updateProjectFocus(): void
