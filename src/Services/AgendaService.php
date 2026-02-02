@@ -2323,17 +2323,56 @@ class AgendaService
     }
 
     /**
-     * Retorna itens da agenda para um dia (tarefas + projetos + itens manuais)
+     * Enriquece blocos para exibição na agenda unificada (Minha Agenda).
+     * - Filtra apenas blocos com projeto vinculado (sem projeto = não exibe, já tem semanal)
+     * - Adiciona tarefas vinculadas e checklist de cada tarefa (subtasks)
+     *
+     * @param array $blocks Blocos brutos
+     * @return array Blocos filtrados e enriquecidos
+     */
+    public static function enrichBlocksForUnifiedAgenda(array $blocks): array
+    {
+        $result = [];
+        foreach ($blocks as $b) {
+            if (empty($b['projeto_foco_id'])) {
+                continue; // Sem projeto = não exibe em Minha Agenda
+            }
+            $b['tipo_cor_hex'] = $b['tipo_cor'] ?? $b['tipo_cor_hex'] ?? '#cccccc';
+            $b['block_tasks'] = [];
+            try {
+                $tasks = self::getTasksByBlock((int)$b['id']);
+                foreach ($tasks as $t) {
+                    $t['checklist'] = TaskChecklistService::getItemsByTask((int)$t['id']);
+                    $b['block_tasks'][] = $t;
+                }
+            } catch (\Exception $e) {
+                // ignora
+            }
+            $result[] = $b;
+        }
+        return $result;
+    }
+
+    /**
+     * Retorna itens da agenda para um dia (tarefas + projetos + itens manuais + blocos de tempo)
      */
     public static function getAgendaItemsForDay(string $dateStr): array
     {
         $tasks = self::getAgendaTasksForDate($dateStr);
         $projects = self::getAgendaProjectsForDateRange($dateStr, $dateStr);
         $manualItems = self::getManualItemsForDate($dateStr);
+        $blocks = [];
+        try {
+            $rawBlocks = self::getBlocksByDate($dateStr);
+            $blocks = self::enrichBlocksForUnifiedAgenda($rawBlocks);
+        } catch (\Exception $e) {
+            // ignora se tabela não existir
+        }
         return [
             'tasks' => $tasks,
             'projects' => $projects,
             'manual_items' => $manualItems,
+            'blocks' => $blocks,
             'date' => $dateStr,
         ];
     }
@@ -2361,6 +2400,7 @@ class AgendaService
                 'tasks' => [],
                 'projects' => [],
                 'manual_items' => [],
+                'blocks' => [],
             ];
         }
 
@@ -2381,6 +2421,19 @@ class AgendaService
             if ($d && isset($byDay[$d])) {
                 $byDay[$d]['manual_items'][] = $m;
             }
+        }
+
+        try {
+            $dataInicio = new \DateTime($startStr);
+            $dataFim = new \DateTime($endStr);
+            $blocosPorDia = self::getBlocksForPeriod($dataInicio, $dataFim);
+            foreach ($blocosPorDia as $dataIso => $blocos) {
+                if (isset($byDay[$dataIso])) {
+                    $byDay[$dataIso]['blocks'] = self::enrichBlocksForUnifiedAgenda($blocos);
+                }
+            }
+        } catch (\Exception $e) {
+            // ignora se tabela não existir
         }
 
         return [

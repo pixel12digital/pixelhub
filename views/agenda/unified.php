@@ -134,6 +134,7 @@ $isHoje = ($viewMode === 'hoje');
     .agenda-item.bar-concluida { border-left-color: #388e3c; }
     .agenda-item.bar-projeto { border-left-color: #388e3c; }
     .agenda-item.bar-manual { border-left-color: #f57c00; }
+    .agenda-item.bar-bloco { border-left-color: #1976d2; }
     .agenda-item-icon {
         width: 32px;
         height: 32px;
@@ -255,7 +256,8 @@ $isHoje = ($viewMode === 'hoje');
     $tasks = $items['tasks'] ?? [];
     $projects = $items['projects'] ?? [];
     $manualItems = $items['manual_items'] ?? [];
-    $total = count($tasks) + count($projects) + count($manualItems);
+    $blocks = $items['blocks'] ?? [];
+    $total = count($tasks) + count($projects) + count($manualItems) + count($blocks);
     ?>
     <?php if ($total === 0): ?>
         <div class="agenda-section">
@@ -323,6 +325,54 @@ $isHoje = ($viewMode === 'hoje');
             <?php endforeach; ?>
         </div>
         <?php endif; ?>
+
+        <?php if (!empty($blocks)): ?>
+        <div class="agenda-section">
+            <h3>Blocos de tempo (<?= $blocksDisplayCount ?>)</h3>
+            <?php foreach ($blocks as $bloco):
+                $corHex = $bloco['tipo_cor_hex'] ?? $bloco['tipo_cor'] ?? '#1976d2';
+                $horaInicio = substr($bloco['hora_inicio'] ?? '00:00', 0, 5);
+                $horaFim = substr($bloco['hora_fim'] ?? '00:00', 0, 5);
+                $blockTasks = $bloco['block_tasks'] ?? [];
+                $projetoNome = $bloco['projeto_foco_nome'] ?? '';
+                $projetoId = (int)($bloco['projeto_foco_id'] ?? 0);
+            ?>
+                <?php if (!empty($blockTasks)): ?>
+                    <?php foreach ($blockTasks as $t):
+                        $status = $t['status'] ?? 'backlog';
+                        $statusMap = ['backlog' => 'backlog', 'em_andamento' => 'andamento', 'aguardando_cliente' => 'aguardando', 'concluida' => 'concluida'];
+                        $statusClass = $statusMap[$status] ?? 'backlog';
+                        $checklist = $t['checklist'] ?? [];
+                    ?>
+                        <a href="<?= pixelhub_url('/projects/board?project_id=' . (int)$t['project_id']) ?>#task-<?= (int)$t['id'] ?>" class="agenda-item bar-<?= $statusClass ?>">
+                            <span class="agenda-item-icon task status-<?= $statusClass ?>">✓</span>
+                            <div class="agenda-item-content">
+                                <div class="agenda-item-title"><?= htmlspecialchars($t['title']) ?></div>
+                                <div class="agenda-item-meta"><?= htmlspecialchars($projetoNome) ?> · <?= $horaInicio ?>–<?= $horaFim ?></div>
+                                <?php if (!empty($checklist)): ?>
+                                    <ul class="agenda-subtasks" style="margin: 6px 0 0 0; padding-left: 20px; font-size: 12px; color: #6b7280;">
+                                        <?php foreach ($checklist as $item): ?>
+                                            <li style="<?= !empty($item['is_done']) ? 'text-decoration: line-through; opacity: 0.7;' : '' ?>"><?= htmlspecialchars($item['label'] ?? '') ?></li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                <?php endif; ?>
+                            </div>
+                            <span class="agenda-item-badge badge-<?= $statusClass ?>">Tarefa</span>
+                        </a>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <a href="<?= pixelhub_url('/agenda/bloco?id=' . (int)$bloco['id']) ?>" class="agenda-item bar-bloco" style="border-left-color: <?= htmlspecialchars($corHex) ?>;">
+                        <span class="agenda-item-icon" style="background: <?= htmlspecialchars($corHex) ?>20; color: <?= htmlspecialchars($corHex) ?>;">⏱</span>
+                        <div class="agenda-item-content">
+                            <div class="agenda-item-title"><?= htmlspecialchars($projetoNome) ?></div>
+                            <div class="agenda-item-meta"><?= htmlspecialchars($bloco['tipo_nome'] ?? '') ?> · <?= $horaInicio ?>–<?= $horaFim ?></div>
+                        </div>
+                        <span class="agenda-item-badge badge-projeto">Projeto</span>
+                    </a>
+                <?php endif; ?>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
     <?php endif; ?>
 
 <?php else: ?>
@@ -330,7 +380,7 @@ $isHoje = ($viewMode === 'hoje');
     $byDay = $items['by_day'] ?? [];
     $hasAny = false;
     foreach ($byDay as $day) {
-        if (count($day['tasks']) + count($day['projects']) + count($day['manual_items']) > 0) {
+        if (count($day['tasks']) + count($day['projects']) + count($day['manual_items']) + count($day['blocks'] ?? []) > 0) {
             $hasAny = true;
             break;
         }
@@ -345,7 +395,7 @@ $isHoje = ($viewMode === 'hoje');
         </div>
     <?php else: ?>
         <?php foreach ($byDay as $day): ?>
-            <?php if (count($day['tasks']) + count($day['projects']) + count($day['manual_items']) === 0) continue; ?>
+            <?php if (count($day['tasks']) + count($day['projects']) + count($day['manual_items']) + count($day['blocks'] ?? []) === 0) continue; ?>
             <div class="agenda-section agenda-day-column">
                 <h3 class="agenda-day-header"><?= htmlspecialchars($day['date_formatted']) ?></h3>
                 <?php foreach ($day['tasks'] as $t):
@@ -380,6 +430,47 @@ $isHoje = ($viewMode === 'hoje');
                             <div class="agenda-item-meta"><?php if (!empty($m['time_start'])) echo substr($m['time_start'], 0, 5); ?></div>
                         </div>
                     </div>
+                <?php endforeach; ?>
+                <?php foreach ($day['blocks'] ?? [] as $bloco):
+                    $corHex = $bloco['tipo_cor_hex'] ?? $bloco['tipo_cor'] ?? '#1976d2';
+                    $horaInicio = substr($bloco['hora_inicio'] ?? '00:00', 0, 5);
+                    $horaFim = substr($bloco['hora_fim'] ?? '00:00', 0, 5);
+                    $blockTasks = $bloco['block_tasks'] ?? [];
+                    $projetoNome = $bloco['projeto_foco_nome'] ?? '';
+                ?>
+                    <?php if (!empty($blockTasks)): ?>
+                        <?php foreach ($blockTasks as $t):
+                            $status = $t['status'] ?? 'backlog';
+                            $statusMap = ['backlog' => 'backlog', 'em_andamento' => 'andamento', 'aguardando_cliente' => 'aguardando', 'concluida' => 'concluida'];
+                            $statusClass = $statusMap[$status] ?? 'backlog';
+                            $checklist = $t['checklist'] ?? [];
+                        ?>
+                            <a href="<?= pixelhub_url('/projects/board?project_id=' . (int)$t['project_id']) ?>#task-<?= (int)$t['id'] ?>" class="agenda-item bar-<?= $statusClass ?>">
+                                <span class="agenda-item-icon task status-<?= $statusClass ?>">✓</span>
+                                <div class="agenda-item-content">
+                                    <div class="agenda-item-title"><?= htmlspecialchars($t['title']) ?></div>
+                                    <div class="agenda-item-meta"><?= htmlspecialchars($projetoNome) ?> · <?= $horaInicio ?>–<?= $horaFim ?></div>
+                                    <?php if (!empty($checklist)): ?>
+                                        <ul class="agenda-subtasks" style="margin: 6px 0 0 0; padding-left: 20px; font-size: 12px; color: #6b7280;">
+                                            <?php foreach ($checklist as $item): ?>
+                                                <li style="<?= !empty($item['is_done']) ? 'text-decoration: line-through; opacity: 0.7;' : '' ?>"><?= htmlspecialchars($item['label'] ?? '') ?></li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    <?php endif; ?>
+                                </div>
+                                <span class="agenda-item-badge badge-<?= $statusClass ?>">Tarefa</span>
+                            </a>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <a href="<?= pixelhub_url('/agenda/bloco?id=' . (int)$bloco['id']) ?>" class="agenda-item bar-bloco" style="border-left-color: <?= htmlspecialchars($corHex) ?>;">
+                            <span class="agenda-item-icon" style="background: <?= htmlspecialchars($corHex) ?>20; color: <?= htmlspecialchars($corHex) ?>;">⏱</span>
+                            <div class="agenda-item-content">
+                                <div class="agenda-item-title"><?= htmlspecialchars($projetoNome) ?></div>
+                                <div class="agenda-item-meta"><?= htmlspecialchars($bloco['tipo_nome'] ?? '') ?> · <?= $horaInicio ?>–<?= $horaFim ?></div>
+                            </div>
+                            <span class="agenda-item-badge badge-projeto">Projeto</span>
+                        </a>
+                    <?php endif; ?>
                 <?php endforeach; ?>
             </div>
         <?php endforeach; ?>
