@@ -1868,6 +1868,35 @@
         </div>
     </div>
     
+    <!-- Modal Inbox: Vincular a Cliente Existente (quando Painel não carregado) -->
+    <div id="inbox-link-tenant-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2100; align-items: center; justify-content: center;">
+        <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">Vincular a Cliente Existente</h2>
+                <button type="button" onclick="inboxCloseLinkTenantModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+            </div>
+            <div style="margin-bottom: 20px; padding: 12px; background: #f0f2f5; border-radius: 6px;">
+                <div style="font-size: 12px; color: #667781; margin-bottom: 4px;">Contato:</div>
+                <div style="font-weight: 600; color: #111b21;" id="inbox-link-tenant-contact-name"></div>
+            </div>
+            <form onsubmit="inboxLinkIncomingLeadToTenant(event)">
+                <input type="hidden" id="inbox-link-tenant-conversation-id" value="">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Buscar Cliente *</label>
+                    <input type="text" id="inbox-link-tenant-search" placeholder="Digite nome, email, telefone ou CPF/CNPJ..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 8px;" onkeyup="inboxFilterLinkTenantOptions(this.value)">
+                    <select id="inbox-link-tenant-select" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; max-height: 200px; overflow-y: auto;">
+                        <option value="">Selecione um cliente...</option>
+                    </select>
+                    <div id="inbox-link-tenant-no-results" style="display: none; margin-top: 8px; padding: 8px; background: #fff3cd; border-radius: 4px; color: #856404; font-size: 12px;">Nenhum cliente encontrado com essa busca.</div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" style="flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Vincular</button>
+                    <button type="button" onclick="inboxCloseLinkTenantModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
     <!-- Toggle para mobile -->
     <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2586,9 +2615,100 @@
             }
         });
         // Funções expostas em window para onclick (avaliados no escopo global)
-        window.inboxOpenLinkTenantModal = function(convId, name) {
+        window.inboxOpenLinkTenantModal = async function(convId, name) {
             if (typeof openLinkTenantModal === 'function') { openLinkTenantModal(convId, name); return; }
-            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+            const modal = document.getElementById('inbox-link-tenant-modal');
+            if (!modal) return;
+            document.getElementById('inbox-link-tenant-conversation-id').value = convId;
+            const contactEl = document.getElementById('inbox-link-tenant-contact-name');
+            if (contactEl) contactEl.textContent = name || 'Contato Desconhecido';
+            const searchInput = document.getElementById('inbox-link-tenant-search');
+            if (searchInput) searchInput.value = '';
+            const select = document.getElementById('inbox-link-tenant-select');
+            if (select) select.innerHTML = '<option value="">Selecione um cliente...</option>';
+            try {
+                const res = await fetch(INBOX_BASE_URL + '/communication-hub/filter-options?for_link=1');
+                const data = await res.json();
+                if (data.success && data.tenants && select) {
+                    data.tenants.forEach(function(t) {
+                        const opt = document.createElement('option');
+                        opt.value = t.id;
+                        opt.textContent = (t.name || '') + (t.email ? ' (' + t.email + ')' : '');
+                        opt.setAttribute('data-name', (t.name || '').toLowerCase());
+                        opt.setAttribute('data-email', (t.email || '').toLowerCase());
+                        opt.setAttribute('data-phone', (t.phone || '').replace(/\D/g, ''));
+                        opt.setAttribute('data-cpf-cnpj', (t.cpf_cnpj || '').replace(/\D/g, ''));
+                        select.appendChild(opt);
+                    });
+                }
+            } catch (e) { console.warn('[Inbox] Erro ao carregar clientes:', e); }
+            if (select) select.value = '';
+            document.getElementById('inbox-link-tenant-no-results').style.display = 'none';
+            modal.style.display = 'flex';
+        };
+        window.inboxCloseLinkTenantModal = function() {
+            const modal = document.getElementById('inbox-link-tenant-modal');
+            if (modal) modal.style.display = 'none';
+        };
+        window.inboxFilterLinkTenantOptions = function(searchTerm) {
+            const search = (searchTerm || '').toLowerCase().trim();
+            const select = document.getElementById('inbox-link-tenant-select');
+            const noResults = document.getElementById('inbox-link-tenant-no-results');
+            if (!select) return;
+            const options = select.querySelectorAll('option');
+            let visibleCount = 0;
+            if (options.length > 0) options[0].style.display = '';
+            for (let i = 1; i < options.length; i++) {
+                const opt = options[i];
+                const name = (opt.getAttribute('data-name') || '');
+                const email = (opt.getAttribute('data-email') || '');
+                const phone = (opt.getAttribute('data-phone') || '');
+                const cpfCnpj = (opt.getAttribute('data-cpf-cnpj') || '');
+                const searchNorm = search.replace(/[^a-z0-9]/g, '');
+                const mName = name.includes(search) || name.replace(/[^a-z0-9]/g, '').includes(searchNorm);
+                const mEmail = email.includes(search);
+                const mPhone = phone.includes(searchNorm);
+                const mCpf = cpfCnpj.includes(searchNorm);
+                if (search === '' || mName || mEmail || mPhone || mCpf) {
+                    opt.style.display = '';
+                    visibleCount++;
+                } else {
+                    opt.style.display = 'none';
+                }
+            }
+            if (noResults) {
+                noResults.style.display = (search !== '' && visibleCount === 0) ? 'block' : 'none';
+                select.style.display = (search !== '' && visibleCount === 0) ? 'none' : 'block';
+            }
+            if (visibleCount === 1 && search !== '') {
+                for (let i = 1; i < options.length; i++) {
+                    if (options[i].style.display !== 'none') { select.value = options[i].value; break; }
+                }
+            } else if (search === '') select.value = '';
+        };
+        window.inboxLinkIncomingLeadToTenant = async function(ev) {
+            ev.preventDefault();
+            const conversationId = document.getElementById('inbox-link-tenant-conversation-id').value;
+            const tenantId = document.getElementById('inbox-link-tenant-select').value;
+            if (!tenantId) { alert('Selecione um cliente'); return; }
+            try {
+                const res = await fetch(INBOX_BASE_URL + '/communication-hub/incoming-lead/link-tenant', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ conversation_id: parseInt(conversationId), tenant_id: parseInt(tenantId) })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('Conversa vinculada ao cliente com sucesso!');
+                    inboxCloseLinkTenantModal();
+                    if (typeof loadInboxConversations === 'function') loadInboxConversations();
+                } else {
+                    alert('Erro: ' + (result.error || 'Erro desconhecido'));
+                }
+            } catch (err) {
+                console.error('[Inbox] Erro ao vincular:', err);
+                alert('Erro ao vincular conversa. Tente novamente.');
+            }
         };
         window.inboxOpenCreateTenantModal = function(convId, name, contact) {
             if (typeof openCreateTenantModal === 'function') { openCreateTenantModal(convId, name, contact); return; }
@@ -2993,9 +3113,9 @@
                 // Direção: usa campo 'direction' do backend
                 const direction = msg.direction === 'outbound' ? 'outbound' : 'inbound';
                 
-                // Timestamp: mesmo formato do Painel (dd/mm HH:mm ou "Agora")
+                // Timestamp: mensagens usam formatInboxMessageTimestamp (sem conversão, já em Brasília)
                 const time = msg.timestamp || msg.created_at || '';
-                const formattedTime = time ? formatInboxDateBrasilia(time) : '';
+                const formattedTime = time ? formatInboxMessageTimestamp(time) : '';
                 
                 // Conteúdo: backend usa 'content'
                 let content = msg.content || msg.body || msg.text || '';
@@ -3270,7 +3390,7 @@
             messages.forEach(msg => {
                 const direction = msg.direction === 'outbound' ? 'outbound' : 'inbound';
                 const time = msg.timestamp || msg.created_at || '';
-                const formattedTime = time ? formatInboxTime(time) : '';
+                const formattedTime = time ? formatInboxMessageTimestamp(time) : '';
                 
                 let content = msg.content || msg.body || msg.text || '';
                 let renderedContent = '';
@@ -3351,6 +3471,29 @@
         setTimeout(fetchUnreadCount, 3000);
         
         // ===== HELPERS =====
+        /**
+         * Formata timestamp de mensagens (exibe direto, SEM conversão de timezone).
+         * Usado para: communication_events.created_at (armazenado em Brasília).
+         * Mesmo comportamento do Painel: formatMessageTimestamp.
+         */
+        function formatInboxMessageTimestamp(dateStr) {
+            if (!dateStr || dateStr === 'now') return 'Agora';
+            try {
+                const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+                if (match) {
+                    const [, year, month, day, hour, minute] = match;
+                    return `${day}/${month} ${hour}:${minute}`;
+                }
+                const isoMatch = dateStr.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+                if (isoMatch) {
+                    const [, year, month, day, hour, minute] = isoMatch;
+                    return `${day}/${month} ${hour}:${minute}`;
+                }
+                return 'Agora';
+            } catch (e) {
+                return 'Agora';
+            }
+        }
         /**
          * Formata data para lista de conversas (mesmo comportamento do Painel de Comunicação).
          * Usa formatDateBrasilia: "Agora" ou "dd/mm HH:mm" (fuso America/Sao_Paulo).

@@ -4259,6 +4259,7 @@ class CommunicationHubController extends Controller
      * Retorna opções para filtros do Inbox (tenants e sessões WhatsApp)
      * 
      * GET /communication-hub/filter-options
+     * GET /communication-hub/filter-options?for_link=1  (tenants com email, phone, cpf_cnpj para modal Vincular)
      * Retorna {success: bool, tenants: array, whatsapp_sessions: array}
      */
     public function getFilterOptions(): void
@@ -4267,17 +4268,28 @@ class CommunicationHubController extends Controller
         header('Content-Type: application/json');
 
         $db = DB::getConnection();
+        $forLink = isset($_GET['for_link']) && $_GET['for_link'] === '1';
 
         try {
             $tenants = [];
             $whatsappSessions = [];
 
-            $tenantsStmt = $db->query("
-                SELECT id, name FROM tenants 
-                WHERE is_archived = 0 
-                ORDER BY name 
-                LIMIT 100
-            ");
+            if ($forLink) {
+                $tenantsStmt = $db->query("
+                    SELECT id, name, email, phone, COALESCE(cpf_cnpj, document, '') as cpf_cnpj
+                    FROM tenants 
+                    WHERE (is_archived IS NULL OR is_archived = 0)
+                    ORDER BY name 
+                    LIMIT 500
+                ");
+            } else {
+                $tenantsStmt = $db->query("
+                    SELECT id, name FROM tenants 
+                    WHERE is_archived = 0 
+                    ORDER BY name 
+                    LIMIT 100
+                ");
+            }
             if ($tenantsStmt) {
                 $tenants = $tenantsStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
             }
