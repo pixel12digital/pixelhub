@@ -366,11 +366,24 @@ class TaskService
         $result = $stmt->fetch();
         $order = (int) ($result['next_order'] ?? 1);
         
+        // Se status for concluída, preenche completed_at e completed_by (para aparecer no relatório)
+        $completedAt = null;
+        $completedBy = null;
+        if ($status === 'concluida') {
+            $now = new \DateTime('now', new \DateTimeZone('America/Sao_Paulo'));
+            $completedAt = $now->format('Y-m-d H:i:s');
+            $completedBy = $createdBy;
+            if (!$completedBy && class_exists(\PixelHub\Core\Auth::class)) {
+                $user = \PixelHub\Core\Auth::user();
+                $completedBy = $user['id'] ?? null;
+            }
+        }
+        
         // Insere no banco
         $stmt = $db->prepare("
             INSERT INTO tasks 
-            (project_id, title, description, status, `order`, assignee, due_date, start_date, task_type, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            (project_id, title, description, status, `order`, assignee, due_date, start_date, task_type, created_by, created_at, updated_at, completed_at, completed_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?)
         ");
         
         $stmt->execute([
@@ -384,6 +397,8 @@ class TaskService
             $startDate,
             $taskType,
             $createdBy,
+            $completedAt,
+            $completedBy,
         ]);
         
         $taskId = (int) $db->lastInsertId();
