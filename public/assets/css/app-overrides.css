@@ -75,10 +75,11 @@ tbody tr:first-child td{
 }
 
 /* Mantém 1 ação como "primária", mas sem gritar */
+/* Nota: a[href*="/projects/board"] sem .btn foi removido - aplicava azul em cards da agenda */
 .btn-primary,
 a.btn-primary,
-a[href*="/projects/board"],
-a[href*="/projects/board"].btn{
+a.btn[href*="/projects/board"],
+a.btn-primary[href*="/projects/board"]{
   background: var(--ph-primary) !important;
   border: 1px solid var(--ph-primary) !important;
   color: white !important;
@@ -86,7 +87,8 @@ a[href*="/projects/board"].btn{
 
 .btn-primary:hover,
 a.btn-primary:hover,
-a[href*="/projects/board"]:hover{
+a.btn[href*="/projects/board"]:hover,
+a.btn-primary[href*="/projects/board"]:hover{
   background: #1e40af !important;
   border-color: #1e40af !important;
 }
