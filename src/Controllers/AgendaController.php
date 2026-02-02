@@ -954,15 +954,9 @@ class AgendaController extends Controller
         $domingo = $dataBase->modify('-' . $weekday . ' days'); // volta até domingo
         $sabado = $domingo->modify('+6 days'); // avança até sábado
         
-        // 2.5) Garantir que todos os blocos da semana existam (baseados nos templates)
-        // IMPORTANTE: ensureBlocksForWeek precisa receber domingo e sábado (mesmo período que será buscado)
-        // para garantir que todos os blocos da semana sejam criados
-        try {
-            AgendaService::ensureBlocksForWeek($domingo, $sabado);
-        } catch (\Exception $e) {
-            // Loga o erro mas continua (não quebra a exibição)
-            error_log("Erro ao garantir blocos da semana: " . $e->getMessage());
-        }
+        // 2.5) NÃO chama ensureBlocksForWeek aqui - blocos excluídos pelo usuário
+        // reapareciam ao abrir a agenda semanal. A geração de blocos fica a cargo do
+        // usuário via "Gerar Blocos do Dia" em Blocos de tempo.
         
         // 3) Obter blocos para o período
         try {
