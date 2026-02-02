@@ -732,6 +732,11 @@
             height: auto;
             border-radius: 8px;
         }
+        .inbox-media-thumb.inbox-media-lazy {
+            background: #f0f0f0;
+            min-width: 100px;
+            min-height: 80px;
+        }
         .inbox-media-open:hover .inbox-media-thumb {
             filter: brightness(0.95);
         }
@@ -3433,11 +3438,11 @@
                     const mediaType = (media.media_type || media.type || '').toLowerCase();
                     const safeUrl = escapeInboxHtml(media.url);
                     if (mediaType === 'image' || mediaType === 'sticker') {
-                        renderedContent = `<button type="button" class="inbox-media-open" data-src="${safeUrl}"><img src="${safeUrl}" class="inbox-media-thumb" data-src="${safeUrl}" loading="lazy" alt="Imagem" onerror="this.outerHTML='<em>[Imagem não disponível]</em>'"></button>`;
+                        renderedContent = `<button type="button" class="inbox-media-open" data-src="${safeUrl}"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" class="inbox-media-thumb inbox-media-lazy" data-src="${safeUrl}" alt="Imagem" onerror="this.outerHTML='<em>[Imagem não disponível]</em>'"></button>`;
                     } else if (mediaType === 'audio' || mediaType === 'ptt' || mediaType === 'voice') {
-                        renderedContent = `<audio controls src="${safeUrl}" style="max-width: 250px;"></audio>`;
+                        renderedContent = `<audio controls class="inbox-media-lazy" data-src="${safeUrl}" style="max-width: 250px;"></audio>`;
                     } else if (mediaType === 'video') {
-                        renderedContent = `<video controls src="${safeUrl}" style="max-width: 200px; border-radius: 8px;"></video>`;
+                        renderedContent = `<video controls class="inbox-media-lazy" data-src="${safeUrl}" style="max-width: 200px; border-radius: 8px;"></video>`;
                     } else if (mediaType === 'document' || mediaType === 'file') {
                         renderedContent = `<a href="${safeUrl}" target="_blank" style="color: #023A8D; text-decoration: none;">📎 ${escapeInboxHtml(media.file_name || 'Documento')}</a>`;
                     } else {
@@ -3466,6 +3471,32 @@
             
             container.innerHTML = html;
             container.scrollTop = container.scrollHeight;
+            initInboxMediaLazyLoad(container);
+        }
+        
+        function initInboxMediaLazyLoad(container) {
+            if (!container || !container.querySelector) return;
+            const lazyEls = container.querySelectorAll('.inbox-media-lazy[data-src]');
+            if (lazyEls.length === 0) return;
+            if (!window.InboxMediaLazyObserver) {
+                window.InboxMediaLazyObserver = new IntersectionObserver(function(entries) {
+                    entries.forEach(function(entry) {
+                        if (!entry.isIntersecting) return;
+                        const el = entry.target;
+                        const src = el.getAttribute('data-src');
+                        if (!src) return;
+                        if (el.tagName === 'IMG') {
+                            el.src = src;
+                            el.classList.remove('inbox-media-lazy');
+                        } else if (el.tagName === 'AUDIO' || el.tagName === 'VIDEO') {
+                            el.src = src;
+                            el.classList.remove('inbox-media-lazy');
+                        }
+                        window.InboxMediaLazyObserver.unobserve(el);
+                    });
+                }, { root: container, rootMargin: '200px', threshold: 0.01 });
+            }
+            lazyEls.forEach(function(el) { window.InboxMediaLazyObserver.observe(el); });
         }
         
         // ===== ENVIAR MENSAGEM =====
@@ -3711,11 +3742,11 @@
                     const mediaType = (media.media_type || media.type || '').toLowerCase();
                     const safeUrl = escapeInboxHtml(media.url);
                     if (mediaType === 'image' || mediaType === 'sticker') {
-                        renderedContent = `<button type="button" class="inbox-media-open" data-src="${safeUrl}"><img src="${safeUrl}" class="inbox-media-thumb" data-src="${safeUrl}" loading="lazy" alt="Imagem" onerror="this.outerHTML='<em>[Imagem não disponível]</em>'"></button>`;
+                        renderedContent = `<button type="button" class="inbox-media-open" data-src="${safeUrl}"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" class="inbox-media-thumb inbox-media-lazy" data-src="${safeUrl}" alt="Imagem" onerror="this.outerHTML='<em>[Imagem não disponível]</em>'"></button>`;
                     } else if (mediaType === 'audio' || mediaType === 'ptt' || mediaType === 'voice') {
-                        renderedContent = `<audio controls src="${safeUrl}" style="max-width: 250px;"></audio>`;
+                        renderedContent = `<audio controls class="inbox-media-lazy" data-src="${safeUrl}" style="max-width: 250px;"></audio>`;
                     } else if (mediaType === 'video') {
-                        renderedContent = `<video controls src="${safeUrl}" style="max-width: 200px; border-radius: 8px;"></video>`;
+                        renderedContent = `<video controls class="inbox-media-lazy" data-src="${safeUrl}" style="max-width: 200px; border-radius: 8px;"></video>`;
                     } else {
                         renderedContent = `<a href="${safeUrl}" target="_blank" style="color: #023A8D;">📎 Mídia</a>`;
                     }
@@ -3736,6 +3767,7 @@
             
             // Scroll para última mensagem
             container.scrollTop = container.scrollHeight;
+            initInboxMediaLazyLoad(container);
         }
         
         // ===== BADGE NO HEADER =====
