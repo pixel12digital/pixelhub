@@ -427,9 +427,13 @@
             display: flex;
             align-items: flex-end;
             gap: 12px;
+            overflow: hidden;
+            min-width: 0;
         }
         .inbox-drawer-input textarea {
             flex: 1;
+            min-width: 0;
+            width: 100%;
             padding: 12px 16px;
             border: 1px solid #d1d5db;
             border-radius: 24px;
@@ -439,6 +443,8 @@
             min-height: 44px;
             max-height: 120px;
             overflow-y: auto;
+            overflow-x: hidden;
+            box-sizing: border-box;
         }
         .inbox-drawer-input textarea:focus {
             border-color: #023A8D;
@@ -1668,7 +1674,7 @@
                             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
                         </svg>
                     </button>
-                    <textarea id="inboxMessageInput" rows="1" placeholder="Digite sua mensagem..." autocomplete="off" onkeydown="handleInboxInputKeypress(event)" oninput="autoResizeInboxTextarea(this); updateInboxSendMicVisibility()"></textarea>
+                    <textarea id="inboxMessageInput" rows="1" placeholder="Digite sua mensagem..." autocomplete="nope" data-lpignore="true" data-1p-ignore data-form-type="other" onkeydown="handleInboxInputKeypress(event)" oninput="autoResizeInboxTextarea(this); updateInboxSendMicVisibility()"></textarea>
                     <button type="button" class="inbox-media-btn" id="inboxBtnMic" onclick="startInboxRecording()" title="Gravar áudio">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
@@ -2466,6 +2472,14 @@
                 requestAnimationFrame(() => { chat.offsetHeight; });
             }
             if (messages) messages.innerHTML = '<div class="inbox-drawer-loading">Carregando...</div>';
+            
+            // Reseta campo de mensagem e visibilidade mic/enviar ao trocar conversa
+            const input = document.getElementById('inboxMessageInput');
+            if (input) {
+                input.value = '';
+                if (typeof autoResizeInboxTextarea === 'function') autoResizeInboxTextarea(input);
+            }
+            updateInboxSendMicVisibility();
             
             // Mobile: abre painel de chat
             const drawer = document.getElementById('inboxDrawer');

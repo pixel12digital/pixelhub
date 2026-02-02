@@ -141,4 +141,36 @@ O textarea permite múltiplas linhas, quebra de linha natural e altura controlad
 
 ---
 
-*Documento criado em 29/01/2026. Sem implementações — apenas investigação e registro.*
+## Atualização: Problemas persistem após correções iniciais (30/01/2026)
+
+### Relato
+Após implementar as correções (textarea, autocomplete=off, min-height, reflow), os problemas continuam:
+- **~1 segundo após abrir:** microfone some
+- **Campo "explode"** avançando horizontalmente para a direita
+- Muitos `net::ERR_CONNECTION_RESET` ao carregar mídia (imagens/áudios)
+
+### Investigação criteriosa
+
+#### 1. Microfone some após ~1s
+**Hipóteses descartadas:**
+- `loadInboxConversations()` só altera `inboxListScroll` (lista), não toca no chat/input
+- `renderInboxMessages()` só altera `inboxMessages`, não toca no input
+- `setInboxAudioUI` não é chamada ao carregar conversa
+
+**Hipótese mantida:** O evento `input` continua sendo disparado por autofill/autocomplete. O `autocomplete="off"` é ignorado por alguns navegadores em campos fora de `<form>`. O timing (~1s) pode coincidir com o foco automático ou com o carregamento da conversa (300ms + fetch), quando o usuário já está interagindo.
+
+**Ação:** Reforçar anti-autofill: `autocomplete="nope"`, `data-lpignore="true"`, `data-1p-ignore`. Considerar `readonly` inicial removido no primeiro `focus` (fallback).
+
+#### 2. Campo explode horizontalmente
+**Causa identificada:** Em flexbox, itens com `flex: 1` têm `min-width: auto` por padrão. O navegador não permite que o item encolha abaixo da largura intrínseca do conteúdo. Para um textarea sem `min-width: 0`, isso pode causar overflow horizontal e o container expandir além do viewport.
+
+**Referência:** [CSS-Tricks Flexbox Truncated Text](https://css-tricks.com/flexbox-truncated-text/), [Stack Overflow textarea max-width flex](https://stackoverflow.com/questions/46575022/textarea-max-width-not-working-inside-flex-item)
+
+**Ação:** Adicionar `min-width: 0` ao textarea e `overflow: hidden` no container `.inbox-drawer-input` para conter qualquer overflow.
+
+#### 3. net::ERR_CONNECTION_RESET nas mídias
+**Causa:** Erro de rede/servidor ao carregar imagens e áudios. Não está relacionado ao layout do Inbox. Possíveis causas: limite de conexões simultâneas, servidor fechando conexões, timeout, proxy/firewall.
+
+---
+
+*Documento criado em 29/01/2026. Atualizado em 30/01/2026 com investigação de persistência dos problemas.*
