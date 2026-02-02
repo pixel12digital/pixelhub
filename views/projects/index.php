@@ -172,7 +172,7 @@ ob_start();
         margin-bottom: 20px;
         display: flex;
         gap: 15px;
-        align-items: flex-end;
+        align-items: flex-start;
     }
     .filters .form-group {
         margin-bottom: 0;
