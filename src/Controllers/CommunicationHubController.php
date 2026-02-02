@@ -1847,18 +1847,24 @@ class CommunicationHubController extends Controller
                         // Eventos inbound têm metadata.channel_id normalizado, outbound precisa ter também
                         $normalizedChannelId = strtolower(str_replace(' ', '', $targetChannelId));
                         
+                        // Nova conversa com tenant selecionado no modal: confia na escolha do usuário
+                        $metadata = [
+                            'sent_by' => Auth::user()['id'] ?? null,
+                            'sent_by_name' => Auth::user()['name'] ?? null,
+                            'message_id' => $result['message_id'] ?? null,
+                            'forwarded' => count($targetChannels) > 1 ? true : null,
+                            'channel_id' => $normalizedChannelId
+                        ];
+                        if (empty($threadId) && $tenantId !== null) {
+                            $metadata['explicit_tenant_selection'] = true;
+                        }
+                        
                         $eventId = EventIngestionService::ingest([
                             'event_type' => 'whatsapp.outbound.message',
                             'source_system' => 'pixelhub_operator',
                             'payload' => $eventPayload,
                             'tenant_id' => $tenantId,
-                            'metadata' => [
-                                'sent_by' => Auth::user()['id'] ?? null,
-                                'sent_by_name' => Auth::user()['name'] ?? null,
-                                'message_id' => $result['message_id'] ?? null,
-                                'forwarded' => count($targetChannels) > 1 ? true : null,
-                                'channel_id' => $normalizedChannelId // CORREÇÃO: Adiciona channel_id normalizado
-                            ]
+                            'metadata' => $metadata
                         ]);
                         
                         // ===== SALVAR MÍDIA OUTBOUND (áudio, imagem, documento) =====
@@ -2153,11 +2159,26 @@ class CommunicationHubController extends Controller
                     // Comportamento antigo: retorna resultado único
                     $singleResult = $sendResults[0];
                     if ($singleResult['success']) {
-                        $this->json([
+                        $payload = [
                             'success' => true,
                             'event_id' => $singleResult['event_id'],
                             'message_id' => $singleResult['message_id']
-                        ]);
+                        ];
+                        // thread_id para Inbox abrir a conversa após "Nova Conversa" (evita reload)
+                        $eventId = $singleResult['event_id'] ?? null;
+                        if ($eventId) {
+                            try {
+                                $evStmt = $db->prepare("SELECT conversation_id FROM communication_events WHERE event_id = ? LIMIT 1");
+                                $evStmt->execute([$eventId]);
+                                $ev = $evStmt->fetch();
+                                if ($ev && !empty($ev['conversation_id'])) {
+                                    $payload['thread_id'] = 'whatsapp_' . $ev['conversation_id'];
+                                }
+                            } catch (\Throwable $ex) {
+                                // Não quebra se falhar
+                            }
+                        }
+                        $this->json($payload);
                     } else {
                         // Retorna código HTTP apropriado baseado no error_code
                         $httpCode = 500;

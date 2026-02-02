@@ -182,7 +182,15 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             if (result.success) {
                 alert('Mensagem enviada com sucesso!');
                 closeNewMessageModal();
-                location.reload();
+                // Inbox: não recarrega a página; mantém Inbox aberto e abre a nova conversa
+                if (typeof InboxState !== 'undefined' && InboxState.isOpen) {
+                    if (typeof loadInboxConversations === 'function') loadInboxConversations();
+                    if (result.thread_id && typeof loadInboxConversation === 'function') {
+                        setTimeout(function() { loadInboxConversation(result.thread_id, 'whatsapp'); }, 400);
+                    }
+                } else {
+                    location.reload();
+                }
             } else {
                 alert('Erro: ' + (result.error || 'Erro ao enviar mensagem'));
             }

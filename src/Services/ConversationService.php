@@ -955,8 +955,10 @@ class ConversationService
         // CORREÇÃO 2: Valida se o telefone do contato corresponde ao telefone do tenant
         // Antes de vincular automaticamente, verifica se o número realmente pertence ao tenant
         // Isso evita casos como "William" (17) 98158-5977 ser vinculado a "Roberta" incorretamente
+        // EXCEÇÃO: Se explicit_tenant_selection (usuário escolheu no modal Nova Conversa), confia na escolha
+        $explicitTenant = !empty($eventData['metadata']['explicit_tenant_selection']);
         $contactExternalId = $channelInfo['contact_external_id'] ?? '';
-        if ($tenantId !== null && !empty($contactExternalId)) {
+        if ($tenantId !== null && !empty($contactExternalId) && !$explicitTenant) {
             if (!self::validatePhoneBelongsToTenant($contactExternalId, $tenantId)) {
                 error_log(sprintf(
                     '[CONVERSATION CREATE] Vinculação REJEITADA: contato=%s não pertence ao tenant_id=%d - conversa irá para "Não vinculados"',
@@ -1194,8 +1196,10 @@ class ConversationService
             
             // CORREÇÃO 2: Valida se o telefone do contato corresponde ao telefone do tenant
             // Antes de vincular automaticamente, verifica se o número realmente pertence ao tenant
+            // EXCEÇÃO: Se explicit_tenant_selection (usuário escolheu no modal Nova Conversa), confia na escolha
+            $explicitTenant = !empty($eventData['metadata']['explicit_tenant_selection']);
             $contactExternalId = $channelInfo['contact_external_id'] ?? '';
-            if ($tenantId !== null && !empty($contactExternalId)) {
+            if ($tenantId !== null && !empty($contactExternalId) && !$explicitTenant) {
                 if (!self::validatePhoneBelongsToTenant($contactExternalId, $tenantId)) {
                     error_log(sprintf(
                         '[CONVERSATION UPDATE] Vinculação REJEITADA: contato=%s não pertence ao tenant_id=%d - mantendo sem vincular',
