@@ -1049,6 +1049,11 @@ $emailAccounts = $emailAccounts ?? [];
     // Armazena tenant_id globalmente para uso no modal
     window.currentTenantId = <?= $tenant['id'] ?? 0 ?>;
 
+    function copyInvoiceUrlFromBtn(btn) {
+        var url = btn.getAttribute('data-invoice-url');
+        copyInvoiceUrl(url, btn);
+    }
+
     function copyInvoiceUrl(url, btn) {
         if (!url) return;
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -2208,7 +2213,8 @@ $emailAccounts = $emailAccounts ?? [];
                                         </svg>
                                     </a>
                                     <button type="button"
-                                            onclick="copyInvoiceUrl(<?= json_encode($invoice['invoice_url']) ?>, this)"
+                                            data-invoice-url="<?= htmlspecialchars($invoice['invoice_url'], ENT_QUOTES, 'UTF-8') ?>"
+                                            onclick="copyInvoiceUrlFromBtn(this)"
                                             class="btn-action btn-action-secondary"
                                             data-tooltip="Copiar link"
                                             aria-label="Copiar link da fatura">
