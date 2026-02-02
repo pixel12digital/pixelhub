@@ -210,27 +210,44 @@ class ProjectController extends Controller
     }
 
     /**
-     * Arquivar um projeto
+     * Arquivar ou desarquivar um projeto
+     * POST action: 'archive' (padrão) ou 'unarchive'
      */
     public function archive(): void
     {
         Auth::requireInternal();
 
         $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
+        $action = $_POST['action'] ?? 'archive';
 
         if ($id <= 0) {
             $this->redirect('/projects?error=missing_id');
             return;
         }
 
+        $redirectToShow = !empty($_POST['redirect_to_show']);
+
         try {
-            ProjectService::archiveProject($id);
-            $this->redirect('/projects?success=archived');
+            if ($action === 'unarchive') {
+                ProjectService::unarchiveProject($id);
+                $successParam = 'unarchived';
+            } else {
+                ProjectService::archiveProject($id);
+                $successParam = 'archived';
+            }
+
+            if ($redirectToShow) {
+                $this->redirect('/projects/show?id=' . $id . '&success=' . $successParam);
+            } else {
+                $this->redirect('/projects?success=' . $successParam);
+            }
         } catch (\RuntimeException $e) {
-            $this->redirect('/projects?error=' . urlencode($e->getMessage()));
+            $url = $redirectToShow ? '/projects/show?id=' . $id . '&error=' : '/projects?error=';
+            $this->redirect($url . urlencode($e->getMessage()));
         } catch (\Exception $e) {
-            error_log("Erro ao arquivar projeto: " . $e->getMessage());
-            $this->redirect('/projects?error=database_error');
+            error_log("Erro ao arquivar/desarquivar projeto: " . $e->getMessage());
+            $url = $redirectToShow ? '/projects/show?id=' . $id . '&error=' : '/projects?error=';
+            $this->redirect($url . 'database_error');
         }
     }
 }

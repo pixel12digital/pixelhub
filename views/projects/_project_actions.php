@@ -46,13 +46,23 @@ if (!isset($project) || empty($project)) {
         Editar
     </button>
     <?php if (($project['status'] ?? 'ativo') === 'ativo'): ?>
-    <button class="btn btn-danger btn-small btn-archive-project"
+    <button class="btn btn-secondary btn-small btn-archive-project"
             data-id="<?= $project['id'] ?>"
             data-name="<?= htmlspecialchars($project['name'] ?? '') ?>"
             data-tooltip="Arquivar"
             aria-label="Arquivar">
         Arquivar
     </button>
+    <?php else: ?>
+    <form method="POST" action="<?= pixelhub_url('/projects/archive') ?>" style="display: inline;">
+        <input type="hidden" name="id" value="<?= (int) $project['id'] ?>">
+        <input type="hidden" name="action" value="unarchive">
+        <button type="submit" class="btn btn-small" style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;"
+                data-tooltip="Desarquivar"
+                aria-label="Desarquivar">
+            Desarquivar
+        </button>
+    </form>
     <?php endif; ?>
 </div>
 

@@ -82,6 +82,19 @@ ob_start();
     }
 </style>
 
+<?php if (isset($_GET['success'])): ?>
+<div class="card" style="background: #e8f5e9; border-left: 4px solid #28a745; margin-bottom: 20px;">
+    <p style="color: #2e7d32; margin: 0; padding: 15px;">
+        <?= $_GET['success'] === 'archived' ? 'Projeto arquivado com sucesso!' : ($_GET['success'] === 'unarchived' ? 'Projeto desarquivado com sucesso!' : '') ?>
+    </p>
+</div>
+<?php endif; ?>
+<?php if (isset($_GET['error'])): ?>
+<div class="card" style="background: #ffebee; border-left: 4px solid #c33; margin-bottom: 20px;">
+    <p style="color: #c33; margin: 0; padding: 15px;">Erro: <?= htmlspecialchars($_GET['error']) ?></p>
+</div>
+<?php endif; ?>
+
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #ddd;">
         <div>
@@ -173,6 +186,26 @@ ob_start();
            style="background: #6c757d; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600;">
             📂 Ver Todos os Projetos
         </a>
+        <?php if (($project['status'] ?? 'ativo') === 'ativo'): ?>
+        <form method="POST" action="<?= pixelhub_url('/projects/archive') ?>" style="display: inline;"
+              onsubmit="return confirm('Tem certeza que deseja arquivar este projeto? Ele será ocultado da lista principal e poderá ser reativado depois.');">
+            <input type="hidden" name="id" value="<?= (int) $project['id'] ?>">
+            <input type="hidden" name="action" value="archive">
+            <input type="hidden" name="redirect_to_show" value="1">
+            <button type="submit" style="background: #6c757d; color: white; padding: 10px 20px; border-radius: 4px; border: none; font-weight: 600; cursor: pointer;">
+                ✓ Concluir e Arquivar
+            </button>
+        </form>
+        <?php else: ?>
+        <form method="POST" action="<?= pixelhub_url('/projects/archive') ?>" style="display: inline;">
+            <input type="hidden" name="id" value="<?= (int) $project['id'] ?>">
+            <input type="hidden" name="action" value="unarchive">
+            <input type="hidden" name="redirect_to_show" value="1">
+            <button type="submit" style="background: #28a745; color: white; padding: 10px 20px; border-radius: 4px; border: none; font-weight: 600; cursor: pointer;">
+                ↩ Desarquivar
+            </button>
+        </form>
+        <?php endif; ?>
         <a href="<?= pixelhub_url('/owner/shortcuts') ?>" 
            style="background: #28a745; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600;">
             🔐 Ver Credenciais (Acessos Rápidos)

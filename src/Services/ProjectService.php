@@ -318,6 +318,29 @@ class ProjectService
     }
 
     /**
+     * Desarquivar um projeto (seta status = 'ativo')
+     */
+    public static function unarchiveProject(int $id): bool
+    {
+        $db = DB::getConnection();
+        
+        $project = self::findProject($id);
+        if (!$project) {
+            throw new \RuntimeException('Projeto não encontrado');
+        }
+        
+        $stmt = $db->prepare("
+            UPDATE projects 
+            SET status = 'ativo', updated_at = NOW()
+            WHERE id = ?
+        ");
+        
+        $stmt->execute([$id]);
+        
+        return true;
+    }
+
+    /**
      * Retorna lista de projetos para uso em selects
      * Formato: id => "Nome (Cliente)" ou "Nome (Interno)"
      */

@@ -204,6 +204,8 @@ ob_start();
                 echo 'Projeto atualizado com sucesso!';
             } elseif ($_GET['success'] === 'archived') {
                 echo 'Projeto arquivado com sucesso!';
+            } elseif ($_GET['success'] === 'unarchived') {
+                echo 'Projeto desarquivado com sucesso!';
             }
             ?>
         </p>
@@ -493,7 +495,12 @@ $showSeparated = empty($selectedType);
 <?php if ($showSeparated && empty($internalProjects) && empty($clientProjects)): ?>
 <div class="card">
     <p style="padding: 20px; text-align: center; color: #666;">
+        <?php if (($selectedStatus ?? 'ativo') === 'ativo'): ?>
+        Nenhum projeto ativo.
+        <a href="<?= pixelhub_url('/projects?status=arquivado') ?>" style="color: #023A8D; font-weight: 600; margin-left: 5px;">Ver projetos arquivados</a>
+        <?php else: ?>
         Nenhum projeto cadastrado.
+        <?php endif; ?>
     </p>
 </div>
 <?php endif; ?>
