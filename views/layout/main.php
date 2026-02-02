@@ -437,6 +437,75 @@
             border-bottom: 2px solid #e4e6eb;
             margin: 12px 0;
         }
+        /* Menu ⋮ e botão Vincular (paridade com Painel) */
+        .inbox-drawer .incoming-lead-menu, .inbox-drawer .conversation-menu {
+            position: relative;
+            display: inline-block;
+        }
+        .inbox-drawer .incoming-lead-menu-toggle, .inbox-drawer .conversation-menu-toggle {
+            padding: 4px 8px;
+            background: transparent;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 1;
+            width: 28px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .inbox-drawer .incoming-lead-menu-dropdown, .inbox-drawer .conversation-menu-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            margin-top: 4px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            z-index: 1100;
+            min-width: 140px;
+            padding: 4px 0;
+        }
+        .inbox-drawer .incoming-lead-menu-dropdown.show, .inbox-drawer .conversation-menu-dropdown.show {
+            display: block;
+        }
+        .inbox-drawer .incoming-lead-menu-item, .inbox-drawer .conversation-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 8px 12px;
+            background: transparent;
+            border: none;
+            text-align: left;
+            cursor: pointer;
+            font-size: 12px;
+            color: #374151;
+        }
+        .inbox-drawer .incoming-lead-menu-item:hover, .inbox-drawer .conversation-menu-item:hover {
+            background: #f3f4f6;
+        }
+        .inbox-drawer .incoming-lead-menu-item.danger, .inbox-drawer .conversation-menu-item.danger {
+            color: #dc2626;
+        }
+        .inbox-drawer .incoming-lead-btn-primary {
+            padding: 6px 12px;
+            background: #023A8D;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .inbox-drawer .incoming-lead-btn-primary:hover {
+            background: #022a6b;
+        }
         .inbox-drawer-chat {
             flex: 1;
             min-height: 0;
@@ -2480,6 +2549,79 @@
             }
         });
         
+        // ===== MENU ⋮ (três pontos) - funções para Inbox quando Painel não carregado =====
+        if (typeof window.toggleIncomingLeadMenu !== 'function') {
+            window.toggleIncomingLeadMenu = function(btn) {
+                const menu = btn.closest('.incoming-lead-menu');
+                const dropdown = menu && menu.querySelector('.incoming-lead-menu-dropdown');
+                document.querySelectorAll('.incoming-lead-menu-dropdown.show, .conversation-menu-dropdown.show').forEach(d => { if (d !== dropdown) d.classList.remove('show'); });
+                if (dropdown) dropdown.classList.toggle('show');
+            };
+        }
+        if (typeof window.closeIncomingLeadMenu !== 'function') {
+            window.closeIncomingLeadMenu = function(btn) {
+                const menu = btn && btn.closest ? btn.closest('.incoming-lead-menu') : null;
+                const dropdown = menu ? menu.querySelector('.incoming-lead-menu-dropdown') : null;
+                if (dropdown) dropdown.classList.remove('show');
+            };
+        }
+        if (typeof window.toggleConversationMenu !== 'function') {
+            window.toggleConversationMenu = function(btn) {
+                const menu = btn.closest('.conversation-menu');
+                const dropdown = menu && menu.querySelector('.conversation-menu-dropdown');
+                document.querySelectorAll('.incoming-lead-menu-dropdown.show, .conversation-menu-dropdown.show').forEach(d => { if (d !== dropdown) d.classList.remove('show'); });
+                if (dropdown) dropdown.classList.toggle('show');
+            };
+        }
+        if (typeof window.closeConversationMenu !== 'function') {
+            window.closeConversationMenu = function(btn) {
+                const menu = btn && btn.closest ? btn.closest('.conversation-menu') : null;
+                const dropdown = menu ? menu.querySelector('.conversation-menu-dropdown') : null;
+                if (dropdown) dropdown.classList.remove('show');
+            };
+        }
+        document.addEventListener('click', function inboxMenuCloseHandler(e) {
+            if (!e.target.closest('.incoming-lead-menu') && !e.target.closest('.conversation-menu')) {
+                document.querySelectorAll('.inbox-drawer .incoming-lead-menu-dropdown.show, .inbox-drawer .conversation-menu-dropdown.show').forEach(d => d.classList.remove('show'));
+            }
+        });
+        function inboxOpenLinkTenantModal(convId, name) {
+            if (typeof openLinkTenantModal === 'function') { openLinkTenantModal(convId, name); return; }
+            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+        }
+        function inboxOpenCreateTenantModal(convId, name, contact) {
+            if (typeof openCreateTenantModal === 'function') { openCreateTenantModal(convId, name, contact); return; }
+            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+        }
+        function inboxIgnoreConversation(convId, name) {
+            if (typeof ignoreConversation === 'function') { ignoreConversation(convId, name); return; }
+            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+        }
+        function inboxDeleteConversation(convId, name) {
+            if (typeof deleteConversation === 'function') { deleteConversation(convId, name); return; }
+            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+        }
+        function inboxArchiveConversation(convId, name) {
+            if (typeof archiveConversation === 'function') { archiveConversation(convId, name); return; }
+            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+        }
+        function inboxReactivateConversation(convId, name) {
+            if (typeof reactivateConversation === 'function') { reactivateConversation(convId, name); return; }
+            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+        }
+        function inboxOpenEditContactNameModal(convId, name) {
+            if (typeof openEditContactNameModal === 'function') { openEditContactNameModal(convId, name); return; }
+            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+        }
+        function inboxOpenChangeTenantModal(convId, name, tenantId, tenantName) {
+            if (typeof openChangeTenantModal === 'function') { openChangeTenantModal(convId, name, tenantId, tenantName); return; }
+            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+        }
+        function inboxUnlinkConversation(convId, name) {
+            if (typeof unlinkConversation === 'function') { unlinkConversation(convId, name); return; }
+            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+        }
+        
         // ===== FILTROS (mesmo comportamento do Painel de Comunicação) =====
         window.onInboxChannelChange = function() {
             const channel = (document.getElementById('inboxFilterChannel') || {}).value;
@@ -2599,6 +2741,8 @@
                         </p>
                     </div>
                 `;
+                const inboxFilterStatus = (document.getElementById('inboxFilterStatus') || {}).value || 'active';
+                const showIgnoreInMenu = inboxFilterStatus !== 'ignored';
                 incomingLeads.forEach(lead => {
                     const isActive = InboxState.currentThreadId === lead.thread_id;
                     const unreadBadge = lead.unread_count > 0 ? `<span class="conv-unread">${lead.unread_count}</span>` : '';
@@ -2608,21 +2752,42 @@
                     const contactName = escapeInboxHtml(lead.contact_name || 'Contato Desconhecido');
                     const contact = escapeInboxHtml(lead.contact || 'Número não identificado');
                     const channelId = lead.channel_id ? ` <span style="opacity: 0.6; font-size: 11px;">• ${escapeInboxHtml(lead.channel_id)}</span>` : '';
+                    const convId = lead.conversation_id || 0;
+                    const ignoreBtn = showIgnoreInMenu ? `<button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); inboxIgnoreConversation(${convId}, '${contactName}'); closeIncomingLeadMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>Ignorar</button>` : '';
                     html += `
                         <div class="inbox-drawer-conversation ${isActive ? 'active' : ''}" 
                              data-thread-id="${escapeInboxHtml(lead.thread_id || '')}" 
+                             data-conversation-id="${convId}"
                              data-channel="${escapeInboxHtml(channel)}"
                              onclick="loadInboxConversation('${threadId}', '${channel}')">
-                            <div class="conv-name">
-                                <span>${contactName}</span>
-                                <span class="conv-time">${time}${unreadBadge}</span>
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
+                                <div style="flex: 1; min-width: 0;">
+                                    <div class="conv-name">
+                                        <span>${contactName}</span>
+                                        <span class="conv-time">${time}${unreadBadge}</span>
+                                    </div>
+                                    <div class="conv-preview" style="font-size: 12px; color: #667781; display: flex; align-items: center; gap: 4px;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;">
+                                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                                        </svg>
+                                        <span>${contact}</span>${channelId}
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                                    <div class="incoming-lead-menu">
+                                        <button type="button" class="incoming-lead-menu-toggle" onclick="event.stopPropagation(); toggleIncomingLeadMenu(this)" aria-label="Mais opções">⋮</button>
+                                        <div class="incoming-lead-menu-dropdown">
+                                            <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); inboxOpenCreateTenantModal(${convId}, '${contactName}', '${contact}'); closeIncomingLeadMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>Criar Cliente</button>
+                                            ${ignoreBtn}
+                                            <button type="button" class="incoming-lead-menu-item danger" onclick="event.stopPropagation(); inboxDeleteConversation(${convId}, '${contactName}'); closeIncomingLeadMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>Excluir</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="conv-preview" style="font-size: 12px; color: #667781; display: flex; align-items: center; gap: 4px;">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;">
-                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                                </svg>
-                                <span>${contact}</span>${channelId}
+                            <div class="incoming-lead-actions" style="margin-top: 8px;">
+                                <button type="button" class="incoming-lead-btn-primary" onclick="event.stopPropagation(); this.closest('.inbox-drawer-conversation')?.querySelector('.incoming-lead-menu-dropdown')?.classList.remove('show'); inboxOpenLinkTenantModal(${convId}, '${contactName}')">Vincular</button>
                             </div>
+                            <div style="font-size: 11px; color: #667781; margin-top: 6px;">${time}</div>
                         </div>
                     `;
                 });
@@ -2631,10 +2796,10 @@
                 }
             }
             
-            // Conversas vinculadas (threads normais) - mesma estrutura do Painel
+            // Conversas vinculadas (threads normais) - mesma estrutura do Painel com menu ⋮
             threads.forEach(conv => {
                 const isActive = InboxState.currentThreadId === conv.thread_id;
-                const unreadBadge = conv.unread_count > 0 ? `<span class="conv-unread">${conv.unread_count}</span>` : '';
+                const unreadBadge = conv.unread_count > 0 && !isActive ? `<span class="conv-unread">${conv.unread_count}</span>` : '';
                 const time = formatInboxDateBrasilia(conv.last_activity);
                 const threadId = (conv.thread_id || '').replace(/'/g, "\\'");
                 const channel = conv.channel || 'whatsapp';
@@ -2642,6 +2807,7 @@
                 const contact = escapeInboxHtml(conv.contact || 'Número não identificado');
                 const tenantName = escapeInboxHtml(conv.tenant_name || 'Sem tenant');
                 const tenantId = conv.tenant_id;
+                const convId = conv.conversation_id || 0;
                 const channelId = conv.channel_id ? ` <span style="opacity: 0.6; font-size: 11px;">• ${escapeInboxHtml(conv.channel_id)}</span>` : (conv.channel_type ? ` <span style="opacity: 0.7;">• ${(conv.channel_type || '').toUpperCase()}</span>` : '');
                 const tenantLink = (tenantId && conv.tenant_name && conv.tenant_name !== 'Sem tenant') 
                     ? ` <a href="${INBOX_BASE_URL}/tenants/view?id=${tenantId}" onclick="event.stopPropagation();" style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para ver detalhes do cliente">• ${tenantName}</a>`
@@ -2649,18 +2815,46 @@
                 const line2 = channel === 'whatsapp' 
                     ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg><span>${contact}</span>${channelId}${tenantLink}`
                     : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Chat Interno</span>${tenantLink}`;
+                const status = conv.status || 'active';
+                let statusMenuItems = '';
+                if (status === 'active' || status === '') {
+                    statusMenuItems = `<button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); inboxArchiveConversation(${convId}, '${contactName}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Arquivar</button><button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); inboxIgnoreConversation(${convId}, '${contactName}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>Ignorar</button>`;
+                } else if (status === 'archived') {
+                    statusMenuItems = `<button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); inboxReactivateConversation(${convId}, '${contactName}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Desarquivar</button><button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); inboxIgnoreConversation(${convId}, '${contactName}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>Ignorar</button>`;
+                } else if (status === 'ignored') {
+                    statusMenuItems = `<button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); inboxReactivateConversation(${convId}, '${contactName}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Ativar</button><button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); inboxArchiveConversation(${convId}, '${contactName}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Arquivar</button>`;
+                }
+                const unlinkBtn = tenantId ? `<button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); inboxUnlinkConversation(${convId}, '${contactName}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>Desvincular</button>` : '';
                 html += `
                     <div class="inbox-drawer-conversation ${isActive ? 'active' : ''}" 
                          data-thread-id="${escapeInboxHtml(conv.thread_id || '')}" 
+                         data-conversation-id="${convId}"
                          data-channel="${escapeInboxHtml(channel)}"
                          onclick="loadInboxConversation('${threadId}', '${channel}')">
-                        <div class="conv-name">
-                            <span>${contactName}</span>
-                            <span class="conv-time">${time}${unreadBadge}</span>
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
+                            <div style="flex: 1; min-width: 0;">
+                                <div class="conv-name">
+                                    <span>${contactName}</span>
+                                    <span class="conv-time">${time}${unreadBadge}</span>
+                                </div>
+                                <div class="conv-preview" style="font-size: 12px; color: #667781; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+                                    ${line2}
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                                <div class="conversation-menu">
+                                    <button type="button" class="conversation-menu-toggle" onclick="event.stopPropagation(); toggleConversationMenu(this)" aria-label="Mais opções">⋮</button>
+                                    <div class="conversation-menu-dropdown">
+                                        ${statusMenuItems}
+                                        <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); inboxOpenEditContactNameModal(${convId}, '${contactName}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Editar nome</button>
+                                        <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); inboxOpenChangeTenantModal(${convId}, '${contactName}', ${tenantId || 'null'}, '${tenantName}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Alterar Cliente</button>
+                                        ${unlinkBtn}
+                                        <button type="button" class="conversation-menu-item danger" onclick="event.stopPropagation(); inboxDeleteConversation(${convId}, '${contactName}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>Excluir</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="conv-preview" style="font-size: 12px; color: #667781; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
-                            ${line2}
-                        </div>
+                        <div style="font-size: 11px; color: #667781; text-align: right;">${time}</div>
                     </div>
                 `;
             });

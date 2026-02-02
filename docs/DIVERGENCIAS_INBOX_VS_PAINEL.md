@@ -20,24 +20,19 @@
 |---------|--------|-------|
 | Exibição | ✅ Sim | ✅ Sim (já implementado) |
 | Cabeçalho | Ícone + título + badge + descrição | ✅ Igual |
-| **Itens - estrutura** | Nome, ícone telefone + número, channel_id, badge, menu ⋮, botão Vincular, data | Nome, preview (contact ou last_message_preview), data |
-| **Divergência** | Painel NÃO exibe preview da última mensagem | Inbox exibe preview |
-| **Divergência** | Painel exibe ícone de telefone + número formatado | Inbox exibe contact ou preview na segunda linha |
-| **Divergência** | Painel tem menu ⋮ (Criar Cliente, Ignorar, Excluir) e botão Vincular | Inbox não tem |
+| **Itens - estrutura** | Nome, ícone telefone + número, channel_id, badge, menu ⋮, botão Vincular, data | ✅ Igual (29/01/2026) |
 
 ### 1.3 Conversas vinculadas (threads)
 | Aspecto | Painel | Inbox |
 |---------|--------|-------|
-| **Estrutura** | Nome, telefone + channel_id, link tenant, badge, menu ⋮, data | Nome, preview, data |
-| **Divergência** | Painel exibe link "• {tenant_name}" para /tenants/view | Inbox não exibe |
-| **Divergência** | Painel exibe ícone telefone + número + channel_id | Inbox exibe preview |
-| **Divergência** | Painel tem menu ⋮ (Arquivar, Editar nome, etc.) | Inbox não tem |
+| **Estrutura** | Nome, telefone + channel_id, link tenant, badge, menu ⋮, data | ✅ Igual |
+| **Status** | ✅ Menu ⋮ implementado (29/01/2026) |
 
 ### 1.4 API conversations-list
 | Aspecto | Painel | Inbox |
 |---------|--------|-------|
-| Parâmetros | channel, tenant_id, status, session_id | Apenas status |
-| **Divergência** | Painel envia todos os filtros do formulário | Inbox envia só status (equivalente a "Todos" em canal/cliente) |
+| Parâmetros | channel, tenant_id, status, session_id | channel, tenant_id, status, session_id |
+| **Status** | ✅ Inbox envia todos os parâmetros (29/01/2026) |
 
 ---
 
@@ -75,6 +70,7 @@
    - Mensagens sem conteúdo e sem mídia são puladas (mesmo comportamento do Painel).
    - Placeholder de áudio `[Áudio]` não é exibido quando há mídia de áudio.
 5. **Filtros (29/01/2026):** Canal, Sessão (WhatsApp), Cliente, Status; botão Nova Conversa (abre Painel em nova aba).
+6. **Menu ⋮ e botão Vincular (29/01/2026):** Menu de três pontos em conversas não vinculadas (Criar Cliente, Ignorar, Excluir) e vinculadas (Arquivar/Ignorar/Desarquivar/Ativar, Editar nome, Alterar Cliente, Desvincular, Excluir); botão Vincular em leads. Fallback: abre Painel em nova aba quando modais não existem (outras páginas).
 
 ---
 
