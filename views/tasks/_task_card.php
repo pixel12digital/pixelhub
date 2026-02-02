@@ -30,18 +30,12 @@ if (!$isConcluida && !empty($task['due_date'])) {
         <div class="task-title" style="flex: 1;"><?= htmlspecialchars($task['title']) ?></div>
     </div>
     <?php 
-    // Só exibe badges de agenda se a tarefa NÃO estiver concluída
-    if (!$isConcluida): 
+    // Badge "Na Agenda" apenas quando houver vínculo com bloco (Opção A: ocultar quando não houver)
+    $hasAgendaBlocks = isset($task['has_agenda_blocks']) && (int)$task['has_agenda_blocks'] > 0;
+    if (!$isConcluida && $hasAgendaBlocks): 
     ?>
-        <div style="margin-bottom: 5px;">
-            <?php 
-            $hasAgendaBlocks = isset($task['has_agenda_blocks']) && (int)$task['has_agenda_blocks'] > 0;
-            if ($hasAgendaBlocks): 
-            ?>
-                <span class="badge-agenda badge-na-agenda" style="background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">Na Agenda</span>
-            <?php else: ?>
-                <span class="badge-agenda badge-sem-agenda" style="background: #9e9e9e; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">Sem Agenda</span>
-            <?php endif; ?>
+        <div class="task-agenda-badge-container" style="margin-bottom: 5px;">
+            <span class="badge-agenda badge-na-agenda" style="background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">Na Agenda</span>
         </div>
     <?php endif; ?>
     <?php if ($task['description']): ?>

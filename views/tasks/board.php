@@ -3561,44 +3561,35 @@ if (!empty($selectedProject)) {
             }
         }
         
-        // Se a tarefa está concluída, remove qualquer badge existente e não adiciona nenhum
-        if (status === 'concluida') {
-            // Remove qualquer badge de agenda existente
-            const existingBadge = taskCard.querySelector('.badge-agenda');
-            if (existingBadge) {
-                existingBadge.remove();
-            }
-            // Também remove o container se estiver vazio (para limpeza visual)
-            const badgeContainer = taskCard.querySelector('div[style*="margin-bottom: 5px"]');
-            if (badgeContainer && badgeContainer.querySelectorAll('.badge-agenda').length === 0) {
-                // Verifica se o container só tem espaços em branco ou está vazio
-                const containerText = badgeContainer.textContent.trim();
-                if (containerText === '') {
-                    badgeContainer.remove();
-                }
-            }
-            return;
-        }
-        
-        const badgeContainer = taskCard.querySelector('div[style*="margin-bottom: 5px"]');
-        if (!badgeContainer) {
-            console.warn('[updateTaskAgendaBadge] Container do badge não encontrado');
-            return;
-        }
-        
-        // Remove badge existente
-        const existingBadge = badgeContainer.querySelector('.badge-agenda');
+        // Remove badge e container existentes (Opção A: só mostra quando tem vínculo)
+        const existingBadge = taskCard.querySelector('.badge-agenda');
         if (existingBadge) {
+            const container = existingBadge.parentElement;
             existingBadge.remove();
+            if (container && !container.querySelector('.badge-agenda')) {
+                container.remove();
+            }
+        } else {
+            const badgeContainer = taskCard.querySelector('.task-agenda-badge-container');
+            if (badgeContainer) badgeContainer.remove();
+        }
+        if (status === 'concluida' || !hasAgenda) {
+            return;
         }
         
-        // Cria novo badge apenas se a tarefa não estiver concluída
-        const newBadge = document.createElement('span');
-        newBadge.className = 'badge-agenda ' + (hasAgenda ? 'badge-na-agenda' : 'badge-sem-agenda');
-        newBadge.style.cssText = 'background: ' + (hasAgenda ? '#4CAF50' : '#9e9e9e') + '; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;';
-        newBadge.textContent = hasAgenda ? 'Na Agenda' : 'Sem Agenda';
+        // hasAgenda = true: cria container e badge "Na Agenda"
+        const titleWrapper = taskCard.querySelector('.task-title')?.closest('div');
+        if (!titleWrapper) return;
         
-        badgeContainer.appendChild(newBadge);
+        const newContainer = document.createElement('div');
+        newContainer.className = 'task-agenda-badge-container';
+        newContainer.style.marginBottom = '5px';
+        const newBadge = document.createElement('span');
+        newBadge.className = 'badge-agenda badge-na-agenda';
+        newBadge.style.cssText = 'background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;';
+        newBadge.textContent = 'Na Agenda';
+        newContainer.appendChild(newBadge);
+        titleWrapper.insertAdjacentElement('afterend', newContainer);
     }
 
     function updateTaskCard(task) {
