@@ -4256,6 +4256,46 @@ class CommunicationHubController extends Controller
     }
 
     /**
+     * Retorna opções para filtros do Inbox (tenants e sessões WhatsApp)
+     * 
+     * GET /communication-hub/filter-options
+     * Retorna {success: bool, tenants: array, whatsapp_sessions: array}
+     */
+    public function getFilterOptions(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $db = DB::getConnection();
+
+        try {
+            $tenants = [];
+            $whatsappSessions = [];
+
+            $tenantsStmt = $db->query("
+                SELECT id, name FROM tenants 
+                WHERE is_archived = 0 
+                ORDER BY name 
+                LIMIT 100
+            ");
+            if ($tenantsStmt) {
+                $tenants = $tenantsStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            }
+
+            $whatsappSessions = $this->getWhatsAppSessions($db);
+
+            $this->json([
+                'success' => true,
+                'tenants' => $tenants,
+                'whatsapp_sessions' => $whatsappSessions
+            ]);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao buscar filter-options: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro ao carregar opções'], 500);
+        }
+    }
+
+    /**
      * Retorna lista de conversas em JSON (para atualização AJAX)
      * 
      * GET /communication-hub/conversations-list?channel=all&tenant_id=X&status=active

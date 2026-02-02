@@ -293,6 +293,41 @@
             border-bottom: 1px solid #e5e7eb;
             background: white;
         }
+        .inbox-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .inbox-filters select {
+            flex: 1;
+            min-width: 90px;
+            max-width: 140px;
+            padding: 6px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        .inbox-filters #inboxFilterTenant {
+            max-width: 160px;
+        }
+        .inbox-btn-nova-conversa {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #25d366;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .inbox-btn-nova-conversa:hover {
+            background: #20bd5a;
+        }
         .inbox-drawer-list-header select {
             width: 100%;
             padding: 8px 12px;
@@ -353,6 +388,54 @@
             justify-content: center;
             padding: 0 5px;
             margin-left: 8px;
+        }
+        /* Seção Conversas não vinculadas (mesmo comportamento do Painel de Comunicação) */
+        .inbox-unlinked-section {
+            padding: 10px 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #e5e7eb;
+        }
+        .inbox-unlinked-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .inbox-unlinked-title {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .inbox-unlinked-icon {
+            width: 16px;
+            height: 16px;
+            color: #6b7280;
+            flex-shrink: 0;
+        }
+        .inbox-unlinked-badge {
+            background: #e5e7eb;
+            color: #374151;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .inbox-unlinked-description {
+            margin: 0;
+            font-size: 11px;
+            color: #6b7280;
+            line-height: 1.4;
+        }
+        .inbox-unlinked-separator {
+            height: 12px;
+            border-bottom: 2px solid #e4e6eb;
+            margin: 12px 0;
         }
         .inbox-drawer-chat {
             flex: 1;
@@ -1608,12 +1691,33 @@
         <div class="inbox-drawer-body">
             <!-- Lista de Conversas -->
             <div class="inbox-drawer-list">
-                <div class="inbox-drawer-list-header">
-                    <select id="inboxFilterStatus" onchange="loadInboxConversations()">
-                        <option value="active">Ativas</option>
-                        <option value="all">Todas</option>
-                        <option value="archived">Arquivadas</option>
+                <div class="inbox-drawer-list-header inbox-filters">
+                    <select id="inboxFilterChannel" onchange="onInboxChannelChange(); loadInboxConversations();" title="Canal">
+                        <option value="all">Canal: Todos</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="chat">Chat Interno</option>
                     </select>
+                    <div id="inboxSessionFilterWrap" style="display: none;">
+                        <select id="inboxFilterSession" onchange="loadInboxConversations()" title="Sessão WhatsApp">
+                            <option value="">Todas as sessões</option>
+                        </select>
+                    </div>
+                    <select id="inboxFilterTenant" onchange="loadInboxConversations()" title="Cliente">
+                        <option value="">Cliente: Todos</option>
+                    </select>
+                    <select id="inboxFilterStatus" onchange="loadInboxConversations()" title="Status">
+                        <option value="active">Ativas</option>
+                        <option value="archived">Arquivadas</option>
+                        <option value="ignored">Ignoradas</option>
+                        <option value="all">Todas</option>
+                    </select>
+                    <button type="button" id="inboxBtnNovaConversa" class="inbox-btn-nova-conversa" onclick="openInboxNovaConversa()" title="Nova conversa">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Nova Conversa
+                    </button>
                 </div>
                 <div class="inbox-drawer-list-scroll" id="inboxListScroll">
                     <div class="inbox-drawer-loading" id="inboxListLoading">
@@ -1868,6 +1972,7 @@
         const InboxState = {
             isOpen: false,
             conversations: [],
+            incomingLeads: [],
             currentThreadId: null,
             currentChannel: null,
             currentLoadController: null,
@@ -1875,7 +1980,8 @@
             messagePollingInterval: null,
             lastUpdateTs: null,
             lastMessageTs: null,
-            lastMessageId: null
+            lastMessageId: null,
+            filterOptionsLoaded: false
         };
         
         // URL base - vazia para usar URLs relativas (funciona em qualquer ambiente)
@@ -2333,7 +2439,10 @@
             overlay.classList.add('open');
             InboxState.isOpen = true;
             
-            // Carrega conversas se ainda não carregou
+            // Mostra/oculta filtro de sessão conforme canal
+            onInboxChannelChange();
+            // Carrega opções dos filtros (tenants, sessões) e conversas
+            loadInboxFilterOptions();
             loadInboxConversations();
             
             // Restaura última conversa se existir
@@ -2371,6 +2480,51 @@
             }
         });
         
+        // ===== FILTROS (mesmo comportamento do Painel de Comunicação) =====
+        window.onInboxChannelChange = function() {
+            const channel = (document.getElementById('inboxFilterChannel') || {}).value;
+            const wrap = document.getElementById('inboxSessionFilterWrap');
+            if (wrap) wrap.style.display = channel === 'whatsapp' ? '' : 'none';
+        };
+        window.openInboxNovaConversa = function() {
+            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+        };
+        window.loadInboxFilterOptions = async function() {
+            if (InboxState.filterOptionsLoaded) return;
+            try {
+                const res = await fetch(INBOX_BASE_URL + '/communication-hub/filter-options');
+                const data = await res.json();
+                if (!data.success) return;
+                const tenantSelect = document.getElementById('inboxFilterTenant');
+                const sessionSelect = document.getElementById('inboxFilterSession');
+                if (tenantSelect && data.tenants) {
+                    const currentVal = tenantSelect.value;
+                    tenantSelect.innerHTML = '<option value="">Todos</option>';
+                    (data.tenants || []).forEach(t => {
+                        const opt = document.createElement('option');
+                        opt.value = t.id;
+                        opt.textContent = (t.name || '').substring(0, 40);
+                        tenantSelect.appendChild(opt);
+                    });
+                    if (currentVal) tenantSelect.value = currentVal;
+                }
+                if (sessionSelect && data.whatsapp_sessions) {
+                    const currentVal = sessionSelect.value;
+                    sessionSelect.innerHTML = '<option value="">Todas as sessões</option>';
+                    (data.whatsapp_sessions || []).forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s.id || s.name;
+                        opt.textContent = (s.name || s.id || '') + (s.status === 'connected' ? ' ●' : '');
+                        sessionSelect.appendChild(opt);
+                    });
+                    if (currentVal) sessionSelect.value = currentVal;
+                }
+                InboxState.filterOptionsLoaded = true;
+            } catch (e) {
+                console.warn('[Inbox] Erro ao carregar opções dos filtros:', e);
+            }
+        };
+        
         // ===== CARREGAR LISTA DE CONVERSAS =====
         window.loadInboxConversations = async function() {
             const listScroll = document.getElementById('inboxListScroll');
@@ -2383,15 +2537,25 @@
             if (loading) loading.style.display = 'flex';
             
             try {
+                const channel = (document.getElementById('inboxFilterChannel') || {}).value || 'all';
+                const sessionId = (document.getElementById('inboxFilterSession') || {}).value || '';
+                const tenantId = (document.getElementById('inboxFilterTenant') || {}).value || '';
                 const status = filterStatus ? filterStatus.value : 'active';
-                const url = INBOX_BASE_URL + '/communication-hub/conversations-list?status=' + status;
+                const params = new URLSearchParams({ channel, status });
+                if (sessionId) params.set('session_id', sessionId);
+                if (tenantId) params.set('tenant_id', tenantId);
+                const url = INBOX_BASE_URL + '/communication-hub/conversations-list?' + params.toString();
                 const response = await fetch(url);
                 const result = await response.json();
                 
                 if (result.success) {
-                    InboxState.conversations = result.threads || [];
+                    const threads = result.threads || [];
+                    const incomingLeads = result.incoming_leads || [];
+                    const incomingLeadsCount = result.incoming_leads_count !== undefined ? result.incoming_leads_count : incomingLeads.length;
+                    InboxState.conversations = threads;
+                    InboxState.incomingLeads = incomingLeads;
                     InboxState.lastUpdateTs = result.latest_update_ts || null;
-                    renderInboxList(InboxState.conversations);
+                    renderInboxList(threads, incomingLeads, incomingLeadsCount);
                     updateInboxBadge();
                 }
             } catch (error) {
@@ -2402,34 +2566,101 @@
             }
         };
         
-        function renderInboxList(conversations) {
+        function renderInboxList(threads, incomingLeads, incomingLeadsCount) {
             const listScroll = document.getElementById('inboxListScroll');
             if (!listScroll) return;
             
-            if (!conversations || conversations.length === 0) {
+            threads = threads || [];
+            incomingLeads = incomingLeads || [];
+            incomingLeadsCount = incomingLeadsCount !== undefined ? incomingLeadsCount : incomingLeads.length;
+            
+            if (threads.length === 0 && incomingLeads.length === 0) {
                 listScroll.innerHTML = '<div class="inbox-drawer-loading">Nenhuma conversa encontrada</div>';
                 return;
             }
             
             let html = '';
-            conversations.forEach(conv => {
+            
+            // Seção "Conversas não vinculadas" (mesmo comportamento do Painel de Comunicação)
+            if (incomingLeads.length > 0) {
+                html += `
+                    <div class="inbox-unlinked-section">
+                        <div class="inbox-unlinked-header">
+                            <h4 class="inbox-unlinked-title">
+                                <svg class="inbox-unlinked-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                </svg>
+                                Conversas não vinculadas
+                            </h4>
+                            <span class="inbox-unlinked-badge">${incomingLeadsCount}</span>
+                        </div>
+                        <p class="inbox-unlinked-description">
+                            Conversas ainda não associadas a um cliente. Revise e vincule ou crie um novo.
+                        </p>
+                    </div>
+                `;
+                incomingLeads.forEach(lead => {
+                    const isActive = InboxState.currentThreadId === lead.thread_id;
+                    const unreadBadge = lead.unread_count > 0 ? `<span class="conv-unread">${lead.unread_count}</span>` : '';
+                    const time = formatInboxDateBrasilia(lead.last_activity);
+                    const threadId = (lead.thread_id || '').replace(/'/g, "\\'");
+                    const channel = lead.channel || 'whatsapp';
+                    const contactName = escapeInboxHtml(lead.contact_name || 'Contato Desconhecido');
+                    const contact = escapeInboxHtml(lead.contact || 'Número não identificado');
+                    const channelId = lead.channel_id ? ` <span style="opacity: 0.6; font-size: 11px;">• ${escapeInboxHtml(lead.channel_id)}</span>` : '';
+                    html += `
+                        <div class="inbox-drawer-conversation ${isActive ? 'active' : ''}" 
+                             data-thread-id="${escapeInboxHtml(lead.thread_id || '')}" 
+                             data-channel="${escapeInboxHtml(channel)}"
+                             onclick="loadInboxConversation('${threadId}', '${channel}')">
+                            <div class="conv-name">
+                                <span>${contactName}</span>
+                                <span class="conv-time">${time}${unreadBadge}</span>
+                            </div>
+                            <div class="conv-preview" style="font-size: 12px; color: #667781; display: flex; align-items: center; gap: 4px;">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;">
+                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                                </svg>
+                                <span>${contact}</span>${channelId}
+                            </div>
+                        </div>
+                    `;
+                });
+                if (threads.length > 0) {
+                    html += '<div class="inbox-unlinked-separator"></div>';
+                }
+            }
+            
+            // Conversas vinculadas (threads normais) - mesma estrutura do Painel
+            threads.forEach(conv => {
                 const isActive = InboxState.currentThreadId === conv.thread_id;
-                const unreadBadge = conv.unread_count > 0 
-                    ? `<span class="conv-unread">${conv.unread_count}</span>` 
-                    : '';
-                const time = conv.last_activity ? formatInboxTime(conv.last_activity) : '';
-                const preview = escapeInboxHtml(conv.last_message_preview || conv.phone || '');
-                
+                const unreadBadge = conv.unread_count > 0 ? `<span class="conv-unread">${conv.unread_count}</span>` : '';
+                const time = formatInboxDateBrasilia(conv.last_activity);
+                const threadId = (conv.thread_id || '').replace(/'/g, "\\'");
+                const channel = conv.channel || 'whatsapp';
+                const contactName = escapeInboxHtml(conv.contact_name || conv.tenant_name || conv.phone || 'Cliente');
+                const contact = escapeInboxHtml(conv.contact || 'Número não identificado');
+                const tenantName = escapeInboxHtml(conv.tenant_name || 'Sem tenant');
+                const tenantId = conv.tenant_id;
+                const channelId = conv.channel_id ? ` <span style="opacity: 0.6; font-size: 11px;">• ${escapeInboxHtml(conv.channel_id)}</span>` : (conv.channel_type ? ` <span style="opacity: 0.7;">• ${(conv.channel_type || '').toUpperCase()}</span>` : '');
+                const tenantLink = (tenantId && conv.tenant_name && conv.tenant_name !== 'Sem tenant') 
+                    ? ` <a href="${INBOX_BASE_URL}/tenants/view?id=${tenantId}" onclick="event.stopPropagation();" style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para ver detalhes do cliente">• ${tenantName}</a>`
+                    : (!tenantId ? ' <span style="opacity: 0.7; font-size: 10px;">• Sem tenant</span>' : '');
+                const line2 = channel === 'whatsapp' 
+                    ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg><span>${contact}</span>${channelId}${tenantLink}`
+                    : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Chat Interno</span>${tenantLink}`;
                 html += `
                     <div class="inbox-drawer-conversation ${isActive ? 'active' : ''}" 
-                         data-thread-id="${conv.thread_id}" 
-                         data-channel="${conv.channel || 'whatsapp'}"
-                         onclick="loadInboxConversation('${conv.thread_id}', '${conv.channel || 'whatsapp'}')">
+                         data-thread-id="${escapeInboxHtml(conv.thread_id || '')}" 
+                         data-channel="${escapeInboxHtml(channel)}"
+                         onclick="loadInboxConversation('${threadId}', '${channel}')">
                         <div class="conv-name">
-                            <span>${escapeInboxHtml(conv.contact_name || conv.phone || 'Sem nome')}</span>
+                            <span>${contactName}</span>
                             <span class="conv-time">${time}${unreadBadge}</span>
                         </div>
-                        <div class="conv-preview">${preview}</div>
+                        <div class="conv-preview" style="font-size: 12px; color: #667781; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+                            ${line2}
+                        </div>
                     </div>
                 `;
             });
@@ -2567,39 +2798,41 @@
                 // Direção: usa campo 'direction' do backend
                 const direction = msg.direction === 'outbound' ? 'outbound' : 'inbound';
                 
-                // Timestamp: backend usa 'timestamp'
+                // Timestamp: mesmo formato do Painel (dd/mm HH:mm ou "Agora")
                 const time = msg.timestamp || msg.created_at || '';
-                const formattedTime = time ? formatInboxTime(time) : '';
+                const formattedTime = time ? formatInboxDateBrasilia(time) : '';
                 
                 // Conteúdo: backend usa 'content'
                 let content = msg.content || msg.body || msg.text || '';
                 let renderedContent = '';
                 
-                // Verifica se tem mídia (objeto 'media' do backend)
+                // Verifica se tem mídia (objeto 'media' do backend) - mesmo comportamento do Painel
                 const media = msg.media;
                 if (media && media.url) {
-                    const mediaType = media.media_type || media.type || '';
-                    if (mediaType === 'image') {
-                        renderedContent = `<img src="${media.url}" style="max-width: 200px; border-radius: 8px; cursor: pointer;" onclick="window.open('${media.url}', '_blank')" onerror="this.outerHTML='<em>[Imagem não disponível]</em>'">`;
-                    } else if (mediaType === 'audio' || mediaType === 'ptt') {
-                        renderedContent = `<audio controls src="${media.url}" style="max-width: 250px;"></audio>`;
+                    const mediaType = (media.media_type || media.type || '').toLowerCase();
+                    const safeUrl = escapeInboxHtml(media.url);
+                    if (mediaType === 'image' || mediaType === 'sticker') {
+                        renderedContent = `<img src="${safeUrl}" style="max-width: 200px; border-radius: 8px; cursor: pointer;" onclick="window.open(this.src, '_blank')" onerror="this.outerHTML='<em>[Imagem não disponível]</em>'">`;
+                    } else if (mediaType === 'audio' || mediaType === 'ptt' || mediaType === 'voice') {
+                        renderedContent = `<audio controls src="${safeUrl}" style="max-width: 250px;"></audio>`;
                     } else if (mediaType === 'video') {
-                        renderedContent = `<video controls src="${media.url}" style="max-width: 200px; border-radius: 8px;"></video>`;
+                        renderedContent = `<video controls src="${safeUrl}" style="max-width: 200px; border-radius: 8px;"></video>`;
                     } else if (mediaType === 'document' || mediaType === 'file') {
-                        renderedContent = `<a href="${media.url}" target="_blank" style="color: #023A8D; text-decoration: none;">📎 ${media.file_name || 'Documento'}</a>`;
+                        renderedContent = `<a href="${safeUrl}" target="_blank" style="color: #023A8D; text-decoration: none;">📎 ${escapeInboxHtml(media.file_name || 'Documento')}</a>`;
                     } else {
-                        renderedContent = `<a href="${media.url}" target="_blank" style="color: #023A8D;">📎 Mídia</a>`;
+                        renderedContent = `<a href="${safeUrl}" target="_blank" style="color: #023A8D;">📎 Mídia</a>`;
                     }
-                    // Se tem legenda (caption), adiciona abaixo
-                    if (content && content.trim()) {
+                    // Se tem legenda (caption), adiciona abaixo - igual ao Painel
+                    const isAudioPlaceholder = content && /^\[(?:Á|A)udio\]$/i.test(content.trim());
+                    if (content && content.trim() && !(mediaType && (mediaType === 'audio' || mediaType === 'ptt' || mediaType === 'voice') && isAudioPlaceholder)) {
                         renderedContent += `<div style="margin-top: 6px;">${escapeInboxHtml(content)}</div>`;
                     }
                 } else if (content && content.trim()) {
                     // Só texto
                     renderedContent = escapeInboxHtml(content);
                 } else {
-                    // Sem conteúdo e sem mídia
-                    renderedContent = '<em style="color: #999;">[Mídia não disponível]</em>';
+                    // Sem conteúdo e sem mídia: pula mensagem (mesmo comportamento do Painel)
+                    return;
                 }
                 
                 html += `
@@ -2911,6 +3144,7 @@
                 
                 if (result.success) {
                     InboxState.conversations = result.threads || [];
+                    InboxState.incomingLeads = result.incoming_leads || [];
                     updateInboxBadge();
                 }
             } catch (error) {
@@ -2922,16 +3156,25 @@
         setTimeout(fetchUnreadCount, 3000);
         
         // ===== HELPERS =====
-        function formatInboxTime(dateStr) {
-            if (!dateStr) return '';
-            const date = new Date(dateStr);
-            const now = new Date();
-            const diff = now - date;
-            
-            if (diff < 60000) return 'agora';
-            if (diff < 3600000) return Math.floor(diff / 60000) + 'min';
-            if (diff < 86400000) return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        /**
+         * Formata data para lista de conversas (mesmo comportamento do Painel de Comunicação).
+         * Usa formatDateBrasilia: "Agora" ou "dd/mm HH:mm" (fuso America/Sao_Paulo).
+         */
+        function formatInboxDateBrasilia(dateStr) {
+            if (!dateStr || dateStr === 'now') return 'Agora';
+            try {
+                let isoStr = dateStr;
+                if (!dateStr.includes('T') && !dateStr.includes('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
+                    isoStr = dateStr.replace(' ', 'T') + 'Z';
+                }
+                const dateTime = new Date(isoStr);
+                if (isNaN(dateTime.getTime())) return 'Agora';
+                const options = { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false };
+                const formatted = dateTime.toLocaleString('pt-BR', options);
+                return formatted.replace(',', '').replace(/\/\d{4}/, '');
+            } catch (e) {
+                return 'Agora';
+            }
         }
         
         function escapeInboxHtml(str) {
