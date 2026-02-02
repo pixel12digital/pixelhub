@@ -39,13 +39,15 @@ $isHoje = ($viewMode === 'hoje');
         color: #333;
     }
     .agenda-unified-nav .btn-nav.btn-active {
-        background: #023A8D;
-        color: white;
+        background: #f0f4f8;
+        color: #023A8D;
         border-color: #023A8D;
+        font-weight: 600;
     }
     .agenda-unified-nav .btn-nav.btn-active:hover {
-        background: #022a6d;
+        background: #e8eef5;
         border-color: #022a6d;
+        color: #022a6d;
     }
     .agenda-unified-period {
         font-size: 15px;
@@ -109,38 +111,47 @@ $isHoje = ($viewMode === 'hoje');
         display: flex;
         align-items: center;
         gap: 14px;
-        padding: 14px 20px;
+        padding: 14px 20px 14px 16px;
         margin: 0 -20px;
         border-radius: 6px;
         text-decoration: none;
         color: inherit;
-        transition: background 0.2s;
+        transition: background 0.2s, border-color 0.2s;
         border: 1px solid transparent;
+        border-left: 5px solid #e8e8e8;
+        background: #fafafa;
     }
     .agenda-item + .agenda-item {
         margin-top: 4px;
     }
     .agenda-item:hover {
-        background: #f8f9fa;
-        border-color: #eee;
+        background: #f5f5f5;
+        border-color: #e8e8e8;
     }
+    .agenda-item.bar-backlog { border-left-color: #9e9e9e; }
+    .agenda-item.bar-andamento { border-left-color: #1976d2; }
+    .agenda-item.bar-aguardando { border-left-color: #f57c00; }
+    .agenda-item.bar-concluida { border-left-color: #388e3c; }
+    .agenda-item.bar-projeto { border-left-color: #388e3c; }
+    .agenda-item.bar-manual { border-left-color: #f57c00; }
     .agenda-item-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 8px;
+        width: 36px;
+        height: 36px;
+        border-radius: 6px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 16px;
+        font-size: 14px;
         flex-shrink: 0;
+        background: #f0f0f0;
+        color: #666;
     }
-    .agenda-item-icon.task { background: #f0f4f8; color: #1976d2; }
-    .agenda-item-icon.task.status-backlog { background: #f5f5f5; color: #757575; }
-    .agenda-item-icon.task.status-andamento { background: #e3f2fd; color: #1976d2; }
-    .agenda-item-icon.task.status-aguardando { background: #fff3e0; color: #f57c00; }
-    .agenda-item-icon.task.status-concluida { background: #e8f5e9; color: #388e3c; }
-    .agenda-item-icon.project { background: #e8f5e9; color: #388e3c; }
-    .agenda-item-icon.manual { background: #fff3e0; color: #f57c00; }
+    .agenda-item-icon.task.status-backlog { background: #f0f0f0; color: #757575; }
+    .agenda-item-icon.task.status-andamento { background: #fff; color: #1976d2; border: 1px solid #bbdefb; }
+    .agenda-item-icon.task.status-aguardando { background: #fff; color: #f57c00; border: 1px solid #ffe0b2; }
+    .agenda-item-icon.task.status-concluida { background: #fff; color: #388e3c; border: 1px solid #c8e6c9; }
+    .agenda-item-icon.project { background: #fff; color: #388e3c; border: 1px solid #c8e6c9; }
+    .agenda-item-icon.manual { background: #fff; color: #f57c00; border: 1px solid #ffe0b2; }
     .agenda-item-content {
         flex: 1;
         min-width: 0;
@@ -161,19 +172,21 @@ $isHoje = ($viewMode === 'hoje');
         border-radius: 12px;
         font-weight: 600;
         flex-shrink: 0;
+        background: transparent;
+        border: 1px solid;
     }
-    .agenda-item-badge.badge-backlog { background: #f5f5f5; color: #616161; }
-    .agenda-item-badge.badge-andamento { background: #e3f2fd; color: #1565c0; }
-    .agenda-item-badge.badge-aguardando { background: #fff3e0; color: #e65100; }
-    .agenda-item-badge.badge-concluida { background: #e8f5e9; color: #2e7d32; }
-    .agenda-item-badge.badge-projeto { background: #e8f5e9; color: #2e7d32; }
+    .agenda-item-badge.badge-backlog { border-color: #bdbdbd; color: #616161; }
+    .agenda-item-badge.badge-andamento { border-color: #90caf9; color: #1565c0; }
+    .agenda-item-badge.badge-aguardando { border-color: #ffcc80; color: #e65100; }
+    .agenda-item-badge.badge-concluida { border-color: #a5d6a7; color: #2e7d32; }
+    .agenda-item-badge.badge-projeto { border-color: #a5d6a7; color: #2e7d32; }
     .agenda-day-column {
         margin-bottom: 28px;
     }
     .agenda-day-header {
         font-weight: 600;
         font-size: 15px;
-        color: #023A8D;
+        color: #455a64;
         margin-bottom: 14px;
         padding-bottom: 10px;
         border-bottom: 1px solid #eee;
@@ -258,7 +271,7 @@ $isHoje = ($viewMode === 'hoje');
                 $statusMap = ['backlog' => 'backlog', 'em_andamento' => 'andamento', 'aguardando_cliente' => 'aguardando', 'concluida' => 'concluida'];
                 $statusClass = $statusMap[$status] ?? 'backlog';
             ?>
-                <a href="<?= pixelhub_url('/projects/board?project_id=' . (int)$t['project_id']) ?>#task-<?= (int)$t['id'] ?>" class="agenda-item">
+                <a href="<?= pixelhub_url('/projects/board?project_id=' . (int)$t['project_id']) ?>#task-<?= (int)$t['id'] ?>" class="agenda-item bar-<?= $statusClass ?>">
                     <span class="agenda-item-icon task status-<?= $statusClass ?>">✓</span>
                     <div class="agenda-item-content">
                         <div class="agenda-item-title"><?= htmlspecialchars($t['title']) ?></div>
@@ -290,7 +303,7 @@ $isHoje = ($viewMode === 'hoje');
         <div class="agenda-section">
             <h3>Compromissos (<?= count($manualItems) ?>)</h3>
             <?php foreach ($manualItems as $m): ?>
-                <div class="agenda-item" style="cursor: default;">
+                <div class="agenda-item bar-manual" style="cursor: default;">
                     <span class="agenda-item-icon manual">📌</span>
                     <div class="agenda-item-content">
                         <div class="agenda-item-title"><?= htmlspecialchars($m['title']) ?></div>
@@ -336,7 +349,7 @@ $isHoje = ($viewMode === 'hoje');
                     $statusMap = ['backlog' => 'backlog', 'em_andamento' => 'andamento', 'aguardando_cliente' => 'aguardando'];
                     $statusClass = $statusMap[$status] ?? 'backlog';
                 ?>
-                    <a href="<?= pixelhub_url('/projects/board?project_id=' . (int)$t['project_id']) ?>#task-<?= (int)$t['id'] ?>" class="agenda-item">
+                    <a href="<?= pixelhub_url('/projects/board?project_id=' . (int)$t['project_id']) ?>#task-<?= (int)$t['id'] ?>" class="agenda-item bar-<?= $statusClass ?>">
                         <span class="agenda-item-icon task status-<?= $statusClass ?>">✓</span>
                         <div class="agenda-item-content">
                             <div class="agenda-item-title"><?= htmlspecialchars($t['title']) ?></div>
@@ -352,11 +365,11 @@ $isHoje = ($viewMode === 'hoje');
                             <div class="agenda-item-title"><?= htmlspecialchars($p['name']) ?></div>
                             <div class="agenda-item-meta"><?= htmlspecialchars($p['tenant_name'] ?? 'Interno') ?></div>
                         </div>
-                        <span class="agenda-item-badge" style="background: #e8f5e9; color: #388e3c;">Projeto</span>
+                        <span class="agenda-item-badge badge-projeto">Projeto</span>
                     </a>
                 <?php endforeach; ?>
                 <?php foreach ($day['manual_items'] as $m): ?>
-                    <div class="agenda-item" style="cursor: default;">
+                    <div class="agenda-item bar-manual" style="cursor: default;">
                         <span class="agenda-item-icon manual">📌</span>
                         <div class="agenda-item-content">
                             <div class="agenda-item-title"><?= htmlspecialchars($m['title']) ?></div>
