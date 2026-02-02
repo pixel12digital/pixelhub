@@ -1048,6 +1048,43 @@ $emailAccounts = $emailAccounts ?? [];
 
     // Armazena tenant_id globalmente para uso no modal
     window.currentTenantId = <?= $tenant['id'] ?? 0 ?>;
+
+    function copyInvoiceUrl(url, btn) {
+        if (!url) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(function() {
+                var originalTitle = btn.getAttribute('data-tooltip');
+                btn.setAttribute('data-tooltip', 'Copiado!');
+                btn.style.background = '#28a745';
+                setTimeout(function() {
+                    btn.setAttribute('data-tooltip', originalTitle || 'Copiar link');
+                    btn.style.background = '';
+                }, 2000);
+            }).catch(function() {
+                alert('Não foi possível copiar. Tente selecionar o link manualmente.');
+            });
+        } else {
+            var ta = document.createElement('textarea');
+            ta.value = url;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                var originalTitle = btn.getAttribute('data-tooltip');
+                btn.setAttribute('data-tooltip', 'Copiado!');
+                btn.style.background = '#28a745';
+                setTimeout(function() {
+                    btn.setAttribute('data-tooltip', originalTitle || 'Copiar link');
+                    btn.style.background = '';
+                }, 2000);
+            } catch (e) {
+                alert('Não foi possível copiar. Tente selecionar o link manualmente.');
+            }
+            document.body.removeChild(ta);
+        }
+    }
     </script>
 
     <!-- Scripts para modal de edição dos campos do Asaas -->
@@ -2156,20 +2193,39 @@ $emailAccounts = $emailAccounts ?? [];
                             <?= htmlspecialchars($invoice['description'] ?? '-') ?>
                         </td>
                         <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                            <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
                                 <?php if (!empty($invoice['invoice_url'])): ?>
                                     <a href="<?= htmlspecialchars($invoice['invoice_url']) ?>" 
                                        target="_blank"
-                                       style="background: #023A8D; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-block;">
-                                        Ver Fatura
+                                       class="btn-action btn-action-primary"
+                                       style="text-decoration: none;"
+                                       data-tooltip="Ver Fatura"
+                                       aria-label="Ver Fatura">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                            <polyline points="15 3 21 3 21 9"></polyline>
+                                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                                        </svg>
                                     </a>
+                                    <button type="button"
+                                            onclick="copyInvoiceUrl(<?= json_encode($invoice['invoice_url']) ?>, this)"
+                                            class="btn-action btn-action-secondary"
+                                            data-tooltip="Copiar link"
+                                            aria-label="Copiar link da fatura">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                                        </svg>
+                                    </button>
                                 <?php endif; ?>
                                 <a href="<?= pixelhub_url('/billing/whatsapp-modal?invoice_id=' . $invoice['id'] . '&redirect_to=tenant') ?>" 
-                                   style="background: #023A8D; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                   class="btn-action btn-action-primary"
+                                   style="text-decoration: none;"
+                                   data-tooltip="Cobrar"
+                                   aria-label="Cobrar via WhatsApp">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
                                     </svg>
-                                    Cobrar
                                 </a>
                             </div>
                         </td>
