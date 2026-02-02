@@ -3386,7 +3386,11 @@
         function appendInboxMessages(messages) {
             const container = document.getElementById('inboxMessages');
             if (!container || !messages || messages.length === 0) return;
-            
+            // Evita duplicação: quando o poll retorna mensagens outbound, remove as otimistas (a mensagem real já vem na resposta)
+            const hasOutbound = (messages || []).some(m => m.direction === 'outbound');
+            if (hasOutbound) {
+                container.querySelectorAll('[data-inbox-optimistic="1"]').forEach(el => el.remove());
+            }
             messages.forEach(msg => {
                 const direction = msg.direction === 'outbound' ? 'outbound' : 'inbound';
                 const time = msg.timestamp || msg.created_at || '';
