@@ -761,29 +761,29 @@ td:last-child button.btn-edit-project::before,
   background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b7280'%3E%3Cpath d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm18-11.5a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75L21 5.75z'/%3E%3C/svg%3E");
 }
 
-/* Arquivar (perigoso, mas discreto) - outline + ícone X */
+/* Arquivar (neutro, não destrutivo) - estilo secundário + ícone pasta */
 td:last-child button.btn-archive-project,
 td:last-child button.btn-danger.btn-archive-project,
 .acoes button.btn-archive-project,
 .actions button.btn-archive-project {
-  background: transparent !important;
-  color: #dc2626 !important;
-  border: 1px solid #fecaca !important;
+  background: #f3f4f6 !important;
+  color: #6b7280 !important;
+  border: 1px solid #e5e7eb !important;
 }
 
 td:last-child button.btn-archive-project::before,
 td:last-child button.btn-danger.btn-archive-project::before,
 .acoes button.btn-archive-project::before,
 .actions button.btn-archive-project::before {
-  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23dc2626'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b7280'%3E%3Cpath d='M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z'/%3E%3C/svg%3E");
 }
 
 td:last-child button.btn-archive-project:hover,
 td:last-child button.btn-danger.btn-archive-project:hover,
 .acoes button.btn-archive-project:hover,
 .actions button.btn-archive-project:hover {
-  background: #fef2f2 !important;
-  border-color: #f87171 !important;
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
 }
 
 /* ===== Tooltip custom instantâneo (sem delay, sem balão preto do browser) ===== */
