@@ -2827,9 +2827,7 @@
                 
                 if (result.success) {
                     console.log('[Inbox] Áudio enviado com sucesso');
-                    if (optimisticEl && result.event_id) {
-                        optimisticEl.setAttribute('data-msg-id', result.event_id);
-                    }
+                    return { event_id: result.event_id };
                 } else {
                     throw new Error(result.error || 'Erro ao enviar áudio');
                 }
