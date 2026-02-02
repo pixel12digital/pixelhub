@@ -1528,15 +1528,6 @@
     <header class="header">
         <h1>Pixel Hub</h1>
         
-        <!-- Inbox Global Button -->
-        <button type="button" class="header-inbox-btn" onclick="toggleInboxDrawer()" title="Inbox de Mensagens (Ctrl+I)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                <polyline points="22,6 12,13 2,6"></polyline>
-            </svg>
-            <span class="header-inbox-badge" id="inboxBadge" style="display: none;">0</span>
-        </button>
-        
         <!-- Menu de Usuário (estilo SaaS) -->
         <div class="header-user-menu">
             <?php 
@@ -1654,17 +1645,23 @@
             
             <div class="sidebar-divider"></div>
             
-            <!-- Comunicação (link direto) -->
-            <a href="<?= pixelhub_url('/communication-hub') ?>" class="sidebar-top-link <?= (strpos($currentUri, '/communication-hub') !== false) ? 'active' : '' ?>" data-title="Comunicação">
-                <span class="sidebar-item-content">
-                    <span class="sidebar-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                        </svg>
+            <!-- Comunicação (toggle Inbox; sub-link para Painel) -->
+            <div class="sidebar-comunicacao-wrap">
+                <div class="sidebar-top-link sidebar-comunicacao-toggle <?= (strpos($currentUri, '/communication-hub') !== false) ? 'active' : '' ?>" data-title="Comunicação" onclick="sidebarComunicacaoToggle(event)" onkeydown="if(event.key==='Enter'||event.key===' ')sidebarComunicacaoToggle(event)" role="button" tabindex="0">
+                    <span class="sidebar-item-content">
+                        <span class="sidebar-icon sidebar-icon-comunicacao">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            <span class="sidebar-inbox-badge" id="inboxBadge" style="display: none;">0</span>
+                        </span>
+                        <span class="sidebar-text">Comunicação</span>
                     </span>
-                    <span class="sidebar-text">Comunicação</span>
-                </span>
-            </a>
+                </div>
+                <a href="<?= pixelhub_url('/communication-hub') ?>" class="sub-item sidebar-comunicacao-painel <?= (strpos($currentUri, '/communication-hub') !== false) ? 'active' : '' ?>" style="padding-left: 44px; font-size: 12px;">
+                    Painel de Comunicação
+                </a>
+            </div>
             
             <div class="sidebar-divider"></div>
             
@@ -2001,14 +1998,14 @@
     </div>
     
     <!-- ===== INBOX DRAWER GLOBAL ===== -->
-    <div class="inbox-drawer-overlay" id="inboxOverlay" onclick="closeInboxDrawer()"></div>
+    <div class="inbox-drawer-overlay" id="inboxOverlay" onclick="inboxOverlayClick()"></div>
     <div class="inbox-drawer" id="inboxDrawer">
         <button type="button" class="inbox-chevron-handle" id="inboxChevronHandle" onclick="toggleInboxMinimized(event)" title="Minimizar" aria-label="Minimizar ou expandir Inbox">
             <svg class="inbox-chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
         <div class="inbox-drawer-header">
             <h2>Inbox</h2>
-            <button type="button" class="inbox-drawer-close" onclick="closeInboxDrawer()">
+            <button type="button" class="inbox-drawer-close" onclick="inboxCloseBtnClick(event)" title="Minimizar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -2985,12 +2982,35 @@
             icon.title = isOpen ? 'Ocultar transcrição' : 'Ver transcrição';
         };
         
-        // ===== ABRIR/FECHAR DRAWER =====
-        window.toggleInboxDrawer = function() {
+        // ===== ABRIR/MINIMIZAR DRAWER (Inbox nunca fecha, só minimiza) =====
+        window.sidebarComunicacaoToggle = function(e) {
+            if (e) {
+                e.preventDefault();
+                if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+                if (e.type === 'keydown') e.preventDefault();
+            }
             if (InboxState.isOpen) {
-                closeInboxDrawer();
+                toggleInboxMinimized(e);
             } else {
                 openInboxDrawer();
+            }
+        };
+        window.toggleInboxDrawer = function() {
+            if (InboxState.isOpen) {
+                toggleInboxMinimized();
+            } else {
+                openInboxDrawer();
+            }
+        };
+        window.inboxOverlayClick = function() {
+            if (InboxState.isOpen && document.getElementById('inboxDrawer')?.classList.contains('inbox--minimized') === false) {
+                toggleInboxMinimized();
+            }
+        };
+        window.inboxCloseBtnClick = function(e) {
+            if (e) e.stopPropagation();
+            if (InboxState.isOpen && document.getElementById('inboxDrawer')?.classList.contains('inbox--minimized') === false) {
+                toggleInboxMinimized(e);
             }
         };
         
@@ -3054,14 +3074,17 @@
             }
         };
         
-        // Atalho de teclado (Ctrl+I ou Escape)
+        // Atalho de teclado (Ctrl+I ou Escape - Escape minimiza, nunca fecha)
         document.addEventListener('keydown', function(e) {
             if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
                 e.preventDefault();
                 toggleInboxDrawer();
             }
             if (e.key === 'Escape' && InboxState.isOpen) {
-                closeInboxDrawer();
+                var drawer = document.getElementById('inboxDrawer');
+                if (drawer && !drawer.classList.contains('inbox--minimized')) {
+                    toggleInboxMinimized(e);
+                }
             }
         });
         
