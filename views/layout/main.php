@@ -2585,42 +2585,43 @@
                 document.querySelectorAll('.inbox-drawer .incoming-lead-menu-dropdown.show, .inbox-drawer .conversation-menu-dropdown.show').forEach(d => d.classList.remove('show'));
             }
         });
-        function inboxOpenLinkTenantModal(convId, name) {
+        // Funções expostas em window para onclick (avaliados no escopo global)
+        window.inboxOpenLinkTenantModal = function(convId, name) {
             if (typeof openLinkTenantModal === 'function') { openLinkTenantModal(convId, name); return; }
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
-        }
-        function inboxOpenCreateTenantModal(convId, name, contact) {
+        };
+        window.inboxOpenCreateTenantModal = function(convId, name, contact) {
             if (typeof openCreateTenantModal === 'function') { openCreateTenantModal(convId, name, contact); return; }
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
-        }
-        function inboxIgnoreConversation(convId, name) {
+        };
+        window.inboxIgnoreConversation = function(convId, name) {
             if (typeof ignoreConversation === 'function') { ignoreConversation(convId, name); return; }
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
-        }
-        function inboxDeleteConversation(convId, name) {
+        };
+        window.inboxDeleteConversation = function(convId, name) {
             if (typeof deleteConversation === 'function') { deleteConversation(convId, name); return; }
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
-        }
-        function inboxArchiveConversation(convId, name) {
+        };
+        window.inboxArchiveConversation = function(convId, name) {
             if (typeof archiveConversation === 'function') { archiveConversation(convId, name); return; }
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
-        }
-        function inboxReactivateConversation(convId, name) {
+        };
+        window.inboxReactivateConversation = function(convId, name) {
             if (typeof reactivateConversation === 'function') { reactivateConversation(convId, name); return; }
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
-        }
-        function inboxOpenEditContactNameModal(convId, name) {
+        };
+        window.inboxOpenEditContactNameModal = function(convId, name) {
             if (typeof openEditContactNameModal === 'function') { openEditContactNameModal(convId, name); return; }
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
-        }
-        function inboxOpenChangeTenantModal(convId, name, tenantId, tenantName) {
+        };
+        window.inboxOpenChangeTenantModal = function(convId, name, tenantId, tenantName) {
             if (typeof openChangeTenantModal === 'function') { openChangeTenantModal(convId, name, tenantId, tenantName); return; }
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
-        }
-        function inboxUnlinkConversation(convId, name) {
+        };
+        window.inboxUnlinkConversation = function(convId, name) {
             if (typeof unlinkConversation === 'function') { unlinkConversation(convId, name); return; }
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
-        }
+        };
         
         // ===== FILTROS (mesmo comportamento do Painel de Comunicação) =====
         window.onInboxChannelChange = function() {
