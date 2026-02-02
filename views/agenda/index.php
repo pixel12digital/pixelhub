@@ -3,122 +3,223 @@ ob_start();
 ?>
 
 <style>
+    /* === Agenda Blocos - visual clean, hierárquico === */
     .agenda-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
         margin-bottom: 20px;
         flex-wrap: wrap;
-        gap: 15px;
+        gap: 12px;
     }
     .agenda-filters {
         display: flex;
-        gap: 10px;
+        gap: 8px;
         flex-wrap: wrap;
     }
     .agenda-filters select,
-    .agenda-filters input {
-        padding: 8px 12px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 14px;
+    .agenda-filters input[type="date"] {
+        padding: 6px 10px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        font-size: 13px;
+        background: #fff;
+        color: #374151;
+    }
+    .agenda-filters select:focus,
+    .agenda-filters input:focus {
+        outline: none;
+        border-color: #d1d5db;
     }
     .blocks-list {
         display: grid;
-        gap: 15px;
+        gap: 12px;
     }
     .block-card {
         background: white;
         border-radius: 8px;
-        padding: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        border-left: 5px solid #ddd;
-        transition: transform 0.2s, box-shadow 0.2s;
-        margin-bottom: 12px;
+        padding: 18px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        border-left: 4px solid #ddd;
+        margin-bottom: 0;
         position: relative;
     }
     .block-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
     }
     .block-card.current {
-        background: #f5f5f5;
-        border-left-width: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        background: #fafbfc;
+        border-left-width: 4px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
     }
     .block-header {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
     }
     .block-time {
-        font-weight: 700;
-        color: #333;
-        font-size: 18px;
-        margin-bottom: 8px;
+        font-weight: 600;
+        color: #111827;
+        font-size: 15px;
+        margin-bottom: 6px;
     }
     .block-type {
         display: inline-block;
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 12px;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 11px;
         font-weight: 600;
         color: white;
     }
     .block-status {
         display: inline-block;
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 12px;
-        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 500;
     }
-    .status-planned { background: #e3f2fd; color: #1976d2; }
-    .status-ongoing { background: #fff3e0; color: #f57c00; }
-    .status-completed { background: #e8f5e9; color: #388e3c; }
-    .status-partial { background: #fce4ec; color: #c2185b; }
-    .status-canceled { background: #f3e5f5; color: #7b1fa2; }
+    .status-planned { background: #eff6ff; color: #1d4ed8; }
+    .status-ongoing { background: #fffbeb; color: #b45309; }
+    .status-completed { background: #f0fdf4; color: #15803d; }
+    .status-partial { background: #fdf2f8; color: #be185d; }
+    .status-canceled { background: #f5f3ff; color: #6d28d9; }
     .block-info {
-        margin-top: 10px;
-        color: #666;
-        font-size: 14px;
+        margin-top: 8px;
+        color: #6b7280;
+        font-size: 13px;
     }
     .block-actions {
-        margin-top: 15px;
+        margin-top: 14px;
         display: flex;
-        gap: 10px;
+        align-items: center;
+        gap: 8px;
         flex-wrap: wrap;
     }
+    /* Botões - hierarquia */
     .btn {
-        padding: 8px 16px;
-        border: none;
-        border-radius: 4px;
+        padding: 6px 12px;
+        border-radius: 6px;
         cursor: pointer;
-        font-size: 14px;
-        text-decoration: none;
-        display: inline-block;
-        transition: background 0.3s;
-    }
-    .btn-primary { background: #023A8D; color: white; }
-    .btn-primary:hover { background: #022a6d; }
-    .btn-success { background: #4CAF50; color: white; }
-    .btn-success:hover { background: #45a049; }
-    .btn-danger { background: #f44336; color: white; }
-    .btn-danger:hover { background: #da190b; }
-    .btn-secondary { background: #757575; color: white; }
-    .btn-secondary:hover { background: #616161; }
-    .tarefas-count {
-        margin-top: 10px;
         font-size: 13px;
-        color: #666;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        transition: all 0.15s;
+        border: 1px solid transparent;
+    }
+    .btn-primary { background: #1d4ed8; color: white; border-color: #1d4ed8; }
+    .btn-primary:hover { background: #1e40af; border-color: #1e40af; }
+    .btn-outline {
+        background: transparent;
+        border-color: #d1d5db;
+        color: #374151;
+    }
+    .btn-outline:hover {
+        background: #f9fafb;
+        border-color: #9ca3af;
+    }
+    .btn-outline-success {
+        background: transparent;
+        border-color: #86efac;
+        color: #15803d;
+    }
+    .btn-outline-success:hover {
+        background: #f0fdf4;
+        border-color: #22c55e;
+    }
+    .btn-link {
+        background: none;
+        border: none;
+        color: #6b7280;
+        padding: 4px 8px;
+    }
+    .btn-link:hover { color: #374151; }
+    .btn-link-danger {
+        background: none;
+        border: none;
+        color: #6b7280;
+        padding: 4px 8px;
+        cursor: pointer;
+        font-size: 13px;
+        width: 100%;
+        text-align: left;
+    }
+    .btn-link-danger:hover { color: #dc2626; }
+    .btn-link-more {
+        background: none;
+        border: none;
+        color: #9ca3af;
+        padding: 4px 8px;
+        font-size: 16px;
+        line-height: 1;
+        cursor: pointer;
+    }
+    .btn-link-more:hover { color: #6b7280; }
+    .btn-nav {
+        padding: 6px 12px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        font-size: 13px;
+        color: #6b7280;
+        text-decoration: none;
+    }
+    .btn-nav:hover {
+        background: #f9fafb;
+        border-color: #d1d5db;
+        color: #374151;
+    }
+    .btn-nav-primary {
+        background: #1d4ed8;
+        border-color: #1d4ed8;
+        color: white;
+    }
+    .btn-nav-primary:hover {
+        background: #1e40af;
+        border-color: #1e40af;
+        color: white;
+    }
+    .tarefas-count {
+        margin-top: 6px;
+        font-size: 12px;
+        color: #6b7280;
         display: inline-block;
-        padding: 4px 10px;
-        background: #f0f0f0;
-        border-radius: 12px;
+        padding: 3px 8px;
+        background: #f3f4f6;
+        border-radius: 6px;
     }
     .block-card.current .tarefas-count {
-        background: #e3f2fd;
-        color: #1976d2;
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+    /* Menu Mais (dropdown) */
+    .block-actions-more {
+        position: relative;
+    }
+    .block-actions-dropdown {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 100%;
+        margin-top: 4px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        min-width: 120px;
+        z-index: 50;
+        padding: 4px 0;
+    }
+    .block-actions-dropdown.show { display: block; }
+    .block-actions-dropdown .btn-link,
+    .block-actions-dropdown form {
+        display: block;
+        margin: 0;
+    }
+    .block-actions-dropdown form button {
+        width: 100%;
+        border-radius: 0;
     }
 </style>
 
@@ -172,50 +273,34 @@ ob_start();
 <?php endif; ?>
 
 <div class="agenda-header">
-    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
         <?php 
         $taskIdParam = !empty($agendaTaskContext) ? '&task_id=' . (int)$agendaTaskContext['id'] : '';
         ?>
-        <a href="<?= pixelhub_url('/agenda?data=' . date('Y-m-d', strtotime($dataStr . ' -1 day')) . $taskIdParam) ?>" class="btn btn-secondary">← Dia Anterior</a>
-        <strong style="font-size: 18px;"><?= date('d/m/Y', strtotime($dataStr)) ?></strong>
-        <a href="<?= pixelhub_url('/agenda?data=' . date('Y-m-d', strtotime($dataStr . ' +1 day')) . $taskIdParam) ?>" class="btn btn-secondary">Dia Seguinte →</a>
-        <a href="<?= pixelhub_url('/agenda?data=' . date('Y-m-d') . $taskIdParam) ?>" class="btn btn-secondary">Hoje</a>
+        <a href="<?= pixelhub_url('/agenda?data=' . date('Y-m-d', strtotime($dataStr . ' -1 day')) . $taskIdParam) ?>" class="btn btn-nav">← Anterior</a>
+        <strong style="font-size: 15px; color: #374151;"><?= date('d/m/Y', strtotime($dataStr)) ?></strong>
+        <a href="<?= pixelhub_url('/agenda?data=' . date('Y-m-d', strtotime($dataStr . ' +1 day')) . $taskIdParam) ?>" class="btn btn-nav">Próximo →</a>
+        <a href="<?= pixelhub_url('/agenda?data=' . date('Y-m-d') . $taskIdParam) ?>" class="btn btn-nav">Hoje</a>
         
-        <form method="get" action="<?= pixelhub_url('/agenda') ?>" style="display: inline-flex; align-items: center; gap: 8px; margin-left: 16px;">
-            <input
-                type="date"
-                name="data"
-                value="<?= htmlspecialchars($dataAtualIso ?? $dataStr) ?>"
-                style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
-            >
+        <form method="get" action="<?= pixelhub_url('/agenda') ?>" style="display: inline-flex; align-items: center; gap: 6px; margin-left: 12px;">
+            <input type="date" name="data" value="<?= htmlspecialchars($dataAtualIso ?? $dataStr) ?>" style="padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; background: #fff;">
             <?php if (!empty($agendaTaskContext)): ?>
                 <input type="hidden" name="task_id" value="<?= (int)$agendaTaskContext['id'] ?>">
             <?php endif; ?>
-            <button type="submit" class="btn btn-secondary" style="padding: 8px 16px;">
-                Ir
-            </button>
+            <button type="submit" class="btn btn-nav">Ir</button>
         </form>
         
-        <a href="<?= pixelhub_url('/agenda/semana?data=' . ($dataAtualIso ?? $dataStr)) ?>" class="btn btn-secondary" style="margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;">
-            <span class="icon-calendar">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>
-                </svg>
-            </span>
-            Ver Semana
-        </a>
+        <a href="<?= pixelhub_url('/agenda/semana?data=' . ($dataAtualIso ?? $dataStr)) ?>" class="btn btn-nav" style="margin-left: 8px;">Ver Semana</a>
     </div>
-    <div>
-        <button onclick="generateBlocks()" class="btn btn-primary">Gerar Blocos do Dia</button>
+    <div style="display: flex; gap: 8px;">
+        <button onclick="generateBlocks()" class="btn btn-nav btn-nav-primary">Gerar Blocos</button>
         <?php 
         $novoBlocoUrl = '/agenda/bloco/novo?data=' . ($dataAtualIso ?? $dataStr);
         if (!empty($agendaTaskContext)) {
             $novoBlocoUrl .= '&task_id=' . (int)$agendaTaskContext['id'];
         }
         ?>
-        <a href="<?= pixelhub_url($novoBlocoUrl) ?>" class="btn btn-secondary" style="margin-left: 8px;">
-            Adicionar bloco extra
-        </a>
+        <a href="<?= pixelhub_url($novoBlocoUrl) ?>" class="btn btn-nav">+ Bloco extra</a>
     </div>
 </div>
 
@@ -240,9 +325,8 @@ ob_start();
 </div>
 
 <?php if (!empty($agendaTaskContext)): ?>
-    <div style="background: #e3f2fd; color: #1976d2; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #1976d2;">
-        <strong>📅 Agendando tarefa:</strong> <?= htmlspecialchars($agendaTaskContext['titulo']) ?><br>
-        <small>Escolha um bloco para vincular ou crie um bloco extra.</small>
+    <div style="background: #f0f9ff; color: #0369a1; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #0ea5e9; font-size: 13px;">
+        <strong>Agendando tarefa:</strong> <?= htmlspecialchars($agendaTaskContext['titulo']) ?> — escolha um bloco ou crie um extra.
     </div>
 <?php endif; ?>
 
@@ -334,42 +418,38 @@ ob_start();
                     </div>
                 <?php endif; ?>
                 
-                <div class="block-actions" style="margin-top: 15px;">
+                <div class="block-actions">
+                    <a href="<?= pixelhub_url('/agenda/bloco?id=' . $bloco['id']) ?>" class="btn btn-primary">Abrir Bloco</a>
+                    <a href="<?= pixelhub_url('/agenda/bloco/editar?id=' . $bloco['id']) ?>" class="btn btn-outline">Editar</a>
                     <?php if (!empty($agendaTaskContext)): ?>
-                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/attach-task') ?>" style="display: inline-block; margin-right: 8px;">
+                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/attach-task') ?>" style="display: inline-block;">
                             <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
                             <input type="hidden" name="task_id" value="<?= (int)$agendaTaskContext['id'] ?>">
-                            <button type="submit" class="btn btn-primary" style="background: #4CAF50; font-size: 12px; padding: 6px 12px;">Vincular tarefa atual</button>
+                            <button type="submit" class="btn btn-outline">Vincular tarefa</button>
                         </form>
                     <?php endif; ?>
-                    
-                    <a href="<?= pixelhub_url('/agenda/bloco?id=' . $bloco['id']) ?>" class="btn btn-primary">Abrir Bloco</a>
-                    <a href="<?= pixelhub_url('/agenda/bloco/editar?id=' . $bloco['id']) ?>" class="btn btn-secondary" style="margin-left: 8px; font-size: 12px; padding: 6px 12px;">Editar</a>
-                    
                     <?php if ($bloco['status'] === 'planned'): ?>
-                        <button onclick="startBlock(<?= $bloco['id'] ?>)" class="btn btn-success">Iniciar</button>
+                        <button onclick="startBlock(<?= $bloco['id'] ?>)" class="btn btn-outline btn-outline-success">Iniciar</button>
                     <?php endif; ?>
-                    
-                    
                     <?php if ($bloco['status'] === 'completed'): ?>
-                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/reopen') ?>" style="display: inline-block; margin-left: 8px;">
+                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/reopen') ?>" style="display: inline-block;">
                             <input type="hidden" name="id" value="<?= (int)$bloco['id'] ?>">
                             <input type="hidden" name="date" value="<?= htmlspecialchars($dataStr) ?>">
-                            <button type="submit" class="btn btn-primary" onclick="return confirm('Reabrir este bloco? O status voltará para Planejado e os horários reais serão resetados.');">
-                                Reabrir
-                            </button>
+                            <button type="submit" class="btn btn-outline" onclick="return confirm('Reabrir este bloco? O status voltará para Planejado e os horários reais serão resetados.');">Reabrir</button>
                         </form>
                     <?php endif; ?>
-                    
                     <?php if (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
-                        <button onclick="cancelBlock(<?= $bloco['id'] ?>)" class="btn btn-danger" style="margin-left: 8px;">Cancelar</button>
-                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/delete') ?>" 
-                              onsubmit="return confirm('Tem certeza que deseja EXCLUIR este bloco? Esta ação não poderá ser desfeita.');"
-                              style="display: inline-block; margin-left: 8px;">
-                            <input type="hidden" name="id" value="<?= (int)$bloco['id'] ?>">
-                            <input type="hidden" name="date" value="<?= htmlspecialchars($dataStr) ?>">
-                            <button type="submit" class="btn btn-outline-danger btn-sm">Excluir</button>
-                        </form>
+                        <div class="block-actions-more">
+                            <button type="button" class="btn btn-link-more" onclick="toggleBlockMenu(this)" aria-label="Mais ações">⋯</button>
+                            <div class="block-actions-dropdown">
+                                <button type="button" class="btn btn-link" onclick="cancelBlock(<?= $bloco['id'] ?>)">Cancelar</button>
+                                <form method="post" action="<?= pixelhub_url('/agenda/bloco/delete') ?>" onsubmit="return confirm('Tem certeza que deseja EXCLUIR este bloco? Esta ação não poderá ser desfeita.');">
+                                    <input type="hidden" name="id" value="<?= (int)$bloco['id'] ?>">
+                                    <input type="hidden" name="date" value="<?= htmlspecialchars($dataStr) ?>">
+                                    <button type="submit" class="btn btn-link-danger">Excluir</button>
+                                </form>
+                            </div>
+                        </div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -555,6 +635,18 @@ function cancelBlock(id) {
         }
     });
 }
+
+function toggleBlockMenu(btn) {
+    const dropdown = btn.nextElementSibling;
+    const isOpen = dropdown.classList.contains('show');
+    document.querySelectorAll('.block-actions-dropdown.show').forEach(d => d.classList.remove('show'));
+    if (!isOpen) dropdown.classList.add('show');
+}
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.block-actions-more')) {
+        document.querySelectorAll('.block-actions-dropdown.show').forEach(d => d.classList.remove('show'));
+    }
+});
 </script>
 
 <?php
