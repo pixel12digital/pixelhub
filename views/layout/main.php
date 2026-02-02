@@ -742,59 +742,58 @@
         .inbox-media-open:hover .inbox-media-thumb {
             filter: brightness(0.95);
         }
-        /* Inbox: transcrição de áudio (igual ao Communication Hub) */
+        /* Inbox: transcrição de áudio - ícone na toolbar ao lado do menu */
         .inbox-drawer .inbox-audio-container {
             display: flex;
             flex-direction: column;
             gap: 4px;
         }
-        .inbox-drawer .inbox-audio-container audio {
+        .inbox-drawer .inbox-audio-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .inbox-drawer .inbox-audio-toolbar audio {
+            flex: 1;
             max-width: 250px;
         }
-        .inbox-drawer .inbox-transcribe-btn {
+        .inbox-drawer .inbox-audio-actions {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+        .inbox-drawer .inbox-transcribe-icon,
+        .inbox-drawer .inbox-audio-menu-btn {
             background: transparent;
             border: none;
             color: #6b7280;
             cursor: pointer;
             padding: 4px;
             border-radius: 4px;
-            font-size: 11px;
+            line-height: 1;
             display: inline-flex;
             align-items: center;
-            gap: 4px;
-            align-self: flex-start;
+            justify-content: center;
         }
-        .inbox-drawer .inbox-transcribe-btn:hover {
+        .inbox-drawer .inbox-transcribe-icon:hover,
+        .inbox-drawer .inbox-audio-menu-btn:hover {
             background: rgba(0,0,0,0.05);
             color: #374151;
         }
-        .inbox-drawer .inbox-transcription-accordion {
-            margin-top: 4px;
+        .inbox-drawer .inbox-transcribe-icon.processing {
+            cursor: default;
+            pointer-events: none;
         }
-        .inbox-drawer .inbox-transcription-toggle {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            background: none;
-            border: none;
-            padding: 4px 0;
-            cursor: pointer;
-            font-size: 11px;
-            color: #6b7280;
+        .inbox-drawer .inbox-transcribe-icon.processing .inbox-transcription-spinner {
+            display: inline-block;
         }
-        .inbox-drawer .inbox-transcription-toggle:hover {
-            color: #374151;
-        }
-        .inbox-drawer .inbox-transcription-chevron {
-            font-size: 10px;
-            transition: transform 0.15s;
-        }
-        .inbox-drawer .inbox-transcription-accordion[data-open="true"] .inbox-transcription-chevron {
-            transform: rotate(90deg);
-        }
-        .inbox-drawer .inbox-transcription-content {
+        .inbox-drawer .inbox-transcribe-icon.processing svg {
             display: none;
-            margin-top: 4px;
+        }
+        .inbox-drawer .inbox-transcription-body {
+            display: none;
+            margin-top: 6px;
             padding: 8px 10px;
             background: #f8f8f8;
             border-radius: 6px;
@@ -803,31 +802,15 @@
             line-height: 1.5;
             white-space: pre-wrap;
         }
-        .inbox-drawer .inbox-transcription-accordion[data-open="true"] .inbox-transcription-content {
+        .inbox-drawer .inbox-transcription-body.open {
             display: block;
         }
-        .inbox-drawer .inbox-transcription-status {
-            margin-top: 4px;
-            font-size: 10px;
-            color: #888;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .inbox-drawer .inbox-transcription-status.failed {
-            color: #999;
-            cursor: pointer;
-        }
-        .inbox-drawer .inbox-transcription-status.failed:hover {
-            color: #666;
-            text-decoration: underline;
-        }
         .inbox-drawer .inbox-transcription-spinner {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border: 1.5px solid #ccc;
-            border-top-color: #888;
+            display: none;
+            width: 12px;
+            height: 12px;
+            border: 1.5px solid #d1d5db;
+            border-top-color: #6b7280;
             border-radius: 50%;
             animation: inbox-transcription-spin 0.8s linear infinite;
         }
@@ -2881,21 +2864,17 @@
             if (btnMic) btnMic.style.display = hasContent ? 'none' : 'block';
         };
         
-        // ===== TRANSCRIÇÃO DE ÁUDIO (igual ao Communication Hub) =====
+        // ===== TRANSCRIÇÃO DE ÁUDIO (ícone na toolbar ao lado do ⋮) =====
         window.inboxTranscribeAudio = async function(btn, eventId) {
             if (!eventId) return;
             const container = (btn.closest && btn.closest('.inbox-audio-container')) || btn.parentElement;
             if (!container) return;
-            let statusEl = container.querySelector('.inbox-transcription-status');
-            if (!statusEl) {
-                statusEl = document.createElement('div');
-                statusEl.className = 'inbox-transcription-status processing';
-                container.appendChild(statusEl);
+            const icon = container.querySelector('.inbox-transcribe-icon');
+            if (icon) {
+                icon.classList.add('processing');
+                icon.title = 'Processando...';
+                icon.onclick = null;
             }
-            const transcribeBtn = container.querySelector('.inbox-transcribe-btn');
-            if (transcribeBtn) transcribeBtn.remove();
-            statusEl.className = 'inbox-transcription-status processing';
-            statusEl.innerHTML = '<span class="inbox-transcription-spinner"></span>Processando...';
             try {
                 const response = await fetch(INBOX_BASE_URL + '/communication-hub/transcribe', {
                     method: 'POST',
@@ -2904,26 +2883,33 @@
                 });
                 const data = await response.json();
                 if (data.success && data.status === 'completed' && data.transcription) {
-                    inboxShowTranscription(statusEl, data.transcription);
+                    inboxShowTranscription(container, eventId, data.transcription);
                 } else if (data.success && data.status === 'processing') {
-                    inboxPollTranscriptionStatus(statusEl, eventId, 0);
+                    inboxPollTranscriptionStatus(container, eventId, 0);
                 } else {
-                    statusEl.className = 'inbox-transcription-status failed';
-                    statusEl.innerHTML = 'Falhou · <span style="text-decoration:underline;cursor:pointer">Tentar novamente</span>';
-                    statusEl.onclick = function() { inboxTranscribeAudio(statusEl, eventId); };
+                    if (icon) {
+                        icon.classList.remove('processing');
+                        icon.title = 'Tentar novamente';
+                        icon.onclick = function() { inboxTranscribeAudio(icon, eventId); };
+                    }
                 }
             } catch (err) {
                 console.error('[Inbox] Transcrição:', err);
-                statusEl.className = 'inbox-transcription-status failed';
-                statusEl.innerHTML = 'Erro · <span style="text-decoration:underline;cursor:pointer">Tentar novamente</span>';
-                statusEl.onclick = function() { inboxTranscribeAudio(statusEl, eventId); };
+                if (icon) {
+                    icon.classList.remove('processing');
+                    icon.title = 'Tentar novamente';
+                    icon.onclick = function() { inboxTranscribeAudio(icon, eventId); };
+                }
             }
         };
-        async function inboxPollTranscriptionStatus(badge, eventId, attempts) {
+        async function inboxPollTranscriptionStatus(container, eventId, attempts) {
             if (attempts >= 30) {
-                badge.className = 'inbox-transcription-status failed';
-                badge.innerHTML = 'Timeout · <span style="text-decoration:underline;cursor:pointer">Tentar novamente</span>';
-                badge.onclick = function() { inboxTranscribeAudio(badge, eventId); };
+                const icon = container.querySelector('.inbox-transcribe-icon');
+                if (icon) {
+                    icon.classList.remove('processing');
+                    icon.title = 'Tentar novamente';
+                    icon.onclick = function() { inboxTranscribeAudio(icon, eventId); };
+                }
                 return;
             }
             await new Promise(r => setTimeout(r, 2000));
@@ -2931,34 +2917,48 @@
                 const response = await fetch(INBOX_BASE_URL + '/communication-hub/transcription-status?event_id=' + encodeURIComponent(eventId));
                 const data = await response.json();
                 if (data.success && data.status === 'completed' && data.transcription) {
-                    inboxShowTranscription(badge, data.transcription);
+                    inboxShowTranscription(container, eventId, data.transcription);
                 } else if (data.status === 'processing') {
-                    inboxPollTranscriptionStatus(badge, eventId, attempts + 1);
+                    inboxPollTranscriptionStatus(container, eventId, attempts + 1);
                 } else if (data.status === 'failed') {
-                    badge.className = 'inbox-transcription-status failed';
-                    badge.innerHTML = 'Falhou · <span style="text-decoration:underline;cursor:pointer">Tentar novamente</span>';
-                    badge.onclick = function() { inboxTranscribeAudio(badge, eventId); };
+                    const icon = container.querySelector('.inbox-transcribe-icon');
+                    if (icon) {
+                        icon.classList.remove('processing');
+                        icon.title = 'Tentar novamente';
+                        icon.onclick = function() { inboxTranscribeAudio(icon, eventId); };
+                    }
                 } else {
-                    inboxPollTranscriptionStatus(badge, eventId, attempts + 1);
+                    inboxPollTranscriptionStatus(container, eventId, attempts + 1);
                 }
             } catch (err) {
-                inboxPollTranscriptionStatus(badge, eventId, attempts + 1);
+                inboxPollTranscriptionStatus(container, eventId, attempts + 1);
             }
         }
-        function inboxShowTranscription(badge, transcription) {
-            const container = badge.closest('.inbox-audio-container');
-            badge.remove();
+        function inboxShowTranscription(container, eventId, transcription) {
             if (!container) return;
-            const accordion = document.createElement('div');
-            accordion.className = 'inbox-transcription-accordion';
-            accordion.setAttribute('data-open', 'false');
-            accordion.innerHTML = '<button type="button" class="inbox-transcription-toggle" onclick="inboxToggleTranscription(this)"><span class="inbox-transcription-chevron">▸</span><span>Transcrição</span></button><div class="inbox-transcription-content">' + (transcription || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
-            container.appendChild(accordion);
+            const icon = container.querySelector('.inbox-transcribe-icon');
+            if (icon) {
+                icon.classList.remove('processing');
+                icon.setAttribute('data-has-transcription', '1');
+                icon.title = 'Ver transcrição';
+                icon.onclick = function() { inboxToggleTranscriptionByIcon(icon); };
+            }
+            let body = container.querySelector('.inbox-transcription-body');
+            if (!body) {
+                body = document.createElement('div');
+                body.className = 'inbox-transcription-body';
+                body.setAttribute('data-event-id', eventId);
+                container.appendChild(body);
+            }
+            body.textContent = transcription || '';
         }
-        window.inboxToggleTranscription = function(btn) {
-            const accordion = btn.closest('.inbox-transcription-accordion');
-            if (!accordion) return;
-            accordion.setAttribute('data-open', accordion.getAttribute('data-open') === 'true' ? 'false' : 'true');
+        window.inboxToggleTranscriptionByIcon = function(icon) {
+            const container = icon.closest('.inbox-audio-container');
+            if (!container) return;
+            const body = container.querySelector('.inbox-transcription-body');
+            if (!body) return;
+            const isOpen = body.classList.toggle('open');
+            icon.title = isOpen ? 'Ocultar transcrição' : 'Ver transcrição';
         };
         
         // ===== ABRIR/FECHAR DRAWER =====
@@ -3576,16 +3576,32 @@
             const eventId = (msg.id || msg.event_id || media.event_id || '').toString();
             const hasTranscription = media.transcription && media.transcription.trim();
             const transcriptionStatus = media.transcription_status || null;
-            let html = '<div class="inbox-audio-container"><audio controls class="inbox-media-lazy" data-src="' + safeUrl + '"></audio>';
-            if (eventId && !hasTranscription && transcriptionStatus !== 'processing') {
-                html += '<button type="button" class="inbox-transcribe-btn" onclick="inboxTranscribeAudio(this,\'' + eventId.replace(/'/g, "\\'") + '\')" title="Transcrever áudio"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>Transcrever</button>';
+            const safeEventId = eventId.replace(/'/g, "\\'");
+            const transcribeSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>';
+            let iconClass = 'inbox-transcribe-icon';
+            let iconTitle = 'Transcrever';
+            let iconOnclick = '';
+            if (eventId) {
+                if (hasTranscription) {
+                    iconTitle = 'Ver transcrição';
+                    iconOnclick = 'onclick="inboxToggleTranscriptionByIcon(this)"';
+                } else if (transcriptionStatus === 'processing') {
+                    iconClass += ' processing';
+                    iconTitle = 'Processando...';
+                } else if (transcriptionStatus === 'failed') {
+                    iconTitle = 'Tentar novamente';
+                    iconOnclick = 'onclick="inboxTranscribeAudio(this,\'' + safeEventId + '\')"';
+                } else {
+                    iconOnclick = 'onclick="inboxTranscribeAudio(this,\'' + safeEventId + '\')"';
+                }
             }
+            let html = '<div class="inbox-audio-container"><div class="inbox-audio-toolbar"><audio controls class="inbox-media-lazy" data-src="' + safeUrl + '"></audio><div class="inbox-audio-actions">';
+            if (eventId) {
+                html += '<button type="button" class="' + iconClass + '" data-event-id="' + escapeInboxHtml(eventId) + '" data-has-transcription="' + (hasTranscription ? '1' : '0') + '" title="' + escapeInboxHtml(iconTitle) + '" ' + iconOnclick + '>' + transcribeSvg + '<span class="inbox-transcription-spinner"></span></button>';
+            }
+            html += '<button type="button" class="inbox-audio-menu-btn" aria-label="Mais opções">⋮</button></div></div>';
             if (hasTranscription) {
-                html += '<div class="inbox-transcription-accordion" data-open="false"><button type="button" class="inbox-transcription-toggle" onclick="inboxToggleTranscription(this)"><span class="inbox-transcription-chevron">▸</span><span>Transcrição</span></button><div class="inbox-transcription-content">' + escapeInboxHtml(media.transcription) + '</div></div>';
-            } else if (transcriptionStatus === 'processing') {
-                html += '<div class="inbox-transcription-status processing"><span class="inbox-transcription-spinner"></span>Processando...</div>';
-            } else if (transcriptionStatus === 'failed' && eventId) {
-                html += '<div class="inbox-transcription-status failed" onclick="inboxTranscribeAudio(this,\'' + eventId.replace(/'/g, "\\'") + '\')" title="Tentar novamente">Falhou · Tentar novamente</div>';
+                html += '<div class="inbox-transcription-body" data-event-id="' + escapeInboxHtml(eventId) + '">' + escapeInboxHtml(media.transcription) + '</div>';
             }
             html += '</div>';
             return html;
