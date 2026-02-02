@@ -549,6 +549,15 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/settings/contract-clauses/update', 'ContractClausesController@update');
     $router->post('/settings/contract-clauses/delete', 'ContractClausesController@delete');
 
+    // Rotas de Configurações - Tipos de Blocos de Agenda
+    $router->get('/settings/agenda-block-types', 'AgendaBlockTypesController@index');
+    $router->get('/settings/agenda-block-types/create', 'AgendaBlockTypesController@create');
+    $router->post('/settings/agenda-block-types/store', 'AgendaBlockTypesController@store');
+    $router->get('/settings/agenda-block-types/edit', 'AgendaBlockTypesController@edit');
+    $router->post('/settings/agenda-block-types/update', 'AgendaBlockTypesController@update');
+    $router->post('/settings/agenda-block-types/delete', 'AgendaBlockTypesController@delete');
+    $router->post('/settings/agenda-block-types/restore', 'AgendaBlockTypesController@restore');
+
     // Rotas de Configurações - Modelos de Blocos de Agenda
     $router->get('/settings/agenda-block-templates', 'AgendaBlockTemplatesController@index');
     $router->get('/settings/agenda-block-templates/create', 'AgendaBlockTemplatesController@create');

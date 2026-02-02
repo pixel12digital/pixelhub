@@ -11,7 +11,11 @@ $templates = $templates ?? [];
             Defina quais blocos são criados ao clicar em "Gerar Blocos do Dia". Edite ou exclua templates para alterar a estrutura da sua semana.
         </p>
     </div>
-    <div>
+    <div style="display: flex; gap: 8px;">
+        <a href="<?= pixelhub_url('/settings/agenda-block-types') ?>" 
+           style="padding: 8px 16px; border: 1px solid #e5e7eb; border-radius: 6px; color: #374151; text-decoration: none; font-size: 14px;">
+            Tipos de Blocos
+        </a>
         <a href="<?= pixelhub_url('/settings/agenda-block-templates/create') ?>" 
            style="background: #1d4ed8; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block; font-size: 14px;">
             + Novo Modelo

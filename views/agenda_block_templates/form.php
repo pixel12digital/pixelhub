@@ -29,7 +29,7 @@ $isEdit = !empty($template);
             <label style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px;">Dia da semana *</label>
             <select name="dia_semana" required style="width: 100%; max-width: 280px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
                 <?php foreach ($diasSemana as $num => $nome): ?>
-                    <option value="<?= $num ?>" <?= ($template['dia_semana'] ?? '') == $num ? 'selected' : '' ?>>
+                    <option value="<?= $num ?>" <?= ($isEdit && (int)($template['dia_semana'] ?? 0) === (int)$num) ? 'selected' : '' ?>>
                         <?= htmlspecialchars($nome) ?>
                     </option>
                 <?php endforeach; ?>
@@ -56,7 +56,7 @@ $isEdit = !empty($template);
             <select name="tipo_id" required style="width: 100%; max-width: 280px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
                 <option value="">Selecione...</option>
                 <?php foreach ($tipos as $tipo): ?>
-                    <option value="<?= (int)$tipo['id'] ?>" <?= ($template['tipo_id'] ?? '') == $tipo['id'] ? 'selected' : '' ?>>
+                    <option value="<?= (int)$tipo['id'] ?>" <?= ($isEdit && (int)($template['tipo_id'] ?? 0) === (int)$tipo['id']) ? 'selected' : '' ?>>
                         <?= htmlspecialchars($tipo['nome'] . ' (' . $tipo['codigo'] . ')') ?>
                     </option>
                 <?php endforeach; ?>
