@@ -1449,6 +1449,20 @@ if (!empty($selectedProject)) {
                 </select>
             </div>
 
+            <!-- Checklist (criação): itens em memória, persistidos junto com o save -->
+            <div class="form-group task-create-checklist-section" id="task-form-create-checklist" style="display: none;">
+                <label>Checklist</label>
+                <div class="task-details-checklist-wrapper" style="max-height: 120px; overflow-y: auto; margin-bottom: 8px;">
+                    <div id="task-create-checklist-items"></div>
+                </div>
+                <div class="task-details-checklist-add" style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="task-create-checklist-input" placeholder="Adicionar item..." 
+                           style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();addCreateChecklistItem();}">
+                    <button type="button" onclick="addCreateChecklistItem()" class="btn btn-primary btn-small">Adicionar</button>
+                </div>
+            </div>
+
             <div id="task-form-quick-mode" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
                 <button type="button" class="btn btn-secondary" onclick="expandTaskForm()" style="font-size: 13px; width: 100%;">
                     + Adicionar mais detalhes
@@ -2198,6 +2212,12 @@ if (!empty($selectedProject)) {
         document.getElementById('taskFormId').value = '';
         document.getElementById('task_project_id').value = '<?= $selectedProjectId ?? '' ?>';
         
+        // Limpa checklist de criação
+        const createChecklist = document.getElementById('task-create-checklist-items');
+        if (createChecklist) createChecklist.innerHTML = '';
+        const createInput = document.getElementById('task-create-checklist-input');
+        if (createInput) createInput.value = '';
+        
         // Pré-preenche data de início com hoje (formato YYYY-MM-DD)
         const today = new Date();
         const year = today.getFullYear();
@@ -2221,6 +2241,8 @@ if (!empty($selectedProject)) {
         document.getElementById('task_assignee').closest('.form-group').style.display = 'none';
         document.getElementById('task_start_date').closest('.form-group').style.display = 'none';
         document.getElementById('task_due_date').closest('.form-group').style.display = 'none';
+        const createChecklistEl = document.getElementById('task-form-create-checklist');
+        if (createChecklistEl) createChecklistEl.style.display = 'none';
         
         // Mostra botão de expandir
         document.getElementById('task-form-quick-mode').style.display = 'block';
@@ -2235,6 +2257,7 @@ if (!empty($selectedProject)) {
         document.getElementById('task_assignee').closest('.form-group').style.display = 'block';
         document.getElementById('task_start_date').closest('.form-group').style.display = 'block';
         document.getElementById('task_due_date').closest('.form-group').style.display = 'block';
+        document.getElementById('task-form-create-checklist').style.display = 'block';
         
         // Esconde botão de expandir, mostra ações completas
         document.getElementById('task-form-quick-mode').style.display = 'none';
@@ -3345,8 +3368,8 @@ if (!empty($selectedProject)) {
             // Atualiza o card no Kanban
             updateTaskCard(data.task);
             
-            // Volta para modo visualização com dados atualizados do backend
-            renderTaskDetailModal(window.currentTaskData, window.currentTaskId, false);
+            // Mantém em modo edição com dados atualizados (checklist incluído) — sem exigir reabrir
+            renderTaskDetailModal(window.currentTaskData, window.currentTaskId, true);
         })
         .catch(error => {
             console.error('Erro:', error);
@@ -3621,6 +3644,33 @@ if (!empty($selectedProject)) {
                 }
             }
         }
+    }
+
+    function addCreateChecklistItem() {
+        const input = document.getElementById('task-create-checklist-input');
+        const container = document.getElementById('task-create-checklist-items');
+        if (!input || !container) return;
+        const label = input.value.trim();
+        if (!label) return;
+        const id = 'tmp-' + Date.now();
+        const div = document.createElement('div');
+        div.className = 'checklist-item';
+        div.dataset.tempId = id;
+        div.dataset.label = label;
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.gap = '8px';
+        div.style.marginBottom = '6px';
+        const safeLabel = String(label).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        div.innerHTML = '<span style="color: #999; cursor: default;">☰</span>' +
+            '<input type="text" value="' + safeLabel + '" readonly style="flex: 1; border: none; background: transparent; font-size: 14px;" data-label>' +
+            '<button type="button" onclick="removeCreateChecklistItem(this)" class="btn btn-danger btn-small" style="padding: 4px 8px; font-size: 12px;">Excluir</button>';
+        container.appendChild(div);
+        input.value = '';
+    }
+    function removeCreateChecklistItem(btn) {
+        const item = btn.closest('.checklist-item');
+        if (item) item.remove();
     }
 
     function renderChecklistItem(item) {
@@ -4314,6 +4364,17 @@ if (!empty($selectedProject)) {
             
             const formData = new FormData(this);
             const isEdit = formData.get('id');
+            
+            // Checklist na criação: coleta itens e envia junto
+            if (!isEdit) {
+                const createItems = document.querySelectorAll('#task-create-checklist-items .checklist-item');
+                createItems.forEach(function(item) {
+                    const input = item.querySelector('input[data-label]');
+                    const label = input ? input.value.trim() : (item.dataset.label || '').trim();
+                    if (label) formData.append('checklist_items[]', label);
+                });
+            }
+            
             const url = isEdit ? '<?= pixelhub_url('/tasks/update') ?>' : '<?= pixelhub_url('/tasks/store') ?>';
             
             fetch(url, {

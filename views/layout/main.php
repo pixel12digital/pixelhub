@@ -2749,10 +2749,13 @@
             }
             
             try {
-                await sendInboxAudio(blobToSend);
+                const sendResult = await sendInboxAudio(blobToSend);
                 if (optimisticEl) {
                     const timeEl = optimisticEl.querySelector('.msg-time');
                     if (timeEl) timeEl.textContent = 'agora';
+                    if (sendResult && sendResult.event_id) {
+                        optimisticEl.setAttribute('data-msg-id', sendResult.event_id);
+                    }
                 }
             } catch (err) {
                 if (optimisticEl && optimisticEl.parentNode) optimisticEl.remove();
@@ -2824,7 +2827,9 @@
                 
                 if (result.success) {
                     console.log('[Inbox] Áudio enviado com sucesso');
-                    // Optimistic UI: não recarrega a conversa; a mensagem otimista já está na tela
+                    if (optimisticEl && result.event_id) {
+                        optimisticEl.setAttribute('data-msg-id', result.event_id);
+                    }
                 } else {
                     throw new Error(result.error || 'Erro ao enviar áudio');
                 }
@@ -3946,9 +3951,11 @@
         }
         
         // Busca novas mensagens e adiciona à conversa
+        let __fetchInboxNewMessagesInProgress = false;
         async function fetchInboxNewMessages() {
             if (!InboxState.currentThreadId || !InboxState.lastMessageTs) return;
-            
+            if (__fetchInboxNewMessagesInProgress) return;
+            __fetchInboxNewMessagesInProgress = true;
             try {
                 const params = new URLSearchParams({
                     thread_id: InboxState.currentThreadId,
@@ -3970,11 +3977,13 @@
                     const lastMsg = result.messages[result.messages.length - 1];
                     if (lastMsg) {
                         InboxState.lastMessageTs = lastMsg.timestamp || lastMsg.created_at;
-                        InboxState.lastMessageId = lastMsg.id || lastMsg.event_id;
+                        InboxState.lastMessageId = lastMsg.id || lastMsg.event_id || (lastMsg.media && lastMsg.media.event_id);
                     }
                 }
             } catch (error) {
                 console.error('[Inbox] Erro ao buscar novas mensagens:', error);
+            } finally {
+                __fetchInboxNewMessagesInProgress = false;
             }
         }
         
@@ -3988,9 +3997,19 @@
                 container.querySelectorAll('[data-inbox-optimistic="1"]').forEach(el => el.remove());
             }
             messages.forEach(msg => {
-                const msgId = (msg.id || msg.event_id || '').toString();
+                const media = msg.media;
+                const mediaType = media && (media.media_type || media.type) ? (media.media_type || media.type).toLowerCase() : '';
+                const isOutgoingAudio = msg.direction === 'outbound' && (mediaType === 'audio' || mediaType === 'ptt' || mediaType === 'voice');
+                const msgId = (msg.id || msg.event_id || (media && media.event_id) || '').toString();
                 if (msgId && Array.from(container.querySelectorAll('.msg[data-msg-id]')).some(el => el.getAttribute('data-msg-id') === msgId)) return;
-                const dedupeKey = !msgId ? (msg.direction + '|' + (msg.content || '').slice(0, 100) + '|' + (msg.timestamp || msg.created_at || '')) : null;
+                let dedupeKey = null;
+                if (!msgId) {
+                    if (isOutgoingAudio && media && media.url) {
+                        dedupeKey = 'outbound|audio|' + (media.url || '').slice(-120) + '|' + (msg.timestamp || msg.created_at || '').toString().slice(0, 19);
+                    } else {
+                        dedupeKey = (msg.direction || '') + '|' + (msg.content || '').slice(0, 100) + '|' + (msg.timestamp || msg.created_at || '');
+                    }
+                }
                 if (dedupeKey && Array.from(container.querySelectorAll('.msg[data-dedupe-key]')).some(el => el.getAttribute('data-dedupe-key') === dedupeKey)) return;
                 const direction = msg.direction === 'outbound' ? 'outbound' : 'inbound';
                 const time = msg.timestamp || msg.created_at || '';
@@ -3999,7 +4018,6 @@
                 let content = msg.content || msg.body || msg.text || '';
                 let renderedContent = '';
                 
-                const media = msg.media;
                 if (media && media.url) {
                     const mediaType = (media.media_type || media.type || '').toLowerCase();
                     const safeUrl = escapeInboxHtml(media.url);

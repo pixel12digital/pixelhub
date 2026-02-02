@@ -241,6 +241,9 @@ class TaskBoardController extends Controller
                 }
             }
             
+            // Busca checklist para incluir na resposta (evita perda ao re-renderizar modal)
+            $checklist = \PixelHub\Services\TaskChecklistService::getItemsByTask($id);
+            
             // Retorna tarefa atualizada com todos os campos necessários, incluindo description
             // IMPORTANTE: description é incluído explicitamente para garantir que o frontend receba o valor atualizado
             $response = [
@@ -264,6 +267,7 @@ class TaskBoardController extends Controller
                     'completion_note' => $task['completion_note'] ?? null,
                     'project_name' => $task['project_name'] ?? '',
                     'tenant_name' => $task['tenant_name'] ?? '',
+                    'checklist' => $checklist,
                 ]
             ];
             

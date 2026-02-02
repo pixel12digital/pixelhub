@@ -403,6 +403,22 @@ class TaskService
         
         $taskId = (int) $db->lastInsertId();
         
+        // Checklist: itens enviados junto com a criação (checklist_items[] ou checklist_items)
+        $checklistItems = $data['checklist_items'] ?? [];
+        if (is_string($checklistItems)) {
+            $checklistItems = $checklistItems ? [$checklistItems] : [];
+        }
+        foreach ($checklistItems as $label) {
+            $label = is_array($label) ? trim($label['label'] ?? $label['name'] ?? '') : trim((string) $label);
+            if (!empty($label) && strlen($label) <= 255) {
+                try {
+                    TaskChecklistService::addItem($taskId, $label);
+                } catch (\Exception $e) {
+                    error_log("Erro ao adicionar item ao checklist na criação: " . $e->getMessage());
+                }
+            }
+        }
+        
         // REMOVIDO: Vínculo automático com Agenda
         // Agora as tarefas só são vinculadas manualmente via:
         // - Botão "Agendar na Agenda" no modal da tarefa

@@ -26,6 +26,7 @@
 - Inclusão de `data-msg-id` em cada `.msg` (em `renderInboxMessages` e `appendInboxMessages`).
 - Antes de inserir, checagem se já existe `.msg[data-msg-id="X"]` no container; em caso positivo, a mensagem é ignorada.
 - Fallback para mensagens sem `id`: chave composta `direction|content|timestamp` em `data-dedupe-key`.
+- **Áudio (02/2026):** `msgId` passa a incluir `msg.media?.event_id`. Para outgoing audio sem id, dedupe por `outbound|audio|media.url|timestamp`. Guard contra `fetchInboxNewMessages` concorrente. Optimistic recebe `data-msg-id` do `event_id` retornado pelo send.
 
 ---
 
