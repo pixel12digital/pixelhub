@@ -426,6 +426,12 @@
             font-size: 11px;
             color: #6b7280;
         }
+        /* Zona de respiro à direita: conteúdo nunca entra na área do menu ⋮ */
+        .inbox-drawer-conversation .conv-content {
+            flex: 1;
+            min-width: 0;
+            padding-right: 40px;
+        }
         .inbox-drawer-conversation .conv-preview {
             font-size: 13px;
             color: #6b7280;
@@ -3071,7 +3077,7 @@
                          data-channel="${escapeInboxHtml(channel)}"
                          onclick="loadInboxConversation('${threadId}', '${channel}')">
                         <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
-                            <div style="flex: 1; min-width: 0;">
+                            <div class="conv-content">
                                 <div class="conv-name">
                                     <span>${contactName}</span>
                                     <span class="conv-time">${time}${unreadBadge}</span>
