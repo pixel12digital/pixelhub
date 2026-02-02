@@ -257,13 +257,13 @@
         .inbox-drawer.inbox--minimized .inbox-chevron-handle {
             display: flex;
         }
-        /* Handle da seta - ancorado na borda externa direita do painel, fora da lista de conversas */
+        /* Handle da seta - ancorado na borda esquerda do Inbox, offset para fora (gutter), sem ocupar largura da lista */
         .inbox-chevron-handle {
             display: none;
             position: absolute;
-            right: 0;
+            left: 0;
             top: 50%;
-            transform: translateY(-50%);
+            transform: translate(-100%, -50%);
             width: 28px;
             min-width: 28px;
             height: 72px;
@@ -273,7 +273,7 @@
             color: white;
             cursor: pointer;
             border: none;
-            border-radius: 6px 0 0 6px;
+            border-radius: 0 6px 6px 0;
             z-index: 10;
             transition: background 0.2s ease;
         }
@@ -284,8 +284,7 @@
             display: flex;
         }
         .inbox-drawer.inbox--minimized .inbox-chevron-handle {
-            right: auto;
-            left: 0;
+            transform: translateY(-50%);
         }
         .inbox-chevron-handle svg {
             width: 18px;
@@ -293,6 +292,15 @@
         }
         .inbox-drawer.open:not(.inbox--minimized) .inbox-chevron-icon {
             transform: rotate(180deg);
+        }
+        /* Gutter: reserva espaço quando Inbox minimizado para não sobrepor ícones/conteúdo */
+        body.inbox-minimized .container,
+        body.inbox-minimized .header {
+            margin-right: 40px;
+            transition: margin-right 0.3s ease;
+        }
+        .container, .header {
+            transition: margin-right 0.3s ease;
         }
         .inbox-drawer-header {
             display: flex;
@@ -2620,6 +2628,7 @@
             drawer.classList.remove('open');
             drawer.classList.remove('inbox--minimized');
             overlay.classList.remove('open');
+            document.body.classList.remove('inbox-minimized');
             InboxState.isOpen = false;
             
             // Para polling
@@ -2636,9 +2645,11 @@
             const isMinimized = drawer.classList.toggle('inbox--minimized');
             if (isMinimized) {
                 overlay.classList.remove('open');
+                document.body.classList.add('inbox-minimized');
                 if (handle) handle.setAttribute('title', 'Expandir');
             } else {
                 overlay.classList.add('open');
+                document.body.classList.remove('inbox-minimized');
                 if (handle) handle.setAttribute('title', 'Minimizar');
             }
         };
