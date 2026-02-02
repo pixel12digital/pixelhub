@@ -130,6 +130,50 @@ $taskSummary = $taskSummary ?? ['total' => 0, 'backlog' => 0, 'em_andamento' => 
     }
     .task-summary-item.overdue .number { color: #dc2626; }
     .task-summary-item .label { font-size: 11px; color: #6b7280; margin-top: 4px; }
+    .task-summary-actions a {
+        display: inline-block;
+        padding: 8px 14px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.15s;
+    }
+    .task-summary-actions a.btn-primary-action {
+        border: 1px solid #3b82f6;
+        color: #2563eb;
+        background: transparent;
+    }
+    .task-summary-actions a.btn-primary-action:hover {
+        background: #eff6ff;
+        border-color: #2563eb;
+    }
+    .task-summary-actions a.btn-overdue {
+        border: 1px solid #fecaca;
+        color: #dc2626;
+        background: #fef2f2;
+    }
+    .task-summary-actions a.btn-overdue:hover {
+        background: #fee2e2;
+        border-color: #f87171;
+    }
+    .description-toggle {
+        cursor: pointer;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 0;
+    }
+    .description-toggle:hover { opacity: 0.9; }
+    .description-toggle .chevron {
+        transition: transform 0.2s;
+        font-size: 14px;
+        color: #6b7280;
+    }
+    .description-toggle.expanded .chevron { transform: rotate(180deg); }
+    .description-collapsible { display: none; margin-top: 12px; }
+    .description-collapsible.expanded { display: block; }
 </style>
 
 <?php if (isset($_GET['success'])): ?>
@@ -237,27 +281,43 @@ $taskSummary = $taskSummary ?? ['total' => 0, 'backlog' => 0, 'em_andamento' => 
                 <span class="label">Concluídas</span>
             </div>
         </div>
-        <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
-            <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id']) ?>" class="btn-primary-action" style="display: inline-block;">
+        <div class="task-summary-actions" style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id']) ?>" class="btn-primary-action">
                 Ver Quadro Kanban
             </a>
             <?php if ($taskSummary['overdue'] > 0): ?>
-            <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id']) ?>" 
-               style="border: 1px solid #fecaca; color: #dc2626; background: #fef2f2; padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; text-decoration: none;">
+            <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id']) ?>" class="btn-overdue">
                 Ver <?= $taskSummary['overdue'] ?> tarefa<?= $taskSummary['overdue'] > 1 ? 's' : '' ?> atrasada<?= $taskSummary['overdue'] > 1 ? 's' : '' ?>
             </a>
             <?php endif; ?>
         </div>
     </div>
 
-    <!-- Descrição / Notas Técnicas -->
+    <!-- Descrição / Notas Técnicas (colapsado por padrão) -->
     <?php if (!empty($project['description'])): ?>
     <div class="info-section">
-        <h3>Descrição / Notas Técnicas</h3>
-        <div class="description-content">
+        <div class="description-toggle" id="descriptionToggle" onclick="toggleDescription()" role="button" tabindex="0" aria-expanded="false">
+            <h3 style="margin: 0;">Descrição / Notas Técnicas</h3>
+            <span class="chevron" aria-hidden="true">▼</span>
+        </div>
+        <div class="description-collapsible" id="descriptionContent">
+            <div class="description-content">
 <?= htmlspecialchars($project['description']) ?>
+            </div>
         </div>
     </div>
+    <script>
+    function toggleDescription() {
+        var content = document.getElementById('descriptionContent');
+        var toggle = document.getElementById('descriptionToggle');
+        content.classList.toggle('expanded');
+        toggle.classList.toggle('expanded');
+        toggle.setAttribute('aria-expanded', content.classList.contains('expanded'));
+    }
+    document.getElementById('descriptionToggle').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleDescription(); }
+    });
+    </script>
     <?php endif; ?>
 
     <!-- Ações Rápidas -->
