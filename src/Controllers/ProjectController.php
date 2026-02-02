@@ -201,11 +201,11 @@ class ProjectController extends Controller
             return;
         }
 
-        // Busca acessos relacionados (se houver link com owner_shortcuts no futuro)
-        $db = DB::getConnection();
+        $taskSummary = \PixelHub\Services\TaskService::getProjectSummary($id);
         
         $this->view('projects.show', [
             'project' => $project,
+            'taskSummary' => $taskSummary,
         ]);
     }
 

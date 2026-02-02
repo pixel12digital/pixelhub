@@ -1,18 +1,19 @@
 <?php
 ob_start();
+$taskSummary = $taskSummary ?? ['total' => 0, 'backlog' => 0, 'em_andamento' => 0, 'aguardando_cliente' => 0, 'concluida' => 0, 'overdue' => 0];
 ?>
 
 <style>
     .info-section {
         background: #f8f9fa;
-        border-left: 4px solid #023A8D;
+        border-left: 4px solid #9ca3af;
         padding: 20px;
         margin-bottom: 20px;
         border-radius: 4px;
     }
     .info-section h3 {
         margin-top: 0;
-        color: #023A8D;
+        color: #4b5563;
         font-size: 18px;
         display: flex;
         align-items: center;
@@ -59,27 +60,76 @@ ob_start();
         font-weight: 600;
     }
     .badge-interno {
-        background: #666;
+        background: #6b7280;
         color: white;
     }
     .badge-cliente {
-        background: #023A8D;
+        background: #4b5563;
         color: white;
     }
     .badge-ativo {
-        background: #28a745;
+        background: #059669;
         color: white;
     }
     .badge-arquivado {
-        background: #6c757d;
+        background: #9ca3af;
         color: white;
     }
     .action-buttons {
         display: flex;
-        gap: 10px;
+        gap: 8px;
         margin-top: 20px;
         flex-wrap: wrap;
     }
+    .action-buttons a,
+    .action-buttons button {
+        padding: 8px 14px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        text-decoration: none;
+        border: 1px solid #d1d5db;
+        background: #f9fafb;
+        color: #4b5563;
+        transition: all 0.15s;
+        cursor: pointer;
+    }
+    .action-buttons a:hover,
+    .action-buttons button:hover {
+        background: #f3f4f6;
+        border-color: #9ca3af;
+        color: #374151;
+    }
+    .action-buttons .btn-primary-action {
+        border-color: #3b82f6;
+        color: #2563eb;
+        background: transparent;
+    }
+    .action-buttons .btn-primary-action:hover {
+        background: #eff6ff;
+        border-color: #2563eb;
+    }
+    .task-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+    }
+    .task-summary-item {
+        background: white;
+        padding: 12px;
+        border-radius: 6px;
+        text-align: center;
+        border: 1px solid #e5e7eb;
+    }
+    .task-summary-item .number {
+        font-size: 20px;
+        font-weight: 600;
+        color: #374151;
+        display: block;
+    }
+    .task-summary-item.overdue .number { color: #dc2626; }
+    .task-summary-item .label { font-size: 11px; color: #6b7280; margin-top: 4px; }
 </style>
 
 <?php if (isset($_GET['success'])): ?>
@@ -103,7 +153,7 @@ ob_start();
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #ddd;">
         <div>
-            <h2 style="margin: 0; color: #023A8D;">
+            <h2 style="margin: 0; color: #374151;">
                 <?= htmlspecialchars($project['name']) ?>
             </h2>
             <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
@@ -123,26 +173,22 @@ ob_start();
                 
                 <?php if (!empty($project['base_url'])): ?>
                     <a href="<?= htmlspecialchars($project['base_url']) ?>" target="_blank" 
-                       style="background: #023A8D; color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; text-decoration: none;">
-                        🔗 Acessar Projeto
+                       style="border: 1px solid #d1d5db; background: #f9fafb; color: #4b5563; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; text-decoration: none;">
+                        Acessar Projeto
                     </a>
                 <?php endif; ?>
             </div>
         </div>
         <a href="<?= pixelhub_url('/projects') ?>" 
-           style="background: #6c757d; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600;">
-            ← Voltar
+           style="border: 1px solid #d1d5db; background: #f9fafb; color: #4b5563; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 13px;">
+            Voltar
         </a>
     </div>
 
     <!-- Informações Básicas -->
     <div class="info-section">
-        <h3>📊 Informações Básicas</h3>
+        <h3>Informações Básicas</h3>
         <div class="info-grid">
-            <div class="info-item">
-                <strong>Slug</strong>
-                <span><?= htmlspecialchars($project['slug'] ?? '-') ?></span>
-            </div>
             <div class="info-item">
                 <strong>Prioridade</strong>
                 <span>
@@ -170,10 +216,44 @@ ob_start();
         </div>
     </div>
 
+    <!-- Tarefas do Projeto -->
+    <div class="info-section">
+        <h3>Tarefas do Projeto</h3>
+        <div class="task-summary-grid">
+            <div class="task-summary-item">
+                <span class="number"><?= $taskSummary['total'] ?></span>
+                <span class="label">Total</span>
+            </div>
+            <div class="task-summary-item">
+                <span class="number"><?= $taskSummary['em_andamento'] ?></span>
+                <span class="label">Em andamento</span>
+            </div>
+            <div class="task-summary-item <?= $taskSummary['overdue'] > 0 ? 'overdue' : '' ?>">
+                <span class="number"><?= $taskSummary['overdue'] ?></span>
+                <span class="label">Atrasadas</span>
+            </div>
+            <div class="task-summary-item">
+                <span class="number"><?= $taskSummary['concluida'] ?></span>
+                <span class="label">Concluídas</span>
+            </div>
+        </div>
+        <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id']) ?>" class="btn-primary-action" style="display: inline-block;">
+                Ver Quadro Kanban
+            </a>
+            <?php if ($taskSummary['overdue'] > 0): ?>
+            <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id']) ?>" 
+               style="border: 1px solid #fecaca; color: #dc2626; background: #fef2f2; padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; text-decoration: none;">
+                Ver <?= $taskSummary['overdue'] ?> tarefa<?= $taskSummary['overdue'] > 1 ? 's' : '' ?> atrasada<?= $taskSummary['overdue'] > 1 ? 's' : '' ?>
+            </a>
+            <?php endif; ?>
+        </div>
+    </div>
+
     <!-- Descrição / Notas Técnicas -->
     <?php if (!empty($project['description'])): ?>
     <div class="info-section">
-        <h3>📝 Descrição / Notas Técnicas</h3>
+        <h3>Descrição / Notas Técnicas</h3>
         <div class="description-content">
 <?= htmlspecialchars($project['description']) ?>
         </div>
@@ -182,19 +262,11 @@ ob_start();
 
     <!-- Ações Rápidas -->
     <div class="action-buttons">
-        <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id'] . '&create_task=1') ?>" 
-           class="btn btn-primary"
-           style="background: #28a745; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600;">
+        <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id'] . '&create_task=1') ?>" class="btn-primary-action">
             + Nova tarefa
         </a>
-        <a href="<?= pixelhub_url('/projects/board?project_id=' . $project['id']) ?>" 
-           class="btn btn-primary"
-           style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600;">
-            📋 Ver Quadro Kanban
-        </a>
-        <a href="<?= pixelhub_url('/projects?type=' . ($project['type'] ?? 'interno')) ?>" 
-           style="background: #6c757d; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600;">
-            📂 Ver Todos os Projetos
+        <a href="<?= pixelhub_url('/projects?type=' . ($project['type'] ?? 'interno')) ?>">
+            Ver Todos os Projetos
         </a>
         <?php if (($project['status'] ?? 'ativo') === 'ativo'): ?>
         <form method="POST" action="<?= pixelhub_url('/projects/archive') ?>" style="display: inline;"
@@ -202,33 +274,19 @@ ob_start();
             <input type="hidden" name="id" value="<?= (int) $project['id'] ?>">
             <input type="hidden" name="action" value="archive">
             <input type="hidden" name="redirect_to_show" value="1">
-            <button type="submit" style="background: #6c757d; color: white; padding: 10px 20px; border-radius: 4px; border: none; font-weight: 600; cursor: pointer;">
-                ✓ Concluir e Arquivar
-            </button>
+            <button type="submit">Concluir e Arquivar</button>
         </form>
         <?php else: ?>
         <form method="POST" action="<?= pixelhub_url('/projects/archive') ?>" style="display: inline;">
             <input type="hidden" name="id" value="<?= (int) $project['id'] ?>">
             <input type="hidden" name="action" value="unarchive">
             <input type="hidden" name="redirect_to_show" value="1">
-            <button type="submit" style="background: #28a745; color: white; padding: 10px 20px; border-radius: 4px; border: none; font-weight: 600; cursor: pointer;">
-                ↩ Desarquivar
-            </button>
+            <button type="submit">Desarquivar</button>
         </form>
         <?php endif; ?>
-        <a href="<?= pixelhub_url('/owner/shortcuts') ?>" 
-           style="background: #28a745; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600;">
-            🔐 Ver Credenciais (Acessos Rápidos)
+        <a href="<?= pixelhub_url('/owner/shortcuts') ?>">
+            Ver Credenciais (Acessos Rápidos)
         </a>
-    </div>
-
-    <!-- Aviso sobre Credenciais -->
-    <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin-top: 20px; border-radius: 4px;">
-        <strong style="color: #856404;">💡 Dica:</strong>
-        <p style="margin: 5px 0 0 0; color: #856404;">
-            Para consultar credenciais (banco de dados, servidores, etc.), acesse <strong>"Minha Infraestrutura"</strong> no menu lateral.
-            As credenciais são armazenadas de forma criptografada e segura.
-        </p>
     </div>
 </div>
 
@@ -236,4 +294,3 @@ ob_start();
 $content = ob_get_clean();
 require __DIR__ . '/../layout/main.php';
 ?>
-

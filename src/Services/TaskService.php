@@ -763,13 +763,41 @@ class TaskService
         
         $result = $stmt->fetch();
         
-        return [
+        $summary = [
             'total' => (int) ($result['total'] ?? 0),
             'backlog' => (int) ($result['backlog'] ?? 0),
             'em_andamento' => (int) ($result['em_andamento'] ?? 0),
             'aguardando_cliente' => (int) ($result['aguardando_cliente'] ?? 0),
             'concluida' => (int) ($result['concluida'] ?? 0),
         ];
+
+        // Contagem de tarefas atrasadas (due_date < hoje, status != concluida)
+        $today = date('Y-m-d');
+        try {
+            $stmtOverdue = $db->prepare("
+                SELECT COUNT(*) as overdue
+                FROM tasks
+                WHERE project_id = ? AND deleted_at IS NULL
+                  AND status != 'concluida'
+                  AND due_date IS NOT NULL
+                  AND due_date < ?
+            ");
+            $stmtOverdue->execute([$projectId, $today]);
+            $summary['overdue'] = (int) ($stmtOverdue->fetch()['overdue'] ?? 0);
+        } catch (\PDOException $e) {
+            $stmtOverdue = $db->prepare("
+                SELECT COUNT(*) as overdue
+                FROM tasks
+                WHERE project_id = ? AND (deleted_at IS NULL OR deleted_at = '')
+                  AND status != 'concluida'
+                  AND due_date IS NOT NULL
+                  AND due_date < ?
+            ");
+            $stmtOverdue->execute([$projectId, $today]);
+            $summary['overdue'] = (int) ($stmtOverdue->fetch()['overdue'] ?? 0);
+        }
+
+        return $summary;
     }
 
     /**
