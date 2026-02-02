@@ -41,14 +41,13 @@ $isEdit = !empty($type);
         </div>
 
         <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px;">Cor (hex)</label>
-            <input type="text" name="cor_hex" 
-                   value="<?= htmlspecialchars($type['cor_hex'] ?? '') ?>"
-                   placeholder="Ex: #4CAF50"
-                   style="width: 100%; max-width: 140px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
-            <?php if (!empty($type['cor_hex'])): ?>
-                <span style="display: inline-block; width: 24px; height: 24px; border-radius: 4px; background: <?= htmlspecialchars($type['cor_hex']) ?>; border: 1px solid #e5e7eb; margin-left: 8px; vertical-align: middle;"></span>
-            <?php endif; ?>
+            <label style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px;">Cor</label>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <input type="color" name="cor_hex" id="cor_hex"
+                       value="<?= htmlspecialchars(!empty($type['cor_hex']) ? $type['cor_hex'] : '#6b7280') ?>"
+                       style="width: 48px; height: 40px; padding: 2px; border: 1px solid #e5e7eb; border-radius: 6px; cursor: pointer;">
+                <span style="font-size: 13px; color: #6b7280;">Clique no quadrado para abrir o seletor de cor</span>
+            </div>
         </div>
 
         <div style="margin-bottom: 20px;">
