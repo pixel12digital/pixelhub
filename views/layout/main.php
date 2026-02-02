@@ -278,6 +278,7 @@
             display: flex;
             flex: 1;
             overflow: hidden;
+            min-height: 0;
         }
         .inbox-drawer-list {
             width: 280px;
@@ -355,6 +356,7 @@
         }
         .inbox-drawer-chat {
             flex: 1;
+            min-height: 0;
             display: flex;
             flex-direction: column;
             background: #f0f2f5;
@@ -423,17 +425,22 @@
             background: white;
             border-top: 1px solid #e5e7eb;
             display: flex;
+            align-items: flex-end;
             gap: 12px;
         }
-        .inbox-drawer-input input {
+        .inbox-drawer-input textarea {
             flex: 1;
             padding: 12px 16px;
             border: 1px solid #d1d5db;
             border-radius: 24px;
             font-size: 14px;
             outline: none;
+            resize: none;
+            min-height: 44px;
+            max-height: 120px;
+            overflow-y: auto;
         }
-        .inbox-drawer-input input:focus {
+        .inbox-drawer-input textarea:focus {
             border-color: #023A8D;
         }
         .inbox-drawer-input button {
@@ -1661,7 +1668,7 @@
                             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
                         </svg>
                     </button>
-                    <input type="text" id="inboxMessageInput" placeholder="Digite sua mensagem..." onkeypress="handleInboxInputKeypress(event)" oninput="updateInboxSendMicVisibility()">
+                    <textarea id="inboxMessageInput" rows="1" placeholder="Digite sua mensagem..." autocomplete="off" onkeydown="handleInboxInputKeypress(event)" oninput="autoResizeInboxTextarea(this); updateInboxSendMicVisibility()"></textarea>
                     <button type="button" class="inbox-media-btn" id="inboxBtnMic" onclick="startInboxRecording()" title="Gravar áudio">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
@@ -2280,6 +2287,14 @@
             });
         }
         
+        // ===== AUTO-RESIZE TEXTAREA (igual ao Painel de Comunicação) =====
+        window.autoResizeInboxTextarea = function(textarea) {
+            if (!textarea) return;
+            textarea.style.height = 'auto';
+            const newHeight = Math.min(textarea.scrollHeight, 120);
+            textarea.style.height = newHeight + 'px';
+        };
+        
         // ===== VISIBILIDADE SEND/MIC =====
         window.updateInboxSendMicVisibility = function() {
             const input = document.getElementById('inboxMessageInput');
@@ -2446,7 +2461,10 @@
             const header = document.getElementById('inboxChatHeader');
             
             if (placeholder) placeholder.style.display = 'none';
-            if (chat) chat.style.display = 'flex';
+            if (chat) {
+                chat.style.display = 'flex';
+                requestAnimationFrame(() => { chat.offsetHeight; });
+            }
             if (messages) messages.innerHTML = '<div class="inbox-drawer-loading">Carregando...</div>';
             
             // Mobile: abre painel de chat
@@ -2584,7 +2602,11 @@
         
         // ===== ENVIAR MENSAGEM =====
         window.handleInboxInputKeypress = function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter') {
+                if (e.shiftKey) {
+                    // Shift+Enter: quebra linha (comportamento padrão do textarea)
+                    return;
+                }
                 e.preventDefault();
                 sendInboxMessage();
             }
@@ -2599,8 +2621,11 @@
             
             if (!message && !hasMedia) return;
             
-            // Limpa input imediatamente
-            if (input) input.value = '';
+            // Limpa input imediatamente e reseta altura do textarea
+            if (input) {
+                input.value = '';
+                if (typeof autoResizeInboxTextarea === 'function') autoResizeInboxTextarea(input);
+            }
             
             // Optimistic UI: adiciona mensagem na tela antes do envio
             const container = document.getElementById('inboxMessages');
