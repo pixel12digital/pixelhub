@@ -83,9 +83,12 @@ class AgendaService
                 return 0; // Retorna 0 blocos criados, mas sem erro
             } else {
                 // Dia útil sem template = erro de configuração
+                $nomesDia = [1 => 'Segunda', 2 => 'Terça', 3 => 'Quarta', 4 => 'Quinta', 5 => 'Sexta', 6 => 'Sábado', 7 => 'Domingo'];
+                $nomeDia = $nomesDia[$diaSemana] ?? 'dia ' . $diaSemana;
                 throw new \RuntimeException(
-                    'Não há um modelo de agenda configurado para este dia da semana. ' .
-                    'Ajuste os modelos em Configurações → Agenda → Modelos de Blocos.'
+                    'Não há modelo de agenda para ' . $nomeDia . '-feira (' . $data->format('d/m/Y') . '). ' .
+                    'Os modelos são por dia da semana (Segunda, Terça, etc.), não por data. ' .
+                    'Crie um modelo para ' . $nomeDia . ' em Configurações → Agenda → Modelos de Blocos.'
                 );
             }
         }
