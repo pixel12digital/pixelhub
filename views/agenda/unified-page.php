@@ -83,6 +83,8 @@ $baseUrl = pixelhub_url('/agenda');
 .agenda-list-table .block-expand-btn { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; color: #475569; font-size: 14px; font-weight: 600; background: #f1f5f9; transition: all 0.15s; }
 .agenda-list-table .block-expand-btn:hover { background: #e2e8f0; color: #1e293b; border-color: #94a3b8; }
 .agenda-list-table .block-expand-btn.expanded { background: #023A8D; color: white; border-color: #023A8D; }
+.agenda-list-table .block-expand-btn.is-disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+.agenda-list-table .block-expand-btn.is-disabled:hover { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
 .block-linked-tasks { list-style: none; padding: 0; margin: 0; }
 .block-linked-tasks li { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; display: flex; align-items: center; gap: 8px; }
 .block-linked-tasks li:last-child { border-bottom: none; }
@@ -314,10 +316,11 @@ $baseUrl = pixelhub_url('/agenda');
                 $projetoUrl = !empty($bloco['projeto_foco_id']) ? pixelhub_url('/projects/board?project_id=' . (int)$bloco['projeto_foco_id']) : pixelhub_url('/projects');
                 $taskUrl = !empty($bloco['focus_task_id']) && !empty($bloco['focus_task_project_id']) ? pixelhub_url('/projects/board?project_id=' . (int)$bloco['focus_task_project_id'] . '&task_id=' . (int)$bloco['focus_task_id']) : (!empty($bloco['focus_task_id']) && !empty($bloco['projeto_foco_id']) ? pixelhub_url('/projects/board?project_id=' . (int)$bloco['projeto_foco_id'] . '&task_id=' . (int)$bloco['focus_task_id']) : null);
             ?>
-            <tr class="block-row <?= $isCurrent ? 'current' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" data-projeto-foco-id="<?= (int)($bloco['projeto_foco_id'] ?? 0) ?>" data-hora-inicio="<?= htmlspecialchars($horaInicioFmt) ?>" data-hora-fim="<?= htmlspecialchars($horaFimFmt) ?>">
+            <?php $hasSubitems = (int)($bloco['tarefas_count'] ?? 0) > 0 || !empty($bloco['projeto_foco_id']); ?>
+            <tr class="block-row <?= $isCurrent ? 'current' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" data-projeto-foco-id="<?= (int)($bloco['projeto_foco_id'] ?? 0) ?>" data-tarefas-count="<?= (int)($bloco['tarefas_count'] ?? 0) ?>" data-hora-inicio="<?= htmlspecialchars($horaInicioFmt) ?>" data-hora-fim="<?= htmlspecialchars($horaFimFmt) ?>">
                 <td class="col-item" style="border-left: 4px solid <?= $corBorda ?>;">
                     <div class="block-item-cell">
-                        <button type="button" class="block-expand-btn <?= $isExpanded ? 'expanded' : '' ?>" onclick="toggleBlockExpand(<?= (int)$bloco['id'] ?>)" title="<?= $isExpanded ? 'Recolher' : 'Expandir registros' ?>" aria-label="<?= $isExpanded ? 'Recolher' : 'Expandir' ?>">
+                        <button type="button" class="block-expand-btn <?= $isExpanded ? 'expanded' : '' ?> <?= !$hasSubitems ? 'is-disabled' : '' ?>" onclick="toggleBlockExpand(<?= (int)$bloco['id'] ?>)" title="<?= $hasSubitems ? ($isExpanded ? 'Recolher' : 'Expandir registros') : 'Sem itens' ?>" aria-label="<?= $hasSubitems ? ($isExpanded ? 'Recolher' : 'Expandir') : 'Sem itens' ?>" <?= !$hasSubitems ? 'aria-disabled="true"' : '' ?>>
                             <span class="expand-icon"><?= $isExpanded ? '▾' : '▸' ?></span>
                         </button>
                         <div class="block-main">
@@ -486,6 +489,11 @@ function initInlineEditTime() {
 function toggleBlockExpand(blockId) {
     const el = document.getElementById('block-expand-' + blockId);
     if (!el) return;
+    const blockRow = el.previousElementSibling;
+    const tarefasCount = blockRow && blockRow.dataset.tarefasCount ? parseInt(blockRow.dataset.tarefasCount, 10) : 0;
+    const projectId = blockRow && blockRow.dataset.projetoFocoId ? parseInt(blockRow.dataset.projetoFocoId, 10) : 0;
+    const hasSubitems = tarefasCount > 0 || projectId > 0;
+    if (!hasSubitems) return;
     const isOpen = el.classList.contains('show');
     document.querySelectorAll('.block-expand.show').forEach(e => {
         e.classList.remove('show');

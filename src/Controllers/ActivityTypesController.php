@@ -25,7 +25,7 @@ class ActivityTypesController extends Controller
                 SELECT t.*,
                     (SELECT COUNT(*) FROM agenda_blocks WHERE activity_type_id = t.id) as blocks_count
                 FROM activity_types t
-                ORDER BY t.sort_order ASC, t.name ASC
+                ORDER BY t.name ASC
             ");
             $types = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         } catch (\PDOException $e) {
@@ -60,7 +60,6 @@ class ActivityTypesController extends Controller
         Auth::requireInternal();
 
         $name = trim($_POST['name'] ?? '');
-        $sortOrder = isset($_POST['sort_order']) ? (int)$_POST['sort_order'] : 0;
         $ativo = isset($_POST['ativo']) ? 1 : 0;
 
         if (empty($name)) {
@@ -71,10 +70,10 @@ class ActivityTypesController extends Controller
         try {
             $db = DB::getConnection();
             $stmt = $db->prepare("
-                INSERT INTO activity_types (name, ativo, sort_order)
-                VALUES (?, ?, ?)
+                INSERT INTO activity_types (name, ativo)
+                VALUES (?, ?)
             ");
-            $stmt->execute([$name, $ativo, $sortOrder]);
+            $stmt->execute([$name, $ativo]);
             $this->redirect('/settings/activity-types?success=created');
         } catch (\PDOException $e) {
             error_log("Erro ao criar tipo de atividade: " . $e->getMessage());
@@ -124,7 +123,6 @@ class ActivityTypesController extends Controller
         }
 
         $name = trim($_POST['name'] ?? '');
-        $sortOrder = isset($_POST['sort_order']) ? (int)$_POST['sort_order'] : 0;
         $ativo = isset($_POST['ativo']) ? 1 : 0;
 
         if (empty($name)) {
@@ -136,10 +134,10 @@ class ActivityTypesController extends Controller
             $db = DB::getConnection();
             $stmt = $db->prepare("
                 UPDATE activity_types
-                SET name = ?, ativo = ?, sort_order = ?, updated_at = NOW()
+                SET name = ?, ativo = ?, updated_at = NOW()
                 WHERE id = ?
             ");
-            $stmt->execute([$name, $ativo, $sortOrder, $id]);
+            $stmt->execute([$name, $ativo, $id]);
             $this->redirect('/settings/activity-types?success=updated');
         } catch (\PDOException $e) {
             error_log("Erro ao atualizar tipo de atividade: " . $e->getMessage());

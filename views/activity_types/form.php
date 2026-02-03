@@ -31,15 +31,6 @@ $isEdit = !empty($type);
                    style="width: 100%; max-width: 400px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
         </div>
 
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px;">Ordem de exibição</label>
-            <input type="number" name="sort_order" min="0" step="1"
-                   value="<?= (int)($type['sort_order'] ?? 0) ?>"
-                   placeholder="0"
-                   style="width: 100%; max-width: 120px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
-            <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">Menor número aparece primeiro na lista.</small>
-        </div>
-
         <div style="margin-bottom: 24px;">
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                 <input type="checkbox" name="ativo" value="1" <?= ($type['ativo'] ?? 1) ? 'checked' : '' ?>>

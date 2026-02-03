@@ -61,7 +61,6 @@ $types = $types ?? [];
             <thead>
                 <tr style="background: #f9fafb;">
                     <th style="padding: 10px 12px; text-align: left; font-weight: 600; color: #6b7280; font-size: 13px;">Nome</th>
-                    <th style="padding: 10px 12px; text-align: center; font-weight: 600; color: #6b7280; font-size: 13px;">Ordem</th>
                     <th style="padding: 10px 12px; text-align: center; font-weight: 600; color: #6b7280; font-size: 13px;">Status</th>
                     <th style="padding: 10px 12px; text-align: center; font-weight: 600; color: #6b7280; font-size: 13px;">Uso</th>
                     <th style="padding: 10px 12px; text-align: right; font-weight: 600; color: #6b7280; font-size: 13px;">Ações</th>
@@ -72,9 +71,6 @@ $types = $types ?? [];
                     <tr style="border-bottom: 1px solid #f3f4f6; <?= !$t['ativo'] ? 'opacity: 0.7;' : '' ?>">
                         <td style="padding: 10px 12px; font-size: 13px; font-weight: 500;">
                             <?= htmlspecialchars($t['name']) ?>
-                        </td>
-                        <td style="padding: 10px 12px; text-align: center; font-size: 13px; color: #6b7280;">
-                            <?= (int)($t['sort_order'] ?? 0) ?>
                         </td>
                         <td style="padding: 10px 12px; text-align: center;">
                             <?php if ($t['ativo']): ?>

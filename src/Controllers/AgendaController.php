@@ -1603,7 +1603,7 @@ class AgendaController extends Controller
                 SELECT id, name
                 FROM activity_types
                 WHERE ativo = 1
-                ORDER BY sort_order ASC, name ASC
+                ORDER BY name ASC
             ");
             $types = $stmt->fetchAll(\PDO::FETCH_ASSOC);
             $this->json(['success' => true, 'types' => $types]);
