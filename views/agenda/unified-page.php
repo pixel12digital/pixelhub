@@ -66,8 +66,13 @@ $baseUrl = pixelhub_url('/agenda');
 .block-linked-tasks { list-style: none; padding: 0; margin: 0; }
 .block-linked-tasks li { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; display: flex; align-items: center; gap: 8px; }
 .block-linked-tasks li:last-child { border-bottom: none; }
-.block-linked-tasks li a { color: #023A8D; text-decoration: none; }
+.block-linked-tasks li a { color: #023A8D; text-decoration: none; flex: 1; min-width: 0; }
 .block-linked-tasks li a:hover { text-decoration: underline; }
+.block-add-task-btn { flex-shrink: 0; width: 24px; height: 24px; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc; color: #475569; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.block-add-task-btn:hover { background: #e2e8f0; color: #1e293b; }
+.block-add-task-btn:disabled, .block-add-task-btn.disabled { opacity: 0.5; cursor: not-allowed; }
+.block-task-unlink { flex-shrink: 0; width: 24px; height: 24px; border: none; background: none; color: #6b7280; cursor: pointer; padding: 4px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; }
+.block-task-unlink:hover { color: #dc2626; background: #fef2f2; }
 .agenda-list-table .block-actions-cell { display: flex; align-items: center; gap: 4px; }
 .agenda-list-table .btn-icon { background: none; border: none; cursor: pointer; padding: 4px; color: #6b7280; display: inline-flex; align-items: center; justify-content: center; }
 .agenda-list-table .btn-icon:hover { color: #dc2626; }
@@ -258,6 +263,7 @@ $baseUrl = pixelhub_url('/agenda');
                                 <?php if ($taskUrl): ?><a href="<?= $taskUrl ?>" class="block-task-link" onclick="event.stopPropagation()">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></a><?php else: ?><span class="block-task">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></span><?php endif; ?>
                             <?php endif; ?>
                         </div>
+                        <?php if (!empty($bloco['projeto_foco_id'])): ?><span class="block-add-task-btn-wrap" data-block-id="<?= (int)$bloco['id'] ?>"></span><?php endif; ?>
                     </div>
                 </td>
                 <td class="col-tipo"><span style="background: <?= $corBorda ?>; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: white;"><?= htmlspecialchars($bloco['tipo_nome']) ?></span></td>
@@ -272,7 +278,7 @@ $baseUrl = pixelhub_url('/agenda');
                         <form method="post" action="<?= pixelhub_url('/agenda/bloco/delete') ?>" style="display: inline;" onsubmit="return confirm('Excluir este bloco?');">
                             <input type="hidden" name="id" value="<?= (int)$bloco['id'] ?>">
                             <input type="hidden" name="date" value="<?= htmlspecialchars($bloco['data'] ?? $dataStr) ?>">
-                            <button type="submit" class="btn-icon" title="Excluir bloco">
+                            <button type="submit" class="btn-icon" title="Excluir bloco (remove o bloco inteiro)">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                             </button>
                         </form>
@@ -441,6 +447,7 @@ function loadBlockContent(blockId, container) {
     const expandRow = container.closest('tr');
     const blockRow = expandRow && expandRow.previousElementSibling;
     const projectId = blockRow && blockRow.dataset.projetoFocoId ? parseInt(blockRow.dataset.projetoFocoId, 10) : 0;
+    const addBtnWrap = blockRow && blockRow.querySelector('.block-add-task-btn-wrap');
 
     fetch('<?= pixelhub_url('/agenda/bloco/linked-tasks') ?>?block_id=' + blockId)
         .then(r => r.json())
@@ -451,15 +458,17 @@ function loadBlockContent(blockId, container) {
             }
             const linkedTasks = data.tasks || [];
             const linkedIds = new Set(linkedTasks.map(t => t.id));
+            const boardBase = '<?= pixelhub_url('/projects/board') ?>';
+
             let html = '<ul class="block-linked-tasks">';
             if (linkedTasks.length > 0) {
-                const boardBase = '<?= pixelhub_url('/projects/board') ?>';
                 linkedTasks.forEach(t => {
                     const tit = (t.title || '').replace(/</g,'&lt;');
                     const proj = (t.projeto_nome || t.project_name || '').replace(/</g,'&lt;');
                     const pid = t.project_id || '';
                     const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
-                    html += '<li><span style="color:#64748b;">↳</span> <a href="' + url + '">' + tit + '</a>' + (proj ? ' <span style="color:#94a3b8;font-size:11px;">(' + proj + ')</span>' : '') + '</li>';
+                    html += '<li><span style="color:#64748b;">↳</span> <a href="' + url + '">' + tit + '</a>' + (proj ? ' <span style="color:#94a3b8;font-size:11px;">(' + proj + ')</span>' : '') + '<button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular esta tarefa">';
+                    html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></li>';
                 });
             } else {
                 html += '<li style="color:#94a3b8;font-style:italic;">Nenhuma tarefa vinculada a este bloco.</li>';
@@ -467,7 +476,7 @@ function loadBlockContent(blockId, container) {
             html += '</ul>';
 
             if (projectId > 0) {
-                html += '<div class="block-add-task-section" style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">';
+                html += '<div class="block-add-task-section" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">';
                 html += '<label style="font-size:12px;color:#64748b;display:block;margin-bottom:6px;">Adicionar tarefa a este bloco</label>';
                 html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
                 html += '<select id="block-add-task-select-' + blockId + '" style="flex:1;min-width:180px;padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">';
@@ -478,59 +487,104 @@ function loadBlockContent(blockId, container) {
             }
             container.innerHTML = html;
 
-            if (projectId > 0) {
-                fetch('<?= pixelhub_url('/agenda/tasks-by-project') ?>?project_id=' + projectId)
-                    .then(r => r.json())
-                    .then(projData => {
-                        const allTasks = (projData.tasks || []).filter(t => !linkedIds.has(t.id));
-                        const sel = document.getElementById('block-add-task-select-' + blockId);
-                        if (!sel) return;
-                        allTasks.forEach(t => {
-                            const opt = document.createElement('option');
-                            opt.value = t.id;
-                            opt.textContent = (t.title || '').substring(0, 60) + ((t.title || '').length > 60 ? '…' : '');
-                            sel.appendChild(opt);
-                        });
-                        if (allTasks.length === 0) {
-                            const opt = document.createElement('option');
-                            opt.value = '';
-                            opt.textContent = 'Nenhuma tarefa disponível (todas já vinculadas)';
-                            opt.disabled = true;
-                            sel.appendChild(opt);
-                        }
-                    })
-                    .catch(() => {});
-                container.querySelector('.btn-add-task-to-block')?.addEventListener('click', function() {
-                    const sel = document.getElementById('block-add-task-select-' + blockId);
-                    const taskId = sel && sel.value ? parseInt(sel.value, 10) : 0;
-                    if (!taskId) return;
-                    const btn = this;
-                    btn.disabled = true;
-                    btn.textContent = 'Vinculando…';
+            container.querySelectorAll('.block-task-unlink').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (!confirm('Desvincular esta tarefa?')) return;
+                    const bid = parseInt(this.dataset.blockId, 10);
+                    const tid = parseInt(this.dataset.taskId, 10);
+                    this.disabled = true;
                     const fd = new FormData();
-                    fd.append('block_id', blockId);
-                    fd.append('task_id', taskId);
-                    fetch('<?= pixelhub_url('/agenda/bloco/attach-task') ?>', {
+                    fd.append('block_id', bid);
+                    fd.append('task_id', tid);
+                    fetch('<?= pixelhub_url('/agenda/bloco/detach-task') ?>', {
                         method: 'POST',
                         headers: { 'X-Requested-With': 'XMLHttpRequest' },
                         body: fd
                     })
                     .then(r => r.json())
-                    .then(d => {
-                        if (d.success) {
-                            loadBlockContent(blockId, container);
-                        } else {
-                            alert(d.error || 'Erro ao vincular');
-                            btn.disabled = false;
-                            btn.textContent = 'Vincular';
-                        }
-                    })
-                    .catch(() => {
-                        alert('Erro ao vincular');
-                        btn.disabled = false;
-                        btn.textContent = 'Vincular';
-                    });
+                    .then(d => { if (d.success) loadBlockContent(bid, container); else alert(d.error || 'Erro'); })
+                    .catch(() => { alert('Erro ao desvincular'); btn.disabled = false; });
                 });
+            });
+
+            if (projectId > 0) {
+                fetch('<?= pixelhub_url('/agenda/tasks-by-project') ?>?project_id=' + projectId)
+                    .then(r => r.json())
+                    .then(projData => {
+                        const allTasks = (projData.tasks || []).filter(t => !linkedIds.has(t.id));
+                        const formSection = container.querySelector('.block-add-task-section');
+                        const sel = document.getElementById('block-add-task-select-' + blockId);
+
+                        if (addBtnWrap) {
+                            addBtnWrap.innerHTML = '';
+                            if (allTasks.length > 0) {
+                                const plusBtn = document.createElement('button');
+                                plusBtn.type = 'button';
+                                plusBtn.className = 'block-add-task-btn';
+                                plusBtn.title = 'Adicionar tarefa a este bloco';
+                                plusBtn.textContent = '+';
+                                plusBtn.addEventListener('click', function(e) {
+                                    e.stopPropagation();
+                                    if (formSection) formSection.style.display = 'block';
+                                });
+                                addBtnWrap.appendChild(plusBtn);
+                            } else {
+                                const plusBtn = document.createElement('button');
+                                plusBtn.type = 'button';
+                                plusBtn.className = 'block-add-task-btn disabled';
+                                plusBtn.title = 'Sem tarefas disponíveis para vincular';
+                                plusBtn.disabled = true;
+                                plusBtn.textContent = '+';
+                                addBtnWrap.appendChild(plusBtn);
+                            }
+                        }
+
+                        if (sel) {
+                            allTasks.forEach(t => {
+                                const opt = document.createElement('option');
+                                opt.value = t.id;
+                                opt.textContent = (t.title || '').substring(0, 60) + ((t.title || '').length > 60 ? '…' : '');
+                                sel.appendChild(opt);
+                            });
+                            if (allTasks.length === 0 && sel.options.length === 1) {
+                                const opt = document.createElement('option');
+                                opt.value = '';
+                                opt.textContent = 'Nenhuma tarefa disponível (todas já vinculadas)';
+                                opt.disabled = true;
+                                sel.appendChild(opt);
+                            }
+                        }
+
+                        container.querySelector('.btn-add-task-to-block')?.addEventListener('click', function() {
+                            const s = document.getElementById('block-add-task-select-' + blockId);
+                            const taskId = s && s.value ? parseInt(s.value, 10) : 0;
+                            if (!taskId) return;
+                            const btn = this;
+                            btn.disabled = true;
+                            btn.textContent = 'Vinculando…';
+                            const fd = new FormData();
+                            fd.append('block_id', blockId);
+                            fd.append('task_id', taskId);
+                            fetch('<?= pixelhub_url('/agenda/bloco/attach-task') ?>', {
+                                method: 'POST',
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                                body: fd
+                            })
+                            .then(r => r.json())
+                            .then(d => {
+                                if (d.success) {
+                                    loadBlockContent(blockId, container);
+                                } else {
+                                    alert(d.error || 'Erro ao vincular');
+                                    btn.disabled = false;
+                                    btn.textContent = 'Vincular';
+                                }
+                            })
+                            .catch(() => { alert('Erro ao vincular'); btn.disabled = false; btn.textContent = 'Vincular'; });
+                        });
+                    })
+                    .catch(() => {});
             }
         })
         .catch(() => { container.innerHTML = '<span style="color:#dc2626;">Erro ao carregar.</span>'; });
