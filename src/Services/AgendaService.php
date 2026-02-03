@@ -1769,8 +1769,9 @@ class AgendaService
     /**
      * Inicia um segmento de trabalho (projeto) no bloco.
      * Valida que não há outro segmento running no mesmo block_id.
+     * @param int|null $tipoId Tipo de bloco (ex.: Comercial) - quando diferente do bloco atual (interrupção)
      */
-    public static function startSegment(int $blockId, ?int $projectId = null, ?int $taskId = null): array
+    public static function startSegment(int $blockId, ?int $projectId = null, ?int $taskId = null, ?int $tipoId = null): array
     {
         $db = DB::getConnection();
         if (!self::hasSegmentsTable($db)) {
@@ -1781,8 +1782,11 @@ class AgendaService
         if (!$bloco) {
             throw new \RuntimeException('Bloco não encontrado');
         }
-        if ($bloco['status'] !== 'ongoing') {
-            throw new \RuntimeException('O bloco precisa estar em andamento para iniciar um projeto. Clique em "Iniciar Bloco" primeiro.');
+        // Se bloco está planejado, inicia o bloco automaticamente (inicialização por projeto)
+        if ($bloco['status'] === 'planned') {
+            self::startBlock($blockId);
+        } elseif ($bloco['status'] !== 'ongoing') {
+            throw new \RuntimeException('O bloco precisa estar planejado ou em andamento para iniciar um projeto.');
         }
         
         $running = self::getRunningSegmentForBlock($blockId);
@@ -1791,12 +1795,18 @@ class AgendaService
             throw new \RuntimeException("Pause o projeto atual ({$projNome}) antes de iniciar outro.");
         }
         
+        // Se tipo_id não informado, usa o tipo do bloco
+        $tipoIdFinal = $tipoId ?? (int)($bloco['tipo_id'] ?? 0);
+        if ($tipoIdFinal <= 0) {
+            $tipoIdFinal = null;
+        }
+        
         $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
         $stmt = $db->prepare("
-            INSERT INTO agenda_block_segments (block_id, project_id, task_id, status, started_at)
-            VALUES (?, ?, ?, 'running', ?)
+            INSERT INTO agenda_block_segments (block_id, tipo_id, project_id, task_id, status, started_at)
+            VALUES (?, ?, ?, ?, 'running', ?)
         ");
-        $stmt->execute([$blockId, $projectId, $taskId, $now]);
+        $stmt->execute([$blockId, $tipoIdFinal, $projectId, $taskId, $now]);
         $id = (int) $db->lastInsertId();
         
         return [
@@ -2275,8 +2285,10 @@ class AgendaService
         $dataFimStr = $dataFim->format('Y-m-d');
         
         // Horas por tipo de bloco
+        // Blocos: contagem por tipo do bloco (b.tipo_id); minutos: COALESCE(segmento.tipo_id, bloco.tipo_id)
         $stmt = $db->prepare("
             SELECT 
+                bt.id as tipo_id,
                 bt.codigo,
                 bt.nome,
                 COUNT(*) as blocos_total,
@@ -2292,6 +2304,74 @@ class AgendaService
         ");
         $stmt->execute([$dataInicioStr, $dataFimStr]);
         $horasPorTipo = $stmt->fetchAll();
+        
+        // Minutos por tipo: segmentos usam COALESCE(s.tipo_id, b.tipo_id); blocos sem segmentos usam b.tipo_id
+        $minutosPorTipo = [];
+        if (self::hasSegmentsTable($db)) {
+            try {
+                $stmt = $db->prepare("
+                    SELECT COALESCE(s.tipo_id, b.tipo_id) as tipo_id,
+                           SUM(COALESCE(s.duration_seconds, 0)) / 60 as minutos
+                    FROM agenda_block_segments s
+                    INNER JOIN agenda_blocks b ON s.block_id = b.id
+                    WHERE b.data BETWEEN ? AND ?
+                    AND s.status IN ('paused', 'done')
+                    GROUP BY COALESCE(s.tipo_id, b.tipo_id)
+                ");
+                $stmt->execute([$dataInicioStr, $dataFimStr]);
+                foreach ($stmt->fetchAll() as $row) {
+                    $tid = (int)$row['tipo_id'];
+                    $minutosPorTipo[$tid] = ($minutosPorTipo[$tid] ?? 0) + (float)$row['minutos'];
+                }
+                $stmt = $db->prepare("
+                    SELECT b.tipo_id, SUM(COALESCE(b.duracao_real, b.duracao_planejada)) as minutos
+                    FROM agenda_blocks b
+                    WHERE b.data BETWEEN ? AND ?
+                    AND b.status IN ('completed', 'partial')
+                    AND NOT EXISTS (SELECT 1 FROM agenda_block_segments s WHERE s.block_id = b.id LIMIT 1)
+                    GROUP BY b.tipo_id
+                ");
+                $stmt->execute([$dataInicioStr, $dataFimStr]);
+                foreach ($stmt->fetchAll() as $row) {
+                    $tid = (int)$row['tipo_id'];
+                    $minutosPorTipo[$tid] = ($minutosPorTipo[$tid] ?? 0) + (float)$row['minutos'];
+                }
+            } catch (\PDOException $e) {
+                // Tabela/coluna tipo_id pode não existir - manter minutos_total do bloco
+                $minutosPorTipo = null;
+            }
+        } else {
+            $minutosPorTipo = null;
+        }
+        // Mescla minutos em horas_por_tipo (quando temos segmentos com tipo_id)
+        if ($minutosPorTipo !== null) {
+            $horasPorTipoIndexed = [];
+            foreach ($horasPorTipo as $h) {
+                $tid = (int)$h['tipo_id'];
+                $h['minutos_total'] = (int)round($minutosPorTipo[$tid] ?? 0);
+                unset($minutosPorTipo[$tid]);
+                $horasPorTipoIndexed[$tid] = $h;
+            }
+            foreach ($minutosPorTipo as $tid => $min) {
+                $stmt = $db->prepare("SELECT id, codigo, nome FROM agenda_block_types WHERE id = ?");
+                $stmt->execute([$tid]);
+                $bt = $stmt->fetch();
+                if ($bt) {
+                    $horasPorTipoIndexed[$tid] = [
+                        'tipo_id' => $tid,
+                        'codigo' => $bt['codigo'],
+                        'nome' => $bt['nome'],
+                        'blocos_total' => 0,
+                        'blocos_concluidos' => 0,
+                        'blocos_parciais' => 0,
+                        'blocos_cancelados' => 0,
+                        'minutos_total' => (int)round($min),
+                    ];
+                }
+            }
+            $horasPorTipo = array_values($horasPorTipoIndexed);
+            usort($horasPorTipo, fn($a, $b) => strcmp($a['nome'] ?? '', $b['nome'] ?? ''));
+        }
         
         // Tarefas concluídas por tipo de bloco
         $stmt = $db->prepare("
@@ -2673,9 +2753,50 @@ class AgendaService
     }
 
     /**
+     * Adiciona lista de nomes de projetos do bloco (projeto_foco + adicionados).
+     * Usado em Blocos da Semana e "O que tenho para fazer hoje".
+     */
+    public static function enrichBlocksWithProjectNames(array $blocks): array
+    {
+        $db = DB::getConnection();
+        foreach ($blocks as $key => $b) {
+            $projetos = self::getProjectsForBlock((int)$b['id']);
+            $blocks[$key]['projetos_nomes'] = array_column($projetos, 'name');
+            $blocks[$key]['projetos_nomes_str'] = implode(', ', $blocks[$key]['projetos_nomes']);
+            // Fatias por segmento (projeto · tipo) para exibir interrupções no card
+            $blocks[$key]['segment_fatias'] = [];
+            if (self::hasSegmentsTable($db)) {
+                try {
+                    $stmt = $db->prepare("
+                        SELECT s.project_id, p.name as project_name,
+                               COALESCE(bt_seg.nome, bt_block.nome) as tipo_nome
+                        FROM agenda_block_segments s
+                        LEFT JOIN projects p ON s.project_id = p.id
+                        LEFT JOIN agenda_block_types bt_seg ON s.tipo_id = bt_seg.id
+                        INNER JOIN agenda_blocks b ON s.block_id = b.id
+                        LEFT JOIN agenda_block_types bt_block ON b.tipo_id = bt_block.id
+                        WHERE s.block_id = ?
+                        ORDER BY s.started_at ASC
+                    ");
+                    $stmt->execute([$b['id']]);
+                    foreach ($stmt->fetchAll() as $seg) {
+                        $proj = $seg['project_name'] ?? 'Tarefas avulsas';
+                        $tipo = $seg['tipo_nome'] ?? '';
+                        $blocks[$key]['segment_fatias'][] = $tipo ? "{$proj} · {$tipo}" : $proj;
+                    }
+                } catch (\PDOException $e) {
+                    // ignora se coluna tipo_id não existir
+                }
+            }
+        }
+        return $blocks;
+    }
+    
+    /**
      * Enriquece blocos para exibição na agenda unificada (Minha Agenda).
      * - Filtra apenas blocos com projeto vinculado (sem projeto = não exibe, já tem semanal)
      * - Adiciona tarefas vinculadas e checklist de cada tarefa (subtasks)
+     * - Adiciona lista de projetos do bloco (multi-projeto)
      *
      * @param array $blocks Blocos brutos
      * @return array Blocos filtrados e enriquecidos
@@ -2684,11 +2805,14 @@ class AgendaService
     {
         $result = [];
         foreach ($blocks as $b) {
-            if (empty($b['projeto_foco_id'])) {
+            $projetos = self::getProjectsForBlock((int)$b['id']);
+            if (empty($projetos) && empty($b['projeto_foco_id'])) {
                 continue; // Sem projeto = não exibe em Minha Agenda
             }
             $b['tipo_cor_hex'] = $b['tipo_cor'] ?? $b['tipo_cor_hex'] ?? '#cccccc';
             $b['block_tasks'] = [];
+            $b['projetos_nomes'] = array_column($projetos, 'name');
+            $b['projetos_nomes_str'] = !empty($b['projetos_nomes']) ? implode(', ', $b['projetos_nomes']) : ($b['projeto_foco_nome'] ?? '');
             try {
                 $tasks = self::getTasksByBlock((int)$b['id']);
                 foreach ($tasks as $t) {

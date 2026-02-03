@@ -248,6 +248,10 @@ class AgendaController extends Controller
         $runningSegment = AgendaService::getRunningSegmentForBlock($id);
         $blockProjects = AgendaService::getProjectsForBlock($id);
         
+        $db = \PixelHub\Core\DB::getConnection();
+        $stmt = $db->query("SELECT id, nome, codigo FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC");
+        $blockTypes = $stmt->fetchAll();
+        
         $this->view('agenda.show', [
             'bloco' => $bloco,
             'tarefas' => $tarefas,
@@ -258,6 +262,7 @@ class AgendaController extends Controller
             'segmentTotals' => $segmentTotals,
             'runningSegment' => $runningSegment,
             'blockProjects' => $blockProjects,
+            'blockTypes' => $blockTypes,
         ]);
     }
     
@@ -271,6 +276,7 @@ class AgendaController extends Controller
         $blockId = isset($_POST['block_id']) ? (int)$_POST['block_id'] : (isset($_POST['id']) ? (int)$_POST['id'] : 0);
         $projectId = isset($_POST['project_id']) && $_POST['project_id'] !== '' ? (int)$_POST['project_id'] : null;
         $taskId = isset($_POST['task_id']) && $_POST['task_id'] !== '' ? (int)$_POST['task_id'] : null;
+        $tipoId = isset($_POST['tipo_id']) && $_POST['tipo_id'] !== '' ? (int)$_POST['tipo_id'] : null;
         
         if ($blockId <= 0) {
             header('Location: ' . pixelhub_url('/agenda/bloco?erro=' . urlencode('ID do bloco inválido')));
@@ -278,7 +284,7 @@ class AgendaController extends Controller
         }
         
         try {
-            AgendaService::startSegment($blockId, $projectId, $taskId);
+            AgendaService::startSegment($blockId, $projectId, $taskId, $tipoId);
             header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Projeto iniciado.')));
             exit;
         } catch (\RuntimeException $e) {
@@ -1132,6 +1138,9 @@ class AgendaController extends Controller
             $isHoje = ($dataIso === $hojeIso);
             
             $blocosDoDia = $blocosPorDia[$dataIso] ?? [];
+            
+            // Enriquece blocos com nomes de todos os projetos (multi-projeto)
+            $blocosDoDia = AgendaService::enrichBlocksWithProjectNames($blocosDoDia);
             
             // Marca bloco atual se for hoje
             if ($isHoje && !empty($blocosDoDia)) {

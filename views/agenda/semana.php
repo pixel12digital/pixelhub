@@ -227,7 +227,15 @@ ob_start();
                             <div class="agenda-bloco-tipo" style="color: <?= htmlspecialchars($corHex) ?>;">
                                 <?= htmlspecialchars($bloco['tipo_nome'] ?? '') ?>
                             </div>
-                            <?php if (!empty($bloco['projeto_foco_nome'])): ?>
+                            <?php if (!empty($bloco['segment_fatias'])): ?>
+                                <div class="agenda-bloco-info" style="margin-top: 2px; font-size: 11px;">
+                                    <?= htmlspecialchars(implode(' | ', $bloco['segment_fatias'])) ?>
+                                </div>
+                            <?php elseif (!empty($bloco['projetos_nomes_str'])): ?>
+                                <div class="agenda-bloco-info" style="margin-top: 2px;">
+                                    <?= htmlspecialchars($bloco['projetos_nomes_str']) ?>
+                                </div>
+                            <?php elseif (!empty($bloco['projeto_foco_nome'])): ?>
                                 <div class="agenda-bloco-info" style="margin-top: 2px;">
                                     <?= htmlspecialchars($bloco['projeto_foco_nome']) ?>
                                 </div>

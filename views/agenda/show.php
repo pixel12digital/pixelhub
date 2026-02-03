@@ -257,7 +257,7 @@ ob_start();
                             <?php endif; ?>
                         </span>
                         <span style="display: flex; gap: 6px; align-items: center;">
-                            <?php if ($bloco['status'] === 'ongoing'): ?>
+                            <?php if (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
                                 <?php if ($isRunning): ?>
                                     <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/pause') ?>" style="margin: 0;">
                                         <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
@@ -266,9 +266,17 @@ ob_start();
                                 <?php elseif ($runningSegment): ?>
                                     <span style="font-size: 11px; color: #999;">Pause o atual primeiro</span>
                                 <?php else: ?>
-                                    <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0;">
+                                    <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                                         <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
                                         <input type="hidden" name="project_id" value="<?= $pid ?>">
+                                        <select name="tipo_id" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; max-width: 140px;" title="Tipo de trabalho (padrão: tipo do bloco)">
+                                            <option value="">Tipo do bloco</option>
+                                            <?php foreach ($blockTypes ?? [] as $t): ?>
+                                                <?php if ((int)$t['id'] !== (int)($bloco['tipo_id'] ?? 0)): ?>
+                                                    <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
+                                                <?php endif; ?>
+                                            <?php endforeach; ?>
+                                        </select>
                                         <button type="submit" class="btn btn-primary btn-sm"><?= $hasSegments ? 'Retomar' : 'Iniciar' ?></button>
                                     </form>
                                 <?php endif; ?>
@@ -283,7 +291,7 @@ ob_start();
                         </span>
                     </li>
                 <?php endforeach; ?>
-                <?php if ($bloco['status'] === 'ongoing'): ?>
+                <?php if (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
             <?php
             $isAvulsasRunning = $runningSegment && (($runningSegment['project_id'] ?? null) === null || ($runningSegment['project_id'] ?? '') === '');
             $hasAvulsasSegments = !empty($projectHasSegments['avulsas']) || !empty($projectHasSegments[null]);
@@ -303,9 +311,17 @@ ob_start();
                         <button type="submit" class="btn btn-secondary btn-sm">Pausar</button>
                     </form>
                 <?php elseif (!$runningSegment): ?>
-                    <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0;">
+                    <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                         <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
                         <input type="hidden" name="project_id" value="">
+                        <select name="tipo_id" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; max-width: 140px;" title="Tipo de trabalho (padrão: tipo do bloco)">
+                            <option value="">Tipo do bloco</option>
+                            <?php foreach ($blockTypes ?? [] as $t): ?>
+                                <?php if ((int)$t['id'] !== (int)($bloco['tipo_id'] ?? 0)): ?>
+                                    <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </select>
                         <button type="submit" class="btn btn-outline-secondary btn-sm"><?= $hasAvulsasSegments ? 'Retomar' : 'Iniciar' ?></button>
                     </form>
                 <?php endif; ?>
