@@ -242,12 +242,163 @@ class AgendaController extends Controller
             }
         }
         
+        // Segmentos (multi-projeto com pausa/retomada)
+        $segments = AgendaService::getSegmentsForBlock($id);
+        $segmentTotals = AgendaService::getSegmentTotalsByProjectForBlock($id);
+        $runningSegment = AgendaService::getRunningSegmentForBlock($id);
+        $blockProjects = AgendaService::getProjectsForBlock($id);
+        
         $this->view('agenda.show', [
             'bloco' => $bloco,
             'tarefas' => $tarefas,
             'focusTask' => $focusTask,
             'projetos' => $projetos,
             'tarefasDisponiveis' => $tarefasDisponiveis,
+            'segments' => $segments,
+            'segmentTotals' => $segmentTotals,
+            'runningSegment' => $runningSegment,
+            'blockProjects' => $blockProjects,
+        ]);
+    }
+    
+    /**
+     * Inicia um segmento de projeto no bloco (multi-projeto)
+     */
+    public function startSegment(): void
+    {
+        Auth::requireInternal();
+        
+        $blockId = isset($_POST['block_id']) ? (int)$_POST['block_id'] : (isset($_POST['id']) ? (int)$_POST['id'] : 0);
+        $projectId = isset($_POST['project_id']) && $_POST['project_id'] !== '' ? (int)$_POST['project_id'] : null;
+        $taskId = isset($_POST['task_id']) && $_POST['task_id'] !== '' ? (int)$_POST['task_id'] : null;
+        
+        if ($blockId <= 0) {
+            header('Location: ' . pixelhub_url('/agenda/bloco?erro=' . urlencode('ID do bloco inválido')));
+            exit;
+        }
+        
+        try {
+            AgendaService::startSegment($blockId, $projectId, $taskId);
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Projeto iniciado.')));
+            exit;
+        } catch (\RuntimeException $e) {
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode($e->getMessage())));
+            exit;
+        } catch (\Exception $e) {
+            error_log("Erro ao iniciar segmento: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Erro ao iniciar projeto.')));
+            exit;
+        }
+    }
+    
+    /**
+     * Pausa o segmento em execução no bloco
+     */
+    public function pauseSegment(): void
+    {
+        Auth::requireInternal();
+        
+        $blockId = isset($_POST['block_id']) ? (int)$_POST['block_id'] : (isset($_POST['id']) ? (int)$_POST['id'] : 0);
+        
+        if ($blockId <= 0) {
+            header('Location: ' . pixelhub_url('/agenda/bloco?erro=' . urlencode('ID do bloco inválido')));
+            exit;
+        }
+        
+        try {
+            AgendaService::pauseSegment($blockId);
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Projeto pausado.')));
+            exit;
+        } catch (\RuntimeException $e) {
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode($e->getMessage())));
+            exit;
+        } catch (\Exception $e) {
+            error_log("Erro ao pausar segmento: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Erro ao pausar projeto.')));
+            exit;
+        }
+    }
+    
+    /**
+     * Adiciona projeto ao bloco (pré-vínculo)
+     */
+    public function addProjectToBlock(): void
+    {
+        Auth::requireInternal();
+        
+        $blockId = isset($_POST['block_id']) ? (int)$_POST['block_id'] : (isset($_POST['id']) ? (int)$_POST['id'] : 0);
+        $projectId = isset($_POST['project_id']) ? (int)$_POST['project_id'] : 0;
+        
+        if ($blockId <= 0 || $projectId <= 0) {
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Dados inválidos.')));
+            exit;
+        }
+        
+        try {
+            AgendaService::addProjectToBlock($blockId, $projectId);
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Projeto adicionado ao bloco.')));
+            exit;
+        } catch (\RuntimeException $e) {
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode($e->getMessage())));
+            exit;
+        } catch (\Exception $e) {
+            error_log("Erro ao adicionar projeto ao bloco: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Erro ao adicionar projeto.')));
+            exit;
+        }
+    }
+    
+    /**
+     * Remove projeto do bloco (não remove projeto_foco)
+     */
+    public function removeProjectFromBlock(): void
+    {
+        Auth::requireInternal();
+        
+        $blockId = isset($_POST['block_id']) ? (int)$_POST['block_id'] : (isset($_POST['id']) ? (int)$_POST['id'] : 0);
+        $projectId = isset($_POST['project_id']) ? (int)$_POST['project_id'] : 0;
+        
+        if ($blockId <= 0 || $projectId <= 0) {
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Dados inválidos.')));
+            exit;
+        }
+        
+        try {
+            AgendaService::removeProjectFromBlock($blockId, $projectId);
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Projeto removido do bloco.')));
+            exit;
+        } catch (\RuntimeException $e) {
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode($e->getMessage())));
+            exit;
+        } catch (\Exception $e) {
+            error_log("Erro ao remover projeto do bloco: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Erro ao remover projeto.')));
+            exit;
+        }
+    }
+    
+    /**
+     * Retorna segmentos do bloco (JSON, para AJAX)
+     */
+    public function getSegments(): void
+    {
+        Auth::requireInternal();
+        
+        $blockId = isset($_GET['block_id']) ? (int)$_GET['block_id'] : (isset($_GET['id']) ? (int)$_GET['id'] : 0);
+        
+        if ($blockId <= 0) {
+            $this->json(['error' => 'ID inválido'], 400);
+            return;
+        }
+        
+        $segments = AgendaService::getSegmentsForBlock($blockId);
+        $totals = AgendaService::getSegmentTotalsByProjectForBlock($blockId);
+        $running = AgendaService::getRunningSegmentForBlock($blockId);
+        
+        $this->json([
+            'segments' => $segments,
+            'totals' => $totals,
+            'running' => $running,
         ]);
     }
     

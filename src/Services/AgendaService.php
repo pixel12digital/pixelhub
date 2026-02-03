@@ -1569,6 +1569,296 @@ class AgendaService
     }
     
     /**
+     * Verifica se a tabela agenda_block_projects existe
+     */
+    private static function hasBlockProjectsTable(\PDO $db): bool
+    {
+        try {
+            $stmt = $db->query("SHOW TABLES LIKE 'agenda_block_projects'");
+            return $stmt->rowCount() > 0;
+        } catch (\PDOException $e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Retorna projetos vinculados ao bloco (Projeto Foco + adicionados).
+     * Permite pré-vincular projetos mesmo com bloco planejado.
+     */
+    public static function getProjectsForBlock(int $blockId): array
+    {
+        $db = DB::getConnection();
+        $bloco = self::getBlockById($blockId);
+        if (!$bloco) {
+            return [];
+        }
+        
+        $result = [];
+        $seen = [];
+        
+        // 1. Projeto Foco sempre primeiro (se definido)
+        if (!empty($bloco['projeto_foco_id'])) {
+            $pid = (int) $bloco['projeto_foco_id'];
+            $stmt = $db->prepare("SELECT id, name FROM projects WHERE id = ?");
+            $stmt->execute([$pid]);
+            $p = $stmt->fetch();
+            if ($p) {
+                $result[] = [
+                    'id' => (int) $p['id'],
+                    'name' => $p['name'],
+                    'is_foco' => true,
+                ];
+                $seen[$pid] = true;
+            }
+        }
+        
+        // 2. Projetos adicionados via agenda_block_projects
+        if (self::hasBlockProjectsTable($db)) {
+            $stmt = $db->prepare("
+                SELECT p.id, p.name
+                FROM agenda_block_projects abp
+                INNER JOIN projects p ON abp.project_id = p.id
+                WHERE abp.block_id = ?
+                ORDER BY abp.created_at ASC
+            ");
+            $stmt->execute([$blockId]);
+            foreach ($stmt->fetchAll() as $p) {
+                $pid = (int) $p['id'];
+                if (!isset($seen[$pid])) {
+                    $result[] = [
+                        'id' => $pid,
+                        'name' => $p['name'],
+                        'is_foco' => ($bloco['projeto_foco_id'] ?? null) == $pid,
+                    ];
+                    $seen[$pid] = true;
+                }
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Adiciona projeto ao bloco (pré-vínculo).
+     */
+    public static function addProjectToBlock(int $blockId, int $projectId): void
+    {
+        $db = DB::getConnection();
+        if (!self::hasBlockProjectsTable($db)) {
+            throw new \RuntimeException('Funcionalidade não disponível. Execute a migration.');
+        }
+        
+        $bloco = self::getBlockById($blockId);
+        if (!$bloco) {
+            throw new \RuntimeException('Bloco não encontrado');
+        }
+        
+        $stmt = $db->prepare("SELECT 1 FROM projects WHERE id = ?");
+        $stmt->execute([$projectId]);
+        if (!$stmt->fetch()) {
+            throw new \RuntimeException('Projeto não encontrado');
+        }
+        
+        $stmt = $db->prepare("INSERT IGNORE INTO agenda_block_projects (block_id, project_id) VALUES (?, ?)");
+        $stmt->execute([$blockId, $projectId]);
+    }
+    
+    /**
+     * Remove projeto do bloco (não remove projeto_foco_id, apenas o vínculo em agenda_block_projects).
+     * Não permite remover o Projeto Foco.
+     */
+    public static function removeProjectFromBlock(int $blockId, int $projectId): void
+    {
+        $db = DB::getConnection();
+        if (!self::hasBlockProjectsTable($db)) {
+            throw new \RuntimeException('Funcionalidade não disponível.');
+        }
+        
+        $bloco = self::getBlockById($blockId);
+        if ($bloco && !empty($bloco['projeto_foco_id']) && (int)$bloco['projeto_foco_id'] === $projectId) {
+            throw new \RuntimeException('Não é possível remover o Projeto Foco. Altere o Projeto Foco acima se desejar.');
+        }
+        
+        $stmt = $db->prepare("DELETE FROM agenda_block_projects WHERE block_id = ? AND project_id = ?");
+        $stmt->execute([$blockId, $projectId]);
+    }
+    
+    /**
+     * Verifica se a tabela agenda_block_segments existe
+     */
+    private static function hasSegmentsTable(\PDO $db): bool
+    {
+        try {
+            $stmt = $db->query("SHOW TABLES LIKE 'agenda_block_segments'");
+            return $stmt->rowCount() > 0;
+        } catch (\PDOException $e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Retorna o segmento em execução (running) do bloco, se existir
+     */
+    public static function getRunningSegmentForBlock(int $blockId): ?array
+    {
+        $db = DB::getConnection();
+        if (!self::hasSegmentsTable($db)) {
+            return null;
+        }
+        $stmt = $db->prepare("
+            SELECT s.*, p.name as project_name
+            FROM agenda_block_segments s
+            LEFT JOIN projects p ON s.project_id = p.id
+            WHERE s.block_id = ? AND s.status = 'running'
+            ORDER BY s.started_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$blockId]);
+        $seg = $stmt->fetch();
+        return $seg ?: null;
+    }
+    
+    /**
+     * Retorna todos os segmentos do bloco (para UI e relatório)
+     */
+    public static function getSegmentsForBlock(int $blockId): array
+    {
+        $db = DB::getConnection();
+        if (!self::hasSegmentsTable($db)) {
+            return [];
+        }
+        $stmt = $db->prepare("
+            SELECT s.*, p.name as project_name
+            FROM agenda_block_segments s
+            LEFT JOIN projects p ON s.project_id = p.id
+            WHERE s.block_id = ?
+            ORDER BY s.started_at ASC
+        ");
+        $stmt->execute([$blockId]);
+        return $stmt->fetchAll();
+    }
+    
+    /**
+     * Retorna tempo acumulado por projeto no bloco (em segundos)
+     */
+    public static function getSegmentTotalsByProjectForBlock(int $blockId): array
+    {
+        $db = DB::getConnection();
+        if (!self::hasSegmentsTable($db)) {
+            return [];
+        }
+        $stmt = $db->prepare("
+            SELECT 
+                s.project_id,
+                COALESCE(p.name, 'Tarefas avulsas') as project_name,
+                SUM(
+                    CASE 
+                        WHEN s.status = 'running' THEN TIMESTAMPDIFF(SECOND, s.started_at, NOW())
+                        ELSE COALESCE(s.duration_seconds, TIMESTAMPDIFF(SECOND, s.started_at, COALESCE(s.ended_at, NOW())))
+                    END
+                ) as total_seconds
+            FROM agenda_block_segments s
+            LEFT JOIN projects p ON s.project_id = p.id
+            WHERE s.block_id = ?
+            GROUP BY s.project_id, COALESCE(p.name, 'Tarefas avulsas')
+        ");
+        $stmt->execute([$blockId]);
+        return $stmt->fetchAll();
+    }
+    
+    /**
+     * Inicia um segmento de trabalho (projeto) no bloco.
+     * Valida que não há outro segmento running no mesmo block_id.
+     */
+    public static function startSegment(int $blockId, ?int $projectId = null, ?int $taskId = null): array
+    {
+        $db = DB::getConnection();
+        if (!self::hasSegmentsTable($db)) {
+            throw new \RuntimeException('Funcionalidade de segmentos não disponível. Execute a migration.');
+        }
+        
+        $bloco = self::getBlockById($blockId);
+        if (!$bloco) {
+            throw new \RuntimeException('Bloco não encontrado');
+        }
+        if ($bloco['status'] !== 'ongoing') {
+            throw new \RuntimeException('O bloco precisa estar em andamento para iniciar um projeto. Clique em "Iniciar Bloco" primeiro.');
+        }
+        
+        $running = self::getRunningSegmentForBlock($blockId);
+        if ($running) {
+            $projNome = $running['project_name'] ?? 'Projeto atual';
+            throw new \RuntimeException("Pause o projeto atual ({$projNome}) antes de iniciar outro.");
+        }
+        
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+        $stmt = $db->prepare("
+            INSERT INTO agenda_block_segments (block_id, project_id, task_id, status, started_at)
+            VALUES (?, ?, ?, 'running', ?)
+        ");
+        $stmt->execute([$blockId, $projectId, $taskId, $now]);
+        $id = (int) $db->lastInsertId();
+        
+        return [
+            'id' => $id,
+            'block_id' => $blockId,
+            'project_id' => $projectId,
+            'task_id' => $taskId,
+            'status' => 'running',
+            'started_at' => $now,
+        ];
+    }
+    
+    /**
+     * Pausa o segmento em execução no bloco.
+     */
+    public static function pauseSegment(int $blockId): void
+    {
+        $db = DB::getConnection();
+        if (!self::hasSegmentsTable($db)) {
+            throw new \RuntimeException('Funcionalidade de segmentos não disponível.');
+        }
+        
+        $running = self::getRunningSegmentForBlock($blockId);
+        if (!$running) {
+            throw new \RuntimeException('Não há projeto em execução neste bloco para pausar.');
+        }
+        
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+        $duration = (int) (strtotime($now) - strtotime($running['started_at']));
+        
+        $stmt = $db->prepare("
+            UPDATE agenda_block_segments
+            SET status = 'paused', ended_at = ?, duration_seconds = ?
+            WHERE id = ?
+        ");
+        $stmt->execute([$now, $duration, $running['id']]);
+    }
+    
+    /**
+     * Fecha todos os segmentos running do bloco (ao encerrar bloco).
+     */
+    public static function closeRunningSegmentsForBlock(int $blockId): void
+    {
+        $db = DB::getConnection();
+        if (!self::hasSegmentsTable($db)) {
+            return;
+        }
+        $running = self::getRunningSegmentForBlock($blockId);
+        if (!$running) {
+            return;
+        }
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+        $duration = (int) (strtotime($now) - strtotime($running['started_at']));
+        $stmt = $db->prepare("
+            UPDATE agenda_block_segments
+            SET status = 'done', ended_at = ?, duration_seconds = ?
+            WHERE id = ?
+        ");
+        $stmt->execute([$now, $duration, $running['id']]);
+    }
+    
+    /**
      * Retorna tarefas pendentes (não concluídas) vinculadas a um bloco
      * 
      * IMPORTANTE: Busca APENAS tarefas vinculadas ao bloco específico (abt.bloco_id = ?)
@@ -1735,6 +2025,9 @@ class AgendaService
             }
         }
         
+        // Fecha automaticamente qualquer segmento running (multi-projeto)
+        self::closeRunningSegmentsForBlock($blockId);
+        
         // Atualiza status, horários reais e resumo
         self::updateBlockStatus($blockId, 'completed', [
             'hora_inicio_real' => $horaInicioReal,
@@ -1895,6 +2188,76 @@ class AgendaService
     }
     
     /**
+     * Retorna horas por projeto para relatório (segmentos têm prioridade, fallback: projeto_foco)
+     */
+    public static function getHorasPorProjetoForReport(string $dataInicio, string $dataFim): array
+    {
+        $db = DB::getConnection();
+        $totals = []; // project_id => ['id' => , 'projeto_nome' => , 'minutos_total' => ]
+        
+        if (self::hasSegmentsTable($db)) {
+            $stmt = $db->prepare("
+                SELECT 
+                    s.project_id as id,
+                    COALESCE(p.name, 'Tarefas avulsas') as projeto_nome,
+                    SUM(COALESCE(s.duration_seconds, 0)) / 60 as minutos_total
+                FROM agenda_block_segments s
+                INNER JOIN agenda_blocks b ON s.block_id = b.id
+                LEFT JOIN projects p ON s.project_id = p.id
+                WHERE b.data BETWEEN ? AND ?
+                AND s.status IN ('paused', 'done')
+                GROUP BY s.project_id, COALESCE(p.name, 'Tarefas avulsas')
+            ");
+            $stmt->execute([$dataInicio, $dataFim]);
+            foreach ($stmt->fetchAll() as $row) {
+                $pid = $row['id'] ?? 'avulsas';
+                if (!isset($totals[$pid])) {
+                    $totals[$pid] = ['id' => $row['id'], 'projeto_nome' => $row['projeto_nome'], 'minutos_total' => 0];
+                }
+                $totals[$pid]['minutos_total'] += (float) $row['minutos_total'];
+            }
+        }
+        
+        // Fallback: blocos com projeto_foco_id que não têm segmentos (ou para completar)
+        $stmt = $db->prepare("
+            SELECT b.id as block_id, b.projeto_foco_id, b.duracao_real, b.duracao_planejada
+            FROM agenda_blocks b
+            WHERE b.data BETWEEN ? AND ?
+            AND b.projeto_foco_id IS NOT NULL
+            AND b.status IN ('completed', 'partial')
+        ");
+        $stmt->execute([$dataInicio, $dataFim]);
+        $blocos = $stmt->fetchAll();
+        
+        foreach ($blocos as $bloco) {
+            $minutos = (int) ($bloco['duracao_real'] ?? $bloco['duracao_planejada'] ?? 0);
+            if ($minutos <= 0) continue;
+            
+            $hasSegments = false;
+            if (self::hasSegmentsTable($db)) {
+                $stmt2 = $db->prepare("SELECT 1 FROM agenda_block_segments WHERE block_id = ? LIMIT 1");
+                $stmt2->execute([$bloco['block_id']]);
+                $hasSegments = $stmt2->rowCount() > 0;
+            }
+            
+            if (!$hasSegments) {
+                $pid = $bloco['projeto_foco_id'];
+                if (!isset($totals[$pid])) {
+                    $stmtP = $db->prepare("SELECT name FROM projects WHERE id = ?");
+                    $stmtP->execute([$pid]);
+                    $proj = $stmtP->fetch();
+                    $totals[$pid] = ['id' => $pid, 'projeto_nome' => $proj['name'] ?? 'Projeto', 'minutos_total' => 0];
+                }
+                $totals[$pid]['minutos_total'] += $minutos;
+            }
+        }
+        
+        $result = array_values($totals);
+        usort($result, fn($a, $b) => (int)($b['minutos_total'] ?? 0) <=> (int)($a['minutos_total'] ?? 0));
+        return $result;
+    }
+    
+    /**
      * Relatório semanal de produtividade
      * 
      * @param \DateTime $dataInicio Data de início da semana
@@ -1948,21 +2311,8 @@ class AgendaService
         $stmt->execute([$dataInicioStr, $dataFimStr]);
         $tarefasPorTipo = $stmt->fetchAll();
         
-        // Horas por projeto
-        $stmt = $db->prepare("
-            SELECT 
-                p.id,
-                p.name as projeto_nome,
-                SUM(COALESCE(b.duracao_real, b.duracao_planejada)) as minutos_total
-            FROM agenda_blocks b
-            INNER JOIN projects p ON b.projeto_foco_id = p.id
-            WHERE b.data BETWEEN ? AND ?
-            AND b.projeto_foco_id IS NOT NULL
-            GROUP BY p.id, p.name
-            ORDER BY minutos_total DESC
-        ");
-        $stmt->execute([$dataInicioStr, $dataFimStr]);
-        $horasPorProjeto = $stmt->fetchAll();
+        // Horas por projeto (prioridade: segmentos quando existem, fallback: projeto_foco do bloco)
+        $horasPorProjeto = self::getHorasPorProjetoForReport($dataInicioStr, $dataFimStr);
         
         // Blocos cancelados com motivos
         $stmt = $db->prepare("

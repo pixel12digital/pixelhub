@@ -213,6 +213,121 @@ ob_start();
         <button onclick="updateProjectFocus()" class="btn btn-secondary" style="margin-left: 10px;">Atualizar</button>
     </div>
     
+    <?php
+    $blockProjects = $blockProjects ?? [];
+    $segmentTotals = $segmentTotals ?? [];
+    $runningSegment = $runningSegment ?? null;
+    $segments = $segments ?? [];
+    $projectIdsInBlock = array_column($blockProjects, 'id');
+    $projectHasSegments = [];
+    foreach ($segments as $s) {
+        $pid = $s['project_id'] ?? 'avulsas';
+        $projectHasSegments[$pid] = true;
+    }
+    $totalsByProject = [];
+    foreach ($segmentTotals as $t) {
+        $totalsByProject[$t['project_id'] ?? 'avulsas'] = $t;
+    }
+    ?>
+    <div class="projetos-bloco" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
+        <strong>Projetos neste bloco</strong>
+        <p style="margin: 5px 0 10px 0; font-size: 12px; color: #666;">Pré-vincule projetos para alternar entre eles. Projeto Foco permanece como referência.</p>
+        
+        <ul style="list-style: none; padding: 0; margin: 0 0 15px 0;">
+                <?php foreach ($blockProjects as $bp): ?>
+                    <?php
+                    $pid = $bp['id'];
+                    $isRunning = $runningSegment && ($runningSegment['project_id'] ?? null) == $pid;
+                    $hasSegments = !empty($projectHasSegments[$pid]);
+                    $tot = $totalsByProject[$pid] ?? null;
+                    $totSecs = $tot ? (int)($tot['total_seconds'] ?? 0) : 0;
+                    $totLabel = $totSecs > 0 ? floor($totSecs/60) . ' min' : '';
+                    ?>
+                    <li style="padding: 8px 12px; margin-bottom: 6px; background: white; border-radius: 4px; border: 1px solid #e9ecef; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                        <span>
+                            <?php if (!empty($bp['is_foco'])): ?>
+                                <span style="background: #023A8D; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-right: 6px;">Foco</span>
+                            <?php endif; ?>
+                            <?= htmlspecialchars($bp['name']) ?>
+                            <?php if ($totLabel): ?>
+                                <span style="color: #666; font-size: 12px;">(<?= $totLabel ?>)</span>
+                            <?php endif; ?>
+                            <?php if ($isRunning): ?>
+                                <span style="background: #4CAF50; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 6px;">Em execução</span>
+                            <?php endif; ?>
+                        </span>
+                        <span style="display: flex; gap: 6px; align-items: center;">
+                            <?php if ($bloco['status'] === 'ongoing'): ?>
+                                <?php if ($isRunning): ?>
+                                    <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/pause') ?>" style="margin: 0;">
+                                        <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                                        <button type="submit" class="btn btn-secondary btn-sm">Pausar</button>
+                                    </form>
+                                <?php elseif ($runningSegment): ?>
+                                    <span style="font-size: 11px; color: #999;">Pause o atual primeiro</span>
+                                <?php else: ?>
+                                    <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0;">
+                                        <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                                        <input type="hidden" name="project_id" value="<?= $pid ?>">
+                                        <button type="submit" class="btn btn-primary btn-sm"><?= $hasSegments ? 'Retomar' : 'Iniciar' ?></button>
+                                    </form>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                            <?php if (!$bp['is_foco']): ?>
+                                <form method="post" action="<?= pixelhub_url('/agenda/bloco/project/remove') ?>" style="margin: 0;" onsubmit="return confirm('Remover este projeto do bloco?');">
+                                    <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                                    <input type="hidden" name="project_id" value="<?= $pid ?>">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Remover do bloco">✕</button>
+                                </form>
+                            <?php endif; ?>
+                        </span>
+                    </li>
+                <?php endforeach; ?>
+                <?php if ($bloco['status'] === 'ongoing'): ?>
+            <?php
+            $isAvulsasRunning = $runningSegment && (($runningSegment['project_id'] ?? null) === null || ($runningSegment['project_id'] ?? '') === '');
+            $hasAvulsasSegments = !empty($projectHasSegments['avulsas']) || !empty($projectHasSegments[null]);
+            $totAvulsas = $totalsByProject['avulsas'] ?? $totalsByProject[null] ?? null;
+            $totAvulsasLabel = $totAvulsas ? floor((int)($totAvulsas['total_seconds'] ?? 0) / 60) . ' min' : '';
+            if ($isAvulsasRunning || $hasAvulsasSegments || !$runningSegment):
+            ?>
+            <li style="padding: 8px 12px; margin-bottom: 6px; background: white; border-radius: 4px; border: 1px solid #e9ecef; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <span>
+                    <strong>Tarefas avulsas</strong>
+                    <?php if ($totAvulsasLabel): ?><span style="color: #666; font-size: 12px;">(<?= $totAvulsasLabel ?>)</span><?php endif; ?>
+                    <?php if ($isAvulsasRunning): ?><span style="background: #4CAF50; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 6px;">Em execução</span><?php endif; ?>
+                </span>
+                <?php if ($isAvulsasRunning): ?>
+                    <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/pause') ?>" style="margin: 0;">
+                        <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                        <button type="submit" class="btn btn-secondary btn-sm">Pausar</button>
+                    </form>
+                <?php elseif (!$runningSegment): ?>
+                    <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0;">
+                        <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                        <input type="hidden" name="project_id" value="">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm"><?= $hasAvulsasSegments ? 'Retomar' : 'Iniciar' ?></button>
+                    </form>
+                <?php endif; ?>
+            </li>
+            <?php endif; ?>
+                <?php endif; ?>
+            </ul>
+        
+        <form method="post" action="<?= pixelhub_url('/agenda/bloco/project/add') ?>" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+            <select name="project_id" required style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                <option value="">Selecione um projeto...</option>
+                <?php foreach ($projetos as $projeto): ?>
+                    <?php if (!in_array($projeto['id'], $projectIdsInBlock)): ?>
+                        <option value="<?= $projeto['id'] ?>"><?= htmlspecialchars($projeto['name']) ?></option>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </select>
+            <button type="submit" class="btn btn-primary btn-sm">Adicionar projeto</button>
+        </form>
+    </div>
+    
     <div style="margin-top: 20px;">
         <?php if ($bloco['status'] === 'planned'): ?>
             <button onclick="startBlock()" class="btn btn-success">Iniciar Bloco</button>
