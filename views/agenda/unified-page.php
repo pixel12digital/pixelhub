@@ -149,6 +149,10 @@ $baseUrl = pixelhub_url('/agenda');
 .quick-add-form-grid input[type="time"] { width: 100%; min-width: 110px; height: 38px; box-sizing: border-box; padding: 8px 10px; border-radius: 6px; }
 .quick-add-form-grid .btn-add { min-width: 110px; display: flex; align-items: center; }
 .quick-add-form-grid .btn-add .btn-agenda-primary { width: 100%; }
+.agenda-cliente-autocomplete-results .ac-item { padding: 8px 12px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #f1f5f9; }
+.agenda-cliente-autocomplete-results .ac-item:last-child { border-bottom: none; }
+.agenda-cliente-autocomplete-results .ac-item:hover, .agenda-cliente-autocomplete-results .ac-item.ac-selected { background: #f0f9ff; }
+.agenda-cliente-autocomplete-results .ac-empty { padding: 12px; color: #94a3b8; font-size: 12px; text-align: center; }
 @media (max-width: 900px) {
     .quick-add-form-grid { grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
     .quick-add-form-grid .col-projeto { grid-column: 1 / -1; }
@@ -246,12 +250,11 @@ $baseUrl = pixelhub_url('/agenda');
         </div>
     </div>
     <div id="quick-add-avulsa-fields" class="quick-add-avulsa-row" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid #e5e7eb; gap:12px; align-items:flex-end; flex-wrap:wrap;">
-        <div class="col-cliente-avulsa" style="min-width:160px;">
+        <div class="col-cliente-avulsa" style="min-width:200px; position:relative;">
             <label style="font-size:11px; color:#64748b; display:block; margin-bottom:4px;">Cliente (opcional)</label>
-            <select name="tenant_id" id="quick-add-tenant" style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-                <option value="">—</option>
-                <?php foreach ($tenants ?? [] as $t): ?><option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome_fantasia'] ?: $t['name']) ?></option><?php endforeach; ?>
-            </select>
+            <input type="hidden" name="tenant_id" id="quick-add-tenant-id" value="">
+            <input type="text" id="quick-add-tenant-input" placeholder="Digite 3 letras para buscar..." autocomplete="off" style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+            <div id="quick-add-tenant-results" class="agenda-cliente-autocomplete-results" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.1); max-height:200px; overflow-y:auto; z-index:100; margin-top:2px;"></div>
         </div>
         <div class="col-observacao-avulsa" style="flex:1; min-width:200px;">
             <label style="font-size:11px; color:#64748b; display:block; margin-bottom:4px;">Observação (opcional)</label>
@@ -530,17 +533,16 @@ function loadBlockContent(blockId, container) {
             let html = '';
             if (linkedTasks.length > 0) {
                 if (hasMultipleTasks) {
-                    html += '<table class="block-tasks-time-table"><thead><tr><th>Tarefa</th><th>Cliente</th><th>Início</th><th>Fim</th><th>Duração</th></tr></thead><tbody>';
+                    html += '<table class="block-tasks-time-table"><thead><tr><th>Tarefa</th><th>Início</th><th>Fim</th><th>Duração</th></tr></thead><tbody>';
                     linkedTasks.forEach(t => {
                         const tit = (t.title || '').replace(/</g,'&lt;');
                         const pid = t.project_id || '';
                         const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
-                        const clienteTarefa = (t.tenant_name || t.project_tenant_name || '') ? (t.tenant_name || t.project_tenant_name) : 'Interno';
                         const thIni = (t.task_hora_inicio || '').toString().substring(0, 5);
                         const thFim = (t.task_hora_fim || '').toString().substring(0, 5);
                         const durMins = (thIni && thFim) ? (parseInt(thFim.split(':')[0])*60 + parseInt(thFim.split(':')[1]) - parseInt(thIni.split(':')[0])*60 - parseInt(thIni.split(':')[1])) : 0;
                         const durStr = durMins > 0 ? durMins + ' min' : '—';
-                        html += '<tr data-task-id="' + t.id + '"><td><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></td><td style="font-size:12px;color:#64748b;">' + (clienteTarefa || '—').replace(/</g,'&lt;') + '</td>';
+                        html += '<tr data-task-id="' + t.id + '"><td><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></td>';
                         html += '<td><input type="time" class="task-time-input task-time-inicio" data-block-id="' + blockId + '" data-task-id="' + t.id + '" value="' + (thIni || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Início (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
                         html += '<td><input type="time" class="task-time-input task-time-fim" data-block-id="' + blockId + '" data-task-id="' + t.id + '" value="' + (thFim || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Fim (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
                         html += '<td class="task-dur-display">' + durStr + '</td></tr>';
@@ -553,8 +555,7 @@ function loadBlockContent(blockId, container) {
                         const tit = (t.title || '').replace(/</g,'&lt;');
                         const pid = t.project_id || '';
                         const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
-                        const clienteTarefa = (t.tenant_name || t.project_tenant_name || '') ? (t.tenant_name || t.project_tenant_name) : 'Interno';
-                        html += '<li><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span> <span style="font-size:11px;color:#94a3b8;">' + (clienteTarefa || '').replace(/</g,'&lt;') + '</span></li>';
+                        html += '<li><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></li>';
                     });
                     html += '</ul>';
                 }
@@ -802,10 +803,83 @@ document.addEventListener('DOMContentLoaded', function() {
             loadTasksForProject(this.value);
             const avulsaRow = document.getElementById('quick-add-avulsa-fields');
             if (avulsaRow) avulsaRow.style.display = this.value === '' ? 'flex' : 'none';
+            if (this.value !== '') {
+                const ti = document.getElementById('quick-add-tenant-input');
+                const th = document.getElementById('quick-add-tenant-id');
+                if (ti) ti.value = '';
+                if (th) th.value = '';
+            }
         });
         if (qaProject.value) loadTasksForProject(qaProject.value);
         const avulsaRow = document.getElementById('quick-add-avulsa-fields');
         if (avulsaRow && qaProject) avulsaRow.style.display = qaProject.value === '' ? 'flex' : 'none';
+    }
+
+    // Autocomplete Cliente (atividade avulsa)
+    const tenantInput = document.getElementById('quick-add-tenant-input');
+    const tenantIdHidden = document.getElementById('quick-add-tenant-id');
+    const tenantResults = document.getElementById('quick-add-tenant-results');
+    if (tenantInput && tenantIdHidden && tenantResults) {
+        let debounceTimer = null;
+        const searchUrl = '<?= pixelhub_url('/tenants/search-ajax') ?>';
+
+        function hideResults() {
+            tenantResults.style.display = 'none';
+            tenantResults.innerHTML = '';
+        }
+
+        function selectClient(id, label) {
+            tenantIdHidden.value = id;
+            tenantInput.value = label;
+            hideResults();
+        }
+
+        tenantInput.addEventListener('input', function() {
+            const q = this.value.trim();
+            tenantIdHidden.value = '';
+            if (q.length < 3) {
+                hideResults();
+                if (debounceTimer) clearTimeout(debounceTimer);
+                return;
+            }
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function() {
+                debounceTimer = null;
+                fetch(searchUrl + '?q=' + encodeURIComponent(q))
+                    .then(r => r.json())
+                    .then(d => {
+                        if (d.success && d.clients && d.clients.length > 0) {
+                            tenantResults.innerHTML = d.clients.map(c => {
+                                const label = (c.label || c.name || '').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+                                return '<div class="ac-item" data-id="' + c.id + '" data-label="' + label + '">' + label + '</div>';
+                            }).join('');
+                            tenantResults.style.display = 'block';
+                            tenantResults.querySelectorAll('.ac-item').forEach(el => {
+                                el.addEventListener('click', function() {
+                                    selectClient(this.dataset.id, this.dataset.label || this.textContent);
+                                });
+                            });
+                        } else {
+                            tenantResults.innerHTML = '<div class="ac-empty">Nenhum cliente encontrado</div>';
+                            tenantResults.style.display = 'block';
+                        }
+                    })
+                    .catch(() => { hideResults(); });
+            }, 300);
+        });
+
+        tenantInput.addEventListener('blur', function() {
+            setTimeout(hideResults, 150);
+        });
+
+        tenantInput.addEventListener('focus', function() {
+            const q = this.value.trim();
+            if (q.length >= 3 && tenantResults.children.length > 0) tenantResults.style.display = 'block';
+        });
+
+        tenantInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') { hideResults(); this.blur(); }
+        });
     }
 });
 

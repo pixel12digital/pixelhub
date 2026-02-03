@@ -1711,13 +1711,14 @@ class TenantsController extends Controller
 
         $db = DB::getConnection();
         
-        // Busca clientes que correspondem ao termo (busca no nome)
+        // Busca clientes que correspondem ao termo (nome, nome_fantasia)
         // Seguindo padrão do financeiro: filtra arquivados e busca dados para agrupamento
         $searchTerm = '%' . $query . '%';
         $stmt = $db->prepare("
             SELECT 
                 t.id, 
                 t.name,
+                t.nome_fantasia,
                 t.cpf_cnpj,
                 t.document,
                 t.is_archived,
@@ -1731,7 +1732,7 @@ class TenantsController extends Controller
                     ELSE 0
                 END as is_active
             FROM tenants t
-            WHERE t.name LIKE ?
+            WHERE (t.name LIKE ? OR t.nome_fantasia LIKE ?)
             ORDER BY 
                 is_active DESC,  -- Não arquivados primeiro
                 projects_count DESC,  -- Com mais projetos primeiro
@@ -1740,7 +1741,7 @@ class TenantsController extends Controller
                 t.id DESC  -- Mais recente
             LIMIT 30  -- Busca mais para ter dados suficientes para agrupar
         ");
-        $stmt->execute([$searchTerm]);
+        $stmt->execute([$searchTerm, $searchTerm]);
         $allClients = $stmt->fetchAll();
 
         // Agrupa por CPF/CNPJ normalizado (seguindo padrão do financeiro)
@@ -1758,6 +1759,7 @@ class TenantsController extends Controller
                     $clientsWithoutCpf[] = [
                         'id' => $client['id'],
                         'name' => $client['name'],
+                        'label' => !empty($client['nome_fantasia']) ? $client['nome_fantasia'] : $client['name'],
                         'has_duplicates' => false,
                         'duplicates_count' => 0
                     ];
@@ -1802,6 +1804,7 @@ class TenantsController extends Controller
                 $clientData = [
                     'id' => $primary['id'],
                     'name' => $primary['name'],
+                    'label' => !empty($primary['nome_fantasia']) ? $primary['nome_fantasia'] : $primary['name'],
                     'has_duplicates' => $group['has_duplicates'] ?? false,
                     'duplicates_count' => $duplicatesCount
                 ];
@@ -1815,8 +1818,8 @@ class TenantsController extends Controller
             $clients[] = $client;
         }
 
-        // Limita a 10 resultados finais
-        $clients = array_slice($clients, 0, 10);
+        // Limita a 15 resultados finais
+        $clients = array_slice($clients, 0, 15);
 
         echo json_encode([
             'success' => true,
