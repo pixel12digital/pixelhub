@@ -153,6 +153,10 @@ $baseUrl = pixelhub_url('/agenda');
 .agenda-cliente-autocomplete-results .ac-item:last-child { border-bottom: none; }
 .agenda-cliente-autocomplete-results .ac-item:hover, .agenda-cliente-autocomplete-results .ac-item.ac-selected { background: #f0f9ff; }
 .agenda-cliente-autocomplete-results .ac-empty { padding: 12px; color: #94a3b8; font-size: 12px; text-align: center; }
+.quick-add-avulsa-row { display: flex; flex-wrap: nowrap; }
+.quick-add-avulsa-row .col-cliente-avulsa { flex: 1 1 45%; min-width: 220px; }
+.quick-add-avulsa-row .col-observacao-avulsa { flex: 1 1 55%; min-width: 200px; }
+@media (max-width: 600px) { .quick-add-avulsa-row { flex-wrap: wrap; } .quick-add-avulsa-row .col-cliente-avulsa, .quick-add-avulsa-row .col-observacao-avulsa { flex: 1 1 100%; min-width: 0; } }
 @media (max-width: 900px) {
     .quick-add-form-grid { grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
     .quick-add-form-grid .col-projeto { grid-column: 1 / -1; }
@@ -256,7 +260,7 @@ $baseUrl = pixelhub_url('/agenda');
             <input type="text" id="quick-add-tenant-input" placeholder="Digite 3 letras para buscar..." autocomplete="off" style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
             <div id="quick-add-tenant-results" class="agenda-cliente-autocomplete-results" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.1); max-height:200px; overflow-y:auto; z-index:100; margin-top:2px;"></div>
         </div>
-        <div class="col-observacao-avulsa" style="flex:1; min-width:200px;">
+        <div class="col-observacao-avulsa">
             <label style="font-size:11px; color:#64748b; display:block; margin-bottom:4px;">Observação (opcional)</label>
             <input type="text" name="resumo" id="quick-add-resumo" placeholder="Ex.: Reunião com Fulano — alinhamento proposta" maxlength="255" style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
         </div>
