@@ -695,6 +695,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/agenda/bloco', 'AgendaController@show');
     $router->get('/agenda/available-blocks', 'AgendaController@getAvailableBlocks');
     $router->get('/agenda/block-types', 'AgendaController@getBlockTypes');
+    $router->get('/agenda/tasks-by-project', 'AgendaController@getTasksByProject');
     $router->get('/agenda/bloco/editar', 'AgendaController@editBlock');
     $router->post('/agenda/bloco/editar', 'AgendaController@updateBlock');
     $router->get('/agenda/bloco/novo', 'AgendaController@createBlock');

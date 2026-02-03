@@ -221,6 +221,10 @@ ob_start();
         width: 100%;
         border-radius: 0;
     }
+    .task-chip:hover {
+        background: #f3f4f6 !important;
+        border-color: #9ca3af !important;
+    }
 </style>
 
 <div class="content-header">
@@ -304,9 +308,10 @@ ob_start();
     </div>
 </div>
 
-<form method="post" action="<?= pixelhub_url('/agenda/bloco/quick-add') ?>" style="display: grid; grid-template-columns: 1fr 120px 80px 80px auto; gap: 8px; align-items: center; margin-bottom: 20px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
+<form method="post" action="<?= pixelhub_url('/agenda/bloco/quick-add') ?>" id="quick-add-form" style="display: grid; grid-template-columns: 1fr 120px 80px 80px auto; gap: 8px; align-items: center; margin-bottom: 12px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
     <input type="hidden" name="data" value="<?= htmlspecialchars($dataAtualIso ?? $dataStr) ?>">
-    <select name="project_id" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+    <input type="hidden" name="task_id" id="quick-add-task-id" value="">
+    <select name="project_id" id="quick-add-project" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
         <option value="">Atividade avulsa</option>
         <?php foreach ($projetos as $p): ?>
             <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['name']) ?></option>
@@ -322,6 +327,15 @@ ob_start();
     <input type="time" name="hora_fim" required placeholder="Fim" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
     <button type="submit" class="btn btn-nav btn-nav-primary">Adicionar</button>
 </form>
+
+<div id="quick-add-tasks-area" style="display: none; margin-bottom: 16px; padding: 12px 16px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; min-height: 60px;">
+    <div id="quick-add-tasks-loading" style="display: none; color: #6b7280; font-size: 13px;">Carregando tarefas...</div>
+    <div id="quick-add-tasks-list" style="display: none;"></div>
+    <div id="quick-add-tasks-empty" style="display: none; color: #6b7280; font-size: 13px;">
+        Nenhuma tarefa pendente neste projeto.
+        <a href="#" id="quick-add-create-task-link" target="_blank" style="color: #1d4ed8; margin-left: 4px;">Criar tarefa</a>
+    </div>
+</div>
 
 <div class="agenda-filters">
     <select id="filtro-tipo" onchange="applyFilters()">
@@ -545,10 +559,77 @@ function disableStartButtons() {
     });
 }
 
+// Carrega tarefas do projeto selecionado (quick-add)
+function loadTasksForProject(projectId) {
+    const area = document.getElementById('quick-add-tasks-area');
+    const loading = document.getElementById('quick-add-tasks-loading');
+    const list = document.getElementById('quick-add-tasks-list');
+    const empty = document.getElementById('quick-add-tasks-empty');
+    const createLink = document.getElementById('quick-add-create-task-link');
+    const taskInput = document.getElementById('quick-add-task-id');
+
+    if (!projectId || projectId === '') {
+        area.style.display = 'none';
+        taskInput.value = '';
+        return;
+    }
+
+    area.style.display = 'block';
+    loading.style.display = 'block';
+    list.style.display = 'none';
+    empty.style.display = 'none';
+    taskInput.value = '';
+
+    createLink.href = '<?= pixelhub_url('/projects/board') ?>?project_id=' + projectId;
+
+    fetch('<?= pixelhub_url('/agenda/tasks-by-project') ?>?project_id=' + encodeURIComponent(projectId))
+        .then(r => r.json())
+        .then(data => {
+            loading.style.display = 'none';
+            if (data.success && data.tasks && data.tasks.length > 0) {
+                list.style.display = 'block';
+                list.innerHTML = '<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">Vincular tarefa (opcional):</div>' +
+                    '<div style="display: flex; flex-wrap: wrap; gap: 6px;">' +
+                    data.tasks.map(t => {
+                        const statusLabels = { backlog: 'Backlog', em_andamento: 'Em Andamento', aguardando_cliente: 'Aguardando' };
+                        const status = statusLabels[t.status] || t.status;
+                        return '<button type="button" class="task-chip" data-task-id="' + t.id + '" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; font-size: 12px; cursor: pointer; transition: all 0.15s;">' +
+                            (t.title.length > 40 ? t.title.substring(0, 40) + '…' : t.title) +
+                            ' <span style="color: #9ca3af; font-size: 11px;">(' + status + ')</span></button>';
+                    }).join('') +
+                    '<button type="button" class="task-chip task-chip-clear" data-task-id="" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #e5e7eb; background: #f9fafb; font-size: 12px; color: #6b7280; cursor: pointer;">Nenhuma</button>' +
+                    '</div>';
+                list.querySelectorAll('.task-chip').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        list.querySelectorAll('.task-chip').forEach(b => b.style.background = b.classList.contains('task-chip-clear') ? '#f9fafb' : '#fff');
+                        list.querySelectorAll('.task-chip').forEach(b => b.style.borderColor = '#d1d5db');
+                        this.style.background = this.classList.contains('task-chip-clear') ? '#f3f4f6' : '#eff6ff';
+                        this.style.borderColor = '#1d4ed8';
+                        taskInput.value = this.dataset.taskId || '';
+                    });
+                });
+            } else {
+                empty.style.display = 'block';
+            }
+        })
+        .catch(err => {
+            loading.style.display = 'none';
+            list.style.display = 'block';
+            list.innerHTML = '<span style="color: #dc2626;">Erro ao carregar tarefas.</span>';
+        });
+}
+
 // Verifica ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
     checkOngoingBlock();
-    
+
+    const projectSelect = document.getElementById('quick-add-project');
+    if (projectSelect) {
+        projectSelect.addEventListener('change', function() {
+            loadTasksForProject(this.value);
+        });
+    }
+
     // Verifica novamente a cada 30 segundos (caso o bloco seja finalizado em outra aba)
     setInterval(checkOngoingBlock, 30000);
 });

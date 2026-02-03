@@ -6,6 +6,7 @@ use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Services\AgendaService;
 use PixelHub\Services\ProjectService;
+use PixelHub\Services\TaskService;
 
 /**
  * Controller para gerenciar agenda e blocos de tempo
@@ -1166,6 +1167,7 @@ class AgendaController extends Controller
     
     /**
      * Adiciona bloco rapidamente pela lista (estilo ClickUp)
+     * Aceita task_id opcional para vincular tarefa ao bloco criado.
      */
     public function quickAddBlock(): void
     {
@@ -1173,6 +1175,7 @@ class AgendaController extends Controller
         
         $dataStr = $_POST['data'] ?? date('Y-m-d');
         $projectId = isset($_POST['project_id']) && $_POST['project_id'] !== '' ? (int)$_POST['project_id'] : null;
+        $taskId = isset($_POST['task_id']) && $_POST['task_id'] !== '' ? (int)$_POST['task_id'] : 0;
         $tipoId = isset($_POST['tipo_id']) ? (int)$_POST['tipo_id'] : 0;
         $horaInicio = trim($_POST['hora_inicio'] ?? '');
         $horaFim = trim($_POST['hora_fim'] ?? '');
@@ -1191,8 +1194,18 @@ class AgendaController extends Controller
                 'tipo_id' => $tipoId,
                 'projeto_foco_id' => $projectId,
             ];
-            AgendaService::createManualBlock($data, $dados);
-            header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $dataStr . '&sucesso=' . urlencode('Bloco adicionado.')));
+            $blockId = AgendaService::createManualBlock($data, $dados);
+            if ($taskId > 0) {
+                try {
+                    AgendaService::attachTaskToBlock($blockId, $taskId);
+                    header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $dataStr . '&sucesso=' . urlencode('Bloco adicionado com tarefa vinculada.')));
+                } catch (\Exception $e) {
+                    error_log("Erro ao vincular tarefa ao bloco: " . $e->getMessage());
+                    header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $dataStr . '&sucesso=' . urlencode('Bloco adicionado (tarefa não vinculada).')));
+                }
+            } else {
+                header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $dataStr . '&sucesso=' . urlencode('Bloco adicionado.')));
+            }
             exit;
         } catch (\RuntimeException $e) {
             header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $dataStr . '&erro=' . urlencode($e->getMessage())));
@@ -1504,6 +1517,34 @@ class AgendaController extends Controller
         }
     }
     
+    /**
+     * Retorna tarefas não concluídas de um projeto (endpoint JSON para AJAX)
+     * GET /agenda/tasks-by-project?project_id=X
+     */
+    public function getTasksByProject(): void
+    {
+        Auth::requireInternal();
+
+        $projectId = isset($_GET['project_id']) ? (int)$_GET['project_id'] : 0;
+        if ($projectId <= 0) {
+            $this->json(['success' => true, 'tasks' => []]);
+            return;
+        }
+
+        try {
+            $grouped = TaskService::getTasksByProject($projectId);
+            $tasks = array_merge(
+                $grouped['backlog'] ?? [],
+                $grouped['em_andamento'] ?? [],
+                $grouped['aguardando_cliente'] ?? []
+            );
+            $this->json(['success' => true, 'tasks' => $tasks]);
+        } catch (\Exception $e) {
+            error_log("Erro ao buscar tarefas do projeto: " . $e->getMessage());
+            $this->json(['error' => 'Erro ao buscar tarefas'], 500);
+        }
+    }
+
     /**
      * Retorna blocos disponíveis para agendamento (endpoint JSON)
      */
