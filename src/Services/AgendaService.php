@@ -1743,9 +1743,11 @@ class AgendaService
         }
         $stmt = $db->prepare("
             SELECT s.*, p.name as project_name,
+                   t.title as task_title,
                    COALESCE(bt.nome, bbt.nome) as tipo_nome
             FROM agenda_block_segments s
             LEFT JOIN projects p ON s.project_id = p.id
+            LEFT JOIN tasks t ON s.task_id = t.id
             LEFT JOIN agenda_block_types bt ON s.tipo_id = bt.id
             LEFT JOIN agenda_blocks b ON s.block_id = b.id
             LEFT JOIN agenda_block_types bbt ON b.tipo_id = bbt.id

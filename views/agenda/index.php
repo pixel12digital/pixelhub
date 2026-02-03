@@ -55,12 +55,6 @@ ob_start();
         background: #eff6ff;
         border-left-color: #1d4ed8;
     }
-    .block-row-edit {
-        grid-template-columns: 1fr 100px 70px 70px auto !important;
-    }
-    .block-row.editing:hover {
-        background: white;
-    }
     .block-row .block-main {
         display: flex;
         flex-direction: column;
@@ -75,10 +69,6 @@ ob_start();
         font-size: 12px;
         color: #6b7280;
         margin-left: 8px;
-    }
-    .block-row-edit {
-        background: #f8fafc !important;
-        border-left-color: #94a3b8 !important;
     }
     .block-type {
         display: inline-block;
@@ -426,7 +416,7 @@ ob_start();
             <div class="block-row <?= $isCurrent ? 'current' : '' ?>" 
                  data-block-id="<?= (int)$bloco['id'] ?>"
                  style="border-left-color: <?= $corBorda ?>"
-                 onclick="openBlockEdit(<?= (int)$bloco['id'] ?>)">
+                 onclick="window.location.href='<?= pixelhub_url('/agenda/bloco?id=' . $bloco['id']) ?>'">
                 <div class="block-main">
                     <span class="block-project"><?= htmlspecialchars($projetoNome) ?></span>
                     <?php if (!empty($bloco['focus_task_title'])): ?>
@@ -437,21 +427,17 @@ ob_start();
                     <?= htmlspecialchars($bloco['tipo_nome']) ?>
                 </span>
                 <span class="block-time"><?= date('H:i', strtotime($bloco['hora_inicio'])) ?> – <?= date('H:i', strtotime($bloco['hora_fim'])) ?><?php if ($isCurrent): ?> <span style="color: #1976d2; font-size: 11px;">● Agora</span><?php endif; ?></span>
-                <div class="block-actions-row">
-                    <?php if ($bloco['status'] === 'planned'): ?>
-                        <button type="button" class="btn btn-outline btn-outline-success" style="padding: 4px 10px; font-size: 12px;" onclick="event.stopPropagation(); startBlock(<?= $bloco['id'] ?>)">Iniciar</button>
-                    <?php endif; ?>
+                <div class="block-actions-row" onclick="event.stopPropagation()">
                     <?php if ($bloco['status'] === 'completed'): ?>
                         <form method="post" action="<?= pixelhub_url('/agenda/bloco/reopen') ?>" style="display: inline;" onsubmit="return confirm('Reabrir este bloco?');">
                             <input type="hidden" name="id" value="<?= (int)$bloco['id'] ?>">
                             <input type="hidden" name="date" value="<?= htmlspecialchars($dataStr) ?>">
-                            <button type="submit" class="btn btn-outline" style="padding: 4px 10px; font-size: 12px;" onclick="event.stopPropagation()">Reabrir</button>
+                            <button type="submit" class="btn btn-outline" style="padding: 4px 10px; font-size: 12px;">Reabrir</button>
                         </form>
                     <?php endif; ?>
-                    <a href="<?= pixelhub_url('/agenda/bloco?id=' . $bloco['id']) ?>" class="btn btn-outline" style="padding: 4px 10px; font-size: 12px;" onclick="event.stopPropagation()">Abrir</a>
                     <?php if (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
                         <div class="block-actions-more" style="display: inline-block;">
-                            <button type="button" class="btn btn-link-more" onclick="event.stopPropagation(); toggleBlockMenu(this)" aria-label="Mais">⋯</button>
+                            <button type="button" class="btn btn-link-more" onclick="toggleBlockMenu(this)" aria-label="Mais">⋯</button>
                             <div class="block-actions-dropdown">
                                 <?php if (!empty($agendaTaskContext)): ?>
                                 <form method="post" action="<?= pixelhub_url('/agenda/bloco/attach-task') ?>" style="margin: 0;">
@@ -471,28 +457,6 @@ ob_start();
                     <?php endif; ?>
                 </div>
             </div>
-            <!-- Linha de edição inline (oculta por padrão, aparece ao clicar na linha) -->
-            <div class="block-row block-row-edit" id="block-edit-<?= $bloco['id'] ?>" style="display: none; margin-bottom: 4px; cursor: default;" onclick="event.stopPropagation()">
-                <form class="block-inline-form" data-block-id="<?= (int)$bloco['id'] ?>" style="display: contents;">
-                    <select name="projeto_foco_id" style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
-                        <option value="">Atividade avulsa</option>
-                        <?php foreach ($projetos as $p): ?>
-                            <option value="<?= (int)$p['id'] ?>" <?= ($bloco['projeto_foco_id'] ?? 0) == $p['id'] ? 'selected' : '' ?>><?= htmlspecialchars($p['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <select name="tipo_id" required style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
-                        <?php foreach ($tipos as $t): ?>
-                            <option value="<?= (int)$t['id'] ?>" <?= $bloco['tipo_id'] == $t['id'] ? 'selected' : '' ?>><?= htmlspecialchars($t['nome']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <input type="time" name="hora_inicio" value="<?= htmlspecialchars(substr($bloco['hora_inicio'], 0, 5)) ?>" required style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
-                    <input type="time" name="hora_fim" value="<?= htmlspecialchars(substr($bloco['hora_fim'], 0, 5)) ?>" required style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
-                    <div style="display: flex; gap: 4px;">
-                        <button type="submit" class="btn btn-nav btn-nav-primary" style="padding: 6px 12px; font-size: 12px;">Salvar</button>
-                        <button type="button" class="btn btn-outline block-cancel-edit" style="padding: 6px 12px; font-size: 12px;">Cancelar</button>
-                    </div>
-                </form>
-            </div>
         <?php endforeach; ?>
     <?php endif; ?>
 </div>
@@ -508,7 +472,6 @@ function checkOngoingBlock() {
             if (data.success && data.has_ongoing) {
                 ongoingBlock = data.block;
                 showOngoingBlockWarning();
-                disableStartButtons();
             }
         })
         .catch(error => {
@@ -553,17 +516,6 @@ function showOngoingBlockWarning() {
         const mainContent = document.querySelector('.content') || document.body;
         mainContent.insertBefore(warning, mainContent.firstChild);
     }
-}
-
-function disableStartButtons() {
-    // Desabilita todos os botões de "Iniciar"
-    const startButtons = document.querySelectorAll('button[onclick*="startBlock"]');
-    startButtons.forEach(btn => {
-        btn.disabled = true;
-        btn.style.opacity = '0.5';
-        btn.style.cursor = 'not-allowed';
-        btn.title = 'Finalize o bloco em andamento antes de iniciar um novo';
-    });
 }
 
 // Carrega tarefas do projeto selecionado (quick-add)
@@ -674,56 +626,6 @@ function generateBlocks() {
     });
 }
 
-function startBlock(id) {
-    // Verifica se há bloco em andamento antes de tentar iniciar
-    if (ongoingBlock && ongoingBlock.id !== id) {
-        alert('Você já tem um bloco em andamento. Finalize o bloco de ' + 
-              ongoingBlock.data_formatada + ' (' + ongoingBlock.hora_inicio + '-' + ongoingBlock.hora_fim + 
-              ' - ' + ongoingBlock.tipo_nome + ') antes de iniciar um novo.');
-        window.location.href = '<?= pixelhub_url('/agenda/bloco?id=') ?>' + ongoingBlock.id;
-        return;
-    }
-    
-    fetch('<?= pixelhub_url('/agenda/start') ?>', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'id=' + id
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Erro: ' + (data.error || 'Erro desconhecido'));
-        }
-    });
-}
-
-function finishBlock(id) {
-    const resumo = prompt('Resumo do bloco (opcional):');
-    const duracao = prompt('Duração real em minutos (opcional, deixe vazio para usar a planejada):');
-    
-    const formData = new URLSearchParams();
-    formData.set('id', id);
-    formData.set('status', 'completed');
-    if (resumo) formData.set('resumo', resumo);
-    if (duracao) formData.set('duracao_real', duracao);
-    
-    fetch('<?= pixelhub_url('/agenda/finish') ?>', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData.toString()
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Erro: ' + (data.error || 'Erro desconhecido'));
-        }
-    });
-}
-
 function cancelBlock(id) {
     const motivo = prompt('Motivo do cancelamento:');
     if (!motivo) return;
@@ -755,62 +657,6 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Edição inline de blocos
-function openBlockEdit(blockId) {
-    document.querySelectorAll('.block-row-edit').forEach(editRow => {
-        editRow.style.display = 'none';
-        const v = editRow.previousElementSibling;
-        if (v && v.classList.contains('block-row')) v.style.display = 'grid';
-    });
-    const editRow = document.getElementById('block-edit-' + blockId);
-    const viewRow = editRow ? editRow.previousElementSibling : null;
-    if (editRow && viewRow) {
-        viewRow.style.display = 'none';
-        editRow.style.display = 'grid';
-    }
-}
-function closeBlockEdit(blockId) {
-    const editRow = document.getElementById('block-edit-' + blockId);
-    const viewRow = editRow ? editRow.previousElementSibling : null;
-    if (editRow && viewRow) {
-        editRow.style.display = 'none';
-        viewRow.style.display = 'grid';
-    }
-}
-document.querySelectorAll('.block-cancel-edit').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const form = this.closest('.block-inline-form');
-        const blockId = form ? form.dataset.blockId : null;
-        if (blockId) closeBlockEdit(blockId);
-    });
-});
-document.querySelectorAll('.block-inline-form').forEach(form => {
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const blockId = this.dataset.blockId;
-        const formData = new FormData(this);
-        formData.append('id', blockId);
-        const data = {};
-        formData.forEach((v, k) => data[k] = v);
-        fetch('<?= pixelhub_url('/agenda/bloco/editar') ?>', {
-            method: 'POST',
-            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams(data).toString()
-        })
-        .then(r => r.json())
-        .then(res => {
-            if (res.success) {
-                location.reload();
-            } else {
-                alert(res.error || 'Erro ao salvar');
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Erro ao salvar');
-        });
-    });
-});
 </script>
 
 <?php
