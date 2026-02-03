@@ -62,6 +62,9 @@ $baseUrl = pixelhub_url('/agenda');
 .agenda-list-table .block-actions-cell { display: flex; align-items: center; gap: 4px; }
 .agenda-list-table .btn-icon { background: none; border: none; cursor: pointer; padding: 4px; color: #6b7280; display: inline-flex; align-items: center; justify-content: center; }
 .agenda-list-table .btn-icon:hover { color: #dc2626; }
+.inline-edit-time { cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+.inline-edit-time:hover { background: #e2e8f0; }
+.inline-edit-time input { width: 70px; padding: 4px 6px; font-size: 13px; border: 1px solid #3b82f6; border-radius: 4px; }
 .block-expand { display: none; background: #f8fafc; padding: 16px; border: 1px solid #e5e7eb; border-top: none; }
 .block-expand.show { display: table-row; }
 .block-expand td { padding: 16px !important; vertical-align: top !important; border-bottom: 1px solid #e2e8f0; }
@@ -200,7 +203,11 @@ $baseUrl = pixelhub_url('/agenda');
             $projetoNome = !empty($bloco['projeto_foco_nome']) ? $bloco['projeto_foco_nome'] : (!empty($bloco['block_tenant_name']) ? $bloco['block_tenant_name'] : 'Atividade avulsa');
             $isExpanded = ($expandBlockId && $expandBlockId === (int)$bloco['id']);
         ?>
-            <tr class="block-row <?= $isCurrent ? 'current' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" onclick="toggleBlockExpand(<?= (int)$bloco['id'] ?>)">
+            <?php
+                $horaInicioFmt = date('H:i', strtotime($bloco['hora_inicio']));
+                $horaFimFmt = date('H:i', strtotime($bloco['hora_fim']));
+            ?>
+            <tr class="block-row <?= $isCurrent ? 'current' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" data-hora-inicio="<?= htmlspecialchars($horaInicioFmt) ?>" data-hora-fim="<?= htmlspecialchars($horaFimFmt) ?>" onclick="toggleBlockExpand(<?= (int)$bloco['id'] ?>)">
                 <td class="col-item" style="border-left: 4px solid <?= $corBorda ?>;">
                     <div class="block-item-cell">
                         <button type="button" class="block-expand-btn <?= $isExpanded ? 'expanded' : '' ?>" onclick="event.stopPropagation(); toggleBlockExpand(<?= (int)$bloco['id'] ?>)" title="<?= $isExpanded ? 'Recolher' : 'Expandir registros' ?>" aria-label="<?= $isExpanded ? 'Recolher' : 'Expandir' ?>">
@@ -213,8 +220,12 @@ $baseUrl = pixelhub_url('/agenda');
                     </div>
                 </td>
                 <td class="col-tipo"><span style="background: <?= $corBorda ?>; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: white;"><?= htmlspecialchars($bloco['tipo_nome']) ?></span></td>
-                <td class="col-inicio"><?= date('H:i', strtotime($bloco['hora_inicio'])) ?><?= $isCurrent ? ' <span style="color:#1976d2;font-size:10px;">●</span>' : '' ?></td>
-                <td class="col-fim"><?= date('H:i', strtotime($bloco['hora_fim'])) ?></td>
+                <td class="col-inicio" onclick="event.stopPropagation()">
+                    <span class="inline-edit-time" data-field="hora_inicio" data-block-id="<?= (int)$bloco['id'] ?>" title="Clique para editar"><?= $horaInicioFmt ?></span><?= $isCurrent ? ' <span style="color:#1976d2;font-size:10px;">●</span>' : '' ?>
+                </td>
+                <td class="col-fim" onclick="event.stopPropagation()">
+                    <span class="inline-edit-time" data-field="hora_fim" data-block-id="<?= (int)$bloco['id'] ?>" title="Clique para editar"><?= $horaFimFmt ?></span>
+                </td>
                 <td class="col-acoes">
                     <div class="block-actions-cell" onclick="event.stopPropagation()">
                         <form method="post" action="<?= pixelhub_url('/agenda/bloco/delete') ?>" style="display: inline;" onsubmit="return confirm('Excluir este bloco?');">
@@ -276,6 +287,78 @@ function applyFilters(val, type) {
     const params = new URLSearchParams(window.location.search);
     params.set(type, val || '');
     window.location.href = baseUrl + '?' + params.toString();
+}
+
+function initInlineEditTime() {
+    document.querySelectorAll('.inline-edit-time').forEach(span => {
+        if (span.dataset.inited) return;
+        span.dataset.inited = '1';
+        span.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const blockId = this.dataset.blockId;
+            const field = this.dataset.field;
+            const row = this.closest('.block-row');
+            if (!row || !blockId) return;
+            const currentVal = this.textContent.trim();
+            const input = document.createElement('input');
+            input.type = 'time';
+            input.value = currentVal;
+            input.className = 'inline-edit-time';
+            input.style.cssText = 'width:70px;padding:4px 6px;font-size:13px;border:1px solid #3b82f6;border-radius:4px;';
+            const parent = this.parentNode;
+            parent.replaceChild(input, this);
+            input.focus();
+            input.select && input.select();
+            const save = () => {
+                const newVal = input.value;
+                const horaInicio = field === 'hora_inicio' ? newVal : row.dataset.horaInicio;
+                const horaFim = field === 'hora_fim' ? newVal : row.dataset.horaFim;
+                if (newVal === currentVal) {
+                    revert();
+                    return;
+                }
+                const fd = new FormData();
+                fd.append('id', blockId);
+                fd.append('hora_inicio', horaInicio);
+                fd.append('hora_fim', horaFim);
+                fetch('<?= pixelhub_url('/agenda/bloco/editar') ?>', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: fd
+                })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success) {
+                        const hi = (d.bloco.hora_inicio || '').substring(0, 5);
+                        const hf = (d.bloco.hora_fim || '').substring(0, 5);
+                        row.dataset.horaInicio = hi;
+                        row.dataset.horaFim = hf;
+                        revert(field === 'hora_inicio' ? hi : hf);
+                    } else {
+                        alert(d.error || 'Erro ao salvar');
+                        revert();
+                    }
+                })
+                .catch(() => { alert('Erro ao salvar'); revert(); });
+            };
+            const revert = () => {
+                const span2 = document.createElement('span');
+                span2.className = 'inline-edit-time';
+                span2.dataset.field = field;
+                span2.dataset.blockId = blockId;
+                span2.title = 'Clique para editar';
+                span2.textContent = input.value || currentVal;
+                parent.replaceChild(span2, input);
+                span2.dataset.inited = '';
+                initInlineEditTime();
+            };
+            input.addEventListener('blur', save);
+            input.addEventListener('keydown', function(ev) {
+                if (ev.key === 'Enter') { ev.preventDefault(); save(); }
+                if (ev.key === 'Escape') { ev.preventDefault(); revert(currentVal); }
+            });
+        });
+    });
 }
 
 function toggleBlockExpand(blockId) {
@@ -390,6 +473,7 @@ function generateBlocks() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    initInlineEditTime();
     const qaProject = document.getElementById('quick-add-project');
     const qaTaskId = document.getElementById('quick-add-task-id');
     if (qaProject && qaTaskId) {
