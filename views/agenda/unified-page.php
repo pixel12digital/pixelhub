@@ -154,8 +154,8 @@ $baseUrl = pixelhub_url('/agenda');
 .agenda-cliente-autocomplete-results .ac-item:hover, .agenda-cliente-autocomplete-results .ac-item.ac-selected { background: #f0f9ff; }
 .agenda-cliente-autocomplete-results .ac-empty { padding: 12px; color: #94a3b8; font-size: 12px; text-align: center; }
 .quick-add-avulsa-row { display: flex; flex-wrap: nowrap; }
-.quick-add-avulsa-row .col-cliente-avulsa { flex: 1 1 45%; min-width: 220px; }
-.quick-add-avulsa-row .col-observacao-avulsa { flex: 1 1 55%; min-width: 200px; }
+.quick-add-avulsa-row .col-cliente-avulsa { flex: 0 0 30%; min-width: 160px; }
+.quick-add-avulsa-row .col-observacao-avulsa { flex: 1 1 auto; min-width: 200px; }
 @media (max-width: 600px) { .quick-add-avulsa-row { flex-wrap: wrap; } .quick-add-avulsa-row .col-cliente-avulsa, .quick-add-avulsa-row .col-observacao-avulsa { flex: 1 1 100%; min-width: 0; } }
 @media (max-width: 900px) {
     .quick-add-form-grid { grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
