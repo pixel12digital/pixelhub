@@ -619,12 +619,14 @@ class AgendaService
                 bt.codigo as tipo_codigo,
                 bt.cor_hex as tipo_cor_hex,
                 p.name as projeto_foco_nome,
+                at.name as activity_type_name,
                 t_focus.title as focus_task_title,
                 t_focus.status as focus_task_status,
                 " . $tasksCountSubquery . " as total_tarefas
             FROM agenda_blocks b
             INNER JOIN agenda_block_types bt ON b.tipo_id = bt.id
             LEFT JOIN projects p ON b.projeto_foco_id = p.id
+            LEFT JOIN activity_types at ON b.activity_type_id = at.id
             LEFT JOIN tasks t_focus ON b.focus_task_id = t_focus.id
             WHERE b.data >= ? AND b.data <= ?
             ORDER BY b.data ASC, b.hora_inicio ASC

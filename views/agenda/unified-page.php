@@ -130,17 +130,52 @@ $baseUrl = pixelhub_url('/agenda');
 .planilha-registros td { padding: 8px 12px; border-bottom: 1px solid #eee; }
 .btn-icon { background: none; border: none; cursor: pointer; padding: 4px; color: #6b7280; display: inline-flex; }
 .btn-icon:hover { color: #374151; }
-.agenda-quadro-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; margin-top: 20px; }
+/* ===== Quadro semanal: layout fixo + scroll só no conteúdo ===== */
+.agenda-quadro-page-layout {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    margin-top: 20px;
+}
+.agenda-quadro-headers {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 12px;
+    flex-shrink: 0;
+    padding: 0 0 8px 0;
+}
+@media (max-width: 1200px) { .agenda-quadro-headers { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 768px) { .agenda-quadro-headers { grid-template-columns: repeat(2, 1fr); } }
+.quadro-dia-header-cell {
+    font-weight: 600;
+    font-size: 13px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
+}
+.quadro-dia-header-cell a { text-decoration: none; color: #111827; }
+.quadro-dia-header-cell a:hover { color: #023A8D; }
+.quadro-dia-header-cell.hoje { color: #0ea5e9; }
+.agenda-quadro-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.agenda-quadro-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; padding-top: 12px; }
 @media (max-width: 1200px) { .agenda-quadro-grid { grid-template-columns: repeat(4, 1fr); } }
-@media (max-width: 768px) { .agenda-quadro-grid { grid-template-columns: repeat(2, 1fr); } }
-.quadro-dia { border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; background: white; min-height: 180px; }
+@media (max-width: 768px) {
+    .agenda-quadro-grid { grid-template-columns: repeat(2, 1fr); }
+    .agenda-quadro-outer { height: auto; max-height: none; min-height: 0; }
+    .agenda-quadro-page-layout { flex: none; }
+    .agenda-quadro-scroll { overflow-y: visible; }
+}
+.quadro-dia { border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; background: white; min-height: 120px; }
 .quadro-dia.hoje { background: #f0f9ff; border-color: #0ea5e9; }
-.quadro-dia-header { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
-.quadro-dia-header a { font-weight: 600; font-size: 13px; text-decoration: none; color: #111827; }
-.quadro-dia-header a:hover { color: #023A8D; }
 .quadro-card { border-left: 4px solid #94a3b8; padding: 8px; border-radius: 4px; background: #f8fafc; font-size: 12px; margin-bottom: 6px; cursor: pointer; transition: all 0.15s; }
 .quadro-card:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
 .quadro-card.atual { background: #e0f2fe; border-left-color: #0ea5e9; }
+.quadro-card-item { font-size: 11px; color: #374151; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 /* Quick-add form: grid com larguras fixas para evitar corte de horário */
 /* PROJETO ~35% / TAREFA ~65% do espaço flexível; Tipo/Horários/Adicionar fixos */
 .quick-add-form-grid { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(180px, 2fr) 180px 140px 140px 120px; gap: 10px; align-items: center; }
@@ -196,6 +231,9 @@ $baseUrl = pixelhub_url('/agenda');
 }
 </style>
 
+<?php if ($viewMode === 'quadro'): ?>
+<div class="agenda-quadro-outer">
+<?php endif; ?>
 <?php if ($viewMode === 'lista'): ?>
 <div class="agenda-lista-page-layout">
 <div class="agenda-lista-fixed">
@@ -411,31 +449,48 @@ $baseUrl = pixelhub_url('/agenda');
 </div><!-- .agenda-lista-page-layout -->
 
 <?php else: ?>
-<!-- Quadro semanal -->
-<div class="agenda-quadro-grid">
-    <?php foreach ($diasSemana as $dia): ?>
-    <div class="quadro-dia <?= $dia['is_hoje'] ? 'hoje' : '' ?>">
-        <div class="quadro-dia-header">
+<!-- Quadro semanal: cabeçalho fixo + scroll só nos cards -->
+<div class="agenda-quadro-page-layout">
+    <div class="agenda-quadro-headers">
+        <?php foreach ($diasSemana as $dia): ?>
+        <div class="quadro-dia-header-cell <?= $dia['is_hoje'] ? 'hoje' : '' ?>">
             <a href="<?= $baseUrl ?>?view=lista&data=<?= $dia['data_iso'] ?><?= $taskParam ?>"><?= htmlspecialchars($dia['label_dia']) ?></a>
         </div>
-        <?php if (empty($dia['blocos'])): ?>
-        <div style="font-size: 12px; color: #9ca3af; text-align: center; padding: 20px 0;">Sem blocos</div>
-        <?php else: ?>
-        <?php foreach ($dia['blocos'] as $bloco):
-            $isAtual = !empty($bloco['is_atual']);
-            $corHex = $bloco['tipo_cor_hex'] ?? '#94a3b8';
-        ?>
-        <div class="quadro-card <?= $isAtual ? 'atual' : '' ?>" style="border-left-color: <?= htmlspecialchars($corHex) ?>"
-             onclick="window.location.href='<?= $baseUrl ?>?view=lista&data=<?= $dia['data_iso'] ?>&block_id=<?= (int)$bloco['id'] ?><?= $taskParam ?>'">
-            <strong><?= date('H:i', strtotime($bloco['hora_inicio'])) ?>–<?= date('H:i', strtotime($bloco['hora_fim'])) ?></strong>
-            <div style="color: <?= htmlspecialchars($corHex) ?>; margin-top: 2px;"><?= htmlspecialchars($bloco['tipo_nome'] ?? '') ?></div>
-            <?php if (!empty($bloco['segment_fatias'])): ?><div style="font-size: 11px; color: #6b7280; margin-top: 4px;"><?= htmlspecialchars(implode(' | ', $bloco['segment_fatias'])) ?></div><?php endif; ?>
-            <?php if ($isAtual): ?><div style="font-size: 11px; color: #0ea5e9; font-weight: 600; margin-top: 4px;">● Agora</div><?php endif; ?>
-        </div>
-        <?php endforeach; endif; ?>
+        <?php endforeach; ?>
     </div>
-    <?php endforeach; ?>
+    <div class="agenda-quadro-scroll">
+        <div class="agenda-quadro-grid">
+            <?php foreach ($diasSemana as $dia): ?>
+            <div class="quadro-dia <?= $dia['is_hoje'] ? 'hoje' : '' ?>">
+                <?php if (empty($dia['blocos'])): ?>
+                <div style="font-size: 12px; color: #9ca3af; text-align: center; padding: 20px 0;">Sem blocos</div>
+                <?php else: ?>
+                <?php foreach ($dia['blocos'] as $bloco):
+                    $isAtual = !empty($bloco['is_atual']);
+                    $corHex = $bloco['tipo_cor_hex'] ?? '#94a3b8';
+                    $projetoNome = !empty($bloco['projeto_foco_nome']) ? $bloco['projeto_foco_nome'] : (!empty($bloco['activity_type_name']) ? $bloco['activity_type_name'] : (!empty($bloco['resumo']) ? $bloco['resumo'] : ''));
+                    $itemLabel = $projetoNome;
+                    if (!empty($bloco['focus_task_title'])) {
+                        $itemLabel = $itemLabel ? ($itemLabel . ' — ' . $bloco['focus_task_title']) : $bloco['focus_task_title'];
+                    }
+                    if (!$itemLabel) $itemLabel = 'Atividade avulsa';
+                ?>
+                <div class="quadro-card <?= $isAtual ? 'atual' : '' ?>" style="border-left-color: <?= htmlspecialchars($corHex) ?>"
+                     onclick="window.location.href='<?= $baseUrl ?>?view=lista&data=<?= $dia['data_iso'] ?>&block_id=<?= (int)$bloco['id'] ?><?= $taskParam ?>'">
+                    <strong><?= date('H:i', strtotime($bloco['hora_inicio'])) ?>–<?= date('H:i', strtotime($bloco['hora_fim'])) ?></strong>
+                    <div style="color: <?= htmlspecialchars($corHex) ?>; margin-top: 2px;"><?= htmlspecialchars($bloco['tipo_nome'] ?? '') ?></div>
+                    <?php if ($itemLabel): ?><div class="quadro-card-item" title="<?= htmlspecialchars($itemLabel) ?>"><?= htmlspecialchars(mb_strimwidth($itemLabel, 0, 50, '…')) ?></div><?php endif; ?>
+                    <?php if (!empty($bloco['segment_fatias'])): ?><div style="font-size: 11px; color: #6b7280; margin-top: 4px;"><?= htmlspecialchars(implode(' | ', $bloco['segment_fatias'])) ?></div><?php endif; ?>
+                    <?php if ($isAtual): ?><div style="font-size: 11px; color: #0ea5e9; font-weight: 600; margin-top: 4px;">● Agora</div><?php endif; ?>
+                </div>
+                <?php endforeach; endif; ?>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
 </div>
+<?php if ($viewMode === 'quadro'): ?>
+</div><!-- .agenda-quadro-outer -->
 <?php endif; ?>
 
 <script>
