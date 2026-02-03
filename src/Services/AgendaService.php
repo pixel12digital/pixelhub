@@ -479,7 +479,14 @@ class AgendaService
         }
         
         if ($tipoId <= 0) {
-            throw new \RuntimeException('Tipo de bloco é obrigatório.');
+            throw new \RuntimeException('Tipo de bloco é obrigatório. Selecione um tipo (ex.: PRODUÇÃO, COMERCIAL) no campo Bloco.');
+        }
+        
+        // Verifica se o tipo existe (evita erro de FK)
+        $stmt = $db->prepare("SELECT id FROM agenda_block_types WHERE id = ? AND ativo = 1");
+        $stmt->execute([$tipoId]);
+        if (!$stmt->fetch()) {
+            throw new \RuntimeException('Tipo de bloco inválido ou inativo. Selecione um tipo válido em Configurações → Agenda → Tipos de Blocos.');
         }
         
         // Valida horário de início < horário de fim

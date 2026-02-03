@@ -1367,6 +1367,13 @@ class AgendaController extends Controller
         } catch (\RuntimeException $e) {
             header('Location: ' . pixelhub_url('/agenda?view=lista&data=' . $dataStr . '&erro=' . urlencode($e->getMessage())));
             exit;
+        } catch (\PDOException $e) {
+            $msg = (strpos($e->getMessage(), 'tipo_id') !== false || strpos($e->getMessage(), '1452') !== false)
+                ? 'Tipo de bloco inválido. Verifique se o tipo existe em Configurações → Agenda → Tipos de Blocos.'
+                : 'Erro ao salvar o bloco. Tente novamente.';
+            error_log("quickAddBlock PDO: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/agenda?view=lista&data=' . $dataStr . '&erro=' . urlencode($msg)));
+            exit;
         }
     }
     
