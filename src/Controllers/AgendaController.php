@@ -842,40 +842,25 @@ class AgendaController extends Controller
         $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
         $dataStr = isset($_POST['date']) ? trim($_POST['date']) : null;
 
+        $base = pixelhub_url('/agenda');
+        $base .= '?view=lista' . ($dataStr ? '&data=' . urlencode($dataStr) : '');
+
         if ($id <= 0) {
-            $base = pixelhub_url('/agenda/blocos');
-            $redirectUrl = $dataStr
-                ? $base . '?data=' . urlencode($dataStr) . '&erro=' . urlencode('ID do bloco inválido')
-                : $base . '?erro=' . urlencode('ID do bloco inválido');
-            header('Location: ' . $redirectUrl);
+            header('Location: ' . $base . '&erro=' . urlencode('ID do bloco inválido'));
             exit;
         }
 
         try {
             AgendaService::deleteBlock($id);
-            $base = pixelhub_url('/agenda/blocos');
-            $redirectUrl = $dataStr
-                ? $base . '?data=' . urlencode($dataStr) . '&sucesso=' . urlencode('Bloco excluído com sucesso')
-                : $base . '?sucesso=' . urlencode('Bloco excluído com sucesso');
-            header('Location: ' . $redirectUrl);
+            header('Location: ' . $base . '&sucesso=' . urlencode('Bloco excluído com sucesso'));
             exit;
         } catch (\RuntimeException $e) {
             error_log("Erro ao excluir bloco: " . $e->getMessage());
-            $erroMsg = urlencode($e->getMessage());
-            $base = pixelhub_url('/agenda/blocos');
-            $redirectUrl = $dataStr
-                ? $base . '?data=' . urlencode($dataStr) . '&erro=' . $erroMsg
-                : $base . '?erro=' . $erroMsg;
-            header('Location: ' . $redirectUrl);
+            header('Location: ' . $base . '&erro=' . urlencode($e->getMessage()));
             exit;
         } catch (\Exception $e) {
             error_log("Erro ao excluir bloco: " . $e->getMessage());
-            $erroMsg = urlencode('Erro ao excluir bloco');
-            $base = pixelhub_url('/agenda/blocos');
-            $redirectUrl = $dataStr
-                ? $base . '?data=' . urlencode($dataStr) . '&erro=' . $erroMsg
-                : $base . '?erro=' . $erroMsg;
-            header('Location: ' . $redirectUrl);
+            header('Location: ' . $base . '&erro=' . urlencode('Erro ao excluir bloco'));
             exit;
         }
     }

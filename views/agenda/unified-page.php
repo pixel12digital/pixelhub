@@ -42,7 +42,7 @@ $baseUrl = pixelhub_url('/agenda');
 .agenda-list-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; background: white; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
 .agenda-list-table thead { background: #f8fafc; }
 .agenda-list-table th { padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid #e2e8f0; }
-.agenda-list-table th.col-item { width: auto; min-width: 120px; }
+.agenda-list-table th.col-item { width: 260px; max-width: 260px; }
 .agenda-list-table th.col-tipo { width: 140px; }
 .agenda-list-table th.col-inicio { width: 90px; }
 .agenda-list-table th.col-fim { width: 90px; }
@@ -51,12 +51,17 @@ $baseUrl = pixelhub_url('/agenda');
 .agenda-list-table tbody tr.block-row:hover { background: #f8fafc; }
 .agenda-list-table tbody tr.block-row.current { background: #eff6ff; }
 .agenda-list-table tbody tr.block-row td { padding: 8px 12px; vertical-align: middle; }
-.agenda-list-table .block-main { display: flex; flex-direction: column; gap: 1px; }
+.agenda-list-table td.col-item { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.agenda-list-table .block-item-cell { display: flex; align-items: center; gap: 8px; }
+.agenda-list-table .block-main { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
 .agenda-list-table .block-project { font-weight: 600; color: #111827; font-size: 13px; }
 .agenda-list-table .block-task { font-size: 12px; color: #6b7280; }
-.agenda-list-table .block-expand-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: transparent; border-radius: 4px; cursor: pointer; color: #64748b; font-size: 12px; transition: all 0.15s; }
+.agenda-list-table .block-expand-btn { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: none; background: transparent; border-radius: 4px; cursor: pointer; color: #64748b; font-size: 11px; transition: all 0.15s; }
 .agenda-list-table .block-expand-btn:hover { background: #e2e8f0; color: #374151; }
 .agenda-list-table .block-expand-btn.expanded { color: #023A8D; }
+.agenda-list-table .block-actions-cell { display: flex; align-items: center; gap: 4px; }
+.agenda-list-table .btn-icon { background: none; border: none; cursor: pointer; padding: 4px; color: #6b7280; display: inline-flex; align-items: center; justify-content: center; }
+.agenda-list-table .btn-icon:hover { color: #dc2626; }
 .block-expand { display: none; background: #f8fafc; padding: 16px; border: 1px solid #e5e7eb; border-top: none; }
 .block-expand.show { display: table-row; }
 .block-expand td { padding: 16px !important; vertical-align: top !important; border-bottom: 1px solid #e2e8f0; }
@@ -197,18 +202,29 @@ $baseUrl = pixelhub_url('/agenda');
         ?>
             <tr class="block-row <?= $isCurrent ? 'current' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" onclick="toggleBlockExpand(<?= (int)$bloco['id'] ?>)">
                 <td class="col-item" style="border-left: 4px solid <?= $corBorda ?>;">
-                    <div class="block-main">
-                        <span class="block-project"><?= htmlspecialchars($projetoNome) ?></span>
-                        <?php if (!empty($bloco['focus_task_title'])): ?><span class="block-task">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></span><?php endif; ?>
+                    <div class="block-item-cell">
+                        <button type="button" class="block-expand-btn <?= $isExpanded ? 'expanded' : '' ?>" onclick="event.stopPropagation(); toggleBlockExpand(<?= (int)$bloco['id'] ?>)" title="<?= $isExpanded ? 'Recolher' : 'Expandir registros' ?>" aria-label="<?= $isExpanded ? 'Recolher' : 'Expandir' ?>">
+                            <span class="expand-icon"><?= $isExpanded ? '▾' : '▸' ?></span>
+                        </button>
+                        <div class="block-main">
+                            <span class="block-project"><?= htmlspecialchars($projetoNome) ?></span>
+                            <?php if (!empty($bloco['focus_task_title'])): ?><span class="block-task">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></span><?php endif; ?>
+                        </div>
                     </div>
                 </td>
                 <td class="col-tipo"><span style="background: <?= $corBorda ?>; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: white;"><?= htmlspecialchars($bloco['tipo_nome']) ?></span></td>
                 <td class="col-inicio"><?= date('H:i', strtotime($bloco['hora_inicio'])) ?><?= $isCurrent ? ' <span style="color:#1976d2;font-size:10px;">●</span>' : '' ?></td>
                 <td class="col-fim"><?= date('H:i', strtotime($bloco['hora_fim'])) ?></td>
                 <td class="col-acoes">
-                    <button type="button" class="block-expand-btn <?= $isExpanded ? 'expanded' : '' ?>" onclick="event.stopPropagation(); toggleBlockExpand(<?= (int)$bloco['id'] ?>)" title="<?= $isExpanded ? 'Recolher' : 'Expandir registros' ?>" aria-label="<?= $isExpanded ? 'Recolher' : 'Expandir' ?>">
-                        <span class="expand-icon"><?= $isExpanded ? '▾' : '▸' ?></span>
-                    </button>
+                    <div class="block-actions-cell" onclick="event.stopPropagation()">
+                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/delete') ?>" style="display: inline;" onsubmit="return confirm('Excluir este bloco?');">
+                            <input type="hidden" name="id" value="<?= (int)$bloco['id'] ?>">
+                            <input type="hidden" name="date" value="<?= htmlspecialchars($bloco['data'] ?? $dataStr) ?>">
+                            <button type="submit" class="btn-icon" title="Excluir bloco">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                            </button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             <tr class="block-expand <?= $isExpanded ? 'show' : '' ?>" id="block-expand-<?= (int)$bloco['id'] ?>" data-block-id="<?= (int)$bloco['id'] ?>" onclick="event.stopPropagation()">
