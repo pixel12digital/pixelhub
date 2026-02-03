@@ -1676,11 +1676,8 @@
                     </span>
                 </div>
                 <div class="sidebar-module-content <?= $agendaExpanded ? 'is-open' : '' ?>">
-                    <a href="<?= pixelhub_url('/agenda?view=lista') ?>" class="sub-item <?= (($isAgendaUnified && strpos($currentUri, 'view=quadro') === false) || strpos($currentUri, '/agenda/bloco') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Lista</span>
-                    </a>
-                    <a href="<?= pixelhub_url('/agenda?view=quadro') ?>" class="sub-item <?= (strpos($currentUri, 'view=quadro') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Quadro</span>
+                    <a href="<?= pixelhub_url('/agenda') ?>" class="sub-item <?= $isAgendaUnified ? 'active' : '' ?>">
+                        <span class="sidebar-text">Agenda</span>
                     </a>
                     <a href="<?= pixelhub_url('/agenda/timeline') ?>" class="sub-item <?= (strpos($currentUri, '/agenda/timeline') !== false) ? 'active' : '' ?>">
                         <span class="sidebar-text">Visão macro</span>

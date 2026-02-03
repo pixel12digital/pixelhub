@@ -38,14 +38,28 @@ $baseUrl = pixelhub_url('/agenda');
 .agenda-nav .btn-nav:hover { background: #f9fafb; }
 .agenda-filters { display: flex; gap: 8px; flex-wrap: wrap; }
 .agenda-filters select { padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; }
-.block-row { display: grid; grid-template-columns: 1fr auto 100px 100px auto; gap: 12px; align-items: center; padding: 10px 14px; background: white; border-radius: 6px; border-left: 4px solid #ddd; margin-bottom: 4px; cursor: pointer; transition: background 0.15s; }
-.block-row:hover { background: #f8fafc; }
-.block-row.current { background: #eff6ff; border-left-color: #1d4ed8; }
-.block-row .block-main { display: flex; flex-direction: column; gap: 2px; }
-.block-row .block-project { font-weight: 600; color: #111827; font-size: 14px; }
-.block-row .block-task { font-size: 12px; color: #6b7280; }
-.block-expand { display: none; background: #f8fafc; border-radius: 0 0 6px 6px; margin: -4px 0 12px 0; padding: 16px; border: 1px solid #e5e7eb; border-top: none; }
-.block-expand.show { display: block; }
+/* List view: tabela de blocos (estilo planilha ClickUp) */
+.agenda-list-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; background: white; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+.agenda-list-table thead { background: #f8fafc; }
+.agenda-list-table th { padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid #e2e8f0; }
+.agenda-list-table th.col-item { width: auto; min-width: 120px; }
+.agenda-list-table th.col-tipo { width: 140px; }
+.agenda-list-table th.col-inicio { width: 90px; }
+.agenda-list-table th.col-fim { width: 90px; }
+.agenda-list-table th.col-acoes { width: 80px; }
+.agenda-list-table tbody tr.block-row { height: 48px; cursor: pointer; transition: background 0.12s; border-bottom: 1px solid #f1f5f9; }
+.agenda-list-table tbody tr.block-row:hover { background: #f8fafc; }
+.agenda-list-table tbody tr.block-row.current { background: #eff6ff; }
+.agenda-list-table tbody tr.block-row td { padding: 8px 12px; vertical-align: middle; }
+.agenda-list-table .block-main { display: flex; flex-direction: column; gap: 1px; }
+.agenda-list-table .block-project { font-weight: 600; color: #111827; font-size: 13px; }
+.agenda-list-table .block-task { font-size: 12px; color: #6b7280; }
+.agenda-list-table .block-expand-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: transparent; border-radius: 4px; cursor: pointer; color: #64748b; font-size: 12px; transition: all 0.15s; }
+.agenda-list-table .block-expand-btn:hover { background: #e2e8f0; color: #374151; }
+.agenda-list-table .block-expand-btn.expanded { color: #023A8D; }
+.block-expand { display: none; background: #f8fafc; padding: 16px; border: 1px solid #e5e7eb; border-top: none; }
+.block-expand.show { display: table-row; }
+.block-expand td { padding: 16px !important; vertical-align: top !important; border-bottom: 1px solid #e2e8f0; }
 .planilha-registros { width: 100%; border-collapse: collapse; font-size: 13px; }
 .planilha-registros th { background: #f5f5f5; padding: 8px 12px; text-align: left; font-weight: 600; font-size: 11px; color: #666; text-transform: uppercase; }
 .planilha-registros td { padding: 8px 12px; border-bottom: 1px solid #eee; }
@@ -67,6 +81,7 @@ $baseUrl = pixelhub_url('/agenda');
 <div class="agenda-unified-sticky">
     <div class="agenda-unified-sticky-inner">
         <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+            <span style="font-size: 12px; color: #64748b; font-weight: 500;">Visualização:</span>
             <div class="view-switcher">
                 <a href="<?= $baseUrl ?>?view=lista&data=<?= $dataStr ?><?= $taskParam ?>" class="<?= $viewMode === 'lista' ? 'active' : '' ?>">Lista</a>
                 <a href="<?= $baseUrl ?>?view=quadro&data=<?= $dataStr ?><?= $taskParam ?>" class="<?= $viewMode === 'quadro' ? 'active' : '' ?>">Quadro</a>
@@ -143,7 +158,7 @@ $baseUrl = pixelhub_url('/agenda');
     <div id="quick-add-tasks-list"></div>
 </div>
 
-<!-- Lista de blocos (expandíveis) -->
+<!-- Lista de blocos (tabela planilha) -->
 <div class="blocks-list">
     <?php if (empty($blocos)): ?>
     <div style="padding: 32px; text-align: center; color: #6b7280; background: white; border-radius: 8px; border: 1px solid #e5e7eb;">
@@ -162,26 +177,49 @@ $baseUrl = pixelhub_url('/agenda');
                 }
             }
         }
-        foreach ($blocos as $bloco):
+    ?>
+    <table class="agenda-list-table">
+        <thead>
+            <tr>
+                <th class="col-item">Item</th>
+                <th class="col-tipo">Tipo</th>
+                <th class="col-inicio">Início</th>
+                <th class="col-fim">Fim</th>
+                <th class="col-acoes">Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($blocos as $bloco):
             $isCurrent = ($bloco['id'] === $blocoAtualId);
-            $corBorda = htmlspecialchars($bloco['tipo_cor'] ?? '#ddd');
+            $corBorda = htmlspecialchars($bloco['tipo_cor'] ?? '#94a3b8');
             $projetoNome = !empty($bloco['projeto_foco_nome']) ? $bloco['projeto_foco_nome'] : (!empty($bloco['block_tenant_name']) ? $bloco['block_tenant_name'] : 'Atividade avulsa');
             $isExpanded = ($expandBlockId && $expandBlockId === (int)$bloco['id']);
-    ?>
-    <div class="block-row <?= $isCurrent ? 'current' : '' ?>" style="border-left-color: <?= $corBorda ?>"
-         onclick="toggleBlockExpand(<?= (int)$bloco['id'] ?>)">
-        <div class="block-main">
-            <span class="block-project"><?= htmlspecialchars($projetoNome) ?></span>
-            <?php if (!empty($bloco['focus_task_title'])): ?><span class="block-task">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></span><?php endif; ?>
-        </div>
-        <span style="background: <?= $corBorda ?>; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: white;"><?= htmlspecialchars($bloco['tipo_nome']) ?></span>
-        <span><?= date('H:i', strtotime($bloco['hora_inicio'])) ?> – <?= date('H:i', strtotime($bloco['hora_fim'])) ?><?= $isCurrent ? ' <span style="color:#1976d2;font-size:11px;">● Agora</span>' : '' ?></span>
-        <span style="font-size:12px;color:#9ca3af;">▶</span>
-    </div>
-    <div class="block-expand <?= $isExpanded ? 'show' : '' ?>" id="block-expand-<?= (int)$bloco['id'] ?>" data-block-id="<?= (int)$bloco['id'] ?>" onclick="event.stopPropagation()">
-        <div class="block-expand-content"></div>
-    </div>
-    <?php endforeach; endif; ?>
+        ?>
+            <tr class="block-row <?= $isCurrent ? 'current' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" onclick="toggleBlockExpand(<?= (int)$bloco['id'] ?>)">
+                <td class="col-item" style="border-left: 4px solid <?= $corBorda ?>;">
+                    <div class="block-main">
+                        <span class="block-project"><?= htmlspecialchars($projetoNome) ?></span>
+                        <?php if (!empty($bloco['focus_task_title'])): ?><span class="block-task">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></span><?php endif; ?>
+                    </div>
+                </td>
+                <td class="col-tipo"><span style="background: <?= $corBorda ?>; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: white;"><?= htmlspecialchars($bloco['tipo_nome']) ?></span></td>
+                <td class="col-inicio"><?= date('H:i', strtotime($bloco['hora_inicio'])) ?><?= $isCurrent ? ' <span style="color:#1976d2;font-size:10px;">●</span>' : '' ?></td>
+                <td class="col-fim"><?= date('H:i', strtotime($bloco['hora_fim'])) ?></td>
+                <td class="col-acoes">
+                    <button type="button" class="block-expand-btn <?= $isExpanded ? 'expanded' : '' ?>" onclick="event.stopPropagation(); toggleBlockExpand(<?= (int)$bloco['id'] ?>)" title="<?= $isExpanded ? 'Recolher' : 'Expandir registros' ?>" aria-label="<?= $isExpanded ? 'Recolher' : 'Expandir' ?>">
+                        <span class="expand-icon"><?= $isExpanded ? '▾' : '▸' ?></span>
+                    </button>
+                </td>
+            </tr>
+            <tr class="block-expand <?= $isExpanded ? 'show' : '' ?>" id="block-expand-<?= (int)$bloco['id'] ?>" data-block-id="<?= (int)$bloco['id'] ?>" onclick="event.stopPropagation()">
+                <td colspan="5">
+                    <div class="block-expand-content"></div>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    <?php endif; ?>
 </div>
 
 <?php else: ?>
@@ -228,9 +266,25 @@ function toggleBlockExpand(blockId) {
     const el = document.getElementById('block-expand-' + blockId);
     if (!el) return;
     const isOpen = el.classList.contains('show');
-    document.querySelectorAll('.block-expand.show').forEach(e => e.classList.remove('show'));
+    document.querySelectorAll('.block-expand.show').forEach(e => {
+        e.classList.remove('show');
+        const row = e.previousElementSibling;
+        if (row && row.classList.contains('block-row')) {
+            const btn = row.querySelector('.block-expand-btn');
+            const icon = btn && btn.querySelector('.expand-icon');
+            if (btn) btn.classList.remove('expanded');
+            if (icon) icon.textContent = '▸';
+        }
+    });
     if (!isOpen) {
         el.classList.add('show');
+        const row = el.previousElementSibling;
+        if (row && row.classList.contains('block-row')) {
+            const btn = row.querySelector('.block-expand-btn');
+            const icon = btn && btn.querySelector('.expand-icon');
+            if (btn) btn.classList.add('expanded');
+            if (icon) icon.textContent = '▾';
+        }
         const content = el.querySelector('.block-expand-content');
         if (content && !content.dataset.loaded) {
             loadBlockContent(blockId, content);
