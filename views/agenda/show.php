@@ -301,144 +301,80 @@ ob_start();
     <?php endif; ?>
     
     <?php
-    $blockProjects = $blockProjects ?? [];
-    $segmentTotals = $segmentTotals ?? [];
-    $segmentDisplayInfo = $segmentDisplayInfo ?? [];
-    $runningSegment = $runningSegment ?? null;
     $segments = $segments ?? [];
-    $projectIdsInBlock = array_column($blockProjects, 'id');
-    $projectHasSegments = [];
-    foreach ($segments as $s) {
-        $pid = $s['project_id'] ?? 'avulsas';
-        $projectHasSegments[$pid] = true;
-    }
-    $totalsByProject = [];
-    foreach ($segmentTotals as $t) {
-        $totalsByProject[$t['project_id'] ?? 'avulsas'] = $t;
-    }
     ?>
     <div class="projetos-bloco" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
+        <strong style="font-size: 13px; color: #333;">Registros do bloco</strong>
+        <p style="margin: 4px 0 12px 0; font-size: 12px; color: #666;">Preencha manualmente os horários. Esta é a base para os relatórios (tempo por projeto, por tipo).</p>
         
-        <?php if (!empty($segments)): ?>
-        <div style="margin-bottom: 20px;">
-            <strong style="font-size: 13px; color: #333;">O que foi feito</strong>
-            <p style="margin: 4px 0 10px 0; font-size: 12px; color: #666;">Registro cronológico do seu trabalho neste bloco.</p>
-            <ul class="registro-timeline" style="background: white; border-radius: 6px; border: 1px solid #e9ecef; overflow: hidden;">
-                <?php foreach ($segments as $seg): ?>
-                    <?php
-                    $nome = !empty($seg['project_name']) ? $seg['project_name'] : 'Atividade avulso';
-                    $inicio = date('H:i', strtotime($seg['started_at']));
-                    $fim = ($seg['status'] ?? '') === 'running' ? 'agora' : (!empty($seg['ended_at']) ? date('H:i', strtotime($seg['ended_at'])) : '—');
-                    $duracao = ($seg['status'] ?? '') === 'running'
-                        ? 'em andamento'
-                        : (!empty($seg['duration_seconds']) ? floor((int)$seg['duration_seconds']/60) . ' min' : '—');
-                    $tipoNome = $seg['tipo_nome'] ?? $bloco['tipo_nome'] ?? '';
-                    $isRunning = ($seg['status'] ?? '') === 'running';
-                    ?>
-                    <li class="<?= $isRunning ? 'reg-ativo' : '' ?>">
-                        <span class="reg-atividade"><?= htmlspecialchars($nome) ?></span>
-                        <span class="reg-horarios"><?= htmlspecialchars($inicio) ?> – <?= htmlspecialchars($fim) ?></span>
-                        <span class="reg-duracao"><?= htmlspecialchars($duracao) ?></span>
-                        <?php if ($tipoNome): ?><span class="reg-categoria">(<?= htmlspecialchars($tipoNome) ?>)</span><?php endif; ?>
-                        <?php if ($isRunning && in_array($bloco['status'], ['planned', 'ongoing'])): ?>
-                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/pause') ?>" style="margin: 0; margin-left: auto;">
-                            <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                            <button type="submit" class="btn btn-secondary btn-sm" title="Finalizar este registro" aria-label="Finalizar">&#9209; Finalizar</button>
-                        </form>
-                        <?php endif; ?>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
-        </div>
-        <?php endif; ?>
-        
-        <strong style="font-size: 13px; color: #333;">Registrar atividade</strong>
-        <p style="margin: 4px 0 12px 0; font-size: 12px; color: #666;">Inicie o trabalho em um projeto ou atividade avulsa. Ao iniciar outro, o atual é finalizado automaticamente.</p>
-        
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-            <?php foreach ($blockProjects as $bp): ?>
-                <?php
-                $pid = $bp['id'];
-                $isRunning = $runningSegment && ($runningSegment['project_id'] ?? null) == $pid;
-                $hasSegments = !empty($projectHasSegments[$pid]);
-                ?>
-                <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border-radius: 6px; border: 1px solid #e9ecef;">
-                    <span style="flex: 1; font-weight: 500;"><?= htmlspecialchars($bp['name']) ?></span>
-                    <?php if (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
-                        <?php if ($isRunning): ?>
-                            <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/pause') ?>" style="margin: 0;">
-                                <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                                <button type="submit" class="btn btn-secondary btn-sm" title="Finalizar">&#9209; Finalizar</button>
-                            </form>
-                        <?php else: ?>
-                            <form id="form-seg-<?= $pid ?>" method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0; display: flex; align-items: center; gap: 8px;">
-                                <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                                <input type="hidden" name="project_id" value="<?= $pid ?>">
-                                <select name="tipo_id" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; min-width: 120px;">
-                                    <option value=""><?= htmlspecialchars($bloco['tipo_nome'] ?? 'Padrão') ?></option>
-                                    <?php foreach ($blockTypes ?? [] as $t): ?>
-                                        <?php if ((int)$t['id'] !== (int)($bloco['tipo_id'] ?? 0)): ?>
-                                            <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
-                                        <?php endif; ?>
-                                    <?php endforeach; ?>
-                                </select>
-                                <button type="submit" class="btn btn-primary btn-sm" title="Iniciar">&#9654; Iniciar</button>
-                            </form>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                    <form method="post" action="<?= pixelhub_url('/agenda/bloco/project/remove') ?>" style="margin: 0;" onsubmit="return confirm('Remover este projeto do bloco?');">
-                        <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                        <input type="hidden" name="project_id" value="<?= $pid ?>">
-                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Remover">&#10005;</button>
-                    </form>
-                </div>
-            <?php endforeach; ?>
-            
-            <?php if (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
-                <?php
-                $isAvulsasRunning = $runningSegment && (($runningSegment['project_id'] ?? null) === null || ($runningSegment['project_id'] ?? '') === '');
-                $hasAvulsasSegments = !empty($projectHasSegments['avulsas']) || !empty($projectHasSegments[null]);
-                if (!$runningSegment || $isAvulsasRunning || $hasAvulsasSegments):
-                ?>
-                <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border-radius: 6px; border: 1px solid #e3e8ef;">
-                    <span style="flex: 1; font-style: italic; color: #666;">Atividade avulsa (reunião, etc.)</span>
-                    <?php if ($isAvulsasRunning): ?>
-                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/pause') ?>" style="margin: 0;">
-                            <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                            <button type="submit" class="btn btn-secondary btn-sm">&#9209; Finalizar</button>
-                        </form>
-                    <?php else: ?>
-                        <form id="form-seg-avulsas" method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0; display: flex; align-items: center; gap: 8px;">
-                            <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                            <input type="hidden" name="project_id" value="">
-                            <select name="tipo_id" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; min-width: 120px;">
-                                <option value=""><?= htmlspecialchars($bloco['tipo_nome'] ?? 'Padrão') ?></option>
-                                <?php foreach ($blockTypes ?? [] as $t): ?>
-                                    <?php if ((int)$t['id'] !== (int)($bloco['tipo_id'] ?? 0)): ?>
-                                        <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
-                                    <?php endif; ?>
-                                <?php endforeach; ?>
-                            </select>
-                            <button type="submit" class="btn btn-outline-secondary btn-sm">&#9654; Iniciar</button>
-                        </form>
-                    <?php endif; ?>
-                </div>
-                <?php endif; ?>
-            <?php endif; ?>
-        </div>
-        
-        <form method="post" action="<?= pixelhub_url('/agenda/bloco/project/add') ?>" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; padding-top: 16px; border-top: 1px solid #e3e8ef;">
+        <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/create-manual') ?>" style="display: grid; grid-template-columns: 1fr 80px 80px 120px auto; gap: 8px; align-items: center; margin-bottom: 16px;">
             <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-            <select name="project_id" required style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px;">
-                <option value="">Selecione um projeto...</option>
-                <?php foreach ($projetos as $projeto): ?>
-                    <?php if (!in_array($projeto['id'], $projectIdsInBlock)): ?>
-                        <option value="<?= $projeto['id'] ?>"><?= htmlspecialchars($projeto['name']) ?></option>
+            <select name="project_id" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                <option value="">Atividade avulsa</option>
+                <?php foreach ($projetos as $p): ?>
+                    <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <input type="time" name="hora_inicio" required placeholder="Início" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+            <input type="time" name="hora_fim" required placeholder="Fim" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+            <select name="tipo_id" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                <option value=""><?= htmlspecialchars($bloco['tipo_nome'] ?? 'Padrão') ?></option>
+                <?php foreach ($blockTypes ?? [] as $t): ?>
+                    <?php if ((int)$t['id'] !== (int)($bloco['tipo_id'] ?? 0)): ?>
+                        <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
                     <?php endif; ?>
                 <?php endforeach; ?>
             </select>
-            <button type="submit" class="btn btn-primary btn-sm">Adicionar projeto</button>
+            <button type="submit" class="btn btn-primary btn-sm">Adicionar</button>
         </form>
+        
+        <div style="background: white; border-radius: 6px; border: 1px solid #e9ecef; overflow: hidden;">
+            <div style="display: grid; grid-template-columns: 1fr 80px 80px 120px 70px 50px; gap: 8px; align-items: center; padding: 10px 12px; background: #f5f5f5; font-size: 11px; color: #666; text-transform: uppercase;">
+                <div>Projeto</div>
+                <div>Início</div>
+                <div>Fim</div>
+                <div>Tipo</div>
+                <div></div>
+                <div></div>
+            </div>
+            <?php foreach ($segments as $seg): ?>
+                <?php
+                $inicio = date('H:i', strtotime($seg['started_at']));
+                $fim = !empty($seg['ended_at']) ? date('H:i', strtotime($seg['ended_at'])) : '00:00';
+                $tipoId = (int)($seg['tipo_id'] ?? 0);
+                $projId = $seg['project_id'] ?? '';
+                ?>
+                <div style="display: grid; grid-template-columns: 1fr 80px 80px 120px 70px 50px; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee;">
+                    <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/update') ?>" style="display: contents;">
+                        <input type="hidden" name="segment_id" value="<?= (int)$seg['id'] ?>">
+                        <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                        <select name="project_id" style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; min-width: 0;">
+                            <option value="" <?= $projId === '' || $projId === null ? 'selected' : '' ?>>Atividade avulsa</option>
+                            <?php foreach ($projetos as $p): ?>
+                                <option value="<?= (int)$p['id'] ?>" <?= (int)$projId === (int)$p['id'] ? 'selected' : '' ?>><?= htmlspecialchars($p['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="time" name="hora_inicio" value="<?= htmlspecialchars($inicio) ?>" required style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                        <input type="time" name="hora_fim" value="<?= htmlspecialchars($fim) ?>" required style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                        <select name="tipo_id" style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                            <option value=""><?= htmlspecialchars($bloco['tipo_nome'] ?? 'Padrão') ?></option>
+                            <?php foreach ($blockTypes ?? [] as $t): ?>
+                                <option value="<?= (int)$t['id'] ?>" <?= $tipoId === (int)$t['id'] ? 'selected' : '' ?>><?= htmlspecialchars($t['nome']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div><button type="submit" class="btn btn-secondary btn-sm" title="Salvar">Salvar</button></div>
+                    </form>
+                    <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/delete') ?>" style="margin: 0; display: contents;" onsubmit="return confirm('Remover este registro?');">
+                        <input type="hidden" name="segment_id" value="<?= (int)$seg['id'] ?>">
+                        <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                        <div><button type="submit" class="btn btn-outline-danger btn-sm" title="Remover">&#10005;</button></div>
+                    </form>
+                </div>
+            <?php endforeach; ?>
+            <?php if (empty($segments)): ?>
+                <div style="padding: 24px; text-align: center; color: #999; font-size: 13px;">Nenhum registro. Use o formulário acima para adicionar.</div>
+            <?php endif; ?>
+        </div>
     </div>
     
     <div class="bloco-actions-footer">

@@ -209,13 +209,21 @@ class AgendaController extends Controller
         $runningSegment = AgendaService::getRunningSegmentForBlock($id);
         $blockProjects = AgendaService::getProjectsForBlock($id);
         
-        // Projeto atual (referência): segmento em execução > projeto_foco > primeiro da lista
+        // Projeto atual (referência para vincular tarefas): segmento em execução > projeto_foco > primeiro segmento com projeto > blockProjects
         $projetoAtual = null;
         if ($runningSegment && isset($runningSegment['project_id']) && $runningSegment['project_id']) {
             $projetoAtual = ['id' => (int)$runningSegment['project_id'], 'name' => $runningSegment['project_name'] ?? 'Projeto'];
         } elseif ($bloco['projeto_foco_id']) {
             $projetoAtual = ['id' => (int)$bloco['projeto_foco_id'], 'name' => $bloco['projeto_foco_nome'] ?? 'Projeto'];
-        } elseif (!empty($blockProjects)) {
+        } elseif (!empty($segments)) {
+            foreach ($segments as $s) {
+                if (!empty($s['project_id']) && !empty($s['project_name'])) {
+                    $projetoAtual = ['id' => (int)$s['project_id'], 'name' => $s['project_name']];
+                    break;
+                }
+            }
+        }
+        if (!$projetoAtual && !empty($blockProjects)) {
             $projetoAtual = ['id' => (int)$blockProjects[0]['id'], 'name' => $blockProjects[0]['name']];
         }
         
@@ -322,6 +330,90 @@ class AgendaController extends Controller
         } catch (\Exception $e) {
             error_log("Erro ao pausar segmento: " . $e->getMessage());
             header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Erro ao pausar projeto.')));
+            exit;
+        }
+    }
+    
+    /**
+     * Cria segmento com horários manuais (entrada tipo planilha)
+     */
+    public function createSegmentManual(): void
+    {
+        Auth::requireInternal();
+        $blockId = (int)($_POST['block_id'] ?? $_POST['id'] ?? 0);
+        $projectId = isset($_POST['project_id']) && $_POST['project_id'] !== '' ? (int)$_POST['project_id'] : null;
+        $taskId = isset($_POST['task_id']) && $_POST['task_id'] !== '' ? (int)$_POST['task_id'] : null;
+        $tipoId = isset($_POST['tipo_id']) && $_POST['tipo_id'] !== '' ? (int)$_POST['tipo_id'] : null;
+        $horaInicio = trim($_POST['hora_inicio'] ?? '');
+        $horaFim = trim($_POST['hora_fim'] ?? '');
+        if ($blockId <= 0 || !$horaInicio || !$horaFim) {
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Preencha projeto (ou avulso), início e fim.')));
+            exit;
+        }
+        try {
+            AgendaService::createSegmentManual($blockId, $projectId, $taskId, $tipoId, $horaInicio, $horaFim);
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Registro adicionado.')));
+            exit;
+        } catch (\RuntimeException $e) {
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode($e->getMessage())));
+            exit;
+        } catch (\Exception $e) {
+            error_log("Erro ao criar segmento manual: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Erro ao adicionar registro.')));
+            exit;
+        }
+    }
+    
+    /**
+     * Atualiza segmento com horários manuais
+     */
+    public function updateSegment(): void
+    {
+        Auth::requireInternal();
+        $segmentId = (int)($_POST['segment_id'] ?? $_POST['id'] ?? 0);
+        $blockId = (int)($_POST['block_id'] ?? 0);
+        $projectId = isset($_POST['project_id']) && $_POST['project_id'] !== '' ? (int)$_POST['project_id'] : null;
+        $taskId = isset($_POST['task_id']) && $_POST['task_id'] !== '' ? (int)$_POST['task_id'] : null;
+        $tipoId = isset($_POST['tipo_id']) && $_POST['tipo_id'] !== '' ? (int)$_POST['tipo_id'] : null;
+        $horaInicio = trim($_POST['hora_inicio'] ?? '');
+        $horaFim = trim($_POST['hora_fim'] ?? '');
+        if ($segmentId <= 0 || !$horaInicio || !$horaFim) {
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Dados inválidos.')));
+            exit;
+        }
+        try {
+            AgendaService::updateSegment($segmentId, $projectId, $taskId, $tipoId, $horaInicio, $horaFim);
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Registro atualizado.')));
+            exit;
+        } catch (\RuntimeException $e) {
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode($e->getMessage())));
+            exit;
+        } catch (\Exception $e) {
+            error_log("Erro ao atualizar segmento: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Erro ao atualizar.')));
+            exit;
+        }
+    }
+    
+    /**
+     * Remove segmento
+     */
+    public function deleteSegment(): void
+    {
+        Auth::requireInternal();
+        $segmentId = (int)($_POST['segment_id'] ?? $_POST['id'] ?? 0);
+        $blockId = (int)($_POST['block_id'] ?? 0);
+        if ($segmentId <= 0) {
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('ID inválido.')));
+            exit;
+        }
+        try {
+            AgendaService::deleteSegment($segmentId);
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Registro removido.')));
+            exit;
+        } catch (\Exception $e) {
+            error_log("Erro ao remover segmento: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Erro ao remover.')));
             exit;
         }
     }

@@ -1894,6 +1894,89 @@ class AgendaService
     }
     
     /**
+     * Cria um segmento com horários manuais (entrada tipo planilha).
+     * Usa a data do bloco + hora_inicio e hora_fim informados.
+     */
+    public static function createSegmentManual(int $blockId, ?int $projectId, ?int $taskId, ?int $tipoId, string $horaInicio, string $horaFim): array
+    {
+        $db = DB::getConnection();
+        if (!self::hasSegmentsTable($db)) {
+            throw new \RuntimeException('Funcionalidade de segmentos não disponível.');
+        }
+        $bloco = self::getBlockById($blockId);
+        if (!$bloco) {
+            throw new \RuntimeException('Bloco não encontrado');
+        }
+        $dataStr = $bloco['data'] ?? date('Y-m-d');
+        if (!preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', trim($horaInicio)) || !preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', trim($horaFim))) {
+            throw new \RuntimeException('Horário inválido. Use formato HH:MM ou HH:MM:SS.');
+        }
+        $startedAt = $dataStr . ' ' . self::normalizeTime(trim($horaInicio));
+        $endedAt = $dataStr . ' ' . self::normalizeTime(trim($horaFim));
+        $duration = (int) (strtotime($endedAt) - strtotime($startedAt));
+        if ($duration < 0) {
+            throw new \RuntimeException('Horário de fim deve ser após o horário de início.');
+        }
+        $tipoIdFinal = $tipoId ?? (int)($bloco['tipo_id'] ?? 0);
+        if ($tipoIdFinal <= 0) {
+            $tipoIdFinal = null;
+        }
+        $stmt = $db->prepare("
+            INSERT INTO agenda_block_segments (block_id, tipo_id, project_id, task_id, status, started_at, ended_at, duration_seconds)
+            VALUES (?, ?, ?, ?, 'done', ?, ?, ?)
+        ");
+        $stmt->execute([$blockId, $tipoIdFinal, $projectId, $taskId, $startedAt, $endedAt, $duration]);
+        return ['id' => (int)$db->lastInsertId(), 'started_at' => $startedAt, 'ended_at' => $endedAt, 'duration_seconds' => $duration];
+    }
+    
+    /**
+     * Atualiza um segmento com horários manuais.
+     */
+    public static function updateSegment(int $segmentId, ?int $projectId, ?int $taskId, ?int $tipoId, string $horaInicio, string $horaFim): void
+    {
+        $db = DB::getConnection();
+        if (!self::hasSegmentsTable($db)) {
+            throw new \RuntimeException('Funcionalidade de segmentos não disponível.');
+        }
+        $stmt = $db->prepare("SELECT s.*, b.data FROM agenda_block_segments s INNER JOIN agenda_blocks b ON s.block_id = b.id WHERE s.id = ?");
+        $stmt->execute([$segmentId]);
+        $seg = $stmt->fetch();
+        if (!$seg) {
+            throw new \RuntimeException('Registro não encontrado.');
+        }
+        $dataStr = $seg['data'] ?? date('Y-m-d');
+        if (!preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', trim($horaInicio)) || !preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', trim($horaFim))) {
+            throw new \RuntimeException('Horário inválido. Use formato HH:MM ou HH:MM:SS.');
+        }
+        $startedAt = $dataStr . ' ' . self::normalizeTime(trim($horaInicio));
+        $endedAt = $dataStr . ' ' . self::normalizeTime(trim($horaFim));
+        $duration = (int) (strtotime($endedAt) - strtotime($startedAt));
+        if ($duration < 0) {
+            throw new \RuntimeException('Horário de fim deve ser após o horário de início.');
+        }
+        $tipoIdFinal = $tipoId > 0 ? $tipoId : null;
+        $stmt = $db->prepare("
+            UPDATE agenda_block_segments
+            SET project_id = ?, task_id = ?, tipo_id = ?, started_at = ?, ended_at = ?, duration_seconds = ?
+            WHERE id = ?
+        ");
+        $stmt->execute([$projectId, $taskId, $tipoIdFinal, $startedAt, $endedAt, $duration, $segmentId]);
+    }
+    
+    /**
+     * Remove um segmento.
+     */
+    public static function deleteSegment(int $segmentId): void
+    {
+        $db = DB::getConnection();
+        if (!self::hasSegmentsTable($db)) {
+            throw new \RuntimeException('Funcionalidade de segmentos não disponível.');
+        }
+        $stmt = $db->prepare("DELETE FROM agenda_block_segments WHERE id = ?");
+        $stmt->execute([$segmentId]);
+    }
+    
+    /**
      * Fecha todos os segmentos running do bloco (ao encerrar bloco).
      */
     public static function closeRunningSegmentsForBlock(int $blockId): void
