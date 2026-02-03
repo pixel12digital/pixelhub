@@ -519,12 +519,14 @@ class AgendaService
         $tenantId = isset($dados['tenant_id']) && (int)$dados['tenant_id'] > 0 ? (int)$dados['tenant_id'] : null;
         // Observação/resumo (opcional, pode ser preenchido na criação)
         $resumo = isset($dados['resumo']) && trim($dados['resumo']) !== '' ? trim($dados['resumo']) : null;
+        // Tipo de atividade (opcional, para atividades avulsas)
+        $activityTypeId = isset($dados['activity_type_id']) && (int)$dados['activity_type_id'] > 0 ? (int)$dados['activity_type_id'] : null;
         
-        // Insere o bloco (tenant_id e resumo opcionais)
+        // Insere o bloco (tenant_id, resumo e activity_type_id opcionais)
         $stmt = $db->prepare("
             INSERT INTO agenda_blocks 
-            (data, hora_inicio, hora_fim, tipo_id, projeto_foco_id, tenant_id, resumo, status, duracao_planejada, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'planned', ?, NOW(), NOW())
+            (data, hora_inicio, hora_fim, tipo_id, projeto_foco_id, activity_type_id, tenant_id, resumo, status, duracao_planejada, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'planned', ?, NOW(), NOW())
         ");
         $stmt->execute([
             $dataStr,
@@ -532,6 +534,7 @@ class AgendaService
             $horaFim,
             $tipoId,
             $projetoFocoId,
+            $activityTypeId,
             $tenantId,
             $resumo,
             $duracaoMinutos,
@@ -1113,6 +1116,7 @@ class AgendaService
                 bt.codigo as tipo_codigo,
                 bt.cor_hex as tipo_cor,
                 p.name as projeto_foco_nome,
+                at.name as activity_type_name,
                 COALESCE(NULLIF(tn_block.nome_fantasia, ''), tn_block.name) as block_tenant_name,
                 COALESCE(NULLIF(tn_projeto.nome_fantasia, ''), tn_projeto.name) as project_tenant_name,
                 t_focus.title as focus_task_title,
@@ -1122,6 +1126,7 @@ class AgendaService
             FROM agenda_blocks b
             INNER JOIN agenda_block_types bt ON b.tipo_id = bt.id
             LEFT JOIN projects p ON b.projeto_foco_id = p.id
+            LEFT JOIN activity_types at ON b.activity_type_id = at.id
             LEFT JOIN tenants tn_block ON b.tenant_id = tn_block.id
             LEFT JOIN tenants tn_projeto ON p.tenant_id = tn_projeto.id
             LEFT JOIN tasks t_focus ON b.focus_task_id = t_focus.id

@@ -1321,6 +1321,7 @@ class AgendaController extends Controller
         $dataStr = $_POST['data'] ?? date('Y-m-d');
         $projectId = isset($_POST['project_id']) && $_POST['project_id'] !== '' ? (int)$_POST['project_id'] : null;
         $taskId = isset($_POST['task_id']) && $_POST['task_id'] !== '' ? (int)$_POST['task_id'] : 0;
+        $activityTypeId = isset($_POST['activity_type_id']) && $_POST['activity_type_id'] !== '' ? (int)$_POST['activity_type_id'] : null;
         $tipoId = isset($_POST['tipo_id']) ? (int)$_POST['tipo_id'] : 0;
         $horaInicio = trim($_POST['hora_inicio'] ?? '');
         $horaFim = trim($_POST['hora_fim'] ?? '');
@@ -1332,7 +1333,7 @@ class AgendaController extends Controller
             exit;
         }
         
-        // Cliente e observação apenas para atividade avulsa (não duplicar quando vem de projeto)
+        // Cliente, observação e tipo de atividade apenas para atividade avulsa (não duplicar quando vem de projeto)
         $tenantId = null;
         $resumo = null;
         if (!$projectId || $projectId <= 0) {
@@ -1348,6 +1349,7 @@ class AgendaController extends Controller
                 'projeto_foco_id' => $projectId,
                 'tenant_id' => $tenantId > 0 ? $tenantId : null,
                 'resumo' => $resumo !== '' ? $resumo : null,
+                'activity_type_id' => (!$projectId || $projectId <= 0) && $activityTypeId > 0 ? $activityTypeId : null,
             ];
             $blockId = AgendaService::createManualBlock($data, $dados);
             if ($taskId > 0) {
@@ -1586,6 +1588,35 @@ class AgendaController extends Controller
         }
     }
     
+    /**
+     * Retorna tipos de atividade ativos (endpoint JSON para AJAX)
+     * GET /agenda/activity-types
+     * Usado no 2º select quando "Atividade avulsa" é selecionada.
+     */
+    public function getActivityTypes(): void
+    {
+        Auth::requireInternal();
+
+        try {
+            $db = \PixelHub\Core\DB::getConnection();
+            $stmt = $db->query("
+                SELECT id, name
+                FROM activity_types
+                WHERE ativo = 1
+                ORDER BY sort_order ASC, name ASC
+            ");
+            $types = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $this->json(['success' => true, 'types' => $types]);
+        } catch (\PDOException $e) {
+            if (strpos($e->getMessage(), "doesn't exist") !== false) {
+                $this->json(['success' => true, 'types' => []]);
+                return;
+            }
+            error_log("Erro ao buscar tipos de atividade: " . $e->getMessage());
+            $this->json(['error' => 'Erro ao buscar tipos de atividade'], 500);
+        }
+    }
+
     /**
      * Retorna tarefas não concluídas de um projeto (endpoint JSON para AJAX)
      * GET /agenda/tasks-by-project?project_id=X

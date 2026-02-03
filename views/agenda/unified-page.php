@@ -225,6 +225,7 @@ $baseUrl = pixelhub_url('/agenda');
 <form method="post" action="<?= pixelhub_url('/agenda/bloco/quick-add') ?>" id="quick-add-form" style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
     <input type="hidden" name="data" value="<?= htmlspecialchars($dataStr) ?>">
     <input type="hidden" name="task_id" id="quick-add-task-id" value="">
+    <input type="hidden" name="activity_type_id" id="quick-add-activity-type-id" value="">
     <div class="quick-add-form-grid">
         <div class="col-projeto">
             <select name="project_id" id="quick-add-project" style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
@@ -302,7 +303,7 @@ $baseUrl = pixelhub_url('/agenda');
         <?php foreach ($blocos as $bloco):
             $isCurrent = ($bloco['id'] === $blocoAtualId);
             $corBorda = htmlspecialchars($bloco['tipo_cor'] ?? '#94a3b8');
-            $projetoNome = !empty($bloco['projeto_foco_nome']) ? $bloco['projeto_foco_nome'] : (!empty($bloco['resumo']) ? $bloco['resumo'] : 'Atividade avulsa');
+            $projetoNome = !empty($bloco['projeto_foco_nome']) ? $bloco['projeto_foco_nome'] : (!empty($bloco['activity_type_name']) ? $bloco['activity_type_name'] : (!empty($bloco['resumo']) ? $bloco['resumo'] : 'Atividade avulsa'));
             $isExpanded = ($expandBlockId && $expandBlockId === (int)$bloco['id']);
         ?>
             <?php
@@ -763,18 +764,32 @@ document.addEventListener('DOMContentLoaded', function() {
     const qaProject = document.getElementById('quick-add-project');
     const qaTaskSelect = document.getElementById('quick-add-task-select');
     const qaTaskId = document.getElementById('quick-add-task-id');
+    const qaActivityTypeId = document.getElementById('quick-add-activity-type-id');
     if (qaProject && qaTaskSelect && qaTaskId) {
-        function syncTaskToHidden() {
-            qaTaskId.value = qaTaskSelect.value || '';
+        function syncToHidden() {
+            const isAvulsa = !qaProject.value || qaProject.value === '';
+            if (isAvulsa) {
+                qaTaskId.value = '';
+                qaActivityTypeId.value = qaTaskSelect.value || '';
+            } else {
+                qaActivityTypeId.value = '';
+                qaTaskId.value = qaTaskSelect.value || '';
+            }
         }
-        qaTaskSelect.addEventListener('change', syncTaskToHidden);
-        document.getElementById('quick-add-form').addEventListener('submit', syncTaskToHidden);
+        qaTaskSelect.addEventListener('change', syncToHidden);
+        document.getElementById('quick-add-form').addEventListener('submit', syncToHidden);
         function loadTasksForProject(pid) {
             qaTaskId.value = '';
+            if (qaActivityTypeId) qaActivityTypeId.value = '';
             qaTaskSelect.innerHTML = '<option value="">Selecione um projeto primeiro</option>';
             qaTaskSelect.disabled = true;
-            if (!pid) return;
+            qaTaskSelect.title = 'Selecione um projeto primeiro';
+            if (!pid) {
+                loadActivityTypes();
+                return;
+            }
             qaTaskSelect.disabled = false;
+            qaTaskSelect.title = '';
             qaTaskSelect.innerHTML = '<option value="">Carregando…</option>';
             fetch('<?= pixelhub_url('/agenda/tasks-by-project') ?>?project_id=' + encodeURIComponent(pid))
                 .then(r => {
@@ -803,18 +818,57 @@ document.addEventListener('DOMContentLoaded', function() {
                     qaTaskSelect.innerHTML = '<option value="">Erro ao carregar</option>';
                 });
         }
+        function loadActivityTypes() {
+            qaTaskSelect.disabled = false;
+            qaTaskSelect.title = 'Selecione um tipo de atividade';
+            qaTaskSelect.innerHTML = '<option value="">Carregando…</option>';
+            fetch('<?= pixelhub_url('/agenda/activity-types') ?>')
+                .then(r => {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(d => {
+                    qaTaskSelect.innerHTML = '<option value="">Selecione um tipo de atividade</option>';
+                    if (d.success && d.types && d.types.length > 0) {
+                        d.types.forEach(t => {
+                            const opt = document.createElement('option');
+                            opt.value = t.id;
+                            opt.textContent = (t.name || '').toString();
+                            qaTaskSelect.appendChild(opt);
+                        });
+                    } else if (d.success && (!d.types || d.types.length === 0)) {
+                        qaTaskSelect.innerHTML = '<option value="">Nenhum tipo cadastrado</option>';
+                    } else if (d.error) {
+                        qaTaskSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+                        console.error('Erro ao carregar tipos:', d.error);
+                    }
+                })
+                .catch(err => {
+                    console.error('Erro ao carregar tipos de atividade:', err);
+                    qaTaskSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+                });
+        }
         qaProject.addEventListener('change', function() {
-            loadTasksForProject(this.value);
+            const isAvulsa = this.value === '';
+            if (isAvulsa) {
+                loadActivityTypes();
+            } else {
+                loadTasksForProject(this.value);
+            }
             const avulsaRow = document.getElementById('quick-add-avulsa-fields');
-            if (avulsaRow) avulsaRow.style.display = this.value === '' ? 'flex' : 'none';
-            if (this.value !== '') {
+            if (avulsaRow) avulsaRow.style.display = isAvulsa ? 'flex' : 'none';
+            if (!isAvulsa) {
                 const ti = document.getElementById('quick-add-tenant-input');
                 const th = document.getElementById('quick-add-tenant-id');
                 if (ti) ti.value = '';
                 if (th) th.value = '';
             }
         });
-        if (qaProject.value) loadTasksForProject(qaProject.value);
+        if (qaProject.value) {
+            loadTasksForProject(qaProject.value);
+        } else {
+            loadActivityTypes();
+        }
         const avulsaRow = document.getElementById('quick-add-avulsa-fields');
         if (avulsaRow && qaProject) avulsaRow.style.display = qaProject.value === '' ? 'flex' : 'none';
     }

@@ -1959,6 +1959,9 @@
                             </svg>
                         </div>
                         <div class="sidebar-subgroup-content <?= $agendaOpen ? 'is-open' : '' ?>">
+                            <a href="<?= pixelhub_url('/settings/activity-types') ?>" class="sub-item <?= (strpos($currentUri, '/settings/activity-types') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Tipos de Atividades</span>
+                            </a>
                             <a href="<?= pixelhub_url('/settings/agenda-block-types') ?>" class="sub-item <?= (strpos($currentUri, '/settings/agenda-block-types') !== false) ? 'active' : '' ?>">
                                 <span class="sidebar-text">Tipos de Blocos</span>
                             </a>

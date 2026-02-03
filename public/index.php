@@ -549,6 +549,15 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/settings/contract-clauses/update', 'ContractClausesController@update');
     $router->post('/settings/contract-clauses/delete', 'ContractClausesController@delete');
 
+    // Rotas de Configurações - Tipos de Atividades (Atividade avulsa)
+    $router->get('/settings/activity-types', 'ActivityTypesController@index');
+    $router->get('/settings/activity-types/create', 'ActivityTypesController@create');
+    $router->post('/settings/activity-types/store', 'ActivityTypesController@store');
+    $router->get('/settings/activity-types/edit', 'ActivityTypesController@edit');
+    $router->post('/settings/activity-types/update', 'ActivityTypesController@update');
+    $router->post('/settings/activity-types/delete', 'ActivityTypesController@delete');
+    $router->post('/settings/activity-types/restore', 'ActivityTypesController@restore');
+
     // Rotas de Configurações - Tipos de Blocos de Agenda
     $router->get('/settings/agenda-block-types', 'AgendaBlockTypesController@index');
     $router->get('/settings/agenda-block-types/create', 'AgendaBlockTypesController@create');
@@ -697,6 +706,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/agenda/available-blocks', 'AgendaController@getAvailableBlocks');
     $router->get('/agenda/block-types', 'AgendaController@getBlockTypes');
     $router->get('/agenda/tasks-by-project', 'AgendaController@getTasksByProject');
+    $router->get('/agenda/activity-types', 'AgendaController@getActivityTypes');
     $router->get('/agenda/bloco/editar', 'AgendaController@editBlock');
     $router->post('/agenda/bloco/editar', 'AgendaController@updateBlock');
     $router->get('/agenda/bloco/novo', 'AgendaController@createBlock');
