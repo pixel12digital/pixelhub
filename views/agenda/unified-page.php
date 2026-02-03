@@ -464,16 +464,16 @@ $baseUrl = pixelhub_url('/agenda');
 </div><!-- .agenda-lista-page-layout -->
 
 <?php else: ?>
-<!-- Quadro semanal: topbar fixo + scroll só no conteúdo (dias + blocos) -->
+<!-- Quadro semanal: topbar fixo, dias da semana fixos, scroll só nos blocos -->
 <div class="agenda-quadro-page-layout">
-    <div class="agenda-quadro-scroll">
-        <div class="agenda-quadro-headers">
-            <?php foreach ($diasSemana as $dia): ?>
-            <div class="quadro-dia-header-cell <?= $dia['is_hoje'] ? 'hoje' : '' ?>">
-                <a href="<?= $baseUrl ?>?view=lista&data=<?= $dia['data_iso'] ?><?= $taskParam ?>"><?= htmlspecialchars($dia['label_dia']) ?></a>
-            </div>
-            <?php endforeach; ?>
+    <div class="agenda-quadro-headers">
+        <?php foreach ($diasSemana as $dia): ?>
+        <div class="quadro-dia-header-cell <?= $dia['is_hoje'] ? 'hoje' : '' ?>">
+            <a href="<?= $baseUrl ?>?view=lista&data=<?= $dia['data_iso'] ?><?= $taskParam ?>"><?= htmlspecialchars($dia['label_dia']) ?></a>
         </div>
+        <?php endforeach; ?>
+    </div>
+    <div class="agenda-quadro-scroll">
         <div class="agenda-quadro-grid">
             <?php foreach ($diasSemana as $dia): ?>
             <div class="quadro-dia <?= $dia['is_hoje'] ? 'hoje' : '' ?>">
