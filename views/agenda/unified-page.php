@@ -448,11 +448,13 @@ function loadBlockContent(blockId, container) {
             const tasks = data.tasks || [];
             let html = '<ul class="block-linked-tasks">';
             if (tasks.length > 0) {
+                const boardBase = '<?= pixelhub_url('/projects/board') ?>';
                 tasks.forEach(t => {
                     const tit = (t.title || '').replace(/</g,'&lt;');
                     const proj = (t.projeto_nome || t.project_name || '').replace(/</g,'&lt;');
-                    const url = '<?= pixelhub_url('/tasks/') ?>' + t.id;
-                    html += '<li><span style="color:#64748b;">↳</span> <a href="' + url + '" target="_blank">' + tit + '</a>' + (proj ? ' <span style="color:#94a3b8;font-size:11px;">(' + proj + ')</span>' : '') + '</li>';
+                    const pid = t.project_id || '';
+                    const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
+                    html += '<li><span style="color:#64748b;">↳</span> <a href="' + url + '">' + tit + '</a>' + (proj ? ' <span style="color:#94a3b8;font-size:11px;">(' + proj + ')</span>' : '') + '</li>';
                 });
             } else {
                 html += '<li style="color:#94a3b8;font-style:italic;">Nenhuma tarefa vinculada a este bloco.</li>';
