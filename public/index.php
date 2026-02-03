@@ -717,6 +717,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/agenda/bloco/project/add', 'AgendaController@addProjectToBlock');
     $router->post('/agenda/bloco/project/remove', 'AgendaController@removeProjectFromBlock');
     $router->get('/agenda/bloco/segments', 'AgendaController@getSegments');
+    $router->get('/agenda/bloco/linked-tasks', 'AgendaController@getLinkedTasks');
     $router->post('/agenda/start', 'AgendaController@start');
     $router->get('/agenda/ongoing-block', 'AgendaController@getOngoingBlock');
     $router->post('/agenda/finish', 'AgendaController@finish');

@@ -577,6 +577,21 @@ class AgendaController extends Controller
     }
     
     /**
+     * Retorna tarefas vinculadas ao bloco (JSON, para expandir seta)
+     */
+    public function getLinkedTasks(): void
+    {
+        Auth::requireInternal();
+        $blockId = isset($_GET['block_id']) ? (int)$_GET['block_id'] : 0;
+        if ($blockId <= 0) {
+            $this->json(['error' => 'ID inválido'], 400);
+            return;
+        }
+        $tasks = AgendaService::getTasksByBlock($blockId);
+        $this->json(['success' => true, 'tasks' => $tasks]);
+    }
+    
+    /**
      * Inicia um bloco (status = ongoing e registra horário real de início)
      */
     public function start(): void

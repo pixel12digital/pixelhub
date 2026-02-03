@@ -56,9 +56,14 @@ $baseUrl = pixelhub_url('/agenda');
 .agenda-list-table .block-main { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
 .agenda-list-table .block-project { font-weight: 600; color: #111827; font-size: 13px; }
 .agenda-list-table .block-task { font-size: 12px; color: #6b7280; }
-.agenda-list-table .block-expand-btn { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: none; background: transparent; border-radius: 4px; cursor: pointer; color: #64748b; font-size: 11px; transition: all 0.15s; }
-.agenda-list-table .block-expand-btn:hover { background: #e2e8f0; color: #374151; }
-.agenda-list-table .block-expand-btn.expanded { color: #023A8D; }
+.agenda-list-table .block-expand-btn { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; color: #475569; font-size: 14px; font-weight: 600; background: #f1f5f9; transition: all 0.15s; }
+.agenda-list-table .block-expand-btn:hover { background: #e2e8f0; color: #1e293b; border-color: #94a3b8; }
+.agenda-list-table .block-expand-btn.expanded { background: #023A8D; color: white; border-color: #023A8D; }
+.block-linked-tasks { list-style: none; padding: 0; margin: 0; }
+.block-linked-tasks li { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.block-linked-tasks li:last-child { border-bottom: none; }
+.block-linked-tasks li a { color: #023A8D; text-decoration: none; }
+.block-linked-tasks li a:hover { text-decoration: underline; }
 .agenda-list-table .block-actions-cell { display: flex; align-items: center; gap: 4px; }
 .agenda-list-table .btn-icon { background: none; border: none; cursor: pointer; padding: 4px; color: #6b7280; display: inline-flex; align-items: center; justify-content: center; }
 .agenda-list-table .btn-icon:hover { color: #dc2626; }
@@ -418,67 +423,29 @@ function toggleBlockExpand(blockId) {
 
 function loadBlockContent(blockId, container) {
     container.innerHTML = '<div style="color:#6b7280;font-size:13px;">Carregando…</div>';
-    fetch('<?= pixelhub_url('/agenda/bloco/segments') ?>?block_id=' + blockId)
+    fetch('<?= pixelhub_url('/agenda/bloco/linked-tasks') ?>?block_id=' + blockId)
         .then(r => r.json())
         .then(data => {
             if (data.error) {
                 container.innerHTML = '<span style="color:#dc2626;">' + (data.error || 'Erro') + '</span>';
                 return;
             }
-            const segments = data.segments || [];
-            let html = '<form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/create-manual') ?>" style="margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr 100px 70px 70px auto;gap:8px;align-items:center;">';
-            html += '<input type="hidden" name="block_id" value="' + blockId + '"><input type="hidden" name="return_to" value="agenda">';
-            html += '<select name="project_id" class="seg-project" style="padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;"><option value="">Atividade avulsa</option></select>';
-            html += '<select name="task_id" class="seg-task" style="padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;"><option value="">—</option></select>';
-            html += '<select name="tipo_id" style="padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;"><option value="">Bloco</option>';
-            (window.AGENDA_TIPOS || []).forEach(t => { html += '<option value="' + t.id + '">' + (t.nome || '').replace(/</g,'&lt;') + '</option>'; });
-            html += '</select>';
-            html += '<input type="time" name="hora_inicio" required style="padding:6px 8px;border:1px solid #ddd;border-radius:4px;">';
-            html += '<input type="time" name="hora_fim" required style="padding:6px 8px;border:1px solid #ddd;border-radius:4px;">';
-            html += '<button type="submit" style="padding:6px 12px;background:#023A8D;color:white;border:none;border-radius:4px;cursor:pointer;">Adicionar</button>';
-            html += '</form>';
-            html += '<table class="planilha-registros"><thead><tr><th>Projeto</th><th>Tarefa</th><th>Bloco</th><th>Início</th><th>Fim</th><th style="width:50px;"></th></tr></thead><tbody>';
-            segments.forEach(s => {
-                const proj = (s.project_name || 'Atividade avulsa').replace(/</g,'&lt;');
-                const task = (s.task_title || '—').replace(/</g,'&lt;');
-                const tipo = (s.tipo_nome || '—').replace(/</g,'&lt;');
-                const ini = (s.started_at || '').substring(11, 16);
-                const fim = s.ended_at ? s.ended_at.substring(11, 16) : '—';
-                html += '<tr><td>' + proj + '</td><td>' + task + '</td><td>' + tipo + '</td><td>' + ini + '</td><td>' + fim + '</td><td>';
-                html += '<form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/delete') ?>" style="display:inline;" onsubmit="return confirm(\'Excluir?\');">';
-                html += '<input type="hidden" name="segment_id" value="' + s.id + '"><input type="hidden" name="block_id" value="' + blockId + '"><input type="hidden" name="return_to" value="agenda">';
-                html += '<button type="submit" class="btn-icon" title="Excluir"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button></form></td></tr>';
-            });
-            html += '</tbody></table>';
-            if (segments.length === 0) html += '<p style="color:#9ca3af;font-size:13px;margin-top:8px;">Nenhum registro. Use o formulário acima.</p>';
+            const tasks = data.tasks || [];
+            let html = '<ul class="block-linked-tasks">';
+            if (tasks.length > 0) {
+                tasks.forEach(t => {
+                    const tit = (t.title || '').replace(/</g,'&lt;');
+                    const proj = (t.projeto_nome || t.project_name || '').replace(/</g,'&lt;');
+                    const url = '<?= pixelhub_url('/tasks/') ?>' + t.id;
+                    html += '<li><span style="color:#64748b;">↳</span> <a href="' + url + '" target="_blank">' + tit + '</a>' + (proj ? ' <span style="color:#94a3b8;font-size:11px;">(' + proj + ')</span>' : '') + '</li>';
+                });
+            } else {
+                html += '<li style="color:#94a3b8;font-style:italic;">Nenhuma tarefa vinculada a este bloco.</li>';
+            }
+            html += '</ul>';
             container.innerHTML = html;
-            loadProjectsForSegment(blockId, container);
         })
         .catch(() => { container.innerHTML = '<span style="color:#dc2626;">Erro ao carregar.</span>'; });
-}
-
-function loadProjectsForSegment(blockId, container) {
-    const projSelect = container.querySelector('.seg-project');
-    const taskSelect = container.querySelector('.seg-task');
-    if (!projSelect) return;
-    <?php foreach ($projetos as $p): ?>
-    (function(){ var opt = document.createElement('option'); opt.value = '<?= (int)$p['id'] ?>'; opt.textContent = <?= json_encode($p['name']) ?>; projSelect.appendChild(opt); })();
-    <?php endforeach; ?>
-    projSelect.addEventListener('change', function() {
-        const pid = this.value;
-        taskSelect.innerHTML = '<option value="">—</option>';
-        if (!pid) return;
-        fetch('<?= pixelhub_url('/agenda/tasks-by-project') ?>?project_id=' + pid)
-            .then(r => r.json())
-            .then(d => {
-                if (d.success && d.tasks) d.tasks.forEach(t => {
-                    const opt = document.createElement('option');
-                    opt.value = t.id;
-                    opt.textContent = (t.title || '').substring(0, 50) + ((t.title || '').length > 50 ? '…' : '');
-                    taskSelect.appendChild(opt);
-                });
-            });
-    });
 }
 
 function generateBlocks() {
