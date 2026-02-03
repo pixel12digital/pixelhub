@@ -90,7 +90,7 @@ $baseUrl = pixelhub_url('/agenda');
 .quick-add-form-grid .col-tarefa { min-width: 180px; }
 .quick-add-form-grid .col-tipo { min-width: 180px; }
 .quick-add-form-grid .col-inicio, .quick-add-form-grid .col-fim { min-width: 120px; }
-.quick-add-form-grid input[type="time"] { width: 100%; min-width: 110px; box-sizing: border-box; padding: 8px 10px; }
+.quick-add-form-grid input[type="time"] { width: 100%; min-width: 110px; height: 38px; box-sizing: border-box; padding: 8px 10px; border-radius: 6px; }
 .quick-add-form-grid .btn-add { min-width: 110px; }
 @media (max-width: 900px) {
     .quick-add-form-grid { grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
@@ -139,7 +139,6 @@ $baseUrl = pixelhub_url('/agenda');
         </div>
         <div style="display: flex; gap: 8px;">
             <button onclick="generateBlocks()" class="btn-nav">Gerar Blocos</button>
-            <a href="<?= pixelhub_url('/agenda/bloco/novo?data=' . $dataStr . $taskParam) ?>" class="btn-nav" style="background: #023A8D; color: white; border-color: #023A8D;">+ Bloco</a>
         </div>
     </div>
 </div>
@@ -175,7 +174,7 @@ $baseUrl = pixelhub_url('/agenda');
         </div>
         <div class="col-tipo">
             <select name="tipo_id" required style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-                <option value="">Tipo</option>
+                <option value="">Bloco</option>
                 <?php foreach ($tipos as $t): ?><option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option><?php endforeach; ?>
             </select>
         </div>
@@ -186,7 +185,7 @@ $baseUrl = pixelhub_url('/agenda');
             <input type="time" name="hora_fim" required placeholder="Fim" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
         </div>
         <div class="btn-add">
-            <button type="submit" class="btn-nav" style="width:100%; background: #023A8D; color: white; border-color: #023A8D;">Adicionar</button>
+            <button type="submit" class="btn-add-submit">Adicionar</button>
         </div>
     </div>
 </form>
@@ -215,7 +214,7 @@ $baseUrl = pixelhub_url('/agenda');
         <thead>
             <tr>
                 <th class="col-item">Item</th>
-                <th class="col-tipo">Tipo</th>
+                <th class="col-tipo">Bloco</th>
                 <th class="col-inicio">Início</th>
                 <th class="col-fim">Fim</th>
                 <th class="col-acoes">Ações</th>
@@ -431,14 +430,14 @@ function loadBlockContent(blockId, container) {
             html += '<input type="hidden" name="block_id" value="' + blockId + '"><input type="hidden" name="return_to" value="agenda">';
             html += '<select name="project_id" class="seg-project" style="padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;"><option value="">Atividade avulsa</option></select>';
             html += '<select name="task_id" class="seg-task" style="padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;"><option value="">—</option></select>';
-            html += '<select name="tipo_id" style="padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;"><option value="">Tipo</option>';
+            html += '<select name="tipo_id" style="padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;"><option value="">Bloco</option>';
             (window.AGENDA_TIPOS || []).forEach(t => { html += '<option value="' + t.id + '">' + (t.nome || '').replace(/</g,'&lt;') + '</option>'; });
             html += '</select>';
             html += '<input type="time" name="hora_inicio" required style="padding:6px 8px;border:1px solid #ddd;border-radius:4px;">';
             html += '<input type="time" name="hora_fim" required style="padding:6px 8px;border:1px solid #ddd;border-radius:4px;">';
             html += '<button type="submit" style="padding:6px 12px;background:#023A8D;color:white;border:none;border-radius:4px;cursor:pointer;">Adicionar</button>';
             html += '</form>';
-            html += '<table class="planilha-registros"><thead><tr><th>Projeto</th><th>Tarefa</th><th>Tipo</th><th>Início</th><th>Fim</th><th style="width:50px;"></th></tr></thead><tbody>';
+            html += '<table class="planilha-registros"><thead><tr><th>Projeto</th><th>Tarefa</th><th>Bloco</th><th>Início</th><th>Fim</th><th style="width:50px;"></th></tr></thead><tbody>';
             segments.forEach(s => {
                 const proj = (s.project_name || 'Atividade avulsa').replace(/</g,'&lt;');
                 const task = (s.task_title || '—').replace(/</g,'&lt;');

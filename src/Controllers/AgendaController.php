@@ -1540,8 +1540,7 @@ class AgendaController extends Controller
             $tasks = array_merge(
                 $grouped['backlog'] ?? [],
                 $grouped['em_andamento'] ?? [],
-                $grouped['aguardando_cliente'] ?? [],
-                $grouped['concluida'] ?? []
+                $grouped['aguardando_cliente'] ?? []
             );
             $this->json(['success' => true, 'tasks' => $tasks]);
         } catch (\Exception $e) {
