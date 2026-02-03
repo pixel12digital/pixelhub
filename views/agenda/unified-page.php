@@ -75,8 +75,9 @@ $baseUrl = pixelhub_url('/agenda');
 .block-task-unlink:hover { color: #dc2626; background: #fef2f2; }
 .block-tasks-time-table { width: 100%; font-size: 13px; border-collapse: collapse; margin-top: 8px; }
 .block-tasks-time-table th { text-align: left; padding: 6px 8px; font-weight: 600; font-size: 11px; color: #64748b; text-transform: uppercase; }
-.block-tasks-time-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-.block-tasks-time-table .task-time-input { width: 70px; padding: 4px 6px; font-size: 12px; border: 1px solid #e5e7eb; border-radius: 4px; }
+.block-tasks-time-table th:nth-child(2), .block-tasks-time-table th:nth-child(3) { min-width: 130px; }
+.block-tasks-time-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; overflow: visible; }
+.block-tasks-time-table .task-time-input { width: 130px; min-width: 120px; padding: 6px 10px; font-size: 13px; border: 1px solid #e5e7eb; border-radius: 6px; box-sizing: border-box; height: 36px; }
 .block-tasks-time-table .task-time-input:focus { border-color: #3b82f6; outline: none; }
 .block-add-task-section { max-width: 560px; width: 50%; min-width: 280px; }
 .block-add-task-section .block-add-task-row { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; }
