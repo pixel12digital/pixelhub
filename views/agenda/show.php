@@ -9,7 +9,7 @@ $blocoData = $bloco['data'];
     .bloco-sticky-header {
         position: sticky;
         top: 0;
-        z-index: 90;
+        z-index: 40; /* abaixo da sidebar (50) para evitar submenu ficar por trás */
         background: white;
         border-bottom: 1px solid #e5e7eb;
         padding: 12px 0 16px 0;
