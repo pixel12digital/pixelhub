@@ -14,7 +14,140 @@ use PixelHub\Services\TaskService;
 class AgendaController extends Controller
 {
     /**
-     * Agenda unificada: "O que fazer" (tarefas + projetos + itens manuais) por Hoje/Semana
+     * Agenda unificada: Lista | Quadro (modelo ClickUp)
+     * Substitui as telas separadas de Blocos e Semana
+     */
+    public function agendaUnified(): void
+    {
+        Auth::requireInternal();
+
+        $viewMode = $_GET['view'] ?? 'lista'; // lista | quadro
+        if (!in_array($viewMode, ['lista', 'quadro'])) {
+            $viewMode = 'lista';
+        }
+        $dataStr = $_GET['data'] ?? date('Y-m-d');
+        $expandBlockId = isset($_GET['block_id']) ? (int)$_GET['block_id'] : 0;
+
+        $tz = new \DateTimeZone('America/Sao_Paulo');
+        try {
+            $data = new \DateTime($dataStr, $tz);
+        } catch (\Exception $e) {
+            $data = new \DateTime('now', $tz);
+        }
+        $dataStr = $data->format('Y-m-d');
+        $todayStr = (new \DateTime('now', $tz))->format('Y-m-d');
+
+        // Contexto de tarefa
+        $agendaTaskContext = null;
+        $taskId = isset($_GET['task_id']) ? (int)$_GET['task_id'] : 0;
+        if ($taskId > 0) {
+            try {
+                $task = TaskService::findTask($taskId);
+                if ($task) {
+                    $agendaTaskContext = [
+                        'id' => $task['id'],
+                        'titulo' => $task['title'] ?? 'Tarefa sem título',
+                        'project_id' => (int)($task['project_id'] ?? 0),
+                    ];
+                }
+            } catch (\Exception $e) {
+                error_log("Erro ao buscar tarefa para contexto: " . $e->getMessage());
+            }
+        }
+
+        $tipoFiltro = $_GET['tipo'] ?? null;
+        $statusFiltro = $_GET['status'] ?? null;
+
+        // Dados para Lista (blocos do dia)
+        $blocos = [];
+        try {
+            $blocos = AgendaService::getBlocksByDate($data);
+        } catch (\Exception $e) {
+            error_log("Erro ao buscar blocos: " . $e->getMessage());
+        }
+        if ($tipoFiltro) {
+            $blocos = array_values(array_filter($blocos, fn($b) => ($b['tipo_codigo'] ?? '') === $tipoFiltro));
+        }
+        if ($statusFiltro) {
+            $blocos = array_values(array_filter($blocos, fn($b) => ($b['status'] ?? '') === $statusFiltro));
+        }
+        usort($blocos, fn($a, $b) => strcmp($a['hora_inicio'], $b['hora_inicio']));
+
+        $tipos = [];
+        $projetos = [];
+        $tenants = [];
+        try {
+            $db = \PixelHub\Core\DB::getConnection();
+            $stmt = $db->query("SELECT * FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC");
+            $tipos = $stmt->fetchAll();
+            $projetos = ProjectService::getAllProjects(null, 'ativo');
+            $stmt = $db->query("SELECT id, name, nome_fantasia, person_type FROM tenants WHERE status = 'active' ORDER BY name ASC");
+            $tenants = $stmt->fetchAll();
+        } catch (\Exception $e) {
+            error_log("Erro ao buscar dados: " . $e->getMessage());
+        }
+
+        // Dados para Quadro (semana)
+        $weekday = (int)$data->format('w');
+        $domingo = (clone $data)->modify('-' . $weekday . ' days');
+        $sabado = (clone $domingo)->modify('+6 days');
+        $blocosPorDia = [];
+        try {
+            $blocosPorDia = AgendaService::getBlocksForPeriod($domingo, $sabado);
+        } catch (\Exception $e) {
+            error_log("Erro ao buscar blocos período: " . $e->getMessage());
+        }
+
+        $diasSemana = [];
+        $now = new \DateTime('now', $tz);
+        $horaAtual = $now->format('H:i:s');
+        for ($i = 0; $i < 7; $i++) {
+            $dataDia = (clone $domingo)->modify('+' . $i . ' days');
+            $dataIso = $dataDia->format('Y-m-d');
+            $isHoje = ($dataIso === $todayStr);
+            $blocosDoDia = $blocosPorDia[$dataIso] ?? [];
+            $blocosDoDia = AgendaService::enrichBlocksWithProjectNames($blocosDoDia);
+            if ($isHoje && !empty($blocosDoDia)) {
+                foreach ($blocosDoDia as $key => $bloco) {
+                    if (($bloco['hora_inicio'] ?? '') <= $horaAtual && ($bloco['hora_fim'] ?? '') >= $horaAtual) {
+                        $blocosDoDia[$key]['is_atual'] = true;
+                    }
+                }
+            }
+            $diasSemana[] = [
+                'data' => $dataDia,
+                'data_iso' => $dataIso,
+                'label_dia' => $this->formatarLabelDia($dataDia),
+                'blocos' => $blocosDoDia,
+                'is_hoje' => $isHoje,
+            ];
+        }
+
+        $semanaAnterior = (clone $domingo)->modify('-7 days');
+        $proximaSemana = (clone $domingo)->modify('+7 days');
+
+        $this->view('agenda.unified-page', [
+            'viewMode' => $viewMode,
+            'dataStr' => $dataStr,
+            'todayStr' => $todayStr,
+            'blocos' => $blocos,
+            'tipos' => $tipos,
+            'projetos' => $projetos,
+            'tenants' => $tenants,
+            'tipoFiltro' => $tipoFiltro,
+            'statusFiltro' => $statusFiltro,
+            'agendaTaskContext' => $agendaTaskContext,
+            'expandBlockId' => $expandBlockId,
+            'diasSemana' => $diasSemana,
+            'domingo' => $domingo,
+            'sabado' => $sabado,
+            'semanaAnterior' => $semanaAnterior,
+            'proximaSemana' => $proximaSemana,
+        ]);
+    }
+
+    /**
+     * Agenda unificada (legado): "O que fazer" (tarefas + projetos + itens manuais) por Hoje/Semana
      */
     public function index(): void
     {
@@ -62,129 +195,20 @@ class AgendaController extends Controller
     }
 
     /**
-     * Blocos de tempo do dia (time blocking - opcional)
+     * Blocos de tempo do dia — redireciona para Agenda Unificada (Lista)
      */
     public function blocos(): void
     {
         Auth::requireInternal();
-        
-        // Filtros
-        $dataStr = $_GET['data'] ?? date('Y-m-d');
-        $tipoFiltro = $_GET['tipo'] ?? null;
-        $statusFiltro = $_GET['status'] ?? null;
-        
-        try {
-            $data = new \DateTime($dataStr, new \DateTimeZone('America/Sao_Paulo'));
-        } catch (\Exception $e) {
-            $data = new \DateTime('now', new \DateTimeZone('America/Sao_Paulo'));
-        }
-        
-        // Obtém dia da semana para verificar fim de semana
-        $weekday = (int)$data->format('w'); // 0 = domingo, 6 = sábado
-        $isFimDeSemana = ($weekday === 0 || $weekday === 6);
-        
-        // Busca blocos do dia (sem gerar automaticamente)
-        try {
-            $blocos = AgendaService::getBlocksByDate($data);
-        } catch (\Exception $e) {
-            error_log("Erro ao buscar blocos: " . $e->getMessage());
-            $blocos = [];
-        }
-        
-        // Contexto de tarefa para agendamento (se task_id vier na URL)
-        $agendaTaskContext = null;
-        $taskId = isset($_GET['task_id']) ? (int)$_GET['task_id'] : 0;
-        if ($taskId > 0) {
-            try {
-                $task = \PixelHub\Services\TaskService::findTask($taskId);
-                if ($task) {
-                    $agendaTaskContext = [
-                        'id' => $task['id'],
-                        'titulo' => $task['title'] ?? 'Tarefa sem título',
-                    ];
-                }
-            } catch (\Exception $e) {
-                error_log("Erro ao buscar tarefa para agendamento: " . $e->getMessage());
-            }
-        }
-        
-        // Variáveis de controle (não gerar automaticamente)
-        $blocosGerados = 0;
-        $erroGeracao = null;
-        $infoAgenda = null;
-        
-        // Filtra por tipo se especificado
-        if ($tipoFiltro) {
-            $blocos = array_filter($blocos, function($bloco) use ($tipoFiltro) {
-                return $bloco['tipo_codigo'] === $tipoFiltro;
-            });
-            // Reordena após filtro (array_filter mantém chaves)
-            $blocos = array_values($blocos);
-        }
-        
-        // Filtra por status se especificado
-        if ($statusFiltro) {
-            $blocos = array_filter($blocos, function($bloco) use ($statusFiltro) {
-                return $bloco['status'] === $statusFiltro;
-            });
-            // Reordena após filtro
-            $blocos = array_values($blocos);
-        }
-        
-        // Ordena blocos por hora_inicio (garantia)
-        usort($blocos, function($a, $b) {
-            return strcmp($a['hora_inicio'], $b['hora_inicio']);
-        });
-        
-        // Busca tipos de blocos para filtro
-        $tipos = [];
-        try {
-            $db = \PixelHub\Core\DB::getConnection();
-            $stmt = $db->query("SELECT * FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC");
-            $tipos = $stmt->fetchAll();
-        } catch (\Exception $e) {
-            error_log("Erro ao buscar tipos de blocos: " . $e->getMessage());
-        }
-        
-        // Busca projetos para seleção de foco
-        $projetos = [];
-        try {
-            $projetos = ProjectService::getAllProjects(null, 'ativo');
-        } catch (\Exception $e) {
-            error_log("Erro ao buscar projetos: " . $e->getMessage());
-        }
-        
-        // Busca clientes (tenants) para atividades avulsas comerciais
-        $tenants = [];
-        try {
-            $db = \PixelHub\Core\DB::getConnection();
-            $stmt = $db->query("SELECT id, name, nome_fantasia, person_type FROM tenants WHERE status = 'active' ORDER BY name ASC");
-            $tenants = $stmt->fetchAll();
-        } catch (\Exception $e) {
-            error_log("Erro ao buscar clientes: " . $e->getMessage());
-        }
-        
-        // Prepara data no formato ISO para o input date
-        $dataAtualIso = $data->format('Y-m-d');
-        
-        $this->view('agenda.index', [
-            'blocos' => $blocos,
-            'tenants' => $tenants,
-            'data' => $data,
-            'dataStr' => $dataStr,
-            'dataAtualIso' => $dataAtualIso,
-            'tipos' => $tipos,
-            'projetos' => $projetos,
-            'tipoFiltro' => $tipoFiltro,
-            'statusFiltro' => $statusFiltro,
-            'blocosGerados' => $blocosGerados,
-            'erroGeracao' => $erroGeracao,
-            'infoAgenda' => $infoAgenda,
-            'weekday' => $weekday,
-            'agendaTaskContext' => $agendaTaskContext,
-        ]);
+        $params = ['view' => 'lista'];
+        if (!empty($_GET['data'])) $params['data'] = $_GET['data'];
+        if (!empty($_GET['tipo'])) $params['tipo'] = $_GET['tipo'];
+        if (!empty($_GET['status'])) $params['status'] = $_GET['status'];
+        if (!empty($_GET['task_id'])) $params['task_id'] = $_GET['task_id'];
+        header('Location: ' . pixelhub_url('/agenda?' . http_build_query($params)));
+        exit;
     }
-    
+
     /**
      * Exibe modo de trabalho de um bloco específico
      */
@@ -382,7 +406,14 @@ class AgendaController extends Controller
         }
         try {
             AgendaService::createSegmentManual($blockId, $projectId, $taskId, $tipoId, $horaInicio, $horaFim);
-            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Registro adicionado.')));
+            $returnTo = $_POST['return_to'] ?? '';
+            if ($returnTo === 'agenda') {
+                $bloco = AgendaService::findBlock($blockId);
+                $dataStr = $bloco['data'] ?? date('Y-m-d');
+                header('Location: ' . pixelhub_url('/agenda?view=lista&data=' . $dataStr . '&block_id=' . $blockId . '&sucesso=' . urlencode('Registro adicionado.')));
+            } else {
+                header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Registro adicionado.')));
+            }
             exit;
         } catch (\RuntimeException $e) {
             header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode($e->getMessage())));
@@ -439,11 +470,25 @@ class AgendaController extends Controller
         }
         try {
             AgendaService::deleteSegment($segmentId);
-            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Registro removido.')));
+            $returnTo = $_POST['return_to'] ?? '';
+            if ($returnTo === 'agenda') {
+                $bloco = AgendaService::findBlock($blockId);
+                $dataStr = $bloco['data'] ?? date('Y-m-d');
+                header('Location: ' . pixelhub_url('/agenda?view=lista&data=' . $dataStr . '&block_id=' . $blockId . '&sucesso=' . urlencode('Registro removido.')));
+            } else {
+                header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Registro removido.')));
+            }
             exit;
         } catch (\Exception $e) {
             error_log("Erro ao remover segmento: " . $e->getMessage());
-            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Erro ao remover.')));
+            $returnTo = $_POST['return_to'] ?? '';
+            if ($returnTo === 'agenda') {
+                $bloco = AgendaService::findBlock($blockId);
+                $dataStr = $bloco['data'] ?? date('Y-m-d');
+                header('Location: ' . pixelhub_url('/agenda?view=lista&data=' . $dataStr . '&block_id=' . $blockId . '&erro=' . urlencode('Erro ao remover.')));
+            } else {
+                header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode('Erro ao remover.')));
+            }
             exit;
         }
     }
@@ -1238,7 +1283,7 @@ class AgendaController extends Controller
         try {
             $data = new \DateTime($dataStr, new \DateTimeZone('America/Sao_Paulo'));
         } catch (\Exception $e) {
-            header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $dataStr . '&erro=' . urlencode('Data inválida.')));
+            header('Location: ' . pixelhub_url('/agenda?view=lista&data=' . $dataStr . '&erro=' . urlencode('Data inválida.')));
             exit;
         }
         
@@ -1258,119 +1303,33 @@ class AgendaController extends Controller
             if ($taskId > 0) {
                 try {
                     AgendaService::attachTaskToBlock($blockId, $taskId);
-                    header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $dataStr . '&sucesso=' . urlencode('Bloco adicionado com tarefa vinculada.')));
+                    header('Location: ' . pixelhub_url('/agenda?view=lista&data=' . $dataStr . '&sucesso=' . urlencode('Bloco adicionado com tarefa vinculada.')));
                 } catch (\Exception $e) {
                     error_log("Erro ao vincular tarefa ao bloco: " . $e->getMessage());
-                    header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $dataStr . '&sucesso=' . urlencode('Bloco adicionado (tarefa não vinculada).')));
+                    header('Location: ' . pixelhub_url('/agenda?view=lista&data=' . $dataStr . '&sucesso=' . urlencode('Bloco adicionado (tarefa não vinculada).')));
                 }
             } else {
-                header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $dataStr . '&sucesso=' . urlencode('Bloco adicionado.')));
+                header('Location: ' . pixelhub_url('/agenda?view=lista&data=' . $dataStr . '&sucesso=' . urlencode('Bloco adicionado.')));
             }
             exit;
         } catch (\RuntimeException $e) {
-            header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $dataStr . '&erro=' . urlencode($e->getMessage())));
+            header('Location: ' . pixelhub_url('/agenda?view=lista&data=' . $dataStr . '&erro=' . urlencode($e->getMessage())));
             exit;
         }
     }
     
     /**
-     * Exibe a visão semanal da agenda
+     * Agenda semanal — redireciona para Agenda Unificada (Quadro)
      */
     public function semana(): void
     {
         Auth::requireInternal();
-        
-        // 1) Determinar a data base (hoje, ou a da querystring)
-        $dataParam = $_GET['data'] ?? null;
-        $hoje = new \DateTimeImmutable('today', new \DateTimeZone('America/Sao_Paulo'));
-        
-        if ($dataParam) {
-            try {
-                $dataBase = new \DateTimeImmutable($dataParam, new \DateTimeZone('America/Sao_Paulo'));
-            } catch (\Exception $e) {
-                $dataBase = $hoje;
-            }
-        } else {
-            $dataBase = $hoje;
-        }
-        
-        // 2) Calcular domingo e sábado da semana
-        // Considerar domingo como início da semana (padrão Brasil)
-        $weekday = (int) $dataBase->format('w'); // 0 (dom) a 6 (sáb)
-        $domingo = $dataBase->modify('-' . $weekday . ' days'); // volta até domingo
-        $sabado = $domingo->modify('+6 days'); // avança até sábado
-        
-        // 2.5) NÃO chama ensureBlocksForWeek aqui - blocos excluídos pelo usuário
-        // reapareciam ao abrir a agenda semanal. A geração de blocos fica a cargo do
-        // usuário via "Gerar Blocos do Dia" em Blocos de tempo.
-        
-        // 3) Obter blocos para o período
-        try {
-            $blocosPorDia = AgendaService::getBlocksForPeriod($domingo, $sabado);
-        } catch (\Exception $e) {
-            error_log("Erro ao buscar blocos do período: " . $e->getMessage());
-            $blocosPorDia = [];
-        }
-        
-        // 4) Montar estrutura de dias da semana para a view (Domingo → Sábado)
-        $diasSemana = [];
-        $hojeIso = $hoje->format('Y-m-d');
-        $now = new \DateTime('now', new \DateTimeZone('America/Sao_Paulo'));
-        $horaAtual = $now->format('H:i:s');
-        
-        // IMPORTANTE: Criar uma cópia do domingo para não modificar o original
-        $domingoIteracao = clone $domingo;
-        
-        for ($i = 0; $i < 7; $i++) {
-            $dataDia = $domingoIteracao->modify('+' . $i . ' days');
-            $dataIso = $dataDia->format('Y-m-d');
-            $isHoje = ($dataIso === $hojeIso);
-            
-            $blocosDoDia = $blocosPorDia[$dataIso] ?? [];
-            
-            // Enriquece blocos com nomes de todos os projetos (multi-projeto)
-            $blocosDoDia = AgendaService::enrichBlocksWithProjectNames($blocosDoDia);
-            
-            // Marca bloco atual se for hoje
-            if ($isHoje && !empty($blocosDoDia)) {
-                foreach ($blocosDoDia as $key => $bloco) {
-                    $horaInicioBloco = $bloco['hora_inicio'];
-                    $horaFimBloco = $bloco['hora_fim'];
-                    // Compara apenas hora:minuto (sem segundos)
-                    if ($horaInicioBloco <= $horaAtual && $horaFimBloco >= $horaAtual) {
-                        $blocosDoDia[$key]['is_atual'] = true;
-                    }
-                }
-            }
-            
-            $diasSemana[] = [
-                'data' => $dataDia,
-                'data_iso' => $dataIso,
-                'label_dia' => $this->formatarLabelDia($dataDia),
-                'blocos' => $blocosDoDia,
-                'is_hoje' => $isHoje,
-            ];
-        }
-        
-        // 5) Variáveis de navegação (usando domingo como referência)
-        $semanaAnterior = $domingo->modify('-7 days');
-        $proximaSemana = $domingo->modify('+7 days');
-        $dataBaseIso = $dataBase->format('Y-m-d');
-        
-        // 6) Renderizar view semanal
-        $this->view('agenda.semana', [
-            'diasSemana' => $diasSemana,
-            'domingo' => $domingo,
-            'sabado' => $sabado,
-            'semanaAnterior' => $semanaAnterior,
-            'proximaSemana' => $proximaSemana,
-            'hoje' => $hoje,
-            'hojeIso' => $hojeIso,
-            'dataBase' => $dataBase,
-            'dataBaseIso' => $dataBaseIso,
-        ]);
+        $params = ['view' => 'quadro'];
+        if (!empty($_GET['data'])) $params['data'] = $_GET['data'];
+        header('Location: ' . pixelhub_url('/agenda?' . http_build_query($params)));
+        exit;
     }
-    
+
     /**
      * Helper para formatar label do dia
      * 

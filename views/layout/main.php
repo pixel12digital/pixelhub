@@ -1676,14 +1676,11 @@
                     </span>
                 </div>
                 <div class="sidebar-module-content <?= $agendaExpanded ? 'is-open' : '' ?>">
-                    <a href="<?= pixelhub_url('/agenda') ?>" class="sub-item <?= $isAgendaUnified ? 'active' : '' ?>">
-                        <span class="sidebar-text">O que fazer</span>
+                    <a href="<?= pixelhub_url('/agenda?view=lista') ?>" class="sub-item <?= (($isAgendaUnified && strpos($currentUri, 'view=quadro') === false) || strpos($currentUri, '/agenda/bloco') !== false) ? 'active' : '' ?>">
+                        <span class="sidebar-text">Lista</span>
                     </a>
-                    <a href="<?= pixelhub_url('/agenda/blocos') ?>" class="sub-item <?= (strpos($currentUri, '/agenda/blocos') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Blocos de tempo</span>
-                    </a>
-                    <a href="<?= pixelhub_url('/agenda/semana') ?>" class="sub-item <?= (strpos($currentUri, '/agenda/semana') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Blocos semana</span>
+                    <a href="<?= pixelhub_url('/agenda?view=quadro') ?>" class="sub-item <?= (strpos($currentUri, 'view=quadro') !== false) ? 'active' : '' ?>">
+                        <span class="sidebar-text">Quadro</span>
                     </a>
                     <a href="<?= pixelhub_url('/agenda/timeline') ?>" class="sub-item <?= (strpos($currentUri, '/agenda/timeline') !== false) ? 'active' : '' ?>">
                         <span class="sidebar-text">Visão macro</span>

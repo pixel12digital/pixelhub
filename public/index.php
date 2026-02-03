@@ -684,9 +684,10 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/screen-recordings/delete', 'ScreenRecordingsController@delete');
     $router->get('/screen-recordings/check-token', 'ScreenRecordingsController@checkToken');
     
-    // Rotas de Agenda
-    $router->get('/agenda', 'AgendaController@index');
-    $router->get('/agenda/blocos', 'AgendaController@blocos');
+    // Rotas de Agenda (unificada: Lista | Quadro)
+    $router->get('/agenda', 'AgendaController@agendaUnified');
+    $router->get('/agenda/blocos', 'AgendaController@blocos'); // compat: redireciona para ?view=lista
+    $router->get('/agenda/tarefas', 'AgendaController@index'); // legado: tarefas do dia (view=hoje|semana)
     $router->get('/agenda/timeline', 'AgendaController@timeline');
     $router->get('/agenda/manual-item/novo', 'AgendaController@createManualItem');
     $router->post('/agenda/manual-item/novo', 'AgendaController@storeManualItem');
