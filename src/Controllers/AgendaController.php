@@ -1200,8 +1200,6 @@ class AgendaController extends Controller
         }
     }
     
-    }
-    
     /**
      * Exibe a visão semanal da agenda
      */
