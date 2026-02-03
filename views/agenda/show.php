@@ -103,6 +103,8 @@ ob_start();
     .bloco-actions-footer .btn { margin-top: 0; }
     .btn-outline-danger { background: transparent; color: #d32f2f; border: 1px solid #d32f2f; }
     .btn-outline-danger:hover { background: #ffebee; color: #b71c1c; }
+    .btn-icon { font-family: inherit; }
+    .btn-icon:hover { opacity: 0.9; }
     .tarefas-list {
         background: white;
         border-radius: 8px;
@@ -211,6 +213,10 @@ ob_start();
 </div>
 
 <div class="bloco-header">
+    <div style="margin-bottom: 8px;">
+        <strong style="font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Categoria do bloco</strong>
+        <p style="margin: 4px 0 0 0; font-size: 12px; color: #888;">Define o contexto do período (Produção, Comercial, Suporte etc.).</p>
+    </div>
     <h2>
         <span style="background: <?= htmlspecialchars($bloco['tipo_cor'] ?? '#666') ?>; color: white; padding: 6px 12px; border-radius: 4px; font-size: 14px;">
             <?= htmlspecialchars($bloco['tipo_nome']) ?>
@@ -243,20 +249,13 @@ ob_start();
                 <span><?= (int)$bloco['duracao_real'] ?> minutos</span>
             </div>
         <?php endif; ?>
-        <div class="info-item" style="grid-column: 1 / -1;">
-            <strong>Projeto Foco</strong>
-            <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
-                <select id="projeto-foco" style="margin: 0; flex: 0 0 auto; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 180px;">
-                    <option value="">Nenhum</option>
-                    <?php foreach ($projetos as $projeto): ?>
-                        <option value="<?= $projeto['id'] ?>" <?= $bloco['projeto_foco_id'] == $projeto['id'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($projeto['name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <button onclick="updateProjectFocus()" class="btn btn-secondary btn-sm" style="margin: 0;">Atualizar</button>
-            </div>
+        <?php if (!empty($projetoAtual)): ?>
+        <div class="info-item">
+            <strong>Projeto atual</strong>
+            <span><?= htmlspecialchars($projetoAtual['name']) ?></span>
+            <p style="margin: 4px 0 0 0; font-size: 11px; color: #888;">Referência para tarefas (último iniciado ou primeiro da lista).</p>
         </div>
+        <?php endif; ?>
     </div>
     
     <?php if ($bloco['resumo']): ?>
@@ -291,13 +290,13 @@ ob_start();
     ?>
     <div class="projetos-bloco" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
         <strong>Projetos neste bloco</strong>
-        <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">Pré-vincule projetos para alternar entre eles. Projeto Foco permanece como referência.</p>
+        <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">Pré-vincule projetos para alternar entre eles. Tipo de atividade define como o trabalho será registrado (ex.: Comercial durante bloco de Produção).</p>
         
         <table class="projetos-tabela">
             <thead>
                 <tr>
                     <th class="col-projeto">Projeto</th>
-                    <th class="col-tipo">Tipo</th>
+                    <th class="col-tipo">Tipo de atividade</th>
                     <th class="col-acao">Ação</th>
                 </tr>
             </thead>
@@ -313,15 +312,12 @@ ob_start();
                     ?>
                     <tr>
                         <td class="col-projeto">
-                            <?php if (!empty($bp['is_foco'])): ?>
-                                <span style="background: #023A8D; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-right: 6px;">Foco</span>
+                            <?php if ($isRunning): ?>
+                                <span style="background: #4CAF50; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-right: 6px;">Ativo</span>
                             <?php endif; ?>
                             <?= htmlspecialchars($bp['name']) ?>
                             <?php if ($totLabel): ?>
                                 <span style="color: #666; font-size: 12px;">(<?= $totLabel ?>)</span>
-                            <?php endif; ?>
-                            <?php if ($isRunning): ?>
-                                <span style="background: #4CAF50; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 6px;">Em execução</span>
                             <?php endif; ?>
                         </td>
                         <td class="col-tipo">
@@ -330,8 +326,8 @@ ob_start();
                             <?php elseif ($runningSegment): ?>
                                 <span style="color: #999; font-size: 12px;">—</span>
                             <?php elseif (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
-                                <select name="tipo_id" form="form-seg-<?= $pid ?>" title="Tipo de trabalho (padrão: tipo do bloco)" style="width: 100%; height: 34px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
-                                    <option value="">Tipo do bloco</option>
+                                <select name="tipo_id" form="form-seg-<?= $pid ?>" title="Tipo de atividade: como este trabalho será registrado (padrão: categoria do bloco)" aria-label="Tipo de atividade para este projeto" style="width: 100%; height: 34px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                                    <option value="">Usar categoria do bloco</option>
                                     <?php foreach ($blockTypes ?? [] as $t): ?>
                                         <?php if ((int)$t['id'] !== (int)($bloco['tipo_id'] ?? 0)): ?>
                                             <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
@@ -348,7 +344,7 @@ ob_start();
                                     <?php if ($isRunning): ?>
                                         <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/pause') ?>" style="margin: 0;">
                                             <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                                            <button type="submit" class="btn btn-secondary btn-sm">Pausar</button>
+                                            <button type="submit" class="btn btn-secondary btn-sm btn-icon" title="Pausar trabalho neste projeto" aria-label="Pausar trabalho neste projeto">&#9209; Pausar</button>
                                         </form>
                                     <?php elseif ($runningSegment): ?>
                                         <span style="font-size: 11px; color: #999;">Pause o atual primeiro</span>
@@ -356,17 +352,15 @@ ob_start();
                                         <form id="form-seg-<?= $pid ?>" method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0;" class="form-inline">
                                             <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
                                             <input type="hidden" name="project_id" value="<?= $pid ?>">
-                                            <button type="submit" class="btn btn-primary btn-sm"><?= $hasSegments ? 'Retomar neste projeto' : 'Iniciar neste projeto' ?></button>
+                                            <button type="submit" class="btn btn-primary btn-sm btn-icon" title="<?= $hasSegments ? 'Retomar trabalho neste projeto' : 'Iniciar trabalho neste projeto' ?>" aria-label="<?= $hasSegments ? 'Retomar trabalho neste projeto' : 'Iniciar trabalho neste projeto' ?>">&#9654; <?= $hasSegments ? 'Retomar' : 'Iniciar' ?></button>
                                         </form>
                                     <?php endif; ?>
                                 <?php endif; ?>
-                                <?php if (!$bp['is_foco']): ?>
-                                    <form method="post" action="<?= pixelhub_url('/agenda/bloco/project/remove') ?>" style="margin: 0; display: inline;" onsubmit="return confirm('Remover este projeto do bloco?');">
-                                        <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                                        <input type="hidden" name="project_id" value="<?= $pid ?>">
-                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Remover do bloco" style="padding: 6px 10px;">✕</button>
-                                    </form>
-                                <?php endif; ?>
+                                <form method="post" action="<?= pixelhub_url('/agenda/bloco/project/remove') ?>" style="margin: 0; display: inline;" onsubmit="return confirm('Remover este projeto do bloco?');">
+                                    <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                                    <input type="hidden" name="project_id" value="<?= $pid ?>">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm btn-icon" title="Remover projeto do bloco" aria-label="Remover projeto do bloco" style="padding: 6px 10px;">&#10005; Remover</button>
+                                </form>
                             </div>
                         </td>
                     </tr>
@@ -388,21 +382,21 @@ ob_start();
                     <thead>
                         <tr>
                             <th class="col-projeto">Projeto</th>
-                            <th class="col-tipo">Tipo</th>
+                            <th class="col-tipo">Tipo de atividade</th>
                             <th class="col-acao">Ação</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td class="col-projeto">
+                                <?php if ($isAvulsasRunning): ?><span style="background: #4CAF50; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-right: 6px;">Ativo</span><?php endif; ?>
                                 <em>Tarefas sem projeto específico</em>
                                 <?php if ($totAvulsasLabel): ?><span style="color: #666; font-size: 12px;">(<?= $totAvulsasLabel ?>)</span><?php endif; ?>
-                                <?php if ($isAvulsasRunning): ?><span style="background: #4CAF50; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 6px;">Em execução</span><?php endif; ?>
                             </td>
                             <td class="col-tipo">
                                 <?php if (!$isAvulsasRunning && !$runningSegment): ?>
-                                    <select name="tipo_id" form="form-seg-avulsas" title="Tipo de trabalho" style="width: 100%; height: 34px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
-                                        <option value="">Tipo do bloco</option>
+                                    <select name="tipo_id" form="form-seg-avulsas" title="Tipo de atividade para tarefas avulsas" aria-label="Tipo de atividade" style="width: 100%; height: 34px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                                        <option value="">Usar categoria do bloco</option>
                                         <?php foreach ($blockTypes ?? [] as $t): ?>
                                             <?php if ((int)$t['id'] !== (int)($bloco['tipo_id'] ?? 0)): ?>
                                                 <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
@@ -418,13 +412,13 @@ ob_start();
                                     <?php if ($isAvulsasRunning): ?>
                                         <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/pause') ?>" style="margin: 0;">
                                             <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                                            <button type="submit" class="btn btn-secondary btn-sm">Pausar</button>
+                                            <button type="submit" class="btn btn-secondary btn-sm btn-icon" title="Pausar tarefas avulsas" aria-label="Pausar tarefas avulsas">&#9209; Pausar</button>
                                         </form>
                                     <?php elseif (!$runningSegment): ?>
                                         <form id="form-seg-avulsas" method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0;" class="form-inline">
                                             <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
                                             <input type="hidden" name="project_id" value="">
-                                            <button type="submit" class="btn btn-outline-secondary btn-sm"><?= $hasAvulsasSegments ? 'Retomar neste projeto' : 'Iniciar neste projeto' ?></button>
+                                            <button type="submit" class="btn btn-outline-secondary btn-sm btn-icon" title="<?= $hasAvulsasSegments ? 'Retomar tarefas avulsas' : 'Iniciar tarefas avulsas' ?>" aria-label="<?= $hasAvulsasSegments ? 'Retomar tarefas avulsas' : 'Iniciar tarefas avulsas' ?>">&#9654; <?= $hasAvulsasSegments ? 'Retomar' : 'Iniciar' ?></button>
                                         </form>
                                     <?php endif; ?>
                                 </div>
@@ -452,11 +446,11 @@ ob_start();
     
     <div class="bloco-actions-footer">
         <?php if ($bloco['status'] === 'planned'): ?>
-            <button onclick="startBlock()" class="btn btn-success">Iniciar Bloco</button>
+            <button onclick="startBlock()" class="btn btn-success" title="Iniciar o bloco de trabalho" aria-label="Iniciar bloco">&#9654; Iniciar Bloco</button>
         <?php endif; ?>
         
         <?php if ($bloco['status'] === 'ongoing'): ?>
-            <button type="button" class="btn btn-success" id="btn-finalizar-com-resumo">Finalizar com resumo</button>
+            <button type="button" class="btn btn-success" id="btn-finalizar-com-resumo" title="Finalizar bloco e registrar resumo" aria-label="Finalizar bloco com resumo">Finalizar com resumo</button>
         <?php endif; ?>
         
         <?php if ($bloco['status'] === 'completed'): ?>
@@ -488,11 +482,11 @@ ob_start();
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h3 style="margin: 0;">Tarefas do Bloco (<?= count($tarefas) ?>)</h3>
         <div>
-            <?php if ($bloco['projeto_foco_id']): ?>
+            <?php if (!empty($projetoAtual)): ?>
                 <button onclick="showCreateTaskForm()" class="btn btn-primary" style="margin-right: 8px;">Criar tarefa rápida</button>
                 <button onclick="showAttachTaskModal()" class="btn btn-secondary">Vincular tarefa existente</button>
             <?php else: ?>
-                <span style="color: #999; font-size: 13px;">Defina um projeto foco acima para vincular tarefas</span>
+                <span style="color: #999; font-size: 13px;">Adicione um projeto ao bloco para vincular tarefas</span>
             <?php endif; ?>
         </div>
     </div>
@@ -513,10 +507,10 @@ ob_start();
         <div class="empty-state">
             <p>Nenhuma tarefa vinculada a este bloco.</p>
             <p style="margin-top: 10px; font-size: 13px; color: #999;">
-                <?php if ($bloco['projeto_foco_id']): ?>
-                    Crie uma tarefa rápida ou vincule uma tarefa existente do projeto foco.
+                <?php if (!empty($projetoAtual)): ?>
+                    Crie uma tarefa rápida ou vincule uma tarefa existente do projeto atual.
                 <?php else: ?>
-                    Defina um projeto foco acima para vincular tarefas.
+                    Adicione um projeto ao bloco para vincular tarefas.
                 <?php endif; ?>
             </p>
         </div>
@@ -611,7 +605,7 @@ ob_start();
         <h3 style="margin: 0 0 20px 0;">Criar Tarefa Rápida</h3>
         <form method="post" action="<?= pixelhub_url('/agenda/bloco/create-quick-task') ?>">
             <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-            <input type="hidden" name="project_id" value="<?= (int)$bloco['projeto_foco_id'] ?>">
+            <input type="hidden" name="project_id" value="<?= (int)($projetoAtual['id'] ?? $bloco['projeto_foco_id'] ?? 0) ?>">
             
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: 600;">Título da Tarefa *</label>
@@ -793,25 +787,6 @@ document.getElementById('attachTaskModal')?.addEventListener('click', function(e
 </script>
 
 <script>
-function updateProjectFocus() {
-    const projectId = document.getElementById('projeto-foco').value;
-    
-    fetch('<?= pixelhub_url('/agenda/update-project-focus') ?>', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'id=<?= $bloco['id'] ?>&project_id=' + projectId
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            alert('Projeto foco atualizado!');
-            location.reload();
-        } else {
-            alert('Erro: ' + (data.error || 'Erro desconhecido'));
-        }
-    });
-}
-
 // Verifica se há bloco em andamento ao carregar a página
 let ongoingBlock = null;
 

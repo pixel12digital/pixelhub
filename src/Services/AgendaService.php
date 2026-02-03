@@ -1664,8 +1664,7 @@ class AgendaService
     }
     
     /**
-     * Remove projeto do bloco (não remove projeto_foco_id, apenas o vínculo em agenda_block_projects).
-     * Não permite remover o Projeto Foco.
+     * Remove projeto do bloco. Se for projeto_foco_id, define como null.
      */
     public static function removeProjectFromBlock(int $blockId, int $projectId): void
     {
@@ -1676,7 +1675,8 @@ class AgendaService
         
         $bloco = self::getBlockById($blockId);
         if ($bloco && !empty($bloco['projeto_foco_id']) && (int)$bloco['projeto_foco_id'] === $projectId) {
-            throw new \RuntimeException('Não é possível remover o Projeto Foco. Altere o Projeto Foco acima se desejar.');
+            $stmt = $db->prepare("UPDATE agenda_blocks SET projeto_foco_id = NULL, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$blockId]);
         }
         
         $stmt = $db->prepare("DELETE FROM agenda_block_projects WHERE block_id = ? AND project_id = ?");

@@ -202,51 +202,49 @@ class AgendaController extends Controller
         // Busca projetos para seleção de foco
         $projetos = ProjectService::getAllProjects(null, 'ativo');
         
-        // Busca tarefas do projeto foco que ainda não estão vinculadas (para vincular)
-        // IMPORTANTE: Exclui tarefas concluídas da lista de tarefas disponíveis
-        $tarefasDisponiveis = [];
-        if ($bloco['projeto_foco_id']) {
+        // Segmentos (multi-projeto com pausa/retomada)
+        $segments = AgendaService::getSegmentsForBlock($id);
+        $segmentTotals = AgendaService::getSegmentTotalsByProjectForBlock($id);
+        $runningSegment = AgendaService::getRunningSegmentForBlock($id);
+        $blockProjects = AgendaService::getProjectsForBlock($id);
+        
+        // Projeto atual (referência): segmento em execução > projeto_foco > primeiro da lista
+        $projetoAtual = null;
+        if ($runningSegment && isset($runningSegment['project_id']) && $runningSegment['project_id']) {
+            $projetoAtual = ['id' => (int)$runningSegment['project_id'], 'name' => $runningSegment['project_name'] ?? 'Projeto'];
+        } elseif ($bloco['projeto_foco_id']) {
+            $projetoAtual = ['id' => (int)$bloco['projeto_foco_id'], 'name' => $bloco['projeto_foco_nome'] ?? 'Projeto'];
+        } elseif (!empty($blockProjects)) {
+            $projetoAtual = ['id' => (int)$blockProjects[0]['id'], 'name' => $blockProjects[0]['name']];
+        }
+        
+        // Tarefas disponíveis: usa projeto atual quando projeto_foco não definido
+        $projetoRefId = $projetoAtual['id'] ?? $bloco['projeto_foco_id'];
+        if ($projetoRefId && empty($tarefasDisponiveis)) {
             try {
                 $db = \PixelHub\Core\DB::getConnection();
-                // Tenta primeiro com deleted_at (se a coluna existir)
                 try {
                     $stmt = $db->prepare("
-                        SELECT t.*
-                        FROM tasks t
-                        WHERE t.project_id = ?
-                        AND t.status != 'concluida'
-                        AND t.deleted_at IS NULL
-                        AND t.id NOT IN (
-                            SELECT task_id FROM agenda_block_tasks WHERE bloco_id = ?
-                        )
+                        SELECT t.* FROM tasks t
+                        WHERE t.project_id = ? AND t.status != 'concluida' AND t.deleted_at IS NULL
+                        AND t.id NOT IN (SELECT task_id FROM agenda_block_tasks WHERE bloco_id = ?)
                         ORDER BY t.title ASC
                     ");
-                    $stmt->execute([$bloco['projeto_foco_id'], $id]);
+                    $stmt->execute([$projetoRefId, $id]);
                 } catch (\PDOException $e) {
-                    // Se deu erro (provavelmente coluna deleted_at não existe), tenta sem a condição
                     $stmt = $db->prepare("
-                        SELECT t.*
-                        FROM tasks t
-                        WHERE t.project_id = ?
-                        AND t.status != 'concluida'
-                        AND t.id NOT IN (
-                            SELECT task_id FROM agenda_block_tasks WHERE bloco_id = ?
-                        )
+                        SELECT t.* FROM tasks t
+                        WHERE t.project_id = ? AND t.status != 'concluida'
+                        AND t.id NOT IN (SELECT task_id FROM agenda_block_tasks WHERE bloco_id = ?)
                         ORDER BY t.title ASC
                     ");
-                    $stmt->execute([$bloco['projeto_foco_id'], $id]);
+                    $stmt->execute([$projetoRefId, $id]);
                 }
                 $tarefasDisponiveis = $stmt->fetchAll();
             } catch (\Exception $e) {
                 error_log("Erro ao buscar tarefas disponíveis: " . $e->getMessage());
             }
         }
-        
-        // Segmentos (multi-projeto com pausa/retomada)
-        $segments = AgendaService::getSegmentsForBlock($id);
-        $segmentTotals = AgendaService::getSegmentTotalsByProjectForBlock($id);
-        $runningSegment = AgendaService::getRunningSegmentForBlock($id);
-        $blockProjects = AgendaService::getProjectsForBlock($id);
         
         $db = \PixelHub\Core\DB::getConnection();
         $stmt = $db->query("SELECT id, nome, codigo FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC");
@@ -263,6 +261,7 @@ class AgendaController extends Controller
             'runningSegment' => $runningSegment,
             'blockProjects' => $blockProjects,
             'blockTypes' => $blockTypes,
+            'projetoAtual' => $projetoAtual,
         ]);
     }
     
