@@ -139,9 +139,10 @@ $baseUrl = pixelhub_url('/agenda');
 .quadro-card:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
 .quadro-card.atual { background: #e0f2fe; border-left-color: #0ea5e9; }
 /* Quick-add form: grid com larguras fixas para evitar corte de horário */
-.quick-add-form-grid { display: grid; grid-template-columns: minmax(120px, 1fr) 180px 180px 140px 140px 120px; gap: 10px; align-items: center; }
+/* PROJETO ~35% / TAREFA ~65% do espaço flexível; Tipo/Horários/Adicionar fixos */
+.quick-add-form-grid { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(180px, 2fr) 180px 140px 140px 120px; gap: 10px; align-items: center; }
 .quick-add-form-grid .col-projeto { min-width: 0; }
-.quick-add-form-grid .col-tarefa { min-width: 180px; }
+.quick-add-form-grid .col-tarefa { min-width: 0; }
 .quick-add-form-grid .col-tipo { min-width: 180px; }
 .quick-add-form-grid .col-inicio, .quick-add-form-grid .col-fim { min-width: 120px; }
 .quick-add-form-grid input[type="time"] { width: 100%; min-width: 110px; height: 38px; box-sizing: border-box; padding: 8px 10px; border-radius: 6px; }
