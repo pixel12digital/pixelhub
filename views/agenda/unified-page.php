@@ -78,6 +78,11 @@ $baseUrl = pixelhub_url('/agenda');
 .block-tasks-time-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
 .block-tasks-time-table .task-time-input { width: 70px; padding: 4px 6px; font-size: 12px; border: 1px solid #e5e7eb; border-radius: 4px; }
 .block-tasks-time-table .task-time-input:focus { border-color: #3b82f6; outline: none; }
+.block-add-task-section { max-width: 560px; width: 50%; min-width: 280px; }
+.block-add-task-section .block-add-task-row { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.block-add-task-section .block-add-task-row select { flex: 1 1 200px; min-width: 180px; max-width: 320px; padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; }
+.block-add-task-section .block-add-task-row .btn-add-task-to-block { flex-shrink: 0; padding: 6px 14px; background: #023A8D; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; }
+@media (max-width: 600px) { .block-add-task-section { width: 100%; max-width: 100%; } .block-add-task-section .block-add-task-row select { max-width: none; } }
 .agenda-list-table .block-actions-cell { display: flex; align-items: center; gap: 4px; }
 .agenda-list-table .btn-icon { background: none; border: none; cursor: pointer; padding: 4px; color: #6b7280; display: inline-flex; align-items: center; justify-content: center; }
 .agenda-list-table .btn-icon:hover { color: #dc2626; }
@@ -507,11 +512,9 @@ function loadBlockContent(blockId, container) {
             if (projectId > 0) {
                 html += '<div class="block-add-task-section" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">';
                 html += '<label style="font-size:12px;color:#64748b;display:block;margin-bottom:6px;">Adicionar tarefa a este bloco</label>';
-                html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
-                html += '<select id="block-add-task-select-' + blockId + '" style="flex:1;min-width:180px;padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">';
-                html += '<option value="">Selecionar tarefa…</option>';
-                html += '</select>';
-                html += '<button type="button" class="btn-add-task-to-block" data-block-id="' + blockId + '" style="padding:6px 14px;background:#023A8D;color:white;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">Vincular</button>';
+                html += '<div class="block-add-task-row">';
+                html += '<select id="block-add-task-select-' + blockId + '"><option value="">Selecionar tarefa…</option></select>';
+                html += '<button type="button" class="btn-add-task-to-block" data-block-id="' + blockId + '">Vincular</button>';
                 html += '</div></div>';
             }
             container.innerHTML = html;
