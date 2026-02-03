@@ -28,13 +28,15 @@ class AgendaService
         }
         try {
             $stmt = $db->query("SHOW TABLES LIKE 'activity_types'");
-            if ($stmt->rowCount() === 0) {
+            $rows = $stmt->fetchAll();
+            if (count($rows) === 0) {
                 self::$hasActivityTypesSupport = false;
                 return false;
             }
             $stmt = $db->query("SHOW COLUMNS FROM agenda_blocks LIKE 'activity_type_id'");
-            self::$hasActivityTypesSupport = $stmt->rowCount() > 0;
-        } catch (\PDOException $e) {
+            $rows = $stmt->fetchAll();
+            self::$hasActivityTypesSupport = count($rows) > 0;
+        } catch (\Throwable $e) {
             self::$hasActivityTypesSupport = false;
         }
         return self::$hasActivityTypesSupport;
@@ -636,9 +638,15 @@ class AgendaService
                 )";
         }
 
-        $hasActivityTypes = self::hasActivityTypesSupport($db);
-        $selectActivityType = $hasActivityTypes ? 'at.name as activity_type_name,' : 'NULL as activity_type_name,';
-        $joinActivityTypes = $hasActivityTypes ? 'LEFT JOIN activity_types at ON b.activity_type_id = at.id' : '';
+        // activity_types: só inclui se tabela/coluna existirem (evita erro 500 em ambientes sem migration)
+        $selectActivityType = 'NULL as activity_type_name,';
+        $joinActivityTypes = '';
+        try {
+            if (self::hasActivityTypesSupport($db)) {
+                $selectActivityType = 'at.name as activity_type_name,';
+                $joinActivityTypes = 'LEFT JOIN activity_types at ON b.activity_type_id = at.id';
+            }
+        } catch (\Throwable $e) { /* ignora */ }
 
         // Constrói a query completa antes de preparar
         $sql = "
@@ -1151,9 +1159,15 @@ class AgendaService
                 )";
         }
 
-        $hasActivityTypes = self::hasActivityTypesSupport($db);
-        $selectActivityType = $hasActivityTypes ? 'at.name as activity_type_name,' : 'NULL as activity_type_name,';
-        $joinActivityTypes = $hasActivityTypes ? 'LEFT JOIN activity_types at ON b.activity_type_id = at.id' : '';
+        // activity_types: só inclui se tabela/coluna existirem
+        $selectActivityType = 'NULL as activity_type_name,';
+        $joinActivityTypes = '';
+        try {
+            if (self::hasActivityTypesSupport($db)) {
+                $selectActivityType = 'at.name as activity_type_name,';
+                $joinActivityTypes = 'LEFT JOIN activity_types at ON b.activity_type_id = at.id';
+            }
+        } catch (\Throwable $e) { /* ignora */ }
 
         // Constrói a query completa antes de preparar
         // tn_block: cliente vinculado diretamente ao bloco (atividades avulsas)
