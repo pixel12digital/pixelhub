@@ -277,12 +277,12 @@ ob_start();
         <?php 
         $taskIdParam = !empty($agendaTaskContext) ? '&task_id=' . (int)$agendaTaskContext['id'] : '';
         ?>
-        <a href="<?= pixelhub_url('/agenda?data=' . date('Y-m-d', strtotime($dataStr . ' -1 day')) . $taskIdParam) ?>" class="btn btn-nav">← Anterior</a>
+        <a href="<?= pixelhub_url('/agenda/blocos?data=' . date('Y-m-d', strtotime($dataStr . ' -1 day')) . $taskIdParam) ?>" class="btn btn-nav">← Anterior</a>
         <strong style="font-size: 15px; color: #374151;"><?= date('d/m/Y', strtotime($dataStr)) ?></strong>
-        <a href="<?= pixelhub_url('/agenda?data=' . date('Y-m-d', strtotime($dataStr . ' +1 day')) . $taskIdParam) ?>" class="btn btn-nav">Próximo →</a>
-        <a href="<?= pixelhub_url('/agenda?data=' . date('Y-m-d') . $taskIdParam) ?>" class="btn btn-nav">Hoje</a>
+        <a href="<?= pixelhub_url('/agenda/blocos?data=' . date('Y-m-d', strtotime($dataStr . ' +1 day')) . $taskIdParam) ?>" class="btn btn-nav">Próximo →</a>
+        <a href="<?= pixelhub_url('/agenda/blocos?data=' . date('Y-m-d') . $taskIdParam) ?>" class="btn btn-nav">Hoje</a>
         
-        <form method="get" action="<?= pixelhub_url('/agenda') ?>" style="display: inline-flex; align-items: center; gap: 6px; margin-left: 12px;">
+        <form method="get" action="<?= pixelhub_url('/agenda/blocos') ?>" style="display: inline-flex; align-items: center; gap: 6px; margin-left: 12px;">
             <input type="date" name="data" value="<?= htmlspecialchars($dataAtualIso ?? $dataStr) ?>" style="padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; background: #fff;">
             <?php if (!empty($agendaTaskContext)): ?>
                 <input type="hidden" name="task_id" value="<?= (int)$agendaTaskContext['id'] ?>">
@@ -293,7 +293,7 @@ ob_start();
         <a href="<?= pixelhub_url('/agenda/semana?data=' . ($dataAtualIso ?? $dataStr)) ?>" class="btn btn-nav" style="margin-left: 8px;">Ver Semana</a>
     </div>
     <div style="display: flex; gap: 8px;">
-        <button onclick="generateBlocks()" class="btn btn-nav btn-nav-primary">Gerar Blocos</button>
+        <button onclick="generateBlocks()" class="btn btn-nav">Gerar Blocos</button>
         <?php 
         $novoBlocoUrl = '/agenda/bloco/novo?data=' . ($dataAtualIso ?? $dataStr);
         if (!empty($agendaTaskContext)) {
@@ -301,9 +301,27 @@ ob_start();
         }
         ?>
         <a href="<?= pixelhub_url($novoBlocoUrl) ?>" class="btn btn-nav">+ Bloco extra</a>
-        <a href="<?= pixelhub_url('/settings/agenda-block-templates') ?>" class="btn btn-nav" style="margin-left: 4px;" title="Editar ou excluir modelos que definem os blocos gerados">Modelos</a>
     </div>
 </div>
+
+<form method="post" action="<?= pixelhub_url('/agenda/bloco/quick-add') ?>" style="display: grid; grid-template-columns: 1fr 120px 80px 80px auto; gap: 8px; align-items: center; margin-bottom: 20px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
+    <input type="hidden" name="data" value="<?= htmlspecialchars($dataAtualIso ?? $dataStr) ?>">
+    <select name="project_id" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+        <option value="">Atividade avulsa</option>
+        <?php foreach ($projetos as $p): ?>
+            <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['name']) ?></option>
+        <?php endforeach; ?>
+    </select>
+    <select name="tipo_id" required style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+        <option value="">Tipo</option>
+        <?php foreach ($tipos as $t): ?>
+            <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
+        <?php endforeach; ?>
+    </select>
+    <input type="time" name="hora_inicio" required placeholder="Início" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+    <input type="time" name="hora_fim" required placeholder="Fim" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+    <button type="submit" class="btn btn-nav btn-nav-primary">Adicionar</button>
+</form>
 
 <div class="agenda-filters">
     <select id="filtro-tipo" onchange="applyFilters()">
@@ -333,8 +351,8 @@ ob_start();
 
 <div class="blocks-list" style="margin-top: 20px;">
     <?php if (empty($blocos)): ?>
-        <div class="card">
-            <p>Nenhum bloco encontrado para esta data. Clique em "Gerar Blocos" para criar os blocos baseados nos modelos, ou <a href="<?= pixelhub_url('/settings/agenda-block-templates') ?>">configure os modelos</a> para alterar a estrutura.</p>
+        <div class="card" style="padding: 24px; text-align: center; color: #6b7280;">
+            <p style="margin: 0;">Nenhum bloco para esta data. Use o formulário acima para adicionar (projeto, tipo, horário) ou clique em <strong>Gerar Blocos</strong> para criar a partir dos modelos.</p>
         </div>
     <?php else: ?>
         <?php 
@@ -539,7 +557,7 @@ function applyFilters() {
     const tipo = document.getElementById('filtro-tipo').value;
     const status = document.getElementById('filtro-status').value;
     const params = new URLSearchParams();
-    params.set('data', '<?= $dataStr ?>');
+    params.set('data', '<?= htmlspecialchars($dataStr) ?>');
     if (tipo) params.set('tipo', tipo);
     if (status) params.set('status', status);
     window.location.href = '<?= pixelhub_url('/agenda/blocos') ?>?' + params.toString();
@@ -557,7 +575,7 @@ function generateBlocks() {
     .then(data => {
         if (data.success) {
             // Recarrega a página para mostrar os blocos gerados
-            window.location.href = '<?= pixelhub_url('/agenda?data=' . $dataStr) ?>';
+            window.location.href = '<?= pixelhub_url('/agenda/blocos?data=' . $dataStr) ?>';
         } else {
             alert('Erro: ' + (data.error || 'Erro desconhecido'));
         }

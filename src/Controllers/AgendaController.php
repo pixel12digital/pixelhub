@@ -1159,22 +1159,47 @@ class AgendaController extends Controller
             exit;
             
         } catch (\RuntimeException $e) {
-            // Erro de validação - volta para o formulário com mensagem
-            $db = \PixelHub\Core\DB::getConnection();
-            $stmt = $db->query("SELECT * FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC");
-            $tipos = $stmt->fetchAll();
-            
-            $this->view('agenda.create_block', [
-                'data' => $data,
-                'dataStr' => $dataStr,
-                'tipos' => $tipos,
-                'erro' => $e->getMessage(),
-                'dados' => $_POST, // Para manter os dados preenchidos
-            ]);
-        } catch (\Exception $e) {
-            error_log("Erro ao criar bloco: " . $e->getMessage());
-            $this->json(['error' => 'Erro ao criar bloco'], 500);
+            header('Location: ' . pixelhub_url('/agenda?data=' . $dataStr . '&erro=' . urlencode($e->getMessage())));
+            exit;
         }
+    }
+    
+    /**
+     * Adiciona bloco rapidamente pela lista (estilo ClickUp)
+     */
+    public function quickAddBlock(): void
+    {
+        Auth::requireInternal();
+        
+        $dataStr = $_POST['data'] ?? date('Y-m-d');
+        $projectId = isset($_POST['project_id']) && $_POST['project_id'] !== '' ? (int)$_POST['project_id'] : null;
+        $tipoId = isset($_POST['tipo_id']) ? (int)$_POST['tipo_id'] : 0;
+        $horaInicio = trim($_POST['hora_inicio'] ?? '');
+        $horaFim = trim($_POST['hora_fim'] ?? '');
+        
+        try {
+            $data = new \DateTime($dataStr, new \DateTimeZone('America/Sao_Paulo'));
+        } catch (\Exception $e) {
+            header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $dataStr . '&erro=' . urlencode('Data inválida.')));
+            exit;
+        }
+        
+        try {
+            $dados = [
+                'hora_inicio' => $horaInicio,
+                'hora_fim' => $horaFim,
+                'tipo_id' => $tipoId,
+                'projeto_foco_id' => $projectId,
+            ];
+            AgendaService::createManualBlock($data, $dados);
+            header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $dataStr . '&sucesso=' . urlencode('Bloco adicionado.')));
+            exit;
+        } catch (\RuntimeException $e) {
+            header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $dataStr . '&erro=' . urlencode($e->getMessage())));
+            exit;
+        }
+    }
+    
     }
     
     /**

@@ -512,17 +512,21 @@ class AgendaService
         $diff = $inicio->diff($fim);
         $duracaoMinutos = ($diff->h * 60) + $diff->i;
         
+        // Projeto foco (opcional)
+        $projetoFocoId = isset($dados['projeto_foco_id']) && (int)$dados['projeto_foco_id'] > 0 ? (int)$dados['projeto_foco_id'] : null;
+        
         // Insere o bloco
         $stmt = $db->prepare("
             INSERT INTO agenda_blocks 
-            (data, hora_inicio, hora_fim, tipo_id, status, duracao_planejada, created_at, updated_at)
-            VALUES (?, ?, ?, ?, 'planned', ?, NOW(), NOW())
+            (data, hora_inicio, hora_fim, tipo_id, projeto_foco_id, status, duracao_planejada, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'planned', ?, NOW(), NOW())
         ");
         $stmt->execute([
             $dataStr,
             $horaInicio,
             $horaFim,
             $tipoId,
+            $projetoFocoId,
             $duracaoMinutos,
         ]);
         
