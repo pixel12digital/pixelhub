@@ -1728,9 +1728,13 @@ class AgendaService
             return [];
         }
         $stmt = $db->prepare("
-            SELECT s.*, p.name as project_name
+            SELECT s.*, p.name as project_name,
+                   COALESCE(bt.nome, bbt.nome) as tipo_nome
             FROM agenda_block_segments s
             LEFT JOIN projects p ON s.project_id = p.id
+            LEFT JOIN agenda_block_types bt ON s.tipo_id = bt.id
+            LEFT JOIN agenda_blocks b ON s.block_id = b.id
+            LEFT JOIN agenda_block_types bbt ON b.tipo_id = bbt.id
             WHERE s.block_id = ?
             ORDER BY s.started_at ASC
         ");

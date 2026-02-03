@@ -97,6 +97,27 @@ ob_start();
         border: 1px solid #e3e8ef;
     }
     .tarefas-avulsas-subsecao .projetos-tabela { margin-top: 8px; }
+    /* Timeline de registros */
+    .registro-timeline {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .registro-timeline li {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border-bottom: 1px solid #eee;
+        font-size: 14px;
+    }
+    .registro-timeline li:last-child { border-bottom: none; }
+    .registro-timeline li:hover { background: #fafafa; }
+    .registro-timeline .reg-atividade { flex: 1; min-width: 0; font-weight: 500; }
+    .registro-timeline .reg-horarios { white-space: nowrap; color: #555; font-size: 13px; }
+    .registro-timeline .reg-categoria { font-size: 12px; color: #888; }
+    .registro-timeline .reg-duracao { font-size: 12px; color: #666; min-width: 60px; }
+    .registro-timeline .reg-ativo { background: #e8f5e9; }
     .bloco-actions-footer {
         margin-top: 24px;
         padding-top: 20px;
@@ -297,48 +318,63 @@ ob_start();
     }
     ?>
     <div class="projetos-bloco" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
-        <strong>Projetos neste bloco</strong>
-        <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">Pré-vincule projetos para alternar entre eles. Tipo de atividade define como o trabalho será registrado (ex.: Comercial durante bloco de Produção).</p>
         
-        <table class="projetos-tabela">
-            <thead>
-                <tr>
-                    <th class="col-projeto">Projeto</th>
-                    <th class="col-tipo">Tipo de atividade</th>
-                    <th class="col-inicio">Início</th>
-                    <th class="col-fim">Fim</th>
-                    <th class="col-duracao">Duração</th>
-                    <th class="col-acao">Ação</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($blockProjects as $bp): ?>
+        <?php if (!empty($segments)): ?>
+        <div style="margin-bottom: 20px;">
+            <strong style="font-size: 13px; color: #333;">O que foi feito</strong>
+            <p style="margin: 4px 0 10px 0; font-size: 12px; color: #666;">Registro cronológico do seu trabalho neste bloco.</p>
+            <ul class="registro-timeline" style="background: white; border-radius: 6px; border: 1px solid #e9ecef; overflow: hidden;">
+                <?php foreach ($segments as $seg): ?>
                     <?php
-                    $pid = $bp['id'];
-                    $isRunning = $runningSegment && ($runningSegment['project_id'] ?? null) == $pid;
-                    $hasSegments = !empty($projectHasSegments[$pid]);
-                    $tot = $totalsByProject[$pid] ?? null;
-                    $totSecs = $tot ? (int)($tot['total_seconds'] ?? 0) : 0;
-                    $totLabel = $totSecs > 0 ? floor($totSecs/60) . ' min' : '';
-                    $disp = $segmentDisplayInfo[$pid] ?? null;
-                    $inicioStr = $disp && !empty($disp['started_at']) ? date('H:i', strtotime($disp['started_at'])) : '—';
-                    $fimStr = ($disp && $disp['is_running']) ? '—' : ($disp && !empty($disp['ended_at']) ? date('H:i', strtotime($disp['ended_at'])) : '—');
-                    $duracaoStr = $disp && $disp['total_seconds'] > 0 ? floor($disp['total_seconds']/60) . ' min' : ($disp && $disp['is_running'] ? 'em andamento' : '—');
+                    $nome = !empty($seg['project_name']) ? $seg['project_name'] : 'Atividade avulso';
+                    $inicio = date('H:i', strtotime($seg['started_at']));
+                    $fim = ($seg['status'] ?? '') === 'running' ? 'agora' : (!empty($seg['ended_at']) ? date('H:i', strtotime($seg['ended_at'])) : '—');
+                    $duracao = ($seg['status'] ?? '') === 'running'
+                        ? 'em andamento'
+                        : (!empty($seg['duration_seconds']) ? floor((int)$seg['duration_seconds']/60) . ' min' : '—');
+                    $tipoNome = $seg['tipo_nome'] ?? $bloco['tipo_nome'] ?? '';
+                    $isRunning = ($seg['status'] ?? '') === 'running';
                     ?>
-                    <tr>
-                        <td class="col-projeto">
-                            <?php if ($isRunning): ?>
-                                <span style="background: #4CAF50; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-right: 6px;">Ativo</span>
-                            <?php endif; ?>
-                            <?= htmlspecialchars($bp['name']) ?>
-                        </td>
-                        <td class="col-tipo">
-                            <?php if ($isRunning): ?>
-                                <span style="color: #999; font-size: 12px;">—</span>
-                            <?php elseif ($runningSegment): ?>
-                                <span style="color: #999; font-size: 12px;">—</span>
-                            <?php elseif (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
-                                <select name="tipo_id" form="form-seg-<?= $pid ?>" title="Tipo de atividade: como este trabalho será registrado (padrão: categoria do bloco)" aria-label="Tipo de atividade para este projeto" style="width: 100%; min-width: 120px; height: 34px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                    <li class="<?= $isRunning ? 'reg-ativo' : '' ?>">
+                        <span class="reg-atividade"><?= htmlspecialchars($nome) ?></span>
+                        <span class="reg-horarios"><?= htmlspecialchars($inicio) ?> – <?= htmlspecialchars($fim) ?></span>
+                        <span class="reg-duracao"><?= htmlspecialchars($duracao) ?></span>
+                        <?php if ($tipoNome): ?><span class="reg-categoria">(<?= htmlspecialchars($tipoNome) ?>)</span><?php endif; ?>
+                        <?php if ($isRunning && in_array($bloco['status'], ['planned', 'ongoing'])): ?>
+                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/pause') ?>" style="margin: 0; margin-left: auto;">
+                            <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                            <button type="submit" class="btn btn-secondary btn-sm" title="Finalizar este registro" aria-label="Finalizar">&#9209; Finalizar</button>
+                        </form>
+                        <?php endif; ?>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+        <?php endif; ?>
+        
+        <strong style="font-size: 13px; color: #333;">Registrar atividade</strong>
+        <p style="margin: 4px 0 12px 0; font-size: 12px; color: #666;">Inicie o trabalho em um projeto ou atividade avulsa. Ao iniciar outro, o atual é finalizado automaticamente.</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <?php foreach ($blockProjects as $bp): ?>
+                <?php
+                $pid = $bp['id'];
+                $isRunning = $runningSegment && ($runningSegment['project_id'] ?? null) == $pid;
+                $hasSegments = !empty($projectHasSegments[$pid]);
+                ?>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border-radius: 6px; border: 1px solid #e9ecef;">
+                    <span style="flex: 1; font-weight: 500;"><?= htmlspecialchars($bp['name']) ?></span>
+                    <?php if (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
+                        <?php if ($isRunning): ?>
+                            <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/pause') ?>" style="margin: 0;">
+                                <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                                <button type="submit" class="btn btn-secondary btn-sm" title="Finalizar">&#9209; Finalizar</button>
+                            </form>
+                        <?php else: ?>
+                            <form id="form-seg-<?= $pid ?>" method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                                <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                                <input type="hidden" name="project_id" value="<?= $pid ?>">
+                                <select name="tipo_id" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; min-width: 120px;">
                                     <option value=""><?= htmlspecialchars($bloco['tipo_nome'] ?? 'Padrão') ?></option>
                                     <?php foreach ($blockTypes ?? [] as $t): ?>
                                         <?php if ((int)$t['id'] !== (int)($bloco['tipo_id'] ?? 0)): ?>
@@ -346,113 +382,50 @@ ob_start();
                                         <?php endif; ?>
                                     <?php endforeach; ?>
                                 </select>
-                            <?php else: ?>
-                                <span style="color: #999; font-size: 12px;">—</span>
-                            <?php endif; ?>
-                        </td>
-                        <td class="col-inicio" title="<?= $disp && !empty($disp['started_at']) ? date('d/m/Y H:i', strtotime($disp['started_at'])) : '' ?>"><?= htmlspecialchars($inicioStr) ?></td>
-                        <td class="col-fim" title="<?= $disp && !empty($disp['ended_at']) ? date('d/m/Y H:i', strtotime($disp['ended_at'])) : '' ?>"><?= htmlspecialchars($fimStr) ?></td>
-                        <td class="col-duracao"><?= htmlspecialchars($duracaoStr) ?></td>
-                        <td class="col-acao">
-                            <div class="form-inline">
-                                <?php if (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
-                                    <?php if ($isRunning): ?>
-                                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/pause') ?>" style="margin: 0;">
-                                            <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                                            <button type="submit" class="btn btn-secondary btn-sm btn-icon" title="Finalizar trabalho neste projeto" aria-label="Finalizar trabalho neste projeto">&#9209; Finalizar</button>
-                                        </form>
-                                    <?php else: ?>
-                                        <form id="form-seg-<?= $pid ?>" method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0;" class="form-inline">
-                                            <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                                            <input type="hidden" name="project_id" value="<?= $pid ?>">
-                                            <button type="submit" class="btn btn-primary btn-sm btn-icon" title="<?= $hasSegments ? 'Retomar trabalho neste projeto' : 'Iniciar trabalho neste projeto' ?>" aria-label="<?= $hasSegments ? 'Retomar trabalho neste projeto' : 'Iniciar trabalho neste projeto' ?>">&#9654; <?= $hasSegments ? 'Retomar' : 'Iniciar' ?></button>
-                                        </form>
+                                <button type="submit" class="btn btn-primary btn-sm" title="Iniciar">&#9654; Iniciar</button>
+                            </form>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                    <form method="post" action="<?= pixelhub_url('/agenda/bloco/project/remove') ?>" style="margin: 0;" onsubmit="return confirm('Remover este projeto do bloco?');">
+                        <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                        <input type="hidden" name="project_id" value="<?= $pid ?>">
+                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Remover">&#10005;</button>
+                    </form>
+                </div>
+            <?php endforeach; ?>
+            
+            <?php if (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
+                <?php
+                $isAvulsasRunning = $runningSegment && (($runningSegment['project_id'] ?? null) === null || ($runningSegment['project_id'] ?? '') === '');
+                $hasAvulsasSegments = !empty($projectHasSegments['avulsas']) || !empty($projectHasSegments[null]);
+                if (!$runningSegment || $isAvulsasRunning || $hasAvulsasSegments):
+                ?>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border-radius: 6px; border: 1px solid #e3e8ef;">
+                    <span style="flex: 1; font-style: italic; color: #666;">Atividade avulsa (reunião, etc.)</span>
+                    <?php if ($isAvulsasRunning): ?>
+                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/pause') ?>" style="margin: 0;">
+                            <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                            <button type="submit" class="btn btn-secondary btn-sm">&#9209; Finalizar</button>
+                        </form>
+                    <?php else: ?>
+                        <form id="form-seg-avulsas" method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                            <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                            <input type="hidden" name="project_id" value="">
+                            <select name="tipo_id" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; min-width: 120px;">
+                                <option value=""><?= htmlspecialchars($bloco['tipo_nome'] ?? 'Padrão') ?></option>
+                                <?php foreach ($blockTypes ?? [] as $t): ?>
+                                    <?php if ((int)$t['id'] !== (int)($bloco['tipo_id'] ?? 0)): ?>
+                                        <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
                                     <?php endif; ?>
-                                <?php endif; ?>
-                                <form method="post" action="<?= pixelhub_url('/agenda/bloco/project/remove') ?>" style="margin: 0; display: inline;" class="btn-remover" onsubmit="return confirm('Remover este projeto do bloco?');">
-                                    <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                                    <input type="hidden" name="project_id" value="<?= $pid ?>">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm btn-icon" title="Remover projeto do bloco" aria-label="Remover projeto do bloco" style="padding: 6px 10px;">&#10005; Remover</button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-        
-        <?php if (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
-            <?php
-            $isAvulsasRunning = $runningSegment && (($runningSegment['project_id'] ?? null) === null || ($runningSegment['project_id'] ?? '') === '');
-            $hasAvulsasSegments = !empty($projectHasSegments['avulsas']) || !empty($projectHasSegments[null]);
-            $totAvulsas = $totalsByProject['avulsas'] ?? $totalsByProject[null] ?? null;
-            $totAvulsasLabel = $totAvulsas ? floor((int)($totAvulsas['total_seconds'] ?? 0) / 60) . ' min' : '';
-            if ($isAvulsasRunning || $hasAvulsasSegments || !$runningSegment):
-            ?>
-            <div class="tarefas-avulsas-subsecao">
-                <strong style="font-size: 13px; color: #555;">Tarefas avulsas</strong>
-                <table class="projetos-tabela">
-                    <thead>
-                        <tr>
-                            <th class="col-projeto">Projeto</th>
-                            <th class="col-tipo">Tipo de atividade</th>
-                            <th class="col-inicio">Início</th>
-                            <th class="col-fim">Fim</th>
-                            <th class="col-duracao">Duração</th>
-                            <th class="col-acao">Ação</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <?php
-                            $dispAvulsas = $segmentDisplayInfo['avulsas'] ?? null;
-                            $inicioAvulsas = $dispAvulsas && !empty($dispAvulsas['started_at']) ? date('H:i', strtotime($dispAvulsas['started_at'])) : '—';
-                            $fimAvulsas = ($dispAvulsas && $dispAvulsas['is_running']) ? '—' : ($dispAvulsas && !empty($dispAvulsas['ended_at']) ? date('H:i', strtotime($dispAvulsas['ended_at'])) : '—');
-                            $duracaoAvulsas = $dispAvulsas && $dispAvulsas['total_seconds'] > 0 ? floor($dispAvulsas['total_seconds']/60) . ' min' : ($dispAvulsas && $dispAvulsas['is_running'] ? 'em andamento' : '—');
-                            ?>
-                            <td class="col-projeto">
-                                <?php if ($isAvulsasRunning): ?><span style="background: #4CAF50; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-right: 6px;">Ativo</span><?php endif; ?>
-                                <em>Tarefas sem projeto específico</em>
-                            </td>
-                            <td class="col-tipo">
-                                <?php if (!$isAvulsasRunning && !$runningSegment): ?>
-                                    <select name="tipo_id" form="form-seg-avulsas" title="Tipo de atividade para tarefas avulsas" aria-label="Tipo de atividade" style="width: 100%; min-width: 120px; height: 34px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
-                                        <option value=""><?= htmlspecialchars($bloco['tipo_nome'] ?? 'Padrão') ?></option>
-                                        <?php foreach ($blockTypes ?? [] as $t): ?>
-                                            <?php if ((int)$t['id'] !== (int)($bloco['tipo_id'] ?? 0)): ?>
-                                                <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
-                                            <?php endif; ?>
-                                        <?php endforeach; ?>
-                                    </select>
-                                <?php else: ?>
-                                    <span style="color: #999; font-size: 12px;">—</span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="col-inicio" title="<?= $dispAvulsas && !empty($dispAvulsas['started_at']) ? date('d/m/Y H:i', strtotime($dispAvulsas['started_at'])) : '' ?>"><?= htmlspecialchars($inicioAvulsas) ?></td>
-                            <td class="col-fim" title="<?= $dispAvulsas && !empty($dispAvulsas['ended_at']) ? date('d/m/Y H:i', strtotime($dispAvulsas['ended_at'])) : '' ?>"><?= htmlspecialchars($fimAvulsas) ?></td>
-                            <td class="col-duracao"><?= htmlspecialchars($duracaoAvulsas) ?></td>
-                            <td class="col-acao">
-                                <div class="form-inline">
-                                    <?php if ($isAvulsasRunning): ?>
-                                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/segment/pause') ?>" style="margin: 0;">
-                                            <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                                            <button type="submit" class="btn btn-secondary btn-sm btn-icon" title="Finalizar tarefas avulsas" aria-label="Finalizar tarefas avulsas">&#9209; Finalizar</button>
-                                        </form>
-                                    <?php elseif (!$runningSegment): ?>
-                                        <form id="form-seg-avulsas" method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0;" class="form-inline">
-                                            <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                                            <input type="hidden" name="project_id" value="">
-                                            <button type="submit" class="btn btn-outline-secondary btn-sm btn-icon" title="Iniciar trabalho neste projeto" aria-label="Iniciar trabalho neste projeto">&#9654; <?= $hasAvulsasSegments ? 'Retomar' : 'Iniciar' ?></button>
-                                        </form>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="submit" class="btn btn-outline-secondary btn-sm">&#9654; Iniciar</button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
             <?php endif; ?>
-        <?php endif; ?>
+        </div>
         
         <form method="post" action="<?= pixelhub_url('/agenda/bloco/project/add') ?>" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; padding-top: 16px; border-top: 1px solid #e3e8ef;">
             <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
