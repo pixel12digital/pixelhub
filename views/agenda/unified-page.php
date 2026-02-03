@@ -61,8 +61,9 @@ $baseUrl = pixelhub_url('/agenda');
 .agenda-list-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; background: white; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
 .agenda-list-table thead { background: #f8fafc; }
 .agenda-list-table th { padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid #e2e8f0; }
-.agenda-list-table th.col-item { width: 260px; max-width: 260px; }
-.agenda-list-table th.col-tipo { width: 140px; }
+.agenda-list-table th.col-item { width: 220px; max-width: 220px; }
+.agenda-list-table th.col-cliente { width: 140px; }
+.agenda-list-table th.col-tipo { width: 120px; }
 .agenda-list-table th.col-inicio { width: 130px; }
 .agenda-list-table th.col-fim { width: 130px; }
 .agenda-list-table td.col-inicio, .agenda-list-table td.col-fim { overflow: visible; }
@@ -244,6 +245,19 @@ $baseUrl = pixelhub_url('/agenda');
             <button type="submit" class="btn-add-submit btn-agenda-primary">Adicionar</button>
         </div>
     </div>
+    <div id="quick-add-avulsa-fields" class="quick-add-avulsa-row" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid #e5e7eb; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+        <div class="col-cliente-avulsa" style="min-width:160px;">
+            <label style="font-size:11px; color:#64748b; display:block; margin-bottom:4px;">Cliente (opcional)</label>
+            <select name="tenant_id" id="quick-add-tenant" style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+                <option value="">—</option>
+                <?php foreach ($tenants ?? [] as $t): ?><option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome_fantasia'] ?: $t['name']) ?></option><?php endforeach; ?>
+            </select>
+        </div>
+        <div class="col-observacao-avulsa" style="flex:1; min-width:200px;">
+            <label style="font-size:11px; color:#64748b; display:block; margin-bottom:4px;">Observação (opcional)</label>
+            <input type="text" name="resumo" id="quick-add-resumo" placeholder="Ex.: Reunião com Fulano — alinhamento proposta" maxlength="255" style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+        </div>
+    </div>
 </form>
 
 <!-- Lista de blocos (tabela planilha) -->
@@ -270,6 +284,7 @@ $baseUrl = pixelhub_url('/agenda');
         <thead>
             <tr>
                 <th class="col-item">Item</th>
+                <th class="col-cliente">Cliente</th>
                 <th class="col-tipo">Bloco</th>
                 <th class="col-inicio">Início</th>
                 <th class="col-fim">Fim</th>
@@ -280,7 +295,7 @@ $baseUrl = pixelhub_url('/agenda');
         <?php foreach ($blocos as $bloco):
             $isCurrent = ($bloco['id'] === $blocoAtualId);
             $corBorda = htmlspecialchars($bloco['tipo_cor'] ?? '#94a3b8');
-            $projetoNome = !empty($bloco['projeto_foco_nome']) ? $bloco['projeto_foco_nome'] : (!empty($bloco['block_tenant_name']) ? $bloco['block_tenant_name'] : 'Atividade avulsa');
+            $projetoNome = !empty($bloco['projeto_foco_nome']) ? $bloco['projeto_foco_nome'] : (!empty($bloco['resumo']) ? $bloco['resumo'] : 'Atividade avulsa');
             $isExpanded = ($expandBlockId && $expandBlockId === (int)$bloco['id']);
         ?>
             <?php
@@ -306,6 +321,15 @@ $baseUrl = pixelhub_url('/agenda');
                         <?php if (!empty($bloco['projeto_foco_id'])): ?><span class="block-add-task-btn-wrap" data-block-id="<?= (int)$bloco['id'] ?>"></span><?php endif; ?>
                     </div>
                 </td>
+                <td class="col-cliente"><?php
+                    $clienteNome = '';
+                    if (!empty($bloco['projeto_foco_id'])) {
+                        $clienteNome = !empty($bloco['project_tenant_name']) ? $bloco['project_tenant_name'] : 'Interno';
+                    } else {
+                        $clienteNome = !empty($bloco['block_tenant_name']) ? $bloco['block_tenant_name'] : '—';
+                    }
+                    echo htmlspecialchars($clienteNome);
+                ?></td>
                 <td class="col-tipo"><span style="background: <?= $corBorda ?>; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: white;"><?= htmlspecialchars($bloco['tipo_nome']) ?></span></td>
                 <td class="col-inicio" onclick="event.stopPropagation()">
                     <span class="inline-edit-time" data-field="hora_inicio" data-block-id="<?= (int)$bloco['id'] ?>" title="Clique para editar"><?= $horaInicioFmt ?></span><?= $isCurrent ? ' <span style="color:#1976d2;font-size:10px;">●</span>' : '' ?>
@@ -326,7 +350,7 @@ $baseUrl = pixelhub_url('/agenda');
                 </td>
             </tr>
             <tr class="block-expand <?= $isExpanded ? 'show' : '' ?>" id="block-expand-<?= (int)$bloco['id'] ?>" data-block-id="<?= (int)$bloco['id'] ?>" onclick="event.stopPropagation()">
-                <td colspan="5">
+                <td colspan="6">
                     <div class="block-expand-content"></div>
                 </td>
             </tr>
@@ -506,16 +530,17 @@ function loadBlockContent(blockId, container) {
             let html = '';
             if (linkedTasks.length > 0) {
                 if (hasMultipleTasks) {
-                    html += '<table class="block-tasks-time-table"><thead><tr><th>Tarefa</th><th>Início</th><th>Fim</th><th>Duração</th></tr></thead><tbody>';
+                    html += '<table class="block-tasks-time-table"><thead><tr><th>Tarefa</th><th>Cliente</th><th>Início</th><th>Fim</th><th>Duração</th></tr></thead><tbody>';
                     linkedTasks.forEach(t => {
                         const tit = (t.title || '').replace(/</g,'&lt;');
                         const pid = t.project_id || '';
                         const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
+                        const clienteTarefa = (t.tenant_name || t.project_tenant_name || '') ? (t.tenant_name || t.project_tenant_name) : 'Interno';
                         const thIni = (t.task_hora_inicio || '').toString().substring(0, 5);
                         const thFim = (t.task_hora_fim || '').toString().substring(0, 5);
                         const durMins = (thIni && thFim) ? (parseInt(thFim.split(':')[0])*60 + parseInt(thFim.split(':')[1]) - parseInt(thIni.split(':')[0])*60 - parseInt(thIni.split(':')[1])) : 0;
                         const durStr = durMins > 0 ? durMins + ' min' : '—';
-                        html += '<tr data-task-id="' + t.id + '"><td><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></td>';
+                        html += '<tr data-task-id="' + t.id + '"><td><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></td><td style="font-size:12px;color:#64748b;">' + (clienteTarefa || '—').replace(/</g,'&lt;') + '</td>';
                         html += '<td><input type="time" class="task-time-input task-time-inicio" data-block-id="' + blockId + '" data-task-id="' + t.id + '" value="' + (thIni || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Início (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
                         html += '<td><input type="time" class="task-time-input task-time-fim" data-block-id="' + blockId + '" data-task-id="' + t.id + '" value="' + (thFim || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Fim (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
                         html += '<td class="task-dur-display">' + durStr + '</td></tr>';
@@ -528,7 +553,8 @@ function loadBlockContent(blockId, container) {
                         const tit = (t.title || '').replace(/</g,'&lt;');
                         const pid = t.project_id || '';
                         const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
-                        html += '<li><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></li>';
+                        const clienteTarefa = (t.tenant_name || t.project_tenant_name || '') ? (t.tenant_name || t.project_tenant_name) : 'Interno';
+                        html += '<li><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span> <span style="font-size:11px;color:#94a3b8;">' + (clienteTarefa || '').replace(/</g,'&lt;') + '</span></li>';
                     });
                     html += '</ul>';
                 }
@@ -772,8 +798,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     qaTaskSelect.innerHTML = '<option value="">Erro ao carregar</option>';
                 });
         }
-        qaProject.addEventListener('change', function() { loadTasksForProject(this.value); });
+        qaProject.addEventListener('change', function() {
+            loadTasksForProject(this.value);
+            const avulsaRow = document.getElementById('quick-add-avulsa-fields');
+            if (avulsaRow) avulsaRow.style.display = this.value === '' ? 'flex' : 'none';
+        });
         if (qaProject.value) loadTasksForProject(qaProject.value);
+        const avulsaRow = document.getElementById('quick-add-avulsa-fields');
+        if (avulsaRow && qaProject) avulsaRow.style.display = qaProject.value === '' ? 'flex' : 'none';
     }
 });
 

@@ -1332,8 +1332,13 @@ class AgendaController extends Controller
             exit;
         }
         
-        $tenantId = isset($_POST['tenant_id']) && $_POST['tenant_id'] !== '' ? (int)$_POST['tenant_id'] : null;
-        $resumo = isset($_POST['resumo']) ? trim($_POST['resumo']) : null;
+        // Cliente e observação apenas para atividade avulsa (não duplicar quando vem de projeto)
+        $tenantId = null;
+        $resumo = null;
+        if (!$projectId || $projectId <= 0) {
+            $tenantId = isset($_POST['tenant_id']) && $_POST['tenant_id'] !== '' ? (int)$_POST['tenant_id'] : null;
+            $resumo = isset($_POST['resumo']) ? trim($_POST['resumo']) : null;
+        }
         
         try {
             $dados = [
