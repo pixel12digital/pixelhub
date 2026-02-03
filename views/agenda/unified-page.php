@@ -33,6 +33,25 @@ $baseUrl = pixelhub_url('/agenda');
 }
 .view-switcher a:hover { background: #f9fafb; color: #374151; }
 .view-switcher a.active { background: #023A8D; color: white; }
+/* Botão primário Agenda: mesmo padrão visual de Lista/Quadro */
+.btn-agenda-primary {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: white;
+    background: #023A8D;
+    border: none;
+    border-radius: 6px;
+    height: 38px;
+    box-sizing: border-box;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.btn-agenda-primary:hover { background: #022a6b; color: white; }
+.btn-agenda-primary:focus { outline: none; box-shadow: 0 0 0 2px rgba(2, 58, 141, 0.3); }
 .agenda-nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .agenda-nav .btn-nav { padding: 6px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; color: #374151; text-decoration: none; background: white; }
 .agenda-nav .btn-nav:hover { background: #f9fafb; }
@@ -126,7 +145,8 @@ $baseUrl = pixelhub_url('/agenda');
 .quick-add-form-grid .col-tipo { min-width: 180px; }
 .quick-add-form-grid .col-inicio, .quick-add-form-grid .col-fim { min-width: 120px; }
 .quick-add-form-grid input[type="time"] { width: 100%; min-width: 110px; height: 38px; box-sizing: border-box; padding: 8px 10px; border-radius: 6px; }
-.quick-add-form-grid .btn-add { min-width: 110px; }
+.quick-add-form-grid .btn-add { min-width: 110px; display: flex; align-items: center; }
+.quick-add-form-grid .btn-add .btn-agenda-primary { width: 100%; }
 @media (max-width: 900px) {
     .quick-add-form-grid { grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
     .quick-add-form-grid .col-projeto { grid-column: 1 / -1; }
@@ -220,7 +240,7 @@ $baseUrl = pixelhub_url('/agenda');
             <input type="time" name="hora_fim" required placeholder="Fim" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
         </div>
         <div class="btn-add">
-            <button type="submit" class="btn-add-submit">Adicionar</button>
+            <button type="submit" class="btn-add-submit btn-agenda-primary">Adicionar</button>
         </div>
     </div>
 </form>
