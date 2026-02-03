@@ -4,6 +4,12 @@
  * Bootstrap principal do Pixel Hub
  */
 
+// Diagnóstico: agenda-trace força exibição de erros
+if (isset($_SERVER['SCRIPT_NAME']) && strpos($_SERVER['SCRIPT_NAME'], 'agenda-trace') !== false) {
+    ini_set('display_errors', '1');
+    error_reporting(E_ALL);
+}
+
 // IMPORTANTE: Aumenta limites para rotas de envio de mídia ANTES de qualquer parsing
 // Isso previne falhas silenciosas ao processar POST bodies grandes (áudio/imagem base64)
 if (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], 'communication-hub/send') !== false) {
@@ -125,6 +131,10 @@ if (Env::isDebug()) {
 } else {
     ini_set('display_errors', '0');
     error_reporting(E_ALL); // Sempre reporta erros, mas não exibe em produção
+}
+// Diagnóstico agenda-trace: força exibir erros
+if (isset($_SERVER['SCRIPT_NAME']) && strpos($_SERVER['SCRIPT_NAME'], 'agenda-trace') !== false) {
+    ini_set('display_errors', '1');
 }
 
 // Configura timezone
