@@ -1115,6 +1115,7 @@ class AgendaService
                 COALESCE(NULLIF(tn_block.nome_fantasia, ''), tn_block.name) as block_tenant_name,
                 t_focus.title as focus_task_title,
                 t_focus.status as focus_task_status,
+                t_focus.project_id as focus_task_project_id,
                 " . $tasksCountSubquery . " as tarefas_count
             FROM agenda_blocks b
             INNER JOIN agenda_block_types bt ON b.tipo_id = bt.id

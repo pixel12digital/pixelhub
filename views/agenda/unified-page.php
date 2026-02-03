@@ -44,8 +44,9 @@ $baseUrl = pixelhub_url('/agenda');
 .agenda-list-table th { padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid #e2e8f0; }
 .agenda-list-table th.col-item { width: 260px; max-width: 260px; }
 .agenda-list-table th.col-tipo { width: 140px; }
-.agenda-list-table th.col-inicio { width: 90px; }
-.agenda-list-table th.col-fim { width: 90px; }
+.agenda-list-table th.col-inicio { width: 130px; }
+.agenda-list-table th.col-fim { width: 130px; }
+.agenda-list-table td.col-inicio, .agenda-list-table td.col-fim { overflow: visible; }
 .agenda-list-table th.col-acoes { width: 80px; }
 .agenda-list-table tbody tr.block-row { height: 48px; cursor: pointer; transition: background 0.12s; border-bottom: 1px solid #f1f5f9; }
 .agenda-list-table tbody tr.block-row:hover { background: #f8fafc; }
@@ -54,7 +55,10 @@ $baseUrl = pixelhub_url('/agenda');
 .agenda-list-table td.col-item { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
 .agenda-list-table .block-item-cell { display: flex; align-items: center; gap: 8px; }
 .agenda-list-table .block-main { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
-.agenda-list-table .block-project { font-weight: 600; color: #111827; font-size: 13px; }
+.agenda-list-table .block-project-link { font-weight: 600; color: #111827; font-size: 13px; text-decoration: none; cursor: pointer; }
+.agenda-list-table .block-project-link:hover { color: #023A8D; text-decoration: underline; }
+.agenda-list-table .block-task-link { font-size: 12px; color: #6b7280; text-decoration: none; cursor: pointer; }
+.agenda-list-table .block-task-link:hover { color: #023A8D; text-decoration: underline; }
 .agenda-list-table .block-task { font-size: 12px; color: #6b7280; }
 .agenda-list-table .block-expand-btn { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; color: #475569; font-size: 14px; font-weight: 600; background: #f1f5f9; transition: all 0.15s; }
 .agenda-list-table .block-expand-btn:hover { background: #e2e8f0; color: #1e293b; border-color: #94a3b8; }
@@ -69,7 +73,9 @@ $baseUrl = pixelhub_url('/agenda');
 .agenda-list-table .btn-icon:hover { color: #dc2626; }
 .inline-edit-time { cursor: pointer; padding: 2px 4px; border-radius: 4px; }
 .inline-edit-time:hover { background: #e2e8f0; }
-.inline-edit-time input { width: 70px; padding: 4px 6px; font-size: 13px; border: 1px solid #3b82f6; border-radius: 4px; }
+/* Input de hora no modo edição: min-width para HH:MM + ícone relógio, sem corte */
+.inline-edit-time-input { width: 140px; min-width: 130px; padding: 6px 10px; font-size: 13px; border: 1px solid #3b82f6; border-radius: 6px; box-sizing: border-box; height: 36px; }
+.agenda-time-popover { position: fixed; z-index: 1000; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 8px; }
 .block-expand { display: none; background: #f8fafc; padding: 16px; border: 1px solid #e5e7eb; border-top: none; }
 .block-expand.show { display: table-row; }
 .block-expand td { padding: 16px !important; vertical-align: top !important; border-bottom: 1px solid #e2e8f0; }
@@ -90,7 +96,7 @@ $baseUrl = pixelhub_url('/agenda');
 .quadro-card:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
 .quadro-card.atual { background: #e0f2fe; border-left-color: #0ea5e9; }
 /* Quick-add form: grid com larguras fixas para evitar corte de horário */
-.quick-add-form-grid { display: grid; grid-template-columns: minmax(120px, 1fr) 180px 180px 120px 120px 120px; gap: 10px; align-items: center; }
+.quick-add-form-grid { display: grid; grid-template-columns: minmax(120px, 1fr) 180px 180px 140px 140px 120px; gap: 10px; align-items: center; }
 .quick-add-form-grid .col-projeto { min-width: 0; }
 .quick-add-form-grid .col-tarefa { min-width: 180px; }
 .quick-add-form-grid .col-tipo { min-width: 180px; }
@@ -236,15 +242,21 @@ $baseUrl = pixelhub_url('/agenda');
                 $horaInicioFmt = date('H:i', strtotime($bloco['hora_inicio']));
                 $horaFimFmt = date('H:i', strtotime($bloco['hora_fim']));
             ?>
-            <tr class="block-row <?= $isCurrent ? 'current' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" data-hora-inicio="<?= htmlspecialchars($horaInicioFmt) ?>" data-hora-fim="<?= htmlspecialchars($horaFimFmt) ?>" onclick="toggleBlockExpand(<?= (int)$bloco['id'] ?>)">
+            <?php
+                $projetoUrl = !empty($bloco['projeto_foco_id']) ? pixelhub_url('/projects/board?project_id=' . (int)$bloco['projeto_foco_id']) : pixelhub_url('/projects');
+                $taskUrl = !empty($bloco['focus_task_id']) && !empty($bloco['focus_task_project_id']) ? pixelhub_url('/projects/board?project_id=' . (int)$bloco['focus_task_project_id'] . '&task_id=' . (int)$bloco['focus_task_id']) : (!empty($bloco['focus_task_id']) && !empty($bloco['projeto_foco_id']) ? pixelhub_url('/projects/board?project_id=' . (int)$bloco['projeto_foco_id'] . '&task_id=' . (int)$bloco['focus_task_id']) : null);
+            ?>
+            <tr class="block-row <?= $isCurrent ? 'current' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" data-hora-inicio="<?= htmlspecialchars($horaInicioFmt) ?>" data-hora-fim="<?= htmlspecialchars($horaFimFmt) ?>">
                 <td class="col-item" style="border-left: 4px solid <?= $corBorda ?>;">
                     <div class="block-item-cell">
-                        <button type="button" class="block-expand-btn <?= $isExpanded ? 'expanded' : '' ?>" onclick="event.stopPropagation(); toggleBlockExpand(<?= (int)$bloco['id'] ?>)" title="<?= $isExpanded ? 'Recolher' : 'Expandir registros' ?>" aria-label="<?= $isExpanded ? 'Recolher' : 'Expandir' ?>">
+                        <button type="button" class="block-expand-btn <?= $isExpanded ? 'expanded' : '' ?>" onclick="toggleBlockExpand(<?= (int)$bloco['id'] ?>)" title="<?= $isExpanded ? 'Recolher' : 'Expandir registros' ?>" aria-label="<?= $isExpanded ? 'Recolher' : 'Expandir' ?>">
                             <span class="expand-icon"><?= $isExpanded ? '▾' : '▸' ?></span>
                         </button>
                         <div class="block-main">
-                            <span class="block-project"><?= htmlspecialchars($projetoNome) ?></span>
-                            <?php if (!empty($bloco['focus_task_title'])): ?><span class="block-task">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></span><?php endif; ?>
+                            <a href="<?= $projetoUrl ?>" class="block-project-link" onclick="event.stopPropagation()"><?= htmlspecialchars($projetoNome) ?></a>
+                            <?php if (!empty($bloco['focus_task_title'])): ?>
+                                <?php if ($taskUrl): ?><a href="<?= $taskUrl ?>" class="block-task-link" onclick="event.stopPropagation()">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></a><?php else: ?><span class="block-task">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></span><?php endif; ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </td>
@@ -329,21 +341,35 @@ function initInlineEditTime() {
             const row = this.closest('.block-row');
             if (!row || !blockId) return;
             const currentVal = this.textContent.trim();
+            const spanEl = this;
+            /* Popover: input fora da célula para garantir HH:MM 100% visível (sem corte) */
+            const popover = document.createElement('div');
+            popover.className = 'agenda-time-popover';
+            const rect = spanEl.getBoundingClientRect();
+            popover.style.left = rect.left + 'px';
+            popover.style.top = rect.top + 'px';
             const input = document.createElement('input');
             input.type = 'time';
             input.value = currentVal;
-            input.className = 'inline-edit-time';
-            input.style.cssText = 'width:70px;padding:4px 6px;font-size:13px;border:1px solid #3b82f6;border-radius:4px;';
-            const parent = this.parentNode;
-            parent.replaceChild(input, this);
+            input.className = 'inline-edit-time-input';
+            popover.appendChild(input);
+            document.body.appendChild(popover);
+            spanEl.style.visibility = 'hidden';
             input.focus();
             input.select && input.select();
+            const cleanup = (displayVal) => {
+                if (popover.parentNode) popover.remove();
+                spanEl.style.visibility = '';
+                spanEl.textContent = displayVal !== undefined ? displayVal : (input.value || currentVal);
+                spanEl.dataset.inited = '';
+                initInlineEditTime();
+            };
             const save = () => {
                 const newVal = input.value;
                 const horaInicio = field === 'hora_inicio' ? newVal : row.dataset.horaInicio;
                 const horaFim = field === 'hora_fim' ? newVal : row.dataset.horaFim;
                 if (newVal === currentVal) {
-                    revert();
+                    cleanup(currentVal);
                     return;
                 }
                 const fd = new FormData();
@@ -362,29 +388,18 @@ function initInlineEditTime() {
                         const hf = (d.bloco.hora_fim || '').substring(0, 5);
                         row.dataset.horaInicio = hi;
                         row.dataset.horaFim = hf;
-                        revert(field === 'hora_inicio' ? hi : hf);
+                        cleanup(field === 'hora_inicio' ? hi : hf);
                     } else {
                         alert(d.error || 'Erro ao salvar');
-                        revert();
+                        cleanup(currentVal);
                     }
                 })
-                .catch(() => { alert('Erro ao salvar'); revert(); });
-            };
-            const revert = () => {
-                const span2 = document.createElement('span');
-                span2.className = 'inline-edit-time';
-                span2.dataset.field = field;
-                span2.dataset.blockId = blockId;
-                span2.title = 'Clique para editar';
-                span2.textContent = input.value || currentVal;
-                parent.replaceChild(span2, input);
-                span2.dataset.inited = '';
-                initInlineEditTime();
+                .catch(() => { alert('Erro ao salvar'); cleanup(currentVal); });
             };
             input.addEventListener('blur', save);
             input.addEventListener('keydown', function(ev) {
                 if (ev.key === 'Enter') { ev.preventDefault(); save(); }
-                if (ev.key === 'Escape') { ev.preventDefault(); revert(currentVal); }
+                if (ev.key === 'Escape') { ev.preventDefault(); cleanup(currentVal); }
             });
         });
     });

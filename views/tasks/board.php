@@ -4310,6 +4310,19 @@ if (!empty($selectedProject)) {
             }
         }, 300);
         <?php endif; ?>
+        <?php if (!empty($taskIdToOpen)): ?>
+        // Abre modal de tarefa ao carregar (vindo de link da agenda, tickets, etc.)
+        setTimeout(function() { 
+            if (typeof openTaskDetail === 'function') {
+                openTaskDetail(<?= (int)$taskIdToOpen ?>);
+            }
+            if (window.history && window.history.replaceState) {
+                var url = new URL(window.location.href);
+                url.searchParams.delete('task_id');
+                window.history.replaceState({}, '', url.toString());
+            }
+        }, 400);
+        <?php endif; ?>
         
         // Atalhos de teclado: N = nova tarefa, Esc = fechar modal, Ctrl+Enter = salvar
         document.addEventListener('keydown', function(e) {

@@ -140,6 +140,7 @@ class TaskBoardController extends Controller
         }
         
         $createTaskOnLoad = isset($_GET['create_task']) && $_GET['create_task'] === '1';
+        $taskIdToOpen = isset($_GET['task_id']) && $_GET['task_id'] !== '' ? (int) $_GET['task_id'] : null;
         
         $this->view('tasks.board', [
             'tasks' => $tasks,
@@ -157,6 +158,7 @@ class TaskBoardController extends Controller
             'shouldHideProjectField' => $shouldHideProjectField, // Se deve ocultar campo projeto
             'availableProjectsCount' => $availableProjectsCount, // Quantidade de projetos disponíveis
             'createTaskOnLoad' => $createTaskOnLoad,
+            'taskIdToOpen' => $taskIdToOpen,
         ]);
     }
 
