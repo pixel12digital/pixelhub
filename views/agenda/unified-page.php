@@ -84,6 +84,19 @@ $baseUrl = pixelhub_url('/agenda');
 .quadro-card { border-left: 4px solid #94a3b8; padding: 8px; border-radius: 4px; background: #f8fafc; font-size: 12px; margin-bottom: 6px; cursor: pointer; transition: all 0.15s; }
 .quadro-card:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
 .quadro-card.atual { background: #e0f2fe; border-left-color: #0ea5e9; }
+/* Quick-add form: grid com larguras fixas para evitar corte de horário */
+.quick-add-form-grid { display: grid; grid-template-columns: minmax(120px, 1fr) 180px 180px 120px 120px 120px; gap: 10px; align-items: center; }
+.quick-add-form-grid .col-projeto { min-width: 0; }
+.quick-add-form-grid .col-tarefa { min-width: 180px; }
+.quick-add-form-grid .col-tipo { min-width: 180px; }
+.quick-add-form-grid .col-inicio, .quick-add-form-grid .col-fim { min-width: 120px; }
+.quick-add-form-grid input[type="time"] { width: 100%; min-width: 110px; box-sizing: border-box; padding: 8px 10px; }
+.quick-add-form-grid .btn-add { min-width: 110px; }
+@media (max-width: 900px) {
+    .quick-add-form-grid { grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
+    .quick-add-form-grid .col-projeto { grid-column: 1 / -1; }
+    .quick-add-form-grid .col-tarefa { grid-column: 1 / -1; }
+}
 </style>
 
 <div class="agenda-unified-sticky">
@@ -148,23 +161,35 @@ $baseUrl = pixelhub_url('/agenda');
 <form method="post" action="<?= pixelhub_url('/agenda/bloco/quick-add') ?>" id="quick-add-form" style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
     <input type="hidden" name="data" value="<?= htmlspecialchars($dataStr) ?>">
     <input type="hidden" name="task_id" id="quick-add-task-id" value="">
-    <div style="display: grid; grid-template-columns: 1fr 120px 80px 80px auto; gap: 8px; align-items: center;">
-        <select name="project_id" id="quick-add-project" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-            <option value="">Atividade avulsa</option>
-            <?php foreach ($projetos as $p): ?><option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['name']) ?></option><?php endforeach; ?>
-        </select>
-        <select name="tipo_id" required style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-            <option value="">Tipo</option>
-            <?php foreach ($tipos as $t): ?><option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option><?php endforeach; ?>
-        </select>
-        <input type="time" name="hora_inicio" required placeholder="Início" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-        <input type="time" name="hora_fim" required placeholder="Fim" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-        <button type="submit" class="btn-nav" style="background: #023A8D; color: white; border-color: #023A8D;">Adicionar</button>
+    <div class="quick-add-form-grid">
+        <div class="col-projeto">
+            <select name="project_id" id="quick-add-project" style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+                <option value="">Atividade avulsa</option>
+                <?php foreach ($projetos as $p): ?><option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['name']) ?></option><?php endforeach; ?>
+            </select>
+        </div>
+        <div class="col-tarefa">
+            <select id="quick-add-task-select" style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;" disabled title="Selecione um projeto primeiro">
+                <option value="">Tarefa (opcional)</option>
+            </select>
+        </div>
+        <div class="col-tipo">
+            <select name="tipo_id" required style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+                <option value="">Tipo</option>
+                <?php foreach ($tipos as $t): ?><option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option><?php endforeach; ?>
+            </select>
+        </div>
+        <div class="col-inicio">
+            <input type="time" name="hora_inicio" required placeholder="Início" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+        </div>
+        <div class="col-fim">
+            <input type="time" name="hora_fim" required placeholder="Fim" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+        </div>
+        <div class="btn-add">
+            <button type="submit" class="btn-nav" style="width:100%; background: #023A8D; color: white; border-color: #023A8D;">Adicionar</button>
+        </div>
     </div>
 </form>
-<div id="quick-add-tasks-area" style="display:none; margin-bottom:12px; padding:12px; background:#fff; border:1px solid #e5e7eb; border-radius:8px;">
-    <div id="quick-add-tasks-list"></div>
-</div>
 
 <!-- Lista de blocos (tabela planilha) -->
 <div class="blocks-list">
@@ -475,38 +500,35 @@ function generateBlocks() {
 document.addEventListener('DOMContentLoaded', function() {
     initInlineEditTime();
     const qaProject = document.getElementById('quick-add-project');
+    const qaTaskSelect = document.getElementById('quick-add-task-select');
     const qaTaskId = document.getElementById('quick-add-task-id');
-    if (qaProject && qaTaskId) {
+    if (qaProject && qaTaskSelect && qaTaskId) {
+        qaTaskSelect.addEventListener('change', function() {
+            qaTaskId.value = this.value || '';
+        });
         qaProject.addEventListener('change', function() {
             const pid = this.value;
             qaTaskId.value = '';
+            qaTaskSelect.innerHTML = '<option value="">Tarefa (opcional)</option>';
+            qaTaskSelect.disabled = true;
             if (!pid) return;
-            fetch('<?= pixelhub_url('/agenda/tasks-by-project') ?>?project_id=' + pid)
+            qaTaskSelect.disabled = false;
+            qaTaskSelect.innerHTML = '<option value="">Carregando…</option>';
+            fetch('<?= pixelhub_url('/agenda/tasks-by-project') ?>?project_id=' + encodeURIComponent(pid))
                 .then(r => r.json())
                 .then(d => {
+                    qaTaskSelect.innerHTML = '<option value="">Tarefa (opcional)</option>';
                     if (d.success && d.tasks && d.tasks.length > 0) {
-                        const area = document.getElementById('quick-add-tasks-area');
-                        if (area) {
-                            area.style.display = 'block';
-                            const list = document.getElementById('quick-add-tasks-list');
-                            if (list) {
-                                list.style.display = 'block';
-                                list.innerHTML = '<div style="font-size:12px;color:#6b7280;margin-bottom:8px;">Vincular tarefa (opcional):</div><div style="display:flex;flex-wrap:wrap;gap:6px;">' +
-                                    d.tasks.map(t => '<button type="button" class="task-chip" data-id="' + t.id + '" style="padding:6px 12px;border-radius:6px;border:1px solid #d1d5db;background:#fff;font-size:12px;cursor:pointer;">' + ((t.title||'').substring(0,40) + ((t.title||'').length>40?'…':'')) + '</button>').join('') +
-                                    '<button type="button" class="task-chip" data-id="" style="padding:6px 12px;border-radius:6px;border:1px solid #e5e7eb;background:#f9fafb;font-size:12px;color:#6b7280;cursor:pointer;">Nenhuma</button></div>';
-                                list.querySelectorAll('.task-chip').forEach(btn => {
-                                    btn.addEventListener('click', function() {
-                                        list.querySelectorAll('.task-chip').forEach(b => { b.style.background = b.dataset.id ? '#fff' : '#f9fafb'; b.style.borderColor = '#d1d5db'; });
-                                        this.style.background = this.dataset.id ? '#eff6ff' : '#f3f4f6'; this.style.borderColor = '#1d4ed8';
-                                        qaTaskId.value = this.dataset.id || '';
-                                    });
-                                });
-                            }
-                        }
-                    } else {
-                        const area = document.getElementById('quick-add-tasks-area');
-                        if (area) area.style.display = 'none';
+                        d.tasks.forEach(t => {
+                            const opt = document.createElement('option');
+                            opt.value = t.id;
+                            opt.textContent = (t.title || '').substring(0, 50) + ((t.title || '').length > 50 ? '…' : '');
+                            qaTaskSelect.appendChild(opt);
+                        });
                     }
+                })
+                .catch(() => {
+                    qaTaskSelect.innerHTML = '<option value="">Tarefa (opcional)</option>';
                 });
         });
     }
