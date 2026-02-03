@@ -81,6 +81,8 @@ $baseUrl = pixelhub_url('/agenda');
 .block-tasks-time-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; overflow: visible; }
 .block-tasks-time-table .task-time-input { width: 130px; min-width: 120px; padding: 6px 10px; font-size: 13px; border: 1px solid #e5e7eb; border-radius: 6px; box-sizing: border-box; height: 36px; }
 .block-tasks-time-table .task-time-input:focus { border-color: #3b82f6; outline: none; }
+.block-tasks-time-table tr.task-time-error .task-time-input { border-color: #dc2626; background: #fef2f2; }
+.block-tasks-time-table .task-time-error-msg { font-size: 12px; color: #dc2626; margin-top: 6px; padding: 6px 8px; background: #fef2f2; border-radius: 4px; }
 .block-tasks-time-table .task-name-wrap { display: inline-flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
 .block-tasks-time-table .block-task-unlink { margin-left: 2px; flex-shrink: 0; }
 .block-add-task-section { max-width: 560px; width: 50%; min-width: 280px; }
@@ -498,6 +500,7 @@ function loadBlockContent(blockId, container) {
                         html += '<td class="task-dur-display">' + durStr + '</td></tr>';
                     });
                     html += '</tbody></table>';
+                    html += '<div class="task-time-error-msg" id="task-time-error-' + blockId + '" style="display:none;"></div>';
                 } else {
                     html += '<ul class="block-linked-tasks">';
                     linkedTasks.forEach(t => {
@@ -545,6 +548,15 @@ function loadBlockContent(blockId, container) {
             });
 
             if (hasMultipleTasks) {
+                const errDiv = document.getElementById('task-time-error-' + blockId);
+                const showError = (msg) => {
+                    if (errDiv) { errDiv.textContent = msg; errDiv.style.display = 'block'; }
+                    container.querySelectorAll('tr[data-task-id]').forEach(r => r.classList.add('task-time-error'));
+                };
+                const clearError = () => {
+                    if (errDiv) { errDiv.textContent = ''; errDiv.style.display = 'none'; }
+                    container.querySelectorAll('tr[data-task-id].task-time-error').forEach(r => r.classList.remove('task-time-error'));
+                };
                 container.querySelectorAll('tr[data-task-id]').forEach(tr => {
                     const tid = parseInt(tr.dataset.taskId, 10);
                     const inpIni = tr.querySelector('.task-time-inicio');
@@ -566,10 +578,14 @@ function loadBlockContent(blockId, container) {
                         })
                         .then(r => r.json())
                         .then(d => {
-                            if (d.success) loadBlockContent(blockId, container);
-                            else alert(d.error || 'Erro ao salvar horário.');
+                            if (d.success) {
+                                clearError();
+                                loadBlockContent(blockId, container);
+                            } else {
+                                showError(d.error || 'Erro ao salvar horário.');
+                            }
                         })
-                        .catch(() => alert('Erro ao salvar horário.'));
+                        .catch(() => showError('Erro ao salvar horário.'));
                     };
                     const updateDur = () => {
                         const hi = inpIni && inpIni.value ? inpIni.value : '';
@@ -580,8 +596,8 @@ function loadBlockContent(blockId, container) {
                             durCell.textContent = m > 0 ? m + ' min' : '—';
                         }
                     };
-                    if (inpIni) { inpIni.addEventListener('change', saveTaskTime); inpIni.addEventListener('blur', saveTaskTime); inpIni.addEventListener('input', updateDur); }
-                    if (inpFim) { inpFim.addEventListener('change', saveTaskTime); inpFim.addEventListener('blur', saveTaskTime); inpFim.addEventListener('input', updateDur); }
+                    if (inpIni) { inpIni.addEventListener('blur', saveTaskTime); inpIni.addEventListener('input', updateDur); }
+                    if (inpFim) { inpFim.addEventListener('blur', saveTaskTime); inpFim.addEventListener('input', updateDur); }
                 });
             }
 
