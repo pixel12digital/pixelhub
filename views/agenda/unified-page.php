@@ -506,8 +506,7 @@ document.addEventListener('DOMContentLoaded', function() {
         qaTaskSelect.addEventListener('change', function() {
             qaTaskId.value = this.value || '';
         });
-        qaProject.addEventListener('change', function() {
-            const pid = this.value;
+        function loadTasksForProject(pid) {
             qaTaskId.value = '';
             qaTaskSelect.innerHTML = '<option value="">Tarefa (opcional)</option>';
             qaTaskSelect.disabled = true;
@@ -525,12 +524,17 @@ document.addEventListener('DOMContentLoaded', function() {
                             opt.textContent = (t.title || '').substring(0, 50) + ((t.title || '').length > 50 ? '…' : '');
                             qaTaskSelect.appendChild(opt);
                         });
+                    } else if (d.error) {
+                        console.error('Erro ao carregar tarefas:', d.error);
                     }
                 })
-                .catch(() => {
+                .catch(err => {
+                    console.error('Erro ao carregar tarefas:', err);
                     qaTaskSelect.innerHTML = '<option value="">Tarefa (opcional)</option>';
                 });
-        });
+        }
+        qaProject.addEventListener('change', function() { loadTasksForProject(this.value); });
+        if (qaProject.value) loadTasksForProject(qaProject.value);
     }
 });
 
