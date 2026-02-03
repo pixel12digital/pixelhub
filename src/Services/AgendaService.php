@@ -1150,7 +1150,11 @@ class AgendaService
                  WHERE abt.bloco_id = b.id
                 )";
         }
-        
+
+        $hasActivityTypes = self::hasActivityTypesSupport($db);
+        $selectActivityType = $hasActivityTypes ? 'at.name as activity_type_name,' : 'NULL as activity_type_name,';
+        $joinActivityTypes = $hasActivityTypes ? 'LEFT JOIN activity_types at ON b.activity_type_id = at.id' : '';
+
         // Constrói a query completa antes de preparar
         // tn_block: cliente vinculado diretamente ao bloco (atividades avulsas)
         // tn_projeto: cliente do projeto (quando item vem de projeto/tarefa)
@@ -1161,7 +1165,7 @@ class AgendaService
                 bt.codigo as tipo_codigo,
                 bt.cor_hex as tipo_cor,
                 p.name as projeto_foco_nome,
-                at.name as activity_type_name,
+                " . $selectActivityType . "
                 COALESCE(NULLIF(tn_block.nome_fantasia, ''), tn_block.name) as block_tenant_name,
                 COALESCE(NULLIF(tn_projeto.nome_fantasia, ''), tn_projeto.name) as project_tenant_name,
                 t_focus.title as focus_task_title,
@@ -1171,7 +1175,7 @@ class AgendaService
             FROM agenda_blocks b
             INNER JOIN agenda_block_types bt ON b.tipo_id = bt.id
             LEFT JOIN projects p ON b.projeto_foco_id = p.id
-            LEFT JOIN activity_types at ON b.activity_type_id = at.id
+            " . $joinActivityTypes . "
             LEFT JOIN tenants tn_block ON b.tenant_id = tn_block.id
             LEFT JOIN tenants tn_projeto ON p.tenant_id = tn_projeto.id
             LEFT JOIN tasks t_focus ON b.focus_task_id = t_focus.id
