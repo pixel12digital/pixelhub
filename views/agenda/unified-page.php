@@ -463,10 +463,7 @@ function loadProjectsForSegment(blockId, container) {
     const taskSelect = container.querySelector('.seg-task');
     if (!projSelect) return;
     <?php foreach ($projetos as $p): ?>
-    const o = document.createElement('option');
-    o.value = '<?= (int)$p['id'] ?>';
-    o.textContent = <?= json_encode($p['name']) ?>;
-    projSelect.appendChild(o);
+    (function(){ var opt = document.createElement('option'); opt.value = '<?= (int)$p['id'] ?>'; opt.textContent = <?= json_encode($p['name']) ?>; projSelect.appendChild(opt); })();
     <?php endforeach; ?>
     projSelect.addEventListener('change', function() {
         const pid = this.value;
