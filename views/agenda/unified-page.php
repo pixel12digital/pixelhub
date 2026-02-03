@@ -66,7 +66,9 @@ $baseUrl = pixelhub_url('/agenda');
 .block-linked-tasks { list-style: none; padding: 0; margin: 0; }
 .block-linked-tasks li { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; display: flex; align-items: center; gap: 8px; }
 .block-linked-tasks li:last-child { border-bottom: none; }
-.block-linked-tasks li a { color: #023A8D; text-decoration: none; flex: 1; min-width: 0; }
+.block-linked-tasks li a { color: #023A8D; text-decoration: none; }
+.block-linked-tasks .task-name-wrap { display: inline-flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
+.block-linked-tasks .block-task-unlink { margin-left: 2px; flex-shrink: 0; }
 .block-linked-tasks li a:hover { text-decoration: underline; }
 .block-add-task-btn { flex-shrink: 0; width: 24px; height: 24px; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc; color: #475569; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .block-add-task-btn:hover { background: #e2e8f0; color: #1e293b; }
@@ -79,10 +81,14 @@ $baseUrl = pixelhub_url('/agenda');
 .block-tasks-time-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; overflow: visible; }
 .block-tasks-time-table .task-time-input { width: 130px; min-width: 120px; padding: 6px 10px; font-size: 13px; border: 1px solid #e5e7eb; border-radius: 6px; box-sizing: border-box; height: 36px; }
 .block-tasks-time-table .task-time-input:focus { border-color: #3b82f6; outline: none; }
+.block-tasks-time-table .task-name-wrap { display: inline-flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
+.block-tasks-time-table .block-task-unlink { margin-left: 2px; flex-shrink: 0; }
 .block-add-task-section { max-width: 560px; width: 50%; min-width: 280px; }
 .block-add-task-section .block-add-task-row { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .block-add-task-section .block-add-task-row select { flex: 1 1 200px; min-width: 180px; max-width: 320px; padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; }
 .block-add-task-section .block-add-task-row .btn-add-task-to-block { flex-shrink: 0; padding: 6px 14px; background: #023A8D; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.block-add-task-section .block-add-task-close { flex-shrink: 0; width: 28px; height: 28px; border: 1px solid #d1d5db; border-radius: 4px; background: #f8fafc; color: #6b7280; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.block-add-task-section .block-add-task-close:hover { background: #e2e8f0; color: #374151; }
 @media (max-width: 600px) { .block-add-task-section { width: 100%; max-width: 100%; } .block-add-task-section .block-add-task-row select { max-width: none; } }
 .agenda-list-table .block-actions-cell { display: flex; align-items: center; gap: 4px; }
 .agenda-list-table .btn-icon { background: none; border: none; cursor: pointer; padding: 4px; color: #6b7280; display: inline-flex; align-items: center; justify-content: center; }
@@ -477,32 +483,28 @@ function loadBlockContent(blockId, container) {
             let html = '';
             if (linkedTasks.length > 0) {
                 if (hasMultipleTasks) {
-                    html += '<table class="block-tasks-time-table"><thead><tr><th>Tarefa</th><th>Início</th><th>Fim</th><th>Duração</th><th></th></tr></thead><tbody>';
+                    html += '<table class="block-tasks-time-table"><thead><tr><th>Tarefa</th><th>Início</th><th>Fim</th><th>Duração</th></tr></thead><tbody>';
                     linkedTasks.forEach(t => {
                         const tit = (t.title || '').replace(/</g,'&lt;');
-                        const proj = (t.projeto_nome || t.project_name || '').replace(/</g,'&lt;');
                         const pid = t.project_id || '';
                         const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
                         const thIni = (t.task_hora_inicio || '').toString().substring(0, 5);
                         const thFim = (t.task_hora_fim || '').toString().substring(0, 5);
                         const durMins = (thIni && thFim) ? (parseInt(thFim.split(':')[0])*60 + parseInt(thFim.split(':')[1]) - parseInt(thIni.split(':')[0])*60 - parseInt(thIni.split(':')[1])) : 0;
                         const durStr = durMins > 0 ? durMins + ' min' : '—';
-                        html += '<tr data-task-id="' + t.id + '"><td><span style="color:#64748b;">↳</span> <a href="' + url + '">' + tit + '</a>' + (proj ? ' <span style="color:#94a3b8;font-size:11px;">(' + proj + ')</span>' : '') + '</td>';
+                        html += '<tr data-task-id="' + t.id + '"><td><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></td>';
                         html += '<td><input type="time" class="task-time-input task-time-inicio" data-block-id="' + blockId + '" data-task-id="' + t.id + '" value="' + (thIni || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Início (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
                         html += '<td><input type="time" class="task-time-input task-time-fim" data-block-id="' + blockId + '" data-task-id="' + t.id + '" value="' + (thFim || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Fim (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
-                        html += '<td class="task-dur-display">' + durStr + '</td>';
-                        html += '<td><button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular esta tarefa"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></td></tr>';
+                        html += '<td class="task-dur-display">' + durStr + '</td></tr>';
                     });
                     html += '</tbody></table>';
                 } else {
                     html += '<ul class="block-linked-tasks">';
                     linkedTasks.forEach(t => {
                         const tit = (t.title || '').replace(/</g,'&lt;');
-                        const proj = (t.projeto_nome || t.project_name || '').replace(/</g,'&lt;');
                         const pid = t.project_id || '';
                         const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
-                        html += '<li><span style="color:#64748b;">↳</span> <a href="' + url + '">' + tit + '</a>' + (proj ? ' <span style="color:#94a3b8;font-size:11px;">(' + proj + ')</span>' : '') + ' <span style="color:#94a3b8;font-size:11px;font-style:italic;">(herdado do bloco)</span>';
-                        html += '<button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular esta tarefa"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></li>';
+                        html += '<li><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></li>';
                     });
                     html += '</ul>';
                 }
@@ -511,11 +513,12 @@ function loadBlockContent(blockId, container) {
             }
 
             if (projectId > 0) {
-                html += '<div class="block-add-task-section" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">';
+                html += '<div class="block-add-task-section" id="block-add-task-form-' + blockId + '" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">';
                 html += '<label style="font-size:12px;color:#64748b;display:block;margin-bottom:6px;">Adicionar tarefa a este bloco</label>';
                 html += '<div class="block-add-task-row">';
                 html += '<select id="block-add-task-select-' + blockId + '"><option value="">Selecionar tarefa…</option></select>';
                 html += '<button type="button" class="btn-add-task-to-block" data-block-id="' + blockId + '">Vincular</button>';
+                html += '<button type="button" class="block-add-task-close" data-block-id="' + blockId + '" title="Fechar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
                 html += '</div></div>';
             }
             container.innerHTML = html;
@@ -600,19 +603,30 @@ function loadBlockContent(blockId, container) {
                                 plusBtn.textContent = '+';
                                 plusBtn.addEventListener('click', function(e) {
                                     e.stopPropagation();
-                                    if (formSection) formSection.style.display = 'block';
+                                    if (formSection) {
+                                        const isVisible = formSection.style.display === 'block';
+                                        formSection.style.display = isVisible ? 'none' : 'block';
+                                    }
                                 });
                                 addBtnWrap.appendChild(plusBtn);
                             } else {
                                 const plusBtn = document.createElement('button');
                                 plusBtn.type = 'button';
                                 plusBtn.className = 'block-add-task-btn disabled';
-                                plusBtn.title = 'Sem tarefas disponíveis para vincular';
+                                plusBtn.title = 'Sem tarefas para vincular';
                                 plusBtn.disabled = true;
                                 plusBtn.textContent = '+';
                                 addBtnWrap.appendChild(plusBtn);
                             }
                         }
+
+                        const closeForm = () => {
+                            if (formSection) formSection.style.display = 'none';
+                        };
+                        container.querySelector('.block-add-task-close')?.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            closeForm();
+                        });
 
                         if (sel) {
                             allTasks.forEach(t => {
