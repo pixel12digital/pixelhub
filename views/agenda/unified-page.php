@@ -160,8 +160,8 @@ $baseUrl = pixelhub_url('/agenda');
         <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
             <span style="font-size: 12px; color: #64748b; font-weight: 500;">Visualização:</span>
             <div class="view-switcher">
-                <a href="<?= $baseUrl ?>?view=lista&data=<?= $dataStr ?><?= $taskParam ?>" class="<?= $viewMode === 'lista' ? 'active' : '' ?>">Lista</a>
-                <a href="<?= $baseUrl ?>?view=quadro&data=<?= $dataStr ?><?= $taskParam ?>" class="<?= $viewMode === 'quadro' ? 'active' : '' ?>">Quadro</a>
+                <a href="<?= $baseUrl ?>?view=lista&data=<?= $dataStr ?><?= $taskParam ?>" class="<?= $viewMode === 'lista' ? 'active' : '' ?>">Guia</a>
+                <a href="<?= $baseUrl ?>?view=quadro&data=<?= $dataStr ?><?= $taskParam ?>" class="<?= $viewMode === 'quadro' ? 'active' : '' ?>">Semana</a>
             </div>
             <div class="agenda-nav">
                 <a href="<?= $baseUrl ?>?view=<?= $viewMode ?>&data=<?= $viewMode === 'quadro' ? date('Y-m-d', strtotime($domingo->format('Y-m-d') . ' -7 days')) : date('Y-m-d', strtotime($dataStr . ' -1 day')) ?><?= $taskParam ?>" class="btn-nav">← Anterior</a>
@@ -194,7 +194,7 @@ $baseUrl = pixelhub_url('/agenda');
             <?php endif; ?>
         </div>
         <div style="display: flex; gap: 8px;">
-            <button onclick="generateBlocks()" class="btn-nav">Gerar Blocos</button>
+            <button type="button" onclick="generateBlocks()" class="btn-agenda-primary">Gerar Blocos</button>
         </div>
     </div>
 </div>
