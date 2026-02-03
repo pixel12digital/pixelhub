@@ -747,6 +747,8 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/agenda/generate-blocks', 'AgendaController@generateBlocks');
     $router->get('/agenda/weekly-report', 'AgendaController@weeklyReport');
     $router->get('/agenda/monthly-report', 'AgendaController@monthlyReport');
+    $router->get('/agenda/report-export-csv', 'AgendaController@reportExportCsv');
+    $router->get('/agenda/report-export-pdf', 'AgendaController@reportExportPdf');
     
     // Rotas de Tarefas
     $router->get('/tasks/modal', 'TaskBoardController@modal');

@@ -2569,18 +2569,23 @@ class AgendaService
     
     /**
      * Relatório semanal de produtividade
-     * 
+     *
      * @param \DateTime $dataInicio Data de início da semana
+     * @param \DateTime|null $dataFim Opcional; se null, usa +6 dias (semana)
      * @return array Dados do relatório
      */
-    public static function getWeeklyReport(\DateTime $dataInicio): array
+    public static function getWeeklyReport(\DateTime $dataInicio, ?\DateTime $dataFim = null): array
     {
         $db = DB::getConnection();
-        
+
         $dataInicio->setTimezone(new \DateTimeZone('America/Sao_Paulo'));
-        $dataFim = clone $dataInicio;
-        $dataFim->modify('+6 days');
-        
+        if ($dataFim === null) {
+            $dataFim = clone $dataInicio;
+            $dataFim->modify('+6 days');
+        } else {
+            $dataFim->setTimezone(new \DateTimeZone('America/Sao_Paulo'));
+        }
+
         $dataInicioStr = $dataInicio->format('Y-m-d');
         $dataFimStr = $dataFim->format('Y-m-d');
         
@@ -2727,8 +2732,22 @@ class AgendaService
     }
     
     /**
+     * Relatório para período arbitrário (reutiliza lógica de getWeeklyReport).
+     *
+     * @param string $dataInicioStr Y-m-d (inclusive)
+     * @param string $dataFimStr Y-m-d (inclusive)
+     * @return array Dados do relatório
+     */
+    public static function getReportForDateRange(string $dataInicioStr, string $dataFimStr): array
+    {
+        $dataInicio = new \DateTime($dataInicioStr, new \DateTimeZone('America/Sao_Paulo'));
+        $dataFim = new \DateTime($dataFimStr, new \DateTimeZone('America/Sao_Paulo'));
+        return self::getWeeklyReport($dataInicio, $dataFim);
+    }
+
+    /**
      * Relatório mensal de produtividade
-     * 
+     *
      * @param int $ano Ano
      * @param int $mes Mês (1-12)
      * @return array Dados do relatório
@@ -2738,8 +2757,7 @@ class AgendaService
         $dataInicio = new \DateTime("{$ano}-{$mes}-01", new \DateTimeZone('America/Sao_Paulo'));
         $dataFim = clone $dataInicio;
         $dataFim->modify('last day of this month');
-        
-        return self::getWeeklyReport($dataInicio);
+        return self::getReportForDateRange($dataInicio->format('Y-m-d'), $dataFim->format('Y-m-d'));
     }
     
     /**

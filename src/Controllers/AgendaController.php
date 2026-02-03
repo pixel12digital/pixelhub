@@ -5,6 +5,7 @@ namespace PixelHub\Controllers;
 use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Services\AgendaService;
+use PixelHub\Services\AgendaReportService;
 use PixelHub\Services\ProjectService;
 use PixelHub\Services\TaskService;
 
@@ -1065,31 +1066,140 @@ class AgendaController extends Controller
     }
 
     /**
-     * Relatório semanal de produtividade
+     * Relatório de produtividade (evoluído: abas Dashboard, Agenda, Tarefas, Períodos, Export).
+     * Mantém URL /agenda/weekly-report e comportamento semanal por padrão.
+     * Query: tab, period (hoje|semana|mes|ano|custom), data_inicio, data_fim, tipo, project_id, tenant_id, status, vinculada
      */
     public function weeklyReport(): void
     {
         Auth::requireInternal();
-        
+
+        $tab = $_GET['tab'] ?? 'dashboard';
+        $period = $_GET['period'] ?? 'semana';
         $dataStr = $_GET['data'] ?? date('Y-m-d');
-        
-        try {
-            $data = new \DateTime($dataStr, new \DateTimeZone('America/Sao_Paulo'));
-            // Ajusta para segunda-feira da semana
-            $data->modify('monday this week');
-            
-            $report = AgendaService::getWeeklyReport($data);
-            
-            $this->view('agenda.weekly_report', [
-                'report' => $report,
-                'data' => $data,
-            ]);
-        } catch (\Exception $e) {
-            error_log("Erro ao gerar relatório semanal: " . $e->getMessage());
-            $this->json(['error' => 'Erro ao gerar relatório'], 500);
+        $dataInicio = $_GET['data_inicio'] ?? null;
+        $dataFim = $_GET['data_fim'] ?? null;
+
+        $tz = new \DateTimeZone('America/Sao_Paulo');
+        $today = (new \DateTime('now', $tz))->format('Y-m-d');
+
+        // Calcula período conforme seletor
+        if ($period === 'hoje') {
+            $dataInicio = $today;
+            $dataFim = $today;
+        } elseif ($period === 'semana') {
+            $d = new \DateTime($dataStr, $tz);
+            $d->modify('monday this week');
+            $dataInicio = $d->format('Y-m-d');
+            $d->modify('+6 days');
+            $dataFim = $d->format('Y-m-d');
+        } elseif ($period === 'mes') {
+            $d = new \DateTime($dataStr, $tz);
+            $dataInicio = $d->format('Y-m-01');
+            $dataFim = $d->format('Y-m-t');
+        } elseif ($period === 'ano') {
+            $d = new \DateTime($dataStr, $tz);
+            $dataInicio = $d->format('Y-01-01');
+            $dataFim = $d->format('Y-12-31');
+        } else {
+            $dataInicio = $dataInicio ?: $today;
+            $dataFim = $dataFim ?: $today;
         }
+
+        $filters = [
+            'tipo_id' => isset($_GET['tipo']) ? (int)$_GET['tipo'] : null,
+            'activity_type_id' => isset($_GET['activity_type']) ? (int)$_GET['activity_type'] : null,
+            'project_id' => isset($_GET['project_id']) ? (int)$_GET['project_id'] : null,
+            'tenant_id' => isset($_GET['tenant_id']) ? (int)$_GET['tenant_id'] : null,
+            'status' => $_GET['status'] ?? null,
+            'vinculada' => $_GET['vinculada'] ?? null,
+        ];
+        $filters = array_filter($filters, fn($v) => $v !== null && $v !== '');
+
+        try {
+            $report = AgendaReportService::getReportForPeriod($dataInicio, $dataFim, $filters);
+        } catch (\Exception $e) {
+            error_log("Erro ao gerar relatório: " . $e->getMessage());
+            $this->json(['error' => 'Erro ao gerar relatório'], 500);
+            return;
+        }
+
+        // Dados para filtros (tipos, projetos, clientes, activity types)
+        $db = \PixelHub\Core\DB::getConnection();
+        $tipos = $db->query("SELECT id, nome, codigo FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC")->fetchAll();
+        $projetos = $db->query("SELECT id, name FROM projects WHERE deleted_at IS NULL ORDER BY name ASC")->fetchAll();
+        $tenants = $db->query("SELECT id, name FROM tenants WHERE status = 'active' ORDER BY name ASC")->fetchAll();
+        $activityTypes = [];
+        try {
+            $stmt = $db->query("SELECT id, name FROM activity_types WHERE 1 ORDER BY name ASC");
+            if ($stmt) $activityTypes = $stmt->fetchAll();
+        } catch (\Throwable $e) { /* opcional */ }
+
+        $this->view('agenda.weekly_report', [
+            'report' => $report,
+            'tab' => $tab,
+            'period' => $period,
+            'dataStr' => $dataStr,
+            'dataInicio' => $dataInicio,
+            'dataFim' => $dataFim,
+            'filters' => $filters,
+            'tipos' => $tipos,
+            'projetos' => $projetos,
+            'tenants' => $tenants,
+            'activityTypes' => $activityTypes,
+        ]);
     }
     
+    /**
+     * Export CSV do relatório (dataset filtrado da aba atual).
+     */
+    public function reportExportCsv(): void
+    {
+        Auth::requireInternal();
+        $tab = $_GET['tab'] ?? 'agenda';
+        $dataInicio = $_GET['data_inicio'] ?? date('Y-m-d');
+        $dataFim = $_GET['data_fim'] ?? date('Y-m-d');
+        $filters = [];
+        if (!empty($_GET['tipo'])) $filters['tipo_id'] = (int)$_GET['tipo'];
+        if (!empty($_GET['project_id'])) $filters['project_id'] = (int)$_GET['project_id'];
+        if (!empty($_GET['tenant_id'])) $filters['tenant_id'] = (int)$_GET['tenant_id'];
+        if (!empty($_GET['status'])) $filters['status'] = $_GET['status'];
+        if (!empty($_GET['vinculada'])) $filters['vinculada'] = $_GET['vinculada'];
+
+        if ($tab === 'agenda') {
+            $rows = AgendaReportService::getAgendaItemsForPeriod($dataInicio, $dataFim, $filters);
+            $cols = ['data', 'hora_inicio', 'hora_fim', 'duracao_min', 'tipo_nome', 'atividade', 'projeto_nome', 'cliente_nome', 'tarefa_titulo', 'status'];
+        } else {
+            $rows = AgendaReportService::getTasksWithAgendaLink($dataInicio, $dataFim, $filters);
+            $cols = ['title', 'project_name', 'tenant_name', 'completed_at', 'completed_by_name', 'vinculada_bloco'];
+        }
+
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="relatorio-' . $tab . '-' . $dataInicio . '-a-' . $dataFim . '.csv"');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, $cols, ';');
+        foreach ($rows as $r) {
+            $row = [];
+            foreach ($cols as $c) {
+                $row[] = $r[$c] ?? '';
+            }
+            fputcsv($out, $row, ';');
+        }
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * Export PDF do relatório (Dashboard + resumo).
+     * Por simplicidade, redireciona para a página com print-friendly ou gera HTML para impressão.
+     */
+    public function reportExportPdf(): void
+    {
+        Auth::requireInternal();
+        header('Location: ' . pixelhub_url('/agenda/weekly-report') . '?' . http_build_query(array_merge($_GET, ['print' => '1'])));
+        exit;
+    }
+
     /**
      * Relatório mensal de produtividade
      */
