@@ -587,8 +587,53 @@ class AgendaController extends Controller
             $this->json(['error' => 'ID inválido'], 400);
             return;
         }
+        $bloco = AgendaService::getBlockById($blockId);
         $tasks = AgendaService::getTasksByBlock($blockId);
-        $this->json(['success' => true, 'tasks' => $tasks]);
+        $this->json([
+            'success' => true,
+            'tasks' => $tasks,
+            'block_hora_inicio' => $bloco['hora_inicio'] ?? null,
+            'block_hora_fim' => $bloco['hora_fim'] ?? null,
+        ]);
+    }
+
+    /**
+     * Atualiza horário de uma tarefa dentro do bloco (POST, validação no service)
+     */
+    public function updateTaskTime(): void
+    {
+        Auth::requireInternal();
+        $blockId = isset($_POST['block_id']) ? (int)$_POST['block_id'] : 0;
+        $taskId = isset($_POST['task_id']) ? (int)$_POST['task_id'] : 0;
+        $horaInicio = trim($_POST['hora_inicio'] ?? '');
+        $horaFim = trim($_POST['hora_fim'] ?? '');
+
+        if ($blockId <= 0 || $taskId <= 0 || !$horaInicio || !$horaFim) {
+            $this->json(['error' => 'Parâmetros inválidos.'], 400);
+            return;
+        }
+
+        try {
+            AgendaService::updateTaskTimeInBlock($blockId, $taskId, $horaInicio, $horaFim);
+            $tasks = AgendaService::getTasksByBlock($blockId);
+            $updated = null;
+            foreach ($tasks as $t) {
+                if ((int)$t['id'] === $taskId) {
+                    $updated = $t;
+                    break;
+                }
+            }
+            $this->json([
+                'success' => true,
+                'task' => $updated,
+                'message' => 'Horário atualizado.',
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            $this->json(['error' => $e->getMessage()], 400);
+        } catch (\Exception $e) {
+            error_log("Erro ao atualizar horário da tarefa: " . $e->getMessage());
+            $this->json(['error' => 'Erro ao atualizar horário.'], 500);
+        }
     }
     
     /**

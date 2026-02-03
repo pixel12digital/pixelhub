@@ -73,6 +73,11 @@ $baseUrl = pixelhub_url('/agenda');
 .block-add-task-btn:disabled, .block-add-task-btn.disabled { opacity: 0.5; cursor: not-allowed; }
 .block-task-unlink { flex-shrink: 0; width: 24px; height: 24px; border: none; background: none; color: #6b7280; cursor: pointer; padding: 4px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; }
 .block-task-unlink:hover { color: #dc2626; background: #fef2f2; }
+.block-tasks-time-table { width: 100%; font-size: 13px; border-collapse: collapse; margin-top: 8px; }
+.block-tasks-time-table th { text-align: left; padding: 6px 8px; font-weight: 600; font-size: 11px; color: #64748b; text-transform: uppercase; }
+.block-tasks-time-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.block-tasks-time-table .task-time-input { width: 70px; padding: 4px 6px; font-size: 12px; border: 1px solid #e5e7eb; border-radius: 4px; }
+.block-tasks-time-table .task-time-input:focus { border-color: #3b82f6; outline: none; }
 .agenda-list-table .block-actions-cell { display: flex; align-items: center; gap: 4px; }
 .agenda-list-table .btn-icon { background: none; border: none; cursor: pointer; padding: 4px; color: #6b7280; display: inline-flex; align-items: center; justify-content: center; }
 .agenda-list-table .btn-icon:hover { color: #dc2626; }
@@ -459,21 +464,45 @@ function loadBlockContent(blockId, container) {
             const linkedTasks = data.tasks || [];
             const linkedIds = new Set(linkedTasks.map(t => t.id));
             const boardBase = '<?= pixelhub_url('/projects/board') ?>';
+            const blockInicio = (data.block_hora_inicio || '').toString().substring(0, 5) || '00:00';
+            const blockFim = (data.block_hora_fim || '').toString().substring(0, 5) || '23:59';
+            const hasMultipleTasks = linkedTasks.length >= 2;
 
-            let html = '<ul class="block-linked-tasks">';
+            let html = '';
             if (linkedTasks.length > 0) {
-                linkedTasks.forEach(t => {
-                    const tit = (t.title || '').replace(/</g,'&lt;');
-                    const proj = (t.projeto_nome || t.project_name || '').replace(/</g,'&lt;');
-                    const pid = t.project_id || '';
-                    const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
-                    html += '<li><span style="color:#64748b;">↳</span> <a href="' + url + '">' + tit + '</a>' + (proj ? ' <span style="color:#94a3b8;font-size:11px;">(' + proj + ')</span>' : '') + '<button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular esta tarefa">';
-                    html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></li>';
-                });
+                if (hasMultipleTasks) {
+                    html += '<table class="block-tasks-time-table"><thead><tr><th>Tarefa</th><th>Início</th><th>Fim</th><th>Duração</th><th></th></tr></thead><tbody>';
+                    linkedTasks.forEach(t => {
+                        const tit = (t.title || '').replace(/</g,'&lt;');
+                        const proj = (t.projeto_nome || t.project_name || '').replace(/</g,'&lt;');
+                        const pid = t.project_id || '';
+                        const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
+                        const thIni = (t.task_hora_inicio || '').toString().substring(0, 5);
+                        const thFim = (t.task_hora_fim || '').toString().substring(0, 5);
+                        const durMins = (thIni && thFim) ? (parseInt(thFim.split(':')[0])*60 + parseInt(thFim.split(':')[1]) - parseInt(thIni.split(':')[0])*60 - parseInt(thIni.split(':')[1])) : 0;
+                        const durStr = durMins > 0 ? durMins + ' min' : '—';
+                        html += '<tr data-task-id="' + t.id + '"><td><span style="color:#64748b;">↳</span> <a href="' + url + '">' + tit + '</a>' + (proj ? ' <span style="color:#94a3b8;font-size:11px;">(' + proj + ')</span>' : '') + '</td>';
+                        html += '<td><input type="time" class="task-time-input task-time-inicio" data-block-id="' + blockId + '" data-task-id="' + t.id + '" value="' + (thIni || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Início (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
+                        html += '<td><input type="time" class="task-time-input task-time-fim" data-block-id="' + blockId + '" data-task-id="' + t.id + '" value="' + (thFim || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Fim (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
+                        html += '<td class="task-dur-display">' + durStr + '</td>';
+                        html += '<td><button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular esta tarefa"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></td></tr>';
+                    });
+                    html += '</tbody></table>';
+                } else {
+                    html += '<ul class="block-linked-tasks">';
+                    linkedTasks.forEach(t => {
+                        const tit = (t.title || '').replace(/</g,'&lt;');
+                        const proj = (t.projeto_nome || t.project_name || '').replace(/</g,'&lt;');
+                        const pid = t.project_id || '';
+                        const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
+                        html += '<li><span style="color:#64748b;">↳</span> <a href="' + url + '">' + tit + '</a>' + (proj ? ' <span style="color:#94a3b8;font-size:11px;">(' + proj + ')</span>' : '') + ' <span style="color:#94a3b8;font-size:11px;font-style:italic;">(herdado do bloco)</span>';
+                        html += '<button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular esta tarefa"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></li>';
+                    });
+                    html += '</ul>';
+                }
             } else {
-                html += '<li style="color:#94a3b8;font-style:italic;">Nenhuma tarefa vinculada a este bloco.</li>';
+                html += '<ul class="block-linked-tasks"><li style="color:#94a3b8;font-style:italic;">Nenhuma tarefa vinculada a este bloco.</li></ul>';
             }
-            html += '</ul>';
 
             if (projectId > 0) {
                 html += '<div class="block-add-task-section" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">';
@@ -504,9 +533,50 @@ function loadBlockContent(blockId, container) {
                     })
                     .then(r => r.json())
                     .then(d => { if (d.success) loadBlockContent(bid, container); else alert(d.error || 'Erro'); })
-                    .catch(() => { alert('Erro ao desvincular'); btn.disabled = false; });
+                    .catch(() => { alert('Erro ao desvincular'); this.disabled = false; });
                 });
             });
+
+            if (hasMultipleTasks) {
+                container.querySelectorAll('tr[data-task-id]').forEach(tr => {
+                    const tid = parseInt(tr.dataset.taskId, 10);
+                    const inpIni = tr.querySelector('.task-time-inicio');
+                    const inpFim = tr.querySelector('.task-time-fim');
+                    const durCell = tr.querySelector('.task-dur-display');
+                    const saveTaskTime = () => {
+                        const hi = inpIni && inpIni.value ? inpIni.value.substring(0, 5) : '';
+                        const hf = inpFim && inpFim.value ? inpFim.value.substring(0, 5) : '';
+                        if (!hi || !hf) return;
+                        const fd = new FormData();
+                        fd.append('block_id', blockId);
+                        fd.append('task_id', tid);
+                        fd.append('hora_inicio', hi);
+                        fd.append('hora_fim', hf);
+                        fetch('<?= pixelhub_url('/agenda/bloco/task-time') ?>', {
+                            method: 'POST',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                            body: fd
+                        })
+                        .then(r => r.json())
+                        .then(d => {
+                            if (d.success) loadBlockContent(blockId, container);
+                            else alert(d.error || 'Erro ao salvar horário.');
+                        })
+                        .catch(() => alert('Erro ao salvar horário.'));
+                    };
+                    const updateDur = () => {
+                        const hi = inpIni && inpIni.value ? inpIni.value : '';
+                        const hf = inpFim && inpFim.value ? inpFim.value : '';
+                        if (hi && hf && durCell) {
+                            const p1 = hi.split(':'), p2 = hf.split(':');
+                            const m = (parseInt(p2[0])*60 + parseInt(p2[1])) - (parseInt(p1[0])*60 + parseInt(p1[1]));
+                            durCell.textContent = m > 0 ? m + ' min' : '—';
+                        }
+                    };
+                    if (inpIni) { inpIni.addEventListener('change', saveTaskTime); inpIni.addEventListener('blur', saveTaskTime); inpIni.addEventListener('input', updateDur); }
+                    if (inpFim) { inpFim.addEventListener('change', saveTaskTime); inpFim.addEventListener('blur', saveTaskTime); inpFim.addEventListener('input', updateDur); }
+                });
+            }
 
             if (projectId > 0) {
                 fetch('<?= pixelhub_url('/agenda/tasks-by-project') ?>?project_id=' + projectId)

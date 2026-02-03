@@ -1159,6 +1159,8 @@ class AgendaService
             $stmt = $db->prepare("
                 SELECT 
                     t.*,
+                    abt.hora_inicio as task_hora_inicio,
+                    abt.hora_fim as task_hora_fim,
                     p.name as project_name,
                     p.tenant_id as project_tenant_id,
                     tn.name as tenant_name
@@ -1175,6 +1177,8 @@ class AgendaService
             $stmt = $db->prepare("
                 SELECT 
                     t.*,
+                    abt.hora_inicio as task_hora_inicio,
+                    abt.hora_fim as task_hora_fim,
                     p.name as project_name,
                     p.tenant_id as project_tenant_id,
                     tn.name as tenant_name
@@ -1306,6 +1310,83 @@ class AgendaService
         $stmt->execute([$blockId, $taskId]);
     }
     
+    /**
+     * Atualiza horário de uma tarefa dentro do bloco (com validação)
+     * Regras: tarefa_inicio >= bloco_inicio, tarefa_fim <= bloco_fim, tarefa_fim > tarefa_inicio
+     * Soma das durações das tarefas <= duração do bloco
+     *
+     * @param int $blockId ID do bloco
+     * @param int $taskId ID da tarefa
+     * @param string $horaInicio HH:MM ou HH:MM:SS
+     * @param string $horaFim HH:MM ou HH:MM:SS
+     * @return void
+     * @throws \InvalidArgumentException Se validação falhar
+     */
+    public static function updateTaskTimeInBlock(int $blockId, int $taskId, string $horaInicio, string $horaFim): void
+    {
+        $db = DB::getConnection();
+
+        $bloco = self::getBlockById($blockId);
+        if (!$bloco) {
+            throw new \InvalidArgumentException('Bloco não encontrado.');
+        }
+
+        $blocoInicio = $bloco['hora_inicio'] ?? '';
+        $blocoFim = $bloco['hora_fim'] ?? '';
+        if (!$blocoInicio || !$blocoFim) {
+            throw new \InvalidArgumentException('Bloco sem horário definido.');
+        }
+
+        $ti = substr($horaInicio, 0, 5);
+        $tf = substr($horaFim, 0, 5);
+        $bi = substr($blocoInicio, 0, 5);
+        $bf = substr($blocoFim, 0, 5);
+
+        if ($ti < $bi) {
+            throw new \InvalidArgumentException('Horário de início da tarefa não pode ser anterior ao início do bloco.');
+        }
+        if ($tf > $bf) {
+            throw new \InvalidArgumentException('Horário de fim da tarefa não pode ser posterior ao fim do bloco.');
+        }
+        if ($tf <= $ti) {
+            throw new \InvalidArgumentException('Horário de fim deve ser posterior ao de início.');
+        }
+
+        $toMins = function ($h) {
+            $parts = explode(':', $h);
+            return ((int)($parts[0] ?? 0)) * 60 + (int)($parts[1] ?? 0);
+        };
+
+        $tasks = self::getTasksByBlock($blockId);
+        $blockDurationMins = $toMins($bf) - $toMins($bi);
+
+        $totalMins = 0;
+        foreach ($tasks as $t) {
+            $thIni = $t['task_hora_inicio'] ?? null;
+            $thFim = $t['task_hora_fim'] ?? null;
+            if ((int)$t['id'] === $taskId) {
+                $thIni = $ti;
+                $thFim = $tf;
+            }
+            if ($thIni && $thFim) {
+                $totalMins += $toMins($thFim) - $toMins($thIni);
+            }
+        }
+
+        if ($totalMins > $blockDurationMins) {
+            throw new \InvalidArgumentException('A soma das durações das tarefas excede o total do bloco.');
+        }
+
+        $hi = strlen($horaInicio) === 5 ? $horaInicio . ':00' : $horaInicio;
+        $hf = strlen($horaFim) === 5 ? $horaFim . ':00' : $horaFim;
+        $stmt = $db->prepare("UPDATE agenda_block_tasks SET hora_inicio = ?, hora_fim = ? WHERE bloco_id = ? AND task_id = ?");
+        $stmt->execute([$hi, $hf, $blockId, $taskId]);
+
+        if ($stmt->rowCount() === 0) {
+            throw new \InvalidArgumentException('Tarefa não está vinculada a este bloco.');
+        }
+    }
+
     /**
      * Define a tarefa foco de um bloco
      * 
