@@ -67,14 +67,18 @@ ob_start();
     .projetos-tabela tr:hover {
         background: #fafafa;
     }
-    .projetos-tabela .col-projeto { min-width: 180px; }
-    .projetos-tabela .col-tipo { width: 160px; }
+    .projetos-tabela { table-layout: fixed; }
+    .projetos-tabela .col-projeto { width: 40%; min-width: 160px; }
+    .projetos-tabela .col-tipo { width: 140px; }
     .projetos-tabela .col-acao { width: 1%; white-space: nowrap; text-align: right; }
     .projetos-tabela .form-inline {
         display: flex;
         align-items: center;
         gap: 8px;
         justify-content: flex-end;
+    }
+    .projetos-tabela .form-inline .btn-remover {
+        margin-left: 8px;
     }
     .projetos-tabela select, .projetos-tabela .btn-sm {
         height: 34px;
@@ -224,12 +228,12 @@ ob_start();
     </h2>
     
     <div class="bloco-info">
+        <?php if ($bloco['status'] !== 'planned'): ?>
         <div class="info-item">
             <strong>Status</strong>
             <span>
                 <?php
                 $statusLabels = [
-                    'planned' => 'Planejado',
                     'ongoing' => 'Em Andamento',
                     'completed' => 'Concluído',
                     'partial' => 'Parcial',
@@ -239,6 +243,7 @@ ob_start();
                 ?>
             </span>
         </div>
+        <?php endif; ?>
         <div class="info-item">
             <strong>Duração Planejada</strong>
             <span><?= (int)$bloco['duracao_planejada'] ?> minutos</span>
@@ -326,8 +331,8 @@ ob_start();
                             <?php elseif ($runningSegment): ?>
                                 <span style="color: #999; font-size: 12px;">—</span>
                             <?php elseif (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
-                                <select name="tipo_id" form="form-seg-<?= $pid ?>" title="Tipo de atividade: como este trabalho será registrado (padrão: categoria do bloco)" aria-label="Tipo de atividade para este projeto" style="width: 100%; height: 34px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
-                                    <option value="">Usar categoria do bloco</option>
+                                <select name="tipo_id" form="form-seg-<?= $pid ?>" title="Tipo de atividade: como este trabalho será registrado (padrão: categoria do bloco)" aria-label="Tipo de atividade para este projeto" style="width: 100%; min-width: 120px; height: 34px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                                    <option value=""><?= htmlspecialchars($bloco['tipo_nome'] ?? 'Padrão') ?></option>
                                     <?php foreach ($blockTypes ?? [] as $t): ?>
                                         <?php if ((int)$t['id'] !== (int)($bloco['tipo_id'] ?? 0)): ?>
                                             <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
@@ -356,7 +361,7 @@ ob_start();
                                         </form>
                                     <?php endif; ?>
                                 <?php endif; ?>
-                                <form method="post" action="<?= pixelhub_url('/agenda/bloco/project/remove') ?>" style="margin: 0; display: inline;" onsubmit="return confirm('Remover este projeto do bloco?');">
+                                <form method="post" action="<?= pixelhub_url('/agenda/bloco/project/remove') ?>" style="margin: 0; display: inline;" class="btn-remover" onsubmit="return confirm('Remover este projeto do bloco?');">
                                     <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
                                     <input type="hidden" name="project_id" value="<?= $pid ?>">
                                     <button type="submit" class="btn btn-outline-danger btn-sm btn-icon" title="Remover projeto do bloco" aria-label="Remover projeto do bloco" style="padding: 6px 10px;">&#10005; Remover</button>
@@ -395,8 +400,8 @@ ob_start();
                             </td>
                             <td class="col-tipo">
                                 <?php if (!$isAvulsasRunning && !$runningSegment): ?>
-                                    <select name="tipo_id" form="form-seg-avulsas" title="Tipo de atividade para tarefas avulsas" aria-label="Tipo de atividade" style="width: 100%; height: 34px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
-                                        <option value="">Usar categoria do bloco</option>
+                                    <select name="tipo_id" form="form-seg-avulsas" title="Tipo de atividade para tarefas avulsas" aria-label="Tipo de atividade" style="width: 100%; min-width: 120px; height: 34px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                                        <option value=""><?= htmlspecialchars($bloco['tipo_nome'] ?? 'Padrão') ?></option>
                                         <?php foreach ($blockTypes ?? [] as $t): ?>
                                             <?php if ((int)$t['id'] !== (int)($bloco['tipo_id'] ?? 0)): ?>
                                                 <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
@@ -418,7 +423,7 @@ ob_start();
                                         <form id="form-seg-avulsas" method="post" action="<?= pixelhub_url('/agenda/bloco/segment/start') ?>" style="margin: 0;" class="form-inline">
                                             <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
                                             <input type="hidden" name="project_id" value="">
-                                            <button type="submit" class="btn btn-outline-secondary btn-sm btn-icon" title="<?= $hasAvulsasSegments ? 'Retomar tarefas avulsas' : 'Iniciar tarefas avulsas' ?>" aria-label="<?= $hasAvulsasSegments ? 'Retomar tarefas avulsas' : 'Iniciar tarefas avulsas' ?>">&#9654; <?= $hasAvulsasSegments ? 'Retomar' : 'Iniciar' ?></button>
+                                            <button type="submit" class="btn btn-outline-secondary btn-sm btn-icon" title="Iniciar trabalho neste projeto" aria-label="Iniciar trabalho neste projeto">&#9654; <?= $hasAvulsasSegments ? 'Retomar' : 'Iniciar' ?></button>
                                         </form>
                                     <?php endif; ?>
                                 </div>
