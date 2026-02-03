@@ -1767,6 +1767,50 @@ class AgendaService
     }
     
     /**
+     * Retorna informações de exibição por projeto para a UI (Início, Fim, Duração).
+     * Útil para colunas dinâmicas no modo de trabalho do bloco.
+     *
+     * @return array Map project_id (ou 'avulsas') => ['started_at'=>?, 'ended_at'=>?, 'total_seconds'=>?, 'is_running'=>bool]
+     */
+    public static function getSegmentDisplayInfoForBlock(int $blockId): array
+    {
+        $db = DB::getConnection();
+        if (!self::hasSegmentsTable($db)) {
+            return [];
+        }
+        $running = self::getRunningSegmentForBlock($blockId);
+        $totals = self::getSegmentTotalsByProjectForBlock($blockId);
+        $segments = self::getSegmentsForBlock($blockId);
+        $out = [];
+        foreach ($totals as $t) {
+            $pid = $t['project_id'] ?? 'avulsas';
+            $key = ($pid === null || $pid === '') ? 'avulsas' : (int)$pid;
+            $projSegments = array_filter($segments, function ($s) use ($pid) {
+                $sp = $s['project_id'] ?? null;
+                if ($pid === 'avulsas') {
+                    return $sp === null || $sp === '';
+                }
+                return (int)($sp ?? 0) === (int)$pid;
+            });
+            usort($projSegments, function ($a, $b) {
+                return strcmp($b['started_at'] ?? '', $a['started_at'] ?? '');
+            });
+            $last = $projSegments[0] ?? null;
+            $isRunning = $running && (
+                ($pid === 'avulsas' && (($running['project_id'] ?? null) === null || ($running['project_id'] ?? '') === '')) ||
+                ($pid !== 'avulsas' && (int)($running['project_id'] ?? 0) === (int)$pid)
+            );
+            $out[$key] = [
+                'started_at' => $last['started_at'] ?? null,
+                'ended_at' => $isRunning ? null : ($last['ended_at'] ?? null),
+                'total_seconds' => (int)($t['total_seconds'] ?? 0),
+                'is_running' => (bool)$isRunning,
+            ];
+        }
+        return $out;
+    }
+    
+    /**
      * Inicia um segmento de trabalho (projeto) no bloco.
      * Valida que não há outro segmento running no mesmo block_id.
      * @param int|null $tipoId Tipo de bloco (ex.: Comercial) - quando diferente do bloco atual (interrupção)
@@ -1789,10 +1833,10 @@ class AgendaService
             throw new \RuntimeException('O bloco precisa estar planejado ou em andamento para iniciar um projeto.');
         }
         
+        // Auto-finaliza o segmento em execução antes de iniciar outro (apenas um ativo por vez)
         $running = self::getRunningSegmentForBlock($blockId);
         if ($running) {
-            $projNome = $running['project_name'] ?? 'Projeto atual';
-            throw new \RuntimeException("Pause o projeto atual ({$projNome}) antes de iniciar outro.");
+            self::pauseSegment($blockId);
         }
         
         // Se tipo_id não informado, usa o tipo do bloco

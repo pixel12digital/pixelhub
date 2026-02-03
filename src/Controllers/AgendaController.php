@@ -205,6 +205,7 @@ class AgendaController extends Controller
         // Segmentos (multi-projeto com pausa/retomada)
         $segments = AgendaService::getSegmentsForBlock($id);
         $segmentTotals = AgendaService::getSegmentTotalsByProjectForBlock($id);
+        $segmentDisplayInfo = AgendaService::getSegmentDisplayInfoForBlock($id);
         $runningSegment = AgendaService::getRunningSegmentForBlock($id);
         $blockProjects = AgendaService::getProjectsForBlock($id);
         
@@ -258,6 +259,7 @@ class AgendaController extends Controller
             'tarefasDisponiveis' => $tarefasDisponiveis,
             'segments' => $segments,
             'segmentTotals' => $segmentTotals,
+            'segmentDisplayInfo' => $segmentDisplayInfo,
             'runningSegment' => $runningSegment,
             'blockProjects' => $blockProjects,
             'blockTypes' => $blockTypes,
@@ -312,7 +314,7 @@ class AgendaController extends Controller
         
         try {
             AgendaService::pauseSegment($blockId);
-            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Projeto pausado.')));
+            header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&sucesso=' . urlencode('Projeto finalizado.')));
             exit;
         } catch (\RuntimeException $e) {
             header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId . '&erro=' . urlencode($e->getMessage())));

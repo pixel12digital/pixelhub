@@ -436,7 +436,7 @@ $isHoje = ($viewMode === 'hoje');
                     $horaInicio = substr($bloco['hora_inicio'] ?? '00:00', 0, 5);
                     $horaFim = substr($bloco['hora_fim'] ?? '00:00', 0, 5);
                     $blockTasks = $bloco['block_tasks'] ?? [];
-                    $projetoNome = $bloco['projeto_foco_nome'] ?? '';
+                    $projetoNome = !empty($bloco['projetos_nomes_str']) ? $bloco['projetos_nomes_str'] : ($bloco['projeto_foco_nome'] ?? '');
                 ?>
                     <?php if (!empty($blockTasks)): ?>
                         <?php foreach ($blockTasks as $t):
