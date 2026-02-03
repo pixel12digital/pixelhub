@@ -14,7 +14,32 @@ class AgendaService
      * @var bool|null
      */
     private static $hasDeletedAtColumn = null;
-    
+
+    /** @var bool|null */
+    private static $hasActivityTypesSupport = null;
+
+    /**
+     * Verifica se activity_types existe e agenda_blocks tem activity_type_id (com cache)
+     */
+    private static function hasActivityTypesSupport(\PDO $db): bool
+    {
+        if (self::$hasActivityTypesSupport !== null) {
+            return self::$hasActivityTypesSupport;
+        }
+        try {
+            $stmt = $db->query("SHOW TABLES LIKE 'activity_types'");
+            if ($stmt->rowCount() === 0) {
+                self::$hasActivityTypesSupport = false;
+                return false;
+            }
+            $stmt = $db->query("SHOW COLUMNS FROM agenda_blocks LIKE 'activity_type_id'");
+            self::$hasActivityTypesSupport = $stmt->rowCount() > 0;
+        } catch (\PDOException $e) {
+            self::$hasActivityTypesSupport = false;
+        }
+        return self::$hasActivityTypesSupport;
+    }
+
     /**
      * Verifica se a coluna deleted_at existe na tabela tasks (com cache)
      * 
@@ -610,7 +635,11 @@ class AgendaService
                  WHERE abt.bloco_id = b.id
                 )";
         }
-        
+
+        $hasActivityTypes = self::hasActivityTypesSupport($db);
+        $selectActivityType = $hasActivityTypes ? 'at.name as activity_type_name,' : 'NULL as activity_type_name,';
+        $joinActivityTypes = $hasActivityTypes ? 'LEFT JOIN activity_types at ON b.activity_type_id = at.id' : '';
+
         // Constrói a query completa antes de preparar
         $sql = "
             SELECT 
@@ -619,19 +648,19 @@ class AgendaService
                 bt.codigo as tipo_codigo,
                 bt.cor_hex as tipo_cor_hex,
                 p.name as projeto_foco_nome,
-                at.name as activity_type_name,
+                " . $selectActivityType . "
                 t_focus.title as focus_task_title,
                 t_focus.status as focus_task_status,
                 " . $tasksCountSubquery . " as total_tarefas
             FROM agenda_blocks b
             INNER JOIN agenda_block_types bt ON b.tipo_id = bt.id
             LEFT JOIN projects p ON b.projeto_foco_id = p.id
-            LEFT JOIN activity_types at ON b.activity_type_id = at.id
+            " . $joinActivityTypes . "
             LEFT JOIN tasks t_focus ON b.focus_task_id = t_focus.id
             WHERE b.data >= ? AND b.data <= ?
             ORDER BY b.data ASC, b.hora_inicio ASC
         ";
-        
+
         $stmt = $db->prepare($sql);
         $stmt->execute([$dataInicioStr, $dataFimStr]);
         
