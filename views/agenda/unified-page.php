@@ -170,7 +170,7 @@ $baseUrl = pixelhub_url('/agenda');
         </div>
         <div class="col-tarefa">
             <select id="quick-add-task-select" style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;" disabled title="Selecione um projeto primeiro">
-                <option value="">Tarefa (opcional)</option>
+                <option value="">Selecione um projeto primeiro</option>
             </select>
         </div>
         <div class="col-tipo">
@@ -503,34 +503,43 @@ document.addEventListener('DOMContentLoaded', function() {
     const qaTaskSelect = document.getElementById('quick-add-task-select');
     const qaTaskId = document.getElementById('quick-add-task-id');
     if (qaProject && qaTaskSelect && qaTaskId) {
-        qaTaskSelect.addEventListener('change', function() {
-            qaTaskId.value = this.value || '';
-        });
+        function syncTaskToHidden() {
+            qaTaskId.value = qaTaskSelect.value || '';
+        }
+        qaTaskSelect.addEventListener('change', syncTaskToHidden);
+        document.getElementById('quick-add-form').addEventListener('submit', syncTaskToHidden);
         function loadTasksForProject(pid) {
             qaTaskId.value = '';
-            qaTaskSelect.innerHTML = '<option value="">Tarefa (opcional)</option>';
+            qaTaskSelect.innerHTML = '<option value="">Selecione um projeto primeiro</option>';
             qaTaskSelect.disabled = true;
             if (!pid) return;
             qaTaskSelect.disabled = false;
             qaTaskSelect.innerHTML = '<option value="">Carregando…</option>';
             fetch('<?= pixelhub_url('/agenda/tasks-by-project') ?>?project_id=' + encodeURIComponent(pid))
-                .then(r => r.json())
+                .then(r => {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
                 .then(d => {
                     qaTaskSelect.innerHTML = '<option value="">Tarefa (opcional)</option>';
                     if (d.success && d.tasks && d.tasks.length > 0) {
                         d.tasks.forEach(t => {
                             const opt = document.createElement('option');
                             opt.value = t.id;
-                            opt.textContent = (t.title || '').substring(0, 50) + ((t.title || '').length > 50 ? '…' : '');
+                            const tit = (t.title || t.name || '').toString();
+                            opt.textContent = tit.substring(0, 50) + (tit.length > 50 ? '…' : '');
                             qaTaskSelect.appendChild(opt);
                         });
+                    } else if (d.success && (!d.tasks || d.tasks.length === 0)) {
+                        qaTaskSelect.innerHTML = '<option value="">Nenhuma tarefa neste projeto</option>';
                     } else if (d.error) {
+                        qaTaskSelect.innerHTML = '<option value="">Erro ao carregar</option>';
                         console.error('Erro ao carregar tarefas:', d.error);
                     }
                 })
                 .catch(err => {
                     console.error('Erro ao carregar tarefas:', err);
-                    qaTaskSelect.innerHTML = '<option value="">Tarefa (opcional)</option>';
+                    qaTaskSelect.innerHTML = '<option value="">Erro ao carregar</option>';
                 });
         }
         qaProject.addEventListener('change', function() { loadTasksForProject(this.value); });
