@@ -270,6 +270,23 @@ class AgendaController extends Controller
         $db = \PixelHub\Core\DB::getConnection();
         $stmt = $db->query("SELECT id, nome, codigo FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC");
         $blockTypes = $stmt->fetchAll();
+
+        $agendaTaskContext = null;
+        $taskIdParam = isset($_GET['task_id']) ? (int)$_GET['task_id'] : 0;
+        if ($taskIdParam > 0) {
+            try {
+                $task = TaskService::findTask($taskIdParam);
+                if ($task) {
+                    $agendaTaskContext = [
+                        'id' => $task['id'],
+                        'titulo' => $task['title'] ?? 'Tarefa',
+                        'project_id' => (int)($task['project_id'] ?? 0),
+                    ];
+                }
+            } catch (\Exception $e) {
+                error_log("Erro ao buscar tarefa para contexto: " . $e->getMessage());
+            }
+        }
         
         $this->view('agenda.show', [
             'bloco' => $bloco,
@@ -284,6 +301,7 @@ class AgendaController extends Controller
             'blockProjects' => $blockProjects,
             'blockTypes' => $blockTypes,
             'projetoAtual' => $projetoAtual,
+            'agendaTaskContext' => $agendaTaskContext,
         ]);
     }
     

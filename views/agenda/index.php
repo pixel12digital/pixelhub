@@ -413,10 +413,14 @@ ob_start();
             $corBorda = htmlspecialchars($bloco['tipo_cor'] ?? '#ddd');
             $projetoNome = !empty($bloco['projeto_foco_nome']) ? $bloco['projeto_foco_nome'] : (!empty($bloco['block_tenant_name']) ? $bloco['block_tenant_name'] : 'Atividade avulsa');
             ?>
+            <?php 
+            $blocoUrl = pixelhub_url('/agenda/bloco?id=' . $bloco['id']);
+            if (!empty($agendaTaskContext)) $blocoUrl .= '&task_id=' . (int)$agendaTaskContext['id'];
+            ?>
             <div class="block-row <?= $isCurrent ? 'current' : '' ?>" 
                  data-block-id="<?= (int)$bloco['id'] ?>"
                  style="border-left-color: <?= $corBorda ?>"
-                 onclick="window.location.href='<?= pixelhub_url('/agenda/bloco?id=' . $bloco['id']) ?>'">
+                 onclick="window.location.href='<?= $blocoUrl ?>'">
                 <div class="block-main">
                     <span class="block-project"><?= htmlspecialchars($projetoNome) ?></span>
                     <?php if (!empty($bloco['focus_task_title'])): ?>
@@ -434,26 +438,6 @@ ob_start();
                             <input type="hidden" name="date" value="<?= htmlspecialchars($dataStr) ?>">
                             <button type="submit" class="btn btn-outline" style="padding: 4px 10px; font-size: 12px;">Reabrir</button>
                         </form>
-                    <?php endif; ?>
-                    <?php if (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
-                        <div class="block-actions-more" style="display: inline-block;">
-                            <button type="button" class="btn btn-link-more" onclick="toggleBlockMenu(this)" aria-label="Mais">⋯</button>
-                            <div class="block-actions-dropdown">
-                                <?php if (!empty($agendaTaskContext)): ?>
-                                <form method="post" action="<?= pixelhub_url('/agenda/bloco/attach-task') ?>" style="margin: 0;">
-                                    <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                                    <input type="hidden" name="task_id" value="<?= (int)$agendaTaskContext['id'] ?>">
-                                    <button type="submit" class="btn btn-link">Vincular tarefa</button>
-                                </form>
-                                <?php endif; ?>
-                                <button type="button" class="btn btn-link" onclick="cancelBlock(<?= $bloco['id'] ?>)">Cancelar bloco</button>
-                                <form method="post" action="<?= pixelhub_url('/agenda/bloco/delete') ?>" onsubmit="return confirm('Excluir este bloco?');">
-                                    <input type="hidden" name="id" value="<?= (int)$bloco['id'] ?>">
-                                    <input type="hidden" name="date" value="<?= htmlspecialchars($dataStr) ?>">
-                                    <button type="submit" class="btn btn-link-danger">Excluir</button>
-                                </form>
-                            </div>
-                        </div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -625,37 +609,6 @@ function generateBlocks() {
         alert('Erro ao gerar blocos. Tente novamente.');
     });
 }
-
-function cancelBlock(id) {
-    const motivo = prompt('Motivo do cancelamento:');
-    if (!motivo) return;
-    
-    fetch('<?= pixelhub_url('/agenda/cancel') ?>', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'id=' + id + '&motivo=' + encodeURIComponent(motivo)
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Erro: ' + (data.error || 'Erro desconhecido'));
-        }
-    });
-}
-
-function toggleBlockMenu(btn) {
-    const dropdown = btn.nextElementSibling;
-    const isOpen = dropdown.classList.contains('show');
-    document.querySelectorAll('.block-actions-dropdown.show').forEach(d => d.classList.remove('show'));
-    if (!isOpen) dropdown.classList.add('show');
-}
-document.addEventListener('click', function(e) {
-    if (!e.target.closest('.block-actions-more')) {
-        document.querySelectorAll('.block-actions-dropdown.show').forEach(d => d.classList.remove('show'));
-    }
-});
 
 </script>
 
