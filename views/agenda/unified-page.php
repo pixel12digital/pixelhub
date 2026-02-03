@@ -130,20 +130,35 @@ $baseUrl = pixelhub_url('/agenda');
 .planilha-registros td { padding: 8px 12px; border-bottom: 1px solid #eee; }
 .btn-icon { background: none; border: none; cursor: pointer; padding: 4px; color: #6b7280; display: inline-flex; }
 .btn-icon:hover { color: #374151; }
-/* ===== Quadro semanal: layout fixo + scroll só no conteúdo ===== */
+/* ===== Quadro semanal: topbar fixo + scroll só no conteúdo (dias + blocos) ===== */
+.agenda-quadro-outer {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 60px - 60px);
+    max-height: calc(100vh - 120px);
+    min-height: 350px;
+}
+.agenda-quadro-outer .agenda-unified-sticky {
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 41;
+    background: white;
+}
 .agenda-quadro-page-layout {
     display: flex;
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    margin-top: 20px;
+    margin-top: 12px;
+    overflow: hidden;
 }
 .agenda-quadro-headers {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 12px;
-    flex-shrink: 0;
     padding: 0 0 8px 0;
+    flex-shrink: 0;
 }
 @media (max-width: 1200px) { .agenda-quadro-headers { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 768px) { .agenda-quadro-headers { grid-template-columns: repeat(2, 1fr); } }
@@ -449,16 +464,16 @@ $baseUrl = pixelhub_url('/agenda');
 </div><!-- .agenda-lista-page-layout -->
 
 <?php else: ?>
-<!-- Quadro semanal: cabeçalho fixo + scroll só nos cards -->
+<!-- Quadro semanal: topbar fixo + scroll só no conteúdo (dias + blocos) -->
 <div class="agenda-quadro-page-layout">
-    <div class="agenda-quadro-headers">
-        <?php foreach ($diasSemana as $dia): ?>
-        <div class="quadro-dia-header-cell <?= $dia['is_hoje'] ? 'hoje' : '' ?>">
-            <a href="<?= $baseUrl ?>?view=lista&data=<?= $dia['data_iso'] ?><?= $taskParam ?>"><?= htmlspecialchars($dia['label_dia']) ?></a>
-        </div>
-        <?php endforeach; ?>
-    </div>
     <div class="agenda-quadro-scroll">
+        <div class="agenda-quadro-headers">
+            <?php foreach ($diasSemana as $dia): ?>
+            <div class="quadro-dia-header-cell <?= $dia['is_hoje'] ? 'hoje' : '' ?>">
+                <a href="<?= $baseUrl ?>?view=lista&data=<?= $dia['data_iso'] ?><?= $taskParam ?>"><?= htmlspecialchars($dia['label_dia']) ?></a>
+            </div>
+            <?php endforeach; ?>
+        </div>
         <div class="agenda-quadro-grid">
             <?php foreach ($diasSemana as $dia): ?>
             <div class="quadro-dia <?= $dia['is_hoje'] ? 'hoje' : '' ?>">
