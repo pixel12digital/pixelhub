@@ -38,7 +38,8 @@ class AgendaReportService
             $where[] = "b.projeto_foco_id = ?";
             $params[] = (int)$filters['project_id'];
         }
-        if (!empty($filters['tenant_id'])) {
+        $hasTenantId = self::hasTenantIdColumn($db);
+        if (!empty($filters['tenant_id']) && $hasTenantId) {
             $where[] = "(p.tenant_id = ? OR (b.projeto_foco_id IS NULL AND b.tenant_id = ?))";
             $params[] = (int)$filters['tenant_id'];
             $params[] = (int)$filters['tenant_id'];
@@ -54,6 +55,7 @@ class AgendaReportService
         $whereClause = implode(' AND ', $where);
 
         $hasActivityTypes = self::hasActivityTypesColumn($db);
+        $hasTenantId = self::hasTenantIdColumn($db);
         $activitySelect = $hasActivityTypes
             ? "COALESCE(at.name, '—') as atividade,"
             : "'—' as atividade,";
@@ -78,7 +80,7 @@ class AgendaReportService
             INNER JOIN agenda_block_types bt ON b.tipo_id = bt.id
             LEFT JOIN projects p ON b.projeto_foco_id = p.id
             LEFT JOIN tenants tn_projeto ON p.tenant_id = tn_projeto.id
-            LEFT JOIN tenants tn_block ON b.tenant_id = tn_block.id
+            " . ($hasTenantId ? "LEFT JOIN tenants tn_block ON b.tenant_id = tn_block.id" : "LEFT JOIN tenants tn_block ON 1=0") . "
             LEFT JOIN tasks t_focus ON b.focus_task_id = t_focus.id
         ";
         if ($hasActivityTypes) {
@@ -197,6 +199,16 @@ class AgendaReportService
     {
         try {
             $stmt = $db->query("SHOW COLUMNS FROM agenda_blocks LIKE 'activity_type_id'");
+            return $stmt->rowCount() > 0;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private static function hasTenantIdColumn(\PDO $db): bool
+    {
+        try {
+            $stmt = $db->query("SHOW COLUMNS FROM agenda_blocks LIKE 'tenant_id'");
             return $stmt->rowCount() > 0;
         } catch (\Throwable $e) {
             return false;

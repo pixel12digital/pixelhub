@@ -1072,7 +1072,13 @@ class AgendaController extends Controller
      */
     public function weeklyReport(): void
     {
-        Auth::requireInternal();
+        try {
+            Auth::requireInternal();
+        } catch (\Throwable $e) {
+            error_log("weeklyReport Auth: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/'));
+            exit;
+        }
 
         $tab = $_GET['tab'] ?? 'dashboard';
         $period = $_GET['period'] ?? 'semana';
@@ -1118,20 +1124,36 @@ class AgendaController extends Controller
 
         try {
             $report = AgendaReportService::getReportForPeriod($dataInicio, $dataFim, $filters);
-        } catch (\Exception $e) {
-            error_log("Erro ao gerar relatório: " . $e->getMessage());
-            $this->json(['error' => 'Erro ao gerar relatório'], 500);
+        } catch (\Throwable $e) {
+            error_log("Erro ao gerar relatório: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
+            error_log($e->getTraceAsString());
+            $this->json(['error' => 'Erro ao gerar relatório. Verifique os logs.'], 500);
             return;
         }
 
         // Dados para filtros (tipos, projetos, clientes, activity types)
         $db = \PixelHub\Core\DB::getConnection();
-        $tipos = $db->query("SELECT id, nome, codigo FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC")->fetchAll();
-        $projetos = $db->query("SELECT id, name FROM projects WHERE deleted_at IS NULL ORDER BY name ASC")->fetchAll();
-        $tenants = $db->query("SELECT id, name FROM tenants WHERE status = 'active' ORDER BY name ASC")->fetchAll();
+        $tipos = [];
+        $projetos = [];
+        $tenants = [];
         $activityTypes = [];
         try {
-            $stmt = $db->query("SELECT id, name FROM activity_types WHERE 1 ORDER BY name ASC");
+            $tipos = $db->query("SELECT id, nome, codigo FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC")->fetchAll();
+        } catch (\Throwable $e) {
+            error_log("weeklyReport tipos: " . $e->getMessage());
+        }
+        try {
+            $projetos = $db->query("SELECT id, name FROM projects ORDER BY name ASC")->fetchAll();
+        } catch (\Throwable $e) {
+            error_log("weeklyReport projetos: " . $e->getMessage());
+        }
+        try {
+            $tenants = $db->query("SELECT id, name FROM tenants ORDER BY name ASC")->fetchAll();
+        } catch (\Throwable $e) {
+            error_log("weeklyReport tenants: " . $e->getMessage());
+        }
+        try {
+            $stmt = $db->query("SELECT id, name FROM activity_types ORDER BY name ASC");
             if ($stmt) $activityTypes = $stmt->fetchAll();
         } catch (\Throwable $e) { /* opcional */ }
 
