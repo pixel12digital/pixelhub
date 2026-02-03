@@ -388,8 +388,15 @@ class AgendaService
         // Validações
         $horaInicio = isset($dados['hora_inicio']) ? trim($dados['hora_inicio']) : $bloco['hora_inicio'];
         $horaFim = isset($dados['hora_fim']) ? trim($dados['hora_fim']) : $bloco['hora_fim'];
-        $tipoId = isset($dados['tipo_id']) ? (int)$dados['tipo_id'] : $bloco['tipo_id'];
+        $tipoId = isset($dados['tipo_id']) && (int)$dados['tipo_id'] > 0 ? (int)$dados['tipo_id'] : (int)$bloco['tipo_id'];
         $projetoFocoId = isset($dados['projeto_foco_id']) ? ($dados['projeto_foco_id'] ? (int)$dados['projeto_foco_id'] : null) : $bloco['projeto_foco_id'];
+        
+        // Verifica se o tipo existe (evita erro de FK)
+        $stmt = $db->prepare("SELECT id FROM agenda_block_types WHERE id = ?");
+        $stmt->execute([$tipoId]);
+        if (!$stmt->fetch()) {
+            throw new \RuntimeException('Tipo de bloco inválido. O bloco está vinculado a um tipo que não existe mais. Edite o bloco e selecione um tipo válido em Configurações → Agenda → Tipos de Blocos.');
+        }
         
         // Valida horário de início < horário de fim
         if ($horaInicio >= $horaFim) {

@@ -1173,8 +1173,11 @@ class AgendaController extends Controller
             $dados = [
                 'hora_inicio' => trim($_POST['hora_inicio'] ?? ''),
                 'hora_fim' => trim($_POST['hora_fim'] ?? ''),
-                'tipo_id' => isset($_POST['tipo_id']) ? (int)$_POST['tipo_id'] : 0,
             ];
+            // tipo_id só é enviado no formulário completo; na edição inline (só horário) mantém o existente
+            if (isset($_POST['tipo_id']) && (int)$_POST['tipo_id'] > 0) {
+                $dados['tipo_id'] = (int)$_POST['tipo_id'];
+            }
             if (array_key_exists('projeto_foco_id', $_POST)) {
                 $dados['projeto_foco_id'] = isset($_POST['projeto_foco_id']) && $_POST['projeto_foco_id'] !== '' ? (int)$_POST['projeto_foco_id'] : null;
             }
@@ -1225,9 +1228,26 @@ class AgendaController extends Controller
                 'tipos' => $tipos,
                 'erro' => $e->getMessage(),
             ]);
+        } catch (\PDOException $e) {
+            error_log("updateBlock PDO: " . $e->getMessage());
+            $msg = (strpos($e->getMessage(), 'tipo_id') !== false || strpos($e->getMessage(), '1452') !== false)
+                ? 'Tipo de bloco inválido. Verifique em Configurações → Agenda → Tipos de Blocos.'
+                : 'Erro ao salvar. Tente novamente.';
+            if ($isAjax) {
+                $this->json(['error' => $msg], 400);
+            } else {
+                header('Location: ' . pixelhub_url('/agenda?view=lista&erro=' . urlencode($msg)));
+                exit;
+            }
         } catch (\Exception $e) {
             error_log("Erro ao atualizar bloco: " . $e->getMessage());
-            $this->json(['error' => 'Erro ao atualizar bloco'], 500);
+            $msg = $isAjax ? 'Erro ao atualizar bloco' : 'Erro ao atualizar bloco. Tente novamente.';
+            if ($isAjax) {
+                $this->json(['error' => $msg], 500);
+            } else {
+                header('Location: ' . pixelhub_url('/agenda?view=lista&erro=' . urlencode($msg)));
+                exit;
+            }
         }
     }
     
