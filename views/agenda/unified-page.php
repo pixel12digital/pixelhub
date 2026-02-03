@@ -164,7 +164,42 @@ $baseUrl = pixelhub_url('/agenda');
     .quick-add-form-grid .col-projeto { grid-column: 1 / -1; }
     .quick-add-form-grid .col-tarefa { grid-column: 1 / -1; }
 }
+/* ===== Layout fixo: topo + form + header fixos, scroll só na lista (desktop) ===== */
+.agenda-lista-page-layout {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 60px - 60px);
+    max-height: calc(100vh - 120px);
+    min-height: 350px;
+}
+.agenda-lista-fixed { flex-shrink: 0; }
+.agenda-lista-scroll-area {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    margin-top: 0;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: white;
+    -webkit-overflow-scrolling: touch;
+}
+.agenda-lista-scroll-area .agenda-list-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #f8fafc;
+    box-shadow: 0 1px 0 0 #e2e8f0;
+}
+@media (max-width: 768px) {
+    .agenda-lista-page-layout { height: auto; max-height: none; min-height: 0; }
+    .agenda-lista-scroll-area { overflow-y: visible; border: none; }
+}
 </style>
+
+<?php if ($viewMode === 'lista'): ?>
+<div class="agenda-lista-page-layout">
+<div class="agenda-lista-fixed">
+<?php endif; ?>
 
 <div class="agenda-unified-sticky">
     <div class="agenda-unified-sticky-inner">
@@ -270,6 +305,8 @@ $baseUrl = pixelhub_url('/agenda');
     </div>
 </form>
 
+</div><!-- .agenda-lista-fixed -->
+<div class="agenda-lista-scroll-area">
 <!-- Lista de blocos (tabela planilha) -->
 <div class="blocks-list">
     <?php if (empty($blocos)): ?>
@@ -370,6 +407,8 @@ $baseUrl = pixelhub_url('/agenda');
     </table>
     <?php endif; ?>
 </div>
+</div><!-- .agenda-lista-scroll-area -->
+</div><!-- .agenda-lista-page-layout -->
 
 <?php else: ?>
 <!-- Quadro semanal -->
