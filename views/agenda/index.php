@@ -35,34 +35,50 @@ ob_start();
         display: grid;
         gap: 12px;
     }
-    .block-card {
+    .block-row {
+        display: grid;
+        grid-template-columns: 1fr auto 100px 100px auto;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 14px;
         background: white;
-        border-radius: 8px;
-        padding: 18px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        border-radius: 6px;
         border-left: 4px solid #ddd;
-        margin-bottom: 0;
-        position: relative;
+        margin-bottom: 4px;
+        cursor: pointer;
+        transition: background 0.15s;
     }
-    .block-card:hover {
-        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    .block-row:hover {
+        background: #f8fafc;
     }
-    .block-card.current {
-        background: #fafbfc;
-        border-left-width: 4px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    .block-row.current {
+        background: #eff6ff;
+        border-left-color: #1d4ed8;
     }
-    .block-header {
+    .block-row-edit {
+        grid-template-columns: 1fr 100px 70px 70px auto !important;
+    }
+    .block-row.editing:hover {
+        background: white;
+    }
+    .block-row .block-main {
         display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 8px;
+        flex-direction: column;
+        gap: 2px;
     }
-    .block-time {
+    .block-row .block-project {
         font-weight: 600;
         color: #111827;
-        font-size: 15px;
-        margin-bottom: 6px;
+        font-size: 14px;
+    }
+    .block-row .block-task {
+        font-size: 12px;
+        color: #6b7280;
+        margin-left: 8px;
+    }
+    .block-row-edit {
+        background: #f8fafc !important;
+        border-left-color: #94a3b8 !important;
     }
     .block-type {
         display: inline-block;
@@ -308,24 +324,36 @@ ob_start();
     </div>
 </div>
 
-<form method="post" action="<?= pixelhub_url('/agenda/bloco/quick-add') ?>" id="quick-add-form" style="display: grid; grid-template-columns: 1fr 120px 80px 80px auto; gap: 8px; align-items: center; margin-bottom: 12px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
+<form method="post" action="<?= pixelhub_url('/agenda/bloco/quick-add') ?>" id="quick-add-form" style="margin-bottom: 12px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
     <input type="hidden" name="data" value="<?= htmlspecialchars($dataAtualIso ?? $dataStr) ?>">
     <input type="hidden" name="task_id" id="quick-add-task-id" value="">
-    <select name="project_id" id="quick-add-project" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-        <option value="">Atividade avulsa</option>
-        <?php foreach ($projetos as $p): ?>
-            <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['name']) ?></option>
-        <?php endforeach; ?>
-    </select>
-    <select name="tipo_id" required style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-        <option value="">Tipo</option>
-        <?php foreach ($tipos as $t): ?>
-            <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
-        <?php endforeach; ?>
-    </select>
-    <input type="time" name="hora_inicio" required placeholder="Início" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-    <input type="time" name="hora_fim" required placeholder="Fim" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-    <button type="submit" class="btn btn-nav btn-nav-primary">Adicionar</button>
+    <div style="display: grid; grid-template-columns: 1fr 120px 80px 80px auto; gap: 8px; align-items: center;">
+        <select name="project_id" id="quick-add-project" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+            <option value="">Atividade avulsa</option>
+            <?php foreach ($projetos as $p): ?>
+                <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['name']) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <select name="tipo_id" required style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+            <option value="">Tipo</option>
+            <?php foreach ($tipos as $t): ?>
+                <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <input type="time" name="hora_inicio" required placeholder="Início" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+        <input type="time" name="hora_fim" required placeholder="Fim" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+        <button type="submit" class="btn btn-nav btn-nav-primary">Adicionar</button>
+    </div>
+    <div style="display: grid; grid-template-columns: 180px 1fr; gap: 8px; align-items: center; margin-top: 10px;">
+        <select name="tenant_id" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+            <option value="">Cliente (opcional)</option>
+            <?php foreach ($tenants ?? [] as $tn): ?>
+                <?php $nome = !empty($tn['nome_fantasia']) && ($tn['person_type'] ?? '') === 'pj' ? $tn['nome_fantasia'] : ($tn['name'] ?? ''); ?>
+                <option value="<?= (int)$tn['id'] ?>"><?= htmlspecialchars($nome) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <input type="text" name="resumo" placeholder="Observação (opcional)" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+    </div>
 </form>
 
 <div id="quick-add-tasks-area" style="display: none; margin-bottom: 16px; padding: 12px 16px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; min-height: 60px;">
@@ -393,90 +421,47 @@ ob_start();
             <?php 
             $isCurrent = ($bloco['id'] === $blocoAtualId);
             $corBorda = htmlspecialchars($bloco['tipo_cor'] ?? '#ddd');
+            $projetoNome = !empty($bloco['projeto_foco_nome']) ? $bloco['projeto_foco_nome'] : (!empty($bloco['block_tenant_name']) ? $bloco['block_tenant_name'] : 'Atividade avulsa');
             ?>
-            <div class="block-card <?= $isCurrent ? 'current' : '' ?>" style="border-left-color: <?= $corBorda ?>">
-                <div class="block-header">
-                    <div style="flex: 1;">
-                        <div class="block-time">
-                            <strong>Planejado:</strong> <?= date('H:i', strtotime($bloco['hora_inicio'])) ?> – <?= date('H:i', strtotime($bloco['hora_fim'])) ?>
-                            <?php if ($isCurrent): ?>
-                                <span style="font-size: 12px; color: #1976d2; margin-left: 8px; font-weight: normal;">● Agora</span>
-                            <?php endif; ?>
-                        </div>
-                        <?php if (!empty($bloco['hora_inicio_real']) || !empty($bloco['hora_fim_real'])): ?>
-                            <div style="font-size: 12px; color: #555; margin-top: 4px;">
-                                <strong>Real:</strong> 
-                                <?= !empty($bloco['hora_inicio_real']) ? date('H:i', strtotime($bloco['hora_inicio_real'])) : '??:??' ?>
-                                –
-                                <?= !empty($bloco['hora_fim_real']) ? date('H:i', strtotime($bloco['hora_fim_real'])) : '??:??' ?>
-                            </div>
-                        <?php endif; ?>
-                        <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                            <span class="block-type" style="background: <?= $corBorda ?>">
-                                <?= htmlspecialchars($bloco['tipo_nome']) ?>
-                            </span>
-                            <span class="block-status status-<?= htmlspecialchars($bloco['status']) ?>">
-                                <?php
-                                $statusLabels = [
-                                    'planned' => 'Planejado',
-                                    'ongoing' => 'Em Andamento',
-                                    'completed' => 'Concluído',
-                                    'partial' => 'Parcial',
-                                    'canceled' => 'Cancelado',
-                                ];
-                                echo $statusLabels[$bloco['status']] ?? $bloco['status'];
-                                ?>
-                            </span>
-                            <span class="tarefas-count">
-                                <?= (int)$bloco['tarefas_count'] ?> tarefa(s)
-                            </span>
-                        </div>
-                        <?php if (!empty($bloco['focus_task_title'])): ?>
-                            <div style="font-size: 13px; color: #555; margin-top: 8px; padding: 8px; background: #f0f8ff; border-radius: 4px; border-left: 3px solid #2196F3;">
-                                <strong style="color: #1976d2;">Tarefa Foco:</strong> <?= htmlspecialchars($bloco['focus_task_title']) ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                
-                <?php if ($bloco['projeto_foco_nome']): ?>
-                    <div class="block-info" style="margin-top: 10px;">
-                        <strong>Projeto Foco:</strong> <?= htmlspecialchars($bloco['projeto_foco_nome']) ?>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if ($bloco['resumo']): ?>
-                    <div class="block-info" style="margin-top: 8px; padding: 10px; background: #f9f9f9; border-radius: 4px;">
-                        <strong>Resumo:</strong> <?= nl2br(htmlspecialchars($bloco['resumo'])) ?>
-                    </div>
-                <?php endif; ?>
-                
-                <div class="block-actions">
-                    <a href="<?= pixelhub_url('/agenda/bloco?id=' . $bloco['id']) ?>" class="btn btn-primary">Abrir Bloco</a>
-                    <a href="<?= pixelhub_url('/agenda/bloco/editar?id=' . $bloco['id']) ?>" class="btn btn-outline">Editar</a>
-                    <?php if (!empty($agendaTaskContext)): ?>
-                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/attach-task') ?>" style="display: inline-block;">
-                            <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
-                            <input type="hidden" name="task_id" value="<?= (int)$agendaTaskContext['id'] ?>">
-                            <button type="submit" class="btn btn-outline">Vincular tarefa</button>
-                        </form>
+            <div class="block-row <?= $isCurrent ? 'current' : '' ?>" 
+                 data-block-id="<?= (int)$bloco['id'] ?>"
+                 style="border-left-color: <?= $corBorda ?>"
+                 onclick="openBlockEdit(<?= (int)$bloco['id'] ?>)">
+                <div class="block-main">
+                    <span class="block-project"><?= htmlspecialchars($projetoNome) ?></span>
+                    <?php if (!empty($bloco['focus_task_title'])): ?>
+                        <span class="block-task">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></span>
                     <?php endif; ?>
+                </div>
+                <span class="block-type" style="background: <?= $corBorda ?>; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: white;">
+                    <?= htmlspecialchars($bloco['tipo_nome']) ?>
+                </span>
+                <span class="block-time"><?= date('H:i', strtotime($bloco['hora_inicio'])) ?> – <?= date('H:i', strtotime($bloco['hora_fim'])) ?><?php if ($isCurrent): ?> <span style="color: #1976d2; font-size: 11px;">● Agora</span><?php endif; ?></span>
+                <div class="block-actions-row">
                     <?php if ($bloco['status'] === 'planned'): ?>
-                        <button onclick="startBlock(<?= $bloco['id'] ?>)" class="btn btn-outline btn-outline-success">Iniciar</button>
+                        <button type="button" class="btn btn-outline btn-outline-success" style="padding: 4px 10px; font-size: 12px;" onclick="event.stopPropagation(); startBlock(<?= $bloco['id'] ?>)">Iniciar</button>
                     <?php endif; ?>
                     <?php if ($bloco['status'] === 'completed'): ?>
-                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/reopen') ?>" style="display: inline-block;">
+                        <form method="post" action="<?= pixelhub_url('/agenda/bloco/reopen') ?>" style="display: inline;" onsubmit="return confirm('Reabrir este bloco?');">
                             <input type="hidden" name="id" value="<?= (int)$bloco['id'] ?>">
                             <input type="hidden" name="date" value="<?= htmlspecialchars($dataStr) ?>">
-                            <button type="submit" class="btn btn-outline" onclick="return confirm('Reabrir este bloco? O status voltará para Planejado e os horários reais serão resetados.');">Reabrir</button>
+                            <button type="submit" class="btn btn-outline" style="padding: 4px 10px; font-size: 12px;" onclick="event.stopPropagation()">Reabrir</button>
                         </form>
                     <?php endif; ?>
+                    <a href="<?= pixelhub_url('/agenda/bloco?id=' . $bloco['id']) ?>" class="btn btn-outline" style="padding: 4px 10px; font-size: 12px;" onclick="event.stopPropagation()">Abrir</a>
                     <?php if (in_array($bloco['status'], ['planned', 'ongoing'])): ?>
-                        <div class="block-actions-more">
-                            <button type="button" class="btn btn-link-more" onclick="toggleBlockMenu(this)" aria-label="Mais ações">⋯</button>
+                        <div class="block-actions-more" style="display: inline-block;">
+                            <button type="button" class="btn btn-link-more" onclick="event.stopPropagation(); toggleBlockMenu(this)" aria-label="Mais">⋯</button>
                             <div class="block-actions-dropdown">
-                                <button type="button" class="btn btn-link" onclick="cancelBlock(<?= $bloco['id'] ?>)">Cancelar</button>
-                                <form method="post" action="<?= pixelhub_url('/agenda/bloco/delete') ?>" onsubmit="return confirm('Tem certeza que deseja EXCLUIR este bloco? Esta ação não poderá ser desfeita.');">
+                                <?php if (!empty($agendaTaskContext)): ?>
+                                <form method="post" action="<?= pixelhub_url('/agenda/bloco/attach-task') ?>" style="margin: 0;">
+                                    <input type="hidden" name="block_id" value="<?= (int)$bloco['id'] ?>">
+                                    <input type="hidden" name="task_id" value="<?= (int)$agendaTaskContext['id'] ?>">
+                                    <button type="submit" class="btn btn-link">Vincular tarefa</button>
+                                </form>
+                                <?php endif; ?>
+                                <button type="button" class="btn btn-link" onclick="cancelBlock(<?= $bloco['id'] ?>)">Cancelar bloco</button>
+                                <form method="post" action="<?= pixelhub_url('/agenda/bloco/delete') ?>" onsubmit="return confirm('Excluir este bloco?');">
                                     <input type="hidden" name="id" value="<?= (int)$bloco['id'] ?>">
                                     <input type="hidden" name="date" value="<?= htmlspecialchars($dataStr) ?>">
                                     <button type="submit" class="btn btn-link-danger">Excluir</button>
@@ -485,6 +470,28 @@ ob_start();
                         </div>
                     <?php endif; ?>
                 </div>
+            </div>
+            <!-- Linha de edição inline (oculta por padrão, aparece ao clicar na linha) -->
+            <div class="block-row block-row-edit" id="block-edit-<?= $bloco['id'] ?>" style="display: none; margin-bottom: 4px; cursor: default;" onclick="event.stopPropagation()">
+                <form class="block-inline-form" data-block-id="<?= (int)$bloco['id'] ?>" style="display: contents;">
+                    <select name="projeto_foco_id" style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                        <option value="">Atividade avulsa</option>
+                        <?php foreach ($projetos as $p): ?>
+                            <option value="<?= (int)$p['id'] ?>" <?= ($bloco['projeto_foco_id'] ?? 0) == $p['id'] ? 'selected' : '' ?>><?= htmlspecialchars($p['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select name="tipo_id" required style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                        <?php foreach ($tipos as $t): ?>
+                            <option value="<?= (int)$t['id'] ?>" <?= $bloco['tipo_id'] == $t['id'] ? 'selected' : '' ?>><?= htmlspecialchars($t['nome']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <input type="time" name="hora_inicio" value="<?= htmlspecialchars(substr($bloco['hora_inicio'], 0, 5)) ?>" required style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                    <input type="time" name="hora_fim" value="<?= htmlspecialchars(substr($bloco['hora_fim'], 0, 5)) ?>" required style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                    <div style="display: flex; gap: 4px;">
+                        <button type="submit" class="btn btn-nav btn-nav-primary" style="padding: 6px 12px; font-size: 12px;">Salvar</button>
+                        <button type="button" class="btn btn-outline block-cancel-edit" style="padding: 6px 12px; font-size: 12px;">Cancelar</button>
+                    </div>
+                </form>
             </div>
         <?php endforeach; ?>
     <?php endif; ?>
@@ -746,6 +753,63 @@ document.addEventListener('click', function(e) {
     if (!e.target.closest('.block-actions-more')) {
         document.querySelectorAll('.block-actions-dropdown.show').forEach(d => d.classList.remove('show'));
     }
+});
+
+// Edição inline de blocos
+function openBlockEdit(blockId) {
+    document.querySelectorAll('.block-row-edit').forEach(editRow => {
+        editRow.style.display = 'none';
+        const v = editRow.previousElementSibling;
+        if (v && v.classList.contains('block-row')) v.style.display = 'grid';
+    });
+    const editRow = document.getElementById('block-edit-' + blockId);
+    const viewRow = editRow ? editRow.previousElementSibling : null;
+    if (editRow && viewRow) {
+        viewRow.style.display = 'none';
+        editRow.style.display = 'grid';
+    }
+}
+function closeBlockEdit(blockId) {
+    const editRow = document.getElementById('block-edit-' + blockId);
+    const viewRow = editRow ? editRow.previousElementSibling : null;
+    if (editRow && viewRow) {
+        editRow.style.display = 'none';
+        viewRow.style.display = 'grid';
+    }
+}
+document.querySelectorAll('.block-cancel-edit').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const form = this.closest('.block-inline-form');
+        const blockId = form ? form.dataset.blockId : null;
+        if (blockId) closeBlockEdit(blockId);
+    });
+});
+document.querySelectorAll('.block-inline-form').forEach(form => {
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const blockId = this.dataset.blockId;
+        const formData = new FormData(this);
+        formData.append('id', blockId);
+        const data = {};
+        formData.forEach((v, k) => data[k] = v);
+        fetch('<?= pixelhub_url('/agenda/bloco/editar') ?>', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams(data).toString()
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.success) {
+                location.reload();
+            } else {
+                alert(res.error || 'Erro ao salvar');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Erro ao salvar');
+        });
+    });
 });
 </script>
 

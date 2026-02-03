@@ -389,6 +389,7 @@ class AgendaService
         $horaInicio = isset($dados['hora_inicio']) ? trim($dados['hora_inicio']) : $bloco['hora_inicio'];
         $horaFim = isset($dados['hora_fim']) ? trim($dados['hora_fim']) : $bloco['hora_fim'];
         $tipoId = isset($dados['tipo_id']) ? (int)$dados['tipo_id'] : $bloco['tipo_id'];
+        $projetoFocoId = isset($dados['projeto_foco_id']) ? ($dados['projeto_foco_id'] ? (int)$dados['projeto_foco_id'] : null) : $bloco['projeto_foco_id'];
         
         // Valida horário de início < horário de fim
         if ($horaInicio >= $horaFim) {
@@ -427,9 +428,9 @@ class AgendaService
         $horaInicioReal = isset($dados['hora_inicio_real']) && $dados['hora_inicio_real'] !== '' ? trim($dados['hora_inicio_real']) : null;
         $horaFimReal = isset($dados['hora_fim_real']) && $dados['hora_fim_real'] !== '' ? trim($dados['hora_fim_real']) : null;
         
-        // Monta query dinamicamente para incluir horários reais se fornecidos
-        $fields = ['hora_inicio = ?', 'hora_fim = ?', 'tipo_id = ?', 'duracao_planejada = ?', 'updated_at = NOW()'];
-        $values = [$horaInicio, $horaFim, $tipoId, $duracaoMinutos];
+        // Monta query dinamicamente para incluir horários reais e projeto_foco se fornecidos
+        $fields = ['hora_inicio = ?', 'hora_fim = ?', 'tipo_id = ?', 'projeto_foco_id = ?', 'duracao_planejada = ?', 'updated_at = NOW()'];
+        $values = [$horaInicio, $horaFim, $tipoId, $projetoFocoId, $duracaoMinutos];
         
         if ($horaInicioReal !== null) {
             $fields[] = 'hora_inicio_real = ?';
@@ -514,12 +515,16 @@ class AgendaService
         
         // Projeto foco (opcional)
         $projetoFocoId = isset($dados['projeto_foco_id']) && (int)$dados['projeto_foco_id'] > 0 ? (int)$dados['projeto_foco_id'] : null;
+        // Cliente (opcional, para atividades avulsas comerciais)
+        $tenantId = isset($dados['tenant_id']) && (int)$dados['tenant_id'] > 0 ? (int)$dados['tenant_id'] : null;
+        // Observação/resumo (opcional, pode ser preenchido na criação)
+        $resumo = isset($dados['resumo']) && trim($dados['resumo']) !== '' ? trim($dados['resumo']) : null;
         
-        // Insere o bloco
+        // Insere o bloco (tenant_id e resumo opcionais)
         $stmt = $db->prepare("
             INSERT INTO agenda_blocks 
-            (data, hora_inicio, hora_fim, tipo_id, projeto_foco_id, status, duracao_planejada, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'planned', ?, NOW(), NOW())
+            (data, hora_inicio, hora_fim, tipo_id, projeto_foco_id, tenant_id, resumo, status, duracao_planejada, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'planned', ?, NOW(), NOW())
         ");
         $stmt->execute([
             $dataStr,
@@ -527,6 +532,8 @@ class AgendaService
             $horaFim,
             $tipoId,
             $projetoFocoId,
+            $tenantId,
+            $resumo,
             $duracaoMinutos,
         ]);
         
@@ -1097,6 +1104,7 @@ class AgendaService
         }
         
         // Constrói a query completa antes de preparar
+        // tn_block: cliente vinculado diretamente ao bloco (atividades avulsas comerciais)
         $sql = "
             SELECT 
                 b.*,
@@ -1104,12 +1112,14 @@ class AgendaService
                 bt.codigo as tipo_codigo,
                 bt.cor_hex as tipo_cor,
                 p.name as projeto_foco_nome,
+                COALESCE(NULLIF(tn_block.nome_fantasia, ''), tn_block.name) as block_tenant_name,
                 t_focus.title as focus_task_title,
                 t_focus.status as focus_task_status,
                 " . $tasksCountSubquery . " as tarefas_count
             FROM agenda_blocks b
             INNER JOIN agenda_block_types bt ON b.tipo_id = bt.id
             LEFT JOIN projects p ON b.projeto_foco_id = p.id
+            LEFT JOIN tenants tn_block ON b.tenant_id = tn_block.id
             LEFT JOIN tasks t_focus ON b.focus_task_id = t_focus.id
             WHERE b.data = ?
             ORDER BY b.hora_inicio ASC

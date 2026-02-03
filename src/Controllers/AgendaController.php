@@ -154,11 +154,22 @@ class AgendaController extends Controller
             error_log("Erro ao buscar projetos: " . $e->getMessage());
         }
         
+        // Busca clientes (tenants) para atividades avulsas comerciais
+        $tenants = [];
+        try {
+            $db = \PixelHub\Core\DB::getConnection();
+            $stmt = $db->query("SELECT id, name, nome_fantasia, person_type FROM tenants WHERE status = 'active' ORDER BY name ASC");
+            $tenants = $stmt->fetchAll();
+        } catch (\Exception $e) {
+            error_log("Erro ao buscar clientes: " . $e->getMessage());
+        }
+        
         // Prepara data no formato ISO para o input date
         $dataAtualIso = $data->format('Y-m-d');
         
         $this->view('agenda.index', [
             'blocos' => $blocos,
+            'tenants' => $tenants,
             'data' => $data,
             'dataStr' => $dataStr,
             'dataAtualIso' => $dataAtualIso,
@@ -1030,16 +1041,23 @@ class AgendaController extends Controller
     }
     
     /**
-     * Atualiza um bloco existente
+     * Atualiza um bloco existente.
+     * Se for AJAX, retorna JSON. Caso contrário, redireciona.
      */
     public function updateBlock(): void
     {
         Auth::requireInternal();
         
         $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+        $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
         
         if ($id <= 0) {
-            $this->json(['error' => 'ID inválido'], 400);
+            if ($isAjax) {
+                $this->json(['error' => 'ID inválido'], 400);
+            } else {
+                header('Location: ' . pixelhub_url('/agenda/blocos'));
+                exit;
+            }
             return;
         }
         
@@ -1049,8 +1067,11 @@ class AgendaController extends Controller
                 'hora_fim' => trim($_POST['hora_fim'] ?? ''),
                 'tipo_id' => isset($_POST['tipo_id']) ? (int)$_POST['tipo_id'] : 0,
             ];
+            if (array_key_exists('projeto_foco_id', $_POST)) {
+                $dados['projeto_foco_id'] = isset($_POST['projeto_foco_id']) && $_POST['projeto_foco_id'] !== '' ? (int)$_POST['projeto_foco_id'] : null;
+            }
             
-            // Horários reais (opcionais)
+            // Horários reais (opcionais, apenas no formulário completo)
             if (isset($_POST['hora_inicio_real']) && $_POST['hora_inicio_real'] !== '') {
                 $dados['hora_inicio_real'] = trim($_POST['hora_inicio_real']);
             }
@@ -1060,21 +1081,37 @@ class AgendaController extends Controller
             
             AgendaService::updateBlock($id, $dados);
             
-            // Busca o bloco atualizado para pegar a data
-            $bloco = AgendaService::getBlockById($id);
-            $dataStr = $bloco['data'];
+            if ($isAjax) {
+                $bloco = AgendaService::getBlockById($id);
+                $this->json([
+                    'success' => true,
+                    'bloco' => [
+                        'id' => $bloco['id'],
+                        'hora_inicio' => $bloco['hora_inicio'],
+                        'hora_fim' => $bloco['hora_fim'],
+                        'tipo_id' => $bloco['tipo_id'],
+                        'tipo_nome' => $bloco['tipo_nome'] ?? null,
+                        'tipo_cor' => $bloco['tipo_cor'] ?? null,
+                        'projeto_foco_nome' => $bloco['projeto_foco_nome'] ?? null,
+                        'focus_task_title' => $bloco['focus_task_title'] ?? null,
+                    ],
+                ]);
+                return;
+            }
             
-            // Redireciona para a agenda do dia
-            header('Location: ' . pixelhub_url('/agenda?data=' . $dataStr));
+            $bloco = AgendaService::getBlockById($id);
+            header('Location: ' . pixelhub_url('/agenda/blocos?data=' . $bloco['data']));
             exit;
             
         } catch (\RuntimeException $e) {
-            // Erro de validação - volta para o formulário com mensagem
+            if ($isAjax) {
+                $this->json(['error' => $e->getMessage()], 400);
+                return;
+            }
             $bloco = AgendaService::getBlockById($id);
             $db = \PixelHub\Core\DB::getConnection();
             $stmt = $db->query("SELECT * FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC");
             $tipos = $stmt->fetchAll();
-            
             $this->view('agenda.edit_block', [
                 'bloco' => $bloco,
                 'tipos' => $tipos,
@@ -1187,12 +1224,17 @@ class AgendaController extends Controller
             exit;
         }
         
+        $tenantId = isset($_POST['tenant_id']) && $_POST['tenant_id'] !== '' ? (int)$_POST['tenant_id'] : null;
+        $resumo = isset($_POST['resumo']) ? trim($_POST['resumo']) : null;
+        
         try {
             $dados = [
                 'hora_inicio' => $horaInicio,
                 'hora_fim' => $horaFim,
                 'tipo_id' => $tipoId,
                 'projeto_foco_id' => $projectId,
+                'tenant_id' => $tenantId > 0 ? $tenantId : null,
+                'resumo' => $resumo !== '' ? $resumo : null,
             ];
             $blockId = AgendaService::createManualBlock($data, $dados);
             if ($taskId > 0) {
