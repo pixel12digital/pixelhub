@@ -492,6 +492,7 @@ $baseUrl = pixelhub_url('/agenda');
 <?php if ($viewMode === 'quadro'): ?>
 </div><!-- .agenda-quadro-outer -->
 <?php endif; ?>
+<?php endif; ?><!-- fecha if viewMode lista/quadro -->
 
 <script>
 const baseUrl = '<?= $baseUrl ?>';

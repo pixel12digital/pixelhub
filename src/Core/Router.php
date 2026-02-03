@@ -283,7 +283,7 @@ class Router
                 $errorMsg .= "\nStack trace:\n" . $e->getTraceAsString();
                 $errorMsg .= "\nController: {$controllerClass}";
                 $errorMsg .= "\nMethod: {$method}";
-                $errorMsg .= "\nPath: {$path}";
+                $errorMsg .= "\nPath: " . ($path ?? 'n/a');
                 
                 if (function_exists('pixelhub_log')) {
                     pixelhub_log($errorMsg);
