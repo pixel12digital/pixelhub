@@ -182,6 +182,13 @@ table tr:hover { background: #f9f9f9; }
         <div style="font-size: 12px; color: #64748b;"><?= (int)($dash['outros_pct'] ?? 0) ?>%</div>
     </div>
     <?php endif; ?>
+    <?php if (($dash['nao_registrado_min'] ?? 0) > 0): ?>
+    <div class="dashboard-card" style="border-left-color: #94a3b8;">
+        <h4>Tempo não registrado</h4>
+        <div class="value"><?= round(($dash['nao_registrado_min'] ?? 0) / 60, 1) ?>h</div>
+        <div style="font-size: 12px; color: #64748b;"><?= (int)($dash['nao_registrado_pct'] ?? 0) ?>%</div>
+    </div>
+    <?php endif; ?>
 </div>
 
 <?php if (!empty($dash['por_tipo_detalle'])): ?>
@@ -270,10 +277,16 @@ table tr:hover { background: #f9f9f9; }
                     <td><?= htmlspecialchars($r['cliente_nome'] ?? '—') ?></td>
                     <td><?= htmlspecialchars($r['tarefa_titulo'] ?? '—') ?></td>
                     <td>
-                        <?php $st = $r['status'] ?? ''; ?>
-                        <span class="badge <?= $st === 'completed' ? 'badge-success' : ($st === 'partial' ? 'badge-warning' : ($st === 'canceled' ? 'badge-danger' : 'badge-info')) ?>">
-                            <?= $st === 'completed' ? 'Concluído' : ($st === 'partial' ? 'Parcial' : ($st === 'canceled' ? 'Cancelado' : 'Planejado')) ?>
-                        </span>
+                        <?php
+                        $isGap = !empty($r['is_gap']);
+                        $st = $r['status'] ?? '';
+                        if ($isGap): ?>
+                            <span class="badge badge-info" style="background:#e2e8f0;color:#64748b;">Ocioso</span>
+                        <?php else: ?>
+                            <span class="badge <?= $st === 'completed' ? 'badge-success' : ($st === 'partial' ? 'badge-warning' : ($st === 'canceled' ? 'badge-danger' : 'badge-info')) ?>">
+                                <?= $st === 'completed' ? 'Concluído' : ($st === 'partial' ? 'Parcial' : ($st === 'canceled' ? 'Cancelado' : 'Planejado')) ?>
+                            </span>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>

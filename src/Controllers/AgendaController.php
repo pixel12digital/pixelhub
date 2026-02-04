@@ -811,11 +811,15 @@ class AgendaController extends Controller
             }
             
             // Encerra o bloco com resumo
-            AgendaService::finishBlock($blockId, null, $resumo);
+            $result = AgendaService::finishBlock($blockId, null, $resumo);
             
             // Redireciona para a agenda do dia com mensagem de sucesso
             $dataStr = $bloco['data'];
-            header('Location: ' . pixelhub_url('/agenda?data=' . urlencode($dataStr) . '&sucesso=' . urlencode('Bloco encerrado com sucesso.')));
+            $sucessoMsg = 'Bloco encerrado com sucesso.';
+            if (!empty($result['auto_adjusted'])) {
+                $sucessoMsg .= ' Fim do bloco ajustado para o horário da última tarefa.';
+            }
+            header('Location: ' . pixelhub_url('/agenda?data=' . urlencode($dataStr) . '&sucesso=' . urlencode($sucessoMsg)));
             exit;
         } catch (\RuntimeException $e) {
             error_log("Erro ao encerrar bloco: " . $e->getMessage());

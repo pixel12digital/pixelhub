@@ -62,6 +62,11 @@ class AgendaReportService
 
         $hasBlocoCategoria = self::hasBlocoCategoriaColumn($db);
         $blocoCategoriaSelect = $hasBlocoCategoria ? "bt.bloco_categoria," : "NULL as bloco_categoria,";
+        $hasRealTime = self::hasRealTimeColumns($db);
+        $realTimeSelect = $hasRealTime ? "b.hora_inicio_real, b.hora_fim_real," : "NULL as hora_inicio_real, NULL as hora_fim_real,";
+        $duracaoExpr = $hasRealTime
+            ? "COALESCE(b.duracao_real, TIMESTAMPDIFF(MINUTE, CONCAT(b.data,' ',COALESCE(b.hora_inicio_real,b.hora_inicio)), CONCAT(b.data,' ',COALESCE(b.hora_fim_real,b.hora_fim))), b.duracao_planejada, TIMESTAMPDIFF(MINUTE, CONCAT(b.data,' ',b.hora_inicio), CONCAT(b.data,' ',b.hora_fim)))"
+            : "COALESCE(b.duracao_real, b.duracao_planejada, TIMESTAMPDIFF(MINUTE, CONCAT(b.data,' ',b.hora_inicio), CONCAT(b.data,' ',b.hora_fim)))";
         $sql = "
             SELECT 
                 b.id,
@@ -69,8 +74,8 @@ class AgendaReportService
                 b.data,
                 b.hora_inicio,
                 b.hora_fim,
-                COALESCE(b.duracao_real, b.duracao_planejada, 
-                    TIMESTAMPDIFF(MINUTE, CONCAT(b.data,' ',b.hora_inicio), CONCAT(b.data,' ',b.hora_fim))) as duracao_min,
+                $realTimeSelect
+                $duracaoExpr as duracao_min,
                 bt.nome as tipo_nome,
                 COALESCE(bt.codigo, bt.nome, '') as tipo_codigo,
                 $blocoCategoriaSelect
@@ -108,12 +113,91 @@ class AgendaReportService
     }
 
     /**
+     * Injeta itens de "Tempo não registrado / Ocioso" nos intervalos entre blocos.
+     * O intervalo entre block_end de um bloco e hora_inicio do próximo aparece como gap.
+     *
+     * @param array $items Itens retornados por getAgendaItemsForPeriod
+     * @return array Itens + gaps, ordenados por data e hora_inicio
+     */
+    public static function injectGapItems(array $items): array
+    {
+        $byDate = [];
+        foreach ($items as $r) {
+            $data = $r['data'] ?? '';
+            if ($data === '') continue;
+            $byDate[$data][] = $r;
+        }
+
+        $result = [];
+        foreach ($byDate as $data => $blocos) {
+            usort($blocos, function ($a, $b) {
+                $hiA = $a['hora_inicio'] ?? '00:00:00';
+                $hiB = $b['hora_inicio'] ?? '00:00:00';
+                return strcmp($hiA, $hiB);
+            });
+
+            foreach ($blocos as $i => $bloco) {
+                $result[] = $bloco;
+
+                $blockEnd = !empty($bloco['hora_fim_real']) ? trim($bloco['hora_fim_real']) : trim($bloco['hora_fim'] ?? '');
+                $next = $blocos[$i + 1] ?? null;
+                if ($next === null) continue;
+
+                $nextStart = !empty($next['hora_inicio_real']) ? trim($next['hora_inicio_real']) : trim($next['hora_inicio'] ?? '');
+                if ($blockEnd === '' || $nextStart === '' || $blockEnd >= $nextStart) continue;
+
+                $startTs = strtotime($data . ' ' . $blockEnd);
+                $endTs = strtotime($data . ' ' . $nextStart);
+                if ($startTs === false || $endTs === false || $endTs <= $startTs) continue;
+
+                $duracaoMin = (int) round(($endTs - $startTs) / 60);
+                if ($duracaoMin <= 0) continue;
+
+                $result[] = [
+                    'id' => null,
+                    'tipo_id' => null,
+                    'data' => $data,
+                    'hora_inicio' => substr($blockEnd, 0, 8),
+                    'hora_fim' => substr($nextStart, 0, 8),
+                    'hora_inicio_real' => null,
+                    'hora_fim_real' => null,
+                    'duracao_min' => $duracaoMin,
+                    'tipo_nome' => 'Tempo não registrado',
+                    'tipo_codigo' => 'OCIOSO',
+                    'bloco_categoria' => null,
+                    'categoria_atividade' => 'Ocioso',
+                    'projeto_foco_id' => null,
+                    'projeto_nome' => null,
+                    'cliente_nome' => '—',
+                    'tarefa_titulo' => null,
+                    'status' => null,
+                    'resumo' => null,
+                    'is_gap' => true,
+                ];
+            }
+        }
+
+        usort($result, function ($a, $b) {
+            $cmp = strcmp($a['data'] ?? '', $b['data'] ?? '');
+            if ($cmp !== 0) return $cmp;
+            $hiA = $a['hora_inicio'] ?? '00:00:00';
+            $hiB = $b['hora_inicio'] ?? '00:00:00';
+            return strcmp($hiA, $hiB);
+        });
+
+        return $result;
+    }
+
+    /**
      * Resolve categoria do bloco por referência (bloco_categoria ou tipo_id).
      * Prioridade: bloco_categoria do banco > fallback por codigo.
      * Outros apenas se: tipo_id nulo, tipo inexistente ou categoria não resolvível.
      */
     private static function resolveBlockCategory(array $row): string
     {
+        if (!empty($row['is_gap'])) {
+            return 'Tempo não registrado';
+        }
         $tipoId = $row['tipo_id'] ?? null;
         $blocoCategoria = trim(strtolower($row['bloco_categoria'] ?? ''));
         $codigo = $row['tipo_codigo'] ?? '';
@@ -179,6 +263,7 @@ class AgendaReportService
     public static function getDashboardData(string $dataInicio, string $dataFim, array $filters = []): array
     {
         $items = self::getAgendaItemsForPeriod($dataInicio, $dataFim, $filters);
+        $items = self::injectGapItems($items);
 
         $totalMinutos = 0;
         $porTipo = [];
@@ -189,8 +274,9 @@ class AgendaReportService
         $comercialMin = 0;
         $pausasMin = 0;
         $outrosMin = 0;
+        $naoRegistradoMin = 0;
 
-        $porBucketBlocos = ['Produção' => 0, 'Comercial' => 0, 'Pausas' => 0, 'Outros' => 0];
+        $porBucketBlocos = ['Produção' => 0, 'Comercial' => 0, 'Pausas' => 0, 'Outros' => 0, 'Tempo não registrado' => 0];
 
         foreach ($items as $r) {
             $min = (int)($r['duracao_min'] ?? 0);
@@ -208,6 +294,7 @@ class AgendaReportService
             if ($bucket === 'Produção') $producaoMin += $min;
             elseif ($bucket === 'Comercial') $comercialMin += $min;
             elseif ($bucket === 'Pausas') $pausasMin += $min;
+            elseif ($bucket === 'Tempo não registrado') $naoRegistradoMin += $min;
             else $outrosMin += $min;
 
             // Top Projetos: apenas itens com projeto_id e que NÃO sejam Pausas
@@ -238,9 +325,9 @@ class AgendaReportService
         $outrosHoras = $outrosMin / 60;
         $showOutros = $outrosMin > 0 && ($outrosHoras > 0.3 || $pct($outrosMin) > 5);
 
-        // por_tipo_detalle: buckets (Produção/Comercial/Pausas/Outros) para bater com os cards
+        // por_tipo_detalle: buckets (Produção/Comercial/Pausas/Outros/Tempo não registrado) para bater com os cards
         $porTipoDetalle = [];
-        foreach (['Produção', 'Comercial', 'Pausas', 'Outros'] as $b) {
+        foreach (['Produção', 'Comercial', 'Pausas', 'Outros', 'Tempo não registrado'] as $b) {
             $min = $porTipo[$b] ?? 0;
             if ($min > 0 && ($b !== 'Outros' || $showOutros)) {
                 $porTipoDetalle[] = [
@@ -270,6 +357,8 @@ class AgendaReportService
             'comercial_pct' => $pct($comercialMin),
             'pausas_pct' => $pct($pausasMin),
             'outros_pct' => $pct($outrosMin),
+            'nao_registrado_min' => $naoRegistradoMin,
+            'nao_registrado_pct' => $pct($naoRegistradoMin),
         ];
     }
 
@@ -309,7 +398,7 @@ class AgendaReportService
         $report = AgendaService::getReportForDateRange($dataInicio, $dataFim);
 
         $items = self::getAgendaItemsForPeriod($dataInicio, $dataFim, $filters);
-        $report['itens_agenda'] = $items;
+        $report['itens_agenda'] = self::injectGapItems($items);
         $report['dashboard'] = self::getDashboardData($dataInicio, $dataFim, $filters);
         $report['tarefas_com_vinculo'] = self::getTasksWithAgendaLink($dataInicio, $dataFim, $filters);
 
@@ -340,6 +429,16 @@ class AgendaReportService
     {
         try {
             $stmt = $db->query("SHOW COLUMNS FROM agenda_block_types LIKE 'bloco_categoria'");
+            return $stmt->rowCount() > 0;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private static function hasRealTimeColumns(\PDO $db): bool
+    {
+        try {
+            $stmt = $db->query("SHOW COLUMNS FROM agenda_blocks LIKE 'hora_inicio_real'");
             return $stmt->rowCount() > 0;
         } catch (\Throwable $e) {
             return false;

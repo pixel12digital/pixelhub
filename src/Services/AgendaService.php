@@ -2300,14 +2300,15 @@ class AgendaService
     
     /**
      * Encerra um bloco (registra horário real de fim e muda status para completed)
-     * 
+     * Auto-ajusta hora_fim/hora_fim_real para o maior task_hora_fim quando há 2+ tarefas com início/fim preenchidos.
+     *
      * @param int $blockId ID do bloco
      * @param \DateTimeInterface|null $horaFimReal Horário real de fim (null = usa hora atual)
      * @param string|null $resumo Resumo do bloco (obrigatório)
-     * @return void
+     * @return array ['auto_adjusted' => bool] Se o fim do bloco foi ajustado para a última tarefa
      * @throws \RuntimeException Se o bloco não for encontrado ou resumo não fornecido
      */
-    public static function finishBlock(int $blockId, ?\DateTimeInterface $horaFimReal = null, ?string $resumo = null): void
+    public static function finishBlock(int $blockId, ?\DateTimeInterface $horaFimReal = null, ?string $resumo = null): array
     {
         $db = DB::getConnection();
         
@@ -2342,6 +2343,25 @@ class AgendaService
             }
         }
         
+        $autoAdjusted = false;
+        
+        // Auto-ajuste: se há 2+ tarefas com início e fim preenchidos, usar o maior task_hora_fim como fim do bloco
+        $tasks = self::getTasksByBlock($blockId);
+        $tasksWithTimes = array_filter($tasks, fn($t) => !empty($t['task_hora_inicio']) && !empty($t['task_hora_fim']));
+        if (count($tasksWithTimes) >= 2) {
+            $maxFim = null;
+            foreach ($tasksWithTimes as $t) {
+                $fim = trim($t['task_hora_fim']);
+                if ($fim !== '' && ($maxFim === null || $fim > $maxFim)) {
+                    $maxFim = $fim;
+                }
+            }
+            if ($maxFim !== null && $maxFim > $horaFimRealStr) {
+                $horaFimRealStr = strlen($maxFim) >= 8 ? $maxFim : $maxFim . ':00';
+                $autoAdjusted = true;
+            }
+        }
+        
         // Fecha automaticamente qualquer segmento running (multi-projeto)
         self::closeRunningSegmentsForBlock($blockId);
         
@@ -2351,6 +2371,15 @@ class AgendaService
             'hora_fim_real' => $horaFimRealStr,
             'resumo' => trim($resumo),
         ]);
+        
+        // Se auto-ajustou, atualiza também hora_fim do bloco para manter consistência no relatório
+        if ($autoAdjusted) {
+            $stmt = $db->prepare("UPDATE agenda_blocks SET hora_fim = ? WHERE id = ?");
+            $horaFimForUpdate = strlen($horaFimRealStr) >= 8 ? substr($horaFimRealStr, 0, 8) : $horaFimRealStr;
+            $stmt->execute([$horaFimForUpdate, $blockId]);
+        }
+        
+        return ['auto_adjusted' => $autoAdjusted];
     }
     
     /**
