@@ -434,6 +434,7 @@ class EventIngestionService
     /**
      * Chave de fallback para whatsapp.outbound.message quando message_id está vazio.
      * Extrai to, timestamp (bucket 60s) e content_hash de payloads do send() e do webhook.
+     * Suporta texto, cartões de contato (vcard) e mídia (image/audio/document/video).
      *
      * @param array $payload Payload do evento
      * @return string|null Chave ou null se não for possível extrair
@@ -464,16 +465,50 @@ class EventIngestionService
         }
         $tsBucket = $ts !== null ? (string) (floor((float) $ts / 60) * 60) : '0';
 
-        // content: send usa text/message.text; webhook usa raw.payload.body ou body
-        $content = $payload['text']
-            ?? $payload['message']['text']
-            ?? $payload['message']['body']
-            ?? $payload['body']
-            ?? $payload['raw']['payload']['body']
-            ?? '';
-        $contentHash = md5(mb_substr((string) $content, 0, 500));
+        // content_hash: depende do tipo de mensagem para deduplicar corretamente
+        // Cartões de contato e mídia têm payloads diferentes entre send() e webhook
+        $msgType = $payload['type']
+            ?? $payload['message']['type']
+            ?? $payload['raw']['payload']['type']
+            ?? 'chat';
+        $msgType = strtolower((string) $msgType);
+
+        // Cartão de contato (vcard): message.sent tem payload mínimo; onselfmessage tem body com vcard
+        // Usa to+timestamp quando não há body (message.sent) para gerar mesma chave que onselfmessage
+        if (in_array($msgType, ['contact', 'vcard', 'contacts'], true)) {
+            $contentHash = self::contentHashForContactPayload($payload, $toNorm, $tsBucket);
+        } elseif (in_array($msgType, ['image', 'audio', 'ptt', 'document', 'video', 'sticker'], true)) {
+            // Mídia: send tem type, webhook tem raw.payload.type; ambos produzem mesmo hash
+            $contentHash = md5('media:' . $msgType);
+        } else {
+            // Texto: send usa text; webhook usa body
+            $content = $payload['text']
+                ?? $payload['message']['text']
+                ?? $payload['message']['body']
+                ?? $payload['body']
+                ?? $payload['raw']['payload']['body']
+                ?? '';
+            $contentHash = md5(mb_substr((string) $content, 0, 500));
+        }
 
         return sprintf('whatsapp.outbound.message:fallback:%s:%s:%s', $toNorm, $tsBucket, $contentHash);
+    }
+
+    /**
+     * Gera content_hash consistente para cartões de contato (vcard).
+     * message.sent tem payload mínimo (to, timestamp, type); onselfmessage tem body com vcard.
+     * Usa to+timestamp como base comum para que ambos gerem a mesma chave e dedupliquem.
+     *
+     * @param array $payload Payload do evento
+     * @param string $toNorm Destinatário normalizado (E164)
+     * @param string $tsBucket Bucket de 60s do timestamp
+     * @return string Hash MD5
+     */
+    private static function contentHashForContactPayload(array $payload, string $toNorm, string $tsBucket): string
+    {
+        // Base comum: to+timestamp garante que message.sent (sem body) e onselfmessage
+        // (com body) produzam a mesma chave de idempotência
+        return md5('contact:' . $toNorm . ':' . $tsBucket);
     }
 
     /**
