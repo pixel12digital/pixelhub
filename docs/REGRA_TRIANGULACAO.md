@@ -5,6 +5,19 @@
 
 ---
 
+## 0) Onde rodar cada comando (obrigatório referenciar)
+
+| Ambiente | Host | O que roda lá |
+|----------|------|---------------|
+| **VPS Gateway** | `wpp.pixel12digital.com.br` | WPPConnect, gateway-wrapper, Nginx, PM2 |
+| **HostMedia SSH** | `hub.pixel12digital.com.br` | PixelHub, PHP, Laravel, envio de requisições ao gateway |
+
+**Sempre indicar explicitamente** onde cada comando deve ser executado:
+- `[VPS Gateway]` — rodar no SSH da VPS (wpp.pixel12digital.com.br)
+- `[HostMedia]` — rodar no SSH da HostMedia (hub.pixel12digital.com.br)
+
+---
+
 ## 1) VPS (Gateway / WPPConnect)
 
 - **Só o Cursor** pode pedir ao Charles comandos para rodar na VPS.

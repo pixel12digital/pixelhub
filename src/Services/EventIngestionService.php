@@ -408,6 +408,17 @@ class EventIngestionService
             return sprintf('%s:%s', $eventType, $externalId);
         }
 
+        // whatsapp.outbound.message SEM message_id: fallback por to+timestamp+content
+        // Gateway (WPPConnect) frequentemente não retorna message_id; send() e onselfmessage
+        // geram payloads diferentes → hashes diferentes → duplicata. Usamos chave composta
+        // que ambos os formatos (pixelhub_operator e wpp_gateway) conseguem produzir.
+        if ($eventType === 'whatsapp.outbound.message' && $externalId === null) {
+            $fallbackKey = self::calculateOutboundFallbackKey($payload);
+            if ($fallbackKey !== null) {
+                return $fallbackKey;
+            }
+        }
+
         // Se tiver external_id, usa ele
         if ($externalId !== null) {
             return sprintf('%s:%s:%s', $sourceSystem, $eventType, $externalId);
@@ -418,6 +429,51 @@ class EventIngestionService
         $payloadSorted = self::sortArrayKeysRecursive($payload);
         $payloadHash = md5(json_encode($payloadSorted, \JSON_UNESCAPED_UNICODE));
         return sprintf('%s:%s:%s', $sourceSystem, $eventType, $payloadHash);
+    }
+
+    /**
+     * Chave de fallback para whatsapp.outbound.message quando message_id está vazio.
+     * Extrai to, timestamp (bucket 60s) e content_hash de payloads do send() e do webhook.
+     *
+     * @param array $payload Payload do evento
+     * @return string|null Chave ou null se não for possível extrair
+     */
+    private static function calculateOutboundFallbackKey(array $payload): ?string
+    {
+        // to: send usa payload.to; webhook usa raw.payload.key.remoteJid
+        $to = $payload['to']
+            ?? $payload['message']['to']
+            ?? $payload['message']['key']['remoteJid']
+            ?? $payload['raw']['payload']['key']['remoteJid']
+            ?? $payload['raw']['payload']['from']
+            ?? null;
+        if (empty($to)) {
+            return null;
+        }
+        $toClean = preg_replace('/@.*$/', '', (string) $to);
+        $toNorm = PhoneNormalizer::toE164OrNull($toClean, 'BR', false) ?? $toClean;
+
+        // timestamp: send usa payload.timestamp; webhook usa raw.payload.t (pode ser ms)
+        $ts = $payload['timestamp']
+            ?? $payload['message']['timestamp']
+            ?? $payload['raw']['payload']['t']
+            ?? $payload['t']
+            ?? null;
+        if ($ts !== null && $ts > 1e12) {
+            $ts = $ts / 1000; // ms → segundos
+        }
+        $tsBucket = $ts !== null ? (string) (floor((float) $ts / 60) * 60) : '0';
+
+        // content: send usa text/message.text; webhook usa raw.payload.body ou body
+        $content = $payload['text']
+            ?? $payload['message']['text']
+            ?? $payload['message']['body']
+            ?? $payload['body']
+            ?? $payload['raw']['payload']['body']
+            ?? '';
+        $contentHash = md5(mb_substr((string) $content, 0, 500));
+
+        return sprintf('whatsapp.outbound.message:fallback:%s:%s:%s', $toNorm, $tsBucket, $contentHash);
     }
 
     /**

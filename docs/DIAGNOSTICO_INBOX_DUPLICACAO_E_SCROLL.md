@@ -55,6 +55,21 @@ Mesmo com deduplicação no frontend, se o backend retornar 2 eventos com `event
 
 **Observação:** Se o gateway não retornar `message_id` (ex.: WPPConnect em alguns casos), a deduplicação não ocorre e pode haver duplicação. O gateway deveria sempre retornar o ID da mensagem.
 
+### 1.4 Correção adicional (04/02/2026) — Fallback quando message_id vazio
+
+**Problema:** O gateway (WPPConnect) frequentemente não retorna `message_id`. A correção de 29/01 não evitava duplicação nesses casos.
+
+**Solução:** Em `EventIngestionService::calculateIdempotencyKey()`, para `whatsapp.outbound.message` sem `message_id`, usar chave composta:
+```
+whatsapp.outbound.message:fallback:{to_normalizado}:{timestamp_bucket_60s}:{content_hash}
+```
+
+- `to`: extraído de `payload.to` (send) ou `payload.raw.payload.key.remoteJid` (webhook)
+- `timestamp_bucket`: `floor(ts/60)*60` (janela de 60s)
+- `content_hash`: md5 dos primeiros 500 chars do texto
+
+Assim, send() e onselfmessage geram a mesma chave e o segundo é descartado.
+
 ---
 
 ## 2. Scroll inicial ao abrir conversa
