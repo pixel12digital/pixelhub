@@ -3602,6 +3602,7 @@ if (!empty($selectedProject)) {
         newBadge.setAttribute('aria-label', 'Abrir na agenda');
         newBadge.title = 'Abrir Planejamento do Dia';
         newBadge.textContent = 'Na Agenda';
+        newBadge.addEventListener('click', function(e) { e.stopPropagation(); });
         newContainer.appendChild(newBadge);
         titleWrapper.insertAdjacentElement('afterend', newContainer);
     }
@@ -4781,13 +4782,15 @@ if (!empty($selectedProject)) {
                 return;
             }
             
-            // Se o clique foi no select ou em elementos interativos, não abre o modal
+            // Se o clique foi no select, input, button ou link (ex: badge "Na Agenda"), não abre o modal
             if (e.target.closest('select') || 
                 e.target.closest('input') || 
                 e.target.closest('button') ||
+                e.target.closest('a') ||
                 e.target.tagName === 'SELECT' ||
                 e.target.tagName === 'INPUT' ||
-                e.target.tagName === 'BUTTON') {
+                e.target.tagName === 'BUTTON' ||
+                e.target.tagName === 'A') {
                 return;
             }
             

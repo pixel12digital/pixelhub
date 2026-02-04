@@ -40,7 +40,7 @@ if (!$isConcluida && !empty($task['due_date'])) {
         $agendaUrl = pixelhub_url('/agenda?view=lista&data=' . urlencode($agendaDate) . '&task_id=' . (int)$task['id'] . ($agendaBlockId ? '&block_id=' . $agendaBlockId : ''));
     ?>
         <div class="task-agenda-badge-container" style="margin-bottom: 5px;">
-            <a href="<?= htmlspecialchars($agendaUrl) ?>" class="badge-agenda badge-na-agenda" style="background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; text-decoration: none; display: inline-block; cursor: pointer;" aria-label="Abrir na agenda" title="Abrir Planejamento do Dia">Na Agenda</a>
+            <a href="<?= htmlspecialchars($agendaUrl) ?>" class="badge-agenda badge-na-agenda" style="background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; text-decoration: none; display: inline-block; cursor: pointer;" aria-label="Abrir na agenda" title="Abrir Planejamento do Dia" onclick="event.stopPropagation()">Na Agenda</a>
         </div>
     <?php endif; ?>
     <?php if ($task['description']): ?>
