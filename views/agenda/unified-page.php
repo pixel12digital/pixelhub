@@ -753,16 +753,21 @@ function loadBlockContent(blockId, container) {
                             headers: { 'X-Requested-With': 'XMLHttpRequest' },
                             body: fd
                         })
-                        .then(r => r.json())
-                        .then(d => {
-                            if (d.success) {
+                        .then(r => {
+                            return r.json().then(d => ({ ok: r.ok, status: r.status, data: d }));
+                        })
+                        .then(({ ok, data }) => {
+                            if (ok && data.success) {
                                 clearError();
                                 loadBlockContent(blockId, container);
                             } else {
-                                showError(d.error || 'Erro ao salvar horário.');
+                                showError(data.error || data.message || 'Erro ao salvar horário.');
                             }
                         })
-                        .catch(() => showError('Erro ao salvar horário.'));
+                        .catch((e) => {
+                            console.error('task-time error:', e);
+                            showError('Erro ao salvar horário.');
+                        });
                     };
                     const updateDur = () => {
                         const hi = inpIni && inpIni.value ? inpIni.value : '';

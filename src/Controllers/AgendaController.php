@@ -629,6 +629,7 @@ class AgendaController extends Controller
                 'message' => 'Horário atualizado.',
             ]);
         } catch (\InvalidArgumentException $e) {
+            error_log("updateTaskTime validation: " . $e->getMessage() . " [block=$blockId task=$taskId abt=" . ($abtId ?? 'null') . " hi=$horaInicio hf=$horaFim]");
             $this->json(['error' => $e->getMessage()], 400);
         } catch (\Exception $e) {
             error_log("Erro ao atualizar horário da tarefa: " . $e->getMessage());
