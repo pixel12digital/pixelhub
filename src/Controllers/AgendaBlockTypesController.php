@@ -62,6 +62,7 @@ class AgendaBlockTypesController extends Controller
 
         $nome = trim($_POST['nome'] ?? '');
         $codigo = strtoupper(trim($_POST['codigo'] ?? ''));
+        $blocoCategoria = in_array($_POST['bloco_categoria'] ?? '', ['producao', 'comercial', 'pausas']) ? $_POST['bloco_categoria'] : 'producao';
         $corHex = trim($_POST['cor_hex'] ?? '');
         $descricao = trim($_POST['descricao'] ?? '');
         $ativo = isset($_POST['ativo']) ? 1 : 0;
@@ -79,17 +80,14 @@ class AgendaBlockTypesController extends Controller
 
         try {
             $db = DB::getConnection();
-            $stmt = $db->prepare("
-                INSERT INTO agenda_block_types (nome, codigo, cor_hex, descricao, ativo)
-                VALUES (?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([
-                $nome,
-                $codigo,
-                $corHex ?: null,
-                $descricao ?: null,
-                $ativo,
-            ]);
+            $hasBlocoCategoria = $this->columnExists($db, 'agenda_block_types', 'bloco_categoria');
+            $cols = $hasBlocoCategoria ? '(nome, codigo, bloco_categoria, cor_hex, descricao, ativo)' : '(nome, codigo, cor_hex, descricao, ativo)';
+            $placeholders = $hasBlocoCategoria ? '(?, ?, ?, ?, ?, ?)' : '(?, ?, ?, ?, ?)';
+            $stmt = $db->prepare("INSERT INTO agenda_block_types $cols VALUES $placeholders");
+            $params = $hasBlocoCategoria
+                ? [$nome, $codigo, $blocoCategoria, $corHex ?: null, $descricao ?: null, $ativo]
+                : [$nome, $codigo, $corHex ?: null, $descricao ?: null, $ativo];
+            $stmt->execute($params);
             $this->redirect('/settings/agenda-block-types?success=created');
         } catch (\PDOException $e) {
             if (strpos($e->getMessage(), 'Duplicate entry') !== false) {
@@ -144,6 +142,7 @@ class AgendaBlockTypesController extends Controller
 
         $nome = trim($_POST['nome'] ?? '');
         $codigo = strtoupper(trim($_POST['codigo'] ?? ''));
+        $blocoCategoria = in_array($_POST['bloco_categoria'] ?? '', ['producao', 'comercial', 'pausas']) ? $_POST['bloco_categoria'] : 'producao';
         $corHex = trim($_POST['cor_hex'] ?? '');
         $descricao = trim($_POST['descricao'] ?? '');
         $ativo = isset($_POST['ativo']) ? 1 : 0;
@@ -161,12 +160,22 @@ class AgendaBlockTypesController extends Controller
 
         try {
             $db = DB::getConnection();
-            $stmt = $db->prepare("
-                UPDATE agenda_block_types
-                SET nome = ?, codigo = ?, cor_hex = ?, descricao = ?, ativo = ?, updated_at = NOW()
-                WHERE id = ?
-            ");
-            $stmt->execute([$nome, $codigo, $corHex ?: null, $descricao ?: null, $ativo, $id]);
+            $hasBlocoCategoria = $this->columnExists($db, 'agenda_block_types', 'bloco_categoria');
+            if ($hasBlocoCategoria) {
+                $stmt = $db->prepare("
+                    UPDATE agenda_block_types
+                    SET nome = ?, codigo = ?, bloco_categoria = ?, cor_hex = ?, descricao = ?, ativo = ?, updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([$nome, $codigo, $blocoCategoria, $corHex ?: null, $descricao ?: null, $ativo, $id]);
+            } else {
+                $stmt = $db->prepare("
+                    UPDATE agenda_block_types
+                    SET nome = ?, codigo = ?, cor_hex = ?, descricao = ?, ativo = ?, updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([$nome, $codigo, $corHex ?: null, $descricao ?: null, $ativo, $id]);
+            }
             $this->redirect('/settings/agenda-block-types?success=updated');
         } catch (\PDOException $e) {
             if (strpos($e->getMessage(), 'Duplicate entry') !== false) {
@@ -262,6 +271,16 @@ class AgendaBlockTypesController extends Controller
         } catch (\Exception $e) {
             error_log("Erro ao excluir tipo: " . $e->getMessage());
             $this->redirect('/settings/agenda-block-types?error=' . urlencode($e->getMessage()));
+        }
+    }
+
+    private function columnExists(\PDO $db, string $table, string $column): bool
+    {
+        try {
+            $stmt = $db->query("SHOW COLUMNS FROM {$table} LIKE '{$column}'");
+            return $stmt->rowCount() > 0;
+        } catch (\Throwable $e) {
+            return false;
         }
     }
 }

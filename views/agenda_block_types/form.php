@@ -41,6 +41,16 @@ $isEdit = !empty($type);
         </div>
 
         <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px;">Categoria no Relatório *</label>
+            <select name="bloco_categoria" required style="width: 100%; max-width: 280px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
+                <option value="producao" <?= ($type['bloco_categoria'] ?? 'producao') === 'producao' ? 'selected' : '' ?>>Produção</option>
+                <option value="comercial" <?= ($type['bloco_categoria'] ?? '') === 'comercial' ? 'selected' : '' ?>>Comercial</option>
+                <option value="pausas" <?= ($type['bloco_categoria'] ?? '') === 'pausas' ? 'selected' : '' ?>>Pausas</option>
+            </select>
+            <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">Define como o relatório de produtividade agrupa as horas (Produção/Comercial/Pausas).</small>
+        </div>
+
+        <div style="margin-bottom: 20px;">
             <label style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px;">Cor</label>
             <div style="display: flex; align-items: center; gap: 12px;">
                 <input type="color" name="cor_hex" id="cor_hex"

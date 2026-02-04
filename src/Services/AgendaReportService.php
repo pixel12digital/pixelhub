@@ -60,9 +60,12 @@ class AgendaReportService
             ? "COALESCE(NULLIF(TRIM(at.name), ''), 'Sem categoria') as categoria_atividade,"
             : "'Sem categoria' as categoria_atividade,";
 
+        $hasBlocoCategoria = self::hasBlocoCategoriaColumn($db);
+        $blocoCategoriaSelect = $hasBlocoCategoria ? "bt.bloco_categoria," : "NULL as bloco_categoria,";
         $sql = "
             SELECT 
                 b.id,
+                b.tipo_id,
                 b.data,
                 b.hora_inicio,
                 b.hora_fim,
@@ -70,6 +73,7 @@ class AgendaReportService
                     TIMESTAMPDIFF(MINUTE, CONCAT(b.data,' ',b.hora_inicio), CONCAT(b.data,' ',b.hora_fim))) as duracao_min,
                 bt.nome as tipo_nome,
                 COALESCE(bt.codigo, bt.nome, '') as tipo_codigo,
+                $blocoCategoriaSelect
                 $activitySelect
                 b.projeto_foco_id,
                 p.name as projeto_nome,
@@ -96,22 +100,57 @@ class AgendaReportService
         foreach ($rows as &$r) {
             $cat = trim($r['categoria_atividade'] ?? '');
             if (!$cat || $cat === 'Sem categoria') {
-                $codigo = self::normalizeTipoBloco($r['tipo_codigo'] ?? '');
-                // Blocos de Produção sem categoria recebem "Desenvolvimento" (nunca "Sem categoria" dominante)
-                if (in_array($codigo, ['CLIENTES', 'FUTURE', 'SUPORTE', 'PRODUCAO'])) {
-                    $r['categoria_atividade'] = 'Desenvolvimento';
-                } else {
-                    $r['categoria_atividade'] = 'Sem categoria';
-                }
+                $bucket = self::resolveBlockCategory($r);
+                $r['categoria_atividade'] = ($bucket === 'Produção') ? 'Desenvolvimento' : 'Sem categoria';
             }
         }
         return $rows;
     }
 
     /**
-     * Normaliza tipo_bloco bruto para comparação consistente.
-     * Usado por cards e tabela "Horas por Tipo de Bloco".
-     * Regras: trim, upper, remover acentos, mapear variações.
+     * Resolve categoria do bloco por referência (bloco_categoria ou tipo_id).
+     * Prioridade: bloco_categoria do banco > fallback por codigo.
+     * Outros apenas se: tipo_id nulo, tipo inexistente ou categoria não resolvível.
+     */
+    private static function resolveBlockCategory(array $row): string
+    {
+        $tipoId = $row['tipo_id'] ?? null;
+        $blocoCategoria = trim(strtolower($row['bloco_categoria'] ?? ''));
+        $codigo = $row['tipo_codigo'] ?? '';
+
+        // 1) Usar bloco_categoria do banco (resolução por ID/campo configurado)
+        if ($blocoCategoria === 'pausas') {
+            return 'Pausas';
+        }
+        if ($blocoCategoria === 'comercial') {
+            return 'Comercial';
+        }
+        if ($blocoCategoria === 'producao') {
+            return 'Produção';
+        }
+
+        // 2) tipo_id nulo ou tipo inexistente → Outros
+        if (empty($tipoId) || (int)$tipoId <= 0) {
+            return 'Outros';
+        }
+
+        // 3) Fallback por codigo (quando bloco_categoria não existe ou está vazio)
+        $codigoNorm = self::normalizeTipoBloco($codigo);
+        if (in_array($codigoNorm, ['CLIENTES', 'FUTURE', 'SUPORTE', 'PRODUCAO', 'PROJETO', 'PROJETOS'])) {
+            return 'Produção';
+        }
+        if (in_array($codigoNorm, ['COMERCIAL', 'FLEX'])) {
+            return 'Comercial';
+        }
+        if (in_array($codigoNorm, ['PESSOAL', 'ADMIN', 'INTERVALO', 'ALMOCO', 'ALMOC', 'PAUSA', 'PAUSAS'])) {
+            return 'Pausas';
+        }
+
+        return 'Outros';
+    }
+
+    /**
+     * Normaliza tipo_bloco bruto para fallback por codigo.
      */
     private static function normalizeTipoBloco(?string $raw): string
     {
@@ -120,44 +159,16 @@ class AgendaReportService
         }
         $s = trim($raw);
         $s = mb_strtoupper($s, 'UTF-8');
-        // Remover acentos (PRODUÇÃO → PRODUCAO, etc.)
         $s = str_replace(
             ['Á', 'À', 'Ã', 'Â', 'É', 'Ê', 'Í', 'Ó', 'Ô', 'Õ', 'Ú', 'Ç'],
             ['A', 'A', 'A', 'A', 'E', 'E', 'I', 'O', 'O', 'O', 'U', 'C'],
             $s
         );
-        // Mapear variações conhecidas para forma canônica (evitar cair em Outros)
         $variacoes = [
-            'PRODUÇÃO' => 'PRODUCAO',
-            'PROD' => 'PRODUCAO',
-            'PROJETO' => 'PRODUCAO',
-            'PROJETOS' => 'PRODUCAO',
-            'CLIENTE' => 'CLIENTES',
-            'PAUSA' => 'PAUSAS',
-            'PESSOAL' => 'PESSOAL',
-            'ADMIN' => 'ADMIN',
-            'ADMINISTRATIVO' => 'ADMIN',
+            'PRODUÇÃO' => 'PRODUCAO', 'PROD' => 'PRODUCAO', 'PROJETO' => 'PRODUCAO', 'PROJETOS' => 'PRODUCAO',
+            'CLIENTE' => 'CLIENTES', 'PAUSA' => 'PAUSAS',
         ];
         return $variacoes[$s] ?? $s;
-    }
-
-    /**
-     * Mapeia codigo do tipo de bloco (normalizado) para bucket analítico.
-     * Cards e tabela usam APENAS tipo_bloco, nunca categoria_atividade.
-     */
-    private static function mapTipoToBucket(string $codigo): string
-    {
-        $codigo = self::normalizeTipoBloco($codigo);
-        if (in_array($codigo, ['CLIENTES', 'FUTURE', 'SUPORTE', 'PRODUCAO'])) {
-            return 'Produção';
-        }
-        if (in_array($codigo, ['COMERCIAL', 'FLEX'])) {
-            return 'Comercial';
-        }
-        if (in_array($codigo, ['PESSOAL', 'ADMIN'])) {
-            return 'Pausas';
-        }
-        return 'Outros';
     }
 
     /**
@@ -168,25 +179,6 @@ class AgendaReportService
     public static function getDashboardData(string $dataInicio, string $dataFim, array $filters = []): array
     {
         $items = self::getAgendaItemsForPeriod($dataInicio, $dataFim, $filters);
-
-        // Log de sanidade (temporário): período 03/02/2026 — confirmar tipo_bloco no dataset
-        if ($dataInicio === '2026-02-03' || $dataFim === '2026-02-03') {
-            $sample = array_slice($items, 0, 5);
-            foreach ($sample as $i => $r) {
-                error_log(sprintf(
-                    '[AgendaReport] sanidade 03/02: item[%d] id=%s start=%s end=%s duracao=%d tipo_codigo_raw=%s tipo_nome=%s categoria=%s projeto_id=%s',
-                    $i,
-                    $r['id'] ?? '?',
-                    ($r['data'] ?? '') . ' ' . ($r['hora_inicio'] ?? ''),
-                    ($r['data'] ?? '') . ' ' . ($r['hora_fim'] ?? ''),
-                    (int)($r['duracao_min'] ?? 0),
-                    var_export($r['tipo_codigo'] ?? null, true),
-                    $r['tipo_nome'] ?? '?',
-                    $r['categoria_atividade'] ?? '?',
-                    $r['projeto_foco_id'] ?? '?'
-                ));
-            }
-        }
 
         $totalMinutos = 0;
         $porTipo = [];
@@ -204,8 +196,7 @@ class AgendaReportService
             $min = (int)($r['duracao_min'] ?? 0);
             $totalMinutos += $min;
 
-            $codigo = $r['tipo_codigo'] ?? '';
-            $bucket = self::mapTipoToBucket($codigo);
+            $bucket = self::resolveBlockCategory($r);
             $porTipo[$bucket] = ($porTipo[$bucket] ?? 0) + $min;
             $porBucketBlocos[$bucket] = ($porBucketBlocos[$bucket] ?? 0) + 1;
 
@@ -339,6 +330,16 @@ class AgendaReportService
     {
         try {
             $stmt = $db->query("SHOW COLUMNS FROM agenda_blocks LIKE 'tenant_id'");
+            return $stmt->rowCount() > 0;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private static function hasBlocoCategoriaColumn(\PDO $db): bool
+    {
+        try {
+            $stmt = $db->query("SHOW COLUMNS FROM agenda_block_types LIKE 'bloco_categoria'");
             return $stmt->rowCount() > 0;
         } catch (\Throwable $e) {
             return false;
