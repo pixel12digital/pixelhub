@@ -2103,7 +2103,7 @@
                             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
                         </svg>
                     </button>
-                    <textarea id="inboxMessageInput" rows="1" placeholder="Digite sua mensagem..." autocomplete="nope" data-lpignore="true" data-1p-ignore data-form-type="other" onkeydown="handleInboxInputKeypress(event)" oninput="autoResizeInboxTextarea(this); updateInboxSendMicVisibility()"></textarea>
+                    <textarea id="inboxMessageInput" rows="1" placeholder="Digite sua mensagem ou cole uma imagem (Ctrl+V)..." autocomplete="nope" data-lpignore="true" data-1p-ignore data-form-type="other" onkeydown="handleInboxInputKeypress(event)" oninput="autoResizeInboxTextarea(this); updateInboxSendMicVisibility()"></textarea>
                     <button type="button" class="inbox-media-btn" id="inboxBtnMic" onclick="startInboxRecording()" title="Gravar áudio">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
@@ -2504,6 +2504,43 @@
                     }
                 });
             }
+            // Handler de paste (Ctrl+V) para colar imagem - igual ao Communication Hub
+            function handleInboxPaste(e) {
+                const clipboardData = e.clipboardData || window.clipboardData;
+                if (!clipboardData || !clipboardData.items) return;
+                for (let i = 0; i < clipboardData.items.length; i++) {
+                    const item = clipboardData.items[i];
+                    if (item.kind === 'file' && item.type.startsWith('image/')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const file = item.getAsFile();
+                        if (file) {
+                            const ext = item.type.split('/')[1] || 'png';
+                            const fileName = 'imagem_' + Date.now() + '.' + ext;
+                            const namedFile = new File([file], fileName, { type: file.type });
+                            console.log('[Inbox] Imagem colada (Ctrl+V):', fileName);
+                            processInboxMediaFile(namedFile);
+                        }
+                        return;
+                    }
+                }
+            }
+            const inboxInput = document.getElementById('inboxMessageInput');
+            if (inboxInput) {
+                inboxInput.addEventListener('paste', handleInboxPaste);
+            }
+            // Paste global: captura Ctrl+V quando foco está na área de chat mas não no textarea
+            // (ex.: clicou na área de mensagens e colou - textarea já tem handler próprio)
+            document.addEventListener('paste', function(e) {
+                const activeEl = document.activeElement;
+                const inboxChat = document.getElementById('inboxChat');
+                const inboxInput = document.getElementById('inboxMessageInput');
+                if (!inboxChat || !inboxChat.offsetParent) return; // chat oculto
+                if (activeEl === inboxInput) return; // textarea trata
+                const isInChatArea = activeEl.closest('#inboxChat') || (activeEl === document.body && inboxChat.offsetParent);
+                if (isInChatArea) handleInboxPaste(e);
+            });
+            console.log('[Inbox] Handler de paste (Ctrl+V) registrado (textarea + global)');
             // Botões de áudio Inbox (igual ao Painel: Parar, Cancelar, Lixeira, Regravar, Enviar)
             const btnRecStop = document.getElementById('inboxBtnRecStop');
             const btnRecCancel = document.getElementById('inboxBtnRecCancel');
