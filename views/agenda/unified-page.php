@@ -632,6 +632,33 @@ function toggleBlockExpand(blockId) {
     }
 }
 
+function parseTimeToHHMM(val) {
+    if (!val || typeof val !== 'string') return null;
+    const s = val.trim().replace(/\D/g, '');
+    if (s.length === 2) {
+        const m = parseInt(s, 10);
+        if (m >= 0 && m <= 59) return '00:' + (m < 10 ? '0' : '') + m;
+    }
+    if (s.length >= 4) {
+        const h = parseInt(s.substring(0, 2), 10);
+        const m = parseInt(s.substring(2, 4), 10);
+        if (h >= 0 && h <= 23 && m >= 0 && m <= 59) return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+    }
+    const parts = val.trim().split(':');
+    if (parts.length >= 2) {
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (!isNaN(h) && !isNaN(m) && h >= 0 && h <= 23 && m >= 0 && m <= 59)
+            return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+    }
+    return null;
+}
+function maskTimeInput(inp) {
+    let v = inp.value.replace(/\D/g, '');
+    if (v.length > 2) v = v.substring(0, 2) + ':' + v.substring(2, 4);
+    else if (v.length > 0) v = v.substring(0, Math.min(v.length, 4));
+    inp.value = v;
+}
 function loadBlockContent(blockId, container) {
     container.innerHTML = '<div style="color:#6b7280;font-size:13px;">Carregando…</div>';
     const expandRow = container.closest('tr');
@@ -667,8 +694,8 @@ function loadBlockContent(blockId, container) {
                         const durMins = (thIni && thFim) ? (parseInt(thFim.split(':')[0])*60 + parseInt(thFim.split(':')[1]) - parseInt(thIni.split(':')[0])*60 - parseInt(thIni.split(':')[1])) : 0;
                         const durStr = durMins > 0 ? durMins + ' min' : '—';
                         html += '<tr data-task-id="' + t.id + '" data-abt-id="' + abtId + '"><td><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></td>';
-                        html += '<td><input type="time" class="task-time-input task-time-inicio" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" value="' + (thIni || '') + '" min="' + blockInicio + '" title="Início (mín: ' + blockInicio + ')"></td>';
-                        html += '<td><input type="time" class="task-time-input task-time-fim" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" data-min-inicio="' + (thIni || blockInicio) + '" value="' + (thFim || '') + '" min="' + (thIni || blockInicio) + '" title="Fim (o bloco será ajustado ao salvar)"></td>';
+                        html += '<td><input type="text" class="task-time-input task-time-inicio" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" value="' + (thIni || '') + '" placeholder="HH:MM" maxlength="5" title="Início (mín: ' + blockInicio + ')"></td>';
+                        html += '<td><input type="text" class="task-time-input task-time-fim" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" data-min-inicio="' + (thIni || blockInicio) + '" value="' + (thFim || '') + '" placeholder="HH:MM" maxlength="5" title="Fim (o bloco será ajustado ao salvar)"></td>';
                         html += '<td class="task-dur-display">' + durStr + '</td></tr>';
                     });
                     html += '</tbody></table>';
@@ -698,6 +725,22 @@ function loadBlockContent(blockId, container) {
                 html += '</div></div>';
             }
             container.innerHTML = html;
+
+            // Atualiza FIM do bloco na linha principal (sem refresh)
+            if (blockRow && (data.block_hora_inicio || data.block_hora_fim)) {
+                const hi = (data.block_hora_inicio || '').toString().substring(0, 5);
+                const hf = (data.block_hora_fim || '').toString().substring(0, 5);
+                if (hi) {
+                    const spanIni = blockRow.querySelector('.col-inicio .inline-edit-time');
+                    if (spanIni) spanIni.textContent = hi;
+                    blockRow.dataset.horaInicio = hi;
+                }
+                if (hf) {
+                    const spanFim = blockRow.querySelector('.col-fim .inline-edit-time');
+                    if (spanFim) spanFim.textContent = hf;
+                    blockRow.dataset.horaFim = hf;
+                }
+            }
 
             container.querySelectorAll('.block-task-unlink').forEach(btn => {
                 btn.addEventListener('click', function(e) {
@@ -739,9 +782,11 @@ function loadBlockContent(blockId, container) {
                     const inpFim = tr.querySelector('.task-time-fim');
                     const durCell = tr.querySelector('.task-dur-display');
                     const saveTaskTime = () => {
-                        const hi = inpIni && inpIni.value ? inpIni.value.substring(0, 5) : '';
-                        const hf = inpFim && inpFim.value ? inpFim.value.substring(0, 5) : '';
+                        const hi = parseTimeToHHMM(inpIni && inpIni.value ? inpIni.value : '');
+                        const hf = parseTimeToHHMM(inpFim && inpFim.value ? inpFim.value : '');
                         if (!hi || !hf) return;
+                        if (inpIni) inpIni.value = hi;
+                        if (inpFim) inpFim.value = hf;
                         const fd = new FormData();
                         fd.append('block_id', blockId);
                         fd.append('task_id', tid);
@@ -770,17 +815,22 @@ function loadBlockContent(blockId, container) {
                         });
                     };
                     const updateDur = () => {
-                        const hi = inpIni && inpIni.value ? inpIni.value : '';
-                        const hf = inpFim && inpFim.value ? inpFim.value : '';
-                        if (inpFim && hi) inpFim.min = hi;
+                        const hi = parseTimeToHHMM(inpIni && inpIni.value ? inpIni.value : '');
+                        const hf = parseTimeToHHMM(inpFim && inpFim.value ? inpFim.value : '');
                         if (hi && hf && durCell) {
                             const p1 = hi.split(':'), p2 = hf.split(':');
                             const m = (parseInt(p2[0])*60 + parseInt(p2[1])) - (parseInt(p1[0])*60 + parseInt(p1[1]));
                             durCell.textContent = m > 0 ? m + ' min' : '—';
                         }
                     };
-                    if (inpIni) { inpIni.addEventListener('blur', saveTaskTime); inpIni.addEventListener('input', updateDur); }
-                    if (inpFim) { inpFim.addEventListener('blur', saveTaskTime); inpFim.addEventListener('input', updateDur); }
+                    if (inpIni) {
+                        inpIni.addEventListener('input', function() { maskTimeInput(this); updateDur(); });
+                        inpIni.addEventListener('blur', function() { const h = parseTimeToHHMM(this.value); if (h) this.value = h; saveTaskTime(); });
+                    }
+                    if (inpFim) {
+                        inpFim.addEventListener('input', function() { maskTimeInput(this); updateDur(); });
+                        inpFim.addEventListener('blur', function() { const h = parseTimeToHHMM(this.value); if (h) this.value = h; saveTaskTime(); });
+                    }
                 });
             }
 
