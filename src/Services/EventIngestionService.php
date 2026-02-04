@@ -252,7 +252,9 @@ class EventIngestionService
         }
         
         // Processa mídia se houver (apenas para mensagens do WhatsApp)
-        if ($sourceSystem === 'wpp_gateway' && $eventType === 'whatsapp.inbound.message') {
+        // process_media_sync=false: permite responder ao webhook antes (evita timeout no WPPConnect)
+        $processMediaSync = $eventData['process_media_sync'] ?? true;
+        if ($processMediaSync && $sourceSystem === 'wpp_gateway' && $eventType === 'whatsapp.inbound.message') {
             try {
                 // Busca evento completo para processar mídia
                 $fullEvent = self::findByEventId($eventId);

@@ -292,11 +292,14 @@ class WhatsAppWebhookController extends Controller
             $eventSaved = false;
             
             try {
+                // process_media_sync=false: responde ao webhook antes do download de mídia
+                // Evita timeout no WPPConnect quando áudios/imagens demoram a baixar
                 $eventId = EventIngestionService::ingest([
                     'event_type' => $internalEventType,
                     'source_system' => 'wpp_gateway',
                     'payload' => $payload,
                     'tenant_id' => $tenantId,
+                    'process_media_sync' => false,
                     'metadata' => [
                         'channel_id' => $channelId,
                         'raw_event_type' => $eventType
@@ -387,6 +390,22 @@ class WhatsAppWebhookController extends Controller
                     'warning' => 'Event processed with warnings, check logs',
                     'event_saved' => false
                 ], JSON_UNESCAPED_UNICODE);
+            }
+            
+            // Processa mídia em background (após responder) para evitar timeout no WPPConnect
+            // O download de áudio/imagem pode demorar; responder antes libera o gateway
+            if ($eventId && $eventSaved && $internalEventType === 'whatsapp.inbound.message') {
+                if (function_exists('fastcgi_finish_request')) {
+                    fastcgi_finish_request();
+                }
+                try {
+                    $event = EventIngestionService::findByEventId($eventId);
+                    if ($event) {
+                        \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($event);
+                    }
+                } catch (\Exception $e) {
+                    error_log("[WhatsAppWebhook] Erro ao processar mídia em background: " . $e->getMessage());
+                }
             }
             
             exit;
