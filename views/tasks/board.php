@@ -3545,8 +3545,9 @@ if (!empty($selectedProject)) {
      * @param {number} taskId ID da tarefa
      * @param {boolean} hasAgenda Se a tarefa tem blocos de agenda vinculados
      * @param {string} [status] Status da tarefa (opcional, será buscado do DOM se não fornecido)
+     * @param {object} [opts] { block_id, block_date } para link do badge (após attach)
      */
-    function updateTaskAgendaBadge(taskId, hasAgenda, status) {
+    function updateTaskAgendaBadge(taskId, hasAgenda, status, opts) {
         const taskCard = document.querySelector(`[data-task-id="${taskId}"]`);
         if (!taskCard) {
             console.warn('[updateTaskAgendaBadge] Card não encontrado para taskId:', taskId);
@@ -3577,16 +3578,29 @@ if (!empty($selectedProject)) {
             return;
         }
         
-        // hasAgenda = true: cria container e badge "Na Agenda"
+        // hasAgenda = true: cria container e badge "Na Agenda" (link para Planejamento do Dia)
         const titleWrapper = taskCard.querySelector('.task-title')?.closest('div');
         if (!titleWrapper) return;
         
         const newContainer = document.createElement('div');
         newContainer.className = 'task-agenda-badge-container';
         newContainer.style.marginBottom = '5px';
-        const newBadge = document.createElement('span');
+        const agendaBlockId = (opts?.block_id) ? opts.block_id : (taskCard.dataset.agendaBlockId || 0);
+        const agendaBlockDate = (opts?.block_date) ? opts.block_date : (taskCard.dataset.agendaBlockDate || '');
+        let agendaDate = agendaBlockDate;
+        if (!agendaDate) {
+            const dueEl = taskCard.querySelector('.task-due-date');
+            const dueMatch = dueEl?.textContent?.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+            agendaDate = dueMatch ? (dueMatch[3] + '-' + dueMatch[2] + '-' + dueMatch[1]) : new Date().toISOString().slice(0, 10);
+        }
+        const baseUrl = '<?= pixelhub_url('/agenda') ?>';
+        const agendaUrl = baseUrl + '?view=lista&data=' + encodeURIComponent(agendaDate) + '&task_id=' + taskId + (agendaBlockId ? '&block_id=' + agendaBlockId : '');
+        const newBadge = document.createElement('a');
+        newBadge.href = agendaUrl;
         newBadge.className = 'badge-agenda badge-na-agenda';
-        newBadge.style.cssText = 'background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;';
+        newBadge.style.cssText = 'background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; text-decoration: none; display: inline-block; cursor: pointer;';
+        newBadge.setAttribute('aria-label', 'Abrir na agenda');
+        newBadge.title = 'Abrir Planejamento do Dia';
         newBadge.textContent = 'Na Agenda';
         newContainer.appendChild(newBadge);
         titleWrapper.insertAdjacentElement('afterend', newContainer);
@@ -5143,7 +5157,12 @@ if (!empty($selectedProject)) {
             if (data && data.success) {
                 // Atualiza o badge de agenda no card do quadro Kanban
                 if (data.task_id && data.has_agenda !== undefined) {
-                    updateTaskAgendaBadge(data.task_id, data.has_agenda);
+                    const taskCard = document.querySelector('[data-task-id="' + data.task_id + '"]');
+                    if (taskCard && data.block_id) {
+                        taskCard.dataset.agendaBlockId = data.block_id;
+                        if (data.block_date) taskCard.dataset.agendaBlockDate = data.block_date;
+                    }
+                    updateTaskAgendaBadge(data.task_id, data.has_agenda, null, { block_id: data.block_id, block_date: data.block_date });
                 }
                 
                 // Sucesso - fecha modal e recarrega detalhes da tarefa

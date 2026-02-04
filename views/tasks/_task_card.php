@@ -14,6 +14,8 @@ if (!$isConcluida && !empty($task['due_date'])) {
 <div class="kanban-task task-card<?= $isOverdue ? ' task-overdue' : '' ?>" 
      draggable="true"
      data-task-id="<?= (int)$task['id'] ?>"
+     <?= !empty($task['agenda_block_id']) ? ' data-agenda-block-id="' . (int)$task['agenda_block_id'] . '"' : '' ?>
+     <?= !empty($task['agenda_block_date']) ? ' data-agenda-block-date="' . htmlspecialchars($task['agenda_block_date']) . '"' : '' ?>
      <?= $isOverdue ? ' title="Prazo vencido"' : '' ?>>
     <?php if (!isset($selectedProjectId) || !$selectedProjectId && isset($task['project_name'])): ?>
         <span class="task-project-tag"><?= htmlspecialchars($task['project_name']) ?></span>
@@ -30,12 +32,15 @@ if (!$isConcluida && !empty($task['due_date'])) {
         <div class="task-title" style="flex: 1;"><?= htmlspecialchars($task['title']) ?></div>
     </div>
     <?php 
-    // Badge "Na Agenda" apenas quando houver vínculo com bloco (Opção A: ocultar quando não houver)
+    // Badge "Na Agenda" apenas quando houver vínculo com bloco (link direto para Planejamento do Dia)
     $hasAgendaBlocks = isset($task['has_agenda_blocks']) && (int)$task['has_agenda_blocks'] > 0;
     if (!$isConcluida && $hasAgendaBlocks): 
+        $agendaDate = !empty($task['agenda_block_date']) ? $task['agenda_block_date'] : ($task['due_date'] ?? date('Y-m-d'));
+        $agendaBlockId = !empty($task['agenda_block_id']) ? (int)$task['agenda_block_id'] : 0;
+        $agendaUrl = pixelhub_url('/agenda?view=lista&data=' . urlencode($agendaDate) . '&task_id=' . (int)$task['id'] . ($agendaBlockId ? '&block_id=' . $agendaBlockId : ''));
     ?>
         <div class="task-agenda-badge-container" style="margin-bottom: 5px;">
-            <span class="badge-agenda badge-na-agenda" style="background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">Na Agenda</span>
+            <a href="<?= htmlspecialchars($agendaUrl) ?>" class="badge-agenda badge-na-agenda" style="background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; text-decoration: none; display: inline-block; cursor: pointer;" aria-label="Abrir na agenda" title="Abrir Planejamento do Dia">Na Agenda</a>
         </div>
     <?php endif; ?>
     <?php if ($task['description']): ?>

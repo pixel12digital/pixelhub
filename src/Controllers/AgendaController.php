@@ -1615,11 +1615,15 @@ class AgendaController extends Controller
                 $stmt->execute([$taskId]);
                 $result = $stmt->fetch();
                 $hasAgenda = (int)($result['count'] ?? 0) > 0;
+                $bloco = AgendaService::getBlockById($blockId);
+                $blockDate = $bloco['data'] ?? null;
                 
                 $this->json([
                     'success' => true,
                     'task_id' => $taskId,
                     'has_agenda' => $hasAgenda,
+                    'block_id' => $blockId,
+                    'block_date' => $blockDate,
                     'message' => $removeOld ? 'Tarefa reagendada com sucesso' : 'Tarefa vinculada ao bloco com sucesso'
                 ]);
                 return;

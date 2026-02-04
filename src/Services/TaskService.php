@@ -85,7 +85,9 @@ class TaskService
                        completed_user.name as completed_by_name,
                        (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) as checklist_total,
                        (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id AND is_done = 1) as checklist_done,
-                       CASE WHEN EXISTS (SELECT 1 FROM agenda_block_tasks WHERE task_id = t.id) THEN 1 ELSE 0 END as has_agenda_blocks
+                       CASE WHEN EXISTS (SELECT 1 FROM agenda_block_tasks WHERE task_id = t.id) THEN 1 ELSE 0 END as has_agenda_blocks,
+                       (SELECT b.id FROM agenda_block_tasks abt INNER JOIN agenda_blocks b ON abt.bloco_id = b.id WHERE abt.task_id = t.id ORDER BY b.data DESC, b.hora_inicio DESC LIMIT 1) as agenda_block_id,
+                       (SELECT b.data FROM agenda_block_tasks abt INNER JOIN agenda_blocks b ON abt.bloco_id = b.id WHERE abt.task_id = t.id ORDER BY b.data DESC, b.hora_inicio DESC LIMIT 1) as agenda_block_date
                 FROM tasks t
                 INNER JOIN projects p ON t.project_id = p.id
                 LEFT JOIN tenants t2 ON p.tenant_id = t2.id
@@ -134,7 +136,9 @@ class TaskService
                        completed_user.name as completed_by_name,
                        (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) as checklist_total,
                        (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id AND is_done = 1) as checklist_done,
-                       CASE WHEN EXISTS (SELECT 1 FROM agenda_block_tasks WHERE task_id = t.id) THEN 1 ELSE 0 END as has_agenda_blocks
+                       CASE WHEN EXISTS (SELECT 1 FROM agenda_block_tasks WHERE task_id = t.id) THEN 1 ELSE 0 END as has_agenda_blocks,
+                       (SELECT b.id FROM agenda_block_tasks abt INNER JOIN agenda_blocks b ON abt.bloco_id = b.id WHERE abt.task_id = t.id ORDER BY b.data DESC, b.hora_inicio DESC LIMIT 1) as agenda_block_id,
+                       (SELECT b.data FROM agenda_block_tasks abt INNER JOIN agenda_blocks b ON abt.bloco_id = b.id WHERE abt.task_id = t.id ORDER BY b.data DESC, b.hora_inicio DESC LIMIT 1) as agenda_block_date
                 FROM tasks t
                 INNER JOIN projects p ON t.project_id = p.id
                 LEFT JOIN tenants t2 ON p.tenant_id = t2.id

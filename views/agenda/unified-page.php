@@ -5,6 +5,8 @@ $blocos = $blocos ?? [];
 $dataStr = $dataStr ?? date('Y-m-d');
 $taskParam = !empty($agendaTaskContext) ? '&task_id=' . (int)$agendaTaskContext['id'] : '';
 $baseUrl = pixelhub_url('/agenda');
+$highlightTaskId = isset($_GET['task_id']) ? (int)$_GET['task_id'] : 0;
+$highlightBlockId = $expandBlockId ?? 0;
 ?>
 
 <style>
@@ -124,6 +126,10 @@ $baseUrl = pixelhub_url('/agenda');
 .agenda-time-popover { position: fixed; z-index: 1000; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 8px; }
 .block-expand { display: none; background: #f8fafc; padding: 16px; border: 1px solid #e5e7eb; border-top: none; }
 .block-expand.show { display: table-row; }
+/* Highlight ao abrir via badge "Na Agenda" (link do Kanban) */
+.block-row.agenda-highlight { background: #fef3c7 !important; box-shadow: 0 0 0 2px #f59e0b; }
+.block-tasks-time-table tr.agenda-highlight { background: #fef3c7 !important; }
+.block-linked-tasks li.agenda-highlight { background: #fef3c7 !important; }
 .block-expand td { padding: 16px !important; vertical-align: top !important; border-bottom: 1px solid #e2e8f0; }
 .planilha-registros { width: 100%; border-collapse: collapse; font-size: 13px; }
 .planilha-registros th { background: #f5f5f5; padding: 8px 12px; text-align: left; font-weight: 600; font-size: 11px; color: #666; text-transform: uppercase; }
@@ -514,6 +520,8 @@ const baseUrl = '<?= $baseUrl ?>';
 const dataStr = '<?= $dataStr ?>';
 const taskParam = '<?= $taskParam ?>';
 window.AGENDA_TIPOS = <?= json_encode(array_map(fn($t) => ['id' => (int)$t['id'], 'nome' => $t['nome'] ?? ''], $tipos ?? [])) ?>;
+window.AGENDA_HIGHLIGHT_TASK_ID = <?= (int)$highlightTaskId ?>;
+window.AGENDA_HIGHLIGHT_BLOCK_ID = <?= (int)$highlightBlockId ?>;
 
 function applyFilters(val, type) {
     const params = new URLSearchParams(window.location.search);
@@ -707,7 +715,7 @@ function loadBlockContent(blockId, container) {
                         const tit = (t.title || '').replace(/</g,'&lt;');
                         const pid = t.project_id || '';
                         const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
-                        html += '<li><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></li>';
+                        html += '<li data-task-id="' + t.id + '"><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></li>';
                     });
                     html += '</ul>';
                 }
@@ -740,6 +748,17 @@ function loadBlockContent(blockId, container) {
                     if (spanFim) spanFim.textContent = hf;
                     blockRow.dataset.horaFim = hf;
                 }
+            }
+
+            // Highlight e scroll ao abrir via badge "Na Agenda" (link do Kanban)
+            if (window.AGENDA_HIGHLIGHT_TASK_ID && blockId === window.AGENDA_HIGHLIGHT_BLOCK_ID) {
+                requestAnimationFrame(function() {
+                    const taskEl = container.querySelector('[data-task-id="' + window.AGENDA_HIGHLIGHT_TASK_ID + '"]');
+                    if (taskEl) {
+                        taskEl.classList.add('agenda-highlight');
+                        taskEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                });
             }
 
             container.querySelectorAll('.block-task-unlink').forEach(btn => {
@@ -1123,12 +1142,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php if ($expandBlockId): ?>
 document.addEventListener('DOMContentLoaded', function() {
-    const el = document.getElementById('block-expand-<?= $expandBlockId ?>');
+    const blockId = <?= (int)$expandBlockId ?>;
+    const el = document.getElementById('block-expand-' + blockId);
     if (el) {
         el.classList.add('show');
+        const blockRow = el.previousElementSibling;
+        if (blockRow && blockRow.classList.contains('block-row')) {
+            blockRow.classList.add('agenda-highlight');
+            blockRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
         const content = el.querySelector('.block-expand-content');
         if (content && !content.dataset.loaded) {
-            loadBlockContent(<?= $expandBlockId ?>, content);
+            loadBlockContent(blockId, content);
             content.dataset.loaded = '1';
         }
     }
