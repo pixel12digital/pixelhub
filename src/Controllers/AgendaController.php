@@ -1183,6 +1183,7 @@ class AgendaController extends Controller
         $dataFim = $_GET['data_fim'] ?? date('Y-m-d');
         $filters = [];
         if (!empty($_GET['tipo'])) $filters['tipo_id'] = (int)$_GET['tipo'];
+        if (!empty($_GET['activity_type'])) $filters['activity_type_id'] = (int)$_GET['activity_type'];
         if (!empty($_GET['project_id'])) $filters['project_id'] = (int)$_GET['project_id'];
         if (!empty($_GET['tenant_id'])) $filters['tenant_id'] = (int)$_GET['tenant_id'];
         if (!empty($_GET['status'])) $filters['status'] = $_GET['status'];

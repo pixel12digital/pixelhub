@@ -93,16 +93,29 @@ class AgendaReportService
         $stmt->execute($params);
         $rows = $stmt->fetchAll();
 
+        foreach ($rows as &$r) {
+            $cat = trim($r['categoria_atividade'] ?? '');
+            if (!$cat || $cat === 'Sem categoria') {
+                $codigo = strtoupper($r['tipo_codigo'] ?? '');
+                // Blocos de Produção sem categoria recebem "Desenvolvimento" (nunca "Sem categoria" dominante)
+                if (in_array($codigo, ['CLIENTES', 'FUTURE', 'SUPORTE', 'PRODUCAO'])) {
+                    $r['categoria_atividade'] = 'Desenvolvimento';
+                } else {
+                    $r['categoria_atividade'] = 'Sem categoria';
+                }
+            }
+        }
         return $rows;
     }
 
     /**
      * Mapeia codigo do tipo de bloco para bucket analítico (Produção/Comercial/Pausas).
+     * Cards Produção/Comercial/Pausas usam APENAS tipo_bloco, nunca categoria_atividade.
      */
     private static function mapTipoToBucket(string $codigo): string
     {
         $codigo = strtoupper($codigo);
-        if (in_array($codigo, ['CLIENTES', 'FUTURE', 'SUPORTE'])) {
+        if (in_array($codigo, ['CLIENTES', 'FUTURE', 'SUPORTE', 'PRODUCAO'])) {
             return 'Produção';
         }
         if (in_array($codigo, ['COMERCIAL', 'FLEX'])) {
@@ -133,32 +146,38 @@ class AgendaReportService
         $pausasMin = 0;
         $outrosMin = 0;
 
+        $porBucketBlocos = ['Produção' => 0, 'Comercial' => 0, 'Pausas' => 0, 'Outros' => 0];
+
         foreach ($items as $r) {
             $min = (int)($r['duracao_min'] ?? 0);
             $totalMinutos += $min;
 
-            $tipo = $r['tipo_nome'] ?? 'Outros';
-            $porTipo[$tipo] = ($porTipo[$tipo] ?? 0) + $min;
+            $codigo = $r['tipo_codigo'] ?? '';
+            $bucket = self::mapTipoToBucket($codigo);
+            $porTipo[$bucket] = ($porTipo[$bucket] ?? 0) + $min;
+            $porBucketBlocos[$bucket] = ($porBucketBlocos[$bucket] ?? 0) + 1;
 
             $dia = $r['data'] ?? '';
             if ($dia) {
                 $porDia[$dia] = ($porDia[$dia] ?? 0) + $min;
             }
 
-            $codigo = $r['tipo_codigo'] ?? '';
-            $bucket = self::mapTipoToBucket($codigo);
             if ($bucket === 'Produção') $producaoMin += $min;
             elseif ($bucket === 'Comercial') $comercialMin += $min;
             elseif ($bucket === 'Pausas') $pausasMin += $min;
             else $outrosMin += $min;
 
-            if (!empty($r['projeto_foco_id']) && !empty($r['projeto_nome'])) {
+            // Top Projetos: apenas itens com projeto_id e que NÃO sejam Pausas
+            if ($bucket !== 'Pausas' && !empty($r['projeto_foco_id']) && !empty($r['projeto_nome'])) {
                 $porProjeto[$r['projeto_nome']] = ($porProjeto[$r['projeto_nome']] ?? 0) + $min;
             }
 
-            $cat = $r['categoria_atividade'] ?? 'Sem categoria';
-            $cat = trim($cat) ?: 'Sem categoria';
-            $porAtividade[$cat] = ($porAtividade[$cat] ?? 0) + $min;
+            // Top Atividades: por categoria_atividade; nunca —, Atividade avulsa, Sem categoria
+            $cat = trim($r['categoria_atividade'] ?? '');
+            $cat = $cat ?: 'Sem categoria';
+            if (!in_array($cat, ['—', 'Atividade avulsa', 'Sem categoria'], true)) {
+                $porAtividade[$cat] = ($porAtividade[$cat] ?? 0) + $min;
+            }
         }
 
         $diasComBlocos = count($porDia) ?: 1;
@@ -172,12 +191,26 @@ class AgendaReportService
 
         $pct = $totalMinutos > 0 ? fn($m) => round($m * 100 / $totalMinutos, 1) : 0;
 
+        // por_tipo_detalle: buckets (Produção/Comercial/Pausas/Outros) para bater com os cards
+        $porTipoDetalle = [];
+        foreach (['Produção', 'Comercial', 'Pausas', 'Outros'] as $b) {
+            $min = $porTipo[$b] ?? 0;
+            if ($min > 0) {
+                $porTipoDetalle[] = [
+                    'tipo_nome' => $b,
+                    'blocos_total' => $porBucketBlocos[$b] ?? 0,
+                    'minutos_total' => $min,
+                ];
+            }
+        }
+
         return [
             'total_horas' => round($totalMinutos / 60, 1),
             'total_minutos' => $totalMinutos,
             'media_por_dia_min' => round($mediaPorDia),
             'show_media_dia' => !$isSingleDay,
             'por_tipo' => $porTipo,
+            'por_tipo_detalle' => $porTipoDetalle,
             'por_dia' => $porDia,
             'top_projetos' => $topProjetos,
             'top_atividades' => $topAtividades,

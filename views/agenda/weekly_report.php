@@ -31,6 +31,7 @@ function buildReportUrl($base, $params) {
 .report-topbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 20px; }
 .report-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .report-filters select { padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; }
+.report-filters select.period-select { min-width: 180px; }
 .report-period-nav { display: flex; gap: 8px; align-items: center; font-size: 13px; }
 .report-period-nav a { color: #023A8D; text-decoration: none; }
 .report-period-nav a:hover { text-decoration: underline; }
@@ -75,20 +76,33 @@ table tr:hover { background: #f9f9f9; }
     <a href="<?= buildReportUrl($baseUrl, ['tab' => 'dashboard']) ?>" class="<?= $tab === 'dashboard' ? 'active' : '' ?>">Dashboard</a>
     <a href="<?= buildReportUrl($baseUrl, ['tab' => 'agenda']) ?>" class="<?= $tab === 'agenda' ? 'active' : '' ?>">Agenda (Tempo)</a>
     <a href="<?= buildReportUrl($baseUrl, ['tab' => 'tarefas']) ?>" class="<?= $tab === 'tarefas' ? 'active' : '' ?>">Tarefas (Entrega)</a>
-    <a href="<?= buildReportUrl($baseUrl, ['tab' => 'periodos']) ?>" class="<?= $tab === 'periodos' ? 'active' : '' ?>">Períodos</a>
     <a href="<?= buildReportUrl($baseUrl, ['tab' => 'export']) ?>" class="<?= $tab === 'export' ? 'active' : '' ?>">Exportação</a>
 </div>
 
 <!-- Topbar: período + filtros + export -->
 <div class="report-topbar no-print">
     <div class="report-filters">
-        <select onchange="applyFilter('period', this.value)">
+        <select class="period-select" onchange="applyFilter('period', this.value)">
             <option value="hoje" <?= $period === 'hoje' ? 'selected' : '' ?>>Hoje</option>
             <option value="semana" <?= $period === 'semana' ? 'selected' : '' ?>>Semana</option>
             <option value="mes" <?= $period === 'mes' ? 'selected' : '' ?>>Mês</option>
             <option value="ano" <?= $period === 'ano' ? 'selected' : '' ?>>Ano</option>
-            <option value="custom" <?= $period === 'custom' ? 'selected' : '' ?>>Período custom</option>
+            <option value="custom" <?= $period === 'custom' ? 'selected' : '' ?>>Personalizado</option>
         </select>
+        <?php if ($period === 'custom'): ?>
+        <form method="get" action="<?= $baseUrl ?>" style="display: inline-flex; gap: 8px; align-items: center;">
+            <input type="hidden" name="tab" value="<?= htmlspecialchars($tab) ?>">
+            <input type="hidden" name="period" value="custom">
+            <label style="font-size: 12px; color: #64748b;">De</label>
+            <input type="date" name="data_inicio" value="<?= htmlspecialchars($dataInicio) ?>" style="padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;">
+            <label style="font-size: 12px; color: #64748b;">Até</label>
+            <input type="date" name="data_fim" value="<?= htmlspecialchars($dataFim) ?>" style="padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;">
+            <button type="submit" style="padding: 6px 14px; font-size: 13px; background: #023A8D; color: white; border: none; border-radius: 6px; cursor: pointer;">Aplicar</button>
+            <?php foreach (['tipo', 'project_id', 'tenant_id', 'status', 'vinculada', 'activity_type'] as $fk): ?>
+            <?php if (!empty($_GET[$fk])): ?><input type="hidden" name="<?= htmlspecialchars($fk) ?>" value="<?= htmlspecialchars($_GET[$fk]) ?>"><?php endif; ?>
+            <?php endforeach; ?>
+        </form>
+        <?php endif; ?>
         <select onchange="applyFilter('tipo', this.value)">
             <option value="">Todos os tipos</option>
             <?php foreach ($tipos as $t): ?>
@@ -116,8 +130,9 @@ table tr:hover { background: #f9f9f9; }
         </select>
     </div>
     <div class="report-export-btns">
-        <a href="<?= buildReportUrl(pixelhub_url('/agenda/report-export-csv'), ['tab' => $tab]) ?>">Export CSV</a>
-        <a href="<?= buildReportUrl(pixelhub_url('/agenda/report-export-pdf'), []) ?>" class="btn-secondary">Export PDF</a>
+        <?php $csvTab = in_array($tab, ['agenda', 'tarefas']) ? $tab : 'agenda'; ?>
+        <a href="<?= buildReportUrl(pixelhub_url('/agenda/report-export-csv'), ['tab' => $csvTab, 'data_inicio' => $dataInicio, 'data_fim' => $dataFim]) ?>">Export CSV</a>
+        <a href="<?= buildReportUrl(pixelhub_url('/agenda/report-export-pdf'), ['data_inicio' => $dataInicio, 'data_fim' => $dataFim]) ?>" class="btn-secondary">Export PDF</a>
     </div>
 </div>
 
@@ -169,20 +184,29 @@ table tr:hover { background: #f9f9f9; }
     <?php endif; ?>
 </div>
 
+<?php if (!empty($dash['por_tipo_detalle'])): ?>
 <div class="report-section">
     <h3>Horas por Tipo de Bloco</h3>
-    <?php if (empty($dash['por_tipo'])): ?>
-        <p>Nenhum dado disponível para este período.</p>
-    <?php else: ?>
-        <div class="chart-placeholder">
-            <table style="width: auto;">
-                <?php foreach ($dash['por_tipo'] as $tipo => $min): ?>
-                <tr><td><?= htmlspecialchars($tipo) ?></td><td><strong><?= round($min / 60, 1) ?>h</strong></td></tr>
-                <?php endforeach; ?>
-            </table>
-        </div>
-    <?php endif; ?>
+    <table>
+        <thead>
+            <tr>
+                <th>Tipo</th>
+                <th>Blocos Total</th>
+                <th>Horas Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($dash['por_tipo_detalle'] as $item): ?>
+            <tr>
+                <td><strong><?= htmlspecialchars($item['tipo_nome']) ?></strong></td>
+                <td><?= (int)$item['blocos_total'] ?></td>
+                <td><strong><?= number_format((int)($item['minutos_total'] ?? 0) / 60, 1, ',', '.') ?>h</strong></td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
 </div>
+<?php endif; ?>
 
 <div class="report-section">
     <h3>Top Projetos (Tempo)</h3>
@@ -301,25 +325,6 @@ table tr:hover { background: #f9f9f9; }
     <?php endif; ?>
 </div>
 
-<?php elseif ($tab === 'periodos'): ?>
-<!-- Aba Períodos: seletor de período custom -->
-<div class="report-section">
-    <h3>Selecionar Período</h3>
-    <form method="get" action="<?= $baseUrl ?>" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
-        <input type="hidden" name="tab" value="dashboard">
-        <input type="hidden" name="period" value="custom">
-        <div>
-            <label style="font-size: 12px; color: #64748b;">De</label>
-            <input type="date" name="data_inicio" value="<?= htmlspecialchars($dataInicio) ?>" style="padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px;">
-        </div>
-        <div>
-            <label style="font-size: 12px; color: #64748b;">Até</label>
-            <input type="date" name="data_fim" value="<?= htmlspecialchars($dataFim) ?>" style="padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px;">
-        </div>
-        <button type="submit" class="btn btn-primary">Aplicar</button>
-    </form>
-</div>
-
 <?php elseif ($tab === 'export'): ?>
 <!-- Aba Exportação -->
 <div class="report-section">
@@ -330,37 +335,6 @@ table tr:hover { background: #f9f9f9; }
         <a href="<?= buildReportUrl(pixelhub_url('/agenda/report-export-csv'), ['tab' => 'tarefas', 'data_inicio' => $dataInicio, 'data_fim' => $dataFim]) ?>">Export CSV (Tarefas)</a>
         <a href="<?= buildReportUrl(pixelhub_url('/agenda/report-export-pdf'), ['data_inicio' => $dataInicio, 'data_fim' => $dataFim]) ?>" class="btn-secondary">Export PDF (Dashboard)</a>
     </div>
-</div>
-<?php endif; ?>
-
-<!-- Seções legadas (horas por tipo, tarefas por tipo, blocos cancelados) - mantidas para compatibilidade -->
-<?php if ($tab === 'dashboard' && !empty($report['horas_por_tipo'])): ?>
-<div class="report-section">
-    <h3>Horas por Tipo de Bloco (detalhado)</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>Tipo</th>
-                <th>Blocos Total</th>
-                <th>Concluídos</th>
-                <th>Parciais</th>
-                <th>Cancelados</th>
-                <th>Horas Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($report['horas_por_tipo'] as $item): ?>
-            <tr>
-                <td><strong><?= htmlspecialchars($item['nome']) ?></strong></td>
-                <td><?= (int)$item['blocos_total'] ?></td>
-                <td><span class="badge badge-success"><?= (int)$item['blocos_concluidos'] ?></span></td>
-                <td><span class="badge badge-warning"><?= (int)$item['blocos_parciais'] ?></span></td>
-                <td><span class="badge badge-danger"><?= (int)$item['blocos_cancelados'] ?></span></td>
-                <td><strong><?= number_format((int)($item['minutos_total'] ?? 0) / 60, 1, ',', '.') ?>h</strong></td>
-            </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
 </div>
 <?php endif; ?>
 
@@ -398,9 +372,18 @@ function applyFilter(name, value) {
     if (value) params.set(name, value);
     else params.delete(name);
     if (name === 'period') {
-        params.delete('data_inicio');
-        params.delete('data_fim');
-        if (value === 'hoje') params.set('data', new Date().toISOString().slice(0,10));
+        if (value === 'hoje') {
+            params.delete('data_inicio');
+            params.delete('data_fim');
+            params.set('data', new Date().toISOString().slice(0,10));
+        } else if (value === 'custom') {
+            // Preservar data_inicio/data_fim ao selecionar Personalizado (não apagar)
+            if (!params.has('data_inicio')) params.set('data_inicio', '<?= $dataInicio ?>');
+            if (!params.has('data_fim')) params.set('data_fim', '<?= $dataFim ?>');
+        } else {
+            params.delete('data_inicio');
+            params.delete('data_fim');
+        }
     }
     window.location.href = '<?= $baseUrl ?>?' + params.toString();
 }
