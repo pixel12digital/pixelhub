@@ -1230,6 +1230,7 @@ class AgendaService
             $stmt = $db->prepare("
                 SELECT 
                     t.*,
+                    abt.id as abt_id,
                     abt.hora_inicio as task_hora_inicio,
                     abt.hora_fim as task_hora_fim,
                     p.name as project_name,
@@ -1248,6 +1249,7 @@ class AgendaService
             $stmt = $db->prepare("
                 SELECT 
                     t.*,
+                    abt.id as abt_id,
                     abt.hora_inicio as task_hora_inicio,
                     abt.hora_fim as task_hora_fim,
                     p.name as project_name,
@@ -1312,16 +1314,7 @@ class AgendaService
             $stmt->execute([$taskId]);
         }
         
-        // Verifica se o vínculo já existe (após remover antigos, se necessário)
-        $stmt = $db->prepare("SELECT COUNT(*) as count FROM agenda_block_tasks WHERE bloco_id = ? AND task_id = ?");
-        $stmt->execute([$blockId, $taskId]);
-        $result = $stmt->fetch();
-        
-        if ($result && (int)$result['count'] > 0) {
-            // Já existe vínculo, não faz nada
-            return;
-        }
-        
+        // Permite múltiplas sessões da mesma tarefa no mesmo bloco (pausar e retomar)
         // Insere o vínculo
         $stmt = $db->prepare("INSERT INTO agenda_block_tasks (bloco_id, task_id, created_at) VALUES (?, ?, NOW())");
         $stmt->execute([$blockId, $taskId]);
@@ -1367,22 +1360,27 @@ class AgendaService
     }
     
     /**
-     * Remove vínculo de uma tarefa com um bloco
-     * 
+     * Remove vínculo (sessão) de uma tarefa com um bloco.
+     * Com abt_id: remove apenas essa sessão. Sem abt_id: remove todas as sessões da tarefa no bloco.
+     *
      * @param int $blockId ID do bloco
      * @param int $taskId ID da tarefa
-     * @return void
+     * @param int|null $abtId ID da linha em agenda_block_tasks (para múltiplas sessões)
      */
-    public static function detachTaskFromBlock(int $blockId, int $taskId): void
+    public static function detachTaskFromBlock(int $blockId, int $taskId, ?int $abtId = null): void
     {
         $db = DB::getConnection();
-        
-        $stmt = $db->prepare("DELETE FROM agenda_block_tasks WHERE bloco_id = ? AND task_id = ?");
-        $stmt->execute([$blockId, $taskId]);
+        if ($abtId > 0) {
+            $stmt = $db->prepare("DELETE FROM agenda_block_tasks WHERE id = ? AND bloco_id = ? AND task_id = ?");
+            $stmt->execute([$abtId, $blockId, $taskId]);
+        } else {
+            $stmt = $db->prepare("DELETE FROM agenda_block_tasks WHERE bloco_id = ? AND task_id = ?");
+            $stmt->execute([$blockId, $taskId]);
+        }
     }
     
     /**
-     * Atualiza horário de uma tarefa dentro do bloco (com validação)
+     * Atualiza horário de uma sessão de tarefa dentro do bloco (com validação)
      * Regras: tarefa_inicio >= bloco_inicio, tarefa_fim <= bloco_fim, tarefa_fim > tarefa_inicio
      * Soma das durações das tarefas <= duração do bloco
      *
@@ -1390,10 +1388,11 @@ class AgendaService
      * @param int $taskId ID da tarefa
      * @param string $horaInicio HH:MM ou HH:MM:SS
      * @param string $horaFim HH:MM ou HH:MM:SS
+     * @param int|null $abtId ID da linha em agenda_block_tasks (obrigatório quando há múltiplas sessões)
      * @return void
      * @throws \InvalidArgumentException Se validação falhar
      */
-    public static function updateTaskTimeInBlock(int $blockId, int $taskId, string $horaInicio, string $horaFim): void
+    public static function updateTaskTimeInBlock(int $blockId, int $taskId, string $horaInicio, string $horaFim, ?int $abtId = null): void
     {
         $db = DB::getConnection();
 
@@ -1435,7 +1434,10 @@ class AgendaService
         foreach ($tasks as $t) {
             $thIni = $t['task_hora_inicio'] ?? null;
             $thFim = $t['task_hora_fim'] ?? null;
-            if ((int)$t['id'] === $taskId) {
+            $isTarget = $abtId > 0
+                ? ((int)($t['abt_id'] ?? 0) === $abtId)
+                : ((int)$t['id'] === $taskId);
+            if ($isTarget) {
                 $thIni = $ti;
                 $thFim = $tf;
             }
@@ -1450,8 +1452,13 @@ class AgendaService
 
         $hi = strlen($horaInicio) === 5 ? $horaInicio . ':00' : $horaInicio;
         $hf = strlen($horaFim) === 5 ? $horaFim . ':00' : $horaFim;
-        $stmt = $db->prepare("UPDATE agenda_block_tasks SET hora_inicio = ?, hora_fim = ? WHERE bloco_id = ? AND task_id = ?");
-        $stmt->execute([$hi, $hf, $blockId, $taskId]);
+        if ($abtId > 0) {
+            $stmt = $db->prepare("UPDATE agenda_block_tasks SET hora_inicio = ?, hora_fim = ? WHERE id = ? AND bloco_id = ? AND task_id = ?");
+            $stmt->execute([$hi, $hf, $abtId, $blockId, $taskId]);
+        } else {
+            $stmt = $db->prepare("UPDATE agenda_block_tasks SET hora_inicio = ?, hora_fim = ? WHERE bloco_id = ? AND task_id = ?");
+            $stmt->execute([$hi, $hf, $blockId, $taskId]);
+        }
 
         if ($stmt->rowCount() === 0) {
             throw new \InvalidArgumentException('Tarefa não está vinculada a este bloco.');

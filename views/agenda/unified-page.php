@@ -647,17 +647,18 @@ function loadBlockContent(blockId, container) {
                 return;
             }
             const linkedTasks = data.tasks || [];
-            const linkedIds = new Set(linkedTasks.map(t => t.id));
             const boardBase = '<?= pixelhub_url('/projects/board') ?>';
             const blockInicio = (data.block_hora_inicio || '').toString().substring(0, 5) || '00:00';
             const blockFim = (data.block_hora_fim || '').toString().substring(0, 5) || '23:59';
             const hasMultipleTasks = linkedTasks.length >= 2;
+            const hasTimeInputs = linkedTasks.some(t => (t.task_hora_inicio || t.task_hora_fim));
 
             let html = '';
             if (linkedTasks.length > 0) {
-                if (hasMultipleTasks) {
+                if (hasMultipleTasks || hasTimeInputs) {
                     html += '<table class="block-tasks-time-table"><thead><tr><th>Tarefa</th><th>Início</th><th>Fim</th><th>Duração</th></tr></thead><tbody>';
                     linkedTasks.forEach(t => {
+                        const abtId = t.abt_id || '';
                         const tit = (t.title || '').replace(/</g,'&lt;');
                         const pid = t.project_id || '';
                         const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
@@ -665,9 +666,9 @@ function loadBlockContent(blockId, container) {
                         const thFim = (t.task_hora_fim || '').toString().substring(0, 5);
                         const durMins = (thIni && thFim) ? (parseInt(thFim.split(':')[0])*60 + parseInt(thFim.split(':')[1]) - parseInt(thIni.split(':')[0])*60 - parseInt(thIni.split(':')[1])) : 0;
                         const durStr = durMins > 0 ? durMins + ' min' : '—';
-                        html += '<tr data-task-id="' + t.id + '"><td><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></td>';
-                        html += '<td><input type="time" class="task-time-input task-time-inicio" data-block-id="' + blockId + '" data-task-id="' + t.id + '" value="' + (thIni || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Início (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
-                        html += '<td><input type="time" class="task-time-input task-time-fim" data-block-id="' + blockId + '" data-task-id="' + t.id + '" value="' + (thFim || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Fim (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
+                        html += '<tr data-task-id="' + t.id + '" data-abt-id="' + abtId + '"><td><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></td>';
+                        html += '<td><input type="time" class="task-time-input task-time-inicio" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" value="' + (thIni || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Início (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
+                        html += '<td><input type="time" class="task-time-input task-time-fim" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" value="' + (thFim || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Fim (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
                         html += '<td class="task-dur-display">' + durStr + '</td></tr>';
                     });
                     html += '</tbody></table>';
@@ -675,10 +676,11 @@ function loadBlockContent(blockId, container) {
                 } else {
                     html += '<ul class="block-linked-tasks">';
                     linkedTasks.forEach(t => {
+                        const abtId = t.abt_id || '';
                         const tit = (t.title || '').replace(/</g,'&lt;');
                         const pid = t.project_id || '';
                         const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
-                        html += '<li><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></li>';
+                        html += '<li><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></li>';
                     });
                     html += '</ul>';
                 }
@@ -703,10 +705,12 @@ function loadBlockContent(blockId, container) {
                     if (!confirm('Desvincular esta tarefa?')) return;
                     const bid = parseInt(this.dataset.blockId, 10);
                     const tid = parseInt(this.dataset.taskId, 10);
+                    const abtId = parseInt(this.dataset.abtId, 10) || 0;
                     this.disabled = true;
                     const fd = new FormData();
                     fd.append('block_id', bid);
                     fd.append('task_id', tid);
+                    if (abtId > 0) fd.append('abt_id', abtId);
                     fetch('<?= pixelhub_url('/agenda/bloco/detach-task') ?>', {
                         method: 'POST',
                         headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -718,7 +722,7 @@ function loadBlockContent(blockId, container) {
                 });
             });
 
-            if (hasMultipleTasks) {
+            if (hasMultipleTasks || hasTimeInputs) {
                 const errDiv = document.getElementById('task-time-error-' + blockId);
                 const showError = (msg) => {
                     if (errDiv) { errDiv.textContent = msg; errDiv.style.display = 'block'; }
@@ -730,6 +734,7 @@ function loadBlockContent(blockId, container) {
                 };
                 container.querySelectorAll('tr[data-task-id]').forEach(tr => {
                     const tid = parseInt(tr.dataset.taskId, 10);
+                    const abtId = parseInt(tr.dataset.abtId, 10) || 0;
                     const inpIni = tr.querySelector('.task-time-inicio');
                     const inpFim = tr.querySelector('.task-time-fim');
                     const durCell = tr.querySelector('.task-dur-display');
@@ -740,6 +745,7 @@ function loadBlockContent(blockId, container) {
                         const fd = new FormData();
                         fd.append('block_id', blockId);
                         fd.append('task_id', tid);
+                        if (abtId > 0) fd.append('abt_id', abtId);
                         fd.append('hora_inicio', hi);
                         fd.append('hora_fim', hf);
                         fetch('<?= pixelhub_url('/agenda/bloco/task-time') ?>', {
@@ -776,7 +782,7 @@ function loadBlockContent(blockId, container) {
                 fetch('<?= pixelhub_url('/agenda/tasks-by-project') ?>?project_id=' + projectId)
                     .then(r => r.json())
                     .then(projData => {
-                        const allTasks = (projData.tasks || []).filter(t => !linkedIds.has(t.id));
+                        const allTasks = projData.tasks || [];
                         const formSection = container.querySelector('.block-add-task-section');
                         const sel = document.getElementById('block-add-task-select-' + blockId);
 

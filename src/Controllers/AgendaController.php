@@ -273,18 +273,16 @@ class AgendaController extends Controller
                     $stmt = $db->prepare("
                         SELECT t.* FROM tasks t
                         WHERE t.project_id = ? AND t.status != 'concluida' AND t.deleted_at IS NULL
-                        AND t.id NOT IN (SELECT task_id FROM agenda_block_tasks WHERE bloco_id = ?)
                         ORDER BY t.title ASC
                     ");
-                    $stmt->execute([$projetoRefId, $id]);
+                    $stmt->execute([$projetoRefId]);
                 } catch (\PDOException $e) {
                     $stmt = $db->prepare("
                         SELECT t.* FROM tasks t
                         WHERE t.project_id = ? AND t.status != 'concluida'
-                        AND t.id NOT IN (SELECT task_id FROM agenda_block_tasks WHERE bloco_id = ?)
                         ORDER BY t.title ASC
                     ");
-                    $stmt->execute([$projetoRefId, $id]);
+                    $stmt->execute([$projetoRefId]);
                 }
                 $tarefasDisponiveis = $stmt->fetchAll();
             } catch (\Exception $e) {
@@ -606,6 +604,7 @@ class AgendaController extends Controller
         Auth::requireInternal();
         $blockId = isset($_POST['block_id']) ? (int)$_POST['block_id'] : 0;
         $taskId = isset($_POST['task_id']) ? (int)$_POST['task_id'] : 0;
+        $abtId = isset($_POST['abt_id']) ? (int)$_POST['abt_id'] : null;
         $horaInicio = trim($_POST['hora_inicio'] ?? '');
         $horaFim = trim($_POST['hora_fim'] ?? '');
 
@@ -615,7 +614,7 @@ class AgendaController extends Controller
         }
 
         try {
-            AgendaService::updateTaskTimeInBlock($blockId, $taskId, $horaInicio, $horaFim);
+            AgendaService::updateTaskTimeInBlock($blockId, $taskId, $horaInicio, $horaFim, $abtId > 0 ? $abtId : null);
             $tasks = AgendaService::getTasksByBlock($blockId);
             $updated = null;
             foreach ($tasks as $t) {
@@ -1656,6 +1655,7 @@ class AgendaController extends Controller
         
         $blockId = isset($_POST['block_id']) ? (int)$_POST['block_id'] : 0;
         $taskId = isset($_POST['task_id']) ? (int)$_POST['task_id'] : 0;
+        $abtId = isset($_POST['abt_id']) ? (int)$_POST['abt_id'] : null;
         
         if ($blockId <= 0 || $taskId <= 0) {
             $this->json(['error' => 'IDs inválidos'], 400);
@@ -1666,7 +1666,7 @@ class AgendaController extends Controller
         $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
         
         try {
-            AgendaService::detachTaskFromBlock($blockId, $taskId);
+            AgendaService::detachTaskFromBlock($blockId, $taskId, $abtId > 0 ? $abtId : null);
             
             // Se for requisição AJAX, retorna JSON com informações sobre o estado da agenda
             if ($isAjax) {
