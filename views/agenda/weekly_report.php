@@ -175,7 +175,7 @@ table tr:hover { background: #f9f9f9; }
         <div class="value"><?= round(($dash['pausas_min'] ?? 0) / 60, 1) ?>h</div>
         <div style="font-size: 12px; color: #64748b;"><?= (int)($dash['pausas_pct'] ?? 0) ?>%</div>
     </div>
-    <?php if (($dash['outros_min'] ?? 0) > 0): ?>
+    <?php if (!empty($dash['show_outros'])): ?>
     <div class="dashboard-card">
         <h4>Outros</h4>
         <div class="value"><?= round(($dash['outros_min'] ?? 0) / 60, 1) ?>h</div>

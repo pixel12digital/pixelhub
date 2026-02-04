@@ -69,7 +69,7 @@ class AgendaReportService
                 COALESCE(b.duracao_real, b.duracao_planejada, 
                     TIMESTAMPDIFF(MINUTE, CONCAT(b.data,' ',b.hora_inicio), CONCAT(b.data,' ',b.hora_fim))) as duracao_min,
                 bt.nome as tipo_nome,
-                bt.codigo as tipo_codigo,
+                COALESCE(bt.codigo, bt.nome, '') as tipo_codigo,
                 $activitySelect
                 b.projeto_foco_id,
                 p.name as projeto_nome,
@@ -96,7 +96,7 @@ class AgendaReportService
         foreach ($rows as &$r) {
             $cat = trim($r['categoria_atividade'] ?? '');
             if (!$cat || $cat === 'Sem categoria') {
-                $codigo = strtoupper($r['tipo_codigo'] ?? '');
+                $codigo = self::normalizeTipoBloco($r['tipo_codigo'] ?? '');
                 // Blocos de Produção sem categoria recebem "Desenvolvimento" (nunca "Sem categoria" dominante)
                 if (in_array($codigo, ['CLIENTES', 'FUTURE', 'SUPORTE', 'PRODUCAO'])) {
                     $r['categoria_atividade'] = 'Desenvolvimento';
@@ -109,12 +109,45 @@ class AgendaReportService
     }
 
     /**
-     * Mapeia codigo do tipo de bloco para bucket analítico (Produção/Comercial/Pausas).
-     * Cards Produção/Comercial/Pausas usam APENAS tipo_bloco, nunca categoria_atividade.
+     * Normaliza tipo_bloco bruto para comparação consistente.
+     * Usado por cards e tabela "Horas por Tipo de Bloco".
+     * Regras: trim, upper, remover acentos, mapear variações.
+     */
+    private static function normalizeTipoBloco(?string $raw): string
+    {
+        if ($raw === null || $raw === '') {
+            return '';
+        }
+        $s = trim($raw);
+        $s = mb_strtoupper($s, 'UTF-8');
+        // Remover acentos (PRODUÇÃO → PRODUCAO, etc.)
+        $s = str_replace(
+            ['Á', 'À', 'Ã', 'Â', 'É', 'Ê', 'Í', 'Ó', 'Ô', 'Õ', 'Ú', 'Ç'],
+            ['A', 'A', 'A', 'A', 'E', 'E', 'I', 'O', 'O', 'O', 'U', 'C'],
+            $s
+        );
+        // Mapear variações conhecidas para forma canônica (evitar cair em Outros)
+        $variacoes = [
+            'PRODUÇÃO' => 'PRODUCAO',
+            'PROD' => 'PRODUCAO',
+            'PROJETO' => 'PRODUCAO',
+            'PROJETOS' => 'PRODUCAO',
+            'CLIENTE' => 'CLIENTES',
+            'PAUSA' => 'PAUSAS',
+            'PESSOAL' => 'PESSOAL',
+            'ADMIN' => 'ADMIN',
+            'ADMINISTRATIVO' => 'ADMIN',
+        ];
+        return $variacoes[$s] ?? $s;
+    }
+
+    /**
+     * Mapeia codigo do tipo de bloco (normalizado) para bucket analítico.
+     * Cards e tabela usam APENAS tipo_bloco, nunca categoria_atividade.
      */
     private static function mapTipoToBucket(string $codigo): string
     {
-        $codigo = strtoupper($codigo);
+        $codigo = self::normalizeTipoBloco($codigo);
         if (in_array($codigo, ['CLIENTES', 'FUTURE', 'SUPORTE', 'PRODUCAO'])) {
             return 'Produção';
         }
@@ -135,6 +168,25 @@ class AgendaReportService
     public static function getDashboardData(string $dataInicio, string $dataFim, array $filters = []): array
     {
         $items = self::getAgendaItemsForPeriod($dataInicio, $dataFim, $filters);
+
+        // Log de sanidade (temporário): período 03/02/2026 — confirmar tipo_bloco no dataset
+        if ($dataInicio === '2026-02-03' || $dataFim === '2026-02-03') {
+            $sample = array_slice($items, 0, 5);
+            foreach ($sample as $i => $r) {
+                error_log(sprintf(
+                    '[AgendaReport] sanidade 03/02: item[%d] id=%s start=%s end=%s duracao=%d tipo_codigo_raw=%s tipo_nome=%s categoria=%s projeto_id=%s',
+                    $i,
+                    $r['id'] ?? '?',
+                    ($r['data'] ?? '') . ' ' . ($r['hora_inicio'] ?? ''),
+                    ($r['data'] ?? '') . ' ' . ($r['hora_fim'] ?? ''),
+                    (int)($r['duracao_min'] ?? 0),
+                    var_export($r['tipo_codigo'] ?? null, true),
+                    $r['tipo_nome'] ?? '?',
+                    $r['categoria_atividade'] ?? '?',
+                    $r['projeto_foco_id'] ?? '?'
+                ));
+            }
+        }
 
         $totalMinutos = 0;
         $porTipo = [];
@@ -191,11 +243,15 @@ class AgendaReportService
 
         $pct = $totalMinutos > 0 ? fn($m) => round($m * 100 / $totalMinutos, 1) : 0;
 
+        // Outros: ocultar se residual (<=0.3h ou <=5%) — indicador de dado mal classificado
+        $outrosHoras = $outrosMin / 60;
+        $showOutros = $outrosMin > 0 && ($outrosHoras > 0.3 || $pct($outrosMin) > 5);
+
         // por_tipo_detalle: buckets (Produção/Comercial/Pausas/Outros) para bater com os cards
         $porTipoDetalle = [];
         foreach (['Produção', 'Comercial', 'Pausas', 'Outros'] as $b) {
             $min = $porTipo[$b] ?? 0;
-            if ($min > 0) {
+            if ($min > 0 && ($b !== 'Outros' || $showOutros)) {
                 $porTipoDetalle[] = [
                     'tipo_nome' => $b,
                     'blocos_total' => $porBucketBlocos[$b] ?? 0,
@@ -218,6 +274,7 @@ class AgendaReportService
             'comercial_min' => $comercialMin,
             'pausas_min' => $pausasMin,
             'outros_min' => $outrosMin,
+            'show_outros' => $showOutros,
             'producao_pct' => $pct($producaoMin),
             'comercial_pct' => $pct($comercialMin),
             'pausas_pct' => $pct($pausasMin),
