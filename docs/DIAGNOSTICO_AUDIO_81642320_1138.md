@@ -147,3 +147,18 @@ Script executado: `php database/verificar-audio-81642320-remoto.php`
 | 2 | Se existir: usuário acessando Inbox localmente com banco remoto — o storage local não tem o arquivo; usar produção para ver o áudio | — |
 | 3 | Se não existir em produção: buscar logs `[WhatsAppMediaService]` no horário 11:34–11:35 de 03/02 | Charles |
 | 4 | Verificar no gateway (VPS) se há logs de webhook/download para esse evento | Charles (Regra Triangulação) |
+
+---
+
+## 7. Testes de sucesso (casos de referência)
+
+### 7.1 Áudio inbound recebido corretamente no Inbox (04/02/2026)
+
+| Campo | Valor |
+|-------|-------|
+| **Remetente** | Charles Dietrich — (47) 9616-4699 (554796164699) |
+| **Destinatário** | pixel12digital |
+| **Duração** | 2:20 |
+| **Horário** | 04/02/2026 ~13:16–13:17 |
+| **Resultado** | ✅ Recebido e exibido corretamente no Inbox |
+| **Observação** | Áudio reproduzível no player; confirma que o fluxo inbound (webhook → EventIngestionService → WhatsAppMediaService → Inbox) está funcional para este cenário. |
