@@ -4111,8 +4111,12 @@
             if (!badge) return;
             
             let totalUnread = 0;
-            InboxState.conversations.forEach(conv => {
+            (InboxState.conversations || []).forEach(conv => {
                 totalUnread += parseInt(conv.unread_count || 0, 10);
+            });
+            // Inclui conversas não vinculadas (incoming leads)
+            (InboxState.incomingLeads || []).forEach(lead => {
+                totalUnread += parseInt(lead.unread_count || 0, 10);
             });
             
             if (totalUnread > 0) {
