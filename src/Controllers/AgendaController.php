@@ -1190,7 +1190,7 @@ class AgendaController extends Controller
 
         if ($tab === 'agenda') {
             $rows = AgendaReportService::getAgendaItemsForPeriod($dataInicio, $dataFim, $filters);
-            $cols = ['data', 'hora_inicio', 'hora_fim', 'duracao_min', 'tipo_nome', 'atividade', 'projeto_nome', 'cliente_nome', 'tarefa_titulo', 'status'];
+            $cols = ['data', 'hora_inicio', 'hora_fim', 'duracao_min', 'tipo_nome', 'categoria_atividade', 'projeto_nome', 'cliente_nome', 'tarefa_titulo', 'status'];
         } else {
             $rows = AgendaReportService::getTasksWithAgendaLink($dataInicio, $dataFim, $filters);
             $cols = ['title', 'project_name', 'tenant_name', 'completed_at', 'completed_by_name', 'vinculada_bloco'];

@@ -57,8 +57,8 @@ class AgendaReportService
         $hasActivityTypes = self::hasActivityTypesColumn($db);
         $hasTenantId = self::hasTenantIdColumn($db);
         $activitySelect = $hasActivityTypes
-            ? "COALESCE(at.name, '—') as atividade,"
-            : "'—' as atividade,";
+            ? "COALESCE(NULLIF(TRIM(at.name), ''), 'Sem categoria') as categoria_atividade,"
+            : "'Sem categoria' as categoria_atividade,";
 
         $sql = "
             SELECT 
@@ -71,6 +71,7 @@ class AgendaReportService
                 bt.nome as tipo_nome,
                 bt.codigo as tipo_codigo,
                 $activitySelect
+                b.projeto_foco_id,
                 p.name as projeto_nome,
                 COALESCE(tn_projeto.name, tn_block.name, 'Interno') as cliente_nome,
                 t_focus.title as tarefa_titulo,
@@ -96,7 +97,27 @@ class AgendaReportService
     }
 
     /**
-     * Dados para o Dashboard: cards + agregados para gráficos.
+     * Mapeia codigo do tipo de bloco para bucket analítico (Produção/Comercial/Pausas).
+     */
+    private static function mapTipoToBucket(string $codigo): string
+    {
+        $codigo = strtoupper($codigo);
+        if (in_array($codigo, ['CLIENTES', 'FUTURE', 'SUPORTE'])) {
+            return 'Produção';
+        }
+        if (in_array($codigo, ['COMERCIAL', 'FLEX'])) {
+            return 'Comercial';
+        }
+        if (in_array($codigo, ['PESSOAL', 'ADMIN'])) {
+            return 'Pausas';
+        }
+        return 'Outros';
+    }
+
+    /**
+     * Dados para o Dashboard: cards + agregados.
+     * Total = soma durações (end-start). Média/dia = total / dias_com_blocos.
+     * Sem Planejado/Executado. Rankings separados: Top Projetos vs Top Atividades.
      */
     public static function getDashboardData(string $dataInicio, string $dataFim, array $filters = []): array
     {
@@ -105,9 +126,12 @@ class AgendaReportService
         $totalMinutos = 0;
         $porTipo = [];
         $porDia = [];
-        $porProjeto = [];
-        $planejado = 0;
-        $executado = 0;
+        $porProjeto = [];   // só projeto_id != null
+        $porAtividade = []; // por categoria_atividade (nunca — nem Atividade avulsa)
+        $producaoMin = 0;
+        $comercialMin = 0;
+        $pausasMin = 0;
+        $outrosMin = 0;
 
         foreach ($items as $r) {
             $min = (int)($r['duracao_min'] ?? 0);
@@ -121,34 +145,50 @@ class AgendaReportService
                 $porDia[$dia] = ($porDia[$dia] ?? 0) + $min;
             }
 
-            $proj = $r['projeto_nome'] ?? ($r['resumo'] ? 'Atividade avulsa' : '—');
-            $porProjeto[$proj] = ($porProjeto[$proj] ?? 0) + $min;
+            $codigo = $r['tipo_codigo'] ?? '';
+            $bucket = self::mapTipoToBucket($codigo);
+            if ($bucket === 'Produção') $producaoMin += $min;
+            elseif ($bucket === 'Comercial') $comercialMin += $min;
+            elseif ($bucket === 'Pausas') $pausasMin += $min;
+            else $outrosMin += $min;
 
-            $st = $r['status'] ?? '';
-            if (in_array($st, ['planned'])) {
-                $planejado += $min;
-            } else {
-                $executado += $min;
+            if (!empty($r['projeto_foco_id']) && !empty($r['projeto_nome'])) {
+                $porProjeto[$r['projeto_nome']] = ($porProjeto[$r['projeto_nome']] ?? 0) + $min;
             }
+
+            $cat = $r['categoria_atividade'] ?? 'Sem categoria';
+            $cat = trim($cat) ?: 'Sem categoria';
+            $porAtividade[$cat] = ($porAtividade[$cat] ?? 0) + $min;
         }
 
-        $diasCount = count(array_unique(array_column($items, 'data'))) ?: 1;
-        $mediaPorDia = $totalMinutos / $diasCount;
+        $diasComBlocos = count($porDia) ?: 1;
+        $mediaPorDia = $totalMinutos / $diasComBlocos;
+        $isSingleDay = ($dataInicio === $dataFim);
 
-        // Top 10 projetos
         arsort($porProjeto);
-        $topProjetos = array_slice(array_keys($porProjeto), 0, 10);
+        arsort($porAtividade);
+        $topProjetos = array_slice($porProjeto, 0, 10, true);
+        $topAtividades = array_slice($porAtividade, 0, 10, true);
+
+        $pct = $totalMinutos > 0 ? fn($m) => round($m * 100 / $totalMinutos, 1) : 0;
 
         return [
             'total_horas' => round($totalMinutos / 60, 1),
             'total_minutos' => $totalMinutos,
             'media_por_dia_min' => round($mediaPorDia),
+            'show_media_dia' => !$isSingleDay,
             'por_tipo' => $porTipo,
             'por_dia' => $porDia,
-            'por_projeto' => $porProjeto,
             'top_projetos' => $topProjetos,
-            'planejado_min' => $planejado,
-            'executado_min' => $executado,
+            'top_atividades' => $topAtividades,
+            'producao_min' => $producaoMin,
+            'comercial_min' => $comercialMin,
+            'pausas_min' => $pausasMin,
+            'outros_min' => $outrosMin,
+            'producao_pct' => $pct($producaoMin),
+            'comercial_pct' => $pct($comercialMin),
+            'pausas_pct' => $pct($pausasMin),
+            'outros_pct' => $pct($outrosMin),
         ];
     }
 

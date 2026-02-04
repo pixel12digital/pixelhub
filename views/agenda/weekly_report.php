@@ -139,18 +139,34 @@ table tr:hover { background: #f9f9f9; }
         <h4>Total de Horas</h4>
         <div class="value"><?= number_format($dash['total_horas'] ?? 0, 1, ',', '.') ?>h</div>
     </div>
+    <?php if (!empty($dash['show_media_dia'])): ?>
     <div class="dashboard-card">
         <h4>Média por Dia</h4>
         <div class="value"><?= round(($dash['media_por_dia_min'] ?? 0) / 60, 1) ?>h</div>
     </div>
+    <?php endif; ?>
     <div class="dashboard-card">
-        <h4>Planejado</h4>
-        <div class="value"><?= round(($dash['planejado_min'] ?? 0) / 60, 1) ?>h</div>
+        <h4>Produção</h4>
+        <div class="value"><?= round(($dash['producao_min'] ?? 0) / 60, 1) ?>h</div>
+        <div style="font-size: 12px; color: #64748b;"><?= (int)($dash['producao_pct'] ?? 0) ?>%</div>
     </div>
     <div class="dashboard-card">
-        <h4>Executado</h4>
-        <div class="value"><?= round(($dash['executado_min'] ?? 0) / 60, 1) ?>h</div>
+        <h4>Comercial</h4>
+        <div class="value"><?= round(($dash['comercial_min'] ?? 0) / 60, 1) ?>h</div>
+        <div style="font-size: 12px; color: #64748b;"><?= (int)($dash['comercial_pct'] ?? 0) ?>%</div>
     </div>
+    <div class="dashboard-card">
+        <h4>Pausas</h4>
+        <div class="value"><?= round(($dash['pausas_min'] ?? 0) / 60, 1) ?>h</div>
+        <div style="font-size: 12px; color: #64748b;"><?= (int)($dash['pausas_pct'] ?? 0) ?>%</div>
+    </div>
+    <?php if (($dash['outros_min'] ?? 0) > 0): ?>
+    <div class="dashboard-card">
+        <h4>Outros</h4>
+        <div class="value"><?= round(($dash['outros_min'] ?? 0) / 60, 1) ?>h</div>
+        <div style="font-size: 12px; color: #64748b;"><?= (int)($dash['outros_pct'] ?? 0) ?>%</div>
+    </div>
+    <?php endif; ?>
 </div>
 
 <div class="report-section">
@@ -169,17 +185,28 @@ table tr:hover { background: #f9f9f9; }
 </div>
 
 <div class="report-section">
-    <h3>Top Projetos/Atividades</h3>
-    <?php if (empty($dash['por_projeto'])): ?>
+    <h3>Top Projetos (Tempo)</h3>
+    <?php if (empty($dash['top_projetos'])): ?>
+        <p>Nenhum bloco com projeto vinculado neste período.</p>
+    <?php else: ?>
+        <table style="width: auto;">
+            <?php foreach ($dash['top_projetos'] as $nome => $min): ?>
+            <tr><td><?= htmlspecialchars($nome) ?></td><td><strong><?= round($min / 60, 1) ?>h</strong></td></tr>
+            <?php endforeach; ?>
+        </table>
+    <?php endif; ?>
+</div>
+
+<div class="report-section">
+    <h3>Top Atividades (Tempo)</h3>
+    <?php if (empty($dash['top_atividades'])): ?>
         <p>Nenhum dado disponível.</p>
     <?php else: ?>
-        <div class="chart-placeholder">
-            <table style="width: auto;">
-                <?php $top = array_slice($dash['por_projeto'] ?? [], 0, 10, true); foreach ($top as $nome => $min): ?>
-                <tr><td><?= htmlspecialchars($nome) ?></td><td><strong><?= round($min / 60, 1) ?>h</strong></td></tr>
-                <?php endforeach; ?>
-            </table>
-        </div>
+        <table style="width: auto;">
+            <?php foreach ($dash['top_atividades'] as $nome => $min): ?>
+            <tr><td><?= htmlspecialchars($nome) ?></td><td><strong><?= round($min / 60, 1) ?>h</strong></td></tr>
+            <?php endforeach; ?>
+        </table>
     <?php endif; ?>
 </div>
 
@@ -199,7 +226,7 @@ table tr:hover { background: #f9f9f9; }
                     <th>Fim</th>
                     <th>Duração</th>
                     <th>Tipo</th>
-                    <th>Atividade</th>
+                    <th>Categoria</th>
                     <th>Projeto</th>
                     <th>Cliente</th>
                     <th>Tarefa</th>
@@ -214,8 +241,8 @@ table tr:hover { background: #f9f9f9; }
                     <td><?= substr($r['hora_fim'] ?? '', 0, 5) ?></td>
                     <td><?= (int)($r['duracao_min'] ?? 0) ?> min</td>
                     <td><?= htmlspecialchars($r['tipo_nome'] ?? '') ?></td>
-                    <td><?= htmlspecialchars($r['atividade'] ?? '—') ?></td>
-                    <td><?= htmlspecialchars($r['projeto_nome'] ?? ($r['resumo'] ?? '—')) ?></td>
+                    <td><?= htmlspecialchars($r['categoria_atividade'] ?? 'Sem categoria') ?></td>
+                    <td><?= htmlspecialchars($r['projeto_nome'] ?? ($r['resumo'] ?: '—')) ?></td>
                     <td><?= htmlspecialchars($r['cliente_nome'] ?? '—') ?></td>
                     <td><?= htmlspecialchars($r['tarefa_titulo'] ?? '—') ?></td>
                     <td>
