@@ -1240,7 +1240,7 @@ class AgendaService
                 INNER JOIN projects p ON t.project_id = p.id
                 LEFT JOIN tenants tn ON p.tenant_id = tn.id
                 WHERE abt.bloco_id = ? AND t.deleted_at IS NULL
-                ORDER BY t.status ASC, t.`order` ASC
+                ORDER BY (abt.hora_inicio IS NULL) ASC, abt.hora_inicio ASC, abt.hora_fim ASC
             ");
             $stmt->execute([$blocoId]);
         } catch (\PDOException $e) {
@@ -1258,7 +1258,7 @@ class AgendaService
                 INNER JOIN projects p ON t.project_id = p.id
                 LEFT JOIN tenants tn ON p.tenant_id = tn.id
                 WHERE abt.bloco_id = ?
-                ORDER BY t.status ASC, t.`order` ASC
+                ORDER BY (abt.hora_inicio IS NULL) ASC, abt.hora_inicio ASC, abt.hora_fim ASC
             ");
             $stmt->execute([$blocoId]);
         }
