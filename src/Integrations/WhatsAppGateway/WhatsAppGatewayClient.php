@@ -491,14 +491,19 @@ class WhatsAppGatewayClient
             $payload['metadata'] = $metadata;
         }
 
-        // Log do payload (sem base64 completo)
-        $payloadForLog = $payload;
-        if (isset($payloadForLog['base64']) && strlen($payloadForLog['base64']) > 100) {
-            $payloadForLog['base64'] = substr($payloadForLog['base64'], 0, 50) . '... (len=' . strlen($payload['base64']) . ')';
-        }
-        error_log("[WhatsAppGateway::sendImage] Payload: " . json_encode($payloadForLog, JSON_UNESCAPED_UNICODE));
-        
-        $response = $this->request('POST', '/api/messages', $payload);
+        // Aumenta timeout para imagens (podem ser grandes, ex.: CNH, prints)
+        $originalTimeout = $this->timeout;
+        $this->timeout = 90;
+
+        try {
+            // Log do payload (sem base64 completo)
+            $payloadForLog = $payload;
+            if (isset($payloadForLog['base64']) && strlen($payloadForLog['base64']) > 100) {
+                $payloadForLog['base64'] = substr($payloadForLog['base64'], 0, 50) . '... (len=' . strlen($payload['base64']) . ')';
+            }
+            error_log("[WhatsAppGateway::sendImage] Payload: " . json_encode($payloadForLog, JSON_UNESCAPED_UNICODE));
+
+            $response = $this->request('POST', '/api/messages', $payload);
 
         // Log detalhado da resposta
         error_log("[WhatsAppGateway::sendImage] Response success: " . ($response['success'] ? 'true' : 'false'));
@@ -540,7 +545,10 @@ class WhatsAppGatewayClient
             }
         }
 
-        return $response;
+            return $response;
+        } finally {
+            $this->timeout = $originalTimeout;
+        }
     }
 
     /**
@@ -1010,7 +1018,7 @@ class WhatsAppGatewayClient
                 
                 return [
                     'success' => false,
-                    'error' => "Timeout de {$this->timeout}s excedido ao enviar áudio. O gateway pode estar sobrecarregado ou o arquivo muito grande.",
+                    'error' => "Timeout de {$this->timeout}s excedido ao enviar mídia. O gateway pode estar sobrecarregado ou o arquivo muito grande.",
                     'error_code' => 'TIMEOUT',
                     'raw' => null,
                     'status' => 0,
