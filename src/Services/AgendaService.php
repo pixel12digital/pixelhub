@@ -1377,12 +1377,13 @@ class AgendaService
             $stmt = $db->prepare("DELETE FROM agenda_block_tasks WHERE bloco_id = ? AND task_id = ?");
             $stmt->execute([$blockId, $taskId]);
         }
+        self::autoAdjustBlockEndFromTasks($blockId);
     }
     
     /**
      * Atualiza horário de uma sessão de tarefa dentro do bloco (com validação)
      * Regras: tarefa_inicio >= bloco_inicio, tarefa_fim <= bloco_fim, tarefa_fim > tarefa_inicio
-     * Soma das durações das tarefas <= duração do bloco
+     * Permite task_end antes ou depois do block_end; após salvar, auto-ajusta block_end = max(task_end).
      *
      * @param int $blockId ID do bloco
      * @param int $taskId ID da tarefa
@@ -1402,52 +1403,21 @@ class AgendaService
         }
 
         $blocoInicio = $bloco['hora_inicio'] ?? '';
-        $blocoFim = $bloco['hora_fim'] ?? '';
-        if (!$blocoInicio || !$blocoFim) {
-            throw new \InvalidArgumentException('Bloco sem horário definido.');
+        if (!$blocoInicio) {
+            throw new \InvalidArgumentException('Bloco sem horário de início definido.');
         }
 
         $ti = substr($horaInicio, 0, 5);
         $tf = substr($horaFim, 0, 5);
         $bi = substr($blocoInicio, 0, 5);
-        $bf = substr($blocoFim, 0, 5);
 
+        // task_start >= block_start
         if ($ti < $bi) {
             throw new \InvalidArgumentException('Horário de início da tarefa não pode ser anterior ao início do bloco.');
         }
-        if ($tf > $bf) {
-            throw new \InvalidArgumentException('Horário de fim da tarefa não pode ser posterior ao fim do bloco.');
-        }
+        // task_end >= task_start
         if ($tf <= $ti) {
             throw new \InvalidArgumentException('Horário de fim deve ser posterior ao de início.');
-        }
-
-        $toMins = function ($h) {
-            $parts = explode(':', $h);
-            return ((int)($parts[0] ?? 0)) * 60 + (int)($parts[1] ?? 0);
-        };
-
-        $tasks = self::getTasksByBlock($blockId);
-        $blockDurationMins = $toMins($bf) - $toMins($bi);
-
-        $totalMins = 0;
-        foreach ($tasks as $t) {
-            $thIni = $t['task_hora_inicio'] ?? null;
-            $thFim = $t['task_hora_fim'] ?? null;
-            $isTarget = $abtId > 0
-                ? ((int)($t['abt_id'] ?? 0) === $abtId)
-                : ((int)$t['id'] === $taskId);
-            if ($isTarget) {
-                $thIni = $ti;
-                $thFim = $tf;
-            }
-            if ($thIni && $thFim) {
-                $totalMins += $toMins($thFim) - $toMins($thIni);
-            }
-        }
-
-        if ($totalMins > $blockDurationMins) {
-            throw new \InvalidArgumentException('A soma das durações das tarefas excede o total do bloco.');
         }
 
         $hi = strlen($horaInicio) === 5 ? $horaInicio . ':00' : $horaInicio;
@@ -1463,6 +1433,38 @@ class AgendaService
         if ($stmt->rowCount() === 0) {
             throw new \InvalidArgumentException('Tarefa não está vinculada a este bloco.');
         }
+
+        // Auto-ajuste: block_end = max(task_end) quando existe pelo menos uma tarefa com fim definido
+        self::autoAdjustBlockEndFromTasks($blockId);
+    }
+
+    /**
+     * Atualiza hora_fim do bloco para o maior task_hora_fim das tarefas vinculadas.
+     * Chamado após salvar/editar horários de tarefas.
+     */
+    public static function autoAdjustBlockEndFromTasks(int $blockId): void
+    {
+        $tasks = self::getTasksByBlock($blockId);
+        $tasksWithFim = array_filter($tasks, fn($t) => !empty($t['task_hora_fim']));
+        if (empty($tasksWithFim)) {
+            return;
+        }
+
+        $maxFim = null;
+        foreach ($tasksWithFim as $t) {
+            $fim = trim($t['task_hora_fim']);
+            if ($fim !== '' && ($maxFim === null || $fim > $maxFim)) {
+                $maxFim = $fim;
+            }
+        }
+        if ($maxFim === null) {
+            return;
+        }
+
+        $horaFim = strlen($maxFim) >= 8 ? substr($maxFim, 0, 8) : ($maxFim . ':00');
+        $db = DB::getConnection();
+        $stmt = $db->prepare("UPDATE agenda_blocks SET hora_fim = ?, updated_at = NOW() WHERE id = ?");
+        $stmt->execute([$horaFim, $blockId]);
     }
 
     /**

@@ -667,8 +667,8 @@ function loadBlockContent(blockId, container) {
                         const durMins = (thIni && thFim) ? (parseInt(thFim.split(':')[0])*60 + parseInt(thFim.split(':')[1]) - parseInt(thIni.split(':')[0])*60 - parseInt(thIni.split(':')[1])) : 0;
                         const durStr = durMins > 0 ? durMins + ' min' : '—';
                         html += '<tr data-task-id="' + t.id + '" data-abt-id="' + abtId + '"><td><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></td>';
-                        html += '<td><input type="time" class="task-time-input task-time-inicio" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" value="' + (thIni || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Início (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
-                        html += '<td><input type="time" class="task-time-input task-time-fim" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" value="' + (thFim || '') + '" min="' + blockInicio + '" max="' + blockFim + '" title="Fim (janela do bloco: ' + blockInicio + '–' + blockFim + ')"></td>';
+                        html += '<td><input type="time" class="task-time-input task-time-inicio" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" value="' + (thIni || '') + '" min="' + blockInicio + '" title="Início (mín: ' + blockInicio + ')"></td>';
+                        html += '<td><input type="time" class="task-time-input task-time-fim" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" data-min-inicio="' + (thIni || blockInicio) + '" value="' + (thFim || '') + '" min="' + (thIni || blockInicio) + '" title="Fim (o bloco será ajustado ao salvar)"></td>';
                         html += '<td class="task-dur-display">' + durStr + '</td></tr>';
                     });
                     html += '</tbody></table>';
@@ -767,6 +767,7 @@ function loadBlockContent(blockId, container) {
                     const updateDur = () => {
                         const hi = inpIni && inpIni.value ? inpIni.value : '';
                         const hf = inpFim && inpFim.value ? inpFim.value : '';
+                        if (inpFim && hi) inpFim.min = hi;
                         if (hi && hf && durCell) {
                             const p1 = hi.split(':'), p2 = hf.split(':');
                             const m = (parseInt(p2[0])*60 + parseInt(p2[1])) - (parseInt(p1[0])*60 + parseInt(p1[1]));
