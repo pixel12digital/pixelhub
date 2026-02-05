@@ -3366,23 +3366,26 @@ class AgendaService
                 FROM tasks
                 WHERE project_id IN ($placeholders) $deletedCondTasks
                 AND status NOT IN ('concluida', 'completed')
-                AND start_date IS NOT NULL AND due_date IS NOT NULL
-                AND start_date <= due_date
-                ORDER BY project_id, start_date ASC
+                AND due_date IS NOT NULL
+                ORDER BY project_id, COALESCE(start_date, due_date) ASC, due_date ASC
             ");
             $stmt3->execute($projectIds);
             $timelineTasksByProject = [];
             while ($row = $stmt3->fetch(\PDO::FETCH_ASSOC)) {
                 $pid = (int)$row['project_id'];
-                if (!isset($timelineTasksByProject[$pid])) {
-                    $timelineTasksByProject[$pid] = [];
+                $start = $row['start_date'] ?? $row['due_date'];
+                $due = $row['due_date'];
+                if ($start && $due && $start <= $due) {
+                    if (!isset($timelineTasksByProject[$pid])) {
+                        $timelineTasksByProject[$pid] = [];
+                    }
+                    $timelineTasksByProject[$pid][] = [
+                        'id' => (int)$row['id'],
+                        'title' => $row['title'] ?? '',
+                        'start_date' => $start,
+                        'due_date' => $due,
+                    ];
                 }
-                $timelineTasksByProject[$pid][] = [
-                    'id' => (int)$row['id'],
-                    'title' => $row['title'] ?? '',
-                    'start_date' => $row['start_date'] ?? null,
-                    'due_date' => $row['due_date'] ?? null,
-                ];
             }
         }
 
