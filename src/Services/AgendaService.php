@@ -3335,6 +3335,33 @@ class AgendaService
         $stmt->execute([$today]);
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
+        $projectIds = array_map(fn($r) => (int)$r['id'], $rows);
+        $datedTasksByProject = [];
+        $deletedCondTasks = $hasDeletedAt ? 'AND deleted_at IS NULL' : '';
+        if (!empty($projectIds)) {
+            $placeholders = implode(',', array_fill(0, count($projectIds), '?'));
+            $stmt2 = $db->prepare("
+                SELECT project_id, id, title, due_date
+                FROM tasks
+                WHERE project_id IN ($placeholders) $deletedCondTasks
+                AND status NOT IN ('concluida', 'completed')
+                AND due_date IS NOT NULL
+                ORDER BY project_id, due_date ASC
+            ");
+            $stmt2->execute($projectIds);
+            while ($row = $stmt2->fetch(\PDO::FETCH_ASSOC)) {
+                $pid = (int)$row['project_id'];
+                if (!isset($datedTasksByProject[$pid])) {
+                    $datedTasksByProject[$pid] = [];
+                }
+                $datedTasksByProject[$pid][] = [
+                    'id' => (int)$row['id'],
+                    'title' => $row['title'] ?? '',
+                    'due_date' => $row['due_date'] ?? null,
+                ];
+            }
+        }
+
         foreach ($rows as &$p) {
             $p['open_tasks_count'] = (int)($p['open_tasks_count'] ?? 0);
             $p['overdue_tasks_count'] = (int)($p['overdue_tasks_count'] ?? 0);
@@ -3348,6 +3375,8 @@ class AgendaService
             } else {
                 $p['next_task'] = null;
             }
+            $allDated = $datedTasksByProject[(int)$p['id']] ?? [];
+            $p['future_tasks'] = array_slice($allDated, 1, 2);
             unset($p['next_task_title'], $p['next_task_due_date']);
         }
         return $rows;
