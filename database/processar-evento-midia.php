@@ -58,3 +58,19 @@ try {
     echo "ERRO: " . $e->getMessage() . "\n";
     echo "Stack: " . $e->getTraceAsString() . "\n";
 }
+
+// Se falhou e temos channelId + mediaId, testa chamada direta ao gateway
+if ((!$result || empty($result['url'])) && $sessionId && $mediaId) {
+    echo "\n=== TESTE DIRETO AO GATEWAY ===\n\n";
+    try {
+        $client = new \PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient();
+        $gw = $client->downloadMedia($sessionId, $mediaId);
+        echo "Gateway success: " . ($gw['success'] ? 'true' : 'false') . "\n";
+        echo "Gateway error: " . ($gw['error'] ?? '(nenhum)') . "\n";
+        if (!empty($gw['data'])) {
+            echo "Gateway data size: " . strlen($gw['data']) . " bytes\n";
+        }
+    } catch (\Throwable $e) {
+        echo "Gateway exception: " . $e->getMessage() . "\n";
+    }
+}

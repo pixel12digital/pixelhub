@@ -2988,7 +2988,15 @@ function toggleTranscription(btn) {
  * Renderiza player de mídia baseado no tipo
  */
 function renderMediaPlayer(media, eventId = null) {
-    if (!media || !media.url) return '';
+    if (!media) return '';
+    // Placeholder quando mídia não foi baixada (evento existe mas download falhou)
+    if (media.media_failed) {
+        const typeLabel = (media.media_type || 'arquivo') === 'audio' ? 'Áudio' : ((media.media_type || '') === 'image' ? 'Imagem' : (media.media_type || 'Mídia'));
+        return `<div class="hub-media-failed-placeholder" style="padding:12px 16px;background:#f5f5f5;border-radius:8px;color:#666;font-size:13px;">
+            <span style="opacity:0.7;">${typeLabel} não disponível</span>
+        </div>`;
+    }
+    if (!media.url) return '';
     
     const mimeType = (media.mime_type || '').toLowerCase();
     const mediaType = (media.media_type || '').toLowerCase();
@@ -5046,7 +5054,7 @@ function addMessageToPanel(message) {
     const isOutbound = direction === 'outbound';
     
     // Renderiza mídia se existir (passa event_id para transcrição)
-    const mediaHtml = (message.media && message.media.url) ? renderMediaPlayer(message.media, msgId) : '';
+    const mediaHtml = message.media ? renderMediaPlayer(message.media, msgId) : '';
     console.log('[Hub] mediaHtml gerado:', mediaHtml ? 'SIM (' + mediaHtml.length + ' chars)' : 'VAZIO');
     
     // Conteúdo da mensagem (só mostra se não estiver vazio e não for placeholder de áudio com mídia)

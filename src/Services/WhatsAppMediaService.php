@@ -271,15 +271,11 @@ class WhatsAppMediaService
         // Log para debug
         error_log("[WhatsAppMediaService] Processando mídia - event_id: {$event['event_id']}, mediaType: {$mediaType}, mediaId: {$mediaId}, mimeType: {$mimeType}");
         
-        // Extrai channel_id para baixar mídia
-        $metadata = json_decode($event['metadata'] ?? '{}', true);
-        $channelId = $metadata['channel_id'] 
-            ?? $payload['channel'] 
-            ?? $payload['channelId']
-            ?? null;
+        // Extrai channel_id para baixar mídia (mesma prioridade do WhatsAppWebhookController)
+        $channelId = self::extractChannelIdFromEvent($event, $payload);
         
         if (!$channelId) {
-            error_log("[WhatsAppMediaService] Channel ID não encontrado para evento {$event['event_id']}");
+            error_log("[WhatsAppMediaService] Channel ID não encontrado para evento {$event['event_id']}. metadata=" . substr($event['metadata'] ?? '{}', 0, 150));
             // Salva registro sem arquivo para não reprocessar
             return self::saveMediaRecord($event['event_id'], $mediaId, $mediaType, $mimeType, null, null, null);
         }
@@ -354,6 +350,37 @@ class WhatsAppMediaService
         }
     }
     
+    /**
+     * Extrai channel_id do evento (metadata + payload).
+     * Usa a mesma prioridade do WhatsAppWebhookController para consistência.
+     * Importante para canais como ImobSites (tenant_id NULL) onde metadata pode falhar.
+     *
+     * @param array $event Evento da tabela communication_events
+     * @param array $payload Payload decodificado (event['payload'])
+     * @return string|null Channel ID ou null
+     */
+    private static function extractChannelIdFromEvent(array $event, array $payload): ?string
+    {
+        $metadata = json_decode($event['metadata'] ?? '{}', true) ?: [];
+        $data = $payload['data'] ?? [];
+        $session = $payload['session'] ?? $data['session'] ?? [];
+        $payloadMeta = $payload['metadata'] ?? [];
+
+        $channelId = $metadata['channel_id']
+            ?? $metadata['sessionId']
+            ?? $payload['sessionId']
+            ?? $session['id']
+            ?? $session['session']
+            ?? $payloadMeta['channel_id']
+            ?? $payloadMeta['sessionId']
+            ?? $payload['channelId']
+            ?? $payload['channel']
+            ?? ($data['channel'] ?? null);
+
+        $channelId = $channelId !== null && $channelId !== '' ? (string) $channelId : null;
+        return $channelId ?: null;
+    }
+
     /**
      * Processa áudio codificado em base64 no campo text
      * 
