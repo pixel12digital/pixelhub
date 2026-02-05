@@ -3282,6 +3282,7 @@ class CommunicationHubController extends Controller
         // CORREÇÃO: Se contact_external_id é um número, busca @lid mapeado para esse número
         // Isso permite encontrar eventos que usam @lid ao invés do número direto
         $lidBusinessIds = [];
+        $lidResolvedPhones = []; // Números resolvidos a partir de @lid (para contact_external_id com @lid)
         if (!empty($contactExternalId) && preg_match('/^[0-9]+$/', $contactExternalId)) {
             $lidStmt = $db->prepare("
                 SELECT business_id 
@@ -3294,6 +3295,21 @@ class CommunicationHubController extends Controller
             
             if (!empty($lidBusinessIds)) {
                 error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - LID MAPPINGS: contact=' . $contactExternalId . ', lids=' . implode(', ', $lidBusinessIds));
+            }
+        }
+        // CORREÇÃO: Se contact_external_id é @lid, busca phone_number mapeado para esse business_id
+        // Eventos podem ter from/to como número (557187799910@c.us) em vez de @lid
+        if (!empty($contactExternalId) && strpos($contactExternalId, '@lid') !== false) {
+            $lidPhoneStmt = $db->prepare("
+                SELECT phone_number 
+                FROM whatsapp_business_ids 
+                WHERE business_id = ?
+            ");
+            $lidPhoneStmt->execute([$contactExternalId]);
+            $lidPhones = $lidPhoneStmt->fetchAll(PDO::FETCH_COLUMN);
+            $lidResolvedPhones = array_filter($lidPhones ?: []);
+            if (!empty($lidResolvedPhones)) {
+                error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - LID->PHONE: contact=' . $contactExternalId . ', phones=' . implode(', ', $lidResolvedPhones));
             }
         }
         
@@ -3350,6 +3366,23 @@ class CommunicationHubController extends Controller
             // Adiciona padrão com @lid (ex: "56083800395891@lid")
             $contactPatterns[] = "%{$contactExternalId}%";
             error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - ADICIONADO PADRAO COM @lid: ' . $contactExternalId);
+        }
+        
+        // CORREÇÃO: Adiciona números resolvidos a partir de @lid (eventos usam número em from/to)
+        foreach ($lidResolvedPhones as $phone) {
+            $contactPatterns[] = "%{$phone}%";
+            if (strlen($phone) >= 12 && substr($phone, 0, 2) === '55') {
+                if (strlen($phone) === 13) {
+                    $without9th = substr($phone, 0, 4) . substr($phone, 5);
+                    $contactPatterns[] = "%{$without9th}%";
+                } elseif (strlen($phone) === 12) {
+                    $with9th = substr($phone, 0, 4) . '9' . substr($phone, 4);
+                    $contactPatterns[] = "%{$with9th}%";
+                }
+            }
+        }
+        if (!empty($lidResolvedPhones)) {
+            error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - ADICIONADOS PADROES LID->PHONE: ' . implode(', ', $lidResolvedPhones));
         }
         
         // Sempre adiciona número normalizado (pode ser usado como fallback)
