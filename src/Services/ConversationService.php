@@ -754,18 +754,19 @@ class ConversationService
         }
         
         if ($channelId) {
-            // VALIDAÇÃO: Rejeita valores conhecidos como incorretos se não parecerem sessionId real
+            // VALIDAÇÃO: Rejeita valores conhecidos como incorretos APENAS quando vêm de metadata
+            // Quando vêm de payload.sessionId/session.id (fontes prioritárias), confiamos no gateway
+            // ImobSites é sessão real quando existe no gateway; metadata.channel_id pode estar errado
             $channelIdLower = strtolower(trim($channelId));
-            $knownIncorrectValues = ['imobsites']; // Valores que sabemos que são incorretos como sessionId
+            $knownIncorrectValues = ['imobsites'];
+            $fromMetadata = in_array($source, ['metadata.channel_id (separado)', 'payload.metadata.channel_id'], true);
             
-            // Se for um valor conhecido como incorretos, tenta buscar sessionId de outra forma
-            if (in_array($channelIdLower, $knownIncorrectValues)) {
+            if (in_array($channelIdLower, $knownIncorrectValues) && $fromMetadata) {
                 error_log(sprintf(
-                    '[CONVERSATION UPSERT] extractChannelIdFromPayload: AVISO - channel_id=%s parece incorreto (valor conhecido como incorreto). Tentando buscar sessionId real...',
+                    '[CONVERSATION UPSERT] extractChannelIdFromPayload: AVISO - channel_id=%s de metadata (pode estar incorreto). Tentando sessionId real...',
                     $channelId
                 ));
                 
-                // Tenta buscar sessionId real do payload (pode estar em outro lugar)
                 $realSessionId = $payload['sessionId'] 
                     ?? $payload['session']['id'] 
                     ?? $payload['session']['session']
@@ -773,7 +774,7 @@ class ConversationService
                 
                 if ($realSessionId && strtolower(trim($realSessionId)) !== $channelIdLower) {
                     error_log(sprintf(
-                        '[CONVERSATION UPSERT] extractChannelIdFromPayload: CORRIGIDO - channel_id incorreto=%s substituído por sessionId real=%s',
+                        '[CONVERSATION UPSERT] extractChannelIdFromPayload: CORRIGIDO - metadata.channel_id=%s substituído por sessionId real=%s',
                         $channelId,
                         $realSessionId
                     ));
@@ -781,10 +782,10 @@ class ConversationService
                     $source = 'payload.sessionId (corrigido)';
                 } else {
                     error_log(sprintf(
-                        '[CONVERSATION UPSERT] extractChannelIdFromPayload: ERRO - channel_id=%s é valor conhecido como incorreto e não foi possível encontrar sessionId real. Retornando NULL.',
+                        '[CONVERSATION UPSERT] extractChannelIdFromPayload: metadata.channel_id=%s incorreto, sessionId real não encontrado. Retornando NULL.',
                         $channelId
                     ));
-                    return null; // Rejeita valor incorreto
+                    return null;
                 }
             }
             
