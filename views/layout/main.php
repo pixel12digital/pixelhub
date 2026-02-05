@@ -4054,12 +4054,13 @@
                 const msgId = (msg.id || msg.event_id || (media && media.event_id) || '').toString();
                 if (msgId && Array.from(container.querySelectorAll('.msg[data-msg-id]')).some(el => el.getAttribute('data-msg-id') === msgId)) return;
                 let dedupeKey = null;
-                if (!msgId) {
-                    if (isOutgoingAudio && media && media.url) {
-                        dedupeKey = 'outbound|audio|' + (media.url || '').slice(-120) + '|' + (msg.timestamp || msg.created_at || '').toString().slice(0, 19);
-                    } else {
-                        dedupeKey = (msg.direction || '') + '|' + (msg.content || '').slice(0, 100) + '|' + (msg.timestamp || msg.created_at || '');
-                    }
+                if (isOutgoingAudio && media && media.url) {
+                    dedupeKey = 'outbound|audio|' + (media.url || '').slice(-120) + '|' + (msg.timestamp || msg.created_at || '').toString().slice(0, 19);
+                } else {
+                    // Para outbound: dedupe por conteúdo+minuto (evita duplicata send+webhook)
+                    const ts = (msg.timestamp || msg.created_at || '').toString();
+                    const tsMinute = ts ? ts.slice(0, 16) : ''; // "2026-02-05 08:03" ou similar
+                    dedupeKey = (msg.direction || '') + '|' + (msg.content || '').slice(0, 100) + '|' + tsMinute;
                 }
                 if (dedupeKey && Array.from(container.querySelectorAll('.msg[data-dedupe-key]')).some(el => el.getAttribute('data-dedupe-key') === dedupeKey)) return;
                 const direction = msg.direction === 'outbound' ? 'outbound' : 'inbound';

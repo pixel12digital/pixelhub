@@ -481,14 +481,23 @@ class EventIngestionService
             // Mídia: send tem type, webhook tem raw.payload.type; ambos produzem mesmo hash
             $contentHash = md5('media:' . $msgType);
         } else {
-            // Texto: send usa text; webhook usa body
+            // Texto: send usa text; webhook usa body (vários caminhos)
             $content = $payload['text']
                 ?? $payload['message']['text']
                 ?? $payload['message']['body']
+                ?? $payload['message']['conversation']
                 ?? $payload['body']
                 ?? $payload['raw']['payload']['body']
+                ?? $payload['raw']['payload']['conversation']
+                ?? $payload['data']['message']['body']
+                ?? $payload['data']['message']['conversation']
                 ?? '';
-            $contentHash = md5(mb_substr((string) $content, 0, 500));
+            if ($content !== '') {
+                $contentHash = md5(mb_substr((string) $content, 0, 500));
+            } else {
+                // message.sent sem body: usa to+timestamp para bater com send (evita duplicata)
+                $contentHash = md5('text:' . $toNorm . ':' . $tsBucket);
+            }
         }
 
         return sprintf('whatsapp.outbound.message:fallback:%s:%s:%s', $toNorm, $tsBucket, $contentHash);

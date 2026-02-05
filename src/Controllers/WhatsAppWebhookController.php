@@ -286,6 +286,13 @@ class WhatsAppWebhookController extends Controller
             // Isso garante que o gateway não desista de enviar webhooks se o processamento demorar
             // O processamento continua em background, mas o webhook já respondeu com sucesso
             
+            // Normaliza payload de outbound para idempotência (evita duplicata com send interno)
+            // message.sent/onselfmessage têm estrutura diferente do send(); normalizar garante
+            // que calculateIdempotencyKey produza a mesma chave para ambos
+            if ($internalEventType === 'whatsapp.outbound.message') {
+                $payload = $this->normalizeOutboundPayloadForIdempotency($payload);
+            }
+            
             // Cria evento normalizado
             $eventId = null;
             $ingestError = null;
@@ -447,6 +454,66 @@ class WhatsAppWebhookController extends Controller
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
+    }
+
+    /**
+     * Normaliza payload de outbound (message.sent/onselfmessage) para idempotência.
+     * O webhook tem estrutura diferente do send(); copia to, timestamp, text/body e message_id
+     * para os mesmos caminhos que o send() usa, permitindo que calculateIdempotencyKey
+     * produza a mesma chave e evite duplicata.
+     *
+     * @param array $payload Payload bruto do webhook
+     * @return array Payload com campos normalizados (não altera o original, retorna cópia)
+     */
+    private function normalizeOutboundPayloadForIdempotency(array $payload): array
+    {
+        $p = $payload;
+        $raw = $p['raw']['payload'] ?? [];
+        $msg = $p['message'] ?? $raw;
+        $key = $msg['key'] ?? $raw['key'] ?? [];
+        $data = $p['data'] ?? [];
+
+        // message_id: webhook pode ter em key.id, data.key.id, etc.
+        $msgId = $p['id'] ?? $p['messageId'] ?? $p['message_id']
+            ?? $msg['id'] ?? $key['id']
+            ?? $data['key']['id'] ?? $data['message']['key']['id'] ?? null;
+        if ($msgId !== null) {
+            $p['id'] = $msgId;
+            $p['message_id'] = $msgId;
+            if (!isset($p['message']['id'])) {
+                $p['message'] = $p['message'] ?? [];
+                $p['message']['id'] = $msgId;
+            }
+            if (!isset($p['message']['key']['id'])) {
+                $p['message']['key'] = $p['message']['key'] ?? [];
+                $p['message']['key']['id'] = $msgId;
+            }
+        }
+
+        // to: send usa payload.to; webhook usa key.remoteJid, message.to, etc.
+        $to = $p['to'] ?? $msg['to'] ?? $key['remoteJid'] ?? $raw['key']['remoteJid'] ?? $raw['from'] ?? null;
+        if ($to !== null) {
+            $p['to'] = $to;
+        }
+
+        // timestamp: send usa segundos; webhook pode usar t em ms
+        $ts = $p['timestamp'] ?? $msg['timestamp'] ?? $raw['t'] ?? $p['t'] ?? null;
+        if ($ts !== null && $ts > 1e12) {
+            $ts = $ts / 1000;
+        }
+        if ($ts !== null) {
+            $p['timestamp'] = (int) $ts;
+        }
+
+        // text/body: message.sent às vezes não traz body; onselfmessage traz em message.body ou data
+        $body = $p['text'] ?? $p['body'] ?? $msg['text'] ?? $msg['body'] ?? $raw['body']
+            ?? $data['body'] ?? $data['message']['body'] ?? '';
+        if ($body !== '') {
+            $p['text'] = $body;
+            $p['body'] = $body;
+        }
+
+        return $p;
     }
 
     /**
