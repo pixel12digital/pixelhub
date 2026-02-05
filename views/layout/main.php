@@ -3765,8 +3765,9 @@
                     // Só texto
                     renderedContent = escapeInboxHtml(content);
                 } else {
-                    // Sem conteúdo e sem mídia: pula mensagem (mesmo comportamento do Painel)
-                    return;
+                    // Sem conteúdo e sem mídia: exibe placeholder (igual appendInboxMessages)
+                    // Evita painel vazio quando backend retorna mensagens com content/media vazios
+                    renderedContent = '<em style="color: #999;">[Mídia]</em>';
                 }
                 
                 const msgId = (msg.id || msg.event_id || '').toString();
