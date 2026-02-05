@@ -476,8 +476,9 @@ class EventIngestionService
         if (in_array($msgType, ['contact', 'vcard', 'contacts'], true)) {
             $contentHash = self::contentHashForContactPayload($payload, $toNorm, $tsBucket);
         } elseif (in_array($msgType, ['image', 'audio', 'ptt', 'document', 'video', 'sticker'], true)) {
-            // Mídia: send tem type, webhook tem raw.payload.type; ambos produzem mesmo hash
-            $contentHash = md5('media:' . $msgType);
+            // Mídia: send usa type=audio, webhook usa ptt; normalizar para mesmo hash
+            $mediaTypeNorm = ($msgType === 'ptt' || $msgType === 'voice') ? 'audio' : $msgType;
+            $contentHash = md5('media:' . $mediaTypeNorm);
         } else {
             // Texto: send usa text; webhook usa body (vários caminhos)
             $content = $payload['text']

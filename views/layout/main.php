@@ -3733,15 +3733,19 @@
                 const media = msg.media;
                 const mediaType = media && (media.media_type || media.type) ? (media.media_type || media.type).toLowerCase() : '';
                 const isOutgoingAudio = msg.direction === 'outbound' && (mediaType === 'audio' || mediaType === 'ptt' || mediaType === 'voice');
+                const ts = (msg.timestamp || msg.created_at || '').toString();
+                const tsMinute = ts ? ts.slice(0, 16) : '';
                 let dedupeKey;
                 if (isOutgoingAudio && media && media.url) {
-                    dedupeKey = 'outbound|audio|' + (media.url || '').slice(-120) + '|' + (msg.timestamp || msg.created_at || '').toString().slice(0, 19);
+                    dedupeKey = 'outbound|audio|' + (media.url || '').slice(-120) + '|' + tsMinute;
                 } else {
-                    const ts = (msg.timestamp || msg.created_at || '').toString();
-                    dedupeKey = (msg.direction || '') + '|' + (msg.content || msg.body || msg.text || '').slice(0, 100) + '|' + (ts ? ts.slice(0, 16) : '');
+                    dedupeKey = (msg.direction || '') + '|' + (msg.content || msg.body || msg.text || '').slice(0, 100) + '|' + tsMinute;
                 }
                 if (seen.has(dedupeKey)) return false;
+                // Áudio outbound: dedupe por minuto mesmo com URLs diferentes (send+webhook)
+                if (isOutgoingAudio && tsMinute && seen.has('outbound|audio|' + tsMinute)) return false;
                 seen.add(dedupeKey);
+                if (isOutgoingAudio && tsMinute) seen.add('outbound|audio|' + tsMinute);
                 return true;
             });
             
