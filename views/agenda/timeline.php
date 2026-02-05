@@ -34,14 +34,19 @@ function timelinePosition(?string $dueDate, string $todayStr): ?float {
     if ($days > 28) return 100;
     return ($days / 28) * 100;
 }
-/** Posição percentual no Gantt (rangeStart a rangeEnd em timestamps). */
+/** Posição percentual no Gantt (rangeStart a rangeEnd em timestamps). Retorna 0-100 ou null. */
 function ganttPosition(?string $dateStr, int $rangeStart, int $rangeEnd): ?float {
     if (!$dateStr || $rangeEnd <= $rangeStart) return null;
     $ts = strtotime($dateStr);
-    if ($ts < $rangeStart) return 0;
-    if ($ts > $rangeEnd) return 100;
     return (($ts - $rangeStart) / ($rangeEnd - $rangeStart)) * 100;
 }
+/** Retorna posição para exibição (clamp 0-100 se fora do range). */
+function ganttPositionClamped(?string $dateStr, int $rangeStart, int $rangeEnd): ?float {
+    $p = ganttPosition($dateStr, $rangeStart, $rangeEnd);
+    if ($p === null) return null;
+    return max(0, min(100, $p));
+}
+$MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 ?>
 
 <style>
@@ -257,27 +262,34 @@ function ganttPosition(?string $dateStr, int $rangeStart, int $rangeEnd): ?float
     .gantt-legend-prazo { font-size: 10px; color: #1e293b; line-height: 1; }
     .gantt-outer {
         width: 100%;
-        overflow-x: auto;
-        overflow-y: visible;
+        overflow: visible;
     }
     .gantt-wrapper {
-        min-width: 800px;
+        width: 100%;
         padding: 16px 0;
+        box-sizing: border-box;
+    }
+    .gantt-periodo {
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 8px;
+        font-weight: 500;
     }
     .gantt-axis {
-        display: flex;
         position: relative;
-        height: 28px;
+        height: 36px;
         margin-bottom: 8px;
         background: #f1f5f9;
         border-radius: 6px;
         font-size: 11px;
         color: #64748b;
+        width: 100%;
     }
     .gantt-axis-label {
         position: absolute;
         transform: translateX(-50%);
-        top: 6px;
+        top: 8px;
+        white-space: nowrap;
     }
     .gantt-axis-hoje {
         position: absolute;
@@ -287,15 +299,19 @@ function ganttPosition(?string $dateStr, int $rangeStart, int $rangeEnd): ?float
         background: #0ea5e9;
         z-index: 3;
     }
-    .gantt-axis-hoje::before {
-        content: 'Hoje';
+    .gantt-axis-hoje-label {
         position: absolute;
-        left: 3px;
-        top: 4px;
-        font-size: 9px;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 100%;
+        margin-bottom: 2px;
+        font-size: 10px;
         font-weight: 600;
         color: #0ea5e9;
+        white-space: nowrap;
     }
+    .gantt-axis-hoje.outside-left .gantt-axis-hoje-label { left: 0; transform: none; }
+    .gantt-axis-hoje.outside-right .gantt-axis-hoje-label { left: 100%; transform: translateX(-100%); }
     .gantt-row {
         display: flex;
         align-items: center;
@@ -317,7 +333,7 @@ function ganttPosition(?string $dateStr, int $rangeStart, int $rangeEnd): ?float
         height: 28px;
         background: #f8fafc;
         border-radius: 6px;
-        min-width: 400px;
+        min-width: 0;
     }
     .gantt-bar {
         position: absolute;
@@ -428,25 +444,53 @@ function ganttPosition(?string $dateStr, int $rangeStart, int $rangeEnd): ?float
         <!-- Tab Gráfico (Gantt macro) -->
         <div class="timeline-tab-panel <?= $activeTab === 'grafico' ? 'active' : '' ?>">
             <?php
-            $rangeStart = PHP_INT_MAX;
-            $rangeEnd = 0;
+            $startGlobal = PHP_INT_MAX;
+            $endGlobal = 0;
             foreach ($projects as $p) {
-                $created = $p['created_at'] ?? null;
-                if ($created) {
-                    $ts = strtotime($created);
-                    if ($ts < $rangeStart) $rangeStart = $ts;
+                $startDate = $p['start_date'] ?? $p['created_at'] ?? null;
+                if ($startDate) {
+                    $ts = strtotime($startDate);
+                    if ($ts < $startGlobal) $startGlobal = $ts;
                 }
                 $due = $p['due_date'] ?? null;
                 if ($due) {
                     $ts = strtotime($due);
-                    if ($ts > $rangeEnd) $rangeEnd = $ts;
+                    if ($ts > $endGlobal) $endGlobal = $ts;
                 }
             }
-            if ($rangeEnd < $todayTs) $rangeEnd = $todayTs;
-            if ($rangeStart === PHP_INT_MAX) $rangeStart = $todayTs - (30 * 86400);
-            $rangeDays = max(1, ($rangeEnd - $rangeStart) / 86400);
+            if ($endGlobal < $todayTs) $endGlobal = $todayTs;
+            if ($startGlobal === PHP_INT_MAX) $startGlobal = $todayTs - (90 * 86400);
+            $paddingDays = 5;
+            $rangeStart = $startGlobal - ($paddingDays * 86400);
+            $rangeEnd = $endGlobal + ($paddingDays * 86400);
+            $rangeSpan = max(1, $rangeEnd - $rangeStart);
             $hojePos = ganttPosition($todayStr, $rangeStart, $rangeEnd);
+            $hojeInside = $hojePos !== null && $hojePos >= 0 && $hojePos <= 100;
+            $hojeOutsideLeft = $hojePos !== null && $hojePos < 0;
+            $hojeOutsideRight = $hojePos !== null && $hojePos > 100;
+            $rangeDays = $rangeSpan / 86400;
+            $ticks = [];
+            if ($rangeDays <= 120) {
+                $d = strtotime(date('Y-m-01', $rangeStart));
+                while ($d <= $rangeEnd) {
+                    $ticks[] = $d;
+                    $d = strtotime('+1 month', $d);
+                }
+            } else {
+                $d = strtotime(date('Y-m-01', $rangeStart));
+                while ($d <= $rangeEnd) {
+                    $m = (int)date('n', $d);
+                    if (in_array($m, [1, 4, 7, 10])) $ticks[] = $d;
+                    $d = strtotime('+1 month', $d);
+                }
+            }
+            if (empty($ticks)) {
+                $ticks = [$rangeStart, $rangeEnd];
+            }
+            $periodoIni = date('d/m/Y', $rangeStart);
+            $periodoFim = date('d/m/Y', $rangeEnd);
             ?>
+            <div class="gantt-periodo">Período: <?= $periodoIni ?> → <?= $periodoFim ?></div>
             <div class="gantt-legend">
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#94a3b8;"></span> Barra do projeto</span>
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#fecaca;"></span> Projeto atrasado</span>
@@ -457,14 +501,25 @@ function ganttPosition(?string $dateStr, int $rangeStart, int $rangeEnd): ?float
             </div>
             <div class="gantt-outer">
                 <div class="gantt-wrapper">
-                    <div class="gantt-axis" style="position:relative;">
+                    <div class="gantt-axis">
+                        <?php foreach ($ticks as $tickTs): ?>
+                            <?php $tickPct = (($tickTs - $rangeStart) / $rangeSpan) * 100; if ($tickPct >= -1 && $tickPct <= 101): ?>
+                        <div class="gantt-axis-label" style="left: <?= $tickPct ?>%;"><?= $MESES_PT[(int)date('n', $tickTs)-1] ?>/<?= date('y', $tickTs) ?></div>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
                         <?php if ($hojePos !== null): ?>
-                        <div class="gantt-axis-hoje" style="left: <?= $hojePos ?>%;"></div>
+                            <?php
+                            $hojeDisplayPos = $hojeInside ? $hojePos : ($hojeOutsideLeft ? 0 : 100);
+                            $hojeClass = $hojeOutsideLeft ? 'outside-left' : ($hojeOutsideRight ? 'outside-right' : '');
+                            ?>
+                        <div class="gantt-axis-hoje <?= $hojeClass ?>" style="left: <?= $hojeDisplayPos ?>%;">
+                            <span class="gantt-axis-hoje-label"><?php
+                                if ($hojeOutsideLeft) echo '← Hoje (' . date('d/m/Y', $todayTs) . ')';
+                                elseif ($hojeOutsideRight) echo 'Hoje (' . date('d/m/Y', $todayTs) . ') →';
+                                else echo 'Hoje (' . date('d/m/Y', $todayTs) . ')';
+                            ?></span>
+                        </div>
                         <?php endif; ?>
-                        <?php for ($i = 0; $i <= 5; $i++): ?>
-                            <?php $d = $rangeStart + ($i / 5) * ($rangeEnd - $rangeStart); ?>
-                        <div class="gantt-axis-label" style="left: <?= ($i / 5) * 100 ?>%;"><?= date('d/m', $d) ?></div>
-                        <?php endfor; ?>
                     </div>
                     <?php foreach ($projects as $p): ?>
                         <?php
@@ -473,12 +528,14 @@ function ganttPosition(?string $dateStr, int $rangeStart, int $rangeEnd): ?float
                         $barEnd = $prazo ?: $todayStr;
                         $barStartPos = ganttPosition($created, $rangeStart, $rangeEnd);
                         $barEndPos = ganttPosition($barEnd, $rangeStart, $rangeEnd);
-                        $barLeft = min($barStartPos ?? 0, $barEndPos ?? 100);
-                        $barWidth = abs(($barEndPos ?? 100) - ($barStartPos ?? 0));
+                        $visibleLeft = max(0, min(100, min($barStartPos ?? 0, $barEndPos ?? 100)));
+                        $visibleRight = max(0, min(100, max($barStartPos ?? 0, $barEndPos ?? 100)));
+                        $barLeft = $visibleLeft;
+                        $barWidth = max(2, $visibleRight - $visibleLeft);
                         $isOverdue = $p['due_date'] && strtotime($p['due_date']) < $todayTs;
-                        $prazoPos = ganttPosition($p['due_date'] ?? null, $rangeStart, $rangeEnd);
+                        $prazoPos = $p['due_date'] ? ganttPositionClamped($p['due_date'], $rangeStart, $rangeEnd) : null;
                         $nextTask = $p['next_task'] ?? null;
-                        $nextPos = $nextTask ? ganttPosition($nextTask['due_date'], $rangeStart, $rangeEnd) : null;
+                        $nextPos = $nextTask ? ganttPositionClamped($nextTask['due_date'], $rangeStart, $rangeEnd) : null;
                         $nextOverdue = $nextTask && ($nextTask['due_date'] ?? '') < $todayStr;
                         $futureTasks = $p['future_tasks'] ?? [];
                         ?>
@@ -488,8 +545,8 @@ function ganttPosition(?string $dateStr, int $rangeStart, int $rangeEnd): ?float
                                 <span style="color:#94a3b8;font-size:11px;"><?= htmlspecialchars($p['tenant_name'] ?? 'Interno') ?></span>
                             </div>
                             <div class="gantt-row-chart">
-                                <?php if ($barStartPos !== null && $barEndPos !== null): ?>
-                                <div class="gantt-bar <?= $isOverdue ? 'overdue' : '' ?>" style="left: <?= $barLeft ?>%; width: <?= max(2, $barWidth) ?>%;"></div>
+                                <?php if ($barWidth > 0): ?>
+                                <div class="gantt-bar <?= $isOverdue ? 'overdue' : '' ?>" style="left: <?= $barLeft ?>%; width: <?= $barWidth ?>%;"></div>
                                 <?php endif; ?>
                                 <?php if ($prazoPos !== null): ?>
                                 <div class="gantt-marker prazo" style="left: <?= $prazoPos ?>%;" title="Prazo: <?= htmlspecialchars($p['due_date'] ? date('d/m/Y', strtotime($p['due_date'])) : '') ?>"></div>
