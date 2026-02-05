@@ -289,14 +289,24 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
         font-weight: 500;
     }
     .gantt-axis {
-        position: relative;
+        display: flex;
+        align-items: stretch;
+        gap: 12px;
         height: 36px;
         margin-bottom: 8px;
-        background: #f1f5f9;
-        border-radius: 6px;
         font-size: 11px;
         color: #64748b;
-        width: 100%;
+    }
+    .gantt-axis-spacer {
+        flex: 0 0 200px;
+        min-width: 180px;
+    }
+    .gantt-axis-chart {
+        flex: 1;
+        position: relative;
+        background: #f1f5f9;
+        border-radius: 6px;
+        min-width: 0;
     }
     .gantt-axis-label {
         position: absolute;
@@ -521,6 +531,8 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
             <div class="gantt-outer">
                 <div class="gantt-wrapper">
                     <div class="gantt-axis">
+                        <div class="gantt-axis-spacer"></div>
+                        <div class="gantt-axis-chart">
                         <?php foreach ($ticks as $tickTs): ?>
                             <?php $tickPct = (($tickTs - $rangeStart) / $rangeSpan) * 100; if ($tickPct >= -1 && $tickPct <= 101): ?>
                         <div class="gantt-axis-label" style="left: <?= $tickPct ?>%;"><?= $MESES_PT[(int)date('n', $tickTs)-1] ?>/<?= date('y', $tickTs) ?></div>
@@ -539,10 +551,11 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
                             ?></span>
                         </div>
                         <?php endif; ?>
+                        </div>
                     </div>
                     <?php foreach ($projects as $p): ?>
                         <?php
-                        $created = $p['created_at'] ?? date('Y-m-d', $todayTs - 30*86400);
+                        $created = $p['created_at'] ?? date('Y-m-d', $rangeStart);
                         $prazo = $p['due_date'] ?? null;
                         $barEnd = $prazo ?: $todayStr;
                         $barStartPos = ganttPosition($created, $rangeStart, $rangeEnd);

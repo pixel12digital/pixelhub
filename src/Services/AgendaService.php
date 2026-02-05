@@ -3295,7 +3295,7 @@ class AgendaService
                 p.id,
                 p.name,
                 p.due_date,
-                DATE(p.created_at) as created_at,
+                DATE_FORMAT(p.created_at, '%Y-%m-%d') as created_at,
                 t.name as tenant_name,
                 (SELECT COUNT(*) FROM tasks tk 
                  WHERE tk.project_id = p.id $deletedCond
