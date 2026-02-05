@@ -68,7 +68,8 @@ function assignTaskLanes(array $tasks, int $rangeStart, int $rangeEnd): array {
     foreach ($tasks as $tk) {
         $left = ganttPosition($tk['start_date'] ?? null, $rangeStart, $rangeEnd);
         $right = ganttPosition($tk['due_date'] ?? null, $rangeStart, $rangeEnd);
-        if ($left === null || $right === null || $right <= $left) continue;
+        if ($left === null || $right === null) continue;
+        if ($right <= $left) $right = $left + 4;
         $result[] = array_merge($tk, ['left' => $left, 'right' => $right, 'lane' => -1]);
     }
     usort($result, fn($a, $b) => $a['left'] <=> $b['left']);
@@ -411,6 +412,8 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
     }
     .gantt-task-bar:hover { background: #334155; }
     .gantt-task-bar.overdue { background: #b91c1c; border-color: #991b1b; }
+    .gantt-task-bar.closed { background: #94a3b8; border-color: #64748b; opacity: 0.6; }
+    .gantt-task-bar.closed:hover { opacity: 0.9; }
     .gantt-legend-task { height: 10px; background: #475569; border-radius: 3px; }
 </style>
 
@@ -541,7 +544,8 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
             <div class="gantt-legend">
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#94a3b8;"></span> Barra do projeto</span>
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#fecaca;"></span> Projeto atrasado</span>
-                <span class="gantt-legend-item"><span class="gantt-legend-bar gantt-legend-task"></span> Tarefas (início–fim)</span>
+                <span class="gantt-legend-item"><span class="gantt-legend-bar gantt-legend-task"></span> Tarefas abertas</span>
+                <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#94a3b8;opacity:0.6;"></span> Tarefas concluídas</span>
             </div>
             <div class="gantt-outer">
                 <div class="gantt-wrapper">
@@ -602,8 +606,11 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
                                     $tkTop = 4 + $tk['lane'] * 18;
                                     $tkStart = $tk['start_date'] ?? $tk['due_date'];
                                     $tkEnd = $tk['due_date'];
+                                    $tkOpen = $tk['is_open'] ?? true;
+                                    $tkTitle = $tk['title'] ?? 'Tarefa';
+                                    $tkTooltip = $tkTitle . "\nInício: " . date('d/m/Y', strtotime($tkStart)) . "\nFim: " . date('d/m/Y', strtotime($tkEnd));
                                     ?>
-                                <a href="<?= htmlspecialchars($boardBase . '?project_id=' . (int)$p['id'] . '&task_id=' . (int)$tk['id']) ?>" class="gantt-task-bar <?= $tkOverdue ? 'overdue' : '' ?>" style="left: <?= $tkLeftClamp ?>%; width: <?= $tkWidth ?>%; top: <?= $tkTop ?>px;" title="<?= htmlspecialchars(($tk['title'] ?? '') . ' — ' . date('d/m', strtotime($tkStart)) . ' a ' . date('d/m', strtotime($tkEnd))) ?>"></a>
+                                <a href="<?= htmlspecialchars($boardBase . '?project_id=' . (int)$p['id'] . '&task_id=' . (int)$tk['id']) ?>" class="gantt-task-bar <?= $tkOverdue ? 'overdue' : '' ?> <?= !$tkOpen ? 'closed' : '' ?>" style="left: <?= $tkLeftClamp ?>%; width: <?= $tkWidth ?>%; top: <?= $tkTop ?>px;" title="<?= htmlspecialchars($tkTooltip) ?>"></a>
                                 <?php endforeach; ?>
                             </div>
                         </div>

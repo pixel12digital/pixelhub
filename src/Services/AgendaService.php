@@ -3362,10 +3362,9 @@ class AgendaService
                 ];
             }
             $stmt3 = $db->prepare("
-                SELECT project_id, id, title, start_date, due_date
+                SELECT project_id, id, title, status, start_date, due_date
                 FROM tasks
                 WHERE project_id IN ($placeholders) $deletedCondTasks
-                AND status NOT IN ('concluida', 'completed')
                 AND due_date IS NOT NULL
                 ORDER BY project_id, COALESCE(start_date, due_date) ASC, due_date ASC
             ");
@@ -3379,9 +3378,12 @@ class AgendaService
                     if (!isset($timelineTasksByProject[$pid])) {
                         $timelineTasksByProject[$pid] = [];
                     }
+                    $isOpen = !in_array($row['status'] ?? '', ['concluida', 'completed']);
                     $timelineTasksByProject[$pid][] = [
                         'id' => (int)$row['id'],
                         'title' => $row['title'] ?? '',
+                        'status' => $row['status'] ?? '',
+                        'is_open' => $isOpen,
                         'start_date' => $start,
                         'due_date' => $due,
                     ];

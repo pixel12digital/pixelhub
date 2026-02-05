@@ -64,7 +64,23 @@ foreach ($tasks as $t) {
     echo "   id={$t['id']} due_date(RAW)=" . var_export($t['due_date'], true) . " | {$t['title']}\n";
 }
 
-echo "\n4) parseDateToTs (simulação):\n";
+// 4. Timeline tasks (como na query real - TODAS com due_date)
+$stmt4 = $db->prepare("
+    SELECT id, title, status, start_date, due_date
+    FROM tasks
+    WHERE project_id = ? AND deleted_at IS NULL
+    AND due_date IS NOT NULL
+    ORDER BY COALESCE(start_date, due_date) ASC, due_date ASC
+");
+$stmt4->execute([$projectId]);
+$timelineTasks = $stmt4->fetchAll(PDO::FETCH_ASSOC);
+echo "\n4) Timeline tasks (todas com due_date, para barras):\n";
+foreach ($timelineTasks as $t) {
+    $start = $t['start_date'] ?? $t['due_date'];
+    echo "   id={$t['id']} status={$t['status']} start=" . var_export($start, true) . " due=" . var_export($t['due_date'], true) . " | {$t['title']}\n";
+}
+
+echo "\n5) parseDateToTs (simulação):\n";
 function parseDateToTs(?string $dateStr): ?int {
     if (!$dateStr || trim($dateStr) === '') return null;
     $s = trim($dateStr);
@@ -77,8 +93,8 @@ function parseDateToTs(?string $dateStr): ?int {
 $createdFmt = $row['created_at_fmt'] ?? null;
 $tsCreated = parseDateToTs($createdFmt);
 echo "   created_at_fmt='$createdFmt' => ts=" . ($tsCreated ? date('Y-m-d', $tsCreated) : 'NULL') . "\n";
-if (!empty($tasks)) {
-    $firstDue = $tasks[0]['due_date'];
+if (!empty($timelineTasks)) {
+    $firstDue = $timelineTasks[0]['due_date'];
     $tsDue = parseDateToTs($firstDue);
     echo "   first_task due_date='$firstDue' => ts=" . ($tsDue ? date('Y-m-d', $tsDue) : 'NULL') . "\n";
 }
