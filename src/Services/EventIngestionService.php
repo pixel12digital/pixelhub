@@ -402,20 +402,18 @@ class EventIngestionService
             ?? $metadata['message_id']
             ?? null;
 
-        // whatsapp.outbound.message: chave unificada por message_id (ignora source_system)
-        // Evita duplicação entre send interno e webhook message.sent
-        if ($eventType === 'whatsapp.outbound.message' && $externalId !== null) {
-            return sprintf('%s:%s', $eventType, $externalId);
-        }
-
-        // whatsapp.outbound.message SEM message_id: fallback por to+timestamp+content
-        // Gateway (WPPConnect) frequentemente não retorna message_id; send() e onselfmessage
-        // geram payloads diferentes → hashes diferentes → duplicata. Usamos chave composta
-        // que ambos os formatos (pixelhub_operator e wpp_gateway) conseguem produzir.
-        if ($eventType === 'whatsapp.outbound.message' && $externalId === null) {
+        // whatsapp.outbound.message: SEMPRE prioriza fallback para unificar send() e webhook.
+        // O gateway retorna message_id no webhook (key.id) mas NÃO no send; chaves diferentes
+        // geravam duplicata. Ao priorizar fallback (to+timestamp+content), ambos produzem
+        // a mesma chave e o webhook é descartado corretamente.
+        if ($eventType === 'whatsapp.outbound.message') {
             $fallbackKey = self::calculateOutboundFallbackKey($payload);
             if ($fallbackKey !== null) {
                 return $fallbackKey;
+            }
+            // Só usa message_id quando fallback não é possível (payload mínimo sem to/timestamp)
+            if ($externalId !== null) {
+                return sprintf('%s:%s', $eventType, $externalId);
             }
         }
 

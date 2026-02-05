@@ -3727,6 +3727,24 @@
                 return;
             }
             
+            // Dedupe: evita exibir duplicatas (send+webhook) quando backend ainda retorna 2 eventos
+            const seen = new Set();
+            messages = messages.filter(msg => {
+                const media = msg.media;
+                const mediaType = media && (media.media_type || media.type) ? (media.media_type || media.type).toLowerCase() : '';
+                const isOutgoingAudio = msg.direction === 'outbound' && (mediaType === 'audio' || mediaType === 'ptt' || mediaType === 'voice');
+                let dedupeKey;
+                if (isOutgoingAudio && media && media.url) {
+                    dedupeKey = 'outbound|audio|' + (media.url || '').slice(-120) + '|' + (msg.timestamp || msg.created_at || '').toString().slice(0, 19);
+                } else {
+                    const ts = (msg.timestamp || msg.created_at || '').toString();
+                    dedupeKey = (msg.direction || '') + '|' + (msg.content || msg.body || msg.text || '').slice(0, 100) + '|' + (ts ? ts.slice(0, 16) : '');
+                }
+                if (seen.has(dedupeKey)) return false;
+                seen.add(dedupeKey);
+                return true;
+            });
+            
             let html = '';
             messages.forEach(msg => {
                 // Direção: usa campo 'direction' do backend
@@ -3994,6 +4012,20 @@
                 
                 const url = INBOX_BASE_URL + '/communication-hub/messages/check?' + params.toString();
                 const response = await fetch(url);
+                if (response.status === 404) {
+                    // Thread não encontrado (ex: conversa excluída) - para de fazer polling
+                    InboxState.currentThreadId = null;
+                    InboxState.currentChannel = null;
+                    InboxState.lastMessageTs = null;
+                    InboxState.lastMessageId = null;
+                    const drawer = document.getElementById('inboxDrawer');
+                    if (drawer) drawer.classList.remove('chat-open');
+                    const chat = document.getElementById('inboxChat');
+                    if (chat) chat.style.display = 'none';
+                    const messages = document.getElementById('inboxMessages');
+                    if (messages) messages.innerHTML = '';
+                    return;
+                }
                 const result = await response.json();
                 
                 if (result.success && result.has_new) {
