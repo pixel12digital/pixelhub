@@ -442,6 +442,20 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
     .gantt-task-bar.next-delivery:hover { box-shadow: 0 0 0 2px #f59e0b, 0 1px 3px rgba(0,0,0,0.12); }
     .gantt-task-bar.closed { background: #94a3b8; border-color: #64748b; opacity: 0.5; }
     .gantt-task-bar.closed:hover { opacity: 0.85; }
+    /* Tarefa de um dia = ponto circular */
+    .gantt-task-bar.gantt-task-dot {
+        width: 8px !important;
+        height: 8px;
+        min-width: 8px;
+        border-radius: 50%;
+        transform: translateX(-50%);
+    }
+    .gantt-task-bar.gantt-task-dot.next-delivery {
+        width: 10px !important;
+        height: 10px;
+        min-width: 10px;
+        transform: translateX(-50%);
+    }
     .gantt-legend-task { height: 10px; background: #475569; border-radius: 4px; }
     /* Limite visual: max 6 lanes visíveis (0-5) */
     .gantt-row-chart.gantt-collapsed { max-height: 154px; }
@@ -607,6 +621,7 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#7c3aed;"></span> Ticket aberto</span>
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#b91c1c;"></span> Ticket/Tarefa atrasado</span>
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#475569;border:2px solid #f59e0b;"></span> Próxima entrega</span>
+                <span class="gantt-legend-item"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#475569;"></span> Tarefa de 1 dia</span>
             </div>
             <p class="gantt-legend-hint" style="font-size:11px;color:#64748b;margin:-8px 0 12px 0;">Roxo = linha de tickets sem projeto. Roxo/vermelho = ticket (vermelho = atrasado). Tickets e tarefas são distintos: tickets em Tickets de Suporte; tarefas no Quadro Kanban.</p>
             <div class="gantt-outer">
@@ -685,13 +700,19 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
                                 <?php endif; ?>
                                 <?php foreach ($taskLanes as $tk): ?>
                                     <?php
+                                    $tkStartRaw = $tk['start_date'] ?? $tk['due_date'] ?? null;
+                                    $tkEndRaw = $tk['due_date'] ?? null;
+                                    $tkStartYmd = $tkStartRaw ? date('Y-m-d', strtotime($tkStartRaw)) : null;
+                                    $tkEndYmd = $tkEndRaw ? date('Y-m-d', strtotime($tkEndRaw)) : null;
+                                    $isSingleDay = $tkStartYmd && $tkEndYmd && $tkStartYmd === $tkEndYmd;
                                     $tkLeftClamp = max(0, min(100, $tk['left']));
                                     $tkRightClamp = max(0, min(100, $tk['right']));
-                                    $tkWidth = max(2, $tkRightClamp - $tkLeftClamp);
+                                    $tkWidth = $isSingleDay ? 0 : max(2, $tkRightClamp - $tkLeftClamp);
+                                    $tkCenter = ($tkLeftClamp + $tkRightClamp) / 2;
                                     $tkOverdue = ($tk['due_date'] ?? '') < $todayStr;
-                                    $tkTop = 6 + $tk['lane'] * 22;
-                                    $tkStart = $tk['start_date'] ?? $tk['due_date'];
-                                    $tkEnd = $tk['due_date'];
+                                    $tkTop = $isSingleDay ? (6 + $tk['lane'] * 22 + 7) : (6 + $tk['lane'] * 22);
+                                    $tkStart = $tkStartRaw;
+                                    $tkEnd = $tkEndRaw;
                                     $tkTitle = $tk['title'] ?? 'Tarefa';
                                     $tkPrefix = ($tk['type'] ?? 'task') === 'ticket' ? '[Ticket] ' : '';
                                     $statusLabel = ['aberto' => 'Aberto', 'em_atendimento' => 'Em atendimento', 'aguardando_cliente' => 'Aguardando cliente'][$tk['status'] ?? ''] ?? '';
@@ -704,8 +725,12 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
                                     $tkClass = $tkOverdue ? 'overdue' : '';
                                     if (($tk['type'] ?? 'task') === 'ticket') $tkClass .= ' ticket';
                                     if ($nextTaskId && (int)$tk['id'] === (int)$nextTaskId) $tkClass .= ' next-delivery';
+                                    if ($isSingleDay) $tkClass .= ' gantt-task-dot';
+                                    $tkStyle = $isSingleDay
+                                        ? "left: {$tkCenter}%; top: {$tkTop}px;"
+                                        : "left: {$tkLeftClamp}%; width: {$tkWidth}%; top: {$tkTop}px;";
                                     ?>
-                                <a href="<?= htmlspecialchars($tkUrl) ?>" class="gantt-task-bar <?= $tkClass ?>" data-lane="<?= $tk['lane'] ?>" style="left: <?= $tkLeftClamp ?>%; width: <?= $tkWidth ?>%; top: <?= $tkTop ?>px;" title="<?= htmlspecialchars($tkTooltip) ?>"></a>
+                                <a href="<?= htmlspecialchars($tkUrl) ?>" class="gantt-task-bar <?= $tkClass ?>" data-lane="<?= $tk['lane'] ?>" style="<?= $tkStyle ?>" title="<?= htmlspecialchars($tkTooltip) ?>"></a>
                                 <?php endforeach; ?>
                                 <?php if ($needsCollapse): ?>
                                 <button type="button" class="gantt-expand-trigger" aria-label="Expandir">+<?= $numLanes - 6 ?> tarefas</button>

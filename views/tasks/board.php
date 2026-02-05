@@ -2823,7 +2823,15 @@ if (!empty($selectedProject)) {
             html += '<strong>Cliente:</strong> ' + data.tenant_name + '<br>';
         }
         html += '<strong>Tipo:</strong> ' + taskTypeLabel + '<br>';
-        html += '<strong>Status:</strong> ' + statusLabel + '<br>';
+        html += '<div class="form-group" style="margin-top: 10px;">';
+        html += '<label for="task_detail_status_select">Status</label>';
+        html += '<select class="task-status-select" id="task_detail_status_select" data-task-id="' + taskId + '" style="width: 100%; padding: 8px; font-size: 14px; border: 1px solid #ddd; border-radius: 4px; font-weight: 500;">';
+        html += '<option value="backlog" ' + (data.status === 'backlog' ? 'selected' : '') + '>Backlog</option>';
+        html += '<option value="em_andamento" ' + (data.status === 'em_andamento' ? 'selected' : '') + '>Em Andamento</option>';
+        html += '<option value="aguardando_cliente" ' + (data.status === 'aguardando_cliente' ? 'selected' : '') + '>Aguardando Cliente</option>';
+        html += '<option value="concluida" ' + (data.status === 'concluida' ? 'selected' : '') + '>Concluída</option>';
+        html += '</select>';
+        html += '</div>';
         if (data.assignee) {
             html += '<strong>Responsável:</strong> ' + escapeHtml(data.assignee) + '<br>';
         }
@@ -3018,8 +3026,9 @@ if (!empty($selectedProject)) {
         html += '<div class="task-screen-recordings-section" style="margin-top: 24px; padding-top: 20px; border-top: 2px solid #f0f0f0;">';
         html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">';
         html += '<h4 style="margin: 0; color: #023A8D;">Gravações de Tela</h4>';
-        html += '<button type="button" class="btn btn-primary" onclick="PixelHubScreenRecorder.open(' + taskId + ', \'task\')" style="padding: 8px 16px; font-size: 14px; font-weight: 600;">';
-        html += '🎥 Gravar tela';
+        html += '<button type="button" class="btn btn-primary" onclick="PixelHubScreenRecorder.open(' + taskId + ', \'task\')" style="padding: 8px 16px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">';
+        html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.9;"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4M14 4v4M4 8h16"/></svg>';
+        html += 'Gravar tela';
         html += '</button>';
         html += '</div>';
         html += '<div id="task-screen-recordings-list-' + taskId + '">';
