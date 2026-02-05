@@ -509,6 +509,7 @@ class ConversationService
         }
 
         // FIX @lid: Fallback quando não há mapeamento - busca conversa existente por nome
+        // REGRA: Exige channel_id para evitar contaminação entre canais (ex: ImobSites vs pixel12digital)
         // Apenas para atualizar conversa existente, NÃO cria nova conversa
         if (!$contactExternalId && $channelType === 'whatsapp' && $direction === 'inbound') {
             $notifyName = $payload['message']['notifyName'] 
@@ -517,27 +518,33 @@ class ConversationService
                 ?? $payload['raw']['payload']['sender']['name'] 
                 ?? null;
             
-            if ($notifyName && $tenantId) {
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: Tentando fallback por nome - notifyName: ' . $notifyName . ', tenant_id: ' . $tenantId);
+            // Extrai channel_id do payload ANTES do fallback (evita usar contato de outro canal)
+            $fallbackChannelId = self::extractChannelIdFromPayload($payload, $metadata);
+            
+            // Só usa fallback quando temos channel_id - evita contaminação entre canais
+            if ($notifyName && $tenantId && $fallbackChannelId) {
+                error_log('[CONVERSATION UPSERT] extractChannelInfo: Tentando fallback por nome - notifyName: ' . $notifyName . ', tenant_id: ' . $tenantId . ', channel_id: ' . ($fallbackChannelId ?: 'NULL'));
                 
-                // Busca conversa existente com mesmo nome e tenant (apenas uma)
                 $db = \PixelHub\Core\DB::getConnection();
+                // CORREÇÃO: Filtra por channel_id - só usa conversa do MESMO canal (evita 47 vs 11 entre canais)
                 $stmt = $db->prepare("
                     SELECT contact_external_id 
                     FROM conversations 
                     WHERE channel_type = 'whatsapp' 
                     AND tenant_id = ? 
                     AND contact_name = ?
+                    AND channel_id IS NOT NULL 
+                    AND LOWER(TRIM(channel_id)) = LOWER(TRIM(?))
                     LIMIT 1
                 ");
-                $stmt->execute([$tenantId, $notifyName]);
+                $stmt->execute([$tenantId, $notifyName, $fallbackChannelId]);
                 $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
                 
                 if ($existing && !empty($existing['contact_external_id'])) {
                     $contactExternalId = $existing['contact_external_id'];
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Fallback encontrou conversa existente - contact_external_id: ' . $contactExternalId);
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Fallback encontrou conversa existente (mesmo canal) - contact_external_id: ' . $contactExternalId);
                 } else {
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Fallback NÃO encontrou conversa existente para nome: ' . $notifyName);
+                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Fallback NÃO encontrou conversa existente para nome: ' . $notifyName . ' no canal: ' . ($fallbackChannelId ?: 'NULL'));
                 }
             }
         }
