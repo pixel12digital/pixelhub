@@ -29,13 +29,16 @@ Adicione ao crontab:
 |-----------|--------|-----------|
 | `--limit=20` | 20 | Máximo de jobs por execução |
 | `--backoff=1` | 1 | Minutos entre tentativas de retry |
+| `--delay=30` | 30 | Segundos antes da 1ª tentativa (evita race: gateway demora a disponibilizar mídia) |
 
 ## Fluxo
 
 1. Webhook recebe mensagem inbound com mídia → enfileira em `media_process_queue`
-2. Worker roda a cada minuto → consome fila → baixa e salva mídia
-3. Até 3 tentativas por job; 1 minuto entre tentativas
-4. Falhas permanentes ficam em `status=failed` para análise
+2. Worker roda a cada minuto → **aguarda 30s** antes da 1ª tentativa (gateway/CDN pode demorar)
+3. Consome fila → baixa e salva mídia
+4. Se download falhar (stored_path vazio), **retry** em vez de marcar como done
+5. Até 3 tentativas por job; 1 minuto entre tentativas
+6. Falhas permanentes ficam em `status=failed` para análise
 
 ## Complemento
 

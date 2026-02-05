@@ -45,24 +45,27 @@ class MediaProcessQueueService
      *
      * @param int $limit Máximo de jobs por execução
      * @param int $minMinutesBetweenAttempts Minutos entre tentativas (backoff)
+     * @param int $minSecondsBeforeFirstAttempt Segundos antes da 1ª tentativa (evita race: gateway demora a disponibilizar mídia)
      * @return array Lista de registros da fila
      */
-    public static function fetchPending(int $limit = 20, int $minMinutesBetweenAttempts = 1): array
+    public static function fetchPending(int $limit = 20, int $minMinutesBetweenAttempts = 1, int $minSecondsBeforeFirstAttempt = 30): array
     {
         $db = DB::getConnection();
+        // Primeira tentativa: aguarda minSecondsBeforeFirstAttempt (gateway/CDN pode demorar a ter mídia)
+        // Tentativas subsequentes: respeita minMinutesBetweenAttempts (backoff)
         $stmt = $db->prepare("
             SELECT id, event_id, attempts, max_attempts
             FROM media_process_queue
             WHERE status IN ('pending', 'processing')
             AND attempts < max_attempts
             AND (
-                last_attempt_at IS NULL
-                OR last_attempt_at < DATE_SUB(NOW(), INTERVAL ? MINUTE)
+                (last_attempt_at IS NULL AND created_at <= DATE_SUB(NOW(), INTERVAL ? SECOND))
+                OR (last_attempt_at IS NOT NULL AND last_attempt_at < DATE_SUB(NOW(), INTERVAL ? MINUTE))
             )
             ORDER BY created_at ASC
             LIMIT ?
         ");
-        $stmt->execute([$minMinutesBetweenAttempts, $limit]);
+        $stmt->execute([$minSecondsBeforeFirstAttempt, $minMinutesBetweenAttempts, $limit]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
