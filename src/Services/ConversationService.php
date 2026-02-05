@@ -160,22 +160,28 @@ class ConversationService
             }
         }
 
-        // CORREÇÃO: Verifica se existe conversa com mesmo contact_name no mesmo tenant
-        // Isso previne duplicidade quando o mesmo contato aparece com identificadores diferentes (@lid vs telefone)
-        // mas com o mesmo nome (ex: "Alessandra Karkow")
+        // CORREÇÃO: Verifica se existe conversa com mesmo contact_name no mesmo tenant E MESMO channel_id
+        // REGRA DE OURO: Contato NÃO pode ser resolvido só por nome. Identidade = external_id + channel.
+        // Só usa match por nome quando external_ids são equivalentes (mesmo contato real).
         if (!empty($channelInfo['contact_name']) && strpos($channelInfo['contact_external_id'] ?? '', '@lid') !== false) {
             $conversationByName = self::findConversationByContactName($channelInfo, $eventData['tenant_id'] ?? null);
             if ($conversationByName) {
-                error_log('[HUB_CONV_MATCH] FOUND_BY_CONTACT_NAME id=' . $conversationByName['id'] . 
-                    ' contact_external_id=' . $conversationByName['contact_external_id'] . 
-                    ' new_contact=' . $channelInfo['contact_external_id'] . 
-                    ' contact_name=' . $channelInfo['contact_name'] . ' reason=same_contact_name_different_id');
-                
-                // IMPORTANTE: Cria mapeamento @lid -> telefone para futuras mensagens
-                self::createLidPhoneMapping($channelInfo['contact_external_id'], $conversationByName['contact_external_id'], $eventData['tenant_id'] ?? null);
-                
-                self::updateConversationMetadata($conversationByName['id'], $eventData, $channelInfo);
-                return $conversationByName;
+                // CRÍTICO: Só aceita match se external_ids são equivalentes (evita 47 vs 11 por nome)
+                if (self::contactExternalIdsAreEquivalent(
+                    $channelInfo['contact_external_id'],
+                    $conversationByName['contact_external_id'],
+                    $eventData['tenant_id'] ?? null
+                )) {
+                    error_log('[HUB_CONV_MATCH] FOUND_BY_CONTACT_NAME id=' . $conversationByName['id'] .
+                        ' contact_external_id=' . $conversationByName['contact_external_id'] .
+                        ' new_contact=' . $channelInfo['contact_external_id'] . ' reason=same_contact_verified');
+                    self::createLidPhoneMapping($channelInfo['contact_external_id'], $conversationByName['contact_external_id'], $eventData['tenant_id'] ?? null);
+                    self::updateConversationMetadata($conversationByName['id'], $eventData, $channelInfo);
+                    return $conversationByName;
+                }
+                error_log('[HUB_CONV_MATCH] REJECTED_BY_CONTACT_NAME: external_ids diferentes - new=' .
+                    $channelInfo['contact_external_id'] . ' existing=' . $conversationByName['contact_external_id'] .
+                    ' - criando nova conversa (nunca mergear por nome quando IDs diferentes)');
             }
         }
 
@@ -1936,9 +1942,9 @@ class ConversationService
         $db = DB::getConnection();
         
         try {
-            // Busca conversa com mesmo contact_name e tenant_id
-            // IMPORTANTE: Prioriza conversas com telefone (não @lid) como identificador
-            // pois são mais confiáveis para exibição
+            // Busca conversa com mesmo contact_name, tenant_id E channel_id
+            // REGRA: Só match no MESMO canal (evita Charles ImobSites vs Charles pixel12digital)
+            $channelId = $channelInfo['channel_id'] ?? null;
             $stmt = $db->prepare("
                 SELECT * FROM conversations 
                 WHERE channel_type = 'whatsapp' 
@@ -1947,12 +1953,16 @@ class ConversationService
                     (tenant_id IS NULL AND ? IS NULL)
                     OR tenant_id = ?
                 )
+                AND (
+                    (channel_id IS NULL AND ? IS NULL)
+                    OR (channel_id IS NOT NULL AND LOWER(TRIM(channel_id)) = LOWER(TRIM(?)))
+                )
                 AND contact_external_id NOT LIKE '%@lid'
                 AND contact_external_id REGEXP '^[0-9]+$'
                 ORDER BY last_message_at DESC
                 LIMIT 1
             ");
-            $stmt->execute([$contactName, $tenantId, $tenantId]);
+            $stmt->execute([$contactName, $tenantId, $tenantId, $channelId, $channelId ?? '']);
             $result = $stmt->fetch(\PDO::FETCH_ASSOC);
             
             if ($result) {
@@ -1970,6 +1980,69 @@ class ConversationService
             error_log('[DUPLICATE_PREVENTION] findConversationByContactName: Erro: ' . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * Verifica se dois contact_external_id representam o mesmo contato real.
+     * REGRA: Nunca mergear por nome quando external_ids são diferentes (ex: 47 vs 11).
+     *
+     * @param string $newId O ID do evento (ex: 208989199560861@lid)
+     * @param string $existingId O ID da conversa existente (ex: 5511940863773)
+     * @param int|null $tenantId Tenant (opcional, para busca de mapeamento)
+     * @return bool True se equivalentes (mesmo contato), False caso contrário
+     */
+    private static function contactExternalIdsAreEquivalent(string $newId, string $existingId, ?int $tenantId = null): bool
+    {
+        $newId = trim($newId);
+        $existingId = trim($existingId);
+        if (empty($newId) || empty($existingId)) {
+            return false;
+        }
+        if ($newId === $existingId) {
+            return true;
+        }
+        // Extrai dígitos para comparação numérica
+        $newDigits = preg_replace('/[^0-9]/', '', $newId);
+        $existingDigits = preg_replace('/[^0-9]/', '', $existingId);
+        // Se ambos são números: variação 9º dígito BR
+        if (strlen($newDigits) >= 10 && strlen($existingDigits) >= 10) {
+            $normNew = PhoneNormalizer::toE164OrNull($newDigits, 'BR', false);
+            $normExisting = PhoneNormalizer::toE164OrNull($existingDigits, 'BR', false);
+            if ($normNew && $normExisting && $normNew === $normExisting) {
+                return true;
+            }
+            // Variação 9º dígito: 5547996164699 vs 554796164699
+            if ($normNew && $normExisting) {
+                $lenNew = strlen($normNew);
+                $lenExisting = strlen($normExisting);
+                if ($lenNew === 13 && $lenExisting === 12 &&
+                    substr($normNew, 0, 4) === substr($normExisting, 0, 4) &&
+                    substr($normNew, 4, 1) === '9' &&
+                    substr($normNew, 5) === substr($normExisting, 4)) {
+                    return true;
+                }
+                if ($lenNew === 12 && $lenExisting === 13 &&
+                    substr($normExisting, 0, 4) === substr($normNew, 0, 4) &&
+                    substr($normExisting, 4, 1) === '9' &&
+                    substr($normExisting, 5) === substr($normNew, 4)) {
+                    return true;
+                }
+            }
+        }
+        // Se new é @lid e existing é phone: verifica mapeamento em whatsapp_business_ids
+        if (strpos($newId, '@lid') !== false && preg_match('/^[0-9]{10,15}$/', $existingDigits)) {
+            $db = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT 1 FROM whatsapp_business_ids 
+                WHERE business_id = ? AND phone_number = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$newId, $existingDigits]);
+            if ($stmt->fetch()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

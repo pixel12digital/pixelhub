@@ -3768,20 +3768,25 @@ class CommunicationHubController extends Controller
             $mediaInfo = $mediaCache[$event['event_id']] ?? null;
             
             // Se mídia não está no cache mas evento indica que TEM mídia, processa sob demanda
-            if (!$mediaInfo) {
-                $eventType = $payload['type'] ?? $payload['raw']['payload']['type'] ?? null;
-                $hasMediaIndicator = in_array($eventType, ['audio', 'ptt', 'image', 'video', 'document', 'sticker']);
-                
-                if ($hasMediaIndicator) {
-                    try {
-                        // Processa mídia apenas se necessário (lazy loading)
-                        $processedMedia = \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($event);
-                        if ($processedMedia) {
-                            $mediaInfo = $processedMedia;
-                        }
-                    } catch (\Exception $e) {
-                        error_log("[CommunicationHub] Erro ao processar mídia sob demanda: " . $e->getMessage());
+            $payloadType = $payload['type'] ?? $payload['raw']['payload']['type'] ?? null;
+            $hasMediaIndicator = $payloadType && in_array($payloadType, ['audio', 'ptt', 'image', 'video', 'document', 'sticker']);
+
+            if (!$mediaInfo && $hasMediaIndicator) {
+                try {
+                    $processedMedia = \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($event);
+                    if ($processedMedia) {
+                        $mediaInfo = $processedMedia;
                     }
+                } catch (\Exception $e) {
+                    error_log("[CommunicationHub] Erro ao processar mídia sob demanda: " . $e->getMessage());
+                }
+                // Se ainda não tem mídia após tentativa: placeholder para UI exibir "Mídia não disponível"
+                if (!$mediaInfo) {
+                    $mediaInfo = [
+                        'media_failed' => true,
+                        'media_type' => $payloadType === 'ptt' ? 'audio' : $payloadType,
+                        'mime_type' => $payloadType === 'ptt' || $payloadType === 'audio' ? 'audio/ogg' : ($payloadType === 'image' ? 'image/jpeg' : null),
+                    ];
                 }
             }
             
@@ -3804,10 +3809,16 @@ class CommunicationHubController extends Controller
             }
             
             // Se não encontrou mídia e não há conteúdo, mostra tipo de mídia
+            // Inclui raw.payload.type (WPPConnect: ciphertext = mensagem criptografada E2E)
             if (empty($content) && !$mediaInfo) {
-                if (isset($payload['type']) || isset($payload['message']['type'])) {
-                    $mediaType = $payload['type'] ?? $payload['message']['type'] ?? 'media';
-                    $content = "[{$mediaType}]";
+                $payloadType = $payload['type']
+                    ?? $payload['message']['type']
+                    ?? $payload['raw']['payload']['type']
+                    ?? null;
+                if ($payloadType) {
+                    $content = ($payloadType === 'ciphertext')
+                        ? '[Mensagem criptografada]'
+                        : "[{$payloadType}]";
                 }
             }
             
@@ -3935,12 +3946,24 @@ class CommunicationHubController extends Controller
             } catch (\Exception $e) {
                 error_log("[CommunicationHub] Erro ao buscar mídia: " . $e->getMessage());
             }
+
+            $payloadType = $payload['type'] ?? $payload['message']['type'] ?? $payload['raw']['payload']['type'] ?? null;
+            $hasMediaIndicator = $payloadType && in_array($payloadType, ['audio', 'ptt', 'image', 'video', 'document', 'sticker']);
+            if (!$mediaInfo && $hasMediaIndicator) {
+                $mediaInfo = [
+                    'media_failed' => true,
+                    'media_type' => $payloadType === 'ptt' ? 'audio' : $payloadType,
+                    'mime_type' => $payloadType === 'ptt' || $payloadType === 'audio' ? 'audio/ogg' : ($payloadType === 'image' ? 'image/jpeg' : null),
+                ];
+            }
             
             // Se não encontrou mídia e não há conteúdo, mostra tipo de mídia
+            // Inclui raw.payload.type (WPPConnect: ciphertext = mensagem criptografada E2E)
             if (empty($content) && !$mediaInfo) {
-                if (isset($payload['type']) || isset($payload['message']['type'])) {
-                    $mediaType = $payload['type'] ?? $payload['message']['type'] ?? 'media';
-                    $content = "[{$mediaType}]";
+                if ($payloadType) {
+                    $content = ($payloadType === 'ciphertext')
+                        ? '[Mensagem criptografada]'
+                        : "[{$payloadType}]";
                 }
             }
             
@@ -5216,12 +5239,24 @@ class CommunicationHubController extends Controller
             } catch (\Exception $e) {
                 error_log("[CommunicationHub] Erro ao buscar mídia: " . $e->getMessage());
             }
+
+            $payloadType = $payload['type'] ?? $payload['message']['type'] ?? $payload['raw']['payload']['type'] ?? null;
+            $hasMediaIndicator = $payloadType && in_array($payloadType, ['audio', 'ptt', 'image', 'video', 'document', 'sticker']);
+            if (!$mediaInfo && $hasMediaIndicator) {
+                $mediaInfo = [
+                    'media_failed' => true,
+                    'media_type' => $payloadType === 'ptt' ? 'audio' : $payloadType,
+                    'mime_type' => $payloadType === 'ptt' || $payloadType === 'audio' ? 'audio/ogg' : ($payloadType === 'image' ? 'image/jpeg' : null),
+                ];
+            }
             
             // Se não encontrou mídia e não há conteúdo, mostra tipo de mídia
+            // Inclui raw.payload.type (WPPConnect: ciphertext = mensagem criptografada E2E)
             if (empty($content) && !$mediaInfo) {
-                if (isset($payload['type']) || isset($payload['message']['type'])) {
-                    $mediaType = $payload['type'] ?? $payload['message']['type'] ?? 'media';
-                    $content = "[{$mediaType}]";
+                if ($payloadType) {
+                    $content = ($payloadType === 'ciphertext')
+                        ? '[Mensagem criptografada]'
+                        : "[{$payloadType}]";
                 }
             }
             
