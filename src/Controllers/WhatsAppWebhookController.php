@@ -39,10 +39,22 @@ class WhatsAppWebhookController extends Controller
         }
 
         try {
-            // 🔍 PASSO 1: LOG OBRIGATÓRIO NO WEBHOOK (ANTES DE QUALQUER LÓGICA)
-            // HUB_WEBHOOK_IN - Log padrão conforme checklist técnico
+            // 🔍 PASSO 0: Persistir payload bruto (auditoria e reprocessamento)
             $rawPayload = file_get_contents('php://input');
             $payload = json_decode($rawPayload, true);
+            $payloadHash = substr(md5($rawPayload), 0, 16);
+            $eventTypeForLog = (is_array($payload) ? ($payload['event'] ?? $payload['type'] ?? null) : null);
+            try {
+                $dbLog = DB::getConnection();
+                $dbLog->prepare("
+                    INSERT INTO webhook_raw_logs (event_type, payload_hash, payload_json, processed)
+                    VALUES (?, ?, ?, 0)
+                ")->execute([$eventTypeForLog, $payloadHash, $rawPayload]);
+            } catch (\Throwable $e) {
+                error_log("[WhatsAppWebhook] Erro ao persistir webhook_raw_logs (não crítico): " . $e->getMessage());
+            }
+
+            // 🔍 PASSO 1: LOG OBRIGATÓRIO NO WEBHOOK
             
             // Extrai informações críticas do payload para log padrão
             $eventType = $payload['event'] ?? $payload['type'] ?? null;
@@ -86,8 +98,7 @@ class WhatsAppWebhookController extends Controller
                 $normalizedFrom = \PixelHub\Services\PhoneNormalizer::toE164OrNull($fromForLog);
             }
             
-            // Hash curto do payload para deduplicação
-            $payloadHash = substr(md5($rawPayload), 0, 8);
+            $payloadHashShort = substr($payloadHash, 0, 8);
             
             // Log padrão HUB_WEBHOOK_IN
             error_log(sprintf(
@@ -100,7 +111,7 @@ class WhatsAppWebhookController extends Controller
                 $messageId ?: 'NULL',
                 $timestamp ?: 'NULL',
                 $correlationId ?: 'NULL',
-                $payloadHash
+                $payloadHashShort
             ));
             
             // Log detalhado do payload e headers (mantido para debug)
@@ -177,51 +188,9 @@ class WhatsAppWebhookController extends Controller
                 exit;
             }
 
-            // 🔍 INSTRUMENTAÇÃO CRÍTICA: Rastreamento detalhado da origem do channel_id
-            // Extrai valores de todas as possíveis localizações para log
-            $sessionIdFromPayload = $payload['sessionId'] ?? null;
-            $sessionIdFromSession = $payload['session']['id'] ?? null;
-            $sessionIdFromSessionSession = $payload['session']['session'] ?? null;
-            $sessionIdFromData = $payload['data']['session']['id'] ?? null;
-            $sessionIdFromDataSession = $payload['data']['session']['session'] ?? null;
-            $channelIdFromPayload = $payload['channelId'] ?? null;
-            $channelIdFromChannel = $payload['channel'] ?? null;
-            $channelIdFromData = $payload['data']['channel'] ?? null;
-            $channelIdFromMetadata = $payload['metadata']['channel_id'] ?? $payload['metadata']['sessionId'] ?? null;
-            
-            // PRIORIDADE: sessionId primeiro (sessão real do gateway), depois channelId
-            // Ordem de prioridade conforme especificação
-            $channelId = null;
-            $channelIdSource = null;
-            
-            if ($sessionIdFromPayload) {
-                $channelId = (string) $sessionIdFromPayload;
-                $channelIdSource = 'payload.sessionId';
-            } elseif ($sessionIdFromSession) {
-                $channelId = (string) $sessionIdFromSession;
-                $channelIdSource = 'payload.session.id';
-            } elseif ($sessionIdFromSessionSession) {
-                $channelId = (string) $sessionIdFromSessionSession;
-                $channelIdSource = 'payload.session.session';
-            } elseif ($sessionIdFromData) {
-                $channelId = (string) $sessionIdFromData;
-                $channelIdSource = 'payload.data.session.id';
-            } elseif ($sessionIdFromDataSession) {
-                $channelId = (string) $sessionIdFromDataSession;
-                $channelIdSource = 'payload.data.session.session';
-            } elseif ($channelIdFromMetadata) {
-                $channelId = (string) $channelIdFromMetadata;
-                $channelIdSource = 'payload.metadata.channel_id/sessionId';
-            } elseif ($channelIdFromPayload) {
-                $channelId = (string) $channelIdFromPayload;
-                $channelIdSource = 'payload.channelId';
-            } elseif ($channelIdFromChannel) {
-                $channelId = (string) $channelIdFromChannel;
-                $channelIdSource = 'payload.channel';
-            } elseif ($channelIdFromData) {
-                $channelId = (string) $channelIdFromData;
-                $channelIdSource = 'payload.data.channel';
-            }
+            // Extrai channel_id (prioridade: sessionId, channelId, metadata)
+            $channelId = $this->extractChannelId($payload);
+            $channelIdSource = $channelId ? '(extractChannelId)' : null;
             
             // 🔍 LOG DETALHADO: Origem do channel_id
             $fromId = $from ?? 'NULL';
@@ -235,18 +204,6 @@ class WhatsAppWebhookController extends Controller
                     $fromId,
                     $toId,
                     $eventType
-                ));
-                error_log(sprintf(
-                    '[HUB_CHANNEL_ID_EXTRACTION] valores_verificados: sessionId.payload=%s | session.id=%s | session.session=%s | data.session.id=%s | data.session.session=%s | metadata.channel_id=%s | channelId=%s | channel=%s | data.channel=%s',
-                    $sessionIdFromPayload ?: 'NULL',
-                    $sessionIdFromSession ?: 'NULL',
-                    $sessionIdFromSessionSession ?: 'NULL',
-                    $sessionIdFromData ?: 'NULL',
-                    $sessionIdFromDataSession ?: 'NULL',
-                    $channelIdFromMetadata ?: 'NULL',
-                    $channelIdFromPayload ?: 'NULL',
-                    $channelIdFromChannel ?: 'NULL',
-                    $channelIdFromData ?: 'NULL'
                 ));
             } else {
                 error_log('[HUB_CHANNEL_ID_EXTRACTION] INBOUND_MISSING_CHANNEL_ID - Nenhum sessionId/channelId encontrado no payload');
@@ -399,19 +356,25 @@ class WhatsAppWebhookController extends Controller
                 ], JSON_UNESCAPED_UNICODE);
             }
             
-            // Processa mídia em background (após responder) para evitar timeout no WPPConnect
-            // O download de áudio/imagem pode demorar; responder antes libera o gateway
+            // Enfileira mídia para processamento assíncrono (worker processa via cron)
+            // Evita timeout no WPPConnect; worker tem retry com backoff
             if ($eventId && $eventSaved && $internalEventType === 'whatsapp.inbound.message') {
-                if (function_exists('fastcgi_finish_request')) {
-                    fastcgi_finish_request();
-                }
                 try {
-                    $event = EventIngestionService::findByEventId($eventId);
-                    if ($event) {
-                        \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($event);
+                    \PixelHub\Services\MediaProcessQueueService::enqueue($eventId);
+                } catch (\Throwable $e) {
+                    // Fallback: tenta processar imediatamente se fila não disponível
+                    error_log("[WhatsAppWebhook] Fila indisponível, processando mídia inline: " . $e->getMessage());
+                    if (function_exists('fastcgi_finish_request')) {
+                        fastcgi_finish_request();
                     }
-                } catch (\Exception $e) {
-                    error_log("[WhatsAppWebhook] Erro ao processar mídia em background: " . $e->getMessage());
+                    try {
+                        $event = EventIngestionService::findByEventId($eventId);
+                        if ($event) {
+                            \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($event);
+                        }
+                    } catch (\Exception $ex) {
+                        error_log("[WhatsAppWebhook] Erro ao processar mídia em fallback: " . $ex->getMessage());
+                    }
                 }
             }
             
@@ -454,6 +417,95 @@ class WhatsAppWebhookController extends Controller
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
+    }
+
+    /**
+     * Processa payload de webhook para ingestão (usado pelo script de reprocessamento).
+     * Replica a lógica do handle() para mapear evento, resolver tenant e ingerir.
+     *
+     * @param array $payload Payload bruto já decodificado (JSON)
+     * @return array ['event_id' => ?string, 'saved' => bool, 'error' => ?string, 'skipped' => bool]
+     */
+    public function processPayload(array $payload): array
+    {
+        $eventType = $payload['event'] ?? $payload['type'] ?? null;
+        if (empty($eventType)) {
+            return ['event_id' => null, 'saved' => false, 'error' => 'MISSING_EVENT_TYPE', 'skipped' => true];
+        }
+
+        $internalEventType = $this->mapEventType($eventType, $payload);
+        if (empty($internalEventType)) {
+            return ['event_id' => null, 'saved' => false, 'error' => 'EVENT_NOT_HANDLED', 'skipped' => true];
+        }
+
+        $channelId = $this->extractChannelId($payload);
+        $tenantId = $this->resolveTenantByChannel($channelId);
+
+        if ($internalEventType === 'whatsapp.outbound.message') {
+            $payload = $this->normalizeOutboundPayloadForIdempotency($payload);
+        }
+
+        $eventId = null;
+        $eventSaved = false;
+        $ingestError = null;
+
+        try {
+            $eventId = EventIngestionService::ingest([
+                'event_type' => $internalEventType,
+                'source_system' => 'wpp_gateway',
+                'payload' => $payload,
+                'tenant_id' => $tenantId,
+                'process_media_sync' => false,
+                'metadata' => [
+                    'channel_id' => $channelId,
+                    'raw_event_type' => $eventType
+                ]
+            ]);
+
+            if ($eventId) {
+                $db = DB::getConnection();
+                $verifyStmt = $db->prepare("SELECT id FROM communication_events WHERE event_id = ? LIMIT 1");
+                $verifyStmt->execute([$eventId]);
+                $eventSaved = (bool) $verifyStmt->fetch();
+            }
+        } catch (\Throwable $e) {
+            $ingestError = $e->getMessage();
+        }
+
+        return [
+            'event_id' => $eventId,
+            'saved' => $eventSaved,
+            'error' => $ingestError,
+            'skipped' => false
+        ];
+    }
+
+    /**
+     * Extrai channel_id do payload (mesma lógica do handle())
+     */
+    private function extractChannelId(array $payload): ?string
+    {
+        $sessionIdFromPayload = $payload['sessionId'] ?? null;
+        $sessionIdFromSession = $payload['session']['id'] ?? null;
+        $sessionIdFromSessionSession = $payload['session']['session'] ?? null;
+        $sessionIdFromData = $payload['data']['session']['id'] ?? null;
+        $sessionIdFromDataSession = $payload['data']['session']['session'] ?? null;
+        $channelIdFromPayload = $payload['channelId'] ?? null;
+        $channelIdFromChannel = $payload['channel'] ?? null;
+        $channelIdFromData = $payload['data']['channel'] ?? null;
+        $channelIdFromMetadata = $payload['metadata']['channel_id'] ?? $payload['metadata']['sessionId'] ?? null;
+
+        if ($sessionIdFromPayload) return (string) $sessionIdFromPayload;
+        if ($sessionIdFromSession) return (string) $sessionIdFromSession;
+        if ($sessionIdFromSessionSession) return (string) $sessionIdFromSessionSession;
+        if ($sessionIdFromData) return (string) $sessionIdFromData;
+        if ($sessionIdFromDataSession) return (string) $sessionIdFromDataSession;
+        if ($channelIdFromMetadata) return (string) $channelIdFromMetadata;
+        if ($channelIdFromPayload) return (string) $channelIdFromPayload;
+        if ($channelIdFromChannel) return (string) $channelIdFromChannel;
+        if ($channelIdFromData) return (string) $channelIdFromData;
+
+        return null;
     }
 
     /**
