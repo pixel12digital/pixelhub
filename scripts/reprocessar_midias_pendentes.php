@@ -2,8 +2,8 @@
 /**
  * Reprocessa mídias de eventos que não têm registro em communication_media.
  *
- * Encontra eventos whatsapp.inbound.message com tipo ptt/audio/image/video/document/sticker
- * sem registro em communication_media e tenta baixar/salvar a mídia.
+ * Inclui inbound E outbound (ex: áudios enviados pelo celular MSP).
+ * Busca eventos com tipo ptt/audio/image/video/document/sticker.
  *
  * Uso: php scripts/reprocessar_midias_pendentes.php [--days=7] [--limit=50]
  *
@@ -39,9 +39,9 @@ $stmt = $db->prepare("
     SELECT ce.id, ce.event_id, ce.payload, ce.tenant_id, ce.created_at
     FROM communication_events ce
     LEFT JOIN communication_media cm ON cm.event_id = ce.event_id
-    WHERE ce.event_type = 'whatsapp.inbound.message'
+    WHERE ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
     AND ce.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-    AND cm.id IS NULL
+    AND (cm.id IS NULL OR cm.stored_path IS NULL OR cm.stored_path = '')
     AND (
         JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.type')) IN ('audio', 'ptt', 'image', 'video', 'document', 'sticker')
         OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.raw.payload.type')) IN ('audio', 'ptt', 'image', 'video', 'document', 'sticker')

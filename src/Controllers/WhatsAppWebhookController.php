@@ -357,8 +357,8 @@ class WhatsAppWebhookController extends Controller
             }
             
             // Enfileira mídia para processamento assíncrono (worker processa via cron)
-            // Evita timeout no WPPConnect; worker tem retry com backoff
-            if ($eventId && $eventSaved && $internalEventType === 'whatsapp.inbound.message') {
+            // Inbound E outbound: ambos podem ter áudio/imagem (ex: áudios enviados pelo celular MSP)
+            if ($eventId && $eventSaved && in_array($internalEventType, ['whatsapp.inbound.message', 'whatsapp.outbound.message'])) {
                 try {
                     \PixelHub\Services\MediaProcessQueueService::enqueue($eventId);
                 } catch (\Throwable $e) {
