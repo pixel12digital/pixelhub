@@ -3337,6 +3337,7 @@ class AgendaService
 
         $projectIds = array_map(fn($r) => (int)$r['id'], $rows);
         $datedTasksByProject = [];
+        $timelineTasksByProject = [];
         $deletedCondTasks = $hasDeletedAt ? 'AND deleted_at IS NULL' : '';
         if (!empty($projectIds)) {
             $placeholders = implode(',', array_fill(0, count($projectIds), '?'));
@@ -3360,6 +3361,29 @@ class AgendaService
                     'due_date' => $row['due_date'] ?? null,
                 ];
             }
+            $stmt3 = $db->prepare("
+                SELECT project_id, id, title, start_date, due_date
+                FROM tasks
+                WHERE project_id IN ($placeholders) $deletedCondTasks
+                AND status NOT IN ('concluida', 'completed')
+                AND start_date IS NOT NULL AND due_date IS NOT NULL
+                AND start_date <= due_date
+                ORDER BY project_id, start_date ASC
+            ");
+            $stmt3->execute($projectIds);
+            $timelineTasksByProject = [];
+            while ($row = $stmt3->fetch(\PDO::FETCH_ASSOC)) {
+                $pid = (int)$row['project_id'];
+                if (!isset($timelineTasksByProject[$pid])) {
+                    $timelineTasksByProject[$pid] = [];
+                }
+                $timelineTasksByProject[$pid][] = [
+                    'id' => (int)$row['id'],
+                    'title' => $row['title'] ?? '',
+                    'start_date' => $row['start_date'] ?? null,
+                    'due_date' => $row['due_date'] ?? null,
+                ];
+            }
         }
 
         foreach ($rows as &$p) {
@@ -3377,6 +3401,7 @@ class AgendaService
             }
             $allDated = $datedTasksByProject[(int)$p['id']] ?? [];
             $p['future_tasks'] = array_slice($allDated, 1, 2);
+            $p['timeline_tasks'] = $timelineTasksByProject[(int)$p['id']] ?? [];
             unset($p['next_task_title'], $p['next_task_due_date']);
         }
         return $rows;

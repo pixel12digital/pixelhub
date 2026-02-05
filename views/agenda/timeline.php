@@ -366,18 +366,26 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
         background: #94a3b8;
     }
     .gantt-bar.overdue { background: #fecaca; }
+    .gantt-task-bar {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        height: 12px;
+        border-radius: 3px;
+        background: #475569;
+        z-index: 2;
+        text-decoration: none;
+        cursor: pointer;
+        border: 1px solid #334155;
+    }
+    .gantt-task-bar:hover { background: #334155; }
+    .gantt-task-bar.overdue { background: #b91c1c; border-color: #991b1b; }
+    .gantt-legend-task { height: 10px; background: #475569; border-radius: 3px; }
     .gantt-marker {
         position: absolute;
         top: 50%;
         transform: translate(-50%, -50%);
         z-index: 2;
-    }
-    .gantt-marker.prazo {
-        width: 0;
-        height: 0;
-        border-left: 5px solid transparent;
-        border-right: 5px solid transparent;
-        border-bottom: 8px solid #1e293b;
     }
     .gantt-marker.next {
         width: 10px;
@@ -523,7 +531,7 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
             <div class="gantt-legend">
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#94a3b8;"></span> Barra do projeto</span>
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#fecaca;"></span> Projeto atrasado</span>
-                <span class="gantt-legend-item"><span class="gantt-legend-prazo">▼</span> Prazo</span>
+                <span class="gantt-legend-item"><span class="gantt-legend-bar gantt-legend-task"></span> Tarefas (início–fim)</span>
                 <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#f59e0b;"></span> Próxima entrega</span>
                 <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#dc2626;"></span> Próxima entrega atrasada</span>
                 <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#64748b;"></span> Tarefas futuras</span>
@@ -565,7 +573,6 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
                         $barLeft = $visibleLeft;
                         $barWidth = max(2, $visibleRight - $visibleLeft);
                         $isOverdue = $p['due_date'] && strtotime($p['due_date']) < $todayTs;
-                        $prazoPos = $p['due_date'] ? ganttPositionClamped($p['due_date'], $rangeStart, $rangeEnd) : null;
                         $nextTask = $p['next_task'] ?? null;
                         $nextPos = $nextTask ? ganttPositionClamped($nextTask['due_date'], $rangeStart, $rangeEnd) : null;
                         $nextOverdue = $nextTask && ($nextTask['due_date'] ?? '') < $todayStr;
@@ -580,9 +587,21 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
                                 <?php if ($barWidth > 0): ?>
                                 <div class="gantt-bar <?= $isOverdue ? 'overdue' : '' ?>" style="left: <?= $barLeft ?>%; width: <?= $barWidth ?>%;"></div>
                                 <?php endif; ?>
-                                <?php if ($prazoPos !== null): ?>
-                                <div class="gantt-marker prazo" style="left: <?= $prazoPos ?>%;" title="Prazo: <?= htmlspecialchars($p['due_date'] ? date('d/m/Y', strtotime($p['due_date'])) : '') ?>"></div>
-                                <?php endif; ?>
+                                <?php foreach ($p['timeline_tasks'] ?? [] as $tk): ?>
+                                    <?php
+                                    $tkStart = $tk['start_date'] ?? $tk['due_date'] ?? null;
+                                    $tkEnd = $tk['due_date'] ?? null;
+                                    if (!$tkStart || !$tkEnd) continue;
+                                    $tkLeft = ganttPosition($tkStart, $rangeStart, $rangeEnd);
+                                    $tkRight = ganttPosition($tkEnd, $rangeStart, $rangeEnd);
+                                    if ($tkLeft === null || $tkRight === null || $tkRight <= $tkLeft) continue;
+                                    $tkLeftClamp = max(0, min(100, $tkLeft));
+                                    $tkRightClamp = max(0, min(100, $tkRight));
+                                    $tkWidth = max(2, $tkRightClamp - $tkLeftClamp);
+                                    $tkOverdue = $tkEnd < $todayStr;
+                                    ?>
+                                <a href="<?= htmlspecialchars($boardBase . '?project_id=' . (int)$p['id'] . '&task_id=' . (int)$tk['id']) ?>" class="gantt-task-bar <?= $tkOverdue ? 'overdue' : '' ?>" style="left: <?= $tkLeftClamp ?>%; width: <?= $tkWidth ?>%;" title="<?= htmlspecialchars(($tk['title'] ?? '') . ' — ' . date('d/m', strtotime($tkStart)) . ' a ' . date('d/m', strtotime($tkEnd))) ?>"></a>
+                                <?php endforeach; ?>
                                 <?php if ($nextPos !== null): ?>
                                 <a href="<?= htmlspecialchars($boardBase . '?project_id=' . (int)$p['id'] . '&task_id=' . (int)$nextTask['id']) ?>" class="gantt-marker next <?= $nextOverdue ? 'overdue' : '' ?>" style="left: <?= $nextPos ?>%;" title="<?= htmlspecialchars(($nextTask['title'] ?? '') . ' — ' . ($nextTask['due_date'] ? date('d/m', strtotime($nextTask['due_date'])) : '')) ?>"></a>
                                 <?php endif; ?>
