@@ -34,10 +34,23 @@ function timelinePosition(?string $dueDate, string $todayStr): ?float {
     if ($days > 28) return 100;
     return ($days / 28) * 100;
 }
+/**
+ * Parse seguro: APENAS ISO (Y-m-d ou Y-m-d H:i:s). NUNCA dd/mm/yyyy.
+ * Retorna timestamp (meio-dia local para evitar timezone) ou null.
+ */
+function parseDateToTs(?string $dateStr): ?int {
+    if (!$dateStr || trim($dateStr) === '') return null;
+    $s = trim($dateStr);
+    $datePart = substr($s, 0, 10);
+    if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $datePart, $m)) {
+        return mktime(12, 0, 0, (int)$m[2], (int)$m[3], (int)$m[1]);
+    }
+    return null;
+}
 /** Posição percentual no Gantt (rangeStart a rangeEnd em timestamps). Retorna 0-100 ou null. */
 function ganttPosition(?string $dateStr, int $rangeStart, int $rangeEnd): ?float {
-    if (!$dateStr || $rangeEnd <= $rangeStart) return null;
-    $ts = strtotime($dateStr);
+    $ts = parseDateToTs($dateStr);
+    if ($ts === null || $rangeEnd <= $rangeStart) return null;
     return (($ts - $rangeStart) / ($rangeEnd - $rangeStart)) * 100;
 }
 /** Retorna posição para exibição (clamp 0-100 se fora do range). */
@@ -449,13 +462,13 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
             foreach ($projects as $p) {
                 $startDate = $p['start_date'] ?? $p['created_at'] ?? null;
                 if ($startDate) {
-                    $ts = strtotime($startDate);
-                    if ($ts < $startGlobal) $startGlobal = $ts;
+                    $ts = parseDateToTs($startDate);
+                    if ($ts !== null && $ts < $startGlobal) $startGlobal = $ts;
                 }
                 $due = $p['due_date'] ?? null;
                 if ($due) {
-                    $ts = strtotime($due);
-                    if ($ts > $endGlobal) $endGlobal = $ts;
+                    $ts = parseDateToTs($due);
+                    if ($ts !== null && $ts > $endGlobal) $endGlobal = $ts;
                 }
             }
             if ($endGlobal < $todayTs) $endGlobal = $todayTs;
@@ -470,20 +483,26 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
             $hojeOutsideRight = $hojePos !== null && $hojePos > 100;
             $rangeDays = $rangeSpan / 86400;
             $ticks = [];
+            $firstMonth = strtotime(date('Y-m-01', $rangeStart));
+            $lastMonth = strtotime(date('Y-m-01', $rangeEnd));
             if ($rangeDays <= 120) {
-                $d = strtotime(date('Y-m-01', $rangeStart));
+                $d = $firstMonth;
                 while ($d <= $rangeEnd) {
                     $ticks[] = $d;
                     $d = strtotime('+1 month', $d);
                 }
             } else {
-                $d = strtotime(date('Y-m-01', $rangeStart));
+                $d = $firstMonth;
                 while ($d <= $rangeEnd) {
                     $m = (int)date('n', $d);
-                    if (in_array($m, [1, 4, 7, 10])) $ticks[] = $d;
+                    if (in_array($m, [1, 4, 7, 10]) || $d == $firstMonth || $d == $lastMonth) {
+                        $ticks[] = $d;
+                    }
                     $d = strtotime('+1 month', $d);
                 }
             }
+            $ticks = array_unique($ticks);
+            sort($ticks);
             if (empty($ticks)) {
                 $ticks = [$rangeStart, $rangeEnd];
             }
