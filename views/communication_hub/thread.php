@@ -91,14 +91,19 @@ $baseUrl = pixelhub_url('');
                                 </div>
                             <?php endif; ?>
                             <?php 
-                            // DEBUG TEMPORÁRIO: Verifica estrutura da mídia
                             $hasMedia = !empty($msg['media']);
                             $hasMediaUrl = $hasMedia && !empty($msg['media']['url']);
-                            if ($hasMedia && !$hasMediaUrl) {
-                                error_log("[THREAD DEBUG] Mídia presente mas sem URL: " . json_encode($msg['media']));
-                            }
+                            $hasMediaFailed = $hasMedia && !empty($msg['media']['media_failed']);
                             ?>
-                            <?php if ($hasMediaUrl): ?>
+                            <?php if ($hasMediaFailed): ?>
+                                <?php
+                                $media = $msg['media'];
+                                $typeLabel = in_array(strtolower($media['media_type'] ?? ''), ['audio', 'voice', 'ptt']) ? 'Áudio' : (($media['media_type'] ?? '') === 'image' ? 'Imagem' : 'Mídia');
+                                ?>
+                                <div style="margin-bottom: 8px; padding: 12px 16px; background: #f5f5f5; border-radius: 8px; color: #666; font-size: 13px;">
+                                    <span style="opacity: 0.8;"><?= htmlspecialchars($typeLabel) ?> não disponível</span>
+                                </div>
+                            <?php elseif ($hasMediaUrl): ?>
                                 <?php
                                 $media = $msg['media'];
                                 $mediaType = strtolower($media['media_type'] ?? 'unknown');
@@ -157,10 +162,10 @@ $baseUrl = pixelhub_url('');
                             <?php endif; ?>
                             <?php 
                             // Determina se deve mostrar o conteúdo
-                            // Se tem mídia e conteúdo é placeholder de áudio, não mostra o texto
+                            // Se tem mídia (URL ou failed) e conteúdo é placeholder de áudio/ptt, não mostra o texto
                             $contentText = $msg['content'] ?? '';
-                            $isAudioPlaceholder = preg_match('/^\[(?:Á|A)udio\]$/i', trim($contentText));
-                            $showContent = !empty(trim($contentText)) && !($hasMediaUrl && $isAudioPlaceholder);
+                            $isMediaPlaceholder = preg_match('/^\[(?:audio|ptt|mídia|image|video|document)\]$/ui', trim($contentText));
+                            $showContent = !empty(trim($contentText)) && !(($hasMediaUrl || $hasMediaFailed) && $isMediaPlaceholder);
                             ?>
                             <?php if ($showContent): ?>
                             <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%;">
@@ -380,12 +385,16 @@ function addMessageElementToDOM(message) {
     if (message.media) {
         console.log('[THREAD JS DEBUG] Mídia presente:', {
             hasUrl: !!message.media.url,
+            media_failed: !!message.media.media_failed,
             mediaType: message.media.media_type,
             mimeType: message.media.mime_type,
             url: message.media.url
         });
     }
-    if (message.media && message.media.url) {
+    if (message.media && message.media.media_failed) {
+        const typeLabel = (message.media.media_type || 'arquivo') === 'audio' ? 'Áudio' : ((message.media.media_type || '') === 'image' ? 'Imagem' : 'Mídia');
+        mediaHtml = `<div style="padding:12px 16px;background:#f5f5f5;border-radius:8px;color:#666;font-size:13px;margin-bottom:8px;"><em>${escapeHtml(typeLabel)} não disponível</em></div>`;
+    } else if (message.media && message.media.url) {
         const media = message.media;
         const mediaType = (media.media_type || '').toLowerCase();
         const mimeType = (media.mime_type || '').toLowerCase();
