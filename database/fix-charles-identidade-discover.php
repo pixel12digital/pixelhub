@@ -98,13 +98,47 @@ foreach ($conversationIds as $convId) {
     $upd->execute([$correctContactId, $convId]);
     echo "  Conv {$convId}: {$old} -> {$correctContactId} OK\n";
 
-    // Mapeamento @lid -> phone
-    $check = $db->prepare("SELECT 1 FROM whatsapp_business_ids WHERE business_id = ?");
-    $check->execute([$correctContactId]);
-    if (!$check->fetch()) {
-        $db->prepare("INSERT IGNORE INTO whatsapp_business_ids (business_id, phone_number, created_at) VALUES (?, ?, NOW())")->execute([$correctContactId, $correctPhone]);
-        echo "    Mapeamento {$correctContactId} -> {$correctPhone} criado\n";
+    // Mapeamento @lid -> phone (FORÇA correção - pode existir mapeamento errado 208...@lid -> 5511...)
+    $before = $db->prepare("SELECT phone_number FROM whatsapp_business_ids WHERE business_id = ?");
+    $before->execute([$correctContactId]);
+    $row = $before->fetch(PDO::FETCH_ASSOC);
+    $oldPhone = $row['phone_number'] ?? null;
+    $db->prepare("
+        INSERT INTO whatsapp_business_ids (business_id, phone_number, created_at)
+        VALUES (?, ?, NOW())
+        ON DUPLICATE KEY UPDATE phone_number = VALUES(phone_number)
+    ")->execute([$correctContactId, $correctPhone]);
+    if ($oldPhone && $oldPhone !== $correctPhone) {
+        echo "    Mapeamento CORRIGIDO: {$correctContactId} -> {$oldPhone} (errado) substituído por {$correctPhone}\n";
+    } else {
+        echo "    Mapeamento {$correctContactId} -> {$correctPhone} OK\n";
     }
+}
+
+// 4) Busca TODAS conversas Charles Dietrich no ImobSites e corrige
+$stmt3 = $db->prepare("
+    SELECT id, contact_external_id, contact_name FROM conversations
+    WHERE channel_type = 'whatsapp'
+    AND (channel_id IS NULL OR LOWER(TRIM(channel_id)) = 'imobsites')
+    AND (contact_name LIKE '%Charles%' OR contact_external_id = '5511940863773')
+    AND contact_external_id != '208989199560861@lid'
+");
+$stmt3->execute();
+$moreConvs = $stmt3->fetchAll(PDO::FETCH_ASSOC);
+if (!empty($moreConvs)) {
+    echo "\n--- Conversas adicionais Charles/5511 no ImobSites ---\n";
+    foreach ($moreConvs as $c) {
+        $upd = $db->prepare("UPDATE conversations SET contact_external_id = ?, updated_at = NOW() WHERE id = ?");
+        $upd->execute([$correctContactId, $c['id']]);
+        echo "  Conv {$c['id']}: {$c['contact_external_id']} -> {$correctContactId} OK\n";
+    }
+    // Força mapeamento @lid -> 47 (sobrescreve se estiver errado)
+    $db->prepare("
+        INSERT INTO whatsapp_business_ids (business_id, phone_number, created_at)
+        VALUES (?, ?, NOW())
+        ON DUPLICATE KEY UPDATE phone_number = VALUES(phone_number)
+    ")->execute([$correctContactId, $correctPhone]);
+    echo "  Mapeamento {$correctContactId} -> {$correctPhone} garantido\n";
 }
 
 echo "\nConcluído. Recarregue o Inbox - deve exibir (47) 99616-4699.\n";
