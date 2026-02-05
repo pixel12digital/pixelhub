@@ -544,8 +544,8 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
             <div class="gantt-legend">
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#94a3b8;"></span> Barra do projeto</span>
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#fecaca;"></span> Projeto atrasado</span>
-                <span class="gantt-legend-item"><span class="gantt-legend-bar gantt-legend-task"></span> Tarefas abertas</span>
-                <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#94a3b8;opacity:0.6;"></span> Tarefas concluídas</span>
+                <span class="gantt-legend-item"><span class="gantt-legend-bar gantt-legend-task"></span> Tarefas (Kanban)</span>
+                <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#7c3aed;"></span> Tickets abertos</span>
             </div>
             <div class="gantt-outer">
                 <div class="gantt-wrapper">
@@ -606,11 +606,14 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
                                     $tkTop = 4 + $tk['lane'] * 18;
                                     $tkStart = $tk['start_date'] ?? $tk['due_date'];
                                     $tkEnd = $tk['due_date'];
-                                    $tkOpen = $tk['is_open'] ?? true;
                                     $tkTitle = $tk['title'] ?? 'Tarefa';
-                                    $tkTooltip = $tkTitle . "\nInício: " . date('d/m/Y', strtotime($tkStart)) . "\nFim: " . date('d/m/Y', strtotime($tkEnd));
+                                    $tkPrefix = ($tk['type'] ?? 'task') === 'ticket' ? '[Ticket] ' : '';
+                                    $tkTooltip = $tkPrefix . $tkTitle . "\nInício: " . date('d/m/Y', strtotime($tkStart)) . "\nFim: " . date('d/m/Y', strtotime($tkEnd));
+                                    $tkUrl = ($tk['type'] ?? 'task') === 'ticket' ? pixelhub_url('/tickets/show?id=' . (int)$tk['id']) : $boardBase . '?project_id=' . (int)$p['id'] . '&task_id=' . (int)$tk['id'];
+                                    $tkClass = $tkOverdue ? 'overdue' : '';
+                                    if (($tk['type'] ?? 'task') === 'ticket') $tkClass .= ' ticket';
                                     ?>
-                                <a href="<?= htmlspecialchars($boardBase . '?project_id=' . (int)$p['id'] . '&task_id=' . (int)$tk['id']) ?>" class="gantt-task-bar <?= $tkOverdue ? 'overdue' : '' ?> <?= !$tkOpen ? 'closed' : '' ?>" style="left: <?= $tkLeftClamp ?>%; width: <?= $tkWidth ?>%; top: <?= $tkTop ?>px;" title="<?= htmlspecialchars($tkTooltip) ?>"></a>
+                                <a href="<?= htmlspecialchars($tkUrl) ?>" class="gantt-task-bar <?= $tkClass ?>" style="left: <?= $tkLeftClamp ?>%; width: <?= $tkWidth ?>%; top: <?= $tkTop ?>px;" title="<?= htmlspecialchars($tkTooltip) ?>"></a>
                                 <?php endforeach; ?>
                             </div>
                         </div>

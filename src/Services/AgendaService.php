@@ -3365,6 +3365,7 @@ class AgendaService
                 SELECT project_id, id, title, status, start_date, due_date
                 FROM tasks
                 WHERE project_id IN ($placeholders) $deletedCondTasks
+                AND status NOT IN ('concluida', 'completed')
                 AND due_date IS NOT NULL
                 ORDER BY project_id, COALESCE(start_date, due_date) ASC, due_date ASC
             ");
@@ -3378,15 +3379,44 @@ class AgendaService
                     if (!isset($timelineTasksByProject[$pid])) {
                         $timelineTasksByProject[$pid] = [];
                     }
-                    $isOpen = !in_array($row['status'] ?? '', ['concluida', 'completed']);
                     $timelineTasksByProject[$pid][] = [
                         'id' => (int)$row['id'],
                         'title' => $row['title'] ?? '',
-                        'status' => $row['status'] ?? '',
-                        'is_open' => $isOpen,
+                        'type' => 'task',
                         'start_date' => $start,
                         'due_date' => $due,
                     ];
+                }
+            }
+            $hasTickets = $db->query("SHOW TABLES LIKE 'tickets'")->rowCount() > 0;
+            if ($hasTickets) {
+                $stmt4 = $db->prepare("
+                    SELECT project_id, id, titulo, status, created_at, prazo_sla
+                    FROM tickets
+                    WHERE project_id IN ($placeholders)
+                    AND project_id IS NOT NULL
+                    AND status NOT IN ('resolvido', 'cancelado')
+                    ORDER BY project_id, COALESCE(prazo_sla, created_at) ASC
+                ");
+                $stmt4->execute($projectIds);
+                while ($row = $stmt4->fetch(\PDO::FETCH_ASSOC)) {
+                    $pid = (int)$row['project_id'];
+                    $start = isset($row['created_at']) ? substr($row['created_at'], 0, 10) : null;
+                    $due = isset($row['prazo_sla']) ? substr($row['prazo_sla'], 0, 10) : $start;
+                    if (!$start) $start = $due;
+                    if (!$due) $due = $start;
+                    if ($start && $due && $start <= $due) {
+                        if (!isset($timelineTasksByProject[$pid])) {
+                            $timelineTasksByProject[$pid] = [];
+                        }
+                        $timelineTasksByProject[$pid][] = [
+                            'id' => (int)$row['id'],
+                            'title' => $row['titulo'] ?? '',
+                            'type' => 'ticket',
+                            'start_date' => $start,
+                            'due_date' => $due,
+                        ];
+                    }
                 }
             }
         }
