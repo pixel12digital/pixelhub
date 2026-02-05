@@ -398,8 +398,14 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
         bottom: 4px;
         border-radius: 4px;
         background: #94a3b8;
+        text-decoration: none;
+        cursor: pointer;
+        display: block;
     }
+    .gantt-bar:hover { background: #64748b; }
     .gantt-bar.overdue { background: #fecaca; }
+    .gantt-bar.tenant-tickets { background: #a78bfa; }
+    .gantt-bar.tenant-tickets:hover { background: #8b5cf6; }
     .gantt-task-bar {
         position: absolute;
         height: 14px;
@@ -544,6 +550,7 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
             <div class="gantt-legend">
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#94a3b8;"></span> Barra do projeto</span>
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#fecaca;"></span> Projeto atrasado</span>
+                <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#a78bfa;"></span> Tickets sem projeto</span>
                 <span class="gantt-legend-item"><span class="gantt-legend-bar gantt-legend-task"></span> Tarefas (Kanban)</span>
                 <span class="gantt-legend-item"><span class="gantt-legend-bar" style="background:#7c3aed;"></span> Tickets abertos</span>
             </div>
@@ -574,6 +581,10 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
                     </div>
                     <?php foreach ($projects as $p): ?>
                         <?php
+                        $isTenantTickets = !empty($p['is_tenant_tickets']);
+                        $projectId = is_numeric($p['id']) ? (int)$p['id'] : null;
+                        $tenantId = $p['tenant_id'] ?? null;
+                        $labelUrl = $isTenantTickets ? pixelhub_url('/tickets?tenant_id=' . (int)$tenantId) : pixelhub_url('/projects/board?project_id=' . $projectId);
                         $created = $p['created_at'] ?? date('Y-m-d', $rangeStart);
                         $prazo = $p['due_date'] ?? null;
                         $barEnd = $prazo ?: $todayStr;
@@ -587,15 +598,33 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
                         $taskLanes = assignTaskLanes($p['timeline_tasks'] ?? [], $rangeStart, $rangeEnd);
                         $numLanes = empty($taskLanes) ? 1 : (max(array_column($taskLanes, 'lane')) + 1);
                         $chartHeight = 28 + ($numLanes - 1) * 18;
+                        $taskCount = count($taskLanes);
+                        $taskTypes = array_count_values(array_map(fn($t) => $t['type'] ?? 'task', $taskLanes));
+                        $tasksCount = $taskTypes['task'] ?? 0;
+                        $ticketsCount = $taskTypes['ticket'] ?? 0;
+                        if ($isTenantTickets) {
+                            $barTooltip = "Exibido por: " . $ticketsCount . " ticket(s) aberto(s) sem projeto vinculado\nCliente: " . htmlspecialchars($p['tenant_name'] ?? '');
+                            $barTooltip .= "\nInício: " . date('d/m/Y', strtotime($created)) . " — Fim: " . date('d/m/Y', strtotime($barEnd));
+                        } else {
+                            $barTooltip = htmlspecialchars($p['name']) . "\nInício: " . date('d/m/Y', strtotime($created)) . " — Fim: " . date('d/m/Y', strtotime($barEnd));
+                            if ($taskCount > 0) {
+                                $parts = [];
+                                if ($tasksCount > 0) $parts[] = $tasksCount . ' tarefa' . ($tasksCount > 1 ? 's' : '');
+                                if ($ticketsCount > 0) $parts[] = $ticketsCount . ' ticket' . ($ticketsCount > 1 ? 's' : '');
+                                $barTooltip .= "\nExibido por: " . implode(', ', $parts) . " abertos";
+                            } else {
+                                $barTooltip .= "\nExibido por: prazo do projeto em " . date('d/m/Y', strtotime($barEnd));
+                            }
+                        }
                         ?>
                         <div class="gantt-row">
                             <div class="gantt-row-label">
-                                <a href="<?= pixelhub_url('/projects/board?project_id=' . (int)$p['id']) ?>"><?= htmlspecialchars($p['name']) ?></a>
-                                <span style="color:#94a3b8;font-size:11px;"><?= htmlspecialchars($p['tenant_name'] ?? 'Interno') ?></span>
+                                <a href="<?= $labelUrl ?>"><?= htmlspecialchars($p['name']) ?></a>
+                                <span style="color:#94a3b8;font-size:11px;"><?= $isTenantTickets ? 'Tickets sem projeto' : htmlspecialchars($p['tenant_name'] ?? 'Interno') ?></span>
                             </div>
-                            <div class="gantt-row-chart" style="height: <?= $chartHeight ?>px;">
+                            <div class="gantt-row-chart" style="height: <?= $chartHeight ?>px;" title="<?= $barTooltip ?>">
                                 <?php if ($barWidth > 0): ?>
-                                <div class="gantt-bar <?= $isOverdue ? 'overdue' : '' ?>" style="left: <?= $barLeft ?>%; width: <?= $barWidth ?>%;"></div>
+                                <a href="<?= $labelUrl ?>" class="gantt-bar <?= $isOverdue ? 'overdue' : '' ?> <?= $isTenantTickets ? 'tenant-tickets' : '' ?>" style="left: <?= $barLeft ?>%; width: <?= $barWidth ?>%;" title="<?= $barTooltip ?>"></a>
                                 <?php endif; ?>
                                 <?php foreach ($taskLanes as $tk): ?>
                                     <?php
@@ -608,8 +637,9 @@ $MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
                                     $tkEnd = $tk['due_date'];
                                     $tkTitle = $tk['title'] ?? 'Tarefa';
                                     $tkPrefix = ($tk['type'] ?? 'task') === 'ticket' ? '[Ticket] ' : '';
-                                    $tkTooltip = $tkPrefix . $tkTitle . "\nInício: " . date('d/m/Y', strtotime($tkStart)) . "\nFim: " . date('d/m/Y', strtotime($tkEnd));
-                                    $tkUrl = ($tk['type'] ?? 'task') === 'ticket' ? pixelhub_url('/tickets/show?id=' . (int)$tk['id']) : $boardBase . '?project_id=' . (int)$p['id'] . '&task_id=' . (int)$tk['id'];
+                                    $statusLabel = ['aberto' => 'Aberto', 'em_atendimento' => 'Em atendimento', 'aguardando_cliente' => 'Aguardando cliente'][$tk['status'] ?? ''] ?? '';
+                                    $tkTooltip = $tkPrefix . $tkTitle . ($statusLabel ? "\nStatus: " . $statusLabel : '') . "\nInício: " . date('d/m/Y', strtotime($tkStart)) . "\nFim: " . date('d/m/Y', strtotime($tkEnd));
+                                    $tkUrl = ($tk['type'] ?? 'task') === 'ticket' ? pixelhub_url('/tickets/show?id=' . (int)$tk['id']) : ($projectId ? $boardBase . '?project_id=' . $projectId . '&task_id=' . (int)$tk['id'] : pixelhub_url('/tickets/show?id=' . (int)$tk['id']));
                                     $tkClass = $tkOverdue ? 'overdue' : '';
                                     if (($tk['type'] ?? 'task') === 'ticket') $tkClass .= ' ticket';
                                     ?>

@@ -3413,10 +3413,66 @@ class AgendaService
                             'id' => (int)$row['id'],
                             'title' => $row['titulo'] ?? '',
                             'type' => 'ticket',
+                            'status' => $row['status'] ?? '',
                             'start_date' => $start,
                             'due_date' => $due,
                         ];
                     }
+                }
+            }
+        }
+
+        $hasTickets = $db->query("SHOW TABLES LIKE 'tickets'")->rowCount() > 0;
+        $tenantTicketsRaw = [];
+        if ($hasTickets) {
+            $stmt5 = $db->prepare("
+                SELECT tk.tenant_id, tn.name as tenant_name, tk.id, tk.titulo, tk.status, tk.created_at, tk.prazo_sla
+                FROM tickets tk
+                INNER JOIN tenants tn ON tk.tenant_id = tn.id
+                WHERE tk.project_id IS NULL
+                AND tk.tenant_id IS NOT NULL
+                AND tk.status NOT IN ('resolvido', 'cancelado')
+                ORDER BY tn.name, COALESCE(tk.prazo_sla, tk.created_at) ASC
+            ");
+            $stmt5->execute();
+            while ($row = $stmt5->fetch(\PDO::FETCH_ASSOC)) {
+                $tid = (int)$row['tenant_id'];
+                $start = isset($row['created_at']) ? substr($row['created_at'], 0, 10) : null;
+                $due = isset($row['prazo_sla']) ? substr($row['prazo_sla'], 0, 10) : $start;
+                if (!$start) $start = $due;
+                if (!$due) $due = $start;
+                if ($start && $due && $start <= $due) {
+                    if (!isset($tenantTicketsRaw[$tid])) {
+                        $tenantTicketsRaw[$tid] = ['tenant_name' => $row['tenant_name'] ?? '', 'tasks' => []];
+                    }
+                    $tenantTicketsRaw[$tid]['tasks'][] = [
+                        'id' => (int)$row['id'],
+                        'title' => $row['titulo'] ?? '',
+                        'type' => 'ticket',
+                        'status' => $row['status'] ?? '',
+                        'start_date' => $start,
+                        'due_date' => $due,
+                    ];
+                }
+            }
+        }
+
+        $tenantTicketsRows = [];
+        if (!empty($tenantTicketsRaw)) {
+            foreach ($tenantTicketsRaw as $tid => $data) {
+                if (!empty($data['tasks'])) {
+                    $tenantTicketsRows[] = [
+                        'id' => 'tenant-' . $tid,
+                        'name' => 'Tickets: ' . ($data['tenant_name'] ?: 'Cliente #' . $tid),
+                        'tenant_name' => $data['tenant_name'],
+                        'tenant_id' => $tid,
+                        'is_tenant_tickets' => true,
+                        'created_at' => min(array_column($data['tasks'], 'start_date')),
+                        'due_date' => max(array_column($data['tasks'], 'due_date')),
+                        'timeline_tasks' => $data['tasks'],
+                        'open_tasks_count' => 0,
+                        'overdue_tasks_count' => 0,
+                    ];
                 }
             }
         }
@@ -3437,9 +3493,16 @@ class AgendaService
             $allDated = $datedTasksByProject[(int)$p['id']] ?? [];
             $p['future_tasks'] = array_slice($allDated, 1, 2);
             $p['timeline_tasks'] = $timelineTasksByProject[(int)$p['id']] ?? [];
+            $p['is_tenant_tickets'] = false;
             unset($p['next_task_title'], $p['next_task_due_date']);
         }
-        return $rows;
+        $filtered = array_filter($rows, function ($p) {
+            $hasTasks = !empty($p['timeline_tasks']);
+            $hasDue = !empty($p['due_date']);
+            $hasOpen = ($p['open_tasks_count'] ?? 0) > 0;
+            return $hasTasks || $hasDue || $hasOpen;
+        });
+        return array_merge(array_values($filtered), $tenantTicketsRows);
     }
 }
 
