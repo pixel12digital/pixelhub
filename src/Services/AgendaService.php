@@ -3275,29 +3275,82 @@ class AgendaService
     }
 
     /**
-     * Lista projetos ativos com prazo para visão macro (timeline)
-     * Período: próximas 4 semanas a partir de hoje
+     * Lista projetos ativos para visão macro (timeline) com:
+     * - next_task: tarefa aberta com due_date mais próxima (1 por projeto)
+     * - open_tasks_count: total de tarefas abertas
+     * - overdue_tasks_count: tarefas abertas com due_date < hoje
      */
     public static function getProjectsForTimeline(?string $startStr = null, ?string $endStr = null): array
     {
         $db = DB::getConnection();
         $tz = new \DateTimeZone('America/Sao_Paulo');
         $today = (new \DateTime('now', $tz))->format('Y-m-d');
-        $startStr = $startStr ?? $today;
-        $end = $endStr ? new \DateTime($endStr) : (new \DateTime($today, $tz))->modify('+28 days');
-        $endStr = $end->format('Y-m-d');
+
+        $hasDeletedAt = self::hasDeletedAtColumn($db);
+        $deletedCond = $hasDeletedAt ? 'AND tk.deleted_at IS NULL' : '';
+        $deletedCond2 = $hasDeletedAt ? 'AND tk2.deleted_at IS NULL' : '';
 
         $stmt = $db->prepare("
-            SELECT p.id, p.name, p.due_date, p.created_at, t.name as tenant_name
+            SELECT 
+                p.id,
+                p.name,
+                p.due_date,
+                p.created_at,
+                t.name as tenant_name,
+                (SELECT COUNT(*) FROM tasks tk 
+                 WHERE tk.project_id = p.id $deletedCond
+                 AND tk.status NOT IN ('concluida', 'completed')) as open_tasks_count,
+                (SELECT COUNT(*) FROM tasks tk 
+                 WHERE tk.project_id = p.id $deletedCond
+                 AND tk.status NOT IN ('concluida', 'completed') 
+                 AND tk.due_date IS NOT NULL AND tk.due_date < ?) as overdue_tasks_count,
+                (SELECT tk2.id FROM tasks tk2 
+                 WHERE tk2.project_id = p.id $deletedCond2
+                 AND tk2.status NOT IN ('concluida', 'completed') 
+                 AND tk2.due_date IS NOT NULL 
+                 ORDER BY tk2.due_date ASC LIMIT 1) as next_task_id,
+                (SELECT tk2.title FROM tasks tk2 
+                 WHERE tk2.project_id = p.id $deletedCond2
+                 AND tk2.status NOT IN ('concluida', 'completed') 
+                 AND tk2.due_date IS NOT NULL 
+                 ORDER BY tk2.due_date ASC LIMIT 1) as next_task_title,
+                (SELECT tk2.due_date FROM tasks tk2 
+                 WHERE tk2.project_id = p.id $deletedCond2
+                 AND tk2.status NOT IN ('concluida', 'completed') 
+                 AND tk2.due_date IS NOT NULL 
+                 ORDER BY tk2.due_date ASC LIMIT 1) as next_task_due_date
             FROM projects p
             LEFT JOIN tenants t ON p.tenant_id = t.id
-            WHERE p.due_date >= ?
-            AND p.status = 'ativo'
-            ORDER BY p.due_date ASC, p.name ASC
+            WHERE p.status = 'ativo'
+            ORDER BY COALESCE(
+                (SELECT tk2.due_date FROM tasks tk2 
+                 WHERE tk2.project_id = p.id $deletedCond2
+                 AND tk2.status NOT IN ('concluida', 'completed') 
+                 AND tk2.due_date IS NOT NULL 
+                 ORDER BY tk2.due_date ASC LIMIT 1),
+                p.due_date,
+                '9999-12-31'
+            ) ASC, p.name ASC
         ");
-        $stmt->execute([$startStr]);
-        $all = $stmt->fetchAll();
-        return array_filter($all, fn($p) => $p['due_date'] <= $endStr);
+        $stmt->execute([$today]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($rows as &$p) {
+            $p['open_tasks_count'] = (int)($p['open_tasks_count'] ?? 0);
+            $p['overdue_tasks_count'] = (int)($p['overdue_tasks_count'] ?? 0);
+            $p['next_task_id'] = !empty($p['next_task_id']) ? (int)$p['next_task_id'] : null;
+            if ($p['next_task_id']) {
+                $p['next_task'] = [
+                    'id' => $p['next_task_id'],
+                    'title' => $p['next_task_title'] ?? '',
+                    'due_date' => $p['next_task_due_date'] ?? null,
+                ];
+            } else {
+                $p['next_task'] = null;
+            }
+            unset($p['next_task_title'], $p['next_task_due_date']);
+        }
+        return $rows;
     }
 }
 

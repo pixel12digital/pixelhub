@@ -280,6 +280,10 @@ ob_start();
     .kanban-task.task-overdue:hover {
         background: #fee2e2 !important;
     }
+    .kanban-task.task-highlight-focus {
+        box-shadow: 0 0 0 2px #f59e0b;
+        background: #fef3c7 !important;
+    }
     /* Breadcrumb */
     .breadcrumb {
         font-size: 13px;
@@ -4326,17 +4330,27 @@ if (!empty($selectedProject)) {
         }, 300);
         <?php endif; ?>
         <?php if (!empty($taskIdToOpen)): ?>
-        // Abre modal de tarefa ao carregar (vindo de link da agenda, tickets, etc.)
-        setTimeout(function() { 
-            if (typeof openTaskDetail === 'function') {
-                openTaskDetail(<?= (int)$taskIdToOpen ?>);
-            }
-            if (window.history && window.history.replaceState) {
-                var url = new URL(window.location.href);
-                url.searchParams.delete('task_id');
-                window.history.replaceState({}, '', url.toString());
-            }
-        }, 400);
+        // Abre modal e foca no card (vindo da timeline, agenda, tickets, etc.)
+        (function() {
+            const taskId = <?= (int)$taskIdToOpen ?>;
+            setTimeout(function() {
+                const card = document.querySelector('.kanban-task[data-task-id="' + taskId + '"]') || document.querySelector('[data-task-id="' + taskId + '"]');
+                if (card) {
+                    card.classList.add('task-highlight-focus');
+                    const wrapper = card.closest('.kanban-task-wrapper');
+                    (wrapper || card).scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(function() { card.classList.remove('task-highlight-focus'); }, 3000);
+                }
+                if (typeof openTaskDetail === 'function') {
+                    openTaskDetail(taskId);
+                }
+                if (window.history && window.history.replaceState) {
+                    var url = new URL(window.location.href);
+                    url.searchParams.delete('task_id');
+                    window.history.replaceState({}, '', url.toString());
+                }
+            }, 400);
+        })();
         <?php endif; ?>
         
         // Atalhos de teclado: N = nova tarefa, Esc = fechar modal, Ctrl+Enter = salvar
