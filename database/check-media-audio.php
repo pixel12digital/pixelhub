@@ -20,7 +20,7 @@ $limit = isset($opt['limit']) ? (int)$opt['limit'] : 10;
 $db = \PixelHub\Core\DB::getConnection();
 
 $stmt = $db->prepare("
-    SELECT event_id, media_type, url, created_at
+    SELECT event_id, media_type, stored_path, file_name, created_at
     FROM communication_media
     WHERE media_type IN ('audio','voice','ptt')
     ORDER BY created_at DESC
@@ -32,7 +32,7 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 echo "=== MÍDIAS DE ÁUDIO (últimos registros) ===\n\n";
 echo count($rows) . " encontrados\n\n";
 foreach ($rows as $r) {
-    $url = substr($r['url'] ?? '', 0, 60) . (strlen($r['url'] ?? '') > 60 ? '...' : '');
+    $path = $r['stored_path'] ?? '-';
     echo "  {$r['created_at']} | event_id={$r['event_id']} | type={$r['media_type']}\n";
-    echo "    url={$url}\n";
+    echo "    stored_path={$path}\n";
 }
