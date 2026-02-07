@@ -586,7 +586,7 @@ ob_start();
     }
     .checklist-item {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 10px;
         padding: 8px;
         border-bottom: 1px solid #eee;
@@ -609,29 +609,53 @@ ob_start();
         display: flex;
         align-items: center;
         user-select: none;
+        flex-shrink: 0;
     }
     .checklist-item-handle:active {
         cursor: grabbing;
     }
     .checklist-item input[type="checkbox"],
     .checklist-item input[type="text"],
+    .checklist-item textarea,
+    .checklist-item .checklist-item-label,
     .checklist-item button {
         cursor: default;
     }
     .checklist-item input[type="checkbox"] {
         width: auto;
+        flex-shrink: 0;
+        align-self: flex-start;
+        margin-top: 6px;
     }
-    .checklist-item input[type="text"] {
+    .checklist-item input[type="text"],
+    .checklist-item textarea,
+    .checklist-item .checklist-item-label {
         flex: 1;
+        min-width: 0;
         border: none;
         border-bottom: 1px solid transparent;
         padding: 5px;
+        font-family: inherit;
+        font-size: inherit;
+        line-height: 1.4;
+        resize: none;
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        white-space: pre-wrap;
     }
-    .checklist-item input[type="text"]:focus {
+    .checklist-item textarea {
+        min-height: 1.4em;
+        max-height: 120px;
+        overflow-y: auto;
+    }
+    .checklist-item input[type="text"]:focus,
+    .checklist-item textarea:focus {
         border-bottom: 1px solid #023A8D;
         outline: none;
     }
-    .checklist-item.done input[type="text"] {
+    .checklist-item.done input[type="text"],
+    .checklist-item.done textarea,
+    .checklist-item.done .checklist-item-label {
         text-decoration: line-through;
         color: #999;
     }
@@ -3694,8 +3718,8 @@ if (!empty($selectedProject)) {
         div.style.marginBottom = '6px';
         const safeLabel = String(label).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         div.innerHTML = '<span style="color: #999; cursor: default;">☰</span>' +
-            '<input type="text" value="' + safeLabel + '" readonly style="flex: 1; border: none; background: transparent; font-size: 14px;" data-label>' +
-            '<button type="button" onclick="removeCreateChecklistItem(this)" class="btn btn-danger btn-small" style="padding: 4px 8px; font-size: 12px;">Excluir</button>';
+            '<span class="checklist-item-label" style="flex: 1; min-width: 0; overflow-wrap: break-word; word-wrap: break-word; white-space: pre-wrap;">' + safeLabel + '</span>' +
+            '<button type="button" onclick="removeCreateChecklistItem(this)" class="btn btn-danger btn-small" style="padding: 4px 8px; font-size: 12px; flex-shrink: 0;">Excluir</button>';
         container.appendChild(div);
         input.value = '';
     }
@@ -3705,6 +3729,7 @@ if (!empty($selectedProject)) {
     }
 
     function renderChecklistItem(item) {
+        const safeLabel = (item.label || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         return `
             <div class="checklist-item ${item.is_done ? 'done' : ''}" 
                  data-checklist-id="${item.id}" 
@@ -3712,11 +3737,11 @@ if (!empty($selectedProject)) {
                 <span class="checklist-item-handle" title="Arrastar para reordenar">☰</span>
                 <input type="checkbox" ${item.is_done ? 'checked' : ''} 
                        onchange="toggleChecklistItem(${item.id}, this.checked)">
-                <input type="text" value="${item.label.replace(/"/g, '&quot;')}" 
-                       onblur="updateChecklistLabel(${item.id}, this.value)"
-                       style="flex: 1;">
+                <textarea class="checklist-item-text" rows="1" 
+                          onblur="updateChecklistLabel(${item.id}, this.value)"
+                          onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();this.blur();}">${safeLabel}</textarea>
                 <button type="button" onclick="deleteChecklistItem(${item.id})" 
-                        class="btn btn-danger btn-small">Excluir</button>
+                        class="btn btn-danger btn-small" style="flex-shrink: 0;">Excluir</button>
             </div>
         `;
     }
