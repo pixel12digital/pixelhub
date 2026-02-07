@@ -4313,13 +4313,14 @@ if (!empty($selectedProject)) {
                 if (confirm(msg)) {
                     updateTaskStatus(taskId, newStatus, onSuccess, onError, true);
                 } else if (onError) {
-                    onError(data.message);
+                    // Usuário cancelou: reverte sem mostrar alert (não é erro, é escolha do usuário)
+                    onError(null, { userCancelledChecklist: true });
                 }
                 return;
             }
             if (data.error) {
                 if (onError) {
-                    onError(data.error);
+                    onError(data.error, {});
                 } else {
                     alert('Erro: ' + data.error);
                 }
@@ -4330,13 +4331,13 @@ if (!empty($selectedProject)) {
             } else if (data.success && !onSuccess) {
                 location.reload();
             } else if (onError) {
-                onError(data.message || 'Erro ao mover tarefa');
+                onError(data.message || 'Erro ao mover tarefa', {});
             }
         })
         .catch(error => {
             console.error('Erro:', error);
             if (onError) {
-                onError('Erro ao mover tarefa');
+                onError('Erro ao mover tarefa', {});
             } else {
                 alert('Erro ao mover tarefa');
             }
@@ -4752,9 +4753,11 @@ if (!empty($selectedProject)) {
                             // Sucesso: card já foi movido visualmente
                             console.log('[KANBAN] Tarefa movida com sucesso', data);
                         },
-                        function(error) {
-                            // Erro: reverte o card para a coluna original
-                            console.error('[KANBAN] Erro ao mover tarefa:', error);
+                        function(error, options) {
+                            // Erro ou cancelamento: reverte o card para a coluna original
+                            if (!options?.userCancelledChecklist) {
+                                console.error('[KANBAN] Erro ao mover tarefa:', error);
+                            }
                             if (!capturedElementToRevert || !capturedElementToRevert.parentElement) {
                                 console.warn('[KANBAN] Elemento já removido, recarregando página');
                                 location.reload();
@@ -4768,7 +4771,10 @@ if (!empty($selectedProject)) {
                             if (revertSelect && capturedOriginalStatus) {
                                 revertSelect.value = capturedOriginalStatus;
                             }
-                            alert('Erro ao mover tarefa: ' + error);
+                            // Não mostra alert quando usuário cancelou (escolheu resolver pendências)
+                            if (!options?.userCancelledChecklist && error) {
+                                alert('Erro ao mover tarefa: ' + error);
+                            }
                         }
                     );
                 });
