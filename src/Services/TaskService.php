@@ -576,18 +576,7 @@ class TaskService
             $id,
         ]);
         
-        // Se a tarefa foi concluída, verifica se o projeto deve ser arquivado automaticamente
-        $projectId = (int) $task['project_id'];
-        if ($status === 'concluida' && $oldStatus !== 'concluida') {
-            try {
-                if (\PixelHub\Services\ProjectService::isProjectCompleted($projectId)) {
-                    \PixelHub\Services\ProjectService::archiveProject($projectId);
-                }
-            } catch (\Exception $e) {
-                // Loga o erro mas não quebra o fluxo
-                error_log("Erro ao arquivar projeto automaticamente: " . $e->getMessage());
-            }
-        }
+        // Arquivamento de projetos é manual (filtro Status na tela de projetos)
         
         return true;
     }
@@ -703,17 +692,7 @@ class TaskService
         
         $stmt->execute([$newStatus, $newOrder, $completedAt, $completedBy, $id]);
         
-        // Se a tarefa foi concluída, verifica se o projeto deve ser arquivado automaticamente
-        if ($newStatus === 'concluida' && $oldStatus !== 'concluida') {
-            try {
-                if (\PixelHub\Services\ProjectService::isProjectCompleted($projectId)) {
-                    \PixelHub\Services\ProjectService::archiveProject($projectId);
-                }
-            } catch (\Exception $e) {
-                // Loga o erro mas não quebra o fluxo
-                error_log("Erro ao arquivar projeto automaticamente: " . $e->getMessage());
-            }
-        }
+        // Arquivamento de projetos é manual (filtro Status na tela de projetos)
         
         return true;
     }

@@ -348,17 +348,7 @@ class TicketService
             $id,
         ]);
         
-        // Se o ticket foi resolvido/cancelado e tem project_id, verifica se o projeto deve ser arquivado automaticamente
-        if ($projectId && in_array($status, ['resolvido', 'cancelado']) && !in_array($oldStatus, ['resolvido', 'cancelado'])) {
-            try {
-                if (\PixelHub\Services\ProjectService::isProjectCompleted($projectId)) {
-                    \PixelHub\Services\ProjectService::archiveProject($projectId);
-                }
-            } catch (\Exception $e) {
-                // Loga o erro mas não quebra o fluxo
-                error_log("Erro ao arquivar projeto automaticamente após resolver ticket: " . $e->getMessage());
-            }
-        }
+        // Arquivamento de projetos é manual (filtro Status na tela de projetos)
         
         return true;
     }
