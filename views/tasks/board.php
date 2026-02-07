@@ -4721,26 +4721,28 @@ if (!empty($selectedProject)) {
                     // Se o card está dentro de um wrapper, move o wrapper; caso contrário, move apenas o card
                     const wrapper = draggedTaskElement.closest('.kanban-task-wrapper');
                     const elementToMove = wrapper || draggedTaskElement;
+                    const cardForSelect = wrapper ? wrapper.querySelector('.kanban-task') : draggedTaskElement;
                     
                     elementToMove.remove();
                     newColumnTasks.appendChild(elementToMove);
                     
-                    // Se movemos o wrapper, atualiza a referência do draggedTaskElement para o card dentro dele
-                    if (wrapper) {
-                        draggedTaskElement = wrapper.querySelector('.kanban-task');
-                    }
-                    
                     // Atualiza o select dentro do card
-                    const statusSelect = draggedTaskElement.querySelector('.task-status-select');
+                    const statusSelect = cardForSelect.querySelector('.task-status-select');
                     if (statusSelect) {
                         statusSelect.value = newStatus;
                     }
                     
                     // Atualiza o badge de agenda baseado no novo status
-                    // Busca se a tarefa tem agenda vinculada (do atributo data ou do badge existente)
-                    const existingBadge = draggedTaskElement.querySelector('.badge-agenda');
+                    const existingBadge = cardForSelect.querySelector('.badge-agenda');
                     const hasAgenda = existingBadge && existingBadge.classList.contains('badge-na-agenda');
                     updateTaskAgendaBadge(draggedTaskId, hasAgenda, newStatus);
+                    
+                    // Captura referências para o callback de erro (dragend limpa as globais em 100ms,
+                    // mas o confirm pode demorar; sem isso, revert falharia com "Cannot read properties of null")
+                    const capturedElementToRevert = elementToMove;
+                    const capturedOriginalColumn = originalColumn;
+                    const capturedOriginalStatus = originalStatus;
+                    const capturedCardForSelect = cardForSelect;
                     
                     // Atualiza o status no backend
                     updateTaskStatus(
@@ -4753,25 +4755,19 @@ if (!empty($selectedProject)) {
                         function(error) {
                             // Erro: reverte o card para a coluna original
                             console.error('[KANBAN] Erro ao mover tarefa:', error);
-                            const wrapper = draggedTaskElement.closest('.kanban-task-wrapper');
-                            const elementToRevert = wrapper || draggedTaskElement;
-                            
-                            elementToRevert.remove();
-                            if (originalColumn) {
-                                originalColumn.appendChild(elementToRevert);
+                            if (!capturedElementToRevert || !capturedElementToRevert.parentElement) {
+                                console.warn('[KANBAN] Elemento já removido, recarregando página');
+                                location.reload();
+                                return;
                             }
-                            
-                            // Restaura referência se necessário
-                            if (wrapper) {
-                                draggedTaskElement = wrapper.querySelector('.kanban-task');
+                            capturedElementToRevert.remove();
+                            if (capturedOriginalColumn) {
+                                capturedOriginalColumn.appendChild(capturedElementToRevert);
                             }
-                            
-                            // Reverte o select
-                            const statusSelect = draggedTaskElement.querySelector('.task-status-select');
-                            if (statusSelect && originalStatus) {
-                                statusSelect.value = originalStatus;
+                            const revertSelect = capturedCardForSelect.querySelector('.task-status-select');
+                            if (revertSelect && capturedOriginalStatus) {
+                                revertSelect.value = capturedOriginalStatus;
                             }
-                            
                             alert('Erro ao mover tarefa: ' + error);
                         }
                     );
