@@ -38,7 +38,9 @@ class ProjectController extends Controller
         
         // Filtros
         $tenantId = isset($_GET['tenant_id']) && $_GET['tenant_id'] !== '' ? (int) $_GET['tenant_id'] : null;
-        $status = isset($_GET['status']) && $_GET['status'] !== '' ? $_GET['status'] : 'ativo';
+        $statusParam = isset($_GET['status']) && $_GET['status'] !== '' ? $_GET['status'] : 'ativo';
+        // "all" = exibir Ativos + Arquivados; caso contrário filtra pelo status informado
+        $status = ($statusParam === 'all') ? null : $statusParam;
         $type = isset($_GET['type']) && $_GET['type'] !== '' ? $_GET['type'] : null;
         
         // Busca projetos
@@ -84,7 +86,7 @@ class ProjectController extends Controller
             'tenants' => $tenants,
             'services' => $services,
             'selectedTenantId' => $tenantId,
-            'selectedStatus' => $status,
+            'selectedStatus' => $statusParam,
             'selectedType' => $type,
         ]);
     }
