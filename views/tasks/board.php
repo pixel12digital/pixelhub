@@ -645,8 +645,7 @@ ob_start();
     }
     .checklist-item textarea {
         min-height: 1.4em;
-        max-height: 120px;
-        overflow-y: auto;
+        overflow: hidden;
     }
     .checklist-item input[type="text"]:focus,
     .checklist-item textarea:focus {
@@ -3738,7 +3737,8 @@ if (!empty($selectedProject)) {
                 <input type="checkbox" ${item.is_done ? 'checked' : ''} 
                        onchange="toggleChecklistItem(${item.id}, this.checked)">
                 <textarea class="checklist-item-text" rows="1" 
-                          onblur="updateChecklistLabel(${item.id}, this.value)"
+                          onblur="updateChecklistLabel(${item.id}, this.value); autoResizeChecklistTextarea(this);"
+                          oninput="autoResizeChecklistTextarea(this)"
                           onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();this.blur();}">${safeLabel}</textarea>
                 <button type="button" onclick="deleteChecklistItem(${item.id})" 
                         class="btn btn-danger btn-small" style="flex-shrink: 0;">Excluir</button>
@@ -3899,12 +3899,19 @@ if (!empty($selectedProject)) {
         });
     }
 
+    function autoResizeChecklistTextarea(ta) {
+        if (!ta || ta.tagName !== 'TEXTAREA') return;
+        ta.style.height = 'auto';
+        ta.style.height = ta.scrollHeight + 'px';
+    }
+
     /**
      * Inicializa drag-and-drop para os itens do checklist
      */
     function initChecklistDragAndDrop() {
         const checklistContainer = document.getElementById('checklist-items');
         if (!checklistContainer) return;
+        checklistContainer.querySelectorAll('.checklist-item-text').forEach(autoResizeChecklistTextarea);
         
         const items = checklistContainer.querySelectorAll('.checklist-item[draggable="true"]');
         let draggedElement = null;
@@ -3923,8 +3930,10 @@ if (!empty($selectedProject)) {
             item.addEventListener('dragstart', function(e) {
                 // Não permite drag se o clique foi em elementos interativos
                 if (e.target.tagName === 'INPUT' || 
+                    e.target.tagName === 'TEXTAREA' ||
                     e.target.tagName === 'BUTTON' ||
                     e.target.closest('input') ||
+                    e.target.closest('textarea') ||
                     e.target.closest('button')) {
                     e.preventDefault();
                     return false;
