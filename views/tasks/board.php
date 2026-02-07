@@ -3331,11 +3331,14 @@ if (!empty($selectedProject)) {
     // Garante que está no escopo global
     window.cancelTaskEdit = cancelTaskEdit;
 
-    function saveTaskDetails(event) {
+    function saveTaskDetails(event, markAllChecklistOk) {
         event.preventDefault();
         
         const form = document.getElementById('taskDetailsForm');
         const formData = new FormData(form);
+        if (markAllChecklistOk) {
+            formData.append('mark_all_checklist_ok', '1');
+        }
         
         // TAREFA 1.3: Log para verificar payload enviado
         console.log('[saveTaskDetails] payload:', Array.from(formData.entries()));
@@ -3354,6 +3357,15 @@ if (!empty($selectedProject)) {
         .then(data => {
             // TAREFA 1.3: Log para verificar resposta do backend
             console.log('[saveTaskDetails] response data:', data);
+            
+            // Checklists pendentes: pergunta se marca todos e finaliza
+            if (data.checklist_pending && data.message) {
+                const msg = data.message + '\n\nClique em OK para marcar todos como concluídos e finalizar, ou Cancelar para manter como está.';
+                if (confirm(msg)) {
+                    saveTaskDetails({ preventDefault: function(){} }, true);
+                }
+                return;
+            }
             
             if (data.error) {
                 if (errorDiv) {
@@ -4281,10 +4293,13 @@ if (!empty($selectedProject)) {
 
     // Função centralizada para atualizar status da tarefa
     // Usada tanto pelo select quanto pelo drag & drop
-    function updateTaskStatus(taskId, newStatus, onSuccess, onError) {
+    function updateTaskStatus(taskId, newStatus, onSuccess, onError, markAllChecklistOk) {
         const formData = new FormData();
         formData.append('task_id', taskId);
         formData.append('new_status', newStatus);
+        if (markAllChecklistOk) {
+            formData.append('mark_all_checklist_ok', '1');
+        }
         
         fetch('<?= pixelhub_url('/tasks/move') ?>', {
             method: 'POST',
@@ -4292,6 +4307,16 @@ if (!empty($selectedProject)) {
         })
         .then(response => response.json())
         .then(data => {
+            // Checklists pendentes: pergunta se marca todos e finaliza
+            if (data.checklist_pending && data.message) {
+                const msg = data.message + '\n\nClique em OK para marcar todos como concluídos e finalizar, ou Cancelar para manter a tarefa como está.';
+                if (confirm(msg)) {
+                    updateTaskStatus(taskId, newStatus, onSuccess, onError, true);
+                } else if (onError) {
+                    onError(data.message);
+                }
+                return;
+            }
             if (data.error) {
                 if (onError) {
                     onError(data.error);
@@ -4300,10 +4325,12 @@ if (!empty($selectedProject)) {
                 }
                 return;
             }
-            if (onSuccess) {
+            if (data.success && onSuccess) {
                 onSuccess(data);
-            } else {
+            } else if (data.success && !onSuccess) {
                 location.reload();
+            } else if (onError) {
+                onError(data.message || 'Erro ao mover tarefa');
             }
         })
         .catch(error => {
@@ -4832,6 +4859,12 @@ if (!empty($selectedProject)) {
             if (e.target.classList.contains('task-status-select')) {
                 const taskId = e.target.getAttribute('data-task-id');
                 const newStatus = e.target.value;
+                const statusSelect = e.target;
+                const columnEl = statusSelect.closest('.kanban-column-tasks');
+                let oldStatus = columnEl ? (columnEl.getAttribute('data-column') || '') : '';
+                if (!oldStatus && window.currentTaskData && parseInt(window.currentTaskData.id) === parseInt(taskId)) {
+                    oldStatus = window.currentTaskData.status || '';
+                }
                 
                 if (taskId && newStatus) {
                     console.log('[KANBAN] Mudança de status via select', { taskId, newStatus });
@@ -4844,7 +4877,19 @@ if (!empty($selectedProject)) {
                         updateTaskAgendaBadge(parseInt(taskId), hasAgenda, newStatus);
                     }
                     
-                    moveTask(parseInt(taskId), newStatus);
+                    updateTaskStatus(
+                        parseInt(taskId),
+                        newStatus,
+                        function() { location.reload(); },
+                        function() {
+                            statusSelect.value = oldStatus;
+                            if (taskCard) {
+                                const existingBadge = taskCard.querySelector('.badge-agenda');
+                                const hasAgenda = existingBadge && existingBadge.classList.contains('badge-na-agenda');
+                                updateTaskAgendaBadge(parseInt(taskId), hasAgenda, oldStatus);
+                            }
+                        }
+                    );
                 }
             }
         });

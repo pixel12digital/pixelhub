@@ -225,6 +225,17 @@ class TaskChecklistService
      */
     public static function hasOpenChecklists(int $taskId): bool
     {
+        return self::getPendingCount($taskId) > 0;
+    }
+
+    /**
+     * Retorna a quantidade de itens pendentes do checklist
+     * 
+     * @param int $taskId ID da tarefa
+     * @return int Quantidade de itens não concluídos
+     */
+    public static function getPendingCount(int $taskId): int
+    {
         $db = DB::getConnection();
         $stmt = $db->prepare("
             SELECT COUNT(*) as total
@@ -234,7 +245,25 @@ class TaskChecklistService
         $stmt->execute([$taskId]);
         $result = $stmt->fetch();
         
-        return isset($result['total']) && (int)$result['total'] > 0;
+        return isset($result['total']) ? (int)$result['total'] : 0;
+    }
+
+    /**
+     * Marca todos os itens pendentes do checklist como concluídos
+     * 
+     * @param int $taskId ID da tarefa
+     * @return int Quantidade de itens marcados
+     */
+    public static function markAllAsDone(int $taskId): int
+    {
+        $db = DB::getConnection();
+        $stmt = $db->prepare("
+            UPDATE task_checklists
+            SET is_done = 1, updated_at = NOW()
+            WHERE task_id = ? AND is_done = 0
+        ");
+        $stmt->execute([$taskId]);
+        return $stmt->rowCount();
     }
 
     /**

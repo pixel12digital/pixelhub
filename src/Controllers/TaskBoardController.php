@@ -7,6 +7,7 @@ use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
 use PixelHub\Services\TaskService;
 use PixelHub\Services\ProjectService;
+use PixelHub\Services\TaskChecklistService;
 
 /**
  * Controller para gerenciar o quadro Kanban de tarefas
@@ -194,10 +195,32 @@ class TaskBoardController extends Controller
         Auth::requireInternal();
 
         $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
+        $markAllChecklistOk = isset($_POST['mark_all_checklist_ok']) && $_POST['mark_all_checklist_ok'] === '1';
 
         if ($id <= 0) {
             $this->json(['error' => 'ID inválido'], 400);
             return;
+        }
+
+        // Ao mudar para Concluída: verifica checklists pendentes
+        $newStatus = isset($_POST['status']) ? trim($_POST['status']) : null;
+        if ($newStatus === 'concluida') {
+            $task = TaskService::findTask($id);
+            if ($task && ($task['status'] ?? '') !== 'concluida') {
+                $pendingCount = TaskChecklistService::getPendingCount($id);
+                if ($pendingCount > 0 && !$markAllChecklistOk) {
+                    $this->json([
+                        'success' => false,
+                        'checklist_pending' => true,
+                        'pending_count' => $pendingCount,
+                        'message' => "Esta tarefa possui {$pendingCount} item(ns) do checklist pendente(s). Deseja marcar todos como concluídos e finalizar a tarefa mesmo assim?"
+                    ], 200);
+                    return;
+                }
+                if ($pendingCount > 0 && $markAllChecklistOk) {
+                    TaskChecklistService::markAllAsDone($id);
+                }
+            }
         }
 
         try {
@@ -309,6 +332,7 @@ class TaskBoardController extends Controller
         $id = isset($_POST['task_id']) ? (int) $_POST['task_id'] : 0;
         $newStatus = trim($_POST['new_status'] ?? '');
         $newOrder = isset($_POST['new_order']) && $_POST['new_order'] !== '' ? (int) $_POST['new_order'] : null;
+        $markAllChecklistOk = isset($_POST['mark_all_checklist_ok']) && $_POST['mark_all_checklist_ok'] === '1';
 
         if ($id <= 0) {
             $this->json(['error' => 'ID inválido'], 400);
@@ -318,6 +342,26 @@ class TaskBoardController extends Controller
         if (empty($newStatus)) {
             $this->json(['error' => 'Status inválido'], 400);
             return;
+        }
+
+        // Ao mover para Concluída: verifica checklists pendentes
+        if ($newStatus === 'concluida') {
+            $task = TaskService::findTask($id);
+            if ($task && $task['status'] !== 'concluida') {
+                $pendingCount = TaskChecklistService::getPendingCount($id);
+                if ($pendingCount > 0) {
+                    if (!$markAllChecklistOk) {
+                        $this->json([
+                            'success' => false,
+                            'checklist_pending' => true,
+                            'pending_count' => $pendingCount,
+                            'message' => "Esta tarefa possui {$pendingCount} item(ns) do checklist pendente(s). Deseja marcar todos como concluídos e finalizar a tarefa mesmo assim?"
+                        ], 200);
+                        return;
+                    }
+                    TaskChecklistService::markAllAsDone($id);
+                }
+            }
         }
 
         try {
@@ -676,6 +720,7 @@ class TaskBoardController extends Controller
         
         $taskId = isset($_POST['task_id']) ? (int)$_POST['task_id'] : 0;
         $status = isset($_POST['status']) ? trim($_POST['status']) : null;
+        $markAllChecklistOk = isset($_POST['mark_all_checklist_ok']) && $_POST['mark_all_checklist_ok'] === '1';
         
         if ($taskId <= 0) {
             http_response_code(400);
@@ -710,6 +755,24 @@ class TaskBoardController extends Controller
             }
             
             $oldStatus = $task['status'] ?? null;
+            
+            // Ao mudar para Concluída: verifica checklists pendentes
+            if ($status === 'concluida' && $oldStatus !== 'concluida') {
+                $pendingCount = TaskChecklistService::getPendingCount($taskId);
+                if ($pendingCount > 0 && !$markAllChecklistOk) {
+                    header('Content-Type: application/json');
+                    echo json_encode([
+                        'success' => false,
+                        'checklist_pending' => true,
+                        'pending_count' => $pendingCount,
+                        'message' => "Esta tarefa possui {$pendingCount} item(ns) do checklist pendente(s). Deseja marcar todos como concluídos e finalizar a tarefa mesmo assim?"
+                    ]);
+                    return;
+                }
+                if ($pendingCount > 0 && $markAllChecklistOk) {
+                    TaskChecklistService::markAllAsDone($taskId);
+                }
+            }
             
             // Se o status mudou, usa moveTask para ajustar a ordem corretamente
             // Isso garante que a tarefa apareça na coluna correta no quadro Kanban
