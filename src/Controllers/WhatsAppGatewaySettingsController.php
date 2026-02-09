@@ -476,16 +476,36 @@ class WhatsAppGatewaySettingsController extends Controller
     private function extractQrFromResponse(array $result): ?string
     {
         $raw = $result['raw'] ?? [];
-        $qr = $raw['qr'] ?? $raw['qr_base64'] ?? $raw['qrcode'] ?? $raw['base64Qrimg'] ?? $raw['base64'] ?? $raw['base64Image'] ?? $raw['image'] ?? null;
+        if (!is_array($raw)) {
+            $raw = [];
+        }
+        $qrKeys = ['qr', 'qr_base64', 'qrcode', 'base64Qrimg', 'base64', 'base64Image', 'image', 'qrcode_base64'];
+        $qr = null;
+        foreach ($qrKeys as $k) {
+            if (!empty($raw[$k]) && is_string($raw[$k])) {
+                $qr = $raw[$k];
+                break;
+            }
+        }
         if ($qr === null && isset($raw['data'])) {
             $d = $raw['data'];
-            $qr = is_array($d) ? ($d['qr'] ?? $d['base64'] ?? null) : $d;
+            $qr = is_array($d) ? ($d['qr'] ?? $d['base64'] ?? $d['base64Qrimg'] ?? null) : (is_string($d) ? $d : null);
         }
         if ($qr === null && isset($raw['result'])) {
             $r = $raw['result'];
-            $qr = is_array($r) ? ($r['qr'] ?? $r['base64'] ?? null) : $r;
+            $qr = is_array($r) ? ($r['qr'] ?? $r['base64'] ?? $r['base64Qrimg'] ?? null) : (is_string($r) ? $r : null);
         }
-        $qr = $qr ?? $result['qr'] ?? $result['qr_base64'] ?? $result['qrcode'] ?? $result['data'] ?? null;
+        if ($qr === null) {
+            foreach ($qrKeys as $k) {
+                if (!empty($result[$k]) && is_string($result[$k])) {
+                    $qr = $result[$k];
+                    break;
+                }
+            }
+        }
+        if ($qr === null && isset($result['data']) && is_string($result['data'])) {
+            $qr = $result['data'];
+        }
         if (empty($qr) || !is_string($qr)) {
             return null;
         }
@@ -514,6 +534,20 @@ class WhatsAppGatewaySettingsController extends Controller
                 return ['result' => $result, 'qr' => $qr];
             }
             if (!$result['success']) {
+                $err = $result['error'] ?? '';
+                if (stripos($err, 'Session not started') !== false || stripos($err, 'start-session') !== false) {
+                    try {
+                        $gateway->startSession($channelId);
+                        sleep(2);
+                        $result = $gateway->getQr($channelId);
+                        $qr = $this->extractQrFromResponse($result);
+                        if ($qr !== null) {
+                            return ['result' => $result, 'qr' => $qr];
+                        }
+                    } catch (\Throwable $e) {
+                        // fallback
+                    }
+                }
                 return ['result' => $result, 'qr' => null];
             }
             if ($i < $maxAttempts - 1) {

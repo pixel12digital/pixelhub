@@ -88,6 +88,18 @@ class WhatsAppGatewayClient
     }
 
     /**
+     * Inicia sessão no WPPConnect (necessário antes de getQr quando "Session not started")
+     *
+     * @param string $channelId ID do canal
+     * @return array { success: bool, error?: string }
+     */
+    public function startSession(string $channelId): array
+    {
+        $encodedChannelId = rawurlencode($channelId);
+        return $this->request('POST', "/api/channels/{$encodedChannelId}/start-session");
+    }
+
+    /**
      * Obtém QR code para conectar o WhatsApp
      * 
      * @param string $channelId ID do canal

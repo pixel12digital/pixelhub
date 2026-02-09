@@ -111,7 +111,9 @@ document.getElementById('qr-diagnostic-btn').addEventListener('click', function(
         if (data.success) {
             var lines = ['=== Resultado ==='];
             (data.steps || []).forEach(function(s) {
-                lines.push(s.step + ': success=' + s.success + (s.error ? ' error=' + s.error : '') + (s.has_qr ? ' has_qr=true' : '') + (s.raw_status ? ' raw_status=' + s.raw_status : ''));
+                var line = s.step + ': success=' + s.success + (s.error ? ' error=' + s.error : '') + (s.has_qr ? ' has_qr=true' : '') + (s.raw_status ? ' raw_status=' + s.raw_status : '');
+                if (s.raw_keys && s.raw_keys.length) line += ' raw_keys=[' + s.raw_keys.join(', ') + ']';
+                lines.push(line);
             });
             lines.push('');
             lines.push('Conclusão: ' + (data.conclusion || ''));

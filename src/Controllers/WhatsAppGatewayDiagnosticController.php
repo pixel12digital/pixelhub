@@ -1171,6 +1171,7 @@ class WhatsAppGatewayDiagnosticController extends Controller
                 break;
             }
         }
+        $raw5Keys = is_array($raw5) ? array_keys($raw5) : [];
         $steps[] = [
             'step' => 'getQr (após create)',
             'success' => $r5['success'] ?? false,
@@ -1178,6 +1179,7 @@ class WhatsAppGatewayDiagnosticController extends Controller
             'has_qr' => $hasQr5,
             'raw_status' => $raw5['status'] ?? null,
             'raw_message' => $raw5['message'] ?? null,
+            'raw_keys' => $raw5Keys,
         ];
 
         if ($hasQr5) {
@@ -1188,6 +1190,8 @@ class WhatsAppGatewayDiagnosticController extends Controller
             $conclusion = 'Status CONNECTED sem QR (sessão zombie). Aplicar patch getQRCode na VPS.';
         } elseif (strtoupper($raw5['status'] ?? '') === 'INITIALIZING') {
             $conclusion = 'Sessão em INITIALIZING. WPPConnect pode demorar mais.';
+        } elseif (($r5['success'] ?? false) && !$hasQr5) {
+            $conclusion = 'Gateway retorna success=true mas sem qr/qr_base64/base64. Ver raw_keys acima. O gateway pode precisar incluir o QR no body (docs/PACOTE_VPS_QR_CODE_NA_RESPOSTA_API.md).';
         } else {
             $conclusion = 'Gateway não retorna QR. Verificar: DELETE suportado? WPPConnect saudável?';
         }
