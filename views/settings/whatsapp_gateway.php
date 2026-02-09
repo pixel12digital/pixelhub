@@ -561,7 +561,7 @@ function escapeHtml(s) {
     return div.innerHTML;
 }
 
-function showQrModal(qr, channelId, showRetry) {
+function showQrModal(qr, channelId, showRetry, customMessage) {
     const modal = document.getElementById('qr-modal');
     const content = document.getElementById('qr-modal-content');
     const modalInner = document.getElementById('qr-modal-inner');
@@ -575,8 +575,9 @@ function showQrModal(qr, channelId, showRetry) {
     } else if (qr) {
         content.innerHTML = '<img src="data:image/png;base64,' + qr + '" alt="QR Code" style="max-width: 280px; height: auto;">';
     } else {
+        const msg = customMessage || 'O QR code está na interface do gateway. Clique no botão abaixo para abrir em nova aba e escanear.';
         content.innerHTML = '<div style="padding: 24px; background: #f8f9fa; border-radius: 6px; text-align: center;">' +
-            '<p style="color: #666; margin-bottom: 16px;">O QR code está na interface do gateway. Clique no botão abaixo para abrir em nova aba e escanear.</p>' +
+            '<p style="color: #666; margin-bottom: 16px;">' + escapeHtml(msg) + '</p>' +
             '<a href="' + vpsSessionUrl + '" target="_blank" rel="noopener" style="display: inline-block; padding: 12px 24px; background: #023A8D; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Abrir interface do gateway</a>' +
             (showRetry && channelId ? '<br><button type="button" id="qr-retry-btn" style="margin-top: 16px; padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Tentar novamente</button>' : '') +
             '</div>';
@@ -601,7 +602,7 @@ function reconnectSession(channelId) {
         if (data.success && data.qr) {
             showQrModal(data.qr, channelId);
         } else {
-            showQrModal(null, channelId, true);
+            showQrModal(null, channelId, true, data.message || null);
             if (!data.success && data.error) {
                 console.warn('Gateway:', data.error);
             }
@@ -634,7 +635,7 @@ document.getElementById('btn-create-session').addEventListener('click', function
         if (data.success) {
             input.value = '';
             if (data.qr) showQrModal(data.qr, channelId);
-            else showQrModal(null, channelId, true);
+            else showQrModal(null, channelId, true, data.message || null);
             loadSessions();
         } else {
             alert('Erro: ' + (data.error || 'Não foi possível criar sessão'));
