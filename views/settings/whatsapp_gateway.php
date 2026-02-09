@@ -298,8 +298,7 @@ $pixelhubBaseUrl = pixelhub_url('');
         <div id="qr-modal-content" style="text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center; flex-direction: column;">
             <!-- QR, iframe ou mensagem -->
         </div>
-        <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
-            <a id="qr-open-vps-link" href="#" target="_blank" rel="noopener" style="display: none; font-size: 13px; color: #023A8D;">Abrir QR na interface do gateway</a>
+        <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
             <button type="button" id="qr-modal-close" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Fechar</button>
         </div>
     </div>
@@ -565,12 +564,10 @@ function escapeHtml(s) {
 function showQrModal(qr, channelId, showRetry) {
     const modal = document.getElementById('qr-modal');
     const content = document.getElementById('qr-modal-content');
-    const openLink = document.getElementById('qr-open-vps-link');
     const modalInner = document.getElementById('qr-modal-inner');
     const gatewayBase = (modal.getAttribute('data-gateway-base') || 'https://wpp.pixel12digital.com.br').replace(/\/$/, '');
     const vpsSessionUrl = channelId ? (gatewayBase + '/ui/sessoes/' + channelId) : (gatewayBase + '/ui/sessoes');
 
-    openLink.style.display = 'none';
     modalInner.style.maxWidth = '450px';
 
     if (qr && (qr.startsWith('data:') || qr.startsWith('http'))) {
@@ -578,12 +575,11 @@ function showQrModal(qr, channelId, showRetry) {
     } else if (qr) {
         content.innerHTML = '<img src="data:image/png;base64,' + qr + '" alt="QR Code" style="max-width: 280px; height: auto;">';
     } else {
-        modalInner.style.maxWidth = '900px';
-        openLink.href = vpsSessionUrl;
-        openLink.style.display = 'inline-block';
-        content.innerHTML = '<iframe src="' + vpsSessionUrl + '" style="width: 100%; height: 500px; border: 1px solid #ddd; border-radius: 4px;" title="QR Code do gateway"></iframe>' +
-            '<p style="color: #666; font-size: 13px; margin-top: 12px;">O QR está na interface do gateway acima. Se não aparecer, use o link "Abrir QR na interface do gateway".</p>' +
-            (showRetry && channelId ? '<button type="button" id="qr-retry-btn" style="margin-top: 12px; padding: 8px 16px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer;">Tentar novamente</button>' : '');
+        content.innerHTML = '<div style="padding: 24px; background: #f8f9fa; border-radius: 6px; text-align: center;">' +
+            '<p style="color: #666; margin-bottom: 16px;">O QR code está na interface do gateway. Clique no botão abaixo para abrir em nova aba e escanear.</p>' +
+            '<a href="' + vpsSessionUrl + '" target="_blank" rel="noopener" style="display: inline-block; padding: 12px 24px; background: #023A8D; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Abrir interface do gateway</a>' +
+            (showRetry && channelId ? '<br><button type="button" id="qr-retry-btn" style="margin-top: 16px; padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Tentar novamente</button>' : '') +
+            '</div>';
         if (showRetry && channelId) {
             content.querySelector('#qr-retry-btn').addEventListener('click', function() {
                 modal.style.display = 'none';
