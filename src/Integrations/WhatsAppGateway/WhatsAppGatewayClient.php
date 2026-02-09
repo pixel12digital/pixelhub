@@ -20,7 +20,7 @@ class WhatsAppGatewayClient
 
     public function __construct(?string $baseUrl = null, ?string $secret = null, int $timeout = 30)
     {
-        $this->baseUrl = rtrim($baseUrl ?? Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br'), '/');
+        $this->baseUrl = rtrim($baseUrl ?? Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br:8443'), '/');
         // Usa GatewaySecret::getDecrypted() como fonte única do secret
         $this->secret = $secret ?? GatewaySecret::getDecrypted();
         $this->timeout = $timeout;

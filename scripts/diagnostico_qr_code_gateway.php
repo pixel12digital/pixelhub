@@ -29,7 +29,8 @@ $log = function (string $msg) {
 
 echo "=== Diagnóstico QR Code - Gateway ===\n";
 echo "Sessão: {$channelId}\n";
-echo "Base URL: " . (\PixelHub\Core\Env::get('WPP_GATEWAY_BASE_URL', '') ?: '(env vazio)') . "\n\n";
+$baseUrl = \PixelHub\Core\Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br:8443');
+echo "Base URL: " . ($baseUrl ?: '(env vazio)') . "\n\n";
 
 try {
     $client = new \PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient();

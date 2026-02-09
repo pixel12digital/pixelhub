@@ -91,10 +91,10 @@ $pixelhubBaseUrl = pixelhub_url('');
                 type="url" 
                 name="base_url" 
                 id="base_url"
-                value="<?= htmlspecialchars($baseUrl ?? 'https://wpp.pixel12digital.com.br') ?>" 
+                value="<?= htmlspecialchars($baseUrl ?? 'https://wpp.pixel12digital.com.br:8443') ?>" 
                 required
                 style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px;"
-                placeholder="https://wpp.pixel12digital.com.br"
+                placeholder="https://wpp.pixel12digital.com.br:8443"
             />
             <div style="margin-top: 5px; font-size: 12px; color: #666;">
                 <small>URL base do gateway de WhatsApp (sem barra final).</small>
@@ -292,7 +292,7 @@ $pixelhubBaseUrl = pixelhub_url('');
 
 <!-- Modal QR Code -->
 <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
-<div id="qr-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; padding: 20px;" data-gateway-base="<?= htmlspecialchars($baseUrl ?? 'https://wpp.pixel12digital.com.br') ?>">
+<div id="qr-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; padding: 20px;" data-gateway-base="<?= htmlspecialchars($baseUrl ?? 'https://wpp.pixel12digital.com.br:8443') ?>">
     <div id="qr-modal-inner" style="background: white; border-radius: 8px; padding: 24px; max-width: 450px; width: 100%; max-height: 90vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
         <h3 style="margin: 0 0 16px 0; font-size: 18px;">Escaneie o QR Code</h3>
         <p style="margin-bottom: 16px; color: #666; font-size: 14px;">Abra o WhatsApp no celular > Dispositivos conectados > Conectar dispositivo</p>

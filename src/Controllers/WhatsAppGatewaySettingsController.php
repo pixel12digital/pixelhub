@@ -28,7 +28,7 @@ class WhatsAppGatewaySettingsController extends Controller
             // Força recarregar .env para garantir valores atualizados
             Env::load(__DIR__ . '/../../.env', true);
             
-            $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
+            $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br:8443');
             $secretRaw = Env::get('WPP_GATEWAY_SECRET', '');
             $webhookUrl = Env::get('PIXELHUB_WHATSAPP_WEBHOOK_URL', '');
             $webhookSecret = Env::get('PIXELHUB_WHATSAPP_WEBHOOK_SECRET', '');
@@ -44,13 +44,13 @@ class WhatsAppGatewaySettingsController extends Controller
                 if (function_exists('pixelhub_log')) {
                     pixelhub_log('[WhatsAppGatewaySettings] AVISO: BaseURL inválida detectada: ' . $baseUrl . '. Corrigindo para padrão.');
                 }
-                $baseUrl = 'https://wpp.pixel12digital.com.br';
+                $baseUrl = 'https://wpp.pixel12digital.com.br:8443';
             }
             
             $hasSecret = !empty($secretRaw);
             
         } catch (\Exception $e) {
-            $baseUrl = 'https://wpp.pixel12digital.com.br';
+            $baseUrl = 'https://wpp.pixel12digital.com.br:8443';
             $hasSecret = false;
             $webhookUrl = '';
             $webhookSecret = '';
@@ -60,7 +60,7 @@ class WhatsAppGatewaySettingsController extends Controller
         // Garante valor padrão correto
         $baseUrl = !empty($baseUrl) && filter_var($baseUrl, FILTER_VALIDATE_URL) 
             ? $baseUrl 
-            : 'https://wpp.pixel12digital.com.br';
+            : 'https://wpp.pixel12digital.com.br:8443';
 
         $this->view('settings.whatsapp_gateway', [
             'baseUrl' => $baseUrl,
@@ -80,7 +80,7 @@ class WhatsAppGatewaySettingsController extends Controller
     {
         Auth::requireInternal();
 
-        $baseUrl = trim($_POST['base_url'] ?? 'https://wpp.pixel12digital.com.br');
+        $baseUrl = trim($_POST['base_url'] ?? 'https://wpp.pixel12digital.com.br:8443');
         $secret = trim($_POST['secret'] ?? '');
         $webhookUrl = trim($_POST['webhook_url'] ?? '');
         $webhookSecret = trim($_POST['webhook_secret'] ?? '');
@@ -100,7 +100,7 @@ class WhatsAppGatewaySettingsController extends Controller
 
         // Valida URL
         if (!filter_var($baseUrl, FILTER_VALIDATE_URL)) {
-            $this->redirect('/settings/whatsapp-gateway?error=invalid_base_url&message=' . urlencode('URL inválida. Use uma URL completa como: https://wpp.pixel12digital.com.br'));
+            $this->redirect('/settings/whatsapp-gateway?error=invalid_base_url&message=' . urlencode('URL inválida. Use uma URL completa como: https://wpp.pixel12digital.com.br:8443'));
             return;
         }
 
@@ -336,7 +336,7 @@ class WhatsAppGatewaySettingsController extends Controller
             $logs[] = "";
 
             // Carrega configurações
-            $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
+            $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br:8443');
             $secretRaw = Env::get('WPP_GATEWAY_SECRET', '');
             
             $logs[] = "✅ Configurações carregadas";
@@ -550,7 +550,7 @@ class WhatsAppGatewaySettingsController extends Controller
      */
     private function getGatewayClient(): WhatsAppGatewayClient
     {
-        $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
+        $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br:8443');
         $baseUrl = rtrim($baseUrl, '/');
         $secret = self::getDecryptedSecret();
         if (empty($secret)) {
