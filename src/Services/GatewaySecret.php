@@ -23,21 +23,25 @@ class GatewaySecret
      */
     public static function getDecrypted(): string
     {
-        $secretRaw = Env::get('WPP_GATEWAY_SECRET', '');
+        $secretRaw = trim(Env::get('WPP_GATEWAY_SECRET', ''));
         
         if (empty($secretRaw)) {
             return '';
         }
         
+        // Secret em texto puro (ex: 64 hex chars do gateway) — usar direto, sem descriptografar
+        // Evita que base64_decode + openssl_decrypt produzam lixo e enviem secret errado ao gateway
+        if (strlen($secretRaw) >= 32 && ctype_xdigit($secretRaw)) {
+            return $secretRaw;
+        }
+        
         try {
             $secret = CryptoHelper::decrypt($secretRaw);
             if (empty($secret)) {
-                // Se descriptografia retornou vazio, pode ser que não esteja criptografado
                 return $secretRaw;
             }
             return $secret;
         } catch (\Exception $e) {
-            // Se falhar, tenta usar diretamente (pode não estar criptografado)
             return $secretRaw;
         }
     }
