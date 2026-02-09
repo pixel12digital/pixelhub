@@ -606,6 +606,7 @@ function reconnectSession(channelId, attempt) {
     })
     .then(r => r.json())
     .then(data => {
+        console.log('[QR-Reconnect] Tentativa', attempt + 1, ':', { hasQr: !!data.qr, message: data.message, error: data.error });
         if (data.qr) {
             showQrModal(data.qr, channelId);
             return;
@@ -650,6 +651,7 @@ document.getElementById('btn-create-session').addEventListener('click', function
     .then(data => {
         btn.disabled = false;
         btn.textContent = 'Criar sessão';
+        console.log('[QR-Create] Resposta:', { success: data.success, hasQr: !!data.qr, message: data.message, error: data.error });
         if (data.success) {
             input.value = '';
             loadSessions();
@@ -683,10 +685,14 @@ function createSessionPollQr(channelId, attempt) {
     })
     .then(r => r.json())
     .then(data => {
+        console.log('[QR-Reconnect] Tentativa', attempt + 1, ':', { hasQr: !!data.qr, message: data.message, error: data.error });
         if (data.qr) showQrModal(data.qr, channelId);
         else setTimeout(function() { createSessionPollQr(channelId, attempt + 1); }, pollIntervalMs);
     })
-    .catch(() => setTimeout(function() { createSessionPollQr(channelId, attempt + 1); }, pollIntervalMs));
+    .catch((err) => {
+        console.warn('[QR-Reconnect] Erro:', err);
+        setTimeout(function() { createSessionPollQr(channelId, attempt + 1); }, pollIntervalMs);
+    });
 }
 
 document.getElementById('qr-modal-close').addEventListener('click', function() {
