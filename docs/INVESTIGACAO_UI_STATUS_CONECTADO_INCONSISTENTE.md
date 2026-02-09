@@ -189,13 +189,31 @@ O gateway poderia **usar connection.update** para atualizar o status localmente:
 
 ---
 
-## 5. Dependência
+## 6. BLOCO 4 — Onde /api/channels é definido
+
+O endpoint `/api/channels` retorna a lista. Precisamos saber se ele usa getSessionStatus (WPPConnect) ou sessionManager:
+
+```bash
+# [VPS]
+echo "=== Rota /api/channels ==="
+docker exec gateway-wrapper grep -rn "channels\|/api/channels" /app/src --include="*.js" 2>/dev/null | head -30
+
+echo ""
+echo "=== api.js ou index.js - montagem de rotas ==="
+docker exec gateway-wrapper cat /app/src/routes/api.js 2>/dev/null || docker exec gateway-wrapper cat /app/src/index.js 2>/dev/null | head -100
+```
+
+**Retornar:** Saída completa.
+
+---
+
+## 7. Dependência
 
 A correção depende do acesso ao código do **gateway-wrapper** e **WPPConnect** na VPS. O Cursor não altera a VPS; o Charles executa os blocos e aplica os patches conforme a investigação.
 
 ---
 
-## 6. Referências
+## 8. Referências
 
 - `docs/INVESTIGACAO_RENATO_81642320_INBOX.md` — contexto Renato
 - `docs/CRON_HEALTHCHECK_SESSOES_WHATSAPP.md` — healthcheck detecta zombie via webhook_raw_logs
