@@ -196,6 +196,20 @@ docker exec gateway-wrapper grep -rn "webhook\|incoming\|/webhook" /app/src --in
 
 ---
 
+## Diagnóstico local (sem VPS)
+
+Para ver o que o gateway retorna ao Pixel Hub:
+
+```bash
+php scripts/diagnostico_status_gateway.php
+```
+
+Isso confirma que o status "connected" vem do gateway. A correção está na VPS (patch connection.update).
+
+Ver: `docs/DIAGNOSTICO_STATUS_FALSO_CONECTADO.md`
+
+---
+
 ## Referências
 
 - `docs/PACOTE_VPS_PATCH_CONNECTION_UPDATE_STATUS.md` — detalhes do patch de status
