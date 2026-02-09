@@ -291,6 +291,7 @@ $pixelhubBaseUrl = pixelhub_url('');
 </div>
 
 <!-- Modal QR Code -->
+<style>@keyframes spin { to { transform: rotate(360deg); } }</style>
 <div id="qr-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; padding: 20px;" data-gateway-base="<?= htmlspecialchars($baseUrl ?? 'https://wpp.pixel12digital.com.br') ?>">
     <div id="qr-modal-inner" style="background: white; border-radius: 8px; padding: 24px; max-width: 450px; width: 100%; max-height: 90vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
         <h3 style="margin: 0 0 16px 0; font-size: 18px;">Escaneie o QR Code</h3>
@@ -561,12 +562,10 @@ function escapeHtml(s) {
     return div.innerHTML;
 }
 
-function showQrModal(qr, channelId, showRetry, customMessage) {
+function showQrModal(qr, channelId, showRetry, customMessage, isPolling) {
     const modal = document.getElementById('qr-modal');
     const content = document.getElementById('qr-modal-content');
     const modalInner = document.getElementById('qr-modal-inner');
-    const gatewayBase = (modal.getAttribute('data-gateway-base') || 'https://wpp.pixel12digital.com.br').replace(/\/$/, '');
-    const vpsSessionUrl = channelId ? (gatewayBase + '/ui/sessoes/' + channelId) : (gatewayBase + '/ui/sessoes');
 
     modalInner.style.maxWidth = '450px';
 
@@ -575,10 +574,10 @@ function showQrModal(qr, channelId, showRetry, customMessage) {
     } else if (qr) {
         content.innerHTML = '<img src="data:image/png;base64,' + qr + '" alt="QR Code" style="max-width: 280px; height: auto;">';
     } else {
-        const msg = customMessage || 'O QR code está na interface do gateway. Clique no botão abaixo para abrir em nova aba e escanear.';
+        const msg = customMessage || 'Gerando QR code... Aguarde.';
         content.innerHTML = '<div style="padding: 24px; background: #f8f9fa; border-radius: 6px; text-align: center;">' +
+            (isPolling ? '<div class="spinner" style="width: 40px; height: 40px; border: 4px solid #dee2e6; border-top-color: #023A8D; border-radius: 50%; margin: 0 auto 16px; animation: spin 0.8s linear infinite;"></div>' : '') +
             '<p style="color: #666; margin-bottom: 16px;">' + escapeHtml(msg) + '</p>' +
-            '<a href="' + vpsSessionUrl + '" target="_blank" rel="noopener" style="display: inline-block; padding: 12px 24px; background: #023A8D; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Abrir interface do gateway</a>' +
             (showRetry && channelId ? '<br><button type="button" id="qr-retry-btn" style="margin-top: 16px; padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Tentar novamente</button>' : '') +
             '</div>';
         if (showRetry && channelId) {
@@ -591,7 +590,15 @@ function showQrModal(qr, channelId, showRetry, customMessage) {
     modal.style.display = 'flex';
 }
 
-function reconnectSession(channelId) {
+function reconnectSession(channelId, attempt) {
+    attempt = attempt || 0;
+    const maxAttempts = 12;
+    const pollIntervalMs = 5000;
+
+    if (attempt === 0) {
+        showQrModal(null, channelId, true, 'Gerando QR code... Aguarde.', true);
+    }
+
     fetch(sessionsBaseUrl + '/sessions/reconnect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -599,18 +606,27 @@ function reconnectSession(channelId) {
     })
     .then(r => r.json())
     .then(data => {
-        if (data.success && data.qr) {
+        if (data.qr) {
             showQrModal(data.qr, channelId);
+            return;
+        }
+        if (attempt < maxAttempts - 1) {
+            showQrModal(null, channelId, true, 'Gerando QR code... Tentando novamente em 5s', true);
+            setTimeout(function() { reconnectSession(channelId, attempt + 1); }, pollIntervalMs);
         } else {
-            showQrModal(null, channelId, true, data.message || null);
-            if (!data.success && data.error) {
-                console.warn('Gateway:', data.error);
-            }
+            const msg = data.message || data.error || 'Não foi possível gerar o QR após várias tentativas.';
+            showQrModal(null, channelId, true, msg);
+            if (data.error) console.warn('Gateway:', data.error);
         }
     })
     .catch(err => {
-        showQrModal(null, channelId, true);
-        console.warn('Erro:', err.message);
+        if (attempt < maxAttempts - 1) {
+            showQrModal(null, channelId, true, 'Erro ao gerar QR. Tentando novamente em 5s...', true);
+            setTimeout(function() { reconnectSession(channelId, attempt + 1); }, pollIntervalMs);
+        } else {
+            showQrModal(null, channelId, true, 'Erro: ' + err.message);
+            console.warn('Erro:', err.message);
+        }
     });
 }
 
@@ -621,8 +637,10 @@ document.getElementById('btn-create-session').addEventListener('click', function
         alert('Digite o nome da sessão');
         return;
     }
-    this.disabled = true;
-    this.textContent = 'Criando...';
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Criando...';
+    showQrModal(null, channelId, true, 'Criando sessão e gerando QR code... Aguarde.', true);
     fetch(sessionsBaseUrl + '/sessions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -630,23 +648,46 @@ document.getElementById('btn-create-session').addEventListener('click', function
     })
     .then(r => r.json())
     .then(data => {
-        this.disabled = false;
-        this.textContent = 'Criar sessão';
+        btn.disabled = false;
+        btn.textContent = 'Criar sessão';
         if (data.success) {
             input.value = '';
-            if (data.qr) showQrModal(data.qr, channelId);
-            else showQrModal(null, channelId, true, data.message || null);
             loadSessions();
+            if (data.qr) showQrModal(data.qr, channelId);
+            else createSessionPollQr(channelId, 0);
         } else {
+            document.getElementById('qr-modal').style.display = 'none';
             alert('Erro: ' + (data.error || 'Não foi possível criar sessão'));
         }
     })
     .catch(err => {
-        this.disabled = false;
-        this.textContent = 'Criar sessão';
+        btn.disabled = false;
+        btn.textContent = 'Criar sessão';
+        document.getElementById('qr-modal').style.display = 'none';
         alert('Erro: ' + err.message);
     });
 });
+
+function createSessionPollQr(channelId, attempt) {
+    const maxAttempts = 12;
+    const pollIntervalMs = 5000;
+    if (attempt >= maxAttempts) {
+        showQrModal(null, channelId, true, 'Não foi possível gerar o QR após várias tentativas. Clique em Tentar novamente.');
+        return;
+    }
+    showQrModal(null, channelId, true, 'Gerando QR code... Tentando novamente em 5s', true);
+    fetch(sessionsBaseUrl + '/sessions/reconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ channel_id: channelId })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.qr) showQrModal(data.qr, channelId);
+        else setTimeout(function() { createSessionPollQr(channelId, attempt + 1); }, pollIntervalMs);
+    })
+    .catch(() => setTimeout(function() { createSessionPollQr(channelId, attempt + 1); }, pollIntervalMs));
+}
 
 document.getElementById('qr-modal-close').addEventListener('click', function() {
     document.getElementById('qr-modal').style.display = 'none';

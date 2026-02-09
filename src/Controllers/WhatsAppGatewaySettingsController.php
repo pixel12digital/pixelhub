@@ -502,10 +502,10 @@ class WhatsAppGatewaySettingsController extends Controller
     /**
      * Obtém QR com retry (WPPConnect pode demorar alguns segundos para gerar)
      */
-    private function getQrWithRetry(WhatsAppGatewayClient $gateway, string $channelId, int $maxAttempts = 3): array
+    private function getQrWithRetry(WhatsAppGatewayClient $gateway, string $channelId, int $maxAttempts = 8): array
     {
         $lastResult = null;
-        $delaySeconds = 4; // WPPConnect pode demorar para gerar QR em nova sessão
+        $delaySeconds = 4; // WPPConnect pode demorar para gerar QR
         for ($i = 0; $i < $maxAttempts; $i++) {
             $result = $gateway->getQr($channelId);
             $lastResult = $result;
@@ -663,8 +663,8 @@ class WhatsAppGatewaySettingsController extends Controller
                 return;
             }
 
-            // Nova sessão: 5 tentativas (WPPConnect pode demorar para gerar QR)
-            $retry = $this->getQrWithRetry($gateway, $channelId, 5);
+            // Nova sessão: 8 tentativas (WPPConnect pode demorar para gerar QR)
+            $retry = $this->getQrWithRetry($gateway, $channelId, 8);
             $qrResult = $retry['result'];
             $qr = $retry['qr'];
 
