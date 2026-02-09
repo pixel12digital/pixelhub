@@ -165,6 +165,16 @@ curl -s -H "X-Gateway-Secret: $SECRET" "https://wpp.pixel12digital.com.br:8443/a
 
 ---
 
+## Por que ainda mostra "Conectado" quando o dispositivo está desconectado?
+
+O gateway obtém o status de `GET /api/channels`, que usa o WPPConnect. Quando o celular desconecta, o WPPConnect pode:
+1. **Emitir** `connection.update` com estado "close" → o gateway precisa tratar esse evento e atualizar o sessionManager.
+2. **Não emitir** (sessão "zombie") → o status fica em cache "connected". Nesse caso, o healthcheck do Pixel Hub força getQr, mas o display continua "conectado" até o usuário clicar em Reconectar.
+
+**Solução:** Aplicar o patch connection.update na VPS (seção abaixo). Para sessões zombie, o usuário deve clicar em Reconectar em Configurações > WhatsApp Gateway.
+
+---
+
 ## Bloco para Charles — connection.update (Tarefa 1)
 
 Rodar o diagnóstico abaixo e retornar a saída completa:

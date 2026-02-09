@@ -199,6 +199,9 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 if (result.error_code) errMsg += ' (' + result.error_code + ')';
                 if (result.request_id) errMsg += ' [ID: ' + result.request_id + ']';
                 if (result.debug && result.debug.message) errMsg += '\nDetalhe: ' + result.debug.message;
+                if ((result.error_code === 'GATEWAY_ERROR' || !result.error_code) && typeof errMsg === 'string' && (errMsg.indexOf('não existe') >= 0 || errMsg.indexOf('desconectad') >= 0)) {
+                    errMsg += '\n\nDica: Se a sessão estiver desconectada no dispositivo, acesse Configurações > WhatsApp Gateway e clique em Reconectar.';
+                }
                 alert('Erro: ' + errMsg);
             }
         } catch (err) {
