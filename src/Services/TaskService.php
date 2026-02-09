@@ -24,7 +24,7 @@ class TaskService
                        (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id AND is_done = 1) as checklist_done
                 FROM tasks t
                 WHERE t.project_id = ? AND t.deleted_at IS NULL
-                ORDER BY t.status ASC, t.`order` ASC, t.created_at ASC
+                ORDER BY t.status ASC, COALESCE(t.completed_at, t.updated_at) DESC, t.`order` ASC
             ");
             $stmt->execute([$projectId]);
         } catch (\PDOException $e) {
@@ -35,7 +35,7 @@ class TaskService
                        (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id AND is_done = 1) as checklist_done
                 FROM tasks t
                 WHERE t.project_id = ?
-                ORDER BY t.status ASC, t.`order` ASC, t.created_at ASC
+                ORDER BY t.status ASC, COALESCE(t.completed_at, t.updated_at) DESC, t.`order` ASC
             ");
             $stmt->execute([$projectId]);
         }
@@ -121,7 +121,7 @@ class TaskService
                 $sql .= " AND NOT EXISTS (SELECT 1 FROM agenda_block_tasks WHERE task_id = t.id)";
             }
             
-            $sql .= " ORDER BY t.status ASC, t.`order` ASC, t.created_at ASC";
+            $sql .= " ORDER BY t.status ASC, COALESCE(t.completed_at, t.updated_at) DESC, t.`order` ASC";
             
             $stmt = $db->prepare($sql);
             $stmt->execute($params);
@@ -172,7 +172,7 @@ class TaskService
                 $sql .= " AND NOT EXISTS (SELECT 1 FROM agenda_block_tasks WHERE task_id = t.id)";
             }
             
-            $sql .= " ORDER BY t.status ASC, t.`order` ASC, t.created_at ASC";
+            $sql .= " ORDER BY t.status ASC, COALESCE(t.completed_at, t.updated_at) DESC, t.`order` ASC";
             
             $stmt = $db->prepare($sql);
             $stmt->execute($params);
