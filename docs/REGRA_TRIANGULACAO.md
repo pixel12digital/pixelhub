@@ -10,11 +10,13 @@
 | Ambiente | Host | O que roda lá |
 |----------|------|---------------|
 | **VPS Gateway** | `wpp.pixel12digital.com.br` | WPPConnect, gateway-wrapper, Nginx, PM2 |
-| **HostMedia SSH** | `hub.pixel12digital.com.br` | PixelHub, PHP, Laravel, envio de requisições ao gateway |
+| **HostMedia** | `hub.pixel12digital.com.br` | PixelHub, PHP, banco, cron, envio ao gateway |
+| **Local** | sua máquina de desenvolvimento | PixelHub (se .env apontar para gateway e banco) |
 
 **Sempre indicar explicitamente** onde cada comando deve ser executado:
-- `[VPS Gateway]` — rodar no SSH da VPS (wpp.pixel12digital.com.br)
-- `[HostMedia]` — rodar no SSH da HostMedia (hub.pixel12digital.com.br)
+- `[VPS]` ou `[VPS Gateway]` — rodar no SSH da VPS (wpp.pixel12digital.com.br)
+- `[HostMedia]` — rodar no SSH ou cPanel da HostMedia (hub.pixel12digital.com.br)
+- `[Local]` — rodar na sua máquina (precisa .env configurado)
 
 ---
 
