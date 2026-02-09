@@ -281,7 +281,7 @@ $pixelhubBaseUrl = pixelhub_url('');
         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
             <input type="text" id="new-session-id" placeholder="Nome da sessão (ex: pixel12digital)" maxlength="50"
                 style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 200px;"
-                pattern="[a-zA-Z0-9_-]+" title="Apenas letras, números, _ e -">
+                pattern="[-a-zA-Z0-9_]+" title="Apenas letras, números, _ e -">
             <button type="button" id="btn-create-session" style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
                 Criar sessão
             </button>
