@@ -693,6 +693,8 @@ class WhatsAppGatewaySettingsController extends Controller
      * Gera QR code para reconectar sessão
      * POST /settings/whatsapp-gateway/sessions/reconnect
      * Body: { "channel_id": "nome-sessao" }
+     *
+     * Fluxo: tenta getQr; se não houver QR e status CONNECTED ou erro, tenta restart (delete+create) e getQr novamente.
      */
     public function sessionsReconnect(): void
     {
@@ -710,28 +712,55 @@ class WhatsAppGatewaySettingsController extends Controller
 
         try {
             $gateway = $this->getGatewayClient();
-            $retry = $this->getQrWithRetry($gateway, $channelId);
-            $qrResult = $retry['result'];
-            $qr = $retry['qr'];
 
+            // 1ª tentativa: getQr com retry
+            $retry = $this->getQrWithRetry($gateway, $channelId, 5);
+            $qr = $retry['qr'];
+            $qrResult = $retry['result'];
             $raw = $qrResult['raw'] ?? [];
             $gatewayStatus = strtoupper(trim($raw['status'] ?? ''));
             $gatewayMessage = $raw['message'] ?? null;
+            $gatewayError = $qrResult['error'] ?? null;
+
+            // Se não tem QR, tenta restart (delete+create) para forçar WPPConnect a gerar novo QR
+            // Cobre: sessão zombie (CONNECTED mas dispositivo desconectado), erro "Invalid QR", sessão desconectada
+            if ($qr === null) {
+                try {
+                    $gateway->deleteChannel($channelId);
+                    usleep(500000); // 0.5s
+                    $createResult = $gateway->createChannel($channelId);
+                    if ($createResult['success']) {
+                        sleep(2); // WPPConnect precisa de tempo para inicializar
+                        $retry = $this->getQrWithRetry($gateway, $channelId, 8);
+                        $qr = $retry['qr'];
+                        $qrResult = $retry['result'];
+                        $raw = $qrResult['raw'] ?? [];
+                        $gatewayStatus = strtoupper(trim($raw['status'] ?? ''));
+                        $gatewayMessage = $raw['message'] ?? null;
+                        $gatewayError = $qrResult['error'] ?? null;
+                    }
+                } catch (\Throwable $e) {
+                    if (function_exists('pixelhub_log')) {
+                        pixelhub_log('[WhatsAppGatewaySettings::sessionsReconnect] Restart falhou: ' . $e->getMessage());
+                    }
+                    $gatewayError = $gatewayError ?? $e->getMessage();
+                }
+            }
 
             $message = $qr
                 ? 'QR code gerado. Escaneie com o WhatsApp para reconectar.'
                 : ($qrResult['success']
                     ? ($gatewayStatus === 'CONNECTED'
-                        ? ($gatewayMessage ?: 'Sessão conectada. Para reconectar, reinicie a sessão primeiro na interface do gateway.')
+                        ? ($gatewayMessage ?: 'Sessão em estado inconsistente. Tente novamente em alguns segundos.')
                         : ($gatewayMessage ?: 'O gateway pode exibir o QR na interface da VPS.'))
-                    : ($qrResult['error'] ?? 'Não foi possível gerar QR code'));
+                    : ($gatewayError ?: 'Não foi possível gerar QR code. Tente novamente.'));
 
             $this->json([
-                'success' => $qrResult['success'],
+                'success' => $qr !== null,
                 'channel_id' => $channelId,
                 'qr' => $qr,
                 'status' => $gatewayStatus ?: null,
-                'error' => $qrResult['success'] ? null : ($qrResult['error'] ?? null),
+                'error' => $qr ? null : ($gatewayError ?? null),
                 'message' => $message,
             ]);
         } catch (\Throwable $e) {

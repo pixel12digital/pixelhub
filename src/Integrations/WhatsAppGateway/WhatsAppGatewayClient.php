@@ -76,6 +76,18 @@ class WhatsAppGatewayClient
     }
 
     /**
+     * Remove uma sessão do gateway (para forçar reinício e gerar novo QR)
+     *
+     * @param string $channelId ID do canal
+     * @return array { success: bool, error?: string }
+     */
+    public function deleteChannel(string $channelId): array
+    {
+        $encodedChannelId = rawurlencode($channelId);
+        return $this->request('DELETE', "/api/channels/{$encodedChannelId}");
+    }
+
+    /**
      * Obtém QR code para conectar o WhatsApp
      * 
      * @param string $channelId ID do canal
