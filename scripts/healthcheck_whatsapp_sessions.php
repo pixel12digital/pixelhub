@@ -46,7 +46,10 @@ try {
     exit(1);
 }
 
-if (empty($result['success']) || empty($result['channels'])) {
+// Cliente retorna channels em result['raw']['channels'], não em result['channels']
+$channels = $result['raw']['channels'] ?? $result['channels'] ?? [];
+
+if (empty($result['success']) || empty($channels)) {
     $log("[healthcheck-sessions] Nenhum canal encontrado ou resposta inválida.");
     if ($verbose) {
         $log("[healthcheck-sessions] --verbose: success=" . json_encode($result['success'] ?? null));
@@ -62,7 +65,7 @@ if (empty($result['success']) || empty($result['channels'])) {
 }
 
 $disconnected = [];
-foreach ($result['channels'] as $ch) {
+foreach ($channels as $ch) {
     $status = strtolower(trim($ch['status'] ?? ''));
     $id = $ch['id'] ?? $ch['name'] ?? 'unknown';
     if ($status !== 'connected') {
@@ -79,7 +82,7 @@ if (class_exists(\PixelHub\Core\DB::class)) {
         $hasWebhookLogs = $db->query("SHOW TABLES LIKE 'webhook_raw_logs'")->rowCount() > 0;
         if ($hasWebhookLogs) {
             $silentThreshold = date('Y-m-d H:i:s', strtotime("-{$silentHours} hours"));
-            foreach ($result['channels'] as $ch) {
+            foreach ($channels as $ch) {
                 $id = $ch['id'] ?? $ch['name'] ?? 'unknown';
                 if (in_array($id, $disconnected)) continue; // já na lista
                 $normalized = strtolower(str_replace(' ', '', $id));
