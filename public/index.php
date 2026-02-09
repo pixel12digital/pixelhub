@@ -606,6 +606,10 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/settings/whatsapp-gateway', 'WhatsAppGatewaySettingsController@update');
     $router->post('/settings/whatsapp-gateway/test-connection', 'WhatsAppGatewaySettingsController@testConnection');
     $router->get('/settings/whatsapp-gateway/check', 'WhatsAppGatewaySettingsController@checkProduction');
+    // Sessões WhatsApp (listar, criar, reconectar)
+    $router->get('/settings/whatsapp-gateway/sessions', 'WhatsAppGatewaySettingsController@sessionsList');
+    $router->post('/settings/whatsapp-gateway/sessions/create', 'WhatsAppGatewaySettingsController@sessionsCreate');
+    $router->post('/settings/whatsapp-gateway/sessions/reconnect', 'WhatsAppGatewaySettingsController@sessionsReconnect');
     
     // Testes do WhatsApp Gateway
     $router->get('/settings/whatsapp-gateway/test', 'WhatsAppGatewayTestController@index');

@@ -131,12 +131,38 @@ if (empty($hoje)) {
     echo "\n";
 }
 
-// 4. webhook_raw_logs - eventos brutos recebidos (gateway → Hub)
-echo "4. WEBHOOK_RAW_LOGS (payloads contendo 81642320 ou 5381642320):\n";
+// 4. webhook_raw_logs - mensagens para Renato em 09/02 (gateway recebeu?)
+echo "4. WEBHOOK_RAW_LOGS - mensagens para Renato em 09/02:\n";
 try {
     $stmt = $db->prepare("
-        SELECT id, event_type, payload_hash, created_at,
-               LEFT(payload_json, 500) as preview
+        SELECT id, event_type, processed, event_id, created_at
+        FROM webhook_raw_logs
+        WHERE event_type = 'message'
+        AND created_at >= '2026-02-09 00:00:00'
+        AND (payload_json LIKE '%81642320%' OR payload_json LIKE '%5381642320%' OR payload_json LIKE '%555381642320%')
+        ORDER BY created_at DESC
+        LIMIT 10
+    ");
+    $stmt->execute();
+    $raws = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (empty($raws)) {
+        echo "   ❌ Nenhuma mensagem para Renato em webhook_raw_logs hoje.\n";
+        echo "   → Os 4 'message' de 08:54-08:55 podem ser de OUTRO contato.\n\n";
+    } else {
+        foreach ($raws as $r) {
+            $proc = $r['processed'] ? 'OK' : 'PENDENTE';
+            echo "   - id={$r['id']} | processed={$proc} | event_id=" . ($r['event_id'] ?: 'NULL') . " | {$r['created_at']}\n";
+        }
+        echo "\n";
+    }
+} catch (\Throwable $e) {
+    echo "   ⚠ Erro: " . $e->getMessage() . "\n\n";
+}
+
+echo "5. WEBHOOK_RAW_LOGS - todos payloads com 81642320 (desde 07/02):\n";
+try {
+    $stmt = $db->prepare("
+        SELECT id, event_type, processed, created_at
         FROM webhook_raw_logs
         WHERE created_at >= '2026-02-07 00:00:00'
         AND (payload_json LIKE '%81642320%' OR payload_json LIKE '%5381642320%' OR payload_json LIKE '%5581642320%')
@@ -146,16 +172,15 @@ try {
     $stmt->execute();
     $raws = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if (empty($raws)) {
-        echo "   ❌ Nenhum payload bruto com esse número.\n";
-        echo "   → Gateway NÃO enviou webhook para Renato OU webhook_raw_logs não existe.\n\n";
+        echo "   ❌ Nenhum payload bruto com esse número.\n\n";
     } else {
         foreach ($raws as $r) {
-            echo "   - id={$r['id']} | event={$r['event_type']} | {$r['created_at']}\n";
+            echo "   - id={$r['id']} | event={$r['event_type']} | proc={$r['processed']} | {$r['created_at']}\n";
         }
         echo "\n";
     }
 } catch (\Throwable $e) {
-    echo "   ⚠ Tabela webhook_raw_logs ausente ou erro: " . $e->getMessage() . "\n\n";
+    echo "   ⚠ Erro: " . $e->getMessage() . "\n\n";
 }
 
 echo "=== FIM ===\n";

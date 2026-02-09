@@ -257,6 +257,53 @@ $pixelhubBaseUrl = pixelhub_url('');
     </div>
 </div>
 
+<!-- Sessões WhatsApp -->
+<div class="card" style="margin-top: 25px;">
+    <h3 style="margin-bottom: 15px; color: #333; font-size: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <span style="display: flex; align-items: center; gap: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            Sessões WhatsApp
+        </span>
+        <button type="button" id="btn-refresh-sessions" style="padding: 6px 12px; font-size: 13px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Atualizar</button>
+    </h3>
+    <p style="margin-bottom: 16px; color: #666; font-size: 14px;">Gerencie sessões, verifique status e reconecte diretamente pelo Pixel Hub. A VPS permanece apenas como gateway.</p>
+
+    <div id="sessions-loading" style="display: none; padding: 20px; text-align: center; color: #666;">
+        Carregando sessões...
+    </div>
+    <div id="sessions-error" style="display: none; padding: 12px; background: #f8d7da; color: #721c24; border-radius: 4px; margin-bottom: 16px;"></div>
+    <div id="sessions-list" style="display: grid; gap: 12px;"></div>
+
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #dee2e6;">
+        <h4 style="margin-bottom: 12px; font-size: 14px; color: #333;">Nova sessão</h4>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <input type="text" id="new-session-id" placeholder="Nome da sessão (ex: pixel12digital)" maxlength="50"
+                style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 200px;"
+                pattern="[a-zA-Z0-9_-]+" title="Apenas letras, números, _ e -">
+            <button type="button" id="btn-create-session" style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+                Criar sessão
+            </button>
+        </div>
+        <small style="color: #666; display: block; margin-top: 6px;">Use apenas letras, números, underscore (_) e hífen (-).</small>
+    </div>
+</div>
+
+<!-- Modal QR Code -->
+<div id="qr-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; padding: 20px;">
+    <div style="background: white; border-radius: 8px; padding: 24px; max-width: 400px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+        <h3 style="margin: 0 0 16px 0; font-size: 18px;">Escaneie o QR Code</h3>
+        <p style="margin-bottom: 16px; color: #666; font-size: 14px;">Abra o WhatsApp no celular > Dispositivos conectados > Conectar dispositivo</p>
+        <div id="qr-modal-content" style="text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center;">
+            <!-- QR ou mensagem -->
+        </div>
+        <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
+            <button type="button" id="qr-modal-close" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Fechar</button>
+        </div>
+    </div>
+</div>
+
 <!-- Informações Adicionais -->
 <div class="card" style="background: #f8f9fa;">
     <h3 style="margin-bottom: 15px; color: #333; font-size: 16px; display: flex; align-items: center; gap: 8px;">
@@ -442,6 +489,155 @@ function testGatewayConnection() {
         resultLogs.textContent = 'Erro: ' + error.message + '\n\nDetalhes técnicos:\n' + error.stack;
     });
 }
+
+// === Sessões WhatsApp ===
+const sessionsBaseUrl = '<?= pixelhub_url('/settings/whatsapp-gateway') ?>';
+
+function loadSessions() {
+    const loading = document.getElementById('sessions-loading');
+    const error = document.getElementById('sessions-error');
+    const list = document.getElementById('sessions-list');
+    loading.style.display = 'block';
+    error.style.display = 'none';
+    list.innerHTML = '';
+
+    fetch(sessionsBaseUrl + '/sessions', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(data => {
+            loading.style.display = 'none';
+            if (!data.success) {
+                error.textContent = data.error || 'Erro ao carregar sessões';
+                error.style.display = 'block';
+                return;
+            }
+            const sessions = data.sessions || [];
+            if (sessions.length === 0) {
+                list.innerHTML = '<p style="color: #666; padding: 16px;">Nenhuma sessão encontrada no gateway.</p>';
+            } else {
+                sessions.forEach(s => {
+                    const card = document.createElement('div');
+                    card.style.cssText = 'padding: 16px; border: 1px solid #dee2e6; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;';
+                    const statusColor = s.status === 'connected' ? (s.is_zombie ? '#ffc107' : '#28a745') : '#dc3545';
+                    const statusText = s.is_zombie ? 'Possivelmente desconectado' : (s.status === 'connected' ? 'Conectado' : s.status === 'disconnected' ? 'Desconectado' : s.status);
+                    const lastActivity = s.last_activity_at ? formatRelativeTime(s.last_activity_at) : '—';
+                    card.innerHTML = `
+                        <div>
+                            <strong style="font-size: 15px;">${escapeHtml(s.id)}</strong>
+                            <div style="margin-top: 6px; font-size: 13px; color: #666;">
+                                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${statusColor}; margin-right: 6px;"></span>
+                                ${escapeHtml(statusText)}
+                                ${s.last_activity_at ? ' · Última atividade: ' + lastActivity : ''}
+                            </div>
+                        </div>
+                        <button type="button" class="btn-reconnect" data-channel="${escapeHtml(s.id)}" style="padding: 8px 16px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            Reconectar
+                        </button>
+                    `;
+                    card.querySelector('.btn-reconnect').addEventListener('click', () => reconnectSession(s.id));
+                    list.appendChild(card);
+                });
+            }
+        })
+        .catch(err => {
+            loading.style.display = 'none';
+            error.textContent = 'Erro: ' + err.message;
+            error.style.display = 'block';
+        });
+}
+
+function formatRelativeTime(dateStr) {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diff = (now - d) / 1000;
+    if (diff < 60) return 'agora';
+    if (diff < 3600) return Math.floor(diff / 60) + 'min atrás';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h atrás';
+    return d.toLocaleDateString();
+}
+
+function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+}
+
+function showQrModal(qr, channelId) {
+    const modal = document.getElementById('qr-modal');
+    const content = document.getElementById('qr-modal-content');
+    if (qr && (qr.startsWith('data:') || qr.startsWith('http'))) {
+        content.innerHTML = '<img src="' + qr + '" alt="QR Code" style="max-width: 280px; height: auto;">';
+    } else if (qr) {
+        content.innerHTML = '<img src="data:image/png;base64,' + qr + '" alt="QR Code" style="max-width: 280px; height: auto;">';
+    } else {
+        content.innerHTML = '<p style="color: #666;">QR solicitado. O gateway pode exibir o QR na interface própria. Feche e tente novamente em alguns segundos.</p>';
+    }
+    modal.style.display = 'flex';
+}
+
+function reconnectSession(channelId) {
+    fetch(sessionsBaseUrl + '/sessions/reconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ channel_id: channelId })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.qr) {
+            showQrModal(data.qr, channelId);
+        } else if (data.success) {
+            alert('Reconexão solicitada. O gateway pode exibir o QR na interface da VPS.');
+        } else {
+            alert('Erro: ' + (data.error || 'Não foi possível gerar QR'));
+        }
+    })
+    .catch(err => alert('Erro: ' + err.message));
+}
+
+document.getElementById('btn-create-session').addEventListener('click', function() {
+    const input = document.getElementById('new-session-id');
+    const channelId = input.value.trim().replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!channelId) {
+        alert('Digite o nome da sessão');
+        return;
+    }
+    this.disabled = true;
+    this.textContent = 'Criando...';
+    fetch(sessionsBaseUrl + '/sessions/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ channel_id: channelId })
+    })
+    .then(r => r.json())
+    .then(data => {
+        this.disabled = false;
+        this.textContent = 'Criar sessão';
+        if (data.success) {
+            input.value = '';
+            if (data.qr) showQrModal(data.qr, channelId);
+            else alert('Sessão criada. Escaneie o QR na interface do gateway.');
+            loadSessions();
+        } else {
+            alert('Erro: ' + (data.error || 'Não foi possível criar sessão'));
+        }
+    })
+    .catch(err => {
+        this.disabled = false;
+        this.textContent = 'Criar sessão';
+        alert('Erro: ' + err.message);
+    });
+});
+
+document.getElementById('qr-modal-close').addEventListener('click', function() {
+    document.getElementById('qr-modal').style.display = 'none';
+});
+document.getElementById('qr-modal').addEventListener('click', function(e) {
+    if (e.target === this) this.style.display = 'none';
+});
+
+document.getElementById('btn-refresh-sessions').addEventListener('click', loadSessions);
+
+// Carrega sessões ao carregar a página
+document.addEventListener('DOMContentLoaded', loadSessions);
 </script>
 
 <?php

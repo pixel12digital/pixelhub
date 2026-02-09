@@ -36,6 +36,10 @@ php database/diagnostico-webhook-09-02.php
 
 O gateway **não está enviando** eventos de mensagem (`onmessage`, `message`, `message.sent`) ao webhook desde **07/02 22:13**.
 
+**Incoerência conhecida:** A UI da VPS (wpp.pixel12digital.com.br:8443) mostra "Conectado" mesmo quando o **dispositivo do usuário está desconectado** — o status da UI não reflete o estado real. O healthcheck detecta isso via `webhook_raw_logs` e força reconexão.
+
+**Causa confirmada (09/02):** Usuário relatou "Sessão UI aparece conectado e meu dispositivo está desconectado". Enquanto o celular está offline/desconectado do WhatsApp, o WPPConnect pode manter status "Conectado" na API, mas nenhum evento de mensagem chega. **Solução:** Reconectar o celular (internet + WhatsApp) e, na UI, usar "Desconectar" → "QR Code" para reemparelhar.
+
 - **09/02:** 402 eventos `connection.update` chegaram, mas **zero** eventos de mensagem.
 - A sessão pixel12digital provavelmente está **desconectada** (mesmo padrão do caso Adriana 5511984078606).
 - Quando desconectada:

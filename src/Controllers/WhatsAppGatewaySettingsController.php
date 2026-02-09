@@ -6,7 +6,9 @@ use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Core\Env;
 use PixelHub\Core\CryptoHelper;
+use PixelHub\Core\DB;
 use PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient;
+use PDO;
 
 /**
  * Controller para gerenciar configurações do WhatsApp Gateway
@@ -465,6 +467,198 @@ class WhatsAppGatewaySettingsController extends Controller
                 'message' => 'Erro ao testar conexão: ' . $e->getMessage(),
                 'logs' => $logs
             ], 500);
+        }
+    }
+
+    /**
+     * Extrai QR code da resposta do gateway (vários formatos possíveis)
+     */
+    private function extractQrFromResponse(array $result): ?string
+    {
+        $raw = $result['raw'] ?? [];
+        $qr = $raw['qr'] ?? $raw['qrcode'] ?? $raw['base64Qrimg'] ?? $raw['base64'] ?? $result['qr'] ?? null;
+        if (empty($qr)) {
+            return null;
+        }
+        if (str_starts_with((string) $qr, 'data:')) {
+            return $qr;
+        }
+        if (str_starts_with((string) $qr, 'http')) {
+            return $qr;
+        }
+        return 'data:image/png;base64,' . $qr;
+    }
+
+    /**
+     * Retorna cliente do gateway configurado
+     */
+    private function getGatewayClient(): WhatsAppGatewayClient
+    {
+        $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
+        $baseUrl = rtrim($baseUrl, '/');
+        $secret = self::getDecryptedSecret();
+        if (empty($secret)) {
+            throw new \RuntimeException('WPP_GATEWAY_SECRET não configurado');
+        }
+        return new WhatsAppGatewayClient($baseUrl, $secret);
+    }
+
+    /**
+     * Lista sessões WhatsApp com status e última atividade
+     * GET /settings/whatsapp-gateway/sessions
+     */
+    public function sessionsList(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+
+        try {
+            $gateway = $this->getGatewayClient();
+            $result = $gateway->listChannels();
+        } catch (\Throwable $e) {
+            $this->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'sessions' => []
+            ], 400);
+            return;
+        }
+
+        $channels = $result['raw']['channels'] ?? $result['channels'] ?? [];
+        if (!is_array($channels)) {
+            $channels = [];
+        }
+
+        $sessions = [];
+        $silentHours = 4;
+        $silentThreshold = date('Y-m-d H:i:s', strtotime("-{$silentHours} hours"));
+
+        foreach ($channels as $ch) {
+            $id = $ch['id'] ?? $ch['name'] ?? $ch['channel_id'] ?? 'unknown';
+            $status = strtolower(trim($ch['status'] ?? 'unknown'));
+            $session = [
+                'id' => $id,
+                'name' => $ch['name'] ?? $id,
+                'status' => $status,
+                'last_activity_at' => null,
+                'is_zombie' => false,
+            ];
+
+            if (class_exists(DB::class)) {
+                try {
+                    $db = DB::getConnection();
+                    if ($db->query("SHOW TABLES LIKE 'webhook_raw_logs'")->rowCount() > 0) {
+                        $normalized = strtolower(str_replace(' ', '', $id));
+                        $stmt = $db->prepare("
+                            SELECT created_at FROM webhook_raw_logs
+                            WHERE event_type IN ('message', 'onmessage', 'onselfmessage', 'message.sent', 'message.received')
+                            AND (payload_json LIKE ? OR payload_json LIKE ?)
+                            ORDER BY created_at DESC LIMIT 1
+                        ");
+                        $stmt->execute(["%{$id}%", "%{$normalized}%"]);
+                        $last = $stmt->fetch(PDO::FETCH_ASSOC);
+                        if ($last) {
+                            $session['last_activity_at'] = $last['created_at'];
+                            if ($session['status'] === 'connected' && $last['created_at'] < $silentThreshold) {
+                                $session['is_zombie'] = true;
+                            }
+                        } elseif ($session['status'] === 'connected') {
+                            $session['is_zombie'] = true;
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    // continua sem last_activity
+                }
+            }
+
+            $sessions[] = $session;
+        }
+
+        $this->json([
+            'success' => true,
+            'sessions' => $sessions,
+        ]);
+    }
+
+    /**
+     * Cria nova sessão e retorna QR code
+     * POST /settings/whatsapp-gateway/sessions/create
+     * Body: { "channel_id": "nome-sessao" }
+     */
+    public function sessionsCreate(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+
+        $input = json_decode(file_get_contents('php://input') ?: '{}', true) ?: [];
+        $channelId = trim($input['channel_id'] ?? $_POST['channel_id'] ?? '');
+        $channelId = preg_replace('/[^a-zA-Z0-9_-]/', '', $channelId);
+
+        if (empty($channelId)) {
+            $this->json(['success' => false, 'error' => 'channel_id é obrigatório (apenas letras, números, _ e -)'], 400);
+            return;
+        }
+
+        try {
+            $gateway = $this->getGatewayClient();
+            $createResult = $gateway->createChannel($channelId);
+            if (!$createResult['success']) {
+                $this->json([
+                    'success' => false,
+                    'error' => $createResult['error'] ?? 'Erro ao criar sessão',
+                ], 400);
+                return;
+            }
+
+            $qrResult = $gateway->getQr($channelId);
+            $qr = $this->extractQrFromResponse($qrResult);
+
+            $this->json([
+                'success' => true,
+                'channel_id' => $channelId,
+                'qr' => $qr,
+                'message' => 'Sessão criada. Escaneie o QR code com o WhatsApp.',
+            ]);
+        } catch (\Throwable $e) {
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Gera QR code para reconectar sessão
+     * POST /settings/whatsapp-gateway/sessions/reconnect
+     * Body: { "channel_id": "nome-sessao" }
+     */
+    public function sessionsReconnect(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+
+        $input = json_decode(file_get_contents('php://input') ?: '{}', true) ?: [];
+        $channelId = trim($input['channel_id'] ?? $_POST['channel_id'] ?? '');
+        $channelId = preg_replace('/[^a-zA-Z0-9_-]/', '', $channelId);
+
+        if (empty($channelId)) {
+            $this->json(['success' => false, 'error' => 'channel_id é obrigatório'], 400);
+            return;
+        }
+
+        try {
+            $gateway = $this->getGatewayClient();
+            $qrResult = $gateway->getQr($channelId);
+            $qr = $this->extractQrFromResponse($qrResult);
+
+            $this->json([
+                'success' => $qrResult['success'],
+                'channel_id' => $channelId,
+                'qr' => $qr,
+                'error' => $qrResult['success'] ? null : ($qrResult['error'] ?? null),
+                'message' => $qrResult['success']
+                    ? 'QR code gerado. Escaneie com o WhatsApp para reconectar.'
+                    : ($qrResult['error'] ?? 'Não foi possível gerar QR code'),
+            ]);
+        } catch (\Throwable $e) {
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
 

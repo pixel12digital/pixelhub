@@ -1395,8 +1395,12 @@ class CommunicationHubController extends Controller
                 $stage = 'build_payload';
                 error_log('[CommunicationHub::send] STAGE=' . $stage);
                 
+                // Timeout maior para mídia (áudio/imagem/documento) - conversão e upload podem demorar
+                $gatewayTimeout = in_array($messageType, ['audio', 'image', 'video', 'document']) ? 120 : 30;
+                error_log("[CommunicationHub::send] Timeout do gateway: {$gatewayTimeout}s (tipo: {$messageType})");
+                
                 // Cria gateway com configurações (específicas do canal ou globais)
-                $gateway = new WhatsAppGatewayClient($baseUrl, $secret);
+                $gateway = new WhatsAppGatewayClient($baseUrl, $secret, $gatewayTimeout);
                 $gateway->setRequestId($requestId);
                 
                 // ===== LOG TEMPORÁRIO: Endpoint de verificação de status =====
@@ -2146,6 +2150,9 @@ class CommunicationHubController extends Controller
                                 $errPayload['effective_url'] = $result['effective_url'];
                             }
                         }
+                        if (($result['error_code'] ?? '') === 'TIMEOUT' && !empty($result['timeout_info'])) {
+                            $errPayload['timeout_info'] = $result['timeout_info'];
+                        }
                         $sendResults[] = $errPayload;
                         $errors[] = "{$targetChannelId}: {$error}";
                     }
@@ -2186,6 +2193,8 @@ class CommunicationHubController extends Controller
                             $httpCode = 409; // Conflict
                         } elseif ($singleResult['error_code'] === 'UNAUTHORIZED' || $singleResult['error_code'] === 'CHANNEL_NOT_FOUND') {
                             $httpCode = 400; // Bad Request
+                        } elseif ($singleResult['error_code'] === 'TIMEOUT') {
+                            $httpCode = 504; // Gateway Timeout
                         }
                         
                         $payload = [
@@ -2215,6 +2224,9 @@ class CommunicationHubController extends Controller
                         }
                         if (!empty($singleResult['gateway_html_error'])) {
                             $payload['gateway_html_error'] = $singleResult['gateway_html_error'];
+                        }
+                        if (!empty($singleResult['timeout_info'])) {
+                            $payload['timeout_info'] = $singleResult['timeout_info'];
                         }
                         $this->json($payload, $httpCode);
                     }
@@ -2283,7 +2295,7 @@ class CommunicationHubController extends Controller
             
             $response = [
                 'success' => false,
-                'error' => 'Erro interno do servidor',
+                'error' => $isLocal && !empty($e->getMessage()) ? $e->getMessage() : 'Erro interno do servidor',
                 'error_code' => 'CONTROLLER_EXCEPTION',
                 'request_id' => $requestId ?? null,
                 'debug' => $exceptionDebug

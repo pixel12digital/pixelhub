@@ -2181,11 +2181,31 @@
             $db = \PixelHub\Core\DB::getConnection();
             $stmt = $db->query("SELECT id, name, COALESCE(phone,'') as phone FROM tenants WHERE (is_archived IS NULL OR is_archived = 0) ORDER BY name LIMIT 100");
             if ($stmt) $modalTenants = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            // 1) Sessões de conversas existentes
             $stmt = $db->query("SELECT DISTINCT channel_id FROM conversations WHERE channel_type = 'whatsapp' AND channel_id IS NOT NULL AND channel_id != '' ORDER BY channel_id");
             if ($stmt) {
                 foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $row) {
                     $id = $row['channel_id'];
                     $modalSessions[] = ['id' => $id, 'name' => ucwords(str_replace(['_','-'], ' ', $id)), 'status' => 'connected'];
+                }
+            }
+            // 2) Fallback: canais habilitados em tenant_message_channels (para Nova Conversa sem histórico)
+            if (empty($modalSessions)) {
+                $selectCol = 'channel_id';
+                try {
+                    $chk = $db->query("SHOW COLUMNS FROM tenant_message_channels LIKE 'session_id'");
+                    if ($chk && $chk->rowCount() > 0) {
+                        $selectCol = "COALESCE(NULLIF(TRIM(session_id),''), channel_id)";
+                    }
+                } catch (\Throwable $e) { /* usa channel_id */ }
+                $stmt = $db->query("SELECT DISTINCT {$selectCol} as sid FROM tenant_message_channels WHERE provider = 'wpp_gateway' AND is_enabled = 1 AND (channel_id IS NOT NULL AND channel_id != '') ORDER BY sid");
+                if ($stmt) {
+                    foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $row) {
+                        $id = trim($row['sid'] ?? '');
+                        if ($id && !in_array($id, array_column($modalSessions, 'id'))) {
+                            $modalSessions[] = ['id' => $id, 'name' => ucwords(str_replace(['_','-'], ' ', $id)), 'status' => 'connected'];
+                        }
+                    }
                 }
             }
         } catch (\Throwable $e) { /* silencioso */ }

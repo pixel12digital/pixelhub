@@ -94,6 +94,25 @@ curl -s -H "X-Gateway-Secret: $SECRET" "https://wpp.pixel12digital.com.br:8443/a
 # Se retornar JSON com {"success":true,"channels":[...]}, está OK.
 ```
 
+**Atualizar .env via comando (HostMedia) — sem editar manualmente:**
+
+```bash
+cd /home/pixel12digital/hub.pixel12digital.com.br
+ENV_FILE=".env"
+SECRET="d2c9f9c01915b35baf795808b59c94e92338410639e43329a80a2ce860f3cf54"
+URL="https://wpp.pixel12digital.com.br:8443"
+
+# WPP_GATEWAY_SECRET
+grep -q '^WPP_GATEWAY_SECRET=' "$ENV_FILE" && sed -i "s|^WPP_GATEWAY_SECRET=.*|WPP_GATEWAY_SECRET=$SECRET|" "$ENV_FILE" || echo "WPP_GATEWAY_SECRET=$SECRET" >> "$ENV_FILE"
+
+# WPP_GATEWAY_BASE_URL (com :8443)
+grep -q '^WPP_GATEWAY_BASE_URL=' "$ENV_FILE" && sed -i "s|^WPP_GATEWAY_BASE_URL=.*|WPP_GATEWAY_BASE_URL=$URL|" "$ENV_FILE" || echo "WPP_GATEWAY_BASE_URL=$URL" >> "$ENV_FILE"
+
+echo "Atualizado. Rodar: php scripts/healthcheck_whatsapp_sessions.php"
+```
+
+**Incoerência conhecida:** A UI da VPS (wpp.pixel12digital.com.br:8443) pode mostrar "Conectado" mesmo quando a sessão não recebe eventos de mensagem. O healthcheck detecta esse estado "zombie" ao verificar `webhook_raw_logs` e força reconexão.
+
 ---
 
 ## 6. Critério de aceite

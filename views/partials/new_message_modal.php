@@ -178,7 +178,13 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: new URLSearchParams(data)
             });
-            var result = await response.json();
+            var result;
+            try {
+                result = await response.json();
+            } catch (parseErr) {
+                await response.text(); // consume body
+                throw new Error('Resposta inválida do servidor (HTTP ' + response.status + '). Verifique os logs do servidor.');
+            }
             if (result.success) {
                 alert('Mensagem enviada com sucesso!');
                 closeNewMessageModal();
@@ -189,7 +195,11 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                     setTimeout(function() { loadInboxConversation(result.thread_id, 'whatsapp'); }, 400);
                 }
             } else {
-                alert('Erro: ' + (result.error || 'Erro ao enviar mensagem'));
+                var errMsg = result.error || 'Erro ao enviar mensagem';
+                if (result.error_code) errMsg += ' (' + result.error_code + ')';
+                if (result.request_id) errMsg += ' [ID: ' + result.request_id + ']';
+                if (result.debug && result.debug.message) errMsg += '\nDetalhe: ' + result.debug.message;
+                alert('Erro: ' + errMsg);
             }
         } catch (err) {
             alert('Erro ao enviar mensagem: ' + err.message);

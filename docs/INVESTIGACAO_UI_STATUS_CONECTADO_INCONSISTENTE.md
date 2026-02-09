@@ -169,6 +169,25 @@ O gateway poderia **usar connection.update** para atualizar o status localmente:
 
 ---
 
+## 4.1 Resultado BLOCO 3.2 — Payload connection.update (09/02)
+
+**Comando:** `php database/diagnostico-connection-update-payload.php --session=pixel12digital`
+
+**Payload (2026-02-08 09:06:35):**
+
+| Campo | Valor |
+|-------|-------|
+| `connection.status` | `"available"` |
+| `raw.payload.event` | `"onpresencechanged"` |
+| `raw.payload.state` | `"available"` |
+| `session.id` | `"pixel12digital"` |
+
+**Conclusão:** O payload traz `connection.status` e `raw.payload.state`. O evento raw é `onpresencechanged` (presença de contato), não desconexão. Quando o dispositivo desconectar, esperar `connection.status` ou `state` com valor `"close"`, `"disconnected"` ou `"unavailable"`.
+
+**Pacote de patch:** `docs/PACOTE_VPS_PATCH_CONNECTION_UPDATE_STATUS.md` — localizar onde o gateway processa eventos e inserir update do sessionManager quando status indicar desconexão.
+
+---
+
 ## 5. Soluções possíveis
 
 ### A) Gateway usa connection.update para atualizar status
