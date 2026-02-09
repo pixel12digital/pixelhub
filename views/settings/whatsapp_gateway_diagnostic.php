@@ -81,6 +81,52 @@ ob_start();
     <?php endif; ?>
 </div>
 
+<!-- 1b) Diagnóstico QR Code -->
+<div class="card" style="margin-bottom: 20px;">
+    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 18px; color: #333; font-weight: 600;">🔍 Diagnóstico QR Code</h3>
+    <p style="color: #666; margin-bottom: 15px; font-size: 14px;">Testa create, getQr, delete no gateway para identificar por que o QR não é gerado. <strong>Atenção:</strong> Remove e recria a sessão.</p>
+    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <input type="text" id="qr-diagnostic-channel" value="pixel12digital" placeholder="Nome da sessão" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; min-width: 150px;">
+        <button type="button" id="qr-diagnostic-btn" style="padding: 8px 16px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">Executar Diagnóstico</button>
+    </div>
+    <div id="qr-diagnostic-result" style="margin-top: 15px; display: none; padding: 15px; background: #f8f9fa; border-radius: 4px; font-family: monospace; font-size: 13px; white-space: pre-wrap;"></div>
+</div>
+<script>
+document.getElementById('qr-diagnostic-btn').addEventListener('click', function() {
+    var btn = this;
+    var result = document.getElementById('qr-diagnostic-result');
+    var channelId = document.getElementById('qr-diagnostic-channel').value.trim().replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!channelId) { alert('Digite o nome da sessão'); return; }
+    btn.disabled = true;
+    result.style.display = 'block';
+    result.textContent = 'Executando... (pode levar ~15s)';
+    fetch('<?= pixelhub_url('/settings/whatsapp-gateway/diagnostic/qr') ?>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ channel_id: channelId })
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        if (data.success) {
+            var lines = ['=== Resultado ==='];
+            (data.steps || []).forEach(function(s) {
+                lines.push(s.step + ': success=' + s.success + (s.error ? ' error=' + s.error : '') + (s.has_qr ? ' has_qr=true' : '') + (s.raw_status ? ' raw_status=' + s.raw_status : ''));
+            });
+            lines.push('');
+            lines.push('Conclusão: ' + (data.conclusion || ''));
+            result.textContent = lines.join('\n');
+        } else {
+            result.textContent = 'Erro: ' + (data.error || 'Desconhecido');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        result.textContent = 'Erro: ' + err.message;
+    });
+});
+</script>
+
 <!-- 2) Bloco: Simulador de Webhook -->
 <div class="card" style="margin-bottom: 20px;">
     <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 18px; color: #333; font-weight: 600; display: flex; align-items: center; gap: 8px;">

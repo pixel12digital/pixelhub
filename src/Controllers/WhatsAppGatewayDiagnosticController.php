@@ -7,6 +7,7 @@ use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
 use PixelHub\Core\Env;
 use PixelHub\Services\EventIngestionService;
+use PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient;
 use PDO;
 
 /**
@@ -1099,6 +1100,103 @@ class WhatsAppGatewayDiagnosticController extends Controller
             'events' => $events,
             'logFile' => $foundLogFile ?? null,
             'logFileInfo' => $logFileInfo
+        ]);
+    }
+
+    /**
+     * Diagnóstico QR: testa create, getQr, delete e retorna resultados
+     * POST /settings/whatsapp-gateway/diagnostic/qr
+     * Body: { "channel_id": "pixel12digital" }
+     */
+    public function diagnoseQr(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+        @set_time_limit(60);
+
+        $input = json_decode(file_get_contents('php://input') ?: '{}', true) ?: [];
+        $channelId = preg_replace('/[^a-zA-Z0-9_-]/', '', trim($input['channel_id'] ?? $_POST['channel_id'] ?? 'pixel12digital'));
+
+        $steps = [];
+        $conclusion = '';
+
+        try {
+            $client = new WhatsAppGatewayClient();
+        } catch (\Throwable $e) {
+            $this->json(['success' => false, 'error' => $e->getMessage(), 'steps' => []], 500);
+            return;
+        }
+
+        // 1) listChannels
+        $r1 = $client->listChannels();
+        $steps[] = ['step' => 'listChannels', 'success' => $r1['success'] ?? false, 'error' => $r1['error'] ?? null, 'channels_count' => count($r1['raw']['channels'] ?? [])];
+
+        // 2) getQr
+        $r2 = $client->getQr($channelId);
+        $raw2 = $r2['raw'] ?? [];
+        $qrKeys = ['qr', 'qr_base64', 'qrcode', 'base64Qrimg', 'base64'];
+        $hasQr = false;
+        foreach ($qrKeys as $k) {
+            if (!empty($raw2[$k]) && is_string($raw2[$k])) {
+                $hasQr = true;
+                break;
+            }
+        }
+        $steps[] = [
+            'step' => 'getQr (1ª)',
+            'success' => $r2['success'] ?? false,
+            'error' => $r2['error'] ?? null,
+            'has_qr' => $hasQr,
+            'raw_status' => $raw2['status'] ?? null,
+            'raw_message' => $raw2['message'] ?? null,
+        ];
+
+        // 3) DELETE
+        $r3 = $client->deleteChannel($channelId);
+        $steps[] = ['step' => 'delete', 'success' => $r3['success'] ?? false, 'error' => $r3['error'] ?? null];
+
+        // 4) create
+        sleep(1);
+        $r4 = $client->createChannel($channelId);
+        $steps[] = ['step' => 'create', 'success' => $r4['success'] ?? false, 'error' => $r4['error'] ?? null];
+
+        // 5) getQr após create
+        sleep(3);
+        $r5 = $client->getQr($channelId);
+        $raw5 = $r5['raw'] ?? [];
+        $hasQr5 = false;
+        foreach ($qrKeys as $k) {
+            if (!empty($raw5[$k]) && is_string($raw5[$k])) {
+                $hasQr5 = true;
+                break;
+            }
+        }
+        $steps[] = [
+            'step' => 'getQr (após create)',
+            'success' => $r5['success'] ?? false,
+            'error' => $r5['error'] ?? null,
+            'has_qr' => $hasQr5,
+            'raw_status' => $raw5['status'] ?? null,
+            'raw_message' => $raw5['message'] ?? null,
+        ];
+
+        if ($hasQr5) {
+            $conclusion = 'O gateway RETORNA o QR. O problema pode estar no Pixel Hub (extração, timeout).';
+        } elseif ($r5['error'] ?? null) {
+            $conclusion = 'Erro getQr: ' . $r5['error'] . '. Possível patch VPS: docs/PACOTE_VPS_PATCH_GETQRCODE_JSON_CONNECTED.md';
+        } elseif (strtoupper($raw5['status'] ?? '') === 'CONNECTED') {
+            $conclusion = 'Status CONNECTED sem QR (sessão zombie). Aplicar patch getQRCode na VPS.';
+        } elseif (strtoupper($raw5['status'] ?? '') === 'INITIALIZING') {
+            $conclusion = 'Sessão em INITIALIZING. WPPConnect pode demorar mais.';
+        } else {
+            $conclusion = 'Gateway não retorna QR. Verificar: DELETE suportado? WPPConnect saudável?';
+        }
+
+        $this->json([
+            'success' => true,
+            'channel_id' => $channelId,
+            'steps' => $steps,
+            'conclusion' => $conclusion,
         ]);
     }
 
