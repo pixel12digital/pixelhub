@@ -476,7 +476,7 @@ class WhatsAppGatewaySettingsController extends Controller
     private function extractQrFromResponse(array $result): ?string
     {
         $raw = $result['raw'] ?? [];
-        $qr = $raw['qr'] ?? $raw['qrcode'] ?? $raw['base64Qrimg'] ?? $raw['base64'] ?? $raw['base64Image'] ?? $raw['image'] ?? null;
+        $qr = $raw['qr'] ?? $raw['qr_base64'] ?? $raw['qrcode'] ?? $raw['base64Qrimg'] ?? $raw['base64'] ?? $raw['base64Image'] ?? $raw['image'] ?? null;
         if ($qr === null && isset($raw['data'])) {
             $d = $raw['data'];
             $qr = is_array($d) ? ($d['qr'] ?? $d['base64'] ?? null) : $d;
@@ -485,7 +485,7 @@ class WhatsAppGatewaySettingsController extends Controller
             $r = $raw['result'];
             $qr = is_array($r) ? ($r['qr'] ?? $r['base64'] ?? null) : $r;
         }
-        $qr = $qr ?? $result['qr'] ?? $result['qrcode'] ?? $result['data'] ?? null;
+        $qr = $qr ?? $result['qr'] ?? $result['qr_base64'] ?? $result['qrcode'] ?? $result['data'] ?? null;
         if (empty($qr) || !is_string($qr)) {
             return null;
         }
@@ -505,6 +505,7 @@ class WhatsAppGatewaySettingsController extends Controller
     private function getQrWithRetry(WhatsAppGatewayClient $gateway, string $channelId, int $maxAttempts = 3): array
     {
         $lastResult = null;
+        $delaySeconds = 4; // WPPConnect pode demorar para gerar QR em nova sessão
         for ($i = 0; $i < $maxAttempts; $i++) {
             $result = $gateway->getQr($channelId);
             $lastResult = $result;
@@ -516,7 +517,7 @@ class WhatsAppGatewaySettingsController extends Controller
                 return ['result' => $result, 'qr' => null];
             }
             if ($i < $maxAttempts - 1) {
-                sleep(3);
+                sleep($delaySeconds);
             }
         }
         return ['result' => $lastResult ?? $result, 'qr' => null];
@@ -563,7 +564,9 @@ class WhatsAppGatewaySettingsController extends Controller
         }
 
         $sessions = [];
-        $silentHours = 4;
+        // 72h de silêncio para marcar "possivelmente desconectado" — evita falso positivo quando
+        // o canal está ativo mas teve pouca atividade recente (ex: imobsites)
+        $silentHours = 72;
         $silentThreshold = date('Y-m-d H:i:s', strtotime("-{$silentHours} hours"));
 
         foreach ($channels as $ch) {
@@ -592,12 +595,12 @@ class WhatsAppGatewaySettingsController extends Controller
                         $last = $stmt->fetch(PDO::FETCH_ASSOC);
                         if ($last) {
                             $session['last_activity_at'] = $last['created_at'];
+                            // Só marca zombie se tiver last_activity E estiver há mais de 72h sem atividade
                             if ($session['status'] === 'connected' && $last['created_at'] < $silentThreshold) {
                                 $session['is_zombie'] = true;
                             }
-                        } elseif ($session['status'] === 'connected') {
-                            $session['is_zombie'] = true;
                         }
+                        // Sem last_activity: não deduzimos zombie — confiamos no status do gateway
                     }
                 } catch (\Throwable $e) {
                     // continua sem last_activity
@@ -643,7 +646,8 @@ class WhatsAppGatewaySettingsController extends Controller
                 return;
             }
 
-            $retry = $this->getQrWithRetry($gateway, $channelId);
+            // Nova sessão: 5 tentativas (WPPConnect pode demorar para gerar QR)
+            $retry = $this->getQrWithRetry($gateway, $channelId, 5);
             $qrResult = $retry['result'];
             $qr = $retry['qr'];
 

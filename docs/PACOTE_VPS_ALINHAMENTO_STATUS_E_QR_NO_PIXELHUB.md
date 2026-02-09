@@ -1,11 +1,13 @@
 # Pacote VPS: Alinhamento de Status e QR Code no Pixel Hub
 
-**Objetivo:** Resolver duas divergências para que o usuário gerencie tudo pelo Pixel Hub, sem precisar acessar a VPS.
+**Objetivo:** Resolver divergências de status e QR para que o usuário gerencie tudo pelo Pixel Hub, sem precisar acessar a VPS.
 
 | Problema | Síntoma | Solução |
 |----------|---------|---------|
-| **Tarefa 1** | Celular desconectado, VPS mostra "Conectado" | Gateway atualizar sessionManager em connection.update |
-| **Tarefa 2** | Pixel Hub não exibe QR; erro "Invalid QR code response" | Gateway retornar QR na API `/api/channels/{id}/qr` |
+| **Tarefa 1** | Celular desconectado, hub mostra "Conectado" (ex: pixel12digital) | Gateway tratar connection.update → sessionManager |
+| **Tarefa 2** | Hub mostra "Possivelmente desconectado" mas dispositivo ativo (ex: imobsites) | Pixel Hub: 72h em vez de 4h; sem last_activity não marca zombie |
+| **Tarefa 3** | QR não exibe; erro "Invalid QR code response" | Patch getQRCode JSON CONNECTED (já aplicado) |
+| **Tarefa 4** | QR para nova sessão | 5 tentativas em vez de 3; intervalo 4s |
 
 ---
 
@@ -152,6 +154,35 @@ curl -s -H "X-Gateway-Secret: $SECRET" "https://wpp.pixel12digital.com.br:8443/a
 - **Ordem do patch:** Tratar JSON com `status: CONNECTED` no adapter — retornar `{ qr_base64: null, status: "CONNECTED", message }` em vez de lançar erro.
 
 **Pacote criado:** `docs/PACOTE_VPS_PATCH_GETQRCODE_JSON_CONNECTED.md` — patch completo para o Charles aplicar na VPS.
+
+---
+
+## Alterações Pixel Hub (09/02)
+
+- **is_zombie:** 4h → 72h; sem last_activity não marca zombie (evita falso "possivelmente desconectado" em imobsites).
+- **getQrWithRetry:** 5 tentativas para nova sessão; intervalo 4s entre tentativas.
+- **Pendente VPS:** Patch connection.update para corrigir pixel12digital (dispositivo desconectado mas hub mostra conectado).
+
+---
+
+## Bloco para Charles — connection.update (Tarefa 1)
+
+Rodar o diagnóstico abaixo e retornar a saída completa:
+
+```bash
+echo "=== 1) Onde eventos são processados? ==="
+docker exec gateway-wrapper grep -rn "connection\.update\|onpresencechanged\|eventType\|event" /app/src --include="*.js" 2>/dev/null | head -80
+
+echo ""
+echo "=== 2) sessionManager e updateSessionStatus ==="
+docker exec gateway-wrapper grep -rn "sessionManager\|updateSessionStatus\|getSessionStatus" /app/src --include="*.js" 2>/dev/null | head -40
+
+echo ""
+echo "=== 3) Rotas webhook / incoming ==="
+docker exec gateway-wrapper grep -rn "webhook\|incoming\|/webhook" /app/src --include="*.js" 2>/dev/null | head -50
+```
+
+**Retornar:** Saída completa. Com isso definimos o ponto exato para inserir o handler de connection.update.
 
 ---
 
