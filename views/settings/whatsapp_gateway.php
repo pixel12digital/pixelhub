@@ -291,14 +291,15 @@ $pixelhubBaseUrl = pixelhub_url('');
 </div>
 
 <!-- Modal QR Code -->
-<div id="qr-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; padding: 20px;">
-    <div style="background: white; border-radius: 8px; padding: 24px; max-width: 400px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+<div id="qr-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; padding: 20px;" data-gateway-base="<?= htmlspecialchars($baseUrl ?? 'https://wpp.pixel12digital.com.br') ?>">
+    <div id="qr-modal-inner" style="background: white; border-radius: 8px; padding: 24px; max-width: 450px; width: 100%; max-height: 90vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
         <h3 style="margin: 0 0 16px 0; font-size: 18px;">Escaneie o QR Code</h3>
         <p style="margin-bottom: 16px; color: #666; font-size: 14px;">Abra o WhatsApp no celular > Dispositivos conectados > Conectar dispositivo</p>
-        <div id="qr-modal-content" style="text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center;">
-            <!-- QR ou mensagem -->
+        <div id="qr-modal-content" style="text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+            <!-- QR, iframe ou mensagem -->
         </div>
-        <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
+        <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+            <a id="qr-open-vps-link" href="#" target="_blank" rel="noopener" style="display: none; font-size: 13px; color: #023A8D;">Abrir QR na interface do gateway</a>
             <button type="button" id="qr-modal-close" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Fechar</button>
         </div>
     </div>
@@ -561,15 +562,34 @@ function escapeHtml(s) {
     return div.innerHTML;
 }
 
-function showQrModal(qr, channelId) {
+function showQrModal(qr, channelId, showRetry) {
     const modal = document.getElementById('qr-modal');
     const content = document.getElementById('qr-modal-content');
+    const openLink = document.getElementById('qr-open-vps-link');
+    const modalInner = document.getElementById('qr-modal-inner');
+    const gatewayBase = (modal.getAttribute('data-gateway-base') || 'https://wpp.pixel12digital.com.br').replace(/\/$/, '');
+    const vpsSessionUrl = channelId ? (gatewayBase + '/ui/sessoes/' + channelId) : (gatewayBase + '/ui/sessoes');
+
+    openLink.style.display = 'none';
+    modalInner.style.maxWidth = '450px';
+
     if (qr && (qr.startsWith('data:') || qr.startsWith('http'))) {
         content.innerHTML = '<img src="' + qr + '" alt="QR Code" style="max-width: 280px; height: auto;">';
     } else if (qr) {
         content.innerHTML = '<img src="data:image/png;base64,' + qr + '" alt="QR Code" style="max-width: 280px; height: auto;">';
     } else {
-        content.innerHTML = '<p style="color: #666;">QR solicitado. O gateway pode exibir o QR na interface própria. Feche e tente novamente em alguns segundos.</p>';
+        modalInner.style.maxWidth = '900px';
+        openLink.href = vpsSessionUrl;
+        openLink.style.display = 'inline-block';
+        content.innerHTML = '<iframe src="' + vpsSessionUrl + '" style="width: 100%; height: 500px; border: 1px solid #ddd; border-radius: 4px;" title="QR Code do gateway"></iframe>' +
+            '<p style="color: #666; font-size: 13px; margin-top: 12px;">O QR está na interface do gateway acima. Se não aparecer, use o link "Abrir QR na interface do gateway".</p>' +
+            (showRetry && channelId ? '<button type="button" id="qr-retry-btn" style="margin-top: 12px; padding: 8px 16px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer;">Tentar novamente</button>' : '');
+        if (showRetry && channelId) {
+            content.querySelector('#qr-retry-btn').addEventListener('click', function() {
+                modal.style.display = 'none';
+                reconnectSession(channelId);
+            });
+        }
     }
     modal.style.display = 'flex';
 }
@@ -584,13 +604,17 @@ function reconnectSession(channelId) {
     .then(data => {
         if (data.success && data.qr) {
             showQrModal(data.qr, channelId);
-        } else if (data.success) {
-            alert('Reconexão solicitada. O gateway pode exibir o QR na interface da VPS.');
         } else {
-            alert('Erro: ' + (data.error || 'Não foi possível gerar QR'));
+            showQrModal(null, channelId, true);
+            if (!data.success && data.error) {
+                console.warn('Gateway:', data.error);
+            }
         }
     })
-    .catch(err => alert('Erro: ' + err.message));
+    .catch(err => {
+        showQrModal(null, channelId, true);
+        console.warn('Erro:', err.message);
+    });
 }
 
 document.getElementById('btn-create-session').addEventListener('click', function() {
@@ -614,7 +638,7 @@ document.getElementById('btn-create-session').addEventListener('click', function
         if (data.success) {
             input.value = '';
             if (data.qr) showQrModal(data.qr, channelId);
-            else alert('Sessão criada. Escaneie o QR na interface do gateway.');
+            else showQrModal(null, channelId, true);
             loadSessions();
         } else {
             alert('Erro: ' + (data.error || 'Não foi possível criar sessão'));

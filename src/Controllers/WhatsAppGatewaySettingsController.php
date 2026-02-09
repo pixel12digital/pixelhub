@@ -476,17 +476,50 @@ class WhatsAppGatewaySettingsController extends Controller
     private function extractQrFromResponse(array $result): ?string
     {
         $raw = $result['raw'] ?? [];
-        $qr = $raw['qr'] ?? $raw['qrcode'] ?? $raw['base64Qrimg'] ?? $raw['base64'] ?? $result['qr'] ?? null;
-        if (empty($qr)) {
+        $qr = $raw['qr'] ?? $raw['qrcode'] ?? $raw['base64Qrimg'] ?? $raw['base64'] ?? $raw['base64Image'] ?? $raw['image'] ?? null;
+        if ($qr === null && isset($raw['data'])) {
+            $d = $raw['data'];
+            $qr = is_array($d) ? ($d['qr'] ?? $d['base64'] ?? null) : $d;
+        }
+        if ($qr === null && isset($raw['result'])) {
+            $r = $raw['result'];
+            $qr = is_array($r) ? ($r['qr'] ?? $r['base64'] ?? null) : $r;
+        }
+        $qr = $qr ?? $result['qr'] ?? $result['qrcode'] ?? $result['data'] ?? null;
+        if (empty($qr) || !is_string($qr)) {
             return null;
         }
-        if (str_starts_with((string) $qr, 'data:')) {
+        $qr = trim($qr);
+        if (str_starts_with($qr, 'data:')) {
             return $qr;
         }
-        if (str_starts_with((string) $qr, 'http')) {
+        if (str_starts_with($qr, 'http')) {
             return $qr;
         }
         return 'data:image/png;base64,' . $qr;
+    }
+
+    /**
+     * Obtém QR com retry (WPPConnect pode demorar alguns segundos para gerar)
+     */
+    private function getQrWithRetry(WhatsAppGatewayClient $gateway, string $channelId, int $maxAttempts = 3): array
+    {
+        $lastResult = null;
+        for ($i = 0; $i < $maxAttempts; $i++) {
+            $result = $gateway->getQr($channelId);
+            $lastResult = $result;
+            $qr = $this->extractQrFromResponse($result);
+            if ($qr !== null) {
+                return ['result' => $result, 'qr' => $qr];
+            }
+            if (!$result['success']) {
+                return ['result' => $result, 'qr' => null];
+            }
+            if ($i < $maxAttempts - 1) {
+                sleep(3);
+            }
+        }
+        return ['result' => $lastResult ?? $result, 'qr' => null];
     }
 
     /**
@@ -610,14 +643,15 @@ class WhatsAppGatewaySettingsController extends Controller
                 return;
             }
 
-            $qrResult = $gateway->getQr($channelId);
-            $qr = $this->extractQrFromResponse($qrResult);
+            $retry = $this->getQrWithRetry($gateway, $channelId);
+            $qrResult = $retry['result'];
+            $qr = $retry['qr'];
 
             $this->json([
                 'success' => true,
                 'channel_id' => $channelId,
                 'qr' => $qr,
-                'message' => 'Sessão criada. Escaneie o QR code com o WhatsApp.',
+                'message' => $qr ? 'Sessão criada. Escaneie o QR code com o WhatsApp.' : 'Sessão criada. O gateway pode exibir o QR na interface da VPS.',
             ]);
         } catch (\Throwable $e) {
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
@@ -645,17 +679,18 @@ class WhatsAppGatewaySettingsController extends Controller
 
         try {
             $gateway = $this->getGatewayClient();
-            $qrResult = $gateway->getQr($channelId);
-            $qr = $this->extractQrFromResponse($qrResult);
+            $retry = $this->getQrWithRetry($gateway, $channelId);
+            $qrResult = $retry['result'];
+            $qr = $retry['qr'];
 
             $this->json([
                 'success' => $qrResult['success'],
                 'channel_id' => $channelId,
                 'qr' => $qr,
                 'error' => $qrResult['success'] ? null : ($qrResult['error'] ?? null),
-                'message' => $qrResult['success']
+                'message' => $qr
                     ? 'QR code gerado. Escaneie com o WhatsApp para reconectar.'
-                    : ($qrResult['error'] ?? 'Não foi possível gerar QR code'),
+                    : ($qrResult['success'] ? 'O gateway pode exibir o QR na interface da VPS.' : ($qrResult['error'] ?? 'Não foi possível gerar QR code')),
             ]);
         } catch (\Throwable $e) {
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
