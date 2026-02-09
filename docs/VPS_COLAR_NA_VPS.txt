@@ -1,0 +1,61 @@
+============================================================
+COLOQUE NO TERMINAL DA VPS — passo 1: criar o arquivo
+============================================================
+
+Copie TODO o bloco abaixo (do "cat" ate a linha "PATCH_END") e cole no terminal da VPS.
+Depois execute o comando do passo 2.
+
+------------------------------------------------------------
+
+cat > /tmp/VPS_SCRIPT_PATCH_CONNECTION_UPDATE.sh << 'PATCH_END'
+#!/bin/bash
+set -e
+CONTAINER="gateway-wrapper"
+BACKUP="/tmp/gateway_conn_patch_$(date +%Y%m%d_%H%M%S)"
+echo "=== Patch connection.update ==="
+echo "1) Backup..."
+docker cp "$CONTAINER:/app/src/index.js" "$BACKUP.index.js" 2>/dev/null || { echo "ERRO: docker cp index.js"; exit 1; }
+docker cp "$CONTAINER:/app/src/routes/api.js" "$BACKUP.api.js" 2>/dev/null || { echo "ERRO: docker cp api.js"; exit 1; }
+echo "   OK"
+echo "2) Patch index.js..."
+docker exec "$CONTAINER" node -e '
+const fs = require("fs");
+const p = "/app/src/index.js";
+let c = fs.readFileSync(p, "utf8");
+if (c.includes("Session status updated from connection.update")) { console.log("   (ja aplicado)"); process.exit(0); }
+c = c.replace("const webhookDeliveryService = require(\"./services/webhookDeliveryService\");", "const webhookDeliveryService = require(\"./services/webhookDeliveryService\");\nconst sessionManager = require(\"./services/sessionManager\");");
+const before = "    } else if (rawEvent.event === \"message.failed\") {\n      eventType = \"message.failed\";\n    }\n    // buildHubPayload";
+const after = "    } else if (rawEvent.event === \"message.failed\") {\n      eventType = \"message.failed\";\n    }\n    if (eventType === \"connection.update\" && sessionId) {\n      const connStatus = rawEvent.connection?.status || rawEvent.raw?.payload?.state || rawEvent.state || \"\";\n      const statusLower = String(connStatus).toLowerCase();\n      if ([\"close\", \"closed\", \"disconnected\", \"unavailable\"].includes(statusLower)) {\n        sessionManager.updateSessionStatus(sessionId, \"disconnected\");\n        logger.info(\"Session status updated from connection.update\", { sessionId, status: \"disconnected\" });\n      } else if ([\"available\", \"open\", \"connected\"].includes(statusLower)) {\n        sessionManager.updateSessionStatus(sessionId, \"connected\");\n      }\n    }\n    // buildHubPayload";
+if (!c.includes("message.failed")) { console.error("   ERRO: trecho nao encontrado"); process.exit(1); }
+c = c.replace(before, after);
+fs.writeFileSync(p, c);
+console.log("   OK");
+'
+echo "3) Patch api.js..."
+docker exec "$CONTAINER" node -e '
+const fs = require("fs");
+const p = "/app/src/routes/api.js";
+let c = fs.readFileSync(p, "utf8");
+if (c.includes("priorizar disconnected do sessionManager")) { console.log("   (ja aplicado)"); process.exit(0); }
+const search = "        // Try to get updated status from WPPConnect (non-blocking)\n        try {";
+const repl = "        if (status !== \"disconnected\") {\n        try {";
+if (!c.includes(search)) { console.error("   ERRO: trecho nao encontrado em api.js"); process.exit(1); }
+c = c.replace(search, repl);
+// Fechar o if: inserir "        }" antes de "        // Ensure id and name"
+const ensure = "        // Ensure id and name";
+const idx = c.indexOf(ensure);
+if (idx === -1) { console.error("   ERRO: Ensure nao encontrado"); process.exit(1); }
+c = c.substring(0, idx) + "        }\n" + c.substring(idx);
+fs.writeFileSync(p, c);
+console.log("   OK");
+'
+echo "4) Reiniciando gateway..."
+docker restart "$CONTAINER" 2>/dev/null || true
+echo "=== Concluido ==="
+PATCH_END
+
+============================================================
+PASSO 2: executar o script
+============================================================
+
+bash /tmp/VPS_SCRIPT_PATCH_CONNECTION_UPDATE.sh

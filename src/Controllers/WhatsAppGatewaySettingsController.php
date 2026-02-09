@@ -600,6 +600,23 @@ class WhatsAppGatewaySettingsController extends Controller
                                 $session['is_zombie'] = true;
                             }
                         }
+                        // Sessão zombie: status "connected" mas sem connection.update nos últimos 2h
+                        // (pixel12digital não recebe connection.update do WPPConnect quando desconecta)
+                        if ($session['status'] === 'connected' && !$session['is_zombie']) {
+                            $connThreshold = date('Y-m-d H:i:s', strtotime('-2 hours'));
+                            $stmtConn = $db->prepare("
+                                SELECT created_at FROM webhook_raw_logs
+                                WHERE event_type IN ('connection.update', 'onpresencechanged')
+                                AND (payload_json LIKE ? OR payload_json LIKE ?)
+                                AND created_at > ?
+                                ORDER BY created_at DESC LIMIT 1
+                            ");
+                            $stmtConn->execute(["%{$id}%", "%{$normalized}%", $connThreshold]);
+                            $connLast = $stmtConn->fetch(PDO::FETCH_ASSOC);
+                            if (!$connLast) {
+                                $session['is_zombie'] = true;
+                            }
+                        }
                         // Sem last_activity: não deduzimos zombie — confiamos no status do gateway
                     }
                 } catch (\Throwable $e) {

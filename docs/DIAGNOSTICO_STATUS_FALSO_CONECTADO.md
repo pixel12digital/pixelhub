@@ -68,8 +68,35 @@ docker exec gateway-wrapper grep -n -B2 -A25 "getSessionStatus" /app/src/service
 
 ---
 
+## Resultado do diagnóstico (saída recebida)
+
+- **GET /api/channels:** Retorna `status: "connected"` para pixel12digital e imobsites.
+- **getSessionStatus:** Chama WPPConnect `GET /api/{sessionId}/status-session` e retorna o status.
+- **sessionManager:** Usa `sessions.json`; tem `addSession`, `getAllSessions`; estrutura com `session_id`, `metadata`.
+- **Rotas:** O grep em `/app/src/routes` retornou vazio — a rota pode estar em outro path.
+
+**Conclusão:** O status vem do WPPConnect (`status-session`). O WPPConnect retorna "connected" mesmo com o dispositivo desconectado.
+
+---
+
+## Bloco adicional — Localizar rota e webhook
+
+Rodar e retornar a saída:
+
+```bash
+echo "=== 7) Onde está a rota channels? ==="
+docker exec gateway-wrapper grep -rn "channels\|getSessionStatus" /app/src --include="*.js" 2>/dev/null | head -80
+
+echo ""
+echo "=== 8) Onde eventos/webhook são recebidos? ==="
+docker exec gateway-wrapper grep -rn "connection\.update\|eventType\|webhook\|Received" /app/src --include="*.js" 2>/dev/null | head -60
+```
+
+---
+
 ## Próximo passo
 
-Com a saída do bloco acima, será possível:
-1. Confirmar a origem exata do status
-2. Montar o patch no gateway (connection.update + prioridade sessionManager)
+Com a saída do bloco 7 e 8:
+1. Identificar o arquivo da rota GET /api/channels
+2. Identificar onde inserir o handler de connection.update
+3. Montar o patch: sessionManager.updateSessionStatus + prioridade no GET /api/channels
