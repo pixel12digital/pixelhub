@@ -2088,16 +2088,18 @@ class CommunicationHubController extends Controller
                                 // Caso contrário, mantém a mensagem original do gateway
                             }
                         }
-                        // Detecta áudio muito grande
-                        elseif (stripos($error, 'AUDIO_TOO_LARGE') !== false || stripos($error, 'muito grande') !== false) {
-                            $errorCode = 'AUDIO_TOO_LARGE';
-                        }
-                        // Detecta timeout
-                        elseif ($errorCode === 'TIMEOUT' || stripos($error, 'timeout') !== false) {
+                        // Detecta timeout primeiro (evita classificar como AUDIO_TOO_LARGE por "muito grande" na mensagem)
+                        if ($errorCode === 'TIMEOUT' || stripos($error, 'timeout') !== false) {
                             $errorCode = 'TIMEOUT';
                             if (!stripos($error, 'timeout')) {
-                                $error = 'Timeout ao enviar áudio. O gateway pode estar sobrecarregado ou o arquivo muito grande.';
+                                $error = $messageType === 'audio'
+                                    ? 'Timeout ao enviar áudio. O gateway pode estar sobrecarregado ou o arquivo muito grande.'
+                                    : 'Timeout na requisição ao gateway. O gateway pode estar sobrecarregado.';
                             }
+                        }
+                        // Detecta áudio muito grande (só se não for timeout)
+                        elseif (stripos($error, 'AUDIO_TOO_LARGE') !== false || (stripos($error, 'muito grande') !== false && $messageType === 'audio')) {
+                            $errorCode = 'AUDIO_TOO_LARGE';
                         }
                         // Detecta outros erros do gateway
                         elseif ($gatewayStatus === 409 || $gatewayStatus === 400) {

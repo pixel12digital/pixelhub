@@ -202,6 +202,9 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 if ((result.error_code === 'GATEWAY_ERROR' || !result.error_code) && typeof errMsg === 'string' && (errMsg.indexOf('não existe') >= 0 || errMsg.indexOf('desconectad') >= 0)) {
                     errMsg += '\n\nDica: Se a sessão estiver desconectada no dispositivo, acesse Configurações > WhatsApp Gateway e clique em Reconectar.';
                 }
+                if (result.error_code === 'TIMEOUT') {
+                    errMsg += '\n\nSe a mensagem tiver sido enviada, verifique no WhatsApp.';
+                }
                 alert('Erro: ' + errMsg);
             }
         } catch (err) {

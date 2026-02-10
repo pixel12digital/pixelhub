@@ -1042,7 +1042,7 @@ class WhatsAppGatewayClient
                 
                 return [
                     'success' => false,
-                    'error' => "Timeout de {$this->timeout}s excedido ao enviar mídia. O gateway pode estar sobrecarregado ou o arquivo muito grande.",
+                    'error' => "Timeout de {$this->timeout}s excedido na requisição ao gateway. O gateway pode estar sobrecarregado ou o arquivo muito grande.",
                     'error_code' => 'TIMEOUT',
                     'raw' => null,
                     'status' => 0,
