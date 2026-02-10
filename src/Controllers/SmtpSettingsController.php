@@ -47,6 +47,7 @@ class SmtpSettingsController extends Controller
      */
     public function update(): void
     {
+        error_log("SMTP_DEBUG: Iniciando método update");
         $db = DB::getConnection();
         
         // Validação básica
@@ -83,11 +84,14 @@ class SmtpSettingsController extends Controller
             }
         }
 
+        error_log("SMTP_DEBUG: Validações concluídas, errors=" . json_encode($errors));
         if (!empty($errors)) {
+            error_log("SMTP_DEBUG: Redirecionando com erros");
             $this->redirect('/settings/smtp?error=' . urlencode(implode(', ', $errors)));
             return;
         }
 
+        error_log("SMTP_DEBUG: Iniciando try block");
         try {
             // Criptografa senha se fornecida
             $encryptedPassword = '';
@@ -145,8 +149,10 @@ class SmtpSettingsController extends Controller
                 ]);
             }
 
+            error_log("SMTP_DEBUG: Redirecionando com sucesso");
             $this->redirect('/settings/smtp?success=1&message=' . urlencode('Configurações SMTP atualizadas com sucesso!'));
         } catch (\Exception $e) {
+            error_log("SMTP_DEBUG: Exceção capturada: " . $e->getMessage());
             $this->redirect('/settings/smtp?error=' . urlencode('Erro ao salvar configurações: ' . $e->getMessage()));
         }
     }
