@@ -1,6 +1,10 @@
-# Diagnóstico: áudios 13:20 (Charles → Pixel 12 Digital e ImobSites) não aparecem no Inbox
+# Diagnóstico: áudios não aparecem no Inbox + 404 "Conversa não encontrada"
 
-**Situação:** Áudios enviados às 13:20 por Charles Dietrich para Pixel 12 Digital e para ImobSites não aparecem no Inbox do Hub.
+**Situações:**
+1. Áudios enviados por Charles Dietrich para **Pixel 12 Digital** e para **ImobSites** (ex.: 13:20, 13:33) **não aparecem** no Inbox.
+2. Ao clicar em uma conversa no Inbox: **404** em `/communication-hub/thread-data?thread_id=whatsapp_158` e erro **"Conversa não encontrada"**.
+
+**Correção no frontend (já aplicada):** quando o `thread-data` retorna 404 ou "Conversa não encontrada", o Inbox **atualiza a lista** automaticamente (para remover o item obsoleto, ex.: whatsapp_158) e exibe "Conversa não encontrada. Lista atualizada."
 
 ---
 
@@ -107,4 +111,35 @@ Se o gateway só enviar para uma sessão ou não incluir o sessionId, as mensage
 | Eventos na tabela `communication_events` mas sem conversa em `conversations` | Resolução de conversa não está criando/atualizando a linha. |
 | Conversa existe no banco mas não aparece no Inbox | Filtro de status/sessão/tenant na listagem do Hub (ex.: `status`, `session_id`, `tenant_id`). |
 
-Sugestão: começar pelos logs do Hub no horário 13:18–13:22. Se não houver nenhum `[HUB_WEBHOOK_IN]`, o próximo passo é conferir no gateway (VPS) se o webhook está configurado e sendo chamado para as duas sessões.
+Sugestão: começar pelos logs do Hub no horário do envio (ex.: 13:18–13:25 ou 13:30–13:38). Se não houver nenhum `[HUB_WEBHOOK_IN]`, o próximo passo é conferir no gateway (VPS) se o webhook está configurado e sendo chamado para as duas sessões.
+
+---
+
+## 5. Por que dá 404 em thread-data (ex.: whatsapp_158)
+
+- O Inbox lista conversas a partir da tabela **conversations** (`thread_id` = `whatsapp_{id}`).
+- Ao clicar, o front chama **GET /communication-hub/thread-data?thread_id=whatsapp_158**, que busca **conversations.id = 158**.
+- Se não existir linha com **id = 158**, o backend retorna **404 – Conversa não encontrada**.
+
+Isso pode ocorrer se:
+- A conversa foi **excluída** depois que a lista foi carregada.
+- A lista estava **em cache** ou desatualizada e exibia um `thread_id` que nunca existiu ou já foi removido.
+- Houve **merge/limpeza** de conversas e o id 158 deixou de existir.
+
+Com a correção no frontend, ao receber 404 o Inbox **recarrega a lista** e o item que não existe mais deixa de aparecer.
+
+---
+
+## 6. Checklist definitivo (corrigir de vez)
+
+| # | Onde | O que fazer |
+|---|------|-------------|
+| 1 | **VPS (gateway)** | Confirmar que a **URL do webhook** do Hub está configurada e é chamada para **todas** as sessões (Pixel 12 Digital e ImobSites). |
+| 2 | **VPS** | Garantir que cada POST do webhook inclui **sessionId** (ou session.id / session.session) no payload com o nome da sessão. |
+| 3 | **Hub (HostMídia)** | Verificar **logs PHP** no horário do teste: existem linhas `[HUB_WEBHOOK_IN]`? Se não, o gateway não está chegando ao Hub. |
+| 4 | **Hub** | Se há `[HUB_WEBHOOK_IN]`, ver se em seguida há erro (403, 400, exceção) ou `INSERT REALIZADO`. |
+| 5 | **Hub – banco** | Rodar as queries da seção 2.2 para o horário do teste: há eventos em **communication_events**? Há conversas em **conversations**? |
+| 6 | **Hub** | Conferir **tenant_message_channels**: existem linhas com **channel_id** = Pixel 12 Digital e ImobSites (ou normalizado), **is_enabled = 1**? |
+| 7 | **Frontend** | Após o deploy, ao clicar em conversa inexistente, a lista deve atualizar sozinha (correção já no código). |
+
+Causa mais comum quando **nada** chega no Inbox: o gateway **não está enviando** o webhook para o Hub (URL errada, só uma sessão configurada, ou serviço do gateway não dispara para essas sessões).

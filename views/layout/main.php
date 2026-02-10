@@ -3640,6 +3640,15 @@
                 const response = await fetch(url, { signal: InboxState.currentLoadController.signal });
                 const result = await response.json();
                 
+                // Conversa não existe mais (ex: excluída ou id obsoleto) - atualiza lista e remove item
+                if (response.status === 404 || (result && !result.success && (result.error || '').indexOf('não encontrada') !== -1)) {
+                    if (typeof loadInboxConversations === 'function') loadInboxConversations();
+                    if (messages) messages.innerHTML = '<div class="inbox-drawer-loading">Conversa não encontrada. Lista atualizada.</div>';
+                    InboxState.currentThreadId = null;
+                    InboxState.currentChannel = null;
+                    return;
+                }
+                
                 if (result.success && result.thread) {
                     renderInboxHeader(result.thread);
                     renderInboxMessages(result.messages || []);
