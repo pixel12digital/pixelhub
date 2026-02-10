@@ -501,6 +501,10 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/billing/get-last-dispatch', 'BillingCollectionsController@getLastDispatch');
     $router->get('/billing/preview-message', 'BillingCollectionsController@previewMessage');
     
+    // Rotas de Templates de Cobrança
+    $router->get('/billing/templates', 'BillingTemplatesController@index');
+    $router->get('/billing/templates/view', 'BillingTemplatesController@view');
+    
     // Rota de Carteira Recorrente
     $router->get('/recurring-contracts', 'RecurringContractsController@index');
     $router->post('/recurring-contracts/update-category', 'RecurringContractsController@updateCategory');
