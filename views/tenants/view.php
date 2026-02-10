@@ -1276,7 +1276,7 @@ function copyInvoiceUrl(url, btn) {
                 messageDiv.style.background = '#f8d7da';
                 messageDiv.style.border = '1px solid #f5c6cb';
                 messageDiv.style.color = '#721c24';
-                messageDiv.innerHTML = '<strong>❌ Erro:</strong> ' + (data.message || 'Erro ao sincronizar dados.');
+                messageDiv.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 5px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><strong>Erro:</strong> ' + (data.message || 'Erro ao sincronizar dados.');
             }
         })
         .catch(error => {
@@ -3715,15 +3715,20 @@ function showManualSendModal(invoiceId, channel) {
     modal.style.display = 'block';
     
     // Carrega o preview da mensagem
+    console.log('[PREVIEW] Carregando preview para invoice_id=' + invoiceId + ', channel=' + channel);
     fetch(`<?= pixelhub_url('/billing/preview-message') ?>?invoice_id=${invoiceId}&channel=${channel}`)
-    .then(response => response.json())
+    .then(response => {
+        console.log('[PREVIEW] Response status:', response.status);
+        return response.json();
+    })
     .then(data => {
+        console.log('[PREVIEW] Data recebida:', data);
         if (data.success) {
             content.innerHTML = `
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: 500;">Canal:</label>
-                    <div style="padding: 8px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
-                        ${channel === 'whatsapp' ? '📱 WhatsApp' : '📧 E-mail'}
+                    <div style="padding: 8px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; display: flex; align-items: center; gap: 8px;">
+                        ${channel === 'whatsapp' ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> WhatsApp' : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg> E-mail'}
                     </div>
                 </div>
                 
@@ -3830,16 +3835,16 @@ function sendManual(invoiceId, channel) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('✅ ' + data.message);
+            alert('Sucesso: ' + data.message);
             closeManualSendModal();
             // Recarrega a página para mostrar atualizações
             setTimeout(() => window.location.reload(), 1000);
         } else {
-            alert('❌ ' + data.error);
+            alert('Erro: ' + data.error);
         }
     })
     .catch(error => {
-        alert('❌ Erro ao enviar: ' + error.message);
+        alert('Erro ao enviar: ' + error.message);
     })
     .finally(() => {
         confirmBtn.disabled = false;
@@ -3867,14 +3872,15 @@ function showLastDispatch(invoiceId, buttonElement) {
     fetch('<?= pixelhub_url('/billing/get-last-dispatch') ?>?invoice_id=' + invoiceId)
     .then(response => response.json())
     .then(data => {
+        console.log('[LAST_DISPATCH] Data recebida:', data);
         if (data.success && data.data) {
             const dispatch = data.data;
             const date = new Date(dispatch.sent_at);
             const formattedDate = date.toLocaleString('pt-BR');
             
             let info = `Último envio: ${formattedDate}<br>`;
-            info += `Canal: ${dispatch.channel === 'whatsapp' ? '📱 WhatsApp' : '📧 E-mail'}<br>`;
-            info += `Tipo: ${dispatch.trigger_source === 'manual' ? '👤 Manual' : '🤖 Automático'}<br>`;
+            info += `Canal: ${dispatch.channel === 'whatsapp' ? 'WhatsApp' : 'E-mail'}<br>`;
+            info += `Tipo: ${dispatch.trigger_source === 'manual' ? 'Manual' : 'Automático'}<br>`;
             
             if (dispatch.user_name) {
                 info += `Por: ${dispatch.user_name}<br>`;
