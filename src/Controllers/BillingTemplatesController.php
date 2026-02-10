@@ -40,7 +40,7 @@ class BillingTemplatesController extends Controller
             );
         }
         
-        $this->render('billing_templates/index', [
+        $this->view('billing_templates/index', [
             'templates' => $templates,
             'channel' => $channel,
             'search' => $search,

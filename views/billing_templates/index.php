@@ -1,119 +1,101 @@
 <?php
-$pageTitle = 'Templates de Cobrança';
-include __DIR__ . '/../layout/header.php';
+ob_start();
+$baseUrl = pixelhub_url('');
 ?>
 
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="fas fa-file-alt me-2"></i>
-                        Templates de Cobrança
-                    </h5>
-                    <small class="text-muted">Visualização dos templates usados no sistema</small>
-                </div>
-                
-                <div class="card-body">
-                    <!-- Filtros -->
-                    <div class="row mb-3">
-                        <div class="col-md-3">
-                            <label for="channel" class="form-label">Canal</label>
-                            <select class="form-select" id="channel" name="channel">
-                                <option value="all" <?= $channel === 'all' ? 'selected' : '' ?>>Todos</option>
-                                <option value="WhatsApp" <?= $channel === 'WhatsApp' ? 'selected' : '' ?>>WhatsApp</option>
-                                <option value="E-mail" <?= $channel === 'E-mail' ? 'selected' : '' ?>>E-mail</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="search" class="form-label">Buscar</label>
-                            <input type="text" class="form-control" id="search" name="search" 
-                                   placeholder="Buscar por nome ou estágio..." value="<?= htmlspecialchars($search) ?>">
-                        </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <button type="button" class="btn btn-primary" onclick="filterTemplates()">
-                                <i class="fas fa-search me-1"></i>
-                                Filtrar
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Tabela de Templates -->
-                    <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Canal</th>
-                                    <th>Estágio</th>
-                                    <th>Nome</th>
-                                    <th>Formato</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($templates)): ?>
-                                    <tr>
-                                        <td colspan="5" class="text-center text-muted">
-                                            Nenhum template encontrado
-                                        </td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($templates as $template): ?>
-                                        <tr>
-                                            <td>
-                                                <span class="badge bg-<?= $template['channel'] === 'WhatsApp' ? 'success' : 'primary' ?>">
-                                                    <?= htmlspecialchars($template['channel']) ?>
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <code><?= htmlspecialchars($template['stage']) ?></code>
-                                            </td>
-                                            <td><?= htmlspecialchars($template['label']) ?></td>
-                                            <td>
-                                                <span class="badge bg-secondary">
-                                                    <?= htmlspecialchars($template['format']) ?>
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <button class="btn btn-sm btn-outline-primary" 
-                                                        onclick="viewTemplate('<?= htmlspecialchars($template['key']) ?>')">
-                                                    <i class="fas fa-eye me-1"></i>
-                                                    Ver
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div class="content-header">
+    <h2>Templates de Cobrança</h2>
+    <p class="text-muted" style="margin: 5px 0 0;">Visualização dos templates usados no sistema (read-only)</p>
+</div>
+
+<!-- Filtros -->
+<div style="display: flex; gap: 10px; margin-bottom: 20px; align-items: flex-end; flex-wrap: wrap;">
+    <div>
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px;">Canal</label>
+        <select id="channelFilter" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+            <option value="all" <?= $channel === 'all' ? 'selected' : '' ?>>Todos</option>
+            <option value="whatsapp" <?= $channel === 'whatsapp' ? 'selected' : '' ?>>WhatsApp</option>
+            <option value="e-mail" <?= $channel === 'e-mail' ? 'selected' : '' ?>>E-mail</option>
+        </select>
     </div>
+    <div style="flex: 1; min-width: 200px;">
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px;">Buscar</label>
+        <input type="text" id="searchFilter" placeholder="Buscar por nome ou estágio..." 
+               value="<?= htmlspecialchars($search) ?>"
+               style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+    </div>
+    <button onclick="filterTemplates()" style="padding: 8px 16px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
+        Filtrar
+    </button>
+</div>
+
+<!-- Tabela de Templates -->
+<div style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                <th style="padding: 12px 16px; text-align: left; font-size: 13px; font-weight: 600; color: #555;">Canal</th>
+                <th style="padding: 12px 16px; text-align: left; font-size: 13px; font-weight: 600; color: #555;">Estágio</th>
+                <th style="padding: 12px 16px; text-align: left; font-size: 13px; font-weight: 600; color: #555;">Nome</th>
+                <th style="padding: 12px 16px; text-align: left; font-size: 13px; font-weight: 600; color: #555;">Formato</th>
+                <th style="padding: 12px 16px; text-align: center; font-size: 13px; font-weight: 600; color: #555;">Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (empty($templates)): ?>
+                <tr>
+                    <td colspan="5" style="padding: 30px; text-align: center; color: #999;">
+                        Nenhum template encontrado
+                    </td>
+                </tr>
+            <?php else: ?>
+                <?php foreach ($templates as $template): ?>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px 16px;">
+                            <span style="display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; color: white; background: <?= $template['channel'] === 'WhatsApp' ? '#25D366' : '#023A8D' ?>;">
+                                <?= htmlspecialchars($template['channel']) ?>
+                            </span>
+                        </td>
+                        <td style="padding: 10px 16px;">
+                            <code style="background: #f1f3f5; padding: 2px 8px; border-radius: 3px; font-size: 12px;"><?= htmlspecialchars($template['stage']) ?></code>
+                        </td>
+                        <td style="padding: 10px 16px; font-size: 14px;"><?= htmlspecialchars($template['label']) ?></td>
+                        <td style="padding: 10px 16px;">
+                            <span style="display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 12px; background: #e9ecef; color: #555;">
+                                <?= htmlspecialchars($template['format']) ?>
+                            </span>
+                        </td>
+                        <td style="padding: 10px 16px; text-align: center;">
+                            <button onclick="viewTemplate('<?= htmlspecialchars($template['key']) ?>')"
+                                    style="padding: 5px 12px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                Ver
+                            </button>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </tbody>
+    </table>
 </div>
 
 <!-- Modal de Visualização -->
-<div class="modal fade" id="templateModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="templateModalTitle">Template</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div id="templateContent">
-                    <!-- Conteúdo será carregado via JS -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                <button type="button" class="btn btn-primary" id="copyBtn">
-                    <i class="fas fa-copy me-1"></i>
-                    Copiar
-                </button>
-            </div>
+<div id="templateModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; justify-content: center; align-items: center;">
+    <div style="background: white; border-radius: 8px; max-width: 700px; width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #eee;">
+            <h3 id="templateModalTitle" style="margin: 0; font-size: 18px;">Template</h3>
+            <button onclick="closeModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #999;">&times;</button>
+        </div>
+        <div id="templateContent" style="padding: 20px;">
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; padding: 16px 20px; border-top: 1px solid #eee;">
+            <button onclick="closeModal()" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Fechar</button>
+            <button id="copyBtn" onclick="copyTemplate()" style="padding: 8px 16px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Copiar
+            </button>
         </div>
     </div>
 </div>
@@ -128,8 +110,9 @@ include __DIR__ . '/../layout/header.php';
     white-space: pre-wrap;
     max-height: 400px;
     overflow-y: auto;
+    font-size: 13px;
+    line-height: 1.5;
 }
-
 .placeholder-chip {
     display: inline-block;
     background: #e9ecef;
@@ -140,109 +123,90 @@ include __DIR__ . '/../layout/header.php';
     font-size: 12px;
     font-family: monospace;
 }
-
-.placeholder-list {
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    padding: 10px;
-    margin-top: 10px;
-}
 </style>
 
 <script>
+let currentTemplateData = null;
+
 function filterTemplates() {
-    const channel = document.getElementById('channel').value;
-    const search = document.getElementById('search').value;
-    
-    const params = new URLSearchParams({
-        channel: channel,
-        search: search
-    });
-    
-    window.location.href = '?'+params.toString();
+    const channel = document.getElementById('channelFilter').value;
+    const search = document.getElementById('searchFilter').value;
+    const params = new URLSearchParams({ channel: channel, search: search });
+    window.location.href = '<?= $baseUrl ?>/billing/templates?' + params.toString();
 }
 
 function viewTemplate(key) {
-    fetch(`/billing/templates/view?key=${encodeURIComponent(key)}`)
-        .then(response => response.json())
+    fetch('<?= $baseUrl ?>/billing/templates/view?key=' + encodeURIComponent(key))
+        .then(r => r.json())
         .then(data => {
-            if (!data.success) {
-                alert('Erro: ' + data.error);
-                return;
+            if (!data.success) { alert('Erro: ' + data.error); return; }
+            
+            currentTemplateData = data.template;
+            const t = data.template;
+            
+            document.getElementById('templateModalTitle').textContent = t.channel + ' — ' + t.label;
+            
+            let html = '';
+            
+            if (t.subject) {
+                html += '<div style="margin-bottom: 15px;">';
+                html += '<label style="display: block; font-weight: 600; margin-bottom: 5px;">Assunto:</label>';
+                html += '<div class="template-body">' + escapeHtml(t.subject) + '</div>';
+                html += '</div>';
             }
             
-            const template = data.template;
-            const modal = new bootstrap.Modal(document.getElementById('templateModal'));
+            html += '<div style="margin-bottom: 15px;">';
+            html += '<label style="display: block; font-weight: 600; margin-bottom: 5px;">Mensagem:</label>';
+            html += '<div class="template-body">' + escapeHtml(t.body) + '</div>';
+            html += '</div>';
             
-            // Título
-            document.getElementById('templateModalTitle').innerHTML = 
-                `${template.channel} — ${template.label}`;
+            html += '<div style="margin-bottom: 15px;">';
+            html += '<label style="display: block; font-weight: 600; margin-bottom: 5px;">Variáveis Disponíveis:</label>';
+            html += '<div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px;">';
+            Object.entries(t.placeholders).forEach(function([k, desc]) {
+                html += '<span class="placeholder-chip" title="' + escapeHtml(desc) + '">' + escapeHtml(k) + '</span> ';
+            });
+            html += '</div></div>';
             
-            // Conteúdo
-            let content = '';
-            
-            // Subject (se e-mail)
-            if (template.subject) {
-                content += `
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Assunto:</label>
-                        <div class="template-body">${template.subject}</div>
-                    </div>
-                `;
-            }
-            
-            // Body
-            content += `
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Mensagem:</label>
-                    <div class="template-body">${template.body}</div>
-                </div>
-            `;
-            
-            // Placeholders
-            content += `
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Variáveis Disponíveis:</label>
-                    <div class="placeholder-list">
-                        ${Object.entries(template.placeholders).map(([key, desc]) => 
-                            `<span class="placeholder-chip" title="${desc}">${key}</span>`
-                        ).join('')}
-                    </div>
-                </div>
-            `;
-            
-            document.getElementById('templateContent').innerHTML = content;
-            
-            // Botão copiar
-            document.getElementById('copyBtn').onclick = function() {
-                const textToCopy = template.subject ? 
-                    `Assunto: ${template.subject}\n\n${template.body}` : 
-                    template.body;
-                
-                navigator.clipboard.writeText(textToCopy).then(() => {
-                    this.innerHTML = '<i class="fas fa-check me-1"></i>Copiado!';
-                    setTimeout(() => {
-                        this.innerHTML = '<i class="fas fa-copy me-1"></i>Copiar';
-                    }, 2000);
-                });
-            };
-            
-            modal.show();
+            document.getElementById('templateContent').innerHTML = html;
+            document.getElementById('templateModal').style.display = 'flex';
         })
-        .catch(error => {
-            console.error('Erro:', error);
-            alert('Erro ao carregar template');
-        });
+        .catch(err => { console.error(err); alert('Erro ao carregar template'); });
 }
 
-// Auto-filtrar ao mudar selects
-document.getElementById('channel').addEventListener('change', filterTemplates);
-document.getElementById('search').addEventListener('keyup', function(e) {
-    if (e.key === 'Enter') {
-        filterTemplates();
-    }
+function closeModal() {
+    document.getElementById('templateModal').style.display = 'none';
+}
+
+function copyTemplate() {
+    if (!currentTemplateData) return;
+    const t = currentTemplateData;
+    const text = t.subject ? 'Assunto: ' + t.subject + '\n\n' + t.body : t.body;
+    navigator.clipboard.writeText(text).then(function() {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = 'Copiado!';
+        setTimeout(function() { btn.textContent = 'Copiar'; }, 2000);
+    });
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+document.getElementById('channelFilter').addEventListener('change', filterTemplates);
+document.getElementById('searchFilter').addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') filterTemplates();
+});
+
+document.getElementById('templateModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
 });
 </script>
 
-<?php include __DIR__ . '/../layout/footer.php'; ?>
+<?php
+$content = ob_get_clean();
+$title = 'Templates de Cobrança';
+require __DIR__ . '/../layout/main.php';
+?>
