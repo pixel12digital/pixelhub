@@ -1355,6 +1355,15 @@ class CommunicationHubController extends Controller
                     return;
                 }
                 
+                // Evita envio duplicado ao mesmo canal (ex.: mesmo canal em targetChannels mais de uma vez)
+                $targetChannels = array_values(array_unique($targetChannels));
+                if (count($targetChannels) > 1) {
+                    error_log("[CommunicationHub::send] Canais após dedup: " . implode(', ', $targetChannels));
+                }
+                
+                // Evita envio duplicado ao mesmo canal (mesmo canal não deve receber a mensagem mais de uma vez)
+                $targetChannels = array_values(array_unique($targetChannels));
+                
                 error_log("[CommunicationHub::send] ✅ Canais alvo para envio: " . implode(', ', $targetChannels) . " (total: " . count($targetChannels) . ")");
 
                 // Normaliza telefone

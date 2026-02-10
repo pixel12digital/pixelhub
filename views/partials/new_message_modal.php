@@ -80,7 +80,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             </div>
             
             <div style="display: flex; gap: 10px;">
-                <button type="submit" style="flex: 1; padding: 12px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Enviar</button>
+                <button type="submit" id="new-message-submit-btn" style="flex: 1; padding: 12px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Enviar</button>
                 <button type="button" onclick="closeNewMessageModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Cancelar</button>
             </div>
         </form>
@@ -162,6 +162,12 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
     
     window.sendNewMessage = async function(e) {
         e.preventDefault();
+        var submitBtn = document.getElementById('new-message-submit-btn');
+        if (submitBtn && submitBtn.disabled) return;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Enviando...';
+        }
         var formData = new FormData(e.target);
         var data = Object.fromEntries(formData);
         if (data.channel === 'whatsapp') {
@@ -169,6 +175,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             if (sessionSelect && sessionSelect.options.length > 2 && !data.channel_id) {
                 alert('Por favor, selecione a sessão do WhatsApp para enviar a mensagem.');
                 sessionSelect.focus();
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Enviar'; }
                 return;
             }
         }
@@ -186,6 +193,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 throw new Error('Resposta inválida do servidor (HTTP ' + response.status + '). Verifique os logs do servidor.');
             }
             if (result.success) {
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Enviar'; }
                 alert('Mensagem enviada com sucesso!');
                 closeNewMessageModal();
                 // Este modal só existe fora do /communication-hub (board, projetos, etc.)
@@ -195,6 +203,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                     setTimeout(function() { loadInboxConversation(result.thread_id, 'whatsapp'); }, 400);
                 }
             } else {
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Enviar'; }
                 var errMsg = result.error || 'Erro ao enviar mensagem';
                 if (result.error_code) errMsg += ' (' + result.error_code + ')';
                 if (result.request_id) errMsg += ' [ID: ' + result.request_id + ']';
@@ -208,6 +217,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 alert('Erro: ' + errMsg);
             }
         } catch (err) {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Enviar'; }
             alert('Erro ao enviar mensagem: ' + err.message);
         }
     };
