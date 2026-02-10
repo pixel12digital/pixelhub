@@ -1104,19 +1104,27 @@ class BillingCollectionsController extends Controller
         $stage = $stageInfo['stage'];
 
         // Monta a mensagem
-        if ($channel === 'whatsapp') {
-            $message = \PixelHub\Services\WhatsAppBillingService::buildMessageForInvoice($tenant, $invoice, $stage);
-        } else {
-            // Para email, usa uma versão mais simples
-            $message = $this->buildEmailMessage($tenant, $invoice, $stage);
-        }
+        try {
+            if ($channel === 'whatsapp') {
+                $message = \PixelHub\Services\WhatsAppBillingService::buildMessageForInvoice($tenant, $invoice, $stage);
+            } else {
+                // Para email, usa uma versão mais simples
+                $message = $this->buildEmailMessage($tenant, $invoice, $stage);
+            }
 
-        $this->json([
-            'success' => true,
-            'message' => $message,
-            'stage' => $stage,
-            'stage_label' => $stageInfo['label']
-        ]);
+            $this->json([
+                'success' => true,
+                'message' => $message,
+                'stage' => $stage,
+                'stage_label' => $stageInfo['label']
+            ]);
+        } catch (\Exception $e) {
+            error_log("Erro ao montar mensagem de preview: " . $e->getMessage());
+            $this->json([
+                'success' => false,
+                'error' => 'Erro ao montar mensagem: ' . $e->getMessage()
+            ]);
+        }
     }
 
     /**
