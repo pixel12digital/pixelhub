@@ -3724,7 +3724,8 @@ function showManualSendModal(invoiceId, channel) {
     .then(data => {
         console.log('[PREVIEW] Data recebida:', data);
         if (data.success) {
-            content.innerHTML = `
+            try {
+                content.innerHTML = `
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: 500;">Canal:</label>
                     <div style="padding: 8px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; display: flex; align-items: center; gap: 8px;">
@@ -3785,6 +3786,11 @@ function showManualSendModal(invoiceId, channel) {
             confirmBtn.onclick = function() {
                 sendManual(invoiceId, channel);
             };
+            
+            } catch (error) {
+                console.error('[PREVIEW] Erro ao atualizar modal:', error);
+                content.innerHTML = '<div style="padding: 20px; color: #dc3545;">Erro ao montar preview: ' + error.message + '</div>';
+            }
             
         } else {
             content.innerHTML = `
