@@ -93,15 +93,9 @@ class SmtpSettingsController extends Controller
 
         error_log("SMTP_DEBUG: Iniciando try block");
         try {
-            // Criptografa senha se fornecida
-            $encryptedPassword = '';
-            if (!empty($smtpPassword)) {
-                $encryptedPassword = Security::encrypt($smtpPassword);
-            } else {
-                // Mantém senha atual se não foi alterada
-                $current = $db->query("SELECT smtp_password FROM smtp_settings LIMIT 1")->fetch();
-                $encryptedPassword = $current['smtp_password'] ?? '';
-            }
+            // TEMP: Desabilitar criptografia para debug
+            error_log("SMTP_DEBUG: Antes de criptografar senha");
+            $encryptedPassword = $smtpPassword; // Sem criptografia temporariamente
 
             // Atualiza configurações
             $stmt = $db->prepare("
