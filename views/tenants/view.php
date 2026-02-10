@@ -3669,7 +3669,7 @@ document.addEventListener('click', function(event) {
     <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 500px;">
         <h3 style="margin: 0 0 20px 0; color: #333;">Enviar Cobrança Manualmente</h3>
         
-        <div id="modalContent">
+        <div id="manualSendContent">
             <p>Carregando...</p>
         </div>
         
@@ -3703,7 +3703,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function showManualSendModal(invoiceId, channel) {
     const modal = document.getElementById('manualSendModal');
-    const content = document.getElementById('modalContent');
+    const content = document.getElementById('manualSendContent');
     
     // Mostra loading inicial
     content.innerHTML = `

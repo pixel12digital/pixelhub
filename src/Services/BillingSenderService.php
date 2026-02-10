@@ -323,19 +323,12 @@ class BillingSenderService
         </body>
         </html>';
 
-        // ─── Envia via SmtpService ─────────────────────────────────
+        // ─── Envia via SmtpService (instância, retorna bool) ──────────
         try {
-            $smtpResult = \PixelHub\Services\SmtpService::send([
-                'to' => $email,
-                'subject' => $subject,
-                'html' => $fullHtml,
-                'text' => $messageBody, // Versão texto plano
-                'from_name' => 'Pixel12 Digital',
-                'from_email' => 'cobranca@pixel12digital.com.br',
-                'reply_to' => 'suporte@pixel12digital.com.br'
-            ]);
+            $smtp = new \PixelHub\Services\SmtpService();
+            $sent = $smtp->send($email, $subject, $fullHtml, true);
 
-            if ($smtpResult['success']) {
+            if ($sent) {
                 // Registra notificação bem-sucedida
                 $notificationId = self::recordSuccessNotification(
                     $db,
@@ -344,22 +337,20 @@ class BillingSenderService
                     'email_smtp',
                     $triggeredBy,
                     $dispatchRuleId,
-                    $smtpResult['message_id'] ?? null,
+                    null,
                     $messageBody
                 );
                 
                 $result['success'] = true;
                 $result['notification_ids'][] = $notificationId;
-                $result['gateway_message_id'] = $smtpResult['message_id'] ?? null;
                 
                 self::logDispatch('EMAIL_SENT', 'E-mail enviado com sucesso', [
                     'tenant_id' => $tenantId,
                     'invoice_id' => $invoice['id'],
-                    'email' => $email,
-                    'message_id' => $smtpResult['message_id'] ?? null
+                    'email' => $email
                 ]);
             } else {
-                $result['error'] = $smtpResult['error'] ?? 'Erro desconhecido no envio de e-mail';
+                $result['error'] = 'Falha no envio de e-mail via SMTP';
                 self::logDispatch('EMAIL_FAIL', $result['error'], [
                     'tenant_id' => $tenantId,
                     'invoice_id' => $invoice['id'],
