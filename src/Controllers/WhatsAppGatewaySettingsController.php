@@ -614,7 +614,19 @@ class WhatsAppGatewaySettingsController extends Controller
             return;
         }
 
-        $channels = $result['raw']['channels'] ?? $result['channels'] ?? [];
+        // Se o gateway retornou erro (401, 500, etc.), repassa ao frontend em vez de lista vazia
+        if (empty($result['success'])) {
+            $errMsg = $result['error'] ?? 'Gateway retornou erro. Verifique conexão e secret.';
+            $this->json([
+                'success' => false,
+                'error' => $errMsg,
+                'sessions' => []
+            ], 400);
+            return;
+        }
+
+        $raw = $result['raw'] ?? [];
+        $channels = $raw['channels'] ?? $raw['data']['channels'] ?? $result['channels'] ?? [];
         if (!is_array($channels)) {
             $channels = [];
         }
