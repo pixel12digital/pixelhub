@@ -86,7 +86,7 @@ class SmtpService
         $mail->Host = $this->settings['smtp_host'];
         $mail->Port = (int) $this->settings['smtp_port'];
         $mail->Username = $this->settings['smtp_username'];
-        $mail->Password = Security::decrypt($this->settings['smtp_password']);
+        $mail->Password = $this->settings['smtp_password'];
         
         // Criptografia
         switch ($this->settings['smtp_encryption']) {
