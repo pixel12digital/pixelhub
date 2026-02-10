@@ -426,11 +426,11 @@ class BillingSenderService
     {
         $stmt = $db->prepare("
             INSERT INTO billing_notifications (
-                tenant_id, invoice_id, channel, trigger_source, dispatch_rule_id,
-                status, sent_at, message_id, message_body
-            ) VALUES (?, ?, ?, ?, ?, 'sent', NOW(), ?, ?)
+                tenant_id, invoice_id, channel, template,
+                status, sent_at, message
+            ) VALUES (?, ?, ?, 'manual', 'sent', NOW(), ?)
         ");
-        $stmt->execute([$tenantId, $invoiceId, $channel, $triggeredBy, $dispatchRuleId, $messageId, $messageBody]);
+        $stmt->execute([$tenantId, $invoiceId, $channel, $messageBody]);
         return (int) $db->lastInsertId();
     }
 
@@ -438,11 +438,11 @@ class BillingSenderService
     {
         $stmt = $db->prepare("
             INSERT INTO billing_notifications (
-                tenant_id, invoice_id, channel, trigger_source, dispatch_rule_id,
-                status, sent_at, error_message
-            ) VALUES (?, ?, ?, ?, ?, 'failed', NOW(), ?)
+                tenant_id, invoice_id, channel, template,
+                status, sent_at, last_error
+            ) VALUES (?, ?, ?, 'manual', 'failed', NOW(), ?)
         ");
-        $stmt->execute([$tenantId, $invoiceId, $channel, $triggeredBy, $dispatchRuleId, $errorMessage]);
+        $stmt->execute([$tenantId, $invoiceId, $channel, $errorMessage]);
     }
 
     /**

@@ -1007,21 +1007,25 @@ class BillingCollectionsController extends Controller
             ]);
 
             // Registra no billing_dispatch_log
-            $db->prepare("
-                INSERT INTO billing_dispatch_log (
-                    tenant_id, invoice_id, channel, template_key, sent_at,
-                    trigger_source, triggered_by_user_id, is_forced, force_reason, message_id
-                ) VALUES (?, ?, ?, ?, NOW(), 'manual', ?, ?, ?, ?)
-            ")->execute([
-                $invoice['tenant_id'],
-                $invoiceId,
-                $channel,
-                'manual',
-                $user['id'],
-                $isForced ? 1 : 0,
-                $forceReason,
-                $result['gateway_message_id'] ?? null
-            ]);
+            try {
+                $db->prepare("
+                    INSERT INTO billing_dispatch_log (
+                        tenant_id, invoice_id, channel, template_key, sent_at,
+                        trigger_source, triggered_by_user_id, is_forced, force_reason, message_id
+                    ) VALUES (?, ?, ?, ?, NOW(), 'manual', ?, ?, ?, ?)
+                ")->execute([
+                    $invoice['tenant_id'],
+                    $invoiceId,
+                    $channel,
+                    'manual',
+                    $user['id'],
+                    $isForced ? 1 : 0,
+                    $forceReason,
+                    $result['gateway_message_id'] ?? null
+                ]);
+            } catch (\Exception $logEx) {
+                error_log('[MANUAL_SEND] Erro ao registrar log: ' . $logEx->getMessage());
+            }
 
             if ($result['success']) {
                 $this->json([
