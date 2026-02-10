@@ -581,8 +581,9 @@ class WhatsAppGatewaySettingsController extends Controller
 
     /**
      * Retorna cliente do gateway configurado
+     * @param int|null $timeout Timeout em segundos (null = padrão 30). Use 60+ para listar sessões (gateway pode consultar WPPConnect por canal).
      */
-    private function getGatewayClient(): WhatsAppGatewayClient
+    private function getGatewayClient(?int $timeout = null): WhatsAppGatewayClient
     {
         $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br:8443');
         $baseUrl = rtrim($baseUrl, '/');
@@ -590,7 +591,7 @@ class WhatsAppGatewaySettingsController extends Controller
         if (empty($secret)) {
             throw new \RuntimeException('WPP_GATEWAY_SECRET não configurado');
         }
-        return new WhatsAppGatewayClient($baseUrl, $secret);
+        return new WhatsAppGatewayClient($baseUrl, $secret, $timeout ?? 30);
     }
 
     /**
@@ -603,7 +604,8 @@ class WhatsAppGatewaySettingsController extends Controller
         header('Content-Type: application/json; charset=utf-8');
 
         try {
-            $gateway = $this->getGatewayClient();
+            // Listagem pode demorar: gateway consulta status de cada sessão no WPPConnect
+            $gateway = $this->getGatewayClient(60);
             $result = $gateway->listChannels();
         } catch (\Throwable $e) {
             $this->json([
