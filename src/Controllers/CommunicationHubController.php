@@ -4100,16 +4100,8 @@ class CommunicationHubController extends Controller
                                 $channelId = trim((string) $payload['data']['channel']);
                                 error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2.9: channel encontrado (payload.data.channel): {$channelId}");
                             } elseif ($metadata && isset($metadata['channel_id'])) {
-                                // ÚLTIMA opção - pode estar errado (ex: ImobSites)
                                 $channelId = trim((string) $metadata['channel_id']);
-                                // VALIDAÇÃO: Rejeita valores conhecidos como incorretos
-                                $channelIdLower = strtolower($channelId);
-                                if ($channelIdLower === 'imobsites') {
-                                    error_log("[CommunicationHub::getWhatsAppThreadInfo] AVISO: metadata.channel_id='ImobSites' rejeitado (valor incorreto). Tentando buscar de outra mensagem...");
-                                    $channelId = null; // Rejeita valor incorreto
-                                } else {
-                                    error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2.10: channel_id encontrado (metadata.channel_id): {$channelId}");
-                                }
+                                error_log("[CommunicationHub::getWhatsAppThreadInfo] PRIORIDADE 2.10: channel_id encontrado (metadata.channel_id): {$channelId}");
                             }
                         }
                         
@@ -4156,10 +4148,6 @@ class CommunicationHubController extends Controller
                                     $channelId = trim((string) $payload2['data']['channel']);
                                 } elseif ($metadata2 && isset($metadata2['channel_id'])) {
                                     $channelId = trim((string) $metadata2['channel_id']);
-                                    // Validação: rejeita valores incorretos
-                                    if (strtolower($channelId) === 'imobsites') {
-                                        $channelId = null;
-                                    }
                                 }
                                 
                                 if ($channelId) {

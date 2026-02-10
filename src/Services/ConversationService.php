@@ -575,8 +575,15 @@ class ConversationService
         // Resolve channel_account_id usando o channel_id (sessionId) extraído
         // CORREÇÃO: Usa channel_id para buscar o canal correto no tenant_message_channels
         $channelAccountId = null;
-        if ($tenantId && $channelType === 'whatsapp') {
-            $channelAccountId = self::resolveChannelAccountId($tenantId, $channelType, $channelId);
+        if ($channelType === 'whatsapp') {
+            if ($tenantId) {
+                $channelAccountId = self::resolveChannelAccountId($tenantId, $channelType, $channelId);
+            }
+            // Quando tenant_id é null (ex: webhook não resolveu), tenta achar canal só pelo channel_id
+            // para que a conversa seja criada com o canal correto (ex: ImobSites)
+            if ($channelAccountId === null && !empty($channelId)) {
+                $channelAccountId = self::resolveChannelAccountIdByChannelOnly($channelId);
+            }
         }
 
         // =====================
@@ -767,41 +774,7 @@ class ConversationService
         }
         
         if ($channelId) {
-            // VALIDAÇÃO: Rejeita valores conhecidos como incorretos APENAS quando vêm de metadata
-            // Quando vêm de payload.sessionId/session.id (fontes prioritárias), confiamos no gateway
-            // ImobSites é sessão real quando existe no gateway; metadata.channel_id pode estar errado
-            $channelIdLower = strtolower(trim($channelId));
-            $knownIncorrectValues = ['imobsites'];
-            $fromMetadata = in_array($source, ['metadata.channel_id (separado)', 'payload.metadata.channel_id'], true);
-            
-            if (in_array($channelIdLower, $knownIncorrectValues) && $fromMetadata) {
-                error_log(sprintf(
-                    '[CONVERSATION UPSERT] extractChannelIdFromPayload: AVISO - channel_id=%s de metadata (pode estar incorreto). Tentando sessionId real...',
-                    $channelId
-                ));
-                
-                $realSessionId = $payload['sessionId'] 
-                    ?? $payload['session']['id'] 
-                    ?? $payload['session']['session']
-                    ?? $payload['data']['session']['id'] ?? null;
-                
-                if ($realSessionId && strtolower(trim($realSessionId)) !== $channelIdLower) {
-                    error_log(sprintf(
-                        '[CONVERSATION UPSERT] extractChannelIdFromPayload: CORRIGIDO - metadata.channel_id=%s substituído por sessionId real=%s',
-                        $channelId,
-                        $realSessionId
-                    ));
-                    $channelId = (string) $realSessionId;
-                    $source = 'payload.sessionId (corrigido)';
-                } else {
-                    error_log(sprintf(
-                        '[CONVERSATION UPSERT] extractChannelIdFromPayload: metadata.channel_id=%s incorreto, sessionId real não encontrado. Retornando NULL.',
-                        $channelId
-                    ));
-                    return null;
-                }
-            }
-            
+            // ImobSites é sessão válida no gateway; aceitar quando vindo de payload ou metadata.
             error_log(sprintf(
                 '[CONVERSATION UPSERT] extractChannelIdFromPayload: channel_id=%s | source=%s',
                 $channelId,
@@ -904,6 +877,41 @@ class ConversationService
             return $channelAccountId;
         } catch (\Exception $e) {
             error_log("[ConversationService] Erro ao resolver channel_account_id: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Resolve channel_account_id apenas pelo channel_id (sessionId), sem tenant.
+     * Usado quando o webhook não conseguiu resolver tenant_id (ex: canal ImobSites).
+     *
+     * @param string $channelId SessionId do gateway (ex: ImobSites, pixel12digital)
+     * @return int|null ID do canal em tenant_message_channels ou null
+     */
+    private static function resolveChannelAccountIdByChannelOnly(string $channelId): ?int
+    {
+        $db = DB::getConnection();
+        $normalized = strtolower(preg_replace('/\s+/', '', trim($channelId)));
+        if ($normalized === '') {
+            return null;
+        }
+        try {
+            $stmt = $db->prepare("
+                SELECT id FROM tenant_message_channels
+                WHERE provider = 'wpp_gateway'
+                AND is_enabled = 1
+                AND (LOWER(REPLACE(TRIM(channel_id), ' ', '')) = ? OR channel_id = ?)
+                LIMIT 1
+            ");
+            $stmt->execute([$normalized, $channelId]);
+            $row = $stmt->fetch();
+            if ($row) {
+                error_log('[CONVERSATION UPSERT] resolveChannelAccountIdByChannelOnly: canal encontrado id=' . $row['id'] . ' para channel_id=' . $channelId);
+                return (int) $row['id'];
+            }
+            return null;
+        } catch (\Exception $e) {
+            error_log("[ConversationService] Erro ao resolver canal por channel_id: " . $e->getMessage());
             return null;
         }
     }
@@ -1264,23 +1272,7 @@ class ConversationService
                 $currentChannelId = $currentChannelIdStmt->fetchColumn() ?: null;
                 
                 if ($channelId) {
-                    // VALIDAÇÃO CRÍTICA: Rejeita valores conhecidos como incorretos
-                    $channelIdLower = strtolower(trim($channelId));
-                    $knownIncorrectValues = ['imobsites']; // Valores que sabemos que são incorretos como sessionId
-                    
-                    if (in_array($channelIdLower, $knownIncorrectValues)) {
-                        error_log(sprintf(
-                            '[CONVERSATION UPSERT] updateConversationMetadata: REJEITADO channel_id incorreto=%s na conversation_id=%d | from=%s | mantendo channel_id atual=%s (não atualiza com valor incorreto)',
-                            $channelId,
-                            $conversationId,
-                            $channelInfo['contact_external_id'] ?? 'NULL',
-                            $currentChannelId ?: 'NULL'
-                        ));
-                        // NÃO atualiza com valor incorreto - mantém o atual ou deixa NULL
-                        // Isso evita que threads sejam "corrompidas" com valores errados
-                        return; // Sai sem atualizar
-                    }
-                    
+                    // ImobSites é sessão válida no gateway; não rejeitar por nome.
                     // Sempre atualiza, mesmo se já existir (garante que está correto)
                     // Isso cura threads "nascidas erradas"
                     $updateChannelIdStmt = $db->prepare("
