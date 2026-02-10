@@ -3,7 +3,8 @@
     "description": "Painel central da Pixel12 Digital",
     "type": "project",
     "require": {
-        "php": ">=8.0"
+        "php": ">=8.0",
+        "phpmailer/phpmailer": "^7.0"
     },
     "autoload": {
         "psr-4": {
@@ -11,4 +12,3 @@
         }
     }
 }
-

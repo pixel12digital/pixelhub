@@ -605,6 +605,11 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/settings/asaas', 'AsaasSettingsController@update');
     $router->post('/settings/asaas/test', 'AsaasSettingsController@testConnection');
     
+    // Configurações SMTP
+    $router->get('/settings/smtp', 'SmtpSettingsController@index');
+    $router->post('/settings/smtp', 'SmtpSettingsController@update');
+    $router->post('/settings/smtp/test', 'SmtpSettingsController@test');
+    
     // Configurações do WhatsApp Gateway
     $router->get('/settings/whatsapp-gateway', 'WhatsAppGatewaySettingsController@index');
     $router->post('/settings/whatsapp-gateway', 'WhatsAppGatewaySettingsController@update');
