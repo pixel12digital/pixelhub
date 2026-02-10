@@ -132,11 +132,11 @@ function filterTemplates() {
     const channel = document.getElementById('channelFilter').value;
     const search = document.getElementById('searchFilter').value;
     const params = new URLSearchParams({ channel: channel, search: search });
-    window.location.href = '<?= $baseUrl ?>/billing/templates?' + params.toString();
+    window.location.href = '/billing/templates?' + params.toString();
 }
 
 function viewTemplate(key) {
-    fetch('<?= $baseUrl ?>/billing/templates/view?key=' + encodeURIComponent(key))
+    fetch('/billing/templates/view?key=' + encodeURIComponent(key))
         .then(r => r.json())
         .then(data => {
             if (!data.success) { alert('Erro: ' + data.error); return; }
