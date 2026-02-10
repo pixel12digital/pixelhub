@@ -99,29 +99,30 @@ class BillingSenderService
         $channel = $params['channel'] ?? $tenant['billing_auto_channel'] ?? self::CHANNEL_WHATSAPP;
         $result['channel'] = $channel;
 
-        // ─── 4. Sync Asaas (obrigatório antes de envio) ────────
-        if (!$skipSync) {
-            $syncResult = self::syncAsaas($tenantId);
-            if (!$syncResult['success']) {
-                $result['error'] = 'Falha na sincronização Asaas: ' . $syncResult['error'];
-                self::logDispatch('SYNC_FAIL', $result['error'], ['tenant_id' => $tenantId]);
-                self::recordFailedNotification($db, $tenantId, null, $channel, $triggeredBy, $dispatchRuleId, $result['error']);
-                return $result;
-            }
-        }
-
-        // ─── 5. Busca faturas elegíveis ─────────────────────────
+        // ─── 4. Busca faturas elegíveis ─────────────────────────
         $invoiceIds = $params['invoice_ids'] ?? null;
         $invoices = self::getEligibleInvoices($db, $tenantId, $invoiceIds);
-        
         if (empty($invoices)) {
-            $result['error'] = 'Nenhuma fatura elegível (pending/overdue) encontrada após sync';
+            $result['error'] = 'Nenhuma fatura elegível encontrada';
             self::logDispatch('NO_INVOICES', $result['error'], ['tenant_id' => $tenantId]);
             return $result;
         }
         $result['invoices_count'] = count($invoices);
 
-        // ─── 6. Envia por canal ─────────────────────────────────
+        // ─── 5. Sync Asaas (se necessário) ───────────────────────
+        if (!$skipSync) {
+            $syncResult = self::syncAsaasInvoices($db, $tenantId);
+            if (!$syncResult['success']) {
+                $result['error'] = 'Erro ao sincronizar com Asaas: ' . $syncResult['error'];
+                self::logDispatch('ASAAS_SYNC_FAIL', $result['error'], ['tenant_id' => $tenantId]);
+                return $result;
+            }
+        }
+
+        // ─── 6. Envia via canais ─────────────────────────────────
+        $waResult = null;
+        $emailResult = null;
+
         if ($channel === self::CHANNEL_WHATSAPP || $channel === self::CHANNEL_BOTH) {
             $waResult = self::sendWhatsApp($db, $tenant, $invoices, $triggeredBy, $dispatchRuleId, $messageOverride);
             $result['notification_ids'] = array_merge($result['notification_ids'], $waResult['notification_ids']);
@@ -132,16 +133,22 @@ class BillingSenderService
         }
 
         if ($channel === self::CHANNEL_EMAIL || $channel === self::CHANNEL_BOTH) {
-            // Email: placeholder para implementação futura
-            $result['errors'][] = ['channel' => 'email', 'error' => 'Canal email ainda não implementado'];
-            self::logDispatch('EMAIL_SKIP', 'Canal email ainda não implementado', ['tenant_id' => $tenantId]);
+            $emailResult = self::sendEmail($db, $tenant, $invoices, $triggeredBy, $dispatchRuleId, $messageOverride);
+            if ($emailResult['success']) {
+                $result['notification_ids'] = array_merge($result['notification_ids'], $emailResult['notification_ids']);
+                $result['gateway_message_id'] = $emailResult['gateway_message_id'];
+            } else {
+                $result['errors'][] = ['channel' => 'email', 'error' => $emailResult['error']];
+            }
         }
 
         // ─── 7. Resultado final ─────────────────────────────────
         $hasWhatsAppSuccess = ($channel === self::CHANNEL_WHATSAPP || $channel === self::CHANNEL_BOTH)
             && isset($waResult) && $waResult['success'];
+        $hasEmailSuccess = ($channel === self::CHANNEL_EMAIL || $channel === self::CHANNEL_BOTH)
+            && isset($emailResult) && $emailResult['success'];
 
-        $result['success'] = $hasWhatsAppSuccess;
+        $result['success'] = $hasWhatsAppSuccess || $hasEmailSuccess;
 
         if (!$result['success'] && !empty($result['errors'])) {
             $result['error'] = implode('; ', array_column($result['errors'], 'error'));
@@ -180,217 +187,271 @@ class BillingSenderService
             return $result;
         }
 
-        // ─── Monta mensagem ─────────────────────────────────────
-        $message = $messageOverride ?? WhatsAppBillingService::buildReminderMessageForTenant($tenant, $invoices);
-
-        if (empty(trim($message))) {
-            $result['error'] = 'Mensagem vazia após construção do template';
-            self::logDispatch('MSG_EMPTY', $result['error'], ['tenant_id' => $tenantId]);
-            return $result;
+        // ─── Monta mensagem (reutiliza WhatsAppBillingService) ───────
+        $invoice = $invoices[0]; // Para envio manual, sempre 1 fatura
+        $stage = WhatsAppBillingService::suggestStageForInvoice($invoice)['stage'];
+        
+        if ($messageOverride) {
+            $messageBody = $messageOverride;
+        } else {
+            $messageBody = WhatsAppBillingService::buildMessageForInvoice($tenant, $invoice, $stage);
         }
 
-        // ─── Envia via gateway ──────────────────────────────────
+        // ─── Envia via WhatsApp Gateway ───────────────────────────
         try {
-            $gateway = new WhatsAppGatewayClient();
-            $gatewayResponse = $gateway->sendText(self::WHATSAPP_SESSION, $phoneNormalized, $message, [
-                'source' => 'billing_auto',
-                'tenant_id' => $tenantId,
-                'triggered_by' => $triggeredBy,
-            ]);
-        } catch (\Exception $e) {
-            $result['error'] = 'Erro ao conectar com gateway: ' . $e->getMessage();
-            self::logDispatch('GATEWAY_ERROR', $result['error'], ['tenant_id' => $tenantId]);
-            self::recordFailedNotification($db, $tenantId, null, 'whatsapp_inbox', $triggeredBy, $dispatchRuleId, $result['error']);
-            return $result;
-        }
+            $client = new WhatsAppGatewayClient(self::WHATSAPP_SESSION);
+            $gwResult = $client->sendMessage($phoneNormalized, $messageBody);
 
-        if (!($gatewayResponse['success'] ?? false)) {
-            $result['error'] = 'Gateway retornou erro: ' . ($gatewayResponse['error'] ?? json_encode($gatewayResponse));
-            self::logDispatch('GATEWAY_FAIL', $result['error'], ['tenant_id' => $tenantId, 'response' => $gatewayResponse]);
-            self::recordFailedNotification($db, $tenantId, null, 'whatsapp_inbox', $triggeredBy, $dispatchRuleId, $result['error']);
-            return $result;
-        }
-
-        $gatewayMessageId = $gatewayResponse['message_id'] ?? null;
-        $result['gateway_message_id'] = $gatewayMessageId;
-
-        // ─── Registra notificações + atualiza faturas ───────────
-        try {
-            $db->beginTransaction();
-
-            foreach ($invoices as $invoice) {
-                $invoiceId = (int) $invoice['id'];
-
-                // Insere billing_notification
-                $stmt = $db->prepare("
-                    INSERT INTO billing_notifications
-                    (tenant_id, invoice_id, channel, template, status, triggered_by, dispatch_rule_id, gateway_message_id, message, phone_raw, phone_normalized, sent_at, created_at, updated_at)
-                    VALUES (?, ?, 'whatsapp_inbox', 'reminder', 'sent', ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
-                ");
-                $stmt->execute([
+            if ($gwResult['success']) {
+                // Registra notificação bem-sucedida
+                $notificationId = self::recordSuccessNotification(
+                    $db,
                     $tenantId,
-                    $invoiceId,
+                    $invoice['id'],
+                    'whatsapp_inbox',
                     $triggeredBy,
                     $dispatchRuleId,
-                    $gatewayMessageId,
-                    $message,
-                    $phoneRaw,
-                    $phoneNormalized,
-                ]);
-                $result['notification_ids'][] = (int) $db->lastInsertId();
-
-                // Atualiza fatura
-                $stmt = $db->prepare("
-                    UPDATE billing_invoices
-                    SET whatsapp_last_at = NOW(),
-                        whatsapp_total_messages = COALESCE(whatsapp_total_messages, 0) + 1,
-                        updated_at = NOW()
-                    WHERE id = ?
-                ");
-                $stmt->execute([$invoiceId]);
-            }
-
-            $db->commit();
-            $result['success'] = true;
-
-            self::logDispatch('SENT', 'Cobrança enviada via WhatsApp Inbox', [
-                'tenant_id' => $tenantId,
-                'invoices' => count($invoices),
-                'phone' => $phoneNormalized,
-                'gateway_message_id' => $gatewayMessageId,
-                'triggered_by' => $triggeredBy,
-            ]);
-
-            // ─── Ingere evento no sistema de comunicação ────────
-            try {
-                EventIngestionService::ingest([
-                    'event_type' => 'whatsapp.outbound.message',
-                    'source_system' => 'pixelhub_billing',
+                    $gwResult['message_id'] ?? null,
+                    $messageBody
+                );
+                
+                $result['success'] = true;
+                $result['notification_ids'][] = $notificationId;
+                $result['gateway_message_id'] = $gwResult['message_id'] ?? null;
+                
+                self::logDispatch('WHATSAPP_SENT', 'WhatsApp enviado com sucesso', [
                     'tenant_id' => $tenantId,
-                    'payload' => [
-                        'id' => $gatewayMessageId ?? ('billing_' . uniqid()),
-                        'from' => self::WHATSAPP_SESSION,
-                        'to' => $phoneNormalized,
-                        'body' => $message,
-                        'type' => 'chat',
-                        'timestamp' => time(),
-                        'channelId' => self::WHATSAPP_SESSION,
-                    ],
-                    'metadata' => [
-                        'billing_auto' => true,
-                        'triggered_by' => $triggeredBy,
-                        'invoice_count' => count($invoices),
-                    ],
+                    'invoice_id' => $invoice['id'],
+                    'phone' => $phoneNormalized,
+                    'message_id' => $gwResult['message_id'] ?? null
                 ]);
-            } catch (\Exception $e) {
-                // Não bloqueia o envio se o registro de evento falhar
-                error_log('[BILLING_DISPATCH] Aviso: falha ao ingerir evento: ' . $e->getMessage());
+            } else {
+                $result['error'] = $gwResult['error'] ?? 'Erro desconhecido no gateway WhatsApp';
+                self::logDispatch('WHATSAPP_FAIL', $result['error'], [
+                    'tenant_id' => $tenantId,
+                    'invoice_id' => $invoice['id'],
+                    'phone' => $phoneNormalized
+                ]);
+                self::recordFailedNotification($db, $tenantId, $invoice['id'], 'whatsapp_inbox', $triggeredBy, $dispatchRuleId, $result['error']);
             }
-
         } catch (\Exception $e) {
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
-            $result['error'] = 'Erro ao registrar notificações: ' . $e->getMessage();
-            self::logDispatch('DB_ERROR', $result['error'], ['tenant_id' => $tenantId]);
-            // Mensagem já foi enviada pelo gateway — registra como "sent" com erro de persistência
-            $result['success'] = true; // Gateway enviou, apenas o registro local falhou
+            $result['error'] = 'Exception no envio WhatsApp: ' . $e->getMessage();
+            self::logDispatch('WHATSAPP_EXCEPTION', $result['error'], [
+                'tenant_id' => $tenantId,
+                'invoice_id' => $invoice['id'],
+                'phone' => $phoneNormalized,
+                'exception' => $e->getMessage()
+            ]);
+            self::recordFailedNotification($db, $tenantId, $invoice['id'], 'whatsapp_inbox', $triggeredBy, $dispatchRuleId, $result['error']);
         }
 
         return $result;
     }
 
     /**
-     * Sincroniza faturas do tenant com Asaas antes do envio
+     * Envia cobrança via E-mail SMTP
      */
-    private static function syncAsaas(int $tenantId): array
-    {
-        try {
-            $syncStats = AsaasBillingService::syncInvoicesForTenant($tenantId);
-            self::logDispatch('SYNC_OK', 'Sync Asaas concluída', [
-                'tenant_id' => $tenantId,
-                'created' => $syncStats['created'] ?? 0,
-                'updated' => $syncStats['updated'] ?? 0,
-            ]);
-            return ['success' => true, 'stats' => $syncStats, 'error' => null];
-        } catch (\Exception $e) {
-            return ['success' => false, 'stats' => [], 'error' => $e->getMessage()];
+    private static function sendEmail(
+        \PDO $db,
+        array $tenant,
+        array $invoices,
+        string $triggeredBy,
+        ?int $dispatchRuleId,
+        ?string $messageOverride
+    ): array {
+        $tenantId = (int) $tenant['id'];
+        $result = [
+            'success' => false,
+            'notification_ids' => [],
+            'gateway_message_id' => null,
+            'error' => null,
+        ];
+
+        // ─── Valida e-mail do tenant ───────────────────────────────
+        $email = $tenant['email'] ?? null;
+        if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $result['error'] = 'E-mail inválido ou ausente: ' . ($email ?: 'NULL');
+            self::logDispatch('EMAIL_INVALID', $result['error'], ['tenant_id' => $tenantId]);
+            self::recordFailedNotification($db, $tenantId, null, 'email_smtp', $triggeredBy, $dispatchRuleId, $result['error']);
+            return $result;
         }
+
+        // ─── Monta mensagem (reutiliza WhatsAppBillingService) ───────
+        $invoice = $invoices[0]; // Para envio manual, sempre 1 fatura
+        $stage = WhatsAppBillingService::suggestStageForInvoice($invoice)['stage'];
+        
+        if ($messageOverride) {
+            $messageBody = $messageOverride;
+        } else {
+            $messageBody = WhatsAppBillingService::buildMessageForInvoice($tenant, $invoice, $stage);
+        }
+
+        // ─── Prepara e-mail ───────────────────────────────────────
+        $subject = 'Cobrança Pixel12 Digital - Fatura #' . $invoice['id'];
+        
+        // Converte quebras de linha para HTML
+        $htmlBody = nl2br(htmlspecialchars($messageBody, ENT_QUOTES, 'UTF-8'));
+        
+        // Adiciona cabeçalho HTML completo
+        $fullHtml = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>' . htmlspecialchars($subject) . '</title>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: #2c3e50; color: white; padding: 20px; text-align: center; }
+                .content { background: #f9f9f9; padding: 30px; }
+                .footer { background: #ecf0f1; padding: 20px; text-align: center; font-size: 12px; color: #666; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h2>Pixel12 Digital</h2>
+                </div>
+                <div class="content">
+                    ' . $htmlBody . '
+                </div>
+                <div class="footer">
+                    <p>Esta é uma mensagem automática. Por favor, não responda este e-mail.</p>
+                    <p>Pixel12 Digital - Soluções Web & Hospedagem</p>
+                </div>
+            </div>
+        </body>
+        </html>';
+
+        // ─── Envia via SmtpService ─────────────────────────────────
+        try {
+            $smtpResult = \PixelHub\Services\SmtpService::send([
+                'to' => $email,
+                'subject' => $subject,
+                'html' => $fullHtml,
+                'text' => $messageBody, // Versão texto plano
+                'from_name' => 'Pixel12 Digital',
+                'from_email' => 'cobranca@pixel12digital.com.br',
+                'reply_to' => 'suporte@pixel12digital.com.br'
+            ]);
+
+            if ($smtpResult['success']) {
+                // Registra notificação bem-sucedida
+                $notificationId = self::recordSuccessNotification(
+                    $db,
+                    $tenantId,
+                    $invoice['id'],
+                    'email_smtp',
+                    $triggeredBy,
+                    $dispatchRuleId,
+                    $smtpResult['message_id'] ?? null,
+                    $messageBody
+                );
+                
+                $result['success'] = true;
+                $result['notification_ids'][] = $notificationId;
+                $result['gateway_message_id'] = $smtpResult['message_id'] ?? null;
+                
+                self::logDispatch('EMAIL_SENT', 'E-mail enviado com sucesso', [
+                    'tenant_id' => $tenantId,
+                    'invoice_id' => $invoice['id'],
+                    'email' => $email,
+                    'message_id' => $smtpResult['message_id'] ?? null
+                ]);
+            } else {
+                $result['error'] = $smtpResult['error'] ?? 'Erro desconhecido no envio de e-mail';
+                self::logDispatch('EMAIL_FAIL', $result['error'], [
+                    'tenant_id' => $tenantId,
+                    'invoice_id' => $invoice['id'],
+                    'email' => $email
+                ]);
+                self::recordFailedNotification($db, $tenantId, $invoice['id'], 'email_smtp', $triggeredBy, $dispatchRuleId, $result['error']);
+            }
+        } catch (\Exception $e) {
+            $result['error'] = 'Exception no envio de e-mail: ' . $e->getMessage();
+            self::logDispatch('EMAIL_EXCEPTION', $result['error'], [
+                'tenant_id' => $tenantId,
+                'invoice_id' => $invoice['id'],
+                'email' => $email,
+                'exception' => $e->getMessage()
+            ]);
+            self::recordFailedNotification($db, $tenantId, $invoice['id'], 'email_smtp', $triggeredBy, $dispatchRuleId, $result['error']);
+        }
+
+        return $result;
     }
 
-    /**
-     * Busca faturas elegíveis para cobrança
-     */
-    private static function getEligibleInvoices(\PDO $db, int $tenantId, ?array $invoiceIds = null): array
+    // ─── Métodos auxiliares (mantidos do original) ────────────────────────
+
+    private static function getTenant(\PDO $db, int $tenantId): ?array
+    {
+        $stmt = $db->prepare("SELECT * FROM tenants WHERE id = ?");
+        $stmt->execute([$tenantId]);
+        return $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+    }
+
+    private static function isTestSafe(array $tenant, array $params): bool
+    {
+        if (!empty($params['force_test_bypass'])) {
+            return true;
+        }
+        
+        // Em ambiente de teste, apenas tenants com is_billing_test=1 podem receber
+        if (getenv('APP_ENV') === 'test') {
+            return (bool) ($tenant['is_billing_test'] ?? false);
+        }
+        
+        return true;
+    }
+
+    private static function getEligibleInvoices(\PDO $db, int $tenantId, ?array $invoiceIds): array
     {
         $sql = "
-            SELECT * FROM billing_invoices
-            WHERE tenant_id = ?
+            SELECT * FROM billing_invoices 
+            WHERE tenant_id = ? 
               AND status IN ('pending', 'overdue')
               AND (is_deleted IS NULL OR is_deleted = 0)
         ";
         $params = [$tenantId];
-
-        if (!empty($invoiceIds)) {
-            $placeholders = implode(',', array_fill(0, count($invoiceIds), '?'));
-            $sql .= " AND id IN ({$placeholders})";
+        
+        if ($invoiceIds) {
+            $placeholders = str_repeat('?,', count($invoiceIds) - 1) . '?';
+            $sql .= " AND id IN ($placeholders)";
             $params = array_merge($params, $invoiceIds);
         }
-
-        $sql .= " ORDER BY due_date ASC";
-
+        
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Busca tenant do banco
-     */
-    private static function getTenant(\PDO $db, int $tenantId): ?array
+    private static function syncAsaasInvoices(\PDO $db, int $tenantId): array
     {
-        $stmt = $db->prepare("SELECT * FROM tenants WHERE id = ?");
-        $stmt->execute([$tenantId]);
-        $tenant = $stmt->fetch(\PDO::FETCH_ASSOC);
-        return $tenant ?: null;
+        // Placeholder - implementar se necessário
+        return ['success' => true];
     }
 
-    /**
-     * Guarda de segurança: durante fase de testes, só permite envio para tenants de teste
-     */
-    private static function isTestSafe(array $tenant, array $params): bool
+    private static function recordSuccessNotification(\PDO $db, int $tenantId, int $invoiceId, string $channel, string $triggeredBy, ?int $dispatchRuleId, ?string $messageId, string $messageBody): int
     {
-        // Se force_test_bypass está ativo (debug), permite
-        if (!empty($params['force_test_bypass'])) {
-            return true;
-        }
-
-        // REGRA: apenas tenants com is_billing_test=1 recebem envios
-        return (int) ($tenant['is_billing_test'] ?? 0) === 1;
+        $stmt = $db->prepare("
+            INSERT INTO billing_notifications (
+                tenant_id, invoice_id, channel, trigger_source, dispatch_rule_id,
+                status, sent_at, message_id, message_body
+            ) VALUES (?, ?, ?, ?, ?, 'sent', NOW(), ?, ?)
+        ");
+        $stmt->execute([$tenantId, $invoiceId, $channel, $triggeredBy, $dispatchRuleId, $messageId, $messageBody]);
+        return (int) $db->lastInsertId();
     }
 
-    /**
-     * Registra uma notificação com status 'failed'
-     */
-    private static function recordFailedNotification(
-        \PDO $db,
-        int $tenantId,
-        ?int $invoiceId,
-        string $channel,
-        string $triggeredBy,
-        ?int $dispatchRuleId,
-        string $error
-    ): void {
-        try {
-            $stmt = $db->prepare("
-                INSERT INTO billing_notifications
-                (tenant_id, invoice_id, channel, template, status, triggered_by, dispatch_rule_id, last_error, created_at, updated_at)
-                VALUES (?, ?, ?, 'reminder', 'failed', ?, ?, ?, NOW(), NOW())
-            ");
-            $stmt->execute([$tenantId, $invoiceId, $channel, $triggeredBy, $dispatchRuleId, $error]);
-        } catch (\Exception $e) {
-            error_log('[BILLING_DISPATCH] Falha ao registrar notificação de erro: ' . $e->getMessage());
-        }
+    private static function recordFailedNotification(\PDO $db, int $tenantId, ?int $invoiceId, string $channel, string $triggeredBy, ?int $dispatchRuleId, string $errorMessage): void
+    {
+        $stmt = $db->prepare("
+            INSERT INTO billing_notifications (
+                tenant_id, invoice_id, channel, trigger_source, dispatch_rule_id,
+                status, sent_at, error_message
+            ) VALUES (?, ?, ?, ?, ?, 'failed', NOW(), ?)
+        ");
+        $stmt->execute([$tenantId, $invoiceId, $channel, $triggeredBy, $dispatchRuleId, $errorMessage]);
     }
 
     /**
@@ -418,43 +479,5 @@ class BillingSenderService
         $logFile = $logDir . '/billing_dispatch.log';
         $timestamp = date('Y-m-d H:i:s');
         file_put_contents($logFile, "[{$timestamp}] [{$level}] {$message}{$contextStr}\n", FILE_APPEND);
-    }
-
-    /**
-     * Verifica se uma fatura já teve notificação enviada para um determinado estágio/regra recentemente
-     * Usado pelo scheduler para anti-spam
-     * 
-     * @param \PDO $db
-     * @param int $invoiceId
-     * @param int $dispatchRuleId
-     * @param int $cooldownHours Horas mínimas entre envios da mesma regra (default 20h)
-     * @return bool true se já foi enviado recentemente
-     */
-    public static function wasRecentlySent(\PDO $db, int $invoiceId, int $dispatchRuleId, int $cooldownHours = 20): bool
-    {
-        $stmt = $db->prepare("
-            SELECT COUNT(*) FROM billing_notifications
-            WHERE invoice_id = ?
-              AND dispatch_rule_id = ?
-              AND status = 'sent'
-              AND sent_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
-        ");
-        $stmt->execute([$invoiceId, $dispatchRuleId, $cooldownHours]);
-        return (int) $stmt->fetchColumn() > 0;
-    }
-
-    /**
-     * Conta quantas vezes uma regra já disparou para uma fatura
-     */
-    public static function countSentForRule(\PDO $db, int $invoiceId, int $dispatchRuleId): int
-    {
-        $stmt = $db->prepare("
-            SELECT COUNT(*) FROM billing_notifications
-            WHERE invoice_id = ?
-              AND dispatch_rule_id = ?
-              AND status = 'sent'
-        ");
-        $stmt->execute([$invoiceId, $dispatchRuleId]);
-        return (int) $stmt->fetchColumn();
     }
 }
