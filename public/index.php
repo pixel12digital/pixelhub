@@ -499,6 +499,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/billing/failure-count', 'BillingCollectionsController@failureCount');
     $router->post('/billing/send-manual', 'BillingCollectionsController@sendManual');
     $router->get('/billing/get-last-dispatch', 'BillingCollectionsController@getLastDispatch');
+    $router->get('/billing/preview-message', 'BillingCollectionsController@previewMessage');
     
     // Rota de Carteira Recorrente
     $router->get('/recurring-contracts', 'RecurringContractsController@index');

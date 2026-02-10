@@ -3705,44 +3705,90 @@ function showManualSendModal(invoiceId, channel) {
     const modal = document.getElementById('manualSendModal');
     const content = document.getElementById('modalContent');
     
+    // Mostra loading inicial
     content.innerHTML = `
-        <div style="margin-bottom: 15px;">
-            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Canal:</label>
-            <div style="padding: 8px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
-                ${channel === 'whatsapp' ? '📱 WhatsApp' : '📧 E-mail'}
-            </div>
-        </div>
-        
-        <div style="margin-bottom: 15px;">
-            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Motivo do envio:</label>
-            <textarea id="reason" rows="3" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" placeholder="Ex: Cliente solicitou reenvio, não recebeu anteriormente, etc.">Envio manual solicitado</textarea>
-        </div>
-        
-        <div style="margin-bottom: 15px;">
-            <label style="display: flex; align-items: center; cursor: pointer;">
-                <input type="checkbox" id="isForced" style="margin-right: 8px;">
-                <span>Forçar envio (ignorar cooldown)</span>
-            </label>
-        </div>
-        
-        <div id="forceReasonDiv" style="margin-bottom: 15px; display: none;">
-            <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #dc3545;">Motivo do forçamento*:</label>
-            <textarea id="forceReason" rows="2" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" placeholder="Obrigatório justificar o motivo do envio forçado"></textarea>
+        <div style="text-align: center; padding: 40px;">
+            <div style="color: #666;">Carregando preview da mensagem...</div>
         </div>
     `;
     
-    // Evento do checkbox
-    document.getElementById('isForced').addEventListener('change', function() {
-        document.getElementById('forceReasonDiv').style.display = this.checked ? 'block' : 'none';
-    });
-    
-    // Configura botão de confirmação
-    const confirmBtn = document.getElementById('confirmSendBtn');
-    confirmBtn.onclick = function() {
-        sendManual(invoiceId, channel);
-    };
-    
     modal.style.display = 'block';
+    
+    // Carrega o preview da mensagem
+    fetch(`<?= pixelhub_url('/billing/preview-message') ?>?invoice_id=${invoiceId}&channel=${channel}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            content.innerHTML = `
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Canal:</label>
+                    <div style="padding: 8px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
+                        ${channel === 'whatsapp' ? '📱 WhatsApp' : '📧 E-mail'}
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Template:</label>
+                    <div style="padding: 8px; background: #e3f2fd; border: 1px solid #90caf9; border-radius: 4px; color: #1565c0;">
+                        ${data.stage_label}
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Preview da Mensagem:</label>
+                    <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; max-height: 300px; overflow-y: auto;">
+                        <div style="white-space: pre-wrap; font-family: ${channel === 'whatsapp' ? 'inherit' : 'monospace'}; font-size: ${channel === 'whatsapp' ? '14px' : '12px'}; line-height: 1.5; color: #333;">
+                            ${data.message}
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Motivo do envio:</label>
+                    <textarea id="reason" rows="3" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" placeholder="Ex: Cliente solicitou reenvio, não recebeu anteriormente, etc.">Envio manual solicitado</textarea>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="isForced" style="margin-right: 8px;">
+                        <span>Forçar envio (ignorar cooldown)</span>
+                    </label>
+                </div>
+                
+                <div id="forceReasonDiv" style="margin-bottom: 15px; display: none;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #dc3545;">Motivo do forçamento*:</label>
+                    <textarea id="forceReason" rows="2" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" placeholder="Obrigatório justificar o motivo do envio forçado"></textarea>
+                </div>
+            `;
+            
+            // Evento do checkbox
+            document.getElementById('isForced').addEventListener('change', function() {
+                document.getElementById('forceReasonDiv').style.display = this.checked ? 'block' : 'none';
+            });
+            
+            // Configura botão de confirmação
+            const confirmBtn = document.getElementById('confirmSendBtn');
+            confirmBtn.onclick = function() {
+                sendManual(invoiceId, channel);
+            };
+            
+        } else {
+            content.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #dc3545;">
+                    <div>Erro ao carregar preview: ${data.error}</div>
+                    <button type="button" onclick="closeManualSendModal()" style="margin-top: 15px; padding: 8px 16px; border: 1px solid #dc3545; background: #dc3545; color: white; border-radius: 4px; cursor: pointer;">Fechar</button>
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        content.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #dc3545;">
+                <div>Erro ao carregar preview: ${error.message}</div>
+                <button type="button" onclick="closeManualSendModal()" style="margin-top: 15px; padding: 8px 16px; border: 1px solid #dc3545; background: #dc3545; color: white; border-radius: 4px; cursor: pointer;">Fechar</button>
+            </div>
+        `;
+    });
 }
 
 function closeManualSendModal() {

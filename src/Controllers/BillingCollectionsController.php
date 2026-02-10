@@ -1058,6 +1058,97 @@ class BillingCollectionsController extends Controller
     }
 
     /**
+     * Preview da mensagem de cobrança
+     */
+    public function previewMessage(): void
+    {
+        Auth::requireInternal();
+        
+        $invoiceId = (int) ($_GET['invoice_id'] ?? 0);
+        $channel = $_GET['channel'] ?? 'whatsapp';
+
+        if (!$invoiceId) {
+            $this->json(['success' => false, 'error' => 'Fatura não informada']);
+            return;
+        }
+
+        $db = DB::getConnection();
+        
+        // Busca dados da fatura e tenant
+        $stmt = $db->prepare("
+            SELECT bi.*, t.name as tenant_name, t.nome_fantasia, t.person_type,
+                   t.billing_whatsapp, t.billing_email
+            FROM billing_invoices bi
+            JOIN tenants t ON bi.tenant_id = t.id
+            WHERE bi.id = ? AND (bi.is_deleted IS NULL OR bi.is_deleted = 0)
+        ");
+        $stmt->execute([$invoiceId]);
+        $invoice = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$invoice) {
+            $this->json(['success' => false, 'error' => 'Fatura não encontrada']);
+            return;
+        }
+
+        // Prepara dados do tenant
+        $tenant = [
+            'name' => $invoice['tenant_name'],
+            'nome_fantasia' => $invoice['nome_fantasia'],
+            'person_type' => $invoice['person_type'],
+            'billing_whatsapp' => $invoice['billing_whatsapp'],
+            'billing_email' => $invoice['billing_email']
+        ];
+
+        // Determina o estágio/template
+        $stageInfo = \PixelHub\Services\WhatsAppBillingService::suggestStageForInvoice($invoice);
+        $stage = $stageInfo['stage'];
+
+        // Monta a mensagem
+        if ($channel === 'whatsapp') {
+            $message = \PixelHub\Services\WhatsAppBillingService::buildMessageForInvoice($tenant, $invoice, $stage);
+        } else {
+            // Para email, usa uma versão mais simples
+            $message = $this->buildEmailMessage($tenant, $invoice, $stage);
+        }
+
+        $this->json([
+            'success' => true,
+            'message' => $message,
+            'stage' => $stage,
+            'stage_label' => $stageInfo['label']
+        ]);
+    }
+
+    /**
+     * Monta mensagem para email (versão simplificada)
+     */
+    private function buildEmailMessage(array $tenant, array $invoice, string $stage): string
+    {
+        $tenantName = $tenant['nome_fantasia'] ?? $tenant['name'];
+        $amount = number_format($invoice['amount'], 2, ',', '.');
+        $dueDate = (new \DateTime($invoice['due_date']))->format('d/m/Y');
+        
+        $subject = "Cobrança - Fatura #{$invoice['id']} - {$tenantName}";
+        
+        $message = "Olá {$tenantName},\n\n";
+        $message .= "Gostaríamos de lembrar sobre sua fatura:\n\n";
+        $message .= "Fatura: #{$invoice['id']}\n";
+        $message .= "Valor: R$ {$amount}\n";
+        $message .= "Vencimento: {$dueDate}\n";
+        $message .= "Status: " . ($invoice['status'] === 'paid' ? 'Paga' : 'Pendente') . "\n\n";
+        
+        if ($invoice['status'] !== 'paid') {
+            $message .= "Por favor, regularize o pagamento para evitar juros.\n\n";
+            $message .= "Para acessar a fatura: " . pixelhub_url("/billing/view_invoice?id={$invoice['id']}") . "\n\n";
+        }
+        
+        $message .= "Atenciosamente,\n";
+        $message .= "Equipe Pixel12 Digital";
+        
+        return $message;
+    }
+
+    /**
      * Determina template key baseado na fatura
      */
     private function getTemplateKey(array $invoice): string
