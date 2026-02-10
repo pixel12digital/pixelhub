@@ -986,30 +986,55 @@ class BillingCollectionsController extends Controller
         }
 
         $user = Auth::user();
-        $templateKey = $this->getTemplateKey($invoice);
 
-        // Enfileira envio manual
-        $queueId = BillingDispatchQueueService::enqueueManual(
-            $invoice['tenant_id'],
-            [$invoiceId],
-            $channel,
-            $templateKey,
-            $user['id'],
-            $reason,
-            $isForced,
-            $forceReason
-        );
-
-        if (!$queueId) {
-            $this->json(['success' => false, 'error' => 'Envio em cooldown. Use "Forçar envio" se necessário.']);
-            return;
+        // Verifica cooldown (a menos que forçado)
+        if (!$isForced) {
+            $isInCooldown = BillingDispatchQueueService::isInCooldown($invoice['tenant_id'], $invoiceId, $channel);
+            if ($isInCooldown) {
+                $this->json(['success' => false, 'error' => 'Envio em cooldown. Use "Forçar envio" se necessário.']);
+                return;
+            }
         }
 
-        $this->json([
-            'success' => true,
-            'message' => 'Cobrança enfileirada para envio imediato',
-            'queue_id' => $queueId
-        ]);
+        // Envia diretamente (síncrono) via BillingSenderService
+        try {
+            $result = \PixelHub\Services\BillingSenderService::send([
+                'tenant_id' => $invoice['tenant_id'],
+                'invoice_ids' => [$invoiceId],
+                'channel' => $channel,
+                'triggered_by' => 'manual',
+                'skip_asaas_sync' => true,
+            ]);
+
+            // Registra no billing_dispatch_log
+            $db->prepare("
+                INSERT INTO billing_dispatch_log (
+                    tenant_id, invoice_id, channel, template_key, sent_at,
+                    trigger_source, triggered_by_user_id, is_forced, force_reason, message_id
+                ) VALUES (?, ?, ?, ?, NOW(), 'manual', ?, ?, ?, ?)
+            ")->execute([
+                $invoice['tenant_id'],
+                $invoiceId,
+                $channel,
+                'manual',
+                $user['id'],
+                $isForced ? 1 : 0,
+                $forceReason,
+                $result['gateway_message_id'] ?? null
+            ]);
+
+            if ($result['success']) {
+                $this->json([
+                    'success' => true,
+                    'message' => 'Cobrança enviada com sucesso via ' . ($channel === 'whatsapp' ? 'WhatsApp' : 'E-mail')
+                ]);
+            } else {
+                $this->json(['success' => false, 'error' => $result['error'] ?? 'Erro ao enviar cobrança']);
+            }
+        } catch (\Exception $e) {
+            error_log('[MANUAL_SEND] Exception: ' . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro ao processar requisição: ' . $e->getMessage()]);
+        }
     }
 
     /**
