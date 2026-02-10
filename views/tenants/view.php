@@ -2293,15 +2293,42 @@ function copyInvoiceUrl(url, btn) {
                                         </svg>
                                     </button>
                                 <?php endif; ?>
-                                <a href="<?= pixelhub_url('/billing/whatsapp-modal?invoice_id=' . $invoice['id'] . '&redirect_to=tenant') ?>" 
-                                   class="btn-action btn-action-primary"
-                                   style="text-decoration: none;"
-                                   data-tooltip="Cobrar"
-                                   aria-label="Cobrar via WhatsApp">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                                    </svg>
-                                </a>
+                                <div style="display: flex; gap: 5px; justify-content: center; align-items: center;">
+                                    <button class="btn-action btn-manual-send" 
+                                            data-invoice-id="<?= $invoice['id'] ?>"
+                                            data-channel="whatsapp"
+                                            style="background: #25D366; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;"
+                                            title="Enviar WhatsApp manualmente">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="display: inline-block;">
+                                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.149-.67.149-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 2.16 3.925 2.937 2.063 3.636 2.876.249.149.468.223.67.223.311 0 .692-.149 1.01-.419.311-.27.421-.628.491-.825.07-.197.025-.371-.05-.52-.075-.149-.669-1.611-.916-2.206z"/>
+                                            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.223-.548.223l.188-2.84 5.18-4.68c.223-.198-.054-.308-.346-.11l-6.4 4.02-2.76-.86c-.6-.18-.61-.6.125-.89l10.78-4.16c.498-.18.93.12.76.88z"/>
+                                        </svg>
+                                    </button>
+                                    
+                                    <button class="btn-action btn-manual-send" 
+                                            data-invoice-id="<?= $invoice['id'] ?>"
+                                            data-channel="email"
+                                            style="background: #023A8D; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;"
+                                            title="Enviar E-mail manualmente">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block;">
+                                            <rect x="2" y="4" width="20" height="16" rx="2"/>
+                                            <path d="m22 7-10 5L2 7"/>
+                                        </svg>
+                                    </button>
+                                    
+                                    <button class="btn-action btn-last-dispatch" 
+                                            data-invoice-id="<?= $invoice['id'] ?>"
+                                            style="background: #f8f9fa; color: #6c757d; border: 1px solid #dee2e6; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;"
+                                            title="Ver último envio">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block;">
+                                            <circle cx="12" cy="12" r="10"/>
+                                            <polyline points="12 6 12 12 16 14"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                                
+                                <!-- Último envio (inicialmente oculto) -->
+                                <div class="last-dispatch-info" style="margin-top: 5px; font-size: 11px; color: #6c757d; display: none;"></div>
                             </div>
                         </td>
                     </tr>
@@ -3636,6 +3663,191 @@ document.addEventListener('click', function(event) {
         </div>
     </div>
 </div>
+
+<!-- Modal para envio manual de cobrança -->
+<div id="manualSendModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 500px;">
+        <h3 style="margin: 0 0 20px 0; color: #333;">Enviar Cobrança Manualmente</h3>
+        
+        <div id="modalContent">
+            <p>Carregando...</p>
+        </div>
+        
+        <div style="margin-top: 20px; text-align: right;">
+            <button type="button" onclick="closeManualSendModal()" style="background: #6c757d; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">Cancelar</button>
+            <button type="button" id="confirmSendBtn" style="background: #023A8D; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Enviar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Adicionar event listeners para envio manual
+document.addEventListener('DOMContentLoaded', function() {
+    // Botões de envio manual
+    document.querySelectorAll('.btn-manual-send').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const invoiceId = this.dataset.invoiceId;
+            const channel = this.dataset.channel;
+            showManualSendModal(invoiceId, channel);
+        });
+    });
+    
+    // Botões de último envio
+    document.querySelectorAll('.btn-last-dispatch').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const invoiceId = this.dataset.invoiceId;
+            showLastDispatch(invoiceId, this);
+        });
+    });
+});
+
+function showManualSendModal(invoiceId, channel) {
+    const modal = document.getElementById('manualSendModal');
+    const content = document.getElementById('modalContent');
+    
+    content.innerHTML = `
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Canal:</label>
+            <div style="padding: 8px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
+                ${channel === 'whatsapp' ? '📱 WhatsApp' : '📧 E-mail'}
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Motivo do envio:</label>
+            <textarea id="reason" rows="3" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" placeholder="Ex: Cliente solicitou reenvio, não recebeu anteriormente, etc.">Envio manual solicitado</textarea>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="checkbox" id="isForced" style="margin-right: 8px;">
+                <span>Forçar envio (ignorar cooldown)</span>
+            </label>
+        </div>
+        
+        <div id="forceReasonDiv" style="margin-bottom: 15px; display: none;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #dc3545;">Motivo do forçamento*:</label>
+            <textarea id="forceReason" rows="2" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" placeholder="Obrigatório justificar o motivo do envio forçado"></textarea>
+        </div>
+    `;
+    
+    // Evento do checkbox
+    document.getElementById('isForced').addEventListener('change', function() {
+        document.getElementById('forceReasonDiv').style.display = this.checked ? 'block' : 'none';
+    });
+    
+    // Configura botão de confirmação
+    const confirmBtn = document.getElementById('confirmSendBtn');
+    confirmBtn.onclick = function() {
+        sendManual(invoiceId, channel);
+    };
+    
+    modal.style.display = 'block';
+}
+
+function closeManualSendModal() {
+    document.getElementById('manualSendModal').style.display = 'none';
+}
+
+function sendManual(invoiceId, channel) {
+    const reason = document.getElementById('reason').value.trim();
+    const isForced = document.getElementById('isForced').checked;
+    const forceReason = document.getElementById('forceReason').value.trim();
+    
+    if (!reason) {
+        alert('Informe o motivo do envio');
+        return;
+    }
+    
+    if (isForced && !forceReason) {
+        alert('Informe o motivo do envio forçado');
+        return;
+    }
+    
+    const confirmBtn = document.getElementById('confirmSendBtn');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Enviando...';
+    
+    const formData = new FormData();
+    formData.append('invoice_id', invoiceId);
+    formData.append('channel', channel);
+    formData.append('reason', reason);
+    formData.append('is_forced', isForced ? '1' : '0');
+    if (forceReason) {
+        formData.append('force_reason', forceReason);
+    }
+    
+    fetch('<?= pixelhub_url('/billing/send-manual') ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ ' + data.message);
+            closeManualSendModal();
+            // Recarrega a página para mostrar atualizações
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            alert('❌ ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('❌ Erro ao enviar: ' + error.message);
+    })
+    .finally(() => {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Enviar';
+    });
+}
+
+function showLastDispatch(invoiceId, buttonElement) {
+    const infoDiv = buttonElement.parentElement.nextElementSibling;
+    
+    // Se já estiver visível, esconde
+    if (infoDiv.style.display !== 'none') {
+        infoDiv.style.display = 'none';
+        return;
+    }
+    
+    // Esconde outros infos
+    document.querySelectorAll('.last-dispatch-info').forEach(div => {
+        div.style.display = 'none';
+    });
+    
+    infoDiv.innerHTML = 'Carregando...';
+    infoDiv.style.display = 'block';
+    
+    fetch('<?= pixelhub_url('/billing/get-last-dispatch') ?>?invoice_id=' + invoiceId)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.data) {
+            const dispatch = data.data;
+            const date = new Date(dispatch.sent_at);
+            const formattedDate = date.toLocaleString('pt-BR');
+            
+            let info = `Último envio: ${formattedDate}<br>`;
+            info += `Canal: ${dispatch.channel === 'whatsapp' ? '📱 WhatsApp' : '📧 E-mail'}<br>`;
+            info += `Tipo: ${dispatch.trigger_source === 'manual' ? '👤 Manual' : '🤖 Automático'}<br>`;
+            
+            if (dispatch.user_name) {
+                info += `Por: ${dispatch.user_name}<br>`;
+            }
+            
+            if (dispatch.is_forced) {
+                info += `<span style="color: #dc3545;">⚠️ Forçado: ${dispatch.force_reason}</span><br>`;
+            }
+            
+            infoDiv.innerHTML = info;
+        } else {
+            infoDiv.innerHTML = 'Nenhum envio registrado';
+        }
+    })
+    .catch(error => {
+        infoDiv.innerHTML = 'Erro ao carregar informações';
+    });
+}
+</script>
 
 <?php
 $content = ob_get_clean();
