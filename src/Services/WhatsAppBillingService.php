@@ -281,8 +281,9 @@ class WhatsAppBillingService
         // Saudação
         $message = "Olá {$clientName}, tudo bem? 😊\n\n";
         
-        // Separa faturas em dois grupos: vencidas e a vencer
+        // Separa faturas em três grupos: vencidas, vence hoje, e a vencer
         $overdueInvoices = [];
+        $dueTodayInvoices = [];
         $upcomingInvoices = [];
         $today = new \DateTime();
         $today->setTime(0, 0, 0);
@@ -291,28 +292,30 @@ class WhatsAppBillingService
             $status = $invoice['status'] ?? 'pending';
             $dueDate = $invoice['due_date'] ?? null;
             
-            // Verifica se está vencida
             $isOverdue = false;
+            $isDueToday = false;
+            
             if ($status === 'overdue') {
                 $isOverdue = true;
             } elseif ($dueDate) {
                 try {
                     $due = new \DateTime($dueDate);
                     $due->setTime(0, 0, 0);
-                    // Se due_date < hoje, está vencida mesmo que status seja pending
                     if ($due < $today) {
                         $isOverdue = true;
+                    } elseif ($due == $today) {
+                        $isDueToday = true;
                     }
                 } catch (\Exception $e) {
-                    // Se não conseguir parsear a data, usa o status
                     $isOverdue = ($status === 'overdue');
                 }
             }
             
             if ($isOverdue) {
                 $overdueInvoices[] = $invoice;
+            } elseif ($isDueToday) {
+                $dueTodayInvoices[] = $invoice;
             } else {
-                // Fatura pendente e ainda não vencida
                 $upcomingInvoices[] = $invoice;
             }
         }
@@ -350,17 +353,42 @@ class WhatsAppBillingService
             }
         }
         
+        // Seção de faturas que vencem HOJE
+        if (count($dueTodayInvoices) > 0) {
+            $hasPrevious = count($overdueInvoices) > 0;
+            if ($hasPrevious) {
+                $message .= "Além disso, ";
+            }
+            if (count($dueTodayInvoices) === 1) {
+                $message .= ($hasPrevious ? "s" : "S") . "ua fatura vence *hoje*! 📌\n\n";
+            } else {
+                $message .= ($hasPrevious ? "v" : "V") . "ocê tem " . count($dueTodayInvoices) . " faturas vencendo *hoje*! 📌\n\n";
+            }
+            
+            foreach ($dueTodayInvoices as $invoice) {
+                $amount = (float) ($invoice['amount'] ?? 0);
+                $amountFormatted = 'R$ ' . number_format($amount, 2, ',', '.');
+                $description = $invoice['description'] ?? 'Cobrança';
+                $invoiceUrl = $invoice['invoice_url'] ?? '';
+                
+                $message .= "• Hoje – {$amountFormatted} – {$description}";
+                if ($invoiceUrl) {
+                    $message .= "\n  Link: {$invoiceUrl}";
+                }
+                $message .= "\n\n";
+            }
+        }
+        
         // Seção de próximas faturas a vencer
         if (count($upcomingInvoices) > 0) {
-            if (count($overdueInvoices) > 0) {
-                // Se já tem faturas vencidas, usa "Além disso"
+            $hasPrevious = count($overdueInvoices) > 0 || count($dueTodayInvoices) > 0;
+            if ($hasPrevious) {
                 if (count($upcomingInvoices) === 1) {
                     $message .= "Além disso, sua próxima fatura a vencer é:\n\n";
                 } else {
                     $message .= "Além disso, suas próximas faturas a vencer são:\n\n";
                 }
             } else {
-                // Se não tem faturas vencidas, não menciona "além disso"
                 if (count($upcomingInvoices) === 1) {
                     $message .= "Sua próxima fatura a vencer é:\n\n";
                 } else {
