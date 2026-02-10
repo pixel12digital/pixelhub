@@ -605,7 +605,7 @@ class WhatsAppGatewaySettingsController extends Controller
 
         try {
             // Listagem pode demorar: gateway consulta status de cada sessão no WPPConnect
-            $gateway = $this->getGatewayClient(60);
+            $gateway = $this->getGatewayClient(90);
             $result = $gateway->listChannels();
         } catch (\Throwable $e) {
             $this->json([

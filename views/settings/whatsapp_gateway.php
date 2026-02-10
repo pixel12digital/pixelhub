@@ -517,7 +517,11 @@ function loadSessions() {
                 btnRefresh.textContent = 'Atualizar';
             }
             if (!data.success) {
-                error.textContent = data.error || 'Erro ao carregar sessões';
+                var errText = data.error || 'Erro ao carregar sessões';
+                if (errText.indexOf('Timeout') !== -1 || errText.indexOf('timeout') !== -1) {
+                    errText += ' Dica: aguarde alguns segundos e clique em Atualizar novamente. Se persistir, verifique se a VPS (gateway) está acessível.';
+                }
+                error.textContent = errText;
                 error.style.display = 'block';
                 return;
             }
