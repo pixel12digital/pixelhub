@@ -6,6 +6,7 @@ use PixelHub\Core\Controller;
 use PixelHub\Core\DB;
 use PixelHub\Core\Security;
 use PixelHub\Services\SmtpService;
+use PixelHub\Core\Auth;
 
 /**
  * Controller para gerenciar configurações SMTP
@@ -145,6 +146,8 @@ class SmtpSettingsController extends Controller
      */
     public function test(): void
     {
+        Auth::requireInternal();
+        
         $db = DB::getConnection();
         
         // Busca configurações atuais
@@ -158,10 +161,11 @@ class SmtpSettingsController extends Controller
         
         try {
             $smtpService = new SmtpService($settings);
-            $userEmail = $_SESSION['user']['email'] ?? null;
+            $user = Auth::user();
+            $userEmail = $user['email'] ?? null;
             
             if (!$userEmail) {
-                $this->json(['success' => false, 'error' => 'Usuário não autenticado']);
+                $this->json(['success' => false, 'error' => 'Email do usuário não encontrado']);
                 return;
             }
 
