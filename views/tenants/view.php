@@ -3742,9 +3742,7 @@ function showManualSendModal(invoiceId, channel) {
                 <div style="margin-bottom: 20px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: 500;">Preview da Mensagem:</label>
                     <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; max-height: 300px; overflow-y: auto;">
-                        <div style="white-space: pre-wrap; font-family: ${channel === 'whatsapp' ? 'inherit' : 'monospace'}; font-size: ${channel === 'whatsapp' ? '14px' : '12px'}; line-height: 1.5; color: #333;">
-                            ${data.message}
-                        </div>
+                        <div id="messagePreview" style="white-space: pre-wrap; font-family: ${channel === 'whatsapp' ? 'inherit' : 'monospace'}; font-size: ${channel === 'whatsapp' ? '14px' : '12px'}; line-height: 1.5; color: #333;"></div>
                     </div>
                 </div>
                 
@@ -3765,6 +3763,17 @@ function showManualSendModal(invoiceId, channel) {
                     <textarea id="forceReason" rows="2" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" placeholder="Obrigatório justificar o motivo do envio forçado"></textarea>
                 </div>
             `;
+            
+            console.log('[PREVIEW] Modal HTML atualizado');
+            
+            // Define a mensagem usando textContent para evitar problemas com caracteres especiais
+            const messagePreview = document.getElementById('messagePreview');
+            if (messagePreview) {
+                messagePreview.textContent = data.message;
+                console.log('[PREVIEW] Mensagem inserida no preview');
+            } else {
+                console.error('[PREVIEW] Elemento messagePreview não encontrado!');
+            }
             
             // Evento do checkbox
             document.getElementById('isForced').addEventListener('change', function() {
