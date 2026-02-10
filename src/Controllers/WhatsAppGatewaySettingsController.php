@@ -807,6 +807,38 @@ class WhatsAppGatewaySettingsController extends Controller
     }
 
     /**
+     * Desconecta (remove) sessão no gateway
+     * POST /settings/whatsapp-gateway/sessions/disconnect
+     * Body: { "channel_id": "nome-sessao" }
+     * Para usar novamente será necessário criar a sessão e escanear o QR.
+     */
+    public function sessionsDisconnect(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+
+        $input = json_decode(file_get_contents('php://input') ?: '{}', true) ?: [];
+        $channelId = trim($input['channel_id'] ?? $_POST['channel_id'] ?? '');
+        $channelId = preg_replace('/[^a-zA-Z0-9_-]/', '', $channelId);
+
+        if (empty($channelId)) {
+            $this->json(['success' => false, 'error' => 'channel_id é obrigatório'], 400);
+            return;
+        }
+
+        try {
+            $gateway = $this->getGatewayClient();
+            $result = $gateway->deleteChannel($channelId);
+            $this->json([
+                'success' => ($result['success'] ?? false) || empty($result['error']),
+                'error' => $result['error'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Verifica se todos os arquivos necessários estão presentes em produção
      * 
      * GET /settings/whatsapp-gateway/check

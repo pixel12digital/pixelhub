@@ -531,6 +531,12 @@ function loadSessions() {
                     const statusColor = s.status === 'connected' ? (s.is_zombie ? '#ffc107' : '#28a745') : '#dc3545';
                     const statusText = s.is_zombie ? 'Possivelmente desconectado' : (s.status === 'connected' ? 'Conectado' : s.status === 'disconnected' ? 'Desconectado' : s.status);
                     const lastActivity = s.last_activity_at ? formatRelativeTime(s.last_activity_at) : '—';
+                    const isConnected = s.status === 'connected' && !s.is_zombie;
+                    const btnLabel = isConnected ? 'Desconectar' : 'Reconectar';
+                    const btnClass = isConnected ? 'btn-disconnect' : 'btn-reconnect';
+                    const btnStyle = isConnected
+                        ? 'padding: 8px 16px; background: transparent; color: #6c757d; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer; font-size: 13px;'
+                        : 'padding: 8px 16px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;';
                     card.innerHTML = `
                         <div>
                             <strong style="font-size: 15px;">${escapeHtml(s.id)}</strong>
@@ -540,11 +546,26 @@ function loadSessions() {
                                 ${s.last_activity_at ? ' · Última atividade: ' + lastActivity : ''}
                             </div>
                         </div>
-                        <button type="button" class="btn-reconnect" data-channel="${escapeHtml(s.id)}" style="padding: 8px 16px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            Reconectar
+                        <button type="button" class="${btnClass}" data-channel="${escapeHtml(s.id)}" style="${btnStyle}">
+                            ${btnLabel}
                         </button>
                     `;
-                    card.querySelector('.btn-reconnect').addEventListener('click', () => reconnectSession(s.id));
+                    const btn = card.querySelector('.' + btnClass);
+                    btn.addEventListener('click', () => {
+                        if (isConnected) {
+                            if (!confirm('Desconectar esta sessão no gateway? Será necessário criar a sessão novamente e escanear o QR para usar.')) return;
+                            fetch(sessionsBaseUrl + '/sessions/disconnect', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                                body: JSON.stringify({ channel_id: s.id })
+                            })
+                            .then(r => r.json())
+                            .then(data => { if (data.success) loadSessions(); else alert(data.error || 'Erro ao desconectar'); })
+                            .catch(err => alert('Erro: ' + err.message));
+                        } else {
+                            reconnectSession(s.id);
+                        }
+                    });
                     list.appendChild(card);
                 });
             }
