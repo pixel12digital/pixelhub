@@ -982,19 +982,18 @@ class ConversationService
         // Se o tenant_id vier NULL do evento, mantém NULL para que apareça em "Não vinculados"
         
         // CORREÇÃO 2: Valida se o telefone do contato corresponde ao telefone do tenant
-        // Antes de vincular automaticamente, verifica se o número realmente pertence ao tenant
-        // Isso evita casos como "William" (17) 98158-5977 ser vinculado a "Roberta" incorretamente
-        // EXCEÇÃO: Se explicit_tenant_selection (usuário escolheu no modal Nova Conversa), confia na escolha
+        // EXCEÇÃO: explicit_tenant_selection (usuário escolheu no modal) ou tenant_resolved_from_channel (webhook resolveu pelo canal)
         $explicitTenant = !empty($eventData['metadata']['explicit_tenant_selection']);
+        $tenantFromChannel = !empty($eventData['metadata']['tenant_resolved_from_channel']);
         $contactExternalId = $channelInfo['contact_external_id'] ?? '';
-        if ($tenantId !== null && !empty($contactExternalId) && !$explicitTenant) {
+        if ($tenantId !== null && !empty($contactExternalId) && !$explicitTenant && !$tenantFromChannel) {
             if (!self::validatePhoneBelongsToTenant($contactExternalId, $tenantId)) {
                 error_log(sprintf(
                     '[CONVERSATION CREATE] Vinculação REJEITADA: contato=%s não pertence ao tenant_id=%d - conversa irá para "Não vinculados"',
                     $contactExternalId,
                     $tenantId
                 ));
-                $tenantId = null; // Não vincular - vai para "Não vinculados"
+                $tenantId = null;
             }
         }
         
@@ -1224,18 +1223,18 @@ class ConversationService
             $tenantId = $eventData['tenant_id'] ?? null;
             
             // CORREÇÃO 2: Valida se o telefone do contato corresponde ao telefone do tenant
-            // Antes de vincular automaticamente, verifica se o número realmente pertence ao tenant
-            // EXCEÇÃO: Se explicit_tenant_selection (usuário escolheu no modal Nova Conversa), confia na escolha
+            // EXCEÇÃO: explicit_tenant_selection ou tenant_resolved_from_channel (tenant resolvido pelo canal no webhook)
             $explicitTenant = !empty($eventData['metadata']['explicit_tenant_selection']);
+            $tenantFromChannel = !empty($eventData['metadata']['tenant_resolved_from_channel']);
             $contactExternalId = $channelInfo['contact_external_id'] ?? '';
-            if ($tenantId !== null && !empty($contactExternalId) && !$explicitTenant) {
+            if ($tenantId !== null && !empty($contactExternalId) && !$explicitTenant && !$tenantFromChannel) {
                 if (!self::validatePhoneBelongsToTenant($contactExternalId, $tenantId)) {
                     error_log(sprintf(
                         '[CONVERSATION UPDATE] Vinculação REJEITADA: contato=%s não pertence ao tenant_id=%d - mantendo sem vincular',
                         $contactExternalId,
                         $tenantId
                     ));
-                    $tenantId = null; // Não vincular
+                    $tenantId = null;
                 }
             }
             
@@ -1412,11 +1411,11 @@ class ConversationService
 
         $db = DB::getConnection();
 
-        // CORREÇÃO: Busca diretamente por contact_external_id, ignorando channel_account_id
-        // Isso permite encontrar conversas mesmo que tenham channel_account_id diferente (ex: shared vs 1)
+        // CORREÇÃO: Mesmo canal obrigatório - evita misturar sessões (ex: Charles→ImobSites vs Charles→Pixel12).
+        // Equivalente só para variação 9º dígito DENTRO da mesma sessão.
+        $wantAccountId = $channelInfo['channel_account_id'] ?? null;
         foreach ($variants as $variantContactId) {
             try {
-                // Busca qualquer conversa com esse contact_external_id (ignora channel_account_id)
                 $stmt = $db->prepare("
                     SELECT * FROM conversations 
                     WHERE channel_type = ? 
@@ -1426,8 +1425,21 @@ class ConversationService
                 ");
                 $stmt->execute([$channelInfo['channel_type'], $variantContactId]);
                 $found = $stmt->fetch(\PDO::FETCH_ASSOC);
-                
+
                 if ($found) {
+                    $foundAccountId = isset($found['channel_account_id']) && $found['channel_account_id'] !== '' ? (int) $found['channel_account_id'] : null;
+                    $sameChannel = ($wantAccountId === null && $foundAccountId === null)
+                        || ($wantAccountId !== null && $foundAccountId === $wantAccountId);
+                    if (!$sameChannel) {
+                        error_log(sprintf(
+                            '[DUPLICATE_PREVENTION] findEquivalentConversation IGNORADO (canal diferente): contact=%s, want_account_id=%s, found_id=%d, found_account_id=%s',
+                            $contactExternalId,
+                            $wantAccountId === null ? 'NULL' : $wantAccountId,
+                            $found['id'],
+                            $foundAccountId === null ? 'NULL' : $foundAccountId
+                        ));
+                        continue;
+                    }
                     error_log(sprintf(
                         '[DUPLICATE_PREVENTION] findEquivalentConversation encontrou conversa equivalente: original=%s, variant=%s, found_id=%d, found_account_id=%s',
                         $contactExternalId,
@@ -1656,16 +1668,28 @@ class ConversationService
      */
     private static function findDuplicateByRemoteKey(array $channelInfo): ?array
     {
-        $remoteKey = $channelInfo['remote_key'] ?? null;
-        if (!$remoteKey) {
-            return null;
-        }
-
         $db = DB::getConnection();
-        
+        $threadKey = $channelInfo['thread_key'] ?? null;
+        $remoteKey = $channelInfo['remote_key'] ?? null;
+
         try {
-            // Busca conversa com mesmo remote_key e channel_type
-            // Prioriza conversa com thread_key completo (mais completa)
+            // CORREÇÃO: Se temos thread_key (sessão+contato), busca só nessa sessão - evita reutilizar conversa de outra sessão (ex: ImobSites vs Pixel12).
+            if (!empty($threadKey)) {
+                $stmt = $db->prepare("
+                    SELECT * FROM conversations 
+                    WHERE channel_type = ? AND thread_key = ?
+                    LIMIT 1
+                ");
+                $stmt->execute([$channelInfo['channel_type'], $threadKey]);
+                $result = $stmt->fetch();
+                return $result ?: null;
+            }
+
+            if (!$remoteKey) {
+                return null;
+            }
+
+            // Fallback: busca por remote_key (sem sessão); prioriza thread_key preenchido
             $stmt = $db->prepare("
                 SELECT * FROM conversations 
                 WHERE channel_type = ? 
@@ -1677,7 +1701,6 @@ class ConversationService
             ");
             $stmt->execute([$channelInfo['channel_type'], $remoteKey]);
             $result = $stmt->fetch();
-            
             return $result ?: null;
         } catch (\Exception $e) {
             error_log("[ConversationService] Erro ao buscar duplicado por remote_key: " . $e->getMessage());

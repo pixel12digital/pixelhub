@@ -258,16 +258,20 @@ class WhatsAppWebhookController extends Controller
             try {
                 // process_media_sync=false: responde ao webhook antes do download de mídia
                 // Evita timeout no WPPConnect quando áudios/imagens demoram a baixar
+                $metadata = [
+                    'channel_id' => $channelId,
+                    'raw_event_type' => $eventType
+                ];
+                if ($tenantId !== null) {
+                    $metadata['tenant_resolved_from_channel'] = true;
+                }
                 $eventId = EventIngestionService::ingest([
                     'event_type' => $internalEventType,
                     'source_system' => 'wpp_gateway',
                     'payload' => $payload,
                     'tenant_id' => $tenantId,
                     'process_media_sync' => false,
-                    'metadata' => [
-                        'channel_id' => $channelId,
-                        'raw_event_type' => $eventType
-                    ]
+                    'metadata' => $metadata
                 ]);
                 
                 // CORREÇÃO CRÍTICA: Verifica se o evento foi realmente salvo no banco
