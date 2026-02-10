@@ -146,51 +146,30 @@ class SmtpSettingsController extends Controller
      */
     public function test(): void
     {
-        error_log("SMTP_TEST_DEBUG: Iniciando método test");
-        
-        try {
-            Auth::requireInternal();
-            error_log("SMTP_TEST_DEBUG: Auth::requireInternal() OK");
-        } catch (\Exception $e) {
-            error_log("SMTP_TEST_DEBUG: Auth::requireInternal() falhou: " . $e->getMessage());
-            $this->json(['success' => false, 'error' => 'Erro de autenticação: ' . $e->getMessage()]);
-            return;
-        }
+        Auth::requireInternal();
         
         $db = DB::getConnection();
-        error_log("SMTP_TEST_DEBUG: Conexão com DB OK");
         
         // Busca configurações atuais
         $stmt = $db->query("SELECT * FROM smtp_settings LIMIT 1");
         $settings = $stmt->fetch();
         
-        error_log("SMTP_TEST_DEBUG: Configurações SMTP: " . json_encode($settings));
-        
         if (!$settings || !$settings['smtp_enabled']) {
-            error_log("SMTP_TEST_DEBUG: SMTP não configurado ou desativado");
             $this->json(['success' => false, 'error' => 'SMTP não está configurado ou está desativado']);
             return;
         }
         
         try {
             $smtpService = new SmtpService($settings);
-            error_log("SMTP_TEST_DEBUG: SmtpService criado com sucesso");
-            
             $user = Auth::user();
-            error_log("SMTP_TEST_DEBUG: Auth::user() resultado: " . json_encode($user));
-            
             $userEmail = $user['email'] ?? null;
-            error_log("SMTP_TEST_DEBUG: Email do usuário: " . ($userEmail ?? 'NULL'));
             
             if (!$userEmail) {
-                error_log("SMTP_TEST_DEBUG: Email do usuário não encontrado");
                 $this->json(['success' => false, 'error' => 'Email do usuário não encontrado']);
                 return;
             }
 
-            error_log("SMTP_TEST_DEBUG: Enviando email de teste para " . $userEmail);
             $result = $smtpService->sendTest($userEmail);
-            error_log("SMTP_TEST_DEBUG: Resultado do envio: " . ($result ? 'SUCCESS' : 'FAIL'));
             
             if ($result) {
                 $this->json(['success' => true, 'message' => 'Email de teste enviado com sucesso para ' . $userEmail]);
@@ -198,7 +177,6 @@ class SmtpSettingsController extends Controller
                 $this->json(['success' => false, 'error' => 'Falha ao enviar email de teste']);
             }
         } catch (\Exception $e) {
-            error_log("SMTP_TEST_DEBUG: Exceção no teste: " . $e->getMessage());
             $this->json(['success' => false, 'error' => 'Erro no teste: ' . $e->getMessage()]);
         }
     }
