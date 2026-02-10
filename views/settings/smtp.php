@@ -48,7 +48,11 @@ $baseUrl = pixelhub_url('');
                                <?= $smtpSettings['smtp_enabled'] ? 'checked' : '' ?>
                                style="margin-right: 10px;">
                         <span style="font-weight: 600;">
-                            <?= $smtpSettings['smtp_enabled'] ? '✅ SMTP Ativado' : '❌ SMTP Desativado' ?>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            <?= $smtpSettings['smtp_enabled'] ? 'SMTP Ativado' : 'SMTP Desativado' ?>
                         </span>
                     </label>
                     <p style="margin: 10px 0 0 0; font-size: 13px; color: #666;">
@@ -132,7 +136,10 @@ $baseUrl = pixelhub_url('');
             <div>
                 <button type="button" id="test-smtp-btn" 
                         style="background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
-                    📧 Testar Configuração
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Testar Configuração
                 </button>
             </div>
             
@@ -143,12 +150,24 @@ $baseUrl = pixelhub_url('');
                 </a>
                 <button type="submit" 
                         style="background: #023A8D; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
-                    💾 Salvar Configurações
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                        <polyline points="17 21 17 13 7 13 7 21"/>
+                        <polyline points="7 3 7 8 15 8"/>
+                    </svg>
+                    Salvar Configurações
                 </button>
             </div>
         </div>
     </form>
 </div>
+
+<style>
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
 
 <!-- Script para teste SMTP -->
 <script>
@@ -157,7 +176,7 @@ document.getElementById('test-smtp-btn').addEventListener('click', function() {
     const originalText = btn.innerHTML;
     
     btn.disabled = true;
-    btn.innerHTML = '⏳ Enviando teste...';
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px; animation: spin 1s linear infinite;"><circle cx="12" cy="12" r="10"/><path d="M12 2v10l4 2"/></svg> Enviando teste...';
     
     fetch('<?= pixelhub_url('/settings/smtp/test') ?>', {
         method: 'POST',
@@ -169,13 +188,13 @@ document.getElementById('test-smtp-btn').addEventListener('click', function() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('✅ ' + data.message);
+            alert('Sucesso: ' + data.message);
         } else {
-            alert('❌ ' + data.error);
+            alert('Erro: ' + data.error);
         }
     })
     .catch(error => {
-        alert('❌ Erro ao testar: ' + error.message);
+        alert('Erro ao testar: ' + error.message);
     })
     .finally(() => {
         btn.disabled = false;
