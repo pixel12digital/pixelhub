@@ -1076,8 +1076,7 @@ class BillingCollectionsController extends Controller
         
         // Busca dados da fatura e tenant
         $stmt = $db->prepare("
-            SELECT bi.*, t.name as tenant_name, t.nome_fantasia, t.person_type,
-                   t.billing_whatsapp, t.billing_email
+            SELECT bi.*, t.name as tenant_name, t.nome_fantasia, t.person_type
             FROM billing_invoices bi
             JOIN tenants t ON bi.tenant_id = t.id
             WHERE bi.id = ? AND (bi.is_deleted IS NULL OR bi.is_deleted = 0)
@@ -1094,9 +1093,7 @@ class BillingCollectionsController extends Controller
         $tenant = [
             'name' => $invoice['tenant_name'],
             'nome_fantasia' => $invoice['nome_fantasia'],
-            'person_type' => $invoice['person_type'],
-            'billing_whatsapp' => $invoice['billing_whatsapp'],
-            'billing_email' => $invoice['billing_email']
+            'person_type' => $invoice['person_type']
         ];
 
         // Determina o estágio/template
