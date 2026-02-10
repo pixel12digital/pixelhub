@@ -23,7 +23,7 @@ class BillingDispatchQueueService
 
     /** Janela de envio */
     public const WINDOW_START_HOUR = 8;
-    public const WINDOW_END_HOUR = 12;
+    public const WINDOW_END_HOUR = 18; // TEMP: era 12, expandido para teste
 
     /**
      * Enfileira um envio de cobrança com horário agendado.
