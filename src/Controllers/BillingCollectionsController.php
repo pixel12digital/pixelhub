@@ -1162,7 +1162,8 @@ class BillingCollectionsController extends Controller
         
         if ($invoice['status'] !== 'paid') {
             $message .= "Por favor, regularize o pagamento para evitar juros.\n\n";
-            $message .= "Para acessar a fatura: " . pixelhub_url("/billing/view_invoice?id={$invoice['id']}") . "\n\n";
+            $invoiceLink = $invoice['invoice_url'] ?? pixelhub_url("/billing/view_invoice?id={$invoice['id']}");
+            $message .= "Para acessar a fatura: {$invoiceLink}\n\n";
         }
         
         $message .= "Atenciosamente,\n";

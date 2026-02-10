@@ -161,8 +161,8 @@ class WhatsAppBillingService
         $amount = (float) ($invoice['amount'] ?? 0);
         $amountFormatted = 'R$ ' . number_format($amount, 2, ',', '.');
 
-        // Link da fatura
-        $invoiceLink = 'https://hub.pixel12digital.com.br/billing/view_invoice?id=' . $invoice['id'];
+        // Link da fatura (usa link do Asaas se disponível)
+        $invoiceLink = $invoice['invoice_url'] ?? ('https://hub.pixel12digital.com.br/billing/view_invoice?id=' . $invoice['id']);
 
         // Monta mensagem baseada no estágio
         switch ($stage) {
