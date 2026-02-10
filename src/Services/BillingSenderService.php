@@ -199,8 +199,8 @@ class BillingSenderService
 
         // ─── Envia via WhatsApp Gateway ───────────────────────────
         try {
-            $client = new WhatsAppGatewayClient(self::WHATSAPP_SESSION);
-            $gwResult = $client->sendMessage($phoneNormalized, $messageBody);
+            $client = new WhatsAppGatewayClient();
+            $gwResult = $client->sendText(self::WHATSAPP_SESSION, $phoneNormalized, $messageBody);
 
             if ($gwResult['success']) {
                 // Registra notificação bem-sucedida

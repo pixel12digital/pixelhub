@@ -161,26 +161,33 @@ class WhatsAppBillingService
         $amount = (float) ($invoice['amount'] ?? 0);
         $amountFormatted = 'R$ ' . number_format($amount, 2, ',', '.');
 
+        // Link da fatura
+        $invoiceLink = 'https://hub.pixel12digital.com.br/billing/view_invoice?id=' . $invoice['id'];
+
         // Monta mensagem baseada no estágio
         switch ($stage) {
             case 'pre_due':
                 return "Oi {$clientName}, tudo bem? 😊\n\n" .
                        "Passando para lembrar que sua hospedagem/serviço da Pixel12 Digital vence em {$dueDateFormatted}, no valor de {$amountFormatted}.\n\n" .
+                       "Acesse sua fatura: {$invoiceLink}\n\n" .
                        "Qualquer dúvida ou se precisar de ajuda com o pagamento, me avisa por aqui.";
 
             case 'overdue_3d':
                 return "Oi {$clientName}, tudo bem?\n\n" .
                        "Notei que sua fatura da Pixel12 Digital com vencimento em {$dueDateFormatted}, no valor de {$amountFormatted}, ainda consta em aberto.\n\n" .
+                       "Acesse sua fatura: {$invoiceLink}\n\n" .
                        "Consegue verificar pra mim, por favor? Se já tiver pago, pode desconsiderar essa mensagem.";
 
             case 'overdue_7d':
                 return "Oi {$clientName}, tudo bem?\n\n" .
                        "Sua fatura da Pixel12 Digital (venc. {$dueDateFormatted}, valor {$amountFormatted}) ainda está em aberto há alguns dias.\n\n" .
+                       "Acesse sua fatura: {$invoiceLink}\n\n" .
                        "Precisa de alguma ajuda ou quer combinar uma forma de pagamento? Me avisa pra gente evitar qualquer bloqueio do serviço.";
 
             default:
                 return "Oi {$clientName}, tudo bem?\n\n" .
                        "Sua fatura da Pixel12 Digital vence em {$dueDateFormatted}, no valor de {$amountFormatted}.\n\n" .
+                       "Acesse sua fatura: {$invoiceLink}\n\n" .
                        "Qualquer dúvida, me avisa por aqui.";
         }
     }
