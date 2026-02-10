@@ -27,17 +27,17 @@ class BillingTemplatesController extends Controller
         
         // Filtrar por canal
         if ($channel !== 'all') {
-            $templates = array_filter($templates, fn($t) => 
-                strtolower($t['channel']) === strtolower($channel)
-            );
+            $templates = array_filter($templates, function($t) use ($channel) {
+                return strtolower($t['channel']) === strtolower($channel);
+            });
         }
         
         // Filtrar por busca
         if (!empty($search)) {
-            $templates = array_filter($templates, fn($t) => 
-                stripos($t['label'], $search) !== false || 
-                stripos($t['stage'], $search) !== false
-            );
+            $templates = array_filter($templates, function($t) use ($search) {
+                return stripos($t['label'], $search) !== false || 
+                       stripos($t['stage'], $search) !== false;
+            });
         }
         
         $this->view('billing_templates/index', [
@@ -51,7 +51,7 @@ class BillingTemplatesController extends Controller
     /**
      * API para obter detalhes de um template
      */
-    public function view(): void
+    public function show(): void
     {
         Auth::requireInternal();
         

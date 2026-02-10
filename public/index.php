@@ -503,7 +503,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     
     // Rotas de Templates de Cobrança
     $router->get('/billing/templates', 'BillingTemplatesController@index');
-    $router->get('/billing/templates/view', 'BillingTemplatesController@view');
+    $router->get('/billing/templates/view', 'BillingTemplatesController@show');
     
     // Rota de Carteira Recorrente
     $router->get('/recurring-contracts', 'RecurringContractsController@index');
