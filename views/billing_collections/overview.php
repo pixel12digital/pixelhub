@@ -12,6 +12,10 @@ $baseUrl = pixelhub_url('');
         <p>Visão geral de cobranças agrupadas por cliente</p>
     </div>
     <div style="display: flex; gap: 10px; align-items: center;">
+        <a href="<?= pixelhub_url('/billing/notifications-log') ?>" style="background: #6f42c1; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;" id="auditLink">
+            Auditoria de Envios
+            <span id="failureBadge" style="display: none; background: #dc3545; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700;"></span>
+        </a>
         <a href="<?= pixelhub_url('/billing/sync-errors') ?>" style="background: #ffc107; color: #000; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 14px; text-decoration: none; display: inline-block;">
             Ver Erros de Sincronização
         </a>
@@ -31,6 +35,17 @@ $baseUrl = pixelhub_url('');
                 <polyline points="20 6 9 17 4 12"/>
             </svg>
             Cobrança marcada como enviada com sucesso!
+        </div>
+    <?php elseif ($_GET['success'] === 'inbox_send'): ?>
+        <div style="background: #d4edda; color: #155724; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #c3e6cb;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <?= isset($_GET['message']) ? htmlspecialchars(urldecode($_GET['message'])) : 'Cobrança enviada via Inbox!' ?>
+        </div>
+    <?php elseif ($_GET['success'] === 'auto_settings_saved'): ?>
+        <div style="background: #d4edda; color: #155724; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #c3e6cb;">
+            Configurações de cobrança automática salvas com sucesso!
         </div>
     <?php elseif ($_GET['success'] === 'sync_completed'): ?>
         <div style="background: #d4edda; color: #155724; padding: 12px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #c3e6cb;">
@@ -389,19 +404,74 @@ document.addEventListener('DOMContentLoaded', function() {
         html += '<textarea name="message" rows="10" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; resize: vertical;">' + escapeHtml(message) + '</textarea>';
         html += '</div>';
         
-        // Botões
+        // Botão Inbox (PRINCIPAL)
+        html += '<div style="margin-bottom: 15px; padding: 12px; background: #e8f5e9; border-left: 4px solid #4caf50; border-radius: 4px;">';
+        html += '<button type="button" id="btnInboxOverview" onclick="sendViaInbox(' + tenant.id + ')" style="background: #4caf50; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 8px;">';
+        html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>';
+        html += ' Enviar via Inbox (pixel12digital)</button>';
+        html += '<div id="inboxResultOverview" style="margin-top: 8px; display: none;"></div>';
+        html += '</div>';
+
+        // Botões secundários
         html += '<div style="display: flex; gap: 10px; flex-wrap: wrap;">';
-        html += '<button type="button" onclick="copyMessage()" style="background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">Copiar Mensagem</button>';
+        html += '<button type="button" onclick="copyMessage()" style="background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 13px;">Copiar Mensagem</button>';
         if (whatsappLink) {
-            html += '<a href="' + escapeHtml(whatsappLink) + '" target="_blank" rel="noopener noreferrer" style="background: #25D366; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 500; display: inline-block;">Abrir WhatsApp Web</a>';
+            html += '<a href="' + escapeHtml(whatsappLink) + '" target="_blank" rel="noopener noreferrer" style="background: #6c757d; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 500; display: inline-block; font-size: 13px;">WhatsApp Web (fallback)</a>';
         }
-        html += '<button type="submit" style="background: #023A8D; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">Salvar / Marcar como Enviado</button>';
+        html += '<button type="submit" style="background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 13px;">Salvar Manual</button>';
         html += '</div>';
         
         html += '</form>';
         
         modalContent.innerHTML = html;
     }
+    
+    function sendViaInbox(tenantId) {
+        const btn = document.getElementById('btnInboxOverview');
+        const resultDiv = document.getElementById('inboxResultOverview');
+        const message = document.querySelector('#reminderForm textarea[name="message"]').value;
+
+        if (!message.trim()) {
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<span style="color: #c33;">Mensagem vazia.</span>';
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Enviando...';
+        resultDiv.style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('tenant_id', tenantId);
+        formData.append('message', message);
+        formData.append('redirect_to', 'overview');
+
+        fetch('<?= pixelhub_url('/billing/send-via-inbox') ?>', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            resultDiv.style.display = 'block';
+            if (data.success) {
+                resultDiv.innerHTML = '<span style="color: #2e7d32; font-weight: 500;">&#10004; ' + (data.message || 'Enviado!') + '</span>';
+                btn.style.background = '#81c784';
+                btn.textContent = '✓ Enviado';
+            } else {
+                resultDiv.innerHTML = '<span style="color: #c33;">&#10008; ' + (data.message || 'Erro') + '</span>';
+                btn.disabled = false;
+                btn.textContent = 'Tentar Novamente';
+            }
+        })
+        .catch(err => {
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<span style="color: #c33;">Erro: ' + err.message + '</span>';
+            btn.disabled = false;
+            btn.textContent = 'Tentar Novamente';
+        });
+    }
+    window.sendViaInbox = sendViaInbox;
     
     function closeModal() {
         modal.style.display = 'none';
@@ -425,6 +495,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // Torna funções globais para uso em onclick
     window.closeModal = closeModal;
     window.copyMessage = copyMessage;
+
+    // Badge de falhas recentes
+    fetch('<?= pixelhub_url('/billing/failure-count') ?>')
+        .then(r => r.json())
+        .then(data => {
+            if (data.count > 0) {
+                const badge = document.getElementById('failureBadge');
+                if (badge) {
+                    badge.textContent = data.count;
+                    badge.style.display = 'inline-block';
+                }
+            }
+        })
+        .catch(() => {});
 });
 </script>
 

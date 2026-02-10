@@ -800,7 +800,12 @@ document.getElementById('qr-modal').addEventListener('click', function(e) {
 document.getElementById('btn-refresh-sessions').addEventListener('click', loadSessions);
 
 // Carrega sessões ao carregar a página
-document.addEventListener('DOMContentLoaded', loadSessions);
+document.addEventListener('DOMContentLoaded', function() {
+    loadSessions();
+    // Atualiza lista automaticamente a cada 5 min (reflete desconexão no gateway)
+    if (window._sessionsRefreshInterval) clearInterval(window._sessionsRefreshInterval);
+    window._sessionsRefreshInterval = setInterval(loadSessions, 5 * 60 * 1000);
+});
 </script>
 
 <?php

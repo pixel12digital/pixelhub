@@ -6,6 +6,8 @@ use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
 use PixelHub\Services\WhatsAppBillingService;
+use PixelHub\Services\BillingSenderService;
+use PixelHub\Services\BillingDispatchQueueService;
 
 /**
  * Controller para gerenciar cobranças via WhatsApp Web
@@ -692,6 +694,219 @@ class BillingCollectionsController extends Controller
             'errors' => $errors,
             'logFile' => $logFile,
         ]);
+    }
+
+    /**
+     * Envia cobrança via Inbox (WhatsApp/Email) usando BillingSenderService
+     * 
+     * POST /billing/send-via-inbox
+     */
+    public function sendViaInbox(): void
+    {
+        Auth::requireInternal();
+
+        $tenantId = $_POST['tenant_id'] ?? null;
+        $invoiceIds = !empty($_POST['invoice_ids']) ? (array) $_POST['invoice_ids'] : null;
+        $channel = $_POST['channel'] ?? null;
+        $message = $_POST['message'] ?? null;
+        $redirectTo = $_POST['redirect_to'] ?? 'collections';
+
+        if (!$tenantId) {
+            $this->jsonOrRedirect($redirectTo, false, 'tenant_id obrigatório', $tenantId);
+            return;
+        }
+
+        $result = BillingSenderService::send([
+            'tenant_id' => (int) $tenantId,
+            'invoice_ids' => $invoiceIds,
+            'channel' => $channel,
+            'triggered_by' => 'manual',
+            'message_override' => !empty($message) ? $message : null,
+        ]);
+
+        if ($result['success']) {
+            $msg = "Cobrança enviada via Inbox! ({$result['invoices_count']} fatura(s))";
+            if ($result['gateway_message_id']) {
+                $msg .= " [msg_id: {$result['gateway_message_id']}]";
+            }
+            $this->jsonOrRedirect($redirectTo, true, $msg, $tenantId);
+        } else {
+            $this->jsonOrRedirect($redirectTo, false, $result['error'] ?? 'Erro desconhecido', $tenantId);
+        }
+    }
+
+    /**
+     * Atualiza configurações de cobrança automática do tenant
+     * 
+     * POST /billing/update-auto-settings
+     */
+    public function updateAutoSettings(): void
+    {
+        Auth::requireInternal();
+
+        $tenantId = $_POST['tenant_id'] ?? null;
+        $autoSend = isset($_POST['billing_auto_send']) ? 1 : 0;
+        $autoChannel = $_POST['billing_auto_channel'] ?? 'whatsapp';
+
+        if (!$tenantId) {
+            $this->redirect('/billing/overview?error=missing_tenant_id');
+            return;
+        }
+
+        // Valida canal
+        $validChannels = ['whatsapp', 'email', 'both'];
+        if (!in_array($autoChannel, $validChannels)) {
+            $autoChannel = 'whatsapp';
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            $stmt = $db->prepare("
+                UPDATE tenants
+                SET billing_auto_send = ?,
+                    billing_auto_channel = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$autoSend, $autoChannel, $tenantId]);
+
+            $redirectTab = $_POST['redirect_to'] ?? 'tenant';
+            if ($redirectTab === 'tenant') {
+                $this->redirect('/tenants/view?id=' . $tenantId . '&tab=financial&success=auto_settings_saved');
+            } else {
+                $this->redirect('/billing/overview?success=auto_settings_saved');
+            }
+        } catch (\Exception $e) {
+            error_log('[BILLING] Erro ao salvar auto settings: ' . $e->getMessage());
+            $this->redirect('/tenants/view?id=' . $tenantId . '&tab=financial&error=save_failed');
+        }
+    }
+
+    /**
+     * Tela de auditoria de envios de cobrança
+     * 
+     * GET /billing/notifications-log
+     */
+    public function notificationsLog(): void
+    {
+        Auth::requireInternal();
+
+        $db = DB::getConnection();
+
+        $tenantId = $_GET['tenant_id'] ?? null;
+        $status = $_GET['status'] ?? 'all';
+        $channel = $_GET['channel'] ?? 'all';
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $perPage = 50;
+        $offset = ($page - 1) * $perPage;
+
+        $where = ['1=1'];
+        $params = [];
+
+        if ($tenantId) {
+            $where[] = 'bn.tenant_id = ?';
+            $params[] = (int) $tenantId;
+        }
+        if ($status !== 'all') {
+            $where[] = 'bn.status = ?';
+            $params[] = $status;
+        }
+        if ($channel !== 'all') {
+            $where[] = 'bn.channel = ?';
+            $params[] = $channel;
+        }
+
+        $whereStr = implode(' AND ', $where);
+
+        // Total
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM billing_notifications bn WHERE {$whereStr}");
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        // Dados
+        $stmt = $db->prepare("
+            SELECT bn.*, t.name AS tenant_name, bi.due_date, bi.amount, bi.description AS invoice_description
+            FROM billing_notifications bn
+            LEFT JOIN tenants t ON t.id = bn.tenant_id
+            LEFT JOIN billing_invoices bi ON bi.id = bn.invoice_id
+            WHERE {$whereStr}
+            ORDER BY bn.created_at DESC
+            LIMIT {$perPage} OFFSET {$offset}
+        ");
+        $stmt->execute($params);
+        $notifications = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        // Contagem de falhas recentes (últimas 24h)
+        $failStmt = $db->query("SELECT COUNT(*) FROM billing_notifications WHERE status = 'failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+        $recentFailures = (int) $failStmt->fetchColumn();
+
+        // Resumo da fila do dia
+        $queueSummary = BillingDispatchQueueService::todaySummary();
+
+        // Jobs pendentes na fila (para exibição detalhada)
+        $queueJobs = $db->query("
+            SELECT bdq.*, t.name AS tenant_name
+            FROM billing_dispatch_queue bdq
+            LEFT JOIN tenants t ON t.id = bdq.tenant_id
+            WHERE DATE(bdq.created_at) = CURDATE()
+            ORDER BY bdq.scheduled_at ASC
+        ")->fetchAll(\PDO::FETCH_ASSOC);
+
+        $this->view('billing_collections.notifications_log', [
+            'notifications' => $notifications,
+            'total' => $total,
+            'page' => $page,
+            'perPage' => $perPage,
+            'tenantId' => $tenantId,
+            'status' => $status,
+            'channel' => $channel,
+            'recentFailures' => $recentFailures,
+            'queueSummary' => $queueSummary,
+            'queueJobs' => $queueJobs,
+        ]);
+    }
+
+    /**
+     * Retorna contagem de falhas recentes (para badge no menu)
+     * 
+     * GET /billing/failure-count
+     */
+    public function failureCount(): void
+    {
+        Auth::requireInternal();
+        $db = DB::getConnection();
+        $stmt = $db->query("SELECT COUNT(*) FROM billing_notifications WHERE status = 'failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+        $count = (int) $stmt->fetchColumn();
+        $this->json(['count' => $count]);
+    }
+
+    /**
+     * Helper: responde JSON ou redireciona dependendo do contexto
+     */
+    private function jsonOrRedirect(string $redirectTo, bool $success, string $message, ?int $tenantId = null): void
+    {
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+        $acceptsJson = isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false;
+
+        if ($isAjax || $acceptsJson) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => $success,
+                'message' => $message,
+            ]);
+            return;
+        }
+
+        $param = $success ? 'success' : 'error';
+        $encodedMsg = urlencode($message);
+
+        if ($redirectTo === 'tenant' && $tenantId) {
+            $this->redirect("/tenants/view?id={$tenantId}&tab=financial&{$param}=inbox_send&message={$encodedMsg}");
+        } elseif ($redirectTo === 'overview') {
+            $this->redirect("/billing/overview?{$param}=inbox_send&message={$encodedMsg}");
+        } else {
+            $this->redirect("/billing/collections?{$param}=inbox_send&message={$encodedMsg}");
+        }
     }
 
     /**

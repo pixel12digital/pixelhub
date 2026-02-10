@@ -493,6 +493,10 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/billing/tenant-reminder-sent', 'BillingCollectionsController@markTenantReminderSent');
     $router->post('/billing/sync-all-from-asaas', 'BillingCollectionsController@syncAllFromAsaas');
     $router->get('/billing/sync-errors', 'BillingCollectionsController@viewSyncErrors');
+    $router->post('/billing/send-via-inbox', 'BillingCollectionsController@sendViaInbox');
+    $router->post('/billing/update-auto-settings', 'BillingCollectionsController@updateAutoSettings');
+    $router->get('/billing/notifications-log', 'BillingCollectionsController@notificationsLog');
+    $router->get('/billing/failure-count', 'BillingCollectionsController@failureCount');
     
     // Rota de Carteira Recorrente
     $router->get('/recurring-contracts', 'RecurringContractsController@index');

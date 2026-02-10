@@ -1928,6 +1928,74 @@ function copyInvoiceUrl(url, btn) {
             </div>
         </div>
     </div>
+
+    <!-- Configurações de Cobrança Automática -->
+    <div class="card" style="margin-bottom: 20px; border-left: 4px solid #6f42c1;">
+        <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 15px;">
+            <div>
+                <h4 style="margin: 0 0 8px 0; color: #6f42c1; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                    Cobrança Automática
+                </h4>
+                <p style="margin: 0; font-size: 13px; color: #666;">
+                    Quando ativado, cobranças elegíveis serão enviadas automaticamente via Inbox (sessão pixel12digital).
+                </p>
+            </div>
+            <form method="POST" action="<?= pixelhub_url('/billing/update-auto-settings') ?>" style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                <input type="hidden" name="tenant_id" value="<?= htmlspecialchars($tenant['id']) ?>">
+                <input type="hidden" name="redirect_to" value="tenant">
+
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; color: #333;">
+                    <input type="checkbox" name="billing_auto_send" value="1"
+                           <?= !empty($tenant['billing_auto_send']) ? 'checked' : '' ?>
+                           style="width: 18px; height: 18px; cursor: pointer; accent-color: #6f42c1;">
+                    Automático
+                </label>
+
+                <select name="billing_auto_channel" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                    <option value="whatsapp" <?= ($tenant['billing_auto_channel'] ?? 'whatsapp') === 'whatsapp' ? 'selected' : '' ?>>WhatsApp</option>
+                    <option value="email" <?= ($tenant['billing_auto_channel'] ?? '') === 'email' ? 'selected' : '' ?>>E-mail</option>
+                    <option value="both" <?= ($tenant['billing_auto_channel'] ?? '') === 'both' ? 'selected' : '' ?>>Ambos</option>
+                </select>
+
+                <button type="submit" style="background: #6f42c1; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 13px;">
+                    Salvar
+                </button>
+
+                <?php if (!empty($tenant['is_billing_test'])): ?>
+                    <span style="background: #fff3cd; color: #856404; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">TESTE</span>
+                <?php endif; ?>
+            </form>
+        </div>
+    </div>
+
+    <?php if (isset($_GET['success']) && $_GET['success'] === 'auto_settings_saved'): ?>
+        <div class="card" style="background: #d4edda; border-left: 4px solid #28a745; margin-bottom: 20px;">
+            <p style="color: #155724; margin: 0;">Configurações de cobrança automática salvas com sucesso!</p>
+        </div>
+    <?php endif; ?>
+
+    <?php if (isset($_GET['success']) && $_GET['success'] === 'inbox_send'): ?>
+        <div class="card" style="background: #d4edda; border-left: 4px solid #28a745; margin-bottom: 20px;">
+            <p style="color: #155724; margin: 0; display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                <?= htmlspecialchars(urldecode($_GET['message'] ?? 'Cobrança enviada via Inbox!')) ?>
+            </p>
+        </div>
+    <?php endif; ?>
+
+    <?php if (isset($_GET['error']) && $_GET['error'] === 'inbox_send'): ?>
+        <div class="card" style="background: #fee; border-left: 4px solid #c33; margin-bottom: 20px;">
+            <p style="color: #c33; margin: 0;">
+                Erro ao enviar cobrança: <?= htmlspecialchars(urldecode($_GET['message'] ?? 'Erro desconhecido')) ?>
+            </p>
+        </div>
+    <?php endif; ?>
     
     <?php if (isset($_GET['success']) && $_GET['success'] === 'synced'): ?>
         <div class="card" style="background: #efe; border-left: 4px solid #3c3; margin-bottom: 20px;">
