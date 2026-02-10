@@ -144,6 +144,7 @@ class SmtpSettingsController extends Controller
             }
 
             error_log("SMTP_DEBUG: Redirecionando com sucesso");
+            error_log("SMTP_DEBUG: Chamando redirect method");
             $this->redirect('/settings/smtp?success=1&message=' . urlencode('Configurações SMTP atualizadas com sucesso!'));
         } catch (\Exception $e) {
             error_log("SMTP_DEBUG: Exceção capturada: " . $e->getMessage());
