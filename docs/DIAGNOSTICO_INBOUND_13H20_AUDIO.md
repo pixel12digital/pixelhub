@@ -143,3 +143,10 @@ Com a correção no frontend, ao receber 404 o Inbox **recarrega a lista** e o i
 | 7 | **Frontend** | Após o deploy, ao clicar em conversa inexistente, a lista deve atualizar sozinha (correção já no código). |
 
 Causa mais comum quando **nada** chega no Inbox: o gateway **não está enviando** o webhook para o Hub (URL errada, só uma sessão configurada, ou serviço do gateway não dispara para essas sessões).
+
+---
+
+## 7. Otimizações aplicadas (reduzir atraso no recebimento)
+
+- **Webhook:** Após enviar o JSON 200, o Hub chama `fastcgi_finish_request()` (ou `ob_end_flush()` + `flush()`) para **entregar a resposta ao gateway imediatamente**, reduzindo chance de timeout e retry. O processamento da mídia (enfileiramento) continua depois.
+- **Migration `20260213_add_webhook_performance_indexes`:** Índice composto em `tenant_message_channels (provider, is_enabled)` para acelerar `resolveTenantByChannel` e resolução de canal no ingest. Rodar a migration no ambiente (ex.: HostMídia) para aplicar.

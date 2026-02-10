@@ -338,6 +338,15 @@ class WhatsAppWebhookController extends Controller
                     'event_id' => $eventId,
                     'code' => 'SUCCESS'
                 ], JSON_UNESCAPED_UNICODE);
+                // Envia a resposta ao gateway imediatamente (reduz timeout/retry)
+                if (function_exists('fastcgi_finish_request')) {
+                    fastcgi_finish_request();
+                } else {
+                    if (ob_get_level()) {
+                        ob_end_flush();
+                    }
+                    flush();
+                }
             } else {
                 // CORREÇÃO: Se evento não foi salvo, loga como erro crítico
                 // Mas ainda responde 200 para não fazer gateway parar de enviar
@@ -358,9 +367,17 @@ class WhatsAppWebhookController extends Controller
                     'warning' => 'Event processed with warnings, check logs',
                     'event_saved' => false
                 ], JSON_UNESCAPED_UNICODE);
+                if (function_exists('fastcgi_finish_request')) {
+                    fastcgi_finish_request();
+                } else {
+                    if (ob_get_level()) {
+                        ob_end_flush();
+                    }
+                    flush();
+                }
             }
             
-            // Enfileira mídia para processamento assíncrono (worker processa via cron)
+            // Enfileira mídia para processamento assíncrono (após resposta já enviada) (worker processa via cron)
             // Inbound E outbound: ambos podem ter áudio/imagem (ex: áudios enviados pelo celular MSP)
             if ($eventId && $eventSaved && in_array($internalEventType, ['whatsapp.inbound.message', 'whatsapp.outbound.message'])) {
                 try {
