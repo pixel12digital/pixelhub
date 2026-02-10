@@ -972,7 +972,7 @@ class BillingCollectionsController extends Controller
         
         // Busca dados da fatura
         $stmt = $db->prepare("
-            SELECT bi.*, t.name as tenant_name, t.billing_whatsapp, t.billing_email
+            SELECT bi.*, t.name as tenant_name
             FROM billing_invoices bi
             JOIN tenants t ON bi.tenant_id = t.id
             WHERE bi.id = ? AND (bi.is_deleted IS NULL OR bi.is_deleted = 0)
@@ -982,17 +982,6 @@ class BillingCollectionsController extends Controller
 
         if (!$invoice) {
             $this->json(['success' => false, 'error' => 'Fatura não encontrada']);
-            return;
-        }
-
-        // Verifica se canal está disponível
-        if ($channel === 'whatsapp' && empty($invoice['billing_whatsapp'])) {
-            $this->json(['success' => false, 'error' => 'WhatsApp não configurado para este cliente']);
-            return;
-        }
-
-        if ($channel === 'email' && empty($invoice['billing_email'])) {
-            $this->json(['success' => false, 'error' => 'E-mail não configurado para este cliente']);
             return;
         }
 
