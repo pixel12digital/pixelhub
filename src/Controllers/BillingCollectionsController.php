@@ -1151,10 +1151,16 @@ class BillingCollectionsController extends Controller
         $amount = number_format($invoice['amount'], 2, ',', '.');
         $dueDate = (new \DateTime($invoice['due_date']))->format('d/m/Y');
         
-        $subject = "Cobrança - Fatura #{$invoice['id']} - {$tenantName}";
+        // Gera charge_title
+        $chargeTitles = \PixelHub\Services\BillingTemplateRegistry::generateChargeTitles($invoice);
+        $chargeTitle = $chargeTitles['title'];
+        $chargeTitleShort = $chargeTitles['title_short'];
+        
+        $subject = "[Pixel12] {$chargeTitleShort} — vence {$dueDate}";
         
         $message = "Olá {$tenantName},\n\n";
         $message .= "Gostaríamos de lembrar sobre sua fatura:\n\n";
+        $message .= "Descrição: {$chargeTitle}\n";
         $message .= "Fatura: #{$invoice['id']}\n";
         $message .= "Valor: R$ {$amount}\n";
         $message .= "Vencimento: {$dueDate}\n";
