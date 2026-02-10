@@ -949,5 +949,140 @@ class BillingCollectionsController extends Controller
 
         file_put_contents($logFile, $logContent, FILE_APPEND);
     }
+
+    /**
+     * Envia cobrança manualmente
+     */
+    public function sendManual(): void
+    {
+        Auth::requireInternal();
+        
+        $invoiceId = (int) ($_POST['invoice_id'] ?? 0);
+        $channel = $_POST['channel'] ?? 'whatsapp';
+        $reason = $_POST['reason'] ?? 'Envio manual solicitado';
+        $isForced = isset($_POST['is_forced']) && $_POST['is_forced'] === '1';
+        $forceReason = $isForced ? ($_POST['force_reason'] ?? '') : null;
+
+        if (!$invoiceId) {
+            $this->json(['success' => false, 'error' => 'Fatura não informada']);
+            return;
+        }
+
+        $db = DB::getConnection();
+        
+        // Busca dados da fatura
+        $stmt = $db->prepare("
+            SELECT bi.*, t.name as tenant_name, t.billing_whatsapp, t.billing_email
+            FROM billing_invoices bi
+            JOIN tenants t ON bi.tenant_id = t.id
+            WHERE bi.id = ? AND (bi.is_deleted IS NULL OR bi.is_deleted = 0)
+        ");
+        $stmt->execute([$invoiceId]);
+        $invoice = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$invoice) {
+            $this->json(['success' => false, 'error' => 'Fatura não encontrada']);
+            return;
+        }
+
+        // Verifica se canal está disponível
+        if ($channel === 'whatsapp' && empty($invoice['billing_whatsapp'])) {
+            $this->json(['success' => false, 'error' => 'WhatsApp não configurado para este cliente']);
+            return;
+        }
+
+        if ($channel === 'email' && empty($invoice['billing_email'])) {
+            $this->json(['success' => false, 'error' => 'E-mail não configurado para este cliente']);
+            return;
+        }
+
+        $user = Auth::user();
+        $templateKey = $this->getTemplateKey($invoice);
+
+        // Enfileira envio manual
+        $queueId = BillingDispatchQueueService::enqueueManual(
+            $invoice['tenant_id'],
+            [$invoiceId],
+            $channel,
+            $templateKey,
+            $user['id'],
+            $reason,
+            $isForced,
+            $forceReason
+        );
+
+        if (!$queueId) {
+            $this->json(['success' => false, 'error' => 'Envio em cooldown. Use "Forçar envio" se necessário.']);
+            return;
+        }
+
+        $this->json([
+            'success' => true,
+            'message' => 'Cobrança enfileirada para envio imediato',
+            'queue_id' => $queueId
+        ]);
+    }
+
+    /**
+     * Busca último envio da fatura
+     */
+    public function getLastDispatch(): void
+    {
+        Auth::requireInternal();
+        
+        $invoiceId = (int) ($_GET['invoice_id'] ?? 0);
+        $channel = $_GET['channel'] ?? null;
+
+        if (!$invoiceId) {
+            $this->json(['success' => false, 'error' => 'Fatura não informada']);
+            return;
+        }
+
+        $lastDispatch = BillingDispatchQueueService::getLastDispatch($invoiceId, $channel);
+
+        if ($lastDispatch) {
+            $this->json([
+                'success' => true,
+                'data' => [
+                    'sent_at' => $lastDispatch['sent_at'],
+                    'channel' => $lastDispatch['channel'],
+                    'trigger_source' => $lastDispatch['trigger_source'],
+                    'user_name' => $lastDispatch['user_name'],
+                    'is_forced' => $lastDispatch['is_forced'],
+                    'force_reason' => $lastDispatch['force_reason']
+                ]
+            ]);
+        } else {
+            $this->json(['success' => true, 'data' => null]);
+        }
+    }
+
+    /**
+     * Determina template key baseado na fatura
+     */
+    private function getTemplateKey(array $invoice): string
+    {
+        $daysOverdue = $invoice['status'] === 'overdue' 
+            ? (int) ((new \DateTime())->diff(new \DateTime($invoice['due_date']))->days)
+            : 0;
+
+        if ($invoice['status'] === 'pending') {
+            $daysToDue = (int) ((new \DateTime($invoice['due_date']))->diff(new \DateTime())->days);
+            if ($daysToDue <= 3) {
+                return 'due_soon_3d';
+            }
+            return 'pending';
+        }
+
+        if ($daysOverdue <= 3) {
+            return 'overdue_3d';
+        } elseif ($daysOverdue <= 7) {
+            return 'overdue_7d';
+        } elseif ($daysOverdue <= 15) {
+            return 'overdue_15d';
+        } else {
+            return 'overdue_30d';
+        }
+    }
 }
 

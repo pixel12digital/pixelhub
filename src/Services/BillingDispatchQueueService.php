@@ -132,13 +132,54 @@ class BillingDispatchQueueService
     }
 
     /**
-     * Marca job como enviado com sucesso.
+     * Marca job como enviado com sucesso e registra log.
      */
-    public static function markSent(int $jobId): void
+    public static function markSent(int $jobId, ?string $messageId = null): void
     {
-        DB::getConnection()->prepare("
-            UPDATE billing_dispatch_queue SET status = 'sent', updated_at = NOW() WHERE id = ?
-        ")->execute([$jobId]);
+        $db = DB::getConnection();
+
+        // Busca dados da fila para registrar no log
+        $stmt = $db->prepare("
+            SELECT tenant_id, invoice_ids, channel, trigger_source, triggered_by_user_id,
+                   is_forced, force_reason
+            FROM billing_dispatch_queue
+            WHERE id = ?
+        ");
+        $stmt->execute([$jobId]);
+        $queue = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        // Atualiza fila
+        $updateStmt = $db->prepare("
+            UPDATE billing_dispatch_queue 
+            SET status = 'sent', sent_at = NOW(), updated_at = NOW() 
+            WHERE id = ?
+        ");
+        $updateStmt->execute([$jobId]);
+
+        // Registra log para cada fatura
+        if ($queue) {
+            $invoiceIds = json_decode($queue['invoice_ids'], true);
+            foreach ($invoiceIds as $invoiceId) {
+                $logStmt = $db->prepare("
+                    INSERT INTO billing_dispatch_log (
+                        tenant_id, invoice_id, channel, template_key, sent_at,
+                        trigger_source, triggered_by_user_id, is_forced, force_reason, message_id
+                    ) VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)
+                ");
+
+                $logStmt->execute([
+                    $queue['tenant_id'],
+                    $invoiceId,
+                    $queue['channel'],
+                    'manual', // Template key padrão para envios manuais
+                    $queue['trigger_source'],
+                    $queue['triggered_by_user_id'],
+                    $queue['is_forced'],
+                    $queue['force_reason'],
+                    $messageId
+                ]);
+            }
+        }
     }
 
     /**
@@ -280,5 +321,167 @@ class BillingDispatchQueueService
             $summary[$row['status']] = (int) $row['cnt'];
         }
         return $summary;
+    }
+
+    /**
+     * Enfileira envio manual de cobrança
+     * 
+     * @param int $tenantId
+     * @param array $invoiceIds
+     * @param string $channel
+     * @param string $templateKey
+     * @param int $userId
+     * @param string $reason
+     * @param bool $isForced
+     * @param string|null $forceReason
+     * @return int|null
+     */
+    public static function enqueueManual(
+        int $tenantId,
+        array $invoiceIds,
+        string $channel,
+        string $templateKey,
+        int $userId,
+        string $reason,
+        bool $isForced = false,
+        ?string $forceReason = null
+    ): ?int {
+        $db = DB::getConnection();
+
+        // Verifica cooldown (a menos que seja forçado)
+        if (!$isForced && self::isInCooldown($tenantId, $invoiceIds, $channel, $templateKey)) {
+            return null; // Em cooldown
+        }
+
+        // Gera idempotency key
+        $dateBucket = date('Y-m-d-H');
+        $idempotencyKey = "{$tenantId}|" . implode(',', $invoiceIds) . "|{$channel}|{$templateKey}|{$dateBucket}";
+
+        $scheduledAt = new \DateTime(); // Imediato para envio manual
+
+        $stmt = $db->prepare("
+            INSERT INTO billing_dispatch_queue (
+                tenant_id, invoice_ids, channel, trigger_source, triggered_by_user_id,
+                reason, is_forced, force_reason, scheduled_at, idempotency_key, status
+            ) VALUES (
+                ?, ?, ?, 'manual', ?, ?, ?, ?, NOW(), ?, 'queued'
+            )
+        ");
+
+        $stmt->execute([
+            $tenantId,
+            json_encode($invoiceIds),
+            $channel,
+            $userId,
+            $reason,
+            $isForced ? 1 : 0,
+            $forceReason,
+            $idempotencyKey
+        ]);
+
+        return (int) $db->lastInsertId();
+    }
+
+    /**
+     * Verifica se está em cooldown
+     */
+    public static function isInCooldown(int $tenantId, array $invoiceIds, string $channel, string $templateKey): bool
+    {
+        $db = DB::getConnection();
+
+        // Busca cooldown configurado
+        $stmt = $db->prepare("
+            SELECT cooldown_hours FROM billing_cooldown_config
+            WHERE channel = ? AND template_key = ? AND enabled = 1
+            LIMIT 1
+        ");
+        $stmt->execute([$channel, $templateKey]);
+        $cooldownHours = $stmt->fetchColumn();
+
+        if (!$cooldownHours) {
+            return false; // Sem cooldown configurado
+        }
+
+        // Verifica log de envios recentes
+        $placeholders = str_repeat('?,', count($invoiceIds) - 1) . '?';
+        $stmt = $db->prepare("
+            SELECT 1 FROM billing_dispatch_log
+            WHERE tenant_id = ?
+              AND invoice_id IN ($placeholders)
+              AND channel = ?
+              AND template_key = ?
+              AND sent_at > DATE_SUB(NOW(), INTERVAL ? HOUR)
+              AND is_forced = 0
+            LIMIT 1
+        ");
+
+        $params = array_merge([$tenantId], $invoiceIds, [$channel, $templateKey, $cooldownHours]);
+        $stmt->execute($params);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    /**
+     * Registra envio no log (fonte de verdade)
+     */
+    public static function logDispatch(
+        int $tenantId,
+        int $invoiceId,
+        string $channel,
+        string $templateKey,
+        string $triggerSource,
+        ?int $triggeredByUserId = null,
+        bool $isForced = false,
+        ?string $forceReason = null,
+        ?string $messageId = null
+    ): void {
+        $db = DB::getConnection();
+
+        $stmt = $db->prepare("
+            INSERT INTO billing_dispatch_log (
+                tenant_id, invoice_id, channel, template_key, sent_at,
+                trigger_source, triggered_by_user_id, is_forced, force_reason, message_id
+            ) VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)
+        ");
+
+        $stmt->execute([
+            $tenantId,
+            $invoiceId,
+            $channel,
+            $templateKey,
+            $triggerSource,
+            $triggeredByUserId,
+            $isForced ? 1 : 0,
+            $forceReason,
+            $messageId
+        ]);
+    }
+
+    /**
+     * Busca último envio por fatura
+     */
+    public static function getLastDispatch(int $invoiceId, ?string $channel = null): ?array
+    {
+        $db = DB::getConnection();
+
+        $sql = "
+            SELECT bdl.*, u.name as user_name
+            FROM billing_dispatch_log bdl
+            LEFT JOIN users u ON bdl.triggered_by_user_id = u.id
+            WHERE bdl.invoice_id = ?
+        ";
+        $params = [$invoiceId];
+
+        if ($channel) {
+            $sql .= " AND bdl.channel = ?";
+            $params[] = $channel;
+        }
+
+        $sql .= " ORDER BY bdl.sent_at DESC LIMIT 1";
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
     }
 }
