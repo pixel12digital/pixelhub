@@ -2,10 +2,11 @@
 /**
  * Diagnóstico: Por que o QR code não é gerado?
  *
- * Executar na HostMedia: php scripts/diagnostico_qr_code_gateway.php [session_id]
+ * Uso: php scripts/diagnostico_qr_code_gateway.php [session_id]
  *
- * Testa cada etapa do fluxo (create, getQr, delete, create, getQr) e mostra
- * a resposta bruta do gateway para identificar onde o fluxo falha.
+ * Pode ser executado LOCALMENTE (não é necessário commit/deploy para produção).
+ * Requer .env com WPP_GATEWAY_BASE_URL e WPP_GATEWAY_SECRET e rede com acesso ao gateway.
+ * Testa: listChannels, getQr, delete, create, getQr e mostra a resposta bruta do gateway.
  */
 if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';

@@ -268,10 +268,11 @@ $pixelhubBaseUrl = pixelhub_url('');
         </span>
         <button type="button" id="btn-refresh-sessions" style="padding: 6px 12px; font-size: 13px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Atualizar</button>
     </h3>
-    <p style="margin-bottom: 16px; color: #666; font-size: 14px;">Gerencie sessões, verifique status e reconecte diretamente pelo Pixel Hub. A VPS permanece apenas como gateway.</p>
+    <p style="margin-bottom: 8px; color: #666; font-size: 14px;">Gerencie sessões, verifique status e reconecte diretamente pelo Pixel Hub. A VPS permanece apenas como gateway.</p>
+    <p style="margin-bottom: 16px; color: #6c757d; font-size: 12px;">Ao clicar em <strong>Atualizar</strong>, a lista é buscada no gateway (VPS) e exibe todas as sessões e o status de cada uma.</p>
 
     <div id="sessions-loading" style="display: none; padding: 20px; text-align: center; color: #666;">
-        Carregando sessões...
+        Buscando sessões no gateway...
     </div>
     <div id="sessions-error" style="display: none; padding: 12px; background: #f8d7da; color: #721c24; border-radius: 4px; margin-bottom: 16px;"></div>
     <div id="sessions-list" style="display: grid; gap: 12px;"></div>
@@ -498,14 +499,23 @@ function loadSessions() {
     const loading = document.getElementById('sessions-loading');
     const error = document.getElementById('sessions-error');
     const list = document.getElementById('sessions-list');
+    const btnRefresh = document.getElementById('btn-refresh-sessions');
     loading.style.display = 'block';
     error.style.display = 'none';
     list.innerHTML = '';
+    if (btnRefresh) {
+        btnRefresh.disabled = true;
+        btnRefresh.textContent = 'Buscando no gateway...';
+    }
 
     fetch(sessionsBaseUrl + '/sessions', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(r => r.json())
         .then(data => {
             loading.style.display = 'none';
+            if (btnRefresh) {
+                btnRefresh.disabled = false;
+                btnRefresh.textContent = 'Atualizar';
+            }
             if (!data.success) {
                 error.textContent = data.error || 'Erro ao carregar sessões';
                 error.style.display = 'block';
@@ -541,6 +551,10 @@ function loadSessions() {
         })
         .catch(err => {
             loading.style.display = 'none';
+            if (btnRefresh) {
+                btnRefresh.disabled = false;
+                btnRefresh.textContent = 'Atualizar';
+            }
             error.textContent = 'Erro: ' + err.message;
             error.style.display = 'block';
         });
@@ -562,17 +576,49 @@ function escapeHtml(s) {
     return div.innerHTML;
 }
 
+function stopQrConnectedPoll() {
+    if (window._qrConnectedCheckInterval) {
+        clearInterval(window._qrConnectedCheckInterval);
+        window._qrConnectedCheckInterval = null;
+    }
+}
+
+function startQrConnectedPoll(channelId) {
+    stopQrConnectedPoll();
+    if (!channelId) return;
+    window._qrConnectedCheckInterval = setInterval(function() {
+        fetch(sessionsBaseUrl + '/sessions', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success || !data.sessions || !data.sessions.length) return;
+                var session = data.sessions.find(function(s) {
+                    var id = (s.id || s.name || '').toString().toLowerCase().replace(/\s+/g, '');
+                    return id === channelId.toLowerCase().replace(/\s+/g, '');
+                });
+                if (session && (session.status === 'connected' || String(session.status).toLowerCase() === 'connected')) {
+                    stopQrConnectedPoll();
+                    document.getElementById('qr-modal').style.display = 'none';
+                    loadSessions();
+                }
+            })
+            .catch(function() {});
+    }, 5000);
+}
+
 function showQrModal(qr, channelId, showRetry, customMessage, isPolling) {
     const modal = document.getElementById('qr-modal');
     const content = document.getElementById('qr-modal-content');
     const modalInner = document.getElementById('qr-modal-inner');
 
     modalInner.style.maxWidth = '450px';
+    stopQrConnectedPoll();
 
     if (qr && (qr.startsWith('data:') || qr.startsWith('http'))) {
         content.innerHTML = '<img src="' + qr + '" alt="QR Code" style="max-width: 280px; height: auto;">';
+        startQrConnectedPoll(channelId);
     } else if (qr) {
         content.innerHTML = '<img src="data:image/png;base64,' + qr + '" alt="QR Code" style="max-width: 280px; height: auto;">';
+        startQrConnectedPoll(channelId);
     } else {
         const msg = customMessage || 'Gerando QR code... Aguarde.';
         content.innerHTML = '<div style="padding: 24px; background: #f8f9fa; border-radius: 6px; text-align: center;">' +
@@ -594,6 +640,8 @@ function reconnectSession(channelId, attempt) {
     attempt = attempt || 0;
     const maxAttempts = 12;
     const pollIntervalMs = 5000;
+    var reconnectAbort = new AbortController();
+    var reconnectTimeout = setTimeout(function() { reconnectAbort.abort(); }, 85000);
 
     if (attempt === 0) {
         showQrModal(null, channelId, true, 'Gerando QR code... Aguarde.', true);
@@ -602,9 +650,10 @@ function reconnectSession(channelId, attempt) {
     fetch(sessionsBaseUrl + '/sessions/reconnect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ channel_id: channelId })
+        body: JSON.stringify({ channel_id: channelId }),
+        signal: reconnectAbort.signal
     })
-    .then(r => r.json())
+    .then(r => { clearTimeout(reconnectTimeout); return r.json(); })
     .then(data => {
         console.log('[QR-Reconnect] Tentativa', attempt + 1, ':', { hasQr: !!data.qr, message: data.message, error: data.error });
         if (data.qr) {
@@ -621,12 +670,14 @@ function reconnectSession(channelId, attempt) {
         }
     })
     .catch(err => {
+        clearTimeout(reconnectTimeout);
+        var msg = err.name === 'AbortError' ? 'A requisição demorou muito (timeout). Clique em Tentar novamente.' : err.message;
         if (attempt < maxAttempts - 1) {
             showQrModal(null, channelId, true, 'Erro ao gerar QR. Tentando novamente em 5s...', true);
             setTimeout(function() { reconnectSession(channelId, attempt + 1); }, pollIntervalMs);
         } else {
-            showQrModal(null, channelId, true, 'Erro: ' + err.message);
-            console.warn('Erro:', err.message);
+            showQrModal(null, channelId, true, 'Erro: ' + msg);
+            console.warn('Erro:', err);
         }
     });
 }
@@ -642,12 +693,15 @@ document.getElementById('btn-create-session').addEventListener('click', function
     btn.disabled = true;
     btn.textContent = 'Criando...';
     showQrModal(null, channelId, true, 'Criando sessão e gerando QR code... Aguarde.', true);
+    var createAbort = new AbortController();
+    var createTimeout = setTimeout(function() { createAbort.abort(); }, 85000);
     fetch(sessionsBaseUrl + '/sessions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ channel_id: channelId })
+        body: JSON.stringify({ channel_id: channelId }),
+        signal: createAbort.signal
     })
-    .then(r => r.json())
+    .then(r => { clearTimeout(createTimeout); return r.json(); })
     .then(data => {
         btn.disabled = false;
         btn.textContent = 'Criar sessão';
@@ -663,16 +717,19 @@ document.getElementById('btn-create-session').addEventListener('click', function
         }
     })
     .catch(err => {
+        clearTimeout(createTimeout);
         btn.disabled = false;
         btn.textContent = 'Criar sessão';
-        document.getElementById('qr-modal').style.display = 'none';
-        alert('Erro: ' + err.message);
+        var msg = err.name === 'AbortError' ? 'A requisição demorou muito (timeout). Tente novamente ou use Reconectar na sessão.' : err.message;
+        showQrModal(null, channelId, true, 'Erro: ' + msg);
     });
 });
 
 function createSessionPollQr(channelId, attempt) {
-    const maxAttempts = 12;
+    const maxAttempts = 24;
     const pollIntervalMs = 5000;
+    var pollAbort = new AbortController();
+    var pollTimeout = setTimeout(function() { pollAbort.abort(); }, 85000);
     if (attempt >= maxAttempts) {
         showQrModal(null, channelId, true, 'Não foi possível gerar o QR após várias tentativas. Clique em Tentar novamente.');
         return;
@@ -681,25 +738,38 @@ function createSessionPollQr(channelId, attempt) {
     fetch(sessionsBaseUrl + '/sessions/reconnect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ channel_id: channelId })
+        body: JSON.stringify({ channel_id: channelId }),
+        signal: pollAbort.signal
     })
-    .then(r => r.json())
+    .then(r => { clearTimeout(pollTimeout); return r.json(); })
     .then(data => {
         console.log('[QR-Reconnect] Tentativa', attempt + 1, ':', { hasQr: !!data.qr, message: data.message, error: data.error });
         if (data.qr) showQrModal(data.qr, channelId);
         else setTimeout(function() { createSessionPollQr(channelId, attempt + 1); }, pollIntervalMs);
     })
     .catch((err) => {
+        clearTimeout(pollTimeout);
         console.warn('[QR-Reconnect] Erro:', err);
-        setTimeout(function() { createSessionPollQr(channelId, attempt + 1); }, pollIntervalMs);
+        if (attempt < maxAttempts - 1) {
+            setTimeout(function() { createSessionPollQr(channelId, attempt + 1); }, pollIntervalMs);
+        } else {
+            var msg = err.name === 'AbortError' ? 'Timeout ao aguardar QR. Clique em Tentar novamente.' : err.message;
+            showQrModal(null, channelId, true, 'Erro: ' + msg);
+        }
     });
 }
 
 document.getElementById('qr-modal-close').addEventListener('click', function() {
+    stopQrConnectedPoll();
     document.getElementById('qr-modal').style.display = 'none';
+    loadSessions();
 });
 document.getElementById('qr-modal').addEventListener('click', function(e) {
-    if (e.target === this) this.style.display = 'none';
+    if (e.target === this) {
+        stopQrConnectedPoll();
+        this.style.display = 'none';
+        loadSessions();
+    }
 });
 
 document.getElementById('btn-refresh-sessions').addEventListener('click', loadSessions);

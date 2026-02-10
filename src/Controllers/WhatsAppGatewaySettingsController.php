@@ -698,6 +698,7 @@ class WhatsAppGatewaySettingsController extends Controller
     {
         Auth::requireInternal();
         header('Content-Type: application/json; charset=utf-8');
+        @set_time_limit(90); // create + getQrWithRetry + tryRestartAndGetQr pode levar ~50–60s
 
         $input = json_decode(file_get_contents('php://input') ?: '{}', true) ?: [];
         $channelId = trim($input['channel_id'] ?? $_POST['channel_id'] ?? '');
@@ -738,7 +739,9 @@ class WhatsAppGatewaySettingsController extends Controller
                 ? 'Sessão criada. Escaneie o QR code com o WhatsApp.'
                 : ($gatewayStatus === 'CONNECTED'
                     ? ($gatewayMessage ?: 'Sessão em estado inconsistente. Clique em Tentar novamente.')
-                    : ($gatewayMessage ?: $gatewayError ?: 'Não foi possível gerar QR. Clique em Tentar novamente.'));
+                    : ($gatewayStatus === 'INITIALIZING'
+                        ? 'Gerando QR code. Aguarde até 1 minuto (não feche o modal).'
+                        : ($gatewayMessage ?: $gatewayError ?: 'Não foi possível gerar QR. Clique em Tentar novamente.')));
 
             $this->json([
                 'success' => true,
@@ -799,7 +802,9 @@ class WhatsAppGatewaySettingsController extends Controller
                 : ($qrResult['success']
                     ? ($gatewayStatus === 'CONNECTED'
                         ? ($gatewayMessage ?: 'Sessão em estado inconsistente. Tente novamente em alguns segundos.')
-                        : ($gatewayMessage ?: 'O gateway pode exibir o QR na interface da VPS.'))
+                        : ($gatewayStatus === 'INITIALIZING'
+                            ? 'Gerando QR code. Aguarde até 1 minuto (não feche o modal).'
+                            : ($gatewayMessage ?: 'Aguardando QR. Não feche o modal (pode levar até 1 minuto).')))
                     : ($gatewayError ?: 'Não foi possível gerar QR code. Tente novamente.'));
 
             $this->json([
