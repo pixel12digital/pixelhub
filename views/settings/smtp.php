@@ -199,6 +199,7 @@ document.getElementById('toggle-password').addEventListener('click', function() 
         eyeOffIcon.style.display = 'none';
     }
 });
+</script>
 
 <!-- Script para teste SMTP -->
 <script>
