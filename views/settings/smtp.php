@@ -182,60 +182,70 @@ $baseUrl = pixelhub_url('');
 }
 </style>
 
+<?php
+$content = ob_get_clean();
+include __DIR__ . '/../layout/main.php';
+?>
+
 <!-- Script para mostrar/ocultar senha -->
 <script>
-document.getElementById('toggle-password').addEventListener('click', function() {
+document.addEventListener('DOMContentLoaded', function() {
+    const togglePassword = document.getElementById('toggle-password');
     const passwordInput = document.getElementById('smtp_password');
     const eyeIcon = document.getElementById('eye-icon');
     const eyeOffIcon = document.getElementById('eye-off-icon');
     
-    if (passwordInput.type === 'password') {
-        passwordInput.type = 'text';
-        eyeIcon.style.display = 'none';
-        eyeOffIcon.style.display = 'block';
-    } else {
-        passwordInput.type = 'password';
-        eyeIcon.style.display = 'block';
-        eyeOffIcon.style.display = 'none';
+    if (togglePassword && passwordInput && eyeIcon && eyeOffIcon) {
+        togglePassword.addEventListener('click', function() {
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                eyeIcon.style.display = 'none';
+                eyeOffIcon.style.display = 'block';
+            } else {
+                passwordInput.type = 'password';
+                eyeIcon.style.display = 'block';
+                eyeOffIcon.style.display = 'none';
+            }
+        });
     }
 });
 </script>
 
 <!-- Script para teste SMTP -->
 <script>
-document.getElementById('test-smtp-btn').addEventListener('click', function() {
-    const btn = this;
-    const originalText = btn.innerHTML;
-    
-    btn.disabled = true;
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px; animation: spin 1s linear infinite;"><circle cx="12" cy="12" r="10"/><path d="M12 2v10l4 2"/></svg> Enviando teste...';
-    
-    fetch('<?= pixelhub_url('/settings/smtp/test') ?>', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: 'test=1'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Sucesso: ' + data.message);
-        } else {
-            alert('Erro: ' + data.error);
-        }
-    })
-    .catch(error => {
-        alert('Erro ao testar: ' + error.message);
-    })
-    .finally(() => {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-    });
+document.addEventListener('DOMContentLoaded', function() {
+    const testBtn = document.getElementById('test-smtp-btn');
+    if (testBtn) {
+        testBtn.addEventListener('click', function() {
+            const btn = this;
+            const originalText = btn.innerHTML;
+            
+            btn.disabled = true;
+            btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 6px; animation: spin 1s linear infinite;"><circle cx="12" cy="12" r="10"/><path d="M12 2v10l4 2"/></svg> Enviando teste...';
+            
+            fetch('<?= pixelhub_url('/settings/smtp/test') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'test=1'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Sucesso: ' + data.message);
+                } else {
+                    alert('Erro: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('Erro ao testar: ' + error.message);
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
+        });
+    }
 });
 </script>
-
-<?php
-$content = ob_get_clean();
-include __DIR__ . '/../layout/main.php';
-?>
