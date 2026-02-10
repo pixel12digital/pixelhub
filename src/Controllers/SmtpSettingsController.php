@@ -32,11 +32,6 @@ class SmtpSettingsController extends Controller
             'smtp_from_email' => 'noreply@pixel12digital.com.br',
         ];
 
-        // Descriptografa senha para exibição (se houver)
-        if (!empty($smtpSettings['smtp_password'])) {
-            $smtpSettings['smtp_password'] = Security::decrypt($smtpSettings['smtp_password']);
-        }
-
         $this->view('settings.smtp', [
             'smtpSettings' => $smtpSettings,
         ]);
@@ -160,9 +155,6 @@ class SmtpSettingsController extends Controller
             $this->json(['success' => false, 'error' => 'SMTP não está configurado ou está desativado']);
             return;
         }
-
-        // Descriptografa senha
-        $settings['smtp_password'] = Security::decrypt($settings['smtp_password']);
         
         try {
             $smtpService = new SmtpService($settings);
