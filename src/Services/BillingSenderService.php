@@ -4,6 +4,7 @@ namespace PixelHub\Services;
 
 use PixelHub\Core\DB;
 use PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient;
+use PixelHub\Services\EventIngestionService;
 
 /**
  * Serviço centralizado de envio de cobranças via Inbox (WhatsApp/Email)
@@ -219,6 +220,59 @@ class BillingSenderService
                 $result['notification_ids'][] = $notificationId;
                 $result['gateway_message_id'] = $gwResult['message_id'] ?? null;
                 
+                // ─── Ingere evento no Inbox (cria conversa vinculada ao tenant) ───
+                try {
+                    $gatewayMessageId = $gwResult['message_id'] ?? null;
+                    $eventPayload = [
+                        'to' => $phoneNormalized,
+                        'timestamp' => time(),
+                        'channel_id' => self::WHATSAPP_SESSION,
+                        'type' => 'text',
+                        'message' => [
+                            'to' => $phoneNormalized,
+                            'text' => $messageBody,
+                            'timestamp' => time()
+                        ],
+                        'text' => $messageBody
+                    ];
+                    if ($gatewayMessageId !== null) {
+                        $eventPayload['id'] = $gatewayMessageId;
+                        $eventPayload['message_id'] = $gatewayMessageId;
+                    }
+
+                    $normalizedChannelId = strtolower(str_replace(' ', '', self::WHATSAPP_SESSION));
+                    $metadata = [
+                        'sent_by' => null,
+                        'sent_by_name' => 'Sistema de Cobrança',
+                        'message_id' => $gatewayMessageId,
+                        'channel_id' => $normalizedChannelId,
+                        'billing_auto_send' => true,
+                        'invoice_id' => $invoice['id'],
+                        'explicit_tenant_selection' => true
+                    ];
+
+                    EventIngestionService::ingest([
+                        'event_type' => 'whatsapp.outbound.message',
+                        'source_system' => 'pixelhub_operator',
+                        'payload' => $eventPayload,
+                        'tenant_id' => $tenantId,
+                        'metadata' => $metadata
+                    ]);
+
+                    self::logDispatch('INBOX_EVENT_CREATED', 'Evento ingerido no Inbox com tenant_id', [
+                        'tenant_id' => $tenantId,
+                        'invoice_id' => $invoice['id'],
+                        'phone' => $phoneNormalized,
+                        'message_id' => $gatewayMessageId
+                    ]);
+                } catch (\Exception $ingestEx) {
+                    // Não quebra o fluxo — cobrança já foi enviada
+                    self::logDispatch('INBOX_EVENT_FAIL', 'Erro ao ingerir evento no Inbox (não crítico): ' . $ingestEx->getMessage(), [
+                        'tenant_id' => $tenantId,
+                        'invoice_id' => $invoice['id']
+                    ]);
+                }
+
                 self::logDispatch('WHATSAPP_SENT', 'WhatsApp enviado com sucesso', [
                     'tenant_id' => $tenantId,
                     'invoice_id' => $invoice['id'],
