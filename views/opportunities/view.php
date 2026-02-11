@@ -330,9 +330,14 @@ $isLost = $opp['status'] === 'lost';
 </div>
 
 <!-- Inbox Drawer Overlay -->
-<div id="inbox-drawer-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:3000;">
-    <div id="inbox-drawer-backdrop" style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); transition:opacity 0.3s;" onclick="closeInboxDrawer()"></div>
-    <div id="inbox-drawer-panel" style="position:absolute; top:0; right:-55%; width:55%; height:100%; background:white; box-shadow:-4px 0 20px rgba(0,0,0,0.15); transition:right 0.3s ease; display:flex; flex-direction:column; z-index:1;">
+<div id="inbox-drawer-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:3000; pointer-events:none;">
+    <div id="inbox-drawer-backdrop" style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0); transition:background 0.3s; pointer-events:none;"></div>
+    <div id="inbox-drawer-panel" style="position:absolute; top:0; right:0; width:55%; height:100%; background:white; box-shadow:-4px 0 20px rgba(0,0,0,0.15); transform:translateX(100%); transition:transform 0.3s ease; display:flex; flex-direction:column; z-index:1; pointer-events:auto;">
+        <!-- Seta de fechar no canto esquerdo do painel -->
+        <button id="inbox-drawer-collapse-btn" onclick="closeInboxDrawer()" 
+                style="position:absolute; left:-20px; top:50%; transform:translateY(-50%); width:20px; height:50px; background:#023A8D; border:none; border-radius:6px 0 0 6px; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:2; box-shadow:-2px 0 6px rgba(0,0,0,0.15);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
         <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:#023A8D; color:white; flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:8px;">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -344,58 +349,62 @@ $isLost = $opp['status'] === 'lost';
     </div>
 </div>
 <style>
+    #inbox-drawer-overlay.active { pointer-events: auto; }
+    #inbox-drawer-overlay.active #inbox-drawer-backdrop { background: rgba(0,0,0,0.4); pointer-events: auto; }
+    #inbox-drawer-overlay.active #inbox-drawer-panel { transform: translateX(0); }
     @media (max-width: 900px) {
-        #inbox-drawer-panel { width: 90% !important; right: -90% !important; }
-        #inbox-drawer-panel.open { right: 0 !important; }
-    }
-    @media (min-width: 901px) {
-        #inbox-drawer-panel.open { right: 0 !important; }
+        #inbox-drawer-panel { width: 92% !important; }
     }
 </style>
 
 <script>
 const OPP_ID = <?= $opp['id'] ?>;
 const INBOX_URL = '<?= pixelhub_url('/communication-hub') ?>';
+let inboxDrawerOpen = false;
 
 function openWhatsApp(phone) {
     const overlay = document.getElementById('inbox-drawer-overlay');
-    const panel = document.getElementById('inbox-drawer-panel');
     const iframe = document.getElementById('inbox-drawer-iframe');
     
-    // Build embed URL with phone
     const embedUrl = INBOX_URL + '?embed=1&phone=' + encodeURIComponent(phone);
     iframe.src = embedUrl;
     
-    // Show overlay
     overlay.style.display = 'block';
-    // Trigger animation
-    requestAnimationFrame(() => {
-        panel.classList.add('open');
-    });
-    // Prevent body scroll
+    // Force reflow before adding class
+    overlay.offsetHeight;
+    overlay.classList.add('active');
     document.body.style.overflow = 'hidden';
+    inboxDrawerOpen = true;
 }
 
 function closeInboxDrawer() {
+    if (!inboxDrawerOpen) return;
+    inboxDrawerOpen = false;
+    
     const overlay = document.getElementById('inbox-drawer-overlay');
-    const panel = document.getElementById('inbox-drawer-panel');
     const iframe = document.getElementById('inbox-drawer-iframe');
     
-    panel.classList.remove('open');
+    // Remove active class (triggers CSS transitions)
+    overlay.classList.remove('active');
+    // Restore body scroll immediately
+    document.body.style.overflow = '';
+    
+    // After transition, fully hide and clean up iframe
     setTimeout(() => {
         overlay.style.display = 'none';
         iframe.src = 'about:blank';
-    }, 300);
-    document.body.style.overflow = '';
+    }, 350);
 }
+
+// Close with backdrop click
+document.getElementById('inbox-drawer-backdrop').addEventListener('click', function(e) {
+    if (e.target === this) closeInboxDrawer();
+});
 
 // Close drawer with Escape key
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        const overlay = document.getElementById('inbox-drawer-overlay');
-        if (overlay && overlay.style.display !== 'none') {
-            closeInboxDrawer();
-        }
+    if (e.key === 'Escape' && inboxDrawerOpen) {
+        closeInboxDrawer();
     }
 });
 
