@@ -509,5 +509,18 @@ class ScreenRecordingsController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Renderiza a página popup dedicada para gravação de tela.
+     * Esta página roda numa janela separada e não navega,
+     * permitindo que a gravação persista enquanto o usuário
+     * navega livremente na janela principal.
+     */
+    public function recorderPopup(): void
+    {
+        Auth::requireInternal();
+        require __DIR__ . '/../../views/screen_recordings/recorder_popup.php';
+        exit;
+    }
 }
 

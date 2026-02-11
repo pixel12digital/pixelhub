@@ -743,6 +743,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/screen-recordings', 'ScreenRecordingsController@index');
     $router->post('/screen-recordings/delete', 'ScreenRecordingsController@delete');
     $router->get('/screen-recordings/check-token', 'ScreenRecordingsController@checkToken');
+    $router->get('/screen-recordings/recorder-popup', 'ScreenRecordingsController@recorderPopup');
     
     // Rotas de Agenda (unificada: Lista | Quadro)
     $router->get('/agenda', 'AgendaController@agendaUnified');

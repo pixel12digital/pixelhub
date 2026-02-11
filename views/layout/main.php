@@ -2379,6 +2379,7 @@
     </script>
     
     <!-- Script do gravador de tela (global) -->
+    <script>window.pixelhubBaseUrl = '<?= pixelhub_url('') ?>';</script>
     <script src="<?= pixelhub_url('/assets/js/screen-recorder.js') ?>"></script>
     
     <!-- Função global para iniciar gravação com contexto inteligente -->

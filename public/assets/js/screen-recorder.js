@@ -613,73 +613,54 @@
             console.log('[ScreenRecorder] open() chamado. taskId=', taskId, 'mode arg=', mode);
             
             // Normaliza o modo
+            var resolvedMode = 'library';
+            var resolvedTaskId = null;
+            
             if (mode === 'quick') {
-                state.mode = 'quick';
-                state.currentTaskId = null;
+                resolvedMode = 'quick';
             } else if (mode === 'library') {
-                state.mode = 'library';
-                state.currentTaskId = null;
+                resolvedMode = 'library';
             } else if (mode === 'task') {
-                // se veio "task" mas taskId é inválido, cai pra quick
                 if (taskId && Number(taskId) > 0) {
-                    state.mode = 'task';
-                    state.currentTaskId = Number(taskId);
+                    resolvedMode = 'task';
+                    resolvedTaskId = Number(taskId);
                 } else {
-                    state.mode = 'quick';
-                    state.currentTaskId = null;
+                    resolvedMode = 'quick';
                 }
             } else {
-                // Sem modo explícito → decide pelo taskId
                 if (taskId && Number(taskId) > 0) {
-                    state.mode = 'task';
-                    state.currentTaskId = Number(taskId);
+                    resolvedMode = 'task';
+                    resolvedTaskId = Number(taskId);
                 } else {
-                    state.mode = 'quick';
-                    state.currentTaskId = null;
+                    resolvedMode = 'quick';
                 }
             }
             
-            console.log('[ScreenRecorder] open() definido. state.mode=', state.mode, 'state.currentTaskId=', state.currentTaskId);
-            if (!isSupported()) {
-                const overlay = ensureOverlayExists();
-                const content = document.getElementById('screen-recording-content');
-                if (content) {
-                    content.innerHTML = `
-                        <h3 style="margin: 0 0 15px 0; color: #c33; font-size: 20px;">Navegador não suportado</h3>
-                        <p style="color: #666; margin-bottom: 20px; line-height: 1.5;">
-                            Seu navegador não suporta gravação de tela. Tente usar a versão mais recente do Google Chrome ou Microsoft Edge.
-                        </p>
-                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                            <button id="screen-recording-close-error-btn" class="btn btn-secondary" style="padding: 10px 20px; font-size: 14px; font-weight: 600;">
-                                Fechar
-                            </button>
-                        </div>
-                    `;
-                    document.getElementById('screen-recording-close-error-btn').addEventListener('click', function() {
-                        this.close();
-                    }.bind(this));
-                }
-                overlay.style.display = 'flex';
+            // Abre popup dedicada para gravação (persiste entre navegações)
+            var popupUrl = (window.pixelhubBaseUrl || '') + '/screen-recordings/recorder-popup?mode=' + resolvedMode;
+            if (resolvedTaskId) {
+                popupUrl += '&task_id=' + resolvedTaskId;
+            }
+            
+            console.log('[ScreenRecorder] Abrindo popup:', popupUrl);
+            
+            var popupWidth = 460;
+            var popupHeight = 500;
+            var left = window.screenX + window.outerWidth - popupWidth - 40;
+            var top = window.screenY + window.outerHeight - popupHeight - 80;
+            
+            var popup = window.open(
+                popupUrl,
+                'pixelhub-screen-recorder',
+                'width=' + popupWidth + ',height=' + popupHeight + ',left=' + left + ',top=' + top + ',resizable=yes,scrollbars=no,status=no,menubar=no,toolbar=no'
+            );
+            
+            if (!popup || popup.closed) {
+                alert('Não foi possível abrir a janela de gravação. Verifique se o bloqueador de popups está desativado.');
                 return;
             }
             
-            // Salva o modo antes de resetar (para não perder o modo library)
-            const savedMode = state.mode;
-            const savedTaskId = state.currentTaskId;
-            
-            this.reset();
-            
-            // Restaura o modo após reset (importante para modo library)
-            state.mode = savedMode;
-            state.currentTaskId = savedTaskId;
-            
-            // Reseta flags para garantir que comece no modo "grande" normal
-            state.isCompact = false;
-            state.isPaused = false;
-            
-            const overlay = ensureOverlayExists();
-            renderInitialState();
-            overlay.style.display = 'flex';
+            popup.focus();
         },
 
         /**
