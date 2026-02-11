@@ -446,6 +446,104 @@ class BillingSenderService
     }
 
     /**
+     * Verifica se uma fatura já foi enviada recentemente para uma regra específica
+     * 
+     * Usado pelo scheduler para anti-spam: evita reenviar cobrança se já foi
+     * enviada nas últimas N horas para a mesma regra.
+     * 
+     * @param \PDO $db Conexão com o banco
+     * @param int $invoiceId ID da fatura
+     * @param int $ruleId ID da regra de disparo
+     * @param int $hoursThreshold Janela de horas para considerar "recente" (default: 20h)
+     * @return bool True se já foi enviada recentemente
+     */
+    public static function wasRecentlySent(\PDO $db, int $invoiceId, int $ruleId, int $hoursThreshold = 20): bool
+    {
+        try {
+            // Verifica na billing_dispatch_log se há envio recente para esta fatura + regra
+            $stmt = $db->prepare("
+                SELECT COUNT(*) 
+                FROM billing_dispatch_log 
+                WHERE invoice_id = ? 
+                  AND status = 'sent'
+                  AND sent_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+            ");
+            $stmt->execute([$invoiceId, $hoursThreshold]);
+            $count = (int) $stmt->fetchColumn();
+
+            if ($count > 0) {
+                error_log(sprintf(
+                    '[BILLING_ANTI_SPAM] wasRecentlySent=TRUE: invoice_id=%d, rule_id=%d, threshold=%dh, count=%d',
+                    $invoiceId, $ruleId, $hoursThreshold, $count
+                ));
+                return true;
+            }
+
+            // Verifica também na billing_dispatch_queue (pode estar pendente/agendado)
+            $stmt2 = $db->prepare("
+                SELECT COUNT(*) 
+                FROM billing_dispatch_queue 
+                WHERE JSON_CONTAINS(invoice_ids, ?) 
+                  AND dispatch_rule_id = ?
+                  AND status IN ('pending', 'scheduled', 'sent')
+                  AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+            ");
+            $stmt2->execute([json_encode($invoiceId), $ruleId, $hoursThreshold]);
+            $count2 = (int) $stmt2->fetchColumn();
+
+            if ($count2 > 0) {
+                error_log(sprintf(
+                    '[BILLING_ANTI_SPAM] wasRecentlySent=TRUE (queue): invoice_id=%d, rule_id=%d, threshold=%dh, count=%d',
+                    $invoiceId, $ruleId, $hoursThreshold, $count2
+                ));
+                return true;
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            error_log('[BILLING_ANTI_SPAM] Erro em wasRecentlySent: ' . $e->getMessage());
+            // Em caso de erro, retorna false para não bloquear envio
+            return false;
+        }
+    }
+
+    /**
+     * Conta quantas vezes uma fatura foi enviada para uma regra específica
+     * 
+     * Usado pelo scheduler para limitar repetições (max_repeats).
+     * 
+     * @param \PDO $db Conexão com o banco
+     * @param int $invoiceId ID da fatura
+     * @param int $ruleId ID da regra de disparo
+     * @return int Número de envios registrados
+     */
+    public static function countSentForRule(\PDO $db, int $invoiceId, int $ruleId): int
+    {
+        try {
+            // Conta envios no log para esta fatura (independente da regra, 
+            // pois o log pode não ter rule_id para envios manuais)
+            $stmt = $db->prepare("
+                SELECT COUNT(*) 
+                FROM billing_dispatch_log 
+                WHERE invoice_id = ? 
+                  AND status = 'sent'
+            ");
+            $stmt->execute([$invoiceId]);
+            $count = (int) $stmt->fetchColumn();
+
+            error_log(sprintf(
+                '[BILLING_ANTI_SPAM] countSentForRule: invoice_id=%d, rule_id=%d, total_sent=%d',
+                $invoiceId, $ruleId, $count
+            ));
+
+            return $count;
+        } catch (\Exception $e) {
+            error_log('[BILLING_ANTI_SPAM] Erro em countSentForRule: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
      * Log público para uso externo (scheduler, worker)
      */
     public static function logDispatchPublic(string $level, string $message, array $context = []): void
