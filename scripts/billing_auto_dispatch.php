@@ -222,11 +222,11 @@ foreach ($rules as $rule) {
             continue;
         }
 
-        // Anti-spam por fatura
+        // Anti-spam por fatura (filtra pelo canal do tenant para não bloquear cross-canal)
         $eligibleIds = [];
         foreach ($group['invoices'] as $inv) {
             $invId = (int) $inv['id'];
-            if (BillingSenderService::wasRecentlySent($db, $invId, $ruleId, 20)) {
+            if (BillingSenderService::wasRecentlySent($db, $invId, $ruleId, 20, $tenantChannel)) {
                 $stats['skipped_recently_sent']++;
                 continue;
             }

@@ -455,46 +455,62 @@ class BillingSenderService
      * @param int $invoiceId ID da fatura
      * @param int $ruleId ID da regra de disparo
      * @param int $hoursThreshold Janela de horas para considerar "recente" (default: 20h)
+     * @param string|null $channel Canal a filtrar ('whatsapp', 'email', null = qualquer)
      * @return bool True se já foi enviada recentemente
      */
-    public static function wasRecentlySent(\PDO $db, int $invoiceId, int $ruleId, int $hoursThreshold = 20): bool
+    public static function wasRecentlySent(\PDO $db, int $invoiceId, int $ruleId, int $hoursThreshold = 20, ?string $channel = null): bool
     {
         try {
-            // Verifica na billing_dispatch_log se há envio recente para esta fatura + regra
-            $stmt = $db->prepare("
+            // Verifica na billing_dispatch_log se há envio recente para esta fatura
+            $sql = "
                 SELECT COUNT(*) 
                 FROM billing_dispatch_log 
                 WHERE invoice_id = ? 
                   AND status = 'sent'
                   AND sent_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
-            ");
-            $stmt->execute([$invoiceId, $hoursThreshold]);
+            ";
+            $params = [$invoiceId, $hoursThreshold];
+            if ($channel) {
+                $sql .= " AND channel = ?";
+                $params[] = $channel;
+            }
+            $stmt = $db->prepare($sql);
+            $stmt->execute($params);
             $count = (int) $stmt->fetchColumn();
 
             if ($count > 0) {
                 error_log(sprintf(
-                    '[BILLING_ANTI_SPAM] wasRecentlySent=TRUE: invoice_id=%d, rule_id=%d, threshold=%dh, count=%d',
-                    $invoiceId, $ruleId, $hoursThreshold, $count
+                    '[BILLING_ANTI_SPAM] wasRecentlySent=TRUE: invoice_id=%d, rule_id=%d, threshold=%dh, channel=%s, count=%d',
+                    $invoiceId, $ruleId, $hoursThreshold, $channel ?: 'any', $count
                 ));
                 return true;
             }
 
             // Verifica também na billing_dispatch_queue (pode estar pendente/agendado)
-            $stmt2 = $db->prepare("
+            $sql2 = "
                 SELECT COUNT(*) 
                 FROM billing_dispatch_queue 
                 WHERE JSON_CONTAINS(invoice_ids, ?) 
-                  AND dispatch_rule_id = ?
                   AND status IN ('pending', 'scheduled', 'sent')
                   AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
-            ");
-            $stmt2->execute([json_encode($invoiceId), $ruleId, $hoursThreshold]);
+            ";
+            $params2 = [json_encode($invoiceId), $hoursThreshold];
+            if ($channel) {
+                $sql2 .= " AND channel = ?";
+                $params2[] = $channel;
+            }
+            if ($ruleId) {
+                $sql2 .= " AND dispatch_rule_id = ?";
+                $params2[] = $ruleId;
+            }
+            $stmt2 = $db->prepare($sql2);
+            $stmt2->execute($params2);
             $count2 = (int) $stmt2->fetchColumn();
 
             if ($count2 > 0) {
                 error_log(sprintf(
-                    '[BILLING_ANTI_SPAM] wasRecentlySent=TRUE (queue): invoice_id=%d, rule_id=%d, threshold=%dh, count=%d',
-                    $invoiceId, $ruleId, $hoursThreshold, $count2
+                    '[BILLING_ANTI_SPAM] wasRecentlySent=TRUE (queue): invoice_id=%d, rule_id=%d, threshold=%dh, channel=%s, count=%d',
+                    $invoiceId, $ruleId, $hoursThreshold, $channel ?: 'any', $count2
                 ));
                 return true;
             }
@@ -502,7 +518,6 @@ class BillingSenderService
             return false;
         } catch (\Exception $e) {
             error_log('[BILLING_ANTI_SPAM] Erro em wasRecentlySent: ' . $e->getMessage());
-            // Em caso de erro, retorna false para não bloquear envio
             return false;
         }
     }
