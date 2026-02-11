@@ -60,6 +60,19 @@ $stageColors = [
         + Nova Oportunidade
     </button>
     
+    <div style="display: flex; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; margin-left: auto;">
+        <button id="btn-view-list" onclick="setViewMode('list')" 
+                style="padding: 8px 14px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 5px; background: #023A8D; color: white;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            Lista
+        </button>
+        <button id="btn-view-kanban" onclick="setViewMode('kanban')" 
+                style="padding: 8px 14px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 5px; background: white; color: #666;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/></svg>
+            Kanban
+        </button>
+    </div>
+    
     <div style="display: flex; gap: 10px; align-items: center; flex: 1; flex-wrap: wrap;">
         <input type="text" id="searchFilter" placeholder="Buscar por nome, cliente ou lead..." 
                value="<?= htmlspecialchars($filters['search'] ?? '') ?>"
@@ -93,6 +106,7 @@ $stageColors = [
 </div>
 
 <!-- Lista -->
+<div id="view-list">
 <div class="card">
     <?php if (empty($opportunities)): ?>
         <div style="padding: 40px; text-align: center; color: #6c757d;">
@@ -154,6 +168,83 @@ $stageColors = [
             </tbody>
         </table>
     <?php endif; ?>
+</div>
+</div>
+
+<!-- Kanban -->
+<div id="view-kanban" style="display: none;">
+    <?php
+    // Agrupa oportunidades por etapa
+    $oppByStage = [];
+    foreach ($stages as $sk => $sl) {
+        $oppByStage[$sk] = [];
+    }
+    foreach ($opportunities as $opp) {
+        $sk = $opp['stage'] ?? 'new';
+        if (isset($oppByStage[$sk])) {
+            $oppByStage[$sk][] = $opp;
+        }
+    }
+    ?>
+    <div style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; min-height: 400px; align-items: flex-start;">
+        <?php foreach ($stages as $stageKey => $stageLabel):
+            $stageColor = $stageColors[$stageKey] ?? '#6c757d';
+            $stageOpps = $oppByStage[$stageKey] ?? [];
+            $stageTotal = 0;
+            foreach ($stageOpps as $so) { $stageTotal += (float)($so['estimated_value'] ?? 0); }
+        ?>
+        <div style="min-width: 260px; max-width: 280px; flex: 1; background: #f4f5f7; border-radius: 8px; display: flex; flex-direction: column; max-height: calc(100vh - 300px);">
+            <!-- Header da coluna -->
+            <div style="padding: 12px 14px; border-bottom: 3px solid <?= $stageColor ?>; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+                <div>
+                    <span style="font-weight: 700; font-size: 13px; color: #333;"><?= $stageLabel ?></span>
+                    <span style="background: <?= $stageColor ?>; color: white; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-left: 6px;"><?= count($stageOpps) ?></span>
+                </div>
+                <?php if ($stageTotal > 0): ?>
+                    <span style="font-size: 11px; color: #666; font-weight: 600;">R$ <?= number_format($stageTotal, 2, ',', '.') ?></span>
+                <?php endif; ?>
+            </div>
+            <!-- Cards -->
+            <div style="padding: 8px; overflow-y: auto; flex: 1;">
+                <?php if (empty($stageOpps)): ?>
+                    <div style="padding: 20px 10px; text-align: center; color: #aaa; font-size: 12px;">Nenhuma oportunidade</div>
+                <?php else: ?>
+                    <?php foreach ($stageOpps as $opp):
+                        $contactName = $opp['contact_name'] ?? 'Sem vínculo';
+                        $contactType = $opp['contact_type'] ?? '';
+                        $updatedAt = !empty($opp['updated_at']) ? date('d/m H:i', strtotime($opp['updated_at'])) : date('d/m H:i', strtotime($opp['created_at']));
+                    ?>
+                    <div onclick="window.location.href='<?= pixelhub_url('/opportunities/view?id=' . $opp['id']) ?>'"
+                         style="background: white; border-radius: 6px; padding: 12px; margin-bottom: 8px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 3px solid <?= $stageColor ?>; transition: box-shadow 0.15s, transform 0.15s;"
+                         onmouseover="this.style.boxShadow='0 3px 8px rgba(0,0,0,0.15)'; this.style.transform='translateY(-1px)'"
+                         onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'; this.style.transform='none'">
+                        <div style="font-weight: 600; font-size: 13px; color: #111; margin-bottom: 6px; line-height: 1.3;">
+                            <?= htmlspecialchars($opp['name']) ?>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 5px;">
+                            <?php if ($contactType === 'cliente'): ?>
+                                <span style="background: #e8f5e9; color: #2e7d32; padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 600;">Cliente</span>
+                            <?php else: ?>
+                                <span style="background: #e3f2fd; color: #1565c0; padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 600;">Lead</span>
+                            <?php endif; ?>
+                            <span style="font-size: 12px; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= htmlspecialchars($contactName) ?></span>
+                        </div>
+                        <?php if (!empty($opp['estimated_value'])): ?>
+                            <div style="font-weight: 700; font-size: 14px; color: #023A8D; margin-bottom: 5px;">
+                                R$ <?= number_format($opp['estimated_value'], 2, ',', '.') ?>
+                            </div>
+                        <?php endif; ?>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #888;">
+                            <span><?= htmlspecialchars($opp['responsible_name'] ?? '—') ?></span>
+                            <span><?= $updatedAt ?></span>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
 </div>
 
 <!-- Modal: Criar Oportunidade -->
@@ -295,6 +386,39 @@ const TENANTS_SEARCH_URL = '<?= pixelhub_url('/tenants/search-opp') ?>';
 const LEADS_STORE_URL = '<?= pixelhub_url('/leads/store-ajax') ?>';
 let leadSearchTimeout = null;
 let tenantSearchTimeout = null;
+
+// ===== Alternância Lista / Kanban =====
+function setViewMode(mode) {
+    const listEl = document.getElementById('view-list');
+    const kanbanEl = document.getElementById('view-kanban');
+    const btnList = document.getElementById('btn-view-list');
+    const btnKanban = document.getElementById('btn-view-kanban');
+
+    if (mode === 'kanban') {
+        listEl.style.display = 'none';
+        kanbanEl.style.display = 'block';
+        btnKanban.style.background = '#023A8D';
+        btnKanban.style.color = 'white';
+        btnList.style.background = 'white';
+        btnList.style.color = '#666';
+    } else {
+        listEl.style.display = 'block';
+        kanbanEl.style.display = 'none';
+        btnList.style.background = '#023A8D';
+        btnList.style.color = 'white';
+        btnKanban.style.background = 'white';
+        btnKanban.style.color = '#666';
+    }
+    localStorage.setItem('opp_view_mode', mode);
+}
+
+// Restaura modo salvo
+(function() {
+    const saved = localStorage.getItem('opp_view_mode');
+    if (saved === 'kanban') {
+        setViewMode('kanban');
+    }
+})();
 
 // ===== Filtros da lista =====
 function applyFilters() {
