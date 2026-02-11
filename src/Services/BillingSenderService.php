@@ -330,18 +330,18 @@ class BillingSenderService
             return $result;
         }
 
-        // ─── Monta mensagem (reutiliza WhatsAppBillingService) ───────
-        $invoice = $invoices[0]; // Para envio manual, sempre 1 fatura
+        // ─── Monta mensagem (usa BillingTemplateRegistry como fonte única) ───────
+        $invoice = $invoices[0];
         $stage = WhatsAppBillingService::suggestStageForInvoice($invoice)['stage'];
         
         if ($messageOverride) {
             $messageBody = $messageOverride;
+            $subject = 'Cobrança Pixel12 Digital - Fatura #' . $invoice['id'];
         } else {
-            $messageBody = WhatsAppBillingService::buildMessageForInvoice($tenant, $invoice, $stage);
+            $emailData = BillingTemplateRegistry::buildEmailForInvoice($tenant, $invoice, $stage);
+            $messageBody = $emailData['body'];
+            $subject = $emailData['subject'];
         }
-
-        // ─── Prepara e-mail ───────────────────────────────────────
-        $subject = 'Cobrança Pixel12 Digital - Fatura #' . $invoice['id'];
         
         // Converte quebras de linha para HTML
         $htmlBody = nl2br(htmlspecialchars($messageBody, ENT_QUOTES, 'UTF-8'));

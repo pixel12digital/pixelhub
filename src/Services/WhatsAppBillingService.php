@@ -61,7 +61,27 @@ class WhatsAppBillingService
     }
 
     /**
+     * Todos os estágios de cobrança disponíveis (fonte de verdade)
+     */
+    public const STAGES = [
+        'pre_due'     => 'Pré-vencimento',
+        'due_day'     => 'Dia do vencimento',
+        'overdue_1d'  => 'Vencido +1 dia',
+        'overdue_3d'  => 'Vencido +3 dias',
+        'overdue_7d'  => 'Vencido +7 dias',
+        'overdue_15d' => 'Vencido +15 dias',
+    ];
+
+    /**
      * Sugere o estágio/template de cobrança baseado na fatura
+     * 
+     * Estágios:
+     *   pre_due     → antes do vencimento
+     *   due_day     → dia do vencimento
+     *   overdue_1d  → 1 dia após vencimento
+     *   overdue_3d  → 2-5 dias após vencimento
+     *   overdue_7d  → 6-14 dias após vencimento
+     *   overdue_15d → 15+ dias após vencimento
      * 
      * @param array $invoice Dados da fatura (deve ter due_date, status)
      * @return array ['stage' => string, 'label' => string, 'days_overdue' => int]
@@ -75,69 +95,98 @@ class WhatsAppBillingService
         if ($dueDate) {
             try {
                 $due = new \DateTime($dueDate);
+                $due->setTime(0, 0, 0);
                 $now = new \DateTime();
+                $now->setTime(0, 0, 0);
                 $diff = $now->diff($due);
-                $daysOverdue = (int) $diff->format('%r%a'); // negativo se ainda não venceu
+                // Positivo = vencido há N dias, negativo = falta N dias, 0 = hoje
+                $daysOverdue = (int) $diff->format('%r%a') * -1;
             } catch (\Exception $e) {
                 error_log("Erro ao calcular dias de atraso: " . $e->getMessage());
             }
         }
 
-        // Se status é pending e ainda não venceu (ou vence hoje)
-        if ($status === 'pending' && $daysOverdue >= 0) {
+        // Vence hoje
+        if ($daysOverdue === 0 && ($status === 'pending' || $status === 'overdue')) {
             return [
-                'stage' => 'pre_due',
-                'label' => 'Lembrete pré-vencimento',
+                'stage' => 'due_day',
+                'label' => self::STAGES['due_day'],
                 'days_overdue' => 0
             ];
         }
 
-        // Se status é overdue e tem entre 1 e 5 dias de atraso
-        if ($status === 'overdue' && $daysOverdue >= 1 && $daysOverdue <= 5) {
+        // Ainda não venceu (daysOverdue negativo = faltam dias)
+        if ($daysOverdue < 0) {
             return [
-                'stage' => 'overdue_3d',
-                'label' => 'Cobrança 1 (vencido +3d)',
+                'stage' => 'pre_due',
+                'label' => self::STAGES['pre_due'],
+                'days_overdue' => 0
+            ];
+        }
+
+        // Vencido há 1 dia
+        if ($daysOverdue === 1) {
+            return [
+                'stage' => 'overdue_1d',
+                'label' => self::STAGES['overdue_1d'],
                 'days_overdue' => $daysOverdue
             ];
         }
 
-        // Se status é overdue e tem 6 ou mais dias de atraso
-        if ($status === 'overdue' && $daysOverdue >= 6) {
+        // Vencido há 2-5 dias
+        if ($daysOverdue >= 2 && $daysOverdue <= 5) {
+            return [
+                'stage' => 'overdue_3d',
+                'label' => self::STAGES['overdue_3d'],
+                'days_overdue' => $daysOverdue
+            ];
+        }
+
+        // Vencido há 6-14 dias
+        if ($daysOverdue >= 6 && $daysOverdue <= 14) {
             return [
                 'stage' => 'overdue_7d',
-                'label' => 'Cobrança 2 (vencido +7d)',
+                'label' => self::STAGES['overdue_7d'],
                 'days_overdue' => $daysOverdue
             ];
         }
 
-        // Fallback: se está pending mas já venceu, trata como overdue_3d
-        if ($status === 'pending' && $daysOverdue < 0) {
+        // Vencido há 15+ dias
+        if ($daysOverdue >= 15) {
             return [
-                'stage' => 'overdue_3d',
-                'label' => 'Cobrança 1 (vencido)',
-                'days_overdue' => abs($daysOverdue)
+                'stage' => 'overdue_15d',
+                'label' => self::STAGES['overdue_15d'],
+                'days_overdue' => $daysOverdue
             ];
         }
 
-        // Default
+        // Fallback
         return [
             'stage' => 'pre_due',
-            'label' => 'Lembrete pré-vencimento',
+            'label' => self::STAGES['pre_due'],
             'days_overdue' => 0
         ];
     }
 
     /**
-     * Monta a mensagem padrão de acordo com o estágio
+     * Monta a mensagem de cobrança de acordo com o estágio
+     * 
+     * Estrutura padrão de todas as mensagens:
+     *   1. Saudação
+     *   2. Contexto (cobrança da Pixel12 Digital)
+     *   3. Serviço (descrição limpa, separada)
+     *   4. Valor e vencimento
+     *   5. Link de pagamento
+     *   6. Encerramento
      * 
      * @param array $tenant Dados do tenant
      * @param array $invoice Dados da fatura
-     * @param string $stage Estágio (pre_due, overdue_3d, overdue_7d)
+     * @param string $stage Estágio (pre_due, due_day, overdue_1d, overdue_3d, overdue_7d, overdue_15d)
      * @return string Mensagem formatada
      */
     public static function buildMessageForInvoice(array $tenant, array $invoice, string $stage): string
     {
-        // Nome do cliente
+        // ─── Dados do cliente ───
         $clientName = $tenant['name'] ?? 'Cliente';
         if (($tenant['person_type'] ?? 'pf') === 'pj' && !empty($tenant['nome_fantasia'])) {
             $clientName = $tenant['nome_fantasia'];
@@ -145,7 +194,7 @@ class WhatsAppBillingService
             $clientName = $tenant['razao_social'];
         }
 
-        // Data de vencimento formatada
+        // ─── Data de vencimento ───
         $dueDate = $invoice['due_date'] ?? null;
         $dueDateFormatted = 'N/A';
         if ($dueDate) {
@@ -157,42 +206,84 @@ class WhatsAppBillingService
             }
         }
 
-        // Valor formatado
+        // ─── Valor ───
         $amount = (float) ($invoice['amount'] ?? 0);
         $amountFormatted = 'R$ ' . number_format($amount, 2, ',', '.');
 
-        // Link da fatura (usa link do Asaas se disponível)
+        // ─── Link da fatura ───
         $invoiceLink = $invoice['invoice_url'] ?? ('https://hub.pixel12digital.com.br/billing/view_invoice?id=' . $invoice['id']);
 
-        // Gera charge_title
-        $chargeTitles = \PixelHub\Services\BillingTemplateRegistry::generateChargeTitles($invoice);
-        $chargeTitle = $chargeTitles['title'];
+        // ─── Descrição do serviço (limpa e curta) ───
+        $description = trim($invoice['description'] ?? '');
+        $serviceDescription = !empty($description) ? $description : 'Serviço Pixel12 Digital';
 
-        // Monta mensagem baseada no estágio
+        // ─── Monta mensagem por estágio ───
         switch ($stage) {
             case 'pre_due':
-                return "Oi {$clientName}, tudo bem? 😊\n\n" .
-                       "Passando para lembrar que {$chargeTitle} vence em {$dueDateFormatted}, no valor de {$amountFormatted}.\n\n" .
-                       "Acesse sua fatura: {$invoiceLink}\n\n" .
-                       "Qualquer dúvida ou se precisar de ajuda com o pagamento, me avisa por aqui.";
+                return "Oi {$clientName}, tudo bem?\n\n" .
+                       "Passando para lembrar que existe uma cobrança da *Pixel12 Digital* referente a:\n" .
+                       "{$serviceDescription}\n\n" .
+                       "*Vencimento:* {$dueDateFormatted}\n" .
+                       "*Valor:* {$amountFormatted}\n\n" .
+                       "Link para pagamento:\n{$invoiceLink}\n\n" .
+                       "Qualquer dúvida, fico à disposição.";
+
+            case 'due_day':
+                return "Oi {$clientName}, tudo bem?\n\n" .
+                       "Sua cobrança da *Pixel12 Digital* vence *hoje*.\n\n" .
+                       "*Serviço:* {$serviceDescription}\n" .
+                       "*Vencimento:* {$dueDateFormatted}\n" .
+                       "*Valor:* {$amountFormatted}\n\n" .
+                       "Link para pagamento:\n{$invoiceLink}\n\n" .
+                       "Se já realizou o pagamento, pode desconsiderar esta mensagem.";
+
+            case 'overdue_1d':
+                return "Oi {$clientName}, tudo bem?\n\n" .
+                       "Identificamos que a cobrança abaixo venceu ontem e ainda consta em aberto:\n\n" .
+                       "*Serviço:* {$serviceDescription}\n" .
+                       "*Vencimento:* {$dueDateFormatted}\n" .
+                       "*Valor:* {$amountFormatted}\n\n" .
+                       "Link para pagamento:\n{$invoiceLink}\n\n" .
+                       "Se já efetuou o pagamento, por favor desconsidere. Caso precise de ajuda, estamos à disposição.";
 
             case 'overdue_3d':
                 return "Oi {$clientName}, tudo bem?\n\n" .
-                       "Notei que {$chargeTitle} com vencimento em {$dueDateFormatted}, no valor de {$amountFormatted}, ainda consta em aberto.\n\n" .
-                       "Acesse sua fatura: {$invoiceLink}\n\n" .
-                       "Consegue verificar pra mim, por favor? Se já tiver pago, pode desconsiderar essa mensagem.";
+                       "Gostaríamos de informar que a cobrança abaixo segue em aberto:\n\n" .
+                       "*Serviço:* {$serviceDescription}\n" .
+                       "*Vencimento:* {$dueDateFormatted}\n" .
+                       "*Valor:* {$amountFormatted}\n\n" .
+                       "Link para pagamento:\n{$invoiceLink}\n\n" .
+                       "Pedimos a gentileza de verificar a regularização para evitar qualquer impacto no serviço.\n\n" .
+                       "Se já pagou, pode desconsiderar. Qualquer dúvida, estamos à disposição.";
 
             case 'overdue_7d':
-                return "Oi {$clientName}, tudo bem?\n\n" .
-                       "{$chargeTitle} (venc. {$dueDateFormatted}, valor {$amountFormatted}) ainda está em aberto há alguns dias.\n\n" .
-                       "Acesse sua fatura: {$invoiceLink}\n\n" .
-                       "Precisa de alguma ajuda ou quer combinar uma forma de pagamento? Me avisa pra gente evitar qualquer bloqueio do serviço.";
+                return "Oi {$clientName},\n\n" .
+                       "Identificamos que a cobrança referente ao serviço abaixo ainda está em aberto e já ultrapassou 7 dias de vencimento:\n\n" .
+                       "*Serviço:* {$serviceDescription}\n" .
+                       "*Vencimento:* {$dueDateFormatted}\n" .
+                       "*Valor:* {$amountFormatted}\n\n" .
+                       "Link para pagamento:\n{$invoiceLink}\n\n" .
+                       "Para evitar eventual bloqueio do serviço, pedimos a gentileza de verificar a regularização.\n\n" .
+                       "Caso esteja enfrentando alguma dificuldade, por favor entre em contato conosco para que possamos conversar.";
+
+            case 'overdue_15d':
+                return "Oi {$clientName},\n\n" .
+                       "A cobrança abaixo permanece em aberto há mais de 15 dias:\n\n" .
+                       "*Serviço:* {$serviceDescription}\n" .
+                       "*Vencimento:* {$dueDateFormatted}\n" .
+                       "*Valor:* {$amountFormatted}\n\n" .
+                       "Link para pagamento:\n{$invoiceLink}\n\n" .
+                       "Informamos que o serviço poderá ser suspenso caso a regularização não seja efetuada.\n\n" .
+                       "Se houver qualquer dificuldade ou necessidade de negociação, estamos à disposição para conversar.";
 
             default:
                 return "Oi {$clientName}, tudo bem?\n\n" .
-                       "{$chargeTitle} vence em {$dueDateFormatted}, no valor de {$amountFormatted}.\n\n" .
-                       "Acesse sua fatura: {$invoiceLink}\n\n" .
-                       "Qualquer dúvida, me avisa por aqui.";
+                       "Existe uma cobrança da *Pixel12 Digital* referente a:\n" .
+                       "{$serviceDescription}\n\n" .
+                       "*Vencimento:* {$dueDateFormatted}\n" .
+                       "*Valor:* {$amountFormatted}\n\n" .
+                       "Link para pagamento:\n{$invoiceLink}\n\n" .
+                       "Qualquer dúvida, fico à disposição.";
         }
     }
 

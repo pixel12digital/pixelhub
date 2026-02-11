@@ -1143,39 +1143,12 @@ class BillingCollectionsController extends Controller
     }
 
     /**
-     * Monta mensagem para email (versão simplificada)
+     * Monta mensagem para email — delega para BillingTemplateRegistry (fonte única)
      */
     private function buildEmailMessage(array $tenant, array $invoice, string $stage): string
     {
-        $tenantName = $tenant['nome_fantasia'] ?? $tenant['name'];
-        $amount = number_format($invoice['amount'], 2, ',', '.');
-        $dueDate = (new \DateTime($invoice['due_date']))->format('d/m/Y');
-        
-        // Gera charge_title
-        $chargeTitles = \PixelHub\Services\BillingTemplateRegistry::generateChargeTitles($invoice);
-        $chargeTitle = $chargeTitles['title'];
-        $chargeTitleShort = $chargeTitles['title_short'];
-        
-        $subject = "[Pixel12] {$chargeTitleShort} — vence {$dueDate}";
-        
-        $message = "Olá {$tenantName},\n\n";
-        $message .= "Gostaríamos de lembrar sobre sua fatura:\n\n";
-        $message .= "Descrição: {$chargeTitle}\n";
-        $message .= "Fatura: #{$invoice['id']}\n";
-        $message .= "Valor: R$ {$amount}\n";
-        $message .= "Vencimento: {$dueDate}\n";
-        $message .= "Status: " . ($invoice['status'] === 'paid' ? 'Paga' : 'Pendente') . "\n\n";
-        
-        if ($invoice['status'] !== 'paid') {
-            $message .= "Por favor, regularize o pagamento para evitar juros.\n\n";
-            $invoiceLink = $invoice['invoice_url'] ?? pixelhub_url("/billing/view_invoice?id={$invoice['id']}");
-            $message .= "Para acessar a fatura: {$invoiceLink}\n\n";
-        }
-        
-        $message .= "Atenciosamente,\n";
-        $message .= "Equipe Pixel12 Digital";
-        
-        return $message;
+        $email = \PixelHub\Services\BillingTemplateRegistry::buildEmailForInvoice($tenant, $invoice, $stage);
+        return $email['body'];
     }
 
     /**
