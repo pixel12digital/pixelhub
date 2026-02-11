@@ -2504,9 +2504,11 @@
         // Funções globais para os botões do header
         window.headerRecPause = function() {
             recChannel.postMessage({ type: recIsPaused ? 'command-resume' : 'command-pause' });
+            headerRecFocus();
         };
         window.headerRecStop = function() {
             recChannel.postMessage({ type: 'command-stop' });
+            headerRecFocus();
         };
         window.headerRecFocus = function() {
             if (recPopup && !recPopup.closed) {
