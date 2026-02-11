@@ -37,64 +37,49 @@
         return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
     }
 
-    // Detecta mudanças de visibilidade da página
-    document.addEventListener('visibilitychange', function() {
-        if (state.isRecording && state.screenStream) {
-            console.log('[ScreenRecorder] Page visibility changed. document.hidden=', document.hidden, 'isRecording=', state.isRecording);
-            const videoTrack = state.screenStream.getVideoTracks()[0];
-            if (videoTrack) {
-                console.log('[ScreenRecorder] Video track state during visibility change: readyState=', videoTrack.readyState, 'enabled=', videoTrack.enabled);
-            }
-        }
-    });
+    // Flag para permitir navegação após confirmação do usuário
+    state.navigationAllowed = false;
 
-    // Detecta quando a página está sendo descarregada
-    window.addEventListener('beforeunload', function(e) {
-        if (state.isRecording) {
-            console.log('[ScreenRecorder] Page unloading while recording. isRecording=', state.isRecording);
-            
-            // Pergunta ao usuário se deseja continuar
-            const message = 'Uma gravação de tela está em andamento. Se você sair desta página, a gravação será encerrada. Deseja continuar?';
-            e.preventDefault();
-            e.returnValue = message; // Para navegadores antigos
-            return message; // Para navegadores modernos
-        }
-    });
-
-    // Intercepta cliques em links que poderiam navegar para outra página
+    // Intercepta cliques em links durante gravação (capture phase)
     document.addEventListener('click', function(e) {
-        if (!state.isRecording) return;
+        if (!state.isRecording || state.navigationAllowed) return;
         
-        const link = e.target.closest('a');
+        const link = e.target.closest('a[href]');
         if (!link) return;
         
         const href = link.getAttribute('href');
-        if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) {
-            return; // Ignora links internos, javascript, mailto, tel
+        if (!href || href === '' || href === '#' || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+            return;
         }
         
-        // Verifica se é um link externo ou para outra página
-        const currentUrl = window.location.href;
-        const currentOrigin = window.location.origin;
-        const linkUrl = href.startsWith('http') ? href : currentOrigin + href;
+        // Bloqueia a navegação
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         
-        if (linkUrl !== currentUrl && !linkUrl.includes('#')) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            // Mostra diálogo de confirmação
-            if (confirm('Uma gravação de tela está em andamento. Se você navegar para outra página, a gravação será encerrada.\n\nDeseja parar a gravação e continuar?')) {
-                // Para a gravação e continua a navegação
-                console.log('[ScreenRecorder] User chose to stop recording and navigate');
-                this.stop(function() {
-                    window.location.href = href;
-                }.bind(this));
-            } else {
-                console.log('[ScreenRecorder] User chose to continue recording');
-                // Não faz nada, continua gravando
+        console.log('[ScreenRecorder] Link intercepted. href=', href);
+        
+        if (confirm('Gravação de tela em andamento!\n\nSe você navegar, a gravação será perdida.\nDeseja encerrar a gravação e navegar?')) {
+            console.log('[ScreenRecorder] User confirmed navigation to:', href);
+            state.navigationAllowed = true;
+            // Limpa gravação
+            if (window.PixelHubScreenRecorder) {
+                window.PixelHubScreenRecorder.close(true);
             }
+            // Navega
+            window.location.href = href;
         }
-    }.bind(this));
+    }, true); // capture: true
+
+    // Intercepta navegação via beforeunload (fallback para window.location.href direto, forms, etc.)
+    window.addEventListener('beforeunload', function(e) {
+        if (!state.isRecording || state.navigationAllowed) return;
+        
+        console.log('[ScreenRecorder] beforeunload during recording');
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+    });
 
     // Formata duração em segundos para mm:ss
     function formatDuration(seconds) {
@@ -795,6 +780,7 @@
             state.chunks = [];
             state.durationSeconds = 0;
             state.isRecording = true;
+            state.navigationAllowed = false;
             
             // Configura o MediaRecorder
             const options = {
@@ -1527,14 +1513,4 @@
     }
 })();
 
-// DEBUG GLOBAL - remover depois de estabilizar
-document.addEventListener('click', function (e) {
-    try {
-        var id = e.target.id || '(sem id)';
-        var classes = e.target.className || '';
-        console.log('[ScreenRecorder][DEBUG CLICK] target=', e.target.tagName, 'id=', id, 'classes=', classes);
-    } catch (err) {
-        console.error('[ScreenRecorder][DEBUG CLICK] erro ao logar clique:', err);
-    }
-}, true); // use capture para pegar mesmo se algo parar a propagação
 
