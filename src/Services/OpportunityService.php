@@ -114,10 +114,10 @@ class OpportunityService
         $where = ['1=1'];
         $params = [];
 
-        if (!empty($filters['status'])) {
+        if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $where[] = 'o.status = ?';
             $params[] = $filters['status'];
-        } else {
+        } elseif (empty($filters['status'])) {
             // Por padrão, mostra apenas ativas
             $where[] = "o.status = 'active'";
         }

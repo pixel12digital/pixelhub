@@ -32,7 +32,7 @@ class OpportunitiesController extends Controller
 
         // Busca usuários para filtro de responsável
         $db = DB::getConnection();
-        $users = $db->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name ASC")->fetchAll() ?: [];
+        $users = $db->query("SELECT id, name FROM users WHERE is_internal = 1 ORDER BY name ASC")->fetchAll() ?: [];
 
         $this->view('opportunities.index', [
             'opportunities' => $opportunities,
@@ -67,7 +67,7 @@ class OpportunitiesController extends Controller
 
         // Busca usuários para select de responsável
         $db = DB::getConnection();
-        $users = $db->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name ASC")->fetchAll() ?: [];
+        $users = $db->query("SELECT id, name FROM users WHERE is_internal = 1 ORDER BY name ASC")->fetchAll() ?: [];
 
         // Busca serviços para select (opcional)
         $services = [];
