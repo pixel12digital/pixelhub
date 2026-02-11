@@ -100,15 +100,15 @@ $stageColors = [
             <p style="font-size: 14px;">Crie a primeira oportunidade para começar seu pipeline.</p>
         </div>
     <?php else: ?>
-        <table style="width: 100%; border-collapse: collapse;">
+        <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
             <thead>
                 <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
-                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Nome</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Cliente / Lead</th>
-                    <th style="padding: 12px; text-align: center; font-weight: 600; color: #495057;">Etapa</th>
-                    <th style="padding: 12px; text-align: right; font-weight: 600; color: #495057;">Valor</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Responsável</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Criada em</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 20%;">Nome</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 20%;">Cliente / Lead</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 14%;">Etapa</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 14%;">Valor</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 16%;">Responsável</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 12%;">Criada em</th>
                 </tr>
             </thead>
             <tbody>
@@ -135,12 +135,12 @@ $stageColors = [
                             <span style="color: #333;"><?= htmlspecialchars($contactName) ?></span>
                         </div>
                     </td>
-                    <td style="padding: 12px; text-align: center;">
-                        <span style="background: <?= $stageColor ?>; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                    <td style="padding: 12px; text-align: left;">
+                        <span style="background: <?= $stageColor ?>; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap;">
                             <?= $stageLabel ?>
                         </span>
                     </td>
-                    <td style="padding: 12px; text-align: right; font-weight: 600; color: #333;">
+                    <td style="padding: 12px; text-align: left; font-weight: 600; color: #333;">
                         <?= $opp['estimated_value'] ? 'R$ ' . number_format($opp['estimated_value'], 2, ',', '.') : '—' ?>
                     </td>
                     <td style="padding: 12px; color: #555;">
