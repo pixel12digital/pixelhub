@@ -250,6 +250,62 @@ $highlightBlockId = $expandBlockId ?? 0;
     .agenda-lista-page-layout { height: auto; max-height: none; min-height: 0; }
     .agenda-lista-scroll-area { overflow-y: visible; border: none; }
 }
+/* Modal de criação de tarefa (Agenda) */
+.agenda-task-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    overflow-y: auto;
+}
+.agenda-task-modal .atm-content {
+    background-color: white;
+    margin: 3% auto;
+    padding: 30px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 800px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.agenda-task-modal .atm-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #f0f0f0;
+}
+.agenda-task-modal .atm-header h3 { margin: 0; color: #023A8D; }
+.agenda-task-modal .atm-close {
+    color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; border: none; background: none;
+}
+.agenda-task-modal .atm-close:hover { color: #000; }
+.agenda-task-modal .atm-form-group { margin-bottom: 20px; }
+.agenda-task-modal .atm-form-group label { display: block; margin-bottom: 5px; font-weight: 600; color: #333; }
+.agenda-task-modal .atm-form-group input,
+.agenda-task-modal .atm-form-group select,
+.agenda-task-modal .atm-form-group textarea {
+    width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box;
+}
+.agenda-task-modal .atm-form-group textarea { min-height: 80px; resize: vertical; }
+.agenda-task-modal .atm-actions {
+    display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #f0f0f0;
+}
+.agenda-task-modal .atm-btn {
+    padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600; display: inline-block;
+}
+.agenda-task-modal .atm-btn-primary { background: #023A8D; color: white; }
+.agenda-task-modal .atm-btn-primary:hover { background: #022a6d; }
+.agenda-task-modal .atm-btn-secondary { background: #666; color: white; }
+.agenda-task-modal .atm-btn-secondary:hover { background: #555; }
+.agenda-task-modal .atm-checklist-item {
+    display: flex; align-items: flex-start; gap: 10px; padding: 8px; border-bottom: 1px solid #eee; user-select: none;
+}
+.agenda-task-modal .atm-checklist-item .atm-checklist-label { flex: 1; min-width: 0; overflow-wrap: break-word; white-space: pre-wrap; }
 </style>
 
 <?php if ($viewMode === 'quadro'): ?>
@@ -515,6 +571,151 @@ $highlightBlockId = $expandBlockId ?? 0;
 <?php endif; ?>
 <?php endif; ?><!-- fecha if viewMode lista/quadro -->
 
+<!-- Modal de Criar Tarefa (Agenda) -->
+<div id="agendaTaskModal" class="agenda-task-modal">
+    <div class="atm-content">
+        <div class="atm-header">
+            <h3>Nova Tarefa</h3>
+            <button class="atm-close" id="atm-close-btn">&times;</button>
+        </div>
+        <form id="agendaTaskForm">
+            <input type="hidden" id="atm-block-id" value="">
+            <input type="hidden" id="atm-container-ref" value="">
+
+            <div class="atm-form-group">
+                <label for="atm-project-id">Projeto *</label>
+                <div style="display: flex; gap: 8px; align-items: flex-start;">
+                    <select name="project_id" id="atm-project-id" required style="flex: 1;" onchange="if(this.value==='__create_new__'){this.value='';atmOpenCreateProject();}">
+                        <option value="">Selecione...</option>
+                        <?php
+                        $atmProjects = $projetos ?? [];
+                        foreach ($atmProjects as $project):
+                        ?>
+                            <option value="<?= $project['id'] ?>"
+                                <?php if (!empty($project['tenant_name'])): ?>
+                                    data-tenant="<?= htmlspecialchars($project['tenant_name']) ?>"
+                                <?php endif; ?>
+                            >
+                                <?= htmlspecialchars($project['name']) ?>
+                                <?php if (!empty($project['tenant_name'])): ?>
+                                    (<?= htmlspecialchars($project['tenant_name']) ?>)
+                                <?php else: ?>
+                                    (Interno)
+                                <?php endif; ?>
+                            </option>
+                        <?php endforeach; ?>
+                        <option value="__create_new__" style="font-weight: 600; color: #023A8D;">+ Criar novo projeto</option>
+                    </select>
+                    <button type="button" id="atm-btn-new-project"
+                            style="padding: 8px 14px; background: #e3f2fd; color: #023A8D; border: 1px solid #023A8D; border-radius: 4px; cursor: pointer; white-space: nowrap; font-size: 13px; font-weight: 500; transition: all 0.2s;"
+                            onclick="atmOpenCreateProject()"
+                            onmouseover="this.style.background='#023A8D'; this.style.color='white';"
+                            onmouseout="this.style.background='#e3f2fd'; this.style.color='#023A8D';"
+                            title="Criar novo projeto sem sair desta tela">
+                        <span style="font-weight: 600;">+</span> Novo Projeto
+                    </button>
+                </div>
+                <!-- Formulário inline para criar projeto -->
+                <div id="atm-create-project-form" style="display: none; margin-top: 12px; padding: 12px; background: #f0f7ff; border-radius: 6px; border: 2px solid #023A8D;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="font-size: 13px; font-weight: 600; color: #023A8D;">Criar Novo Projeto</span>
+                        <button type="button" onclick="atmCancelCreateProject()" style="background: none; border: none; color: #666; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; width: 20px; height: 20px;" title="Fechar">×</button>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 10px;">
+                        <input type="text" id="atm-new-project-name" placeholder="Digite o nome do projeto..."
+                               style="padding: 8px 12px; border: 1px solid #023A8D; border-radius: 4px; font-size: 14px; width: 100%;"
+                               onkeydown="if(event.key === 'Enter') { event.preventDefault(); atmSaveNewProject(); }">
+                        <select id="atm-new-project-type" style="padding: 8px 12px; border: 1px solid #023A8D; border-radius: 4px; font-size: 14px; min-width: 120px;">
+                            <option value="interno">Interno</option>
+                            <option value="cliente">Cliente</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                        <button type="button" onclick="atmCancelCreateProject()" style="padding: 8px 16px; background: transparent; color: #666; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">Cancelar</button>
+                        <button type="button" onclick="atmSaveNewProject()" style="padding: 8px 16px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">Criar Projeto</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="atm-form-group">
+                <label for="atm-title">Título *</label>
+                <input type="text" name="title" id="atm-title" required maxlength="200">
+            </div>
+
+            <div class="atm-form-group" id="atm-description-group" style="display: none;">
+                <label for="atm-description">Descrição</label>
+                <textarea name="description" id="atm-description"></textarea>
+            </div>
+
+            <div class="atm-form-group">
+                <label for="atm-status">Status</label>
+                <select name="status" id="atm-status" required>
+                    <option value="backlog">Backlog</option>
+                    <option value="em_andamento">Em Andamento</option>
+                    <option value="aguardando_cliente">Aguardando Cliente</option>
+                    <option value="concluida">Concluída</option>
+                </select>
+            </div>
+
+            <div class="atm-form-group" id="atm-assignee-group" style="display: none;">
+                <label for="atm-assignee">Responsável</label>
+                <input type="text" name="assignee" id="atm-assignee" placeholder="Nome ou email">
+            </div>
+
+            <div class="atm-form-group" id="atm-start-date-group" style="display: none;">
+                <label for="atm-start-date">Data de início</label>
+                <input type="date" name="start_date" id="atm-start-date">
+                <small style="color: #666; font-size: 12px;">Se não informado, será preenchido com a data de hoje</small>
+            </div>
+
+            <div class="atm-form-group" id="atm-due-date-group" style="display: none;">
+                <label for="atm-due-date">Prazo</label>
+                <input type="date" name="due_date" id="atm-due-date">
+            </div>
+
+            <div class="atm-form-group" id="atm-type-group" style="display: none;">
+                <label for="atm-task-type">Tipo de tarefa</label>
+                <select name="task_type" id="atm-task-type" required>
+                    <option value="internal">Tarefa interna</option>
+                    <option value="client_ticket">Ticket / Problema de cliente</option>
+                </select>
+            </div>
+
+            <!-- Checklist -->
+            <div class="atm-form-group" id="atm-checklist-section" style="display: none;">
+                <label>Checklist</label>
+                <div style="max-height: 120px; overflow-y: auto; margin-bottom: 8px;">
+                    <div id="atm-checklist-items"></div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="atm-checklist-input" placeholder="Adicionar item..."
+                           style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();atmAddChecklistItem();}">
+                    <button type="button" onclick="atmAddChecklistItem()" class="atm-btn atm-btn-primary" style="padding: 6px 12px; font-size: 13px;">Adicionar</button>
+                </div>
+            </div>
+
+            <div id="atm-quick-mode" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
+                <button type="button" onclick="atmExpandForm()" style="font-size: 13px; width: 100%; padding: 10px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    + Adicionar mais detalhes
+                </button>
+            </div>
+
+            <div id="atm-full-mode" style="display: none;">
+                <div class="atm-actions">
+                    <button type="button" class="atm-btn atm-btn-secondary" onclick="atmCloseModal()">Cancelar</button>
+                    <button type="submit" class="atm-btn atm-btn-primary">Salvar</button>
+                </div>
+            </div>
+
+            <div id="atm-quick-actions" class="atm-actions" style="margin-top: 15px;">
+                <button type="button" class="atm-btn atm-btn-secondary" onclick="atmCloseModal()">Cancelar</button>
+                <button type="submit" class="atm-btn atm-btn-primary">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 const baseUrl = '<?= $baseUrl ?>';
 const dataStr = '<?= $dataStr ?>';
@@ -522,6 +723,229 @@ const taskParam = '<?= $taskParam ?>';
 window.AGENDA_TIPOS = <?= json_encode(array_map(fn($t) => ['id' => (int)$t['id'], 'nome' => $t['nome'] ?? ''], $tipos ?? [])) ?>;
 window.AGENDA_HIGHLIGHT_TASK_ID = <?= (int)$highlightTaskId ?>;
 window.AGENDA_HIGHLIGHT_BLOCK_ID = <?= (int)$highlightBlockId ?>;
+
+// ===== MODAL DE CRIAÇÃO DE TAREFA (AGENDA) =====
+var _atmBlockId = 0;
+var _atmContainer = null;
+
+function openAgendaCreateTaskModal(blockId, projectId, container) {
+    _atmBlockId = blockId;
+    _atmContainer = container;
+    document.getElementById('atm-block-id').value = blockId;
+
+    // Reset form
+    document.getElementById('agendaTaskForm').reset();
+    document.getElementById('atm-checklist-items').innerHTML = '';
+    document.getElementById('atm-checklist-input').value = '';
+    atmCancelCreateProject();
+
+    // Pré-seleciona o projeto do bloco
+    if (projectId > 0) {
+        document.getElementById('atm-project-id').value = projectId;
+    }
+
+    // Pré-preenche data de início com hoje
+    var today = new Date();
+    var y = today.getFullYear();
+    var m = String(today.getMonth() + 1).padStart(2, '0');
+    var dd = String(today.getDate()).padStart(2, '0');
+    document.getElementById('atm-start-date').value = y + '-' + m + '-' + dd;
+
+    // Tipo padrão
+    document.getElementById('atm-task-type').value = 'internal';
+
+    // Modo rápido por padrão
+    atmResetToQuickMode();
+
+    // Mostra modal
+    document.getElementById('agendaTaskModal').style.display = 'block';
+    setTimeout(function() { document.getElementById('atm-title').focus(); }, 100);
+}
+
+function atmCloseModal() {
+    document.getElementById('agendaTaskModal').style.display = 'none';
+    _atmBlockId = 0;
+    _atmContainer = null;
+}
+
+function atmResetToQuickMode() {
+    document.getElementById('atm-description-group').style.display = 'none';
+    document.getElementById('atm-assignee-group').style.display = 'none';
+    document.getElementById('atm-start-date-group').style.display = 'none';
+    document.getElementById('atm-due-date-group').style.display = 'none';
+    document.getElementById('atm-type-group').style.display = 'none';
+    document.getElementById('atm-checklist-section').style.display = 'none';
+    document.getElementById('atm-quick-mode').style.display = 'block';
+    document.getElementById('atm-full-mode').style.display = 'none';
+    document.getElementById('atm-quick-actions').style.display = 'flex';
+}
+
+function atmExpandForm() {
+    document.getElementById('atm-description-group').style.display = 'block';
+    document.getElementById('atm-assignee-group').style.display = 'block';
+    document.getElementById('atm-start-date-group').style.display = 'block';
+    document.getElementById('atm-due-date-group').style.display = 'block';
+    document.getElementById('atm-type-group').style.display = 'block';
+    document.getElementById('atm-checklist-section').style.display = 'block';
+    document.getElementById('atm-quick-mode').style.display = 'none';
+    document.getElementById('atm-full-mode').style.display = 'block';
+    document.getElementById('atm-quick-actions').style.display = 'none';
+}
+
+// Criar projeto inline
+function atmOpenCreateProject() {
+    document.getElementById('atm-create-project-form').style.display = 'block';
+    document.getElementById('atm-new-project-name').value = '';
+    document.getElementById('atm-new-project-type').value = 'interno';
+    setTimeout(function() { document.getElementById('atm-new-project-name').focus(); }, 50);
+}
+
+function atmCancelCreateProject() {
+    document.getElementById('atm-create-project-form').style.display = 'none';
+    document.getElementById('atm-new-project-name').value = '';
+    document.getElementById('atm-new-project-type').value = 'interno';
+}
+
+function atmSaveNewProject() {
+    var name = document.getElementById('atm-new-project-name').value.trim();
+    var type = document.getElementById('atm-new-project-type').value;
+    if (!name) {
+        alert('Por favor, digite o nome do projeto.');
+        document.getElementById('atm-new-project-name').focus();
+        return;
+    }
+    var fd = new FormData();
+    fd.append('name', name);
+    fd.append('type', type);
+    fd.append('status', 'ativo');
+    fetch('<?= pixelhub_url('/projects/store') ?>', {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) { alert('Erro: ' + data.error); return; }
+        var sel = document.getElementById('atm-project-id');
+        var opt = document.createElement('option');
+        opt.value = data.id;
+        var tenantName = data.tenant_name || 'Interno';
+        opt.textContent = name + ' (' + tenantName + ')';
+        opt.selected = true;
+        // Insere antes da opção "__create_new__"
+        var createOpt = sel.querySelector('option[value="__create_new__"]');
+        if (createOpt) { sel.insertBefore(opt, createOpt); } else { sel.appendChild(opt); }
+        atmCancelCreateProject();
+        document.getElementById('atm-title').focus();
+    })
+    .catch(function() { alert('Erro ao criar projeto. Tente novamente.'); });
+}
+
+// Checklist
+function atmAddChecklistItem() {
+    var input = document.getElementById('atm-checklist-input');
+    var container = document.getElementById('atm-checklist-items');
+    if (!input || !container) return;
+    var label = input.value.trim();
+    if (!label) return;
+    var div = document.createElement('div');
+    div.className = 'atm-checklist-item';
+    div.dataset.label = label;
+    var safeLabel = label.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    div.innerHTML = '<span style="color: #999;">☰</span>' +
+        '<span class="atm-checklist-label">' + safeLabel + '</span>' +
+        '<button type="button" onclick="this.closest(\'.atm-checklist-item\').remove()" style="padding: 4px 8px; font-size: 12px; background: #c33; color: white; border: none; border-radius: 4px; cursor: pointer;">Excluir</button>';
+    container.appendChild(div);
+    input.value = '';
+    input.focus();
+}
+
+// Fechar modal com X e Escape
+document.getElementById('atm-close-btn').addEventListener('click', atmCloseModal);
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('agendaTaskModal').style.display === 'block') {
+        atmCloseModal();
+    }
+});
+// Fechar ao clicar fora do conteúdo
+document.getElementById('agendaTaskModal').addEventListener('click', function(e) {
+    if (e.target === this) atmCloseModal();
+});
+
+// Submit do formulário: cria tarefa via /tasks/store e vincula ao bloco
+document.getElementById('agendaTaskForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var submitBtn = this.querySelector('button[type="submit"]');
+    var originalText = submitBtn ? submitBtn.textContent : '';
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Salvando...'; }
+
+    var formData = new FormData(this);
+
+    // Coleta checklist items
+    var checklistItems = document.querySelectorAll('#atm-checklist-items .atm-checklist-item');
+    checklistItems.forEach(function(item) {
+        var label = (item.dataset.label || '').trim();
+        if (label) formData.append('checklist_items[]', label);
+    });
+
+    // 1. Cria a tarefa via /tasks/store
+    fetch('<?= pixelhub_url('/tasks/store') ?>', {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) {
+            alert('Erro: ' + data.error);
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
+            return;
+        }
+        var taskId = data.id || data.task_id;
+        if (!taskId) {
+            alert('Tarefa criada, mas não foi possível obter o ID.');
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
+            atmCloseModal();
+            return;
+        }
+
+        // 2. Vincula ao bloco
+        var blockId = _atmBlockId;
+        if (blockId > 0) {
+            var fd2 = new FormData();
+            fd2.append('block_id', blockId);
+            fd2.append('task_id', taskId);
+            fetch('<?= pixelhub_url('/agenda/bloco/attach-task') ?>', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: fd2
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                atmCloseModal();
+                // Recarrega conteúdo do bloco
+                if (_atmContainer) {
+                    loadBlockContent(blockId, _atmContainer);
+                } else {
+                    location.reload();
+                }
+            })
+            .catch(function() {
+                alert('Tarefa criada, mas erro ao vincular ao bloco.');
+                atmCloseModal();
+                location.reload();
+            });
+        } else {
+            atmCloseModal();
+            location.reload();
+        }
+    })
+    .catch(function(err) {
+        console.error('Erro:', err);
+        alert('Erro ao salvar tarefa');
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
+    });
+});
 
 function applyFilters(val, type) {
     const params = new URLSearchParams(window.location.search);
@@ -730,22 +1154,9 @@ function loadBlockContent(blockId, container) {
                 html += '<select id="block-add-task-select-' + blockId + '"><option value="">Selecionar tarefa…</option></select>';
                 html += '<button type="button" class="btn-add-task-to-block" data-block-id="' + blockId + '">Vincular</button>';
                 html += '<span style="color:#cbd5e1;margin:0 4px;">|</span>';
-                html += '<button type="button" class="btn-create-task-inline" data-block-id="' + blockId + '" data-project-id="' + projectId + '" style="background:#023A8D;color:#fff;border:1px solid #023A8D;padding:6px 12px;border-radius:4px;font-size:12px;cursor:pointer;white-space:nowrap;" title="Criar nova tarefa e vincular a este bloco">+ Criar Nova</button>';
+                html += '<button type="button" class="btn-open-create-task-modal" data-block-id="' + blockId + '" data-project-id="' + projectId + '" style="background:#023A8D;color:#fff;border:1px solid #023A8D;padding:6px 12px;border-radius:4px;font-size:12px;cursor:pointer;white-space:nowrap;" title="Criar nova tarefa e vincular a este bloco">+ Criar Nova</button>';
                 html += '<button type="button" class="block-add-task-close" data-block-id="' + blockId + '" title="Fechar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
-                html += '</div>';
-                // Formulário inline para criar tarefa nova
-                html += '<div id="block-create-task-form-' + blockId + '" style="display:none;margin-top:10px;padding:12px;background:#f0f7ff;border-radius:6px;border:2px solid #023A8D;">';
-                html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
-                html += '<span style="font-size:12px;font-weight:600;color:#023A8D;">Criar Nova Tarefa</span>';
-                html += '<button type="button" class="btn-cancel-create-task" data-block-id="' + blockId + '" style="background:none;border:none;color:#666;cursor:pointer;font-size:16px;line-height:1;padding:0;">×</button>';
-                html += '</div>';
-                html += '<input type="text" id="block-new-task-title-' + blockId + '" placeholder="Título da tarefa *" style="width:100%;padding:8px 12px;border:1px solid #023A8D;border-radius:4px;font-size:13px;margin-bottom:8px;box-sizing:border-box;">';
-                html += '<textarea id="block-new-task-desc-' + blockId + '" placeholder="Descrição (opcional)" rows="2" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:4px;font-size:13px;margin-bottom:8px;box-sizing:border-box;resize:vertical;"></textarea>';
-                html += '<div style="display:flex;gap:8px;justify-content:flex-end;">';
-                html += '<button type="button" class="btn-cancel-create-task" data-block-id="' + blockId + '" style="padding:6px 14px;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;cursor:pointer;">Cancelar</button>';
-                html += '<button type="button" class="btn-save-new-task" data-block-id="' + blockId + '" data-project-id="' + projectId + '" style="padding:6px 14px;background:#023A8D;color:#fff;border:1px solid #023A8D;border-radius:4px;font-size:12px;cursor:pointer;font-weight:600;">Criar e Vincular</button>';
                 html += '</div></div>';
-                html += '</div>';
             }
             container.innerHTML = html;
 
@@ -955,82 +1366,13 @@ function loadBlockContent(blockId, container) {
                             .catch(() => { alert('Erro ao vincular'); btn.disabled = false; btn.textContent = 'Vincular'; });
                         });
 
-                        // Botão "Criar Nova" — abre formulário inline
-                        container.querySelector('.btn-create-task-inline')?.addEventListener('click', function(e) {
+                        // Botão "Criar Nova" — abre modal completo de criação de tarefa
+                        container.querySelector('.btn-open-create-task-modal')?.addEventListener('click', function(e) {
                             e.stopPropagation();
-                            const createForm = document.getElementById('block-create-task-form-' + blockId);
-                            if (createForm) {
-                                const isVisible = createForm.style.display === 'block';
-                                createForm.style.display = isVisible ? 'none' : 'block';
-                                if (!isVisible) {
-                                    const titleInput = document.getElementById('block-new-task-title-' + blockId);
-                                    if (titleInput) titleInput.focus();
-                                }
-                            }
-                        });
-
-                        // Botões "Cancelar" do formulário de criação
-                        container.querySelectorAll('.btn-cancel-create-task').forEach(function(btn) {
-                            btn.addEventListener('click', function(e) {
-                                e.stopPropagation();
-                                const bid = this.dataset.blockId;
-                                const createForm = document.getElementById('block-create-task-form-' + bid);
-                                if (createForm) createForm.style.display = 'none';
-                            });
-                        });
-
-                        // Botão "Criar e Vincular" — envia para createQuickTask via AJAX
-                        container.querySelector('.btn-save-new-task')?.addEventListener('click', function() {
                             const bid = parseInt(this.dataset.blockId, 10);
                             const pid = parseInt(this.dataset.projectId, 10);
-                            const titleInput = document.getElementById('block-new-task-title-' + bid);
-                            const descInput = document.getElementById('block-new-task-desc-' + bid);
-                            const titulo = titleInput ? titleInput.value.trim() : '';
-                            const descricao = descInput ? descInput.value.trim() : '';
-                            if (!titulo) {
-                                titleInput.style.borderColor = '#dc2626';
-                                titleInput.focus();
-                                return;
-                            }
-                            const btn = this;
-                            btn.disabled = true;
-                            btn.textContent = 'Criando…';
-                            const fd = new FormData();
-                            fd.append('block_id', bid);
-                            fd.append('project_id', pid);
-                            fd.append('titulo', titulo);
-                            fd.append('descricao', descricao);
-                            fetch('<?= pixelhub_url('/agenda/bloco/create-quick-task') ?>', {
-                                method: 'POST',
-                                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                                body: fd
-                            })
-                            .then(r => r.json())
-                            .then(d => {
-                                if (d.success) {
-                                    loadBlockContent(bid, container);
-                                } else {
-                                    alert(d.error || 'Erro ao criar tarefa');
-                                    btn.disabled = false;
-                                    btn.textContent = 'Criar e Vincular';
-                                }
-                            })
-                            .catch(() => { alert('Erro ao criar tarefa'); btn.disabled = false; btn.textContent = 'Criar e Vincular'; });
+                            openAgendaCreateTaskModal(bid, pid, container);
                         });
-
-                        // Enter no campo título cria a tarefa
-                        const newTaskTitle = document.getElementById('block-new-task-title-' + blockId);
-                        if (newTaskTitle) {
-                            newTaskTitle.addEventListener('keydown', function(e) {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    container.querySelector('.btn-save-new-task')?.click();
-                                }
-                            });
-                            newTaskTitle.addEventListener('input', function() {
-                                this.style.borderColor = '#023A8D';
-                            });
-                        }
                     })
                     .catch(() => {});
             }
