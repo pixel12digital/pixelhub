@@ -49,11 +49,52 @@
     });
 
     // Detecta quando a página está sendo descarregada
-    window.addEventListener('beforeunload', function() {
+    window.addEventListener('beforeunload', function(e) {
         if (state.isRecording) {
             console.log('[ScreenRecorder] Page unloading while recording. isRecording=', state.isRecording);
+            
+            // Pergunta ao usuário se deseja continuar
+            const message = 'Uma gravação de tela está em andamento. Se você sair desta página, a gravação será encerrada. Deseja continuar?';
+            e.preventDefault();
+            e.returnValue = message; // Para navegadores antigos
+            return message; // Para navegadores modernos
         }
     });
+
+    // Intercepta cliques em links que poderiam navegar para outra página
+    document.addEventListener('click', function(e) {
+        if (!state.isRecording) return;
+        
+        const link = e.target.closest('a');
+        if (!link) return;
+        
+        const href = link.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+            return; // Ignora links internos, javascript, mailto, tel
+        }
+        
+        // Verifica se é um link externo ou para outra página
+        const currentUrl = window.location.href;
+        const currentOrigin = window.location.origin;
+        const linkUrl = href.startsWith('http') ? href : currentOrigin + href;
+        
+        if (linkUrl !== currentUrl && !linkUrl.includes('#')) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Mostra diálogo de confirmação
+            if (confirm('Uma gravação de tela está em andamento. Se você navegar para outra página, a gravação será encerrada.\n\nDeseja parar a gravação e continuar?')) {
+                // Para a gravação e continua a navegação
+                console.log('[ScreenRecorder] User chose to stop recording and navigate');
+                this.stop(function() {
+                    window.location.href = href;
+                }.bind(this));
+            } else {
+                console.log('[ScreenRecorder] User chose to continue recording');
+                // Não faz nada, continua gravando
+            }
+        }
+    }.bind(this));
 
     // Formata duração em segundos para mm:ss
     function formatDuration(seconds) {
@@ -904,8 +945,9 @@
 
         /**
          * Para a gravação
+         * @param {Function} callback - Função opcional para executar após parar a gravação
          */
-        stop: function(force) {
+        stop: function(force, callback) {
             console.log('[ScreenRecorder] Clique no botão Encerrar');
             console.log('[ScreenRecorder] stop chamado. isRecording=', state.isRecording, 'mediaRecorder.state=', state.mediaRecorder && state.mediaRecorder.state, 'force=', force);
             
@@ -1245,8 +1287,9 @@
         /**
          * Fecha o overlay e reseta o estado
          * @param {boolean} force - Se true, fecha sem confirmação (usado internamente)
+         * @param {Function} callback - Função opcional para executar após fechar
          */
-        close: function(force) {
+        close: function(force, callback) {
             // Se estiver fazendo upload, não permite fechar
             if (state.isUploading && !force) {
                 return;
@@ -1348,6 +1391,11 @@
             if (floating) {
                 floating.style.display = 'none';
                 floating.style.pointerEvents = 'none';
+            }
+            
+            // Executa callback se fornecido
+            if (typeof callback === 'function') {
+                callback();
             }
         },
 
