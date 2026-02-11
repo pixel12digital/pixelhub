@@ -435,146 +435,159 @@ const STAGE_COLORS = <?= json_encode($stageColors) ?>;
 let draggedCard = null;
 let dragStartTime = 0;
 
-// Drag start
-document.addEventListener('dragstart', function(e) {
-    const card = e.target.closest('.kanban-card');
-    if (!card) return;
-    draggedCard = card;
-    dragStartTime = Date.now();
-    card.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', card.dataset.oppId);
-});
+// Initialize Kanban drag & drop only on the Kanban container
+function initKanbanDragDrop() {
+    const kanbanContainer = document.getElementById('view-kanban');
+    if (!kanbanContainer) return;
 
-// Drag end
-document.addEventListener('dragend', function(e) {
-    if (draggedCard) {
-        draggedCard.classList.remove('dragging');
-        draggedCard = null;
-    }
-    document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
-    document.querySelectorAll('.kanban-card-placeholder').forEach(p => p.remove());
-});
+    // Drag start (scoped to Kanban container)
+    kanbanContainer.addEventListener('dragstart', function(e) {
+        const card = e.target.closest('.kanban-card');
+        if (!card) return;
+        draggedCard = card;
+        dragStartTime = Date.now();
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', card.dataset.oppId);
+    });
 
-// Drag over columns
-document.addEventListener('dragover', function(e) {
-    const column = e.target.closest('.kanban-column');
-    if (!column || !draggedCard) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-
-    // Highlight
-    document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
-    column.classList.add('drag-over');
-
-    // Placeholder positioning
-    const cardsContainer = column.querySelector('.kanban-cards');
-    let placeholder = cardsContainer.querySelector('.kanban-card-placeholder');
-    if (!placeholder) {
-        placeholder = document.createElement('div');
-        placeholder.className = 'kanban-card-placeholder';
-    }
-
-    const cards = [...cardsContainer.querySelectorAll('.kanban-card:not(.dragging)')];
-    let insertBefore = null;
-    for (const c of cards) {
-        const rect = c.getBoundingClientRect();
-        if (e.clientY < rect.top + rect.height / 2) {
-            insertBefore = c;
-            break;
+    // Drag end (scoped to Kanban container)
+    kanbanContainer.addEventListener('dragend', function(e) {
+        if (draggedCard) {
+            draggedCard.classList.remove('dragging');
+            draggedCard = null;
         }
-    }
+        kanbanContainer.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
+        kanbanContainer.querySelectorAll('.kanban-card-placeholder').forEach(p => p.remove());
+    });
 
-    if (insertBefore) {
-        cardsContainer.insertBefore(placeholder, insertBefore);
-    } else {
-        cardsContainer.appendChild(placeholder);
-    }
-});
+    // Drag over columns (scoped to Kanban container)
+    kanbanContainer.addEventListener('dragover', function(e) {
+        const column = e.target.closest('.kanban-column');
+        if (!column || !draggedCard) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
 
-// Drag leave
-document.addEventListener('dragleave', function(e) {
-    const column = e.target.closest('.kanban-column');
-    if (!column) return;
-    const related = e.relatedTarget ? e.relatedTarget.closest('.kanban-column') : null;
-    if (related !== column) {
-        column.classList.remove('drag-over');
-        column.querySelectorAll('.kanban-card-placeholder').forEach(p => p.remove());
-    }
-});
+        // Highlight
+        kanbanContainer.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
+        column.classList.add('drag-over');
 
-// Drop
-document.addEventListener('drop', async function(e) {
-    e.preventDefault();
-    const column = e.target.closest('.kanban-column');
-    if (!column || !draggedCard) return;
-
-    const newStage = column.dataset.stage;
-    const oldStage = draggedCard.dataset.stage;
-    const oppId = draggedCard.dataset.oppId;
-
-    // Remove placeholders and highlights
-    document.querySelectorAll('.kanban-card-placeholder').forEach(p => p.remove());
-    document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
-
-    if (newStage === oldStage) {
-        draggedCard.classList.remove('dragging');
-        draggedCard = null;
-        return;
-    }
-
-    // Move card visually
-    const cardsContainer = column.querySelector('.kanban-cards');
-    const emptyMsg = cardsContainer.querySelector('.kanban-empty');
-    if (emptyMsg) emptyMsg.remove();
-
-    draggedCard.classList.remove('dragging');
-    draggedCard.dataset.stage = newStage;
-    draggedCard.style.borderLeftColor = STAGE_COLORS[newStage] || '#6c757d';
-    draggedCard.style.cursor = 'grab';
-    cardsContainer.appendChild(draggedCard);
-
-    // Remove empty msg from old column if needed, or add it
-    const oldColumn = document.querySelector('.kanban-column[data-stage="' + oldStage + '"]');
-    if (oldColumn) {
-        const oldCards = oldColumn.querySelectorAll('.kanban-card');
-        if (oldCards.length === 0) {
-            const oldCardsContainer = oldColumn.querySelector('.kanban-cards');
-            oldCardsContainer.innerHTML = '<div class="kanban-empty" style="padding: 20px 10px; text-align: center; color: #aaa; font-size: 12px;">Nenhuma oportunidade</div>';
+        // Placeholder positioning
+        const cardsContainer = column.querySelector('.kanban-cards');
+        let placeholder = cardsContainer.querySelector('.kanban-card-placeholder');
+        if (!placeholder) {
+            placeholder = document.createElement('div');
+            placeholder.className = 'kanban-card-placeholder';
         }
-    }
 
-    // Update counts
-    updateKanbanCounts();
+        const cards = [...cardsContainer.querySelectorAll('.kanban-card:not(.dragging)')];
+        let insertBefore = null;
+        for (const c of cards) {
+            const rect = c.getBoundingClientRect();
+            if (e.clientY < rect.top + rect.height / 2) {
+                insertBefore = c;
+                break;
+            }
+        }
 
-    draggedCard = null;
+        if (insertBefore) {
+            cardsContainer.insertBefore(placeholder, insertBefore);
+        } else {
+            cardsContainer.appendChild(placeholder);
+        }
+    });
 
-    // Call API
-    try {
-        const res = await fetch(CHANGE_STAGE_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: parseInt(oppId), stage: newStage })
-        });
-        const data = await res.json();
-        if (!data.success) {
-            alert('Erro ao mover: ' + (data.error || 'Erro desconhecido'));
+    // Drag leave (scoped to Kanban container)
+    kanbanContainer.addEventListener('dragleave', function(e) {
+        const column = e.target.closest('.kanban-column');
+        if (!column) return;
+        const related = e.relatedTarget ? e.relatedTarget.closest('.kanban-column') : null;
+        if (related !== column) {
+            column.classList.remove('drag-over');
+            column.querySelectorAll('.kanban-card-placeholder').forEach(p => p.remove());
+        }
+    });
+
+    // Drop (scoped to Kanban container)
+    kanbanContainer.addEventListener('drop', async function(e) {
+        e.preventDefault();
+        const column = e.target.closest('.kanban-column');
+        if (!column || !draggedCard) return;
+
+        const newStage = column.dataset.stage;
+        const oldStage = draggedCard.dataset.stage;
+        const oppId = draggedCard.dataset.oppId;
+
+        // Remove placeholders and highlights
+        kanbanContainer.querySelectorAll('.kanban-card-placeholder').forEach(p => p.remove());
+        kanbanContainer.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
+
+        if (newStage === oldStage) {
+            draggedCard.classList.remove('dragging');
+            draggedCard = null;
+            return;
+        }
+
+        // Move card visually
+        const cardsContainer = column.querySelector('.kanban-cards');
+        const emptyMsg = cardsContainer.querySelector('.kanban-empty');
+        if (emptyMsg) emptyMsg.remove();
+
+        draggedCard.classList.remove('dragging');
+        draggedCard.dataset.stage = newStage;
+        draggedCard.style.borderLeftColor = STAGE_COLORS[newStage] || '#6c757d';
+        draggedCard.style.cursor = 'grab';
+        cardsContainer.appendChild(draggedCard);
+
+        // Remove empty msg from old column if needed, or add it
+        const oldColumn = kanbanContainer.querySelector('.kanban-column[data-stage="' + oldStage + '"]');
+        if (oldColumn) {
+            const oldCards = oldColumn.querySelectorAll('.kanban-card');
+            if (oldCards.length === 0) {
+                const oldCardsContainer = oldColumn.querySelector('.kanban-cards');
+                oldCardsContainer.innerHTML = '<div class="kanban-empty" style="padding: 20px 10px; text-align: center; color: #aaa; font-size: 12px;">Nenhuma oportunidade</div>';
+            }
+        }
+
+        // Update counts
+        updateKanbanCounts();
+
+        draggedCard = null;
+
+        // Call API
+        try {
+            const res = await fetch(CHANGE_STAGE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: parseInt(oppId), stage: newStage })
+            });
+            const data = await res.json();
+            if (!data.success) {
+                alert('Erro ao mover: ' + (data.error || 'Erro desconhecido'));
+                window.location.reload();
+            }
+        } catch (err) {
+            alert('Erro de conexão ao mover oportunidade.');
             window.location.reload();
         }
-    } catch (err) {
-        alert('Erro de conexão ao mover oportunidade.');
-        window.location.reload();
-    }
-});
+    });
 
-// Click to open (only if not dragging)
-document.addEventListener('click', function(e) {
-    const card = e.target.closest('.kanban-card');
-    if (!card) return;
-    if (Date.now() - dragStartTime < 200 || dragStartTime === 0) {
-        window.location.href = OPP_VIEW_URL + '?id=' + card.dataset.oppId;
-    }
-});
+    // Click to open (only if not dragging, scoped to Kanban container)
+    kanbanContainer.addEventListener('click', function(e) {
+        const card = e.target.closest('.kanban-card');
+        if (!card) return;
+        if (Date.now() - dragStartTime < 200 || dragStartTime === 0) {
+            window.location.href = OPP_VIEW_URL + '?id=' + card.dataset.oppId;
+        }
+    });
+}
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initKanbanDragDrop);
+} else {
+    initKanbanDragDrop();
+}
 
 function updateKanbanCounts() {
     document.querySelectorAll('.kanban-column').forEach(col => {
