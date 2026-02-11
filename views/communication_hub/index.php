@@ -1551,6 +1551,14 @@ body.communication-hub-page {
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
                                                 Criar Cliente
                                             </button>
+                                            <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); openCreateLeadModal(<?= $lead['conversation_id'] ?? 0 ?>, '<?= htmlspecialchars($lead['contact_name'] ?? '', ENT_QUOTES) ?>', '<?= htmlspecialchars($lead['contact'] ?? '', ENT_QUOTES) ?>'); closeIncomingLeadMenu(this);">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+                                                Criar Lead
+                                            </button>
+                                            <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); openLinkLeadModal(<?= $lead['conversation_id'] ?? 0 ?>, '<?= htmlspecialchars($lead['contact_name'] ?? '', ENT_QUOTES) ?>'); closeIncomingLeadMenu(this);">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                                                Vincular a Lead
+                                            </button>
                                             <?php if (($filters['status'] ?? '') !== 'ignored'): ?>
                                             <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); ignoreConversation(<?= $lead['conversation_id'] ?? 0 ?>, '<?= htmlspecialchars($lead['contact_name'] ?? 'Contato', ENT_QUOTES) ?>'); closeIncomingLeadMenu(this);">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
@@ -1631,14 +1639,14 @@ body.communication-hub-page {
                                         <span>Chat Interno</span>
                                     <?php endif; ?>
                                     <?php 
-                                    // Sempre mostra tenant_name quando existir, mesmo que tenha contact_name
-                                    // Isso permite identificar que múltiplos contatos pertencem ao mesmo tenant
-                                    // Clicável para abrir página do tenant
+                                    // Mostra tenant_name ou lead_name conforme vínculo
                                     if (isset($thread['tenant_name']) && $thread['tenant_name'] !== 'Sem tenant' && !empty($thread['tenant_id'])): ?>
                                         <a href="<?= pixelhub_url('/tenants/view?id=' . $thread['tenant_id']) ?>" 
                                            onclick="event.stopPropagation();" 
                                            style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" 
                                            title="Clique para ver detalhes do cliente">• <?= htmlspecialchars($thread['tenant_name']) ?></a>
+                                    <?php elseif (!empty($thread['lead_id']) && !empty($thread['lead_name'])): ?>
+                                        <span style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px;" title="Lead vinculado">• Lead: <?= htmlspecialchars($thread['lead_name']) ?></span>
                                     <?php elseif (!isset($thread['tenant_name']) || $thread['tenant_id'] === null): ?>
                                         <span style="opacity: 0.7; font-size: 10px;">• Sem tenant</span>
                                     <?php endif; ?>
@@ -2330,6 +2338,14 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
                                         Criar Cliente
                                     </button>
+                                    <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); openCreateLeadModal(${conversationId}, '${escapeHtml(contactName)}', '${escapeHtml(contact)}'); closeIncomingLeadMenu(this);">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+                                        Criar Lead
+                                    </button>
+                                    <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); openLinkLeadModal(${conversationId}, '${escapeHtml(contactName)}'); closeIncomingLeadMenu(this);">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                                        Vincular a Lead
+                                    </button>
                                     <?php if (($filters['status'] ?? '') !== 'ignored'): ?>
                                     <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); ignoreConversation(${conversationId}, '${escapeHtml(contactName)}'); closeIncomingLeadMenu(this);">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
@@ -2405,8 +2421,10 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                                    onclick="event.stopPropagation();" 
                                    style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" 
                                    title="Clique para ver detalhes do cliente">• ${tenantName}</a>` : 
-                                (!thread.tenant_name || thread.tenant_id === null ? 
-                                    '<span style="opacity: 0.7; font-size: 10px;">• Sem tenant</span>' : '')
+                                (thread.lead_id && thread.lead_name ? 
+                                    `<span style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px;" title="Lead vinculado">• Lead: ${escapeHtml(thread.lead_name)}</span>` :
+                                    (!thread.tenant_name || thread.tenant_id === null ? 
+                                        '<span style="opacity: 0.7; font-size: 10px;">• Sem tenant</span>' : ''))
                             }
                         </div>
                     </div>
@@ -5851,10 +5869,10 @@ function closeCreateTenantModal() {
 }
 
 /**
- * Cria tenant a partir de incoming lead
+ * Cria tenant a partir de incoming lead (com proteção contra duplicidade)
  */
-async function createTenantFromIncomingLead(event) {
-    event.preventDefault();
+async function createTenantFromIncomingLead(event, forceCreate) {
+    event && event.preventDefault();
     
     const conversationId = document.getElementById('create-tenant-conversation-id').value;
     const name = document.getElementById('create-tenant-name').value.trim();
@@ -5869,30 +5887,336 @@ async function createTenantFromIncomingLead(event) {
     try {
         const response = await fetch('<?= pixelhub_url('/communication-hub/incoming-lead/create-tenant') ?>', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 conversation_id: parseInt(conversationId),
                 name: name,
                 phone: phone,
-                email: email
+                email: email,
+                force_create: forceCreate || false
             })
         });
         
         const result = await response.json();
         
         if (result.success) {
-            alert('Cliente criado e conversa vinculada com sucesso!');
+            showToast('Cliente criado e conversa vinculada com sucesso!', 'success');
             closeCreateTenantModal();
-            // Recarrega a página para atualizar a lista
-            window.location.reload();
+            closeDuplicatePhoneModal();
+            if (typeof loadInboxConversations === 'function') loadInboxConversations();
+            else window.location.reload();
+        } else if (result.code === 'DUPLICATE_PHONE') {
+            // Mostra modal de duplicidade
+            window._duplicateContext = { type: 'tenant', conversationId: conversationId };
+            showDuplicatePhoneModal(result.duplicates, conversationId);
         } else {
-            alert('Erro: ' + (result.error || 'Erro desconhecido'));
+            alert('Erro: ' + (result.error || result.message || 'Erro desconhecido'));
         }
     } catch (error) {
         console.error('Erro ao criar tenant:', error);
         alert('Erro ao criar cliente. Tente novamente.');
+    }
+}
+
+// ============================================================================
+// Lead - Criar, Vincular, Listar
+// ============================================================================
+
+/**
+ * Abre modal para criar novo lead
+ */
+function openCreateLeadModal(conversationId, contactName, contactPhone) {
+    const modal = document.getElementById('create-lead-modal');
+    if (!modal) { console.error('Modal create-lead-modal não encontrado'); return; }
+    
+    document.getElementById('create-lead-conversation-id').value = conversationId;
+    document.getElementById('create-lead-name').value = contactName || '';
+    document.getElementById('create-lead-phone').value = contactPhone || '';
+    document.getElementById('create-lead-email').value = '';
+    document.getElementById('create-lead-notes').value = '';
+    
+    modal.style.display = 'flex';
+}
+
+function closeCreateLeadModal() {
+    const modal = document.getElementById('create-lead-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+/**
+ * Cria lead a partir de conversa (com proteção contra duplicidade)
+ */
+async function createLeadFromConversation(event, forceCreate) {
+    event && event.preventDefault();
+    
+    const conversationId = document.getElementById('create-lead-conversation-id').value;
+    const name = document.getElementById('create-lead-name').value.trim();
+    const phone = document.getElementById('create-lead-phone').value.trim();
+    const email = document.getElementById('create-lead-email').value.trim();
+    const notes = document.getElementById('create-lead-notes').value.trim();
+    
+    if (!name) { alert('Nome é obrigatório'); return; }
+    
+    try {
+        const response = await fetch('<?= pixelhub_url('/communication-hub/incoming-lead/create-lead') ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                conversation_id: parseInt(conversationId),
+                name, phone, email, notes,
+                force_create: forceCreate || false
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Lead criado e conversa vinculada com sucesso!', 'success');
+            closeCreateLeadModal();
+            closeDuplicatePhoneModal();
+            if (typeof loadInboxConversations === 'function') loadInboxConversations();
+            else window.location.reload();
+        } else if (result.code === 'DUPLICATE_PHONE') {
+            window._duplicateContext = { type: 'lead', conversationId: conversationId };
+            showDuplicatePhoneModal(result.duplicates, conversationId);
+        } else {
+            alert('Erro: ' + (result.error || result.message || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao criar lead:', error);
+        alert('Erro ao criar lead. Tente novamente.');
+    }
+}
+
+/**
+ * Abre modal para vincular conversa a lead existente
+ */
+async function openLinkLeadModal(conversationId, contactName) {
+    const modal = document.getElementById('link-lead-modal');
+    if (!modal) { console.error('Modal link-lead-modal não encontrado'); return; }
+    
+    document.getElementById('link-lead-conversation-id').value = conversationId;
+    document.getElementById('link-lead-contact-name').textContent = contactName || 'Contato Desconhecido';
+    
+    const searchInput = document.getElementById('link-lead-search');
+    if (searchInput) searchInput.value = '';
+    
+    const select = document.getElementById('link-lead-select');
+    if (select) select.innerHTML = '<option value="">Carregando leads...</option>';
+    
+    modal.style.display = 'flex';
+    
+    // Carrega leads via AJAX
+    try {
+        const res = await fetch('<?= pixelhub_url('/communication-hub/leads-list') ?>');
+        const data = await res.json();
+        if (data.success && select) {
+            select.innerHTML = '<option value="">Selecione um lead...</option>';
+            if (data.leads.length === 0) {
+                select.innerHTML = '<option value="">Nenhum lead cadastrado</option>';
+            } else {
+                data.leads.forEach(function(l) {
+                    const opt = document.createElement('option');
+                    opt.value = l.id;
+                    opt.textContent = l.name + (l.phone ? ' (' + l.phone + ')' : '') + (l.email ? ' - ' + l.email : '');
+                    opt.setAttribute('data-name', (l.name || '').toLowerCase());
+                    opt.setAttribute('data-email', (l.email || '').toLowerCase());
+                    opt.setAttribute('data-phone', (l.phone || '').replace(/\D/g, ''));
+                    select.appendChild(opt);
+                });
+            }
+        }
+    } catch (e) { console.warn('[Inbox] Erro ao carregar leads:', e); }
+}
+
+function closeLinkLeadModal() {
+    const modal = document.getElementById('link-lead-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function filterLinkLeadOptions(searchTerm) {
+    const search = (searchTerm || '').toLowerCase().trim();
+    const select = document.getElementById('link-lead-select');
+    const noResults = document.getElementById('link-lead-no-results');
+    if (!select) return;
+    
+    const options = select.querySelectorAll('option');
+    let visibleCount = 0;
+    if (options.length > 0) options[0].style.display = '';
+    
+    for (let i = 1; i < options.length; i++) {
+        const opt = options[i];
+        const name = (opt.getAttribute('data-name') || '');
+        const email = (opt.getAttribute('data-email') || '');
+        const phone = (opt.getAttribute('data-phone') || '');
+        const searchNorm = search.replace(/[^a-z0-9]/g, '');
+        const match = search === '' || name.includes(search) || email.includes(search) || phone.includes(searchNorm);
+        opt.style.display = match ? '' : 'none';
+        if (match) visibleCount++;
+    }
+    
+    if (noResults) {
+        noResults.style.display = (search !== '' && visibleCount === 0) ? 'block' : 'none';
+        select.style.display = (search !== '' && visibleCount === 0) ? 'none' : 'block';
+    }
+    if (visibleCount === 1 && search !== '') {
+        for (let i = 1; i < options.length; i++) {
+            if (options[i].style.display !== 'none') { select.value = options[i].value; break; }
+        }
+    } else if (search === '') select.value = '';
+}
+
+/**
+ * Vincula conversa a lead existente
+ */
+async function linkConversationToLead(event) {
+    event.preventDefault();
+    
+    const conversationId = document.getElementById('link-lead-conversation-id').value;
+    const leadId = document.getElementById('link-lead-select').value;
+    
+    if (!leadId) { alert('Selecione um lead'); return; }
+    
+    try {
+        const response = await fetch('<?= pixelhub_url('/communication-hub/incoming-lead/link-lead') ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                conversation_id: parseInt(conversationId),
+                lead_id: parseInt(leadId)
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Conversa vinculada ao lead com sucesso!', 'success');
+            closeLinkLeadModal();
+            if (typeof loadInboxConversations === 'function') loadInboxConversations();
+            else window.location.reload();
+        } else {
+            alert('Erro: ' + (result.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao vincular lead:', error);
+        alert('Erro ao vincular conversa ao lead. Tente novamente.');
+    }
+}
+
+// ============================================================================
+// Duplicidade - Modal e ações
+// ============================================================================
+
+/**
+ * Mostra modal de duplicidade com lista de registros existentes
+ */
+function showDuplicatePhoneModal(duplicates, conversationId) {
+    const modal = document.getElementById('duplicate-phone-modal');
+    if (!modal) return;
+    
+    const listDiv = document.getElementById('duplicate-phone-list');
+    let html = '';
+    
+    if (duplicates.tenants && duplicates.tenants.length > 0) {
+        html += '<div style="margin-bottom: 12px;"><strong style="color: #023A8D;">Clientes existentes:</strong></div>';
+        duplicates.tenants.forEach(function(t) {
+            html += '<div style="padding: 10px; background: #f0f7ff; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #023A8D; display: flex; justify-content: space-between; align-items: center;">';
+            html += '<div><strong>' + escapeHtml(t.name) + '</strong>';
+            if (t.phone) html += '<br><span style="font-size: 12px; color: #667781;">' + escapeHtml(t.phone) + '</span>';
+            if (t.email) html += ' &middot; <span style="font-size: 12px; color: #667781;">' + escapeHtml(t.email) + '</span>';
+            html += '</div>';
+            html += '<button type="button" onclick="linkDuplicateToTenant(' + conversationId + ', ' + t.id + ')" style="padding: 6px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap;">Vincular</button>';
+            html += '</div>';
+        });
+    }
+    
+    if (duplicates.leads && duplicates.leads.length > 0) {
+        html += '<div style="margin-bottom: 12px; margin-top: 16px;"><strong style="color: #0d6efd;">Leads existentes:</strong></div>';
+        duplicates.leads.forEach(function(l) {
+            html += '<div style="padding: 10px; background: #e8f4fd; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #0d6efd; display: flex; justify-content: space-between; align-items: center;">';
+            html += '<div><strong>' + escapeHtml(l.name) + '</strong>';
+            if (l.phone) html += '<br><span style="font-size: 12px; color: #667781;">' + escapeHtml(l.phone) + '</span>';
+            if (l.email) html += ' &middot; <span style="font-size: 12px; color: #667781;">' + escapeHtml(l.email) + '</span>';
+            html += '</div>';
+            html += '<button type="button" onclick="linkDuplicateToLead(' + conversationId + ', ' + l.id + ')" style="padding: 6px 12px; background: #0d6efd; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap;">Vincular</button>';
+            html += '</div>';
+        });
+    }
+    
+    listDiv.innerHTML = html;
+    modal.style.display = 'flex';
+}
+
+function closeDuplicatePhoneModal() {
+    const modal = document.getElementById('duplicate-phone-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+/**
+ * Vincula conversa a tenant existente a partir do modal de duplicidade
+ */
+async function linkDuplicateToTenant(conversationId, tenantId) {
+    try {
+        const response = await fetch('<?= pixelhub_url('/communication-hub/incoming-lead/link-tenant') ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversation_id: conversationId, tenant_id: tenantId })
+        });
+        const result = await response.json();
+        if (result.success) {
+            showToast('Conversa vinculada ao cliente com sucesso!', 'success');
+            closeDuplicatePhoneModal();
+            closeCreateTenantModal();
+            closeCreateLeadModal();
+            if (typeof loadInboxConversations === 'function') loadInboxConversations();
+            else window.location.reload();
+        } else {
+            alert('Erro: ' + (result.error || 'Erro desconhecido'));
+        }
+    } catch (err) {
+        console.error('Erro ao vincular:', err);
+        alert('Erro ao vincular. Tente novamente.');
+    }
+}
+
+/**
+ * Vincula conversa a lead existente a partir do modal de duplicidade
+ */
+async function linkDuplicateToLead(conversationId, leadId) {
+    try {
+        const response = await fetch('<?= pixelhub_url('/communication-hub/incoming-lead/link-lead') ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversation_id: conversationId, lead_id: leadId })
+        });
+        const result = await response.json();
+        if (result.success) {
+            showToast('Conversa vinculada ao lead com sucesso!', 'success');
+            closeDuplicatePhoneModal();
+            closeCreateTenantModal();
+            closeCreateLeadModal();
+            if (typeof loadInboxConversations === 'function') loadInboxConversations();
+            else window.location.reload();
+        } else {
+            alert('Erro: ' + (result.error || 'Erro desconhecido'));
+        }
+    } catch (err) {
+        console.error('Erro ao vincular:', err);
+        alert('Erro ao vincular. Tente novamente.');
+    }
+}
+
+/**
+ * Força criação mesmo com duplicidade (usuário confirmou)
+ */
+function forceCreateDuplicate() {
+    const ctx = window._duplicateContext;
+    if (!ctx) return;
+    
+    if (ctx.type === 'tenant') {
+        createTenantFromIncomingLead(null, true);
+    } else if (ctx.type === 'lead') {
+        createLeadFromConversation(null, true);
     }
 }
 
@@ -6886,6 +7210,121 @@ async function changeConversationTenant(event) {
                 </button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Modal: Criar Lead a partir de Incoming Lead -->
+<div id="create-lead-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Criar Novo Lead</h2>
+            <button onclick="closeCreateLeadModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        </div>
+        
+        <div style="margin-bottom: 16px; padding: 10px; background: #e8f4fd; border-radius: 6px; border-left: 4px solid #0d6efd; font-size: 13px; color: #0a58ca;">
+            Lead = contato em negociação, ainda não é cliente.
+        </div>
+        
+        <form onsubmit="createLeadFromConversation(event)">
+            <input type="hidden" id="create-lead-conversation-id" value="">
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Nome *</label>
+                <input type="text" id="create-lead-name" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Telefone</label>
+                <input type="text" id="create-lead-phone" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="5511999999999">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">E-mail</label>
+                <input type="email" id="create-lead-email" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="lead@exemplo.com">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Observações</label>
+                <textarea id="create-lead-notes" rows="3" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; resize: vertical;" placeholder="Anotações sobre o lead..."></textarea>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="flex: 1; padding: 12px; background: #0d6efd; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Criar Lead
+                </button>
+                <button type="button" onclick="closeCreateLeadModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Vincular a Lead Existente -->
+<div id="link-lead-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Vincular a Lead Existente</h2>
+            <button onclick="closeLinkLeadModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        </div>
+        
+        <div style="margin-bottom: 20px; padding: 12px; background: #f0f2f5; border-radius: 6px;">
+            <div style="font-size: 12px; color: #667781; margin-bottom: 4px;">Contato:</div>
+            <div style="font-weight: 600; color: #111b21;" id="link-lead-contact-name"></div>
+        </div>
+        
+        <form onsubmit="linkConversationToLead(event)">
+            <input type="hidden" id="link-lead-conversation-id" value="">
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Buscar Lead *</label>
+                <input type="text" 
+                       id="link-lead-search" 
+                       placeholder="Digite nome, email ou telefone..." 
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box;"
+                       onkeyup="filterLinkLeadOptions(this.value)">
+                <select id="link-lead-select" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; max-height: 200px; overflow-y: auto;">
+                    <option value="">Carregando leads...</option>
+                </select>
+                <div id="link-lead-no-results" style="display: none; margin-top: 8px; padding: 8px; background: #fff3cd; border-radius: 4px; color: #856404; font-size: 12px;">
+                    Nenhum lead encontrado com essa busca.
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="flex: 1; padding: 12px; background: #0d6efd; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Vincular
+                </button>
+                <button type="button" onclick="closeLinkLeadModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Duplicidade Detectada -->
+<div id="duplicate-phone-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2100; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 550px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0; color: #dc3545;">⚠ Duplicidade Detectada</h2>
+            <button onclick="closeDuplicatePhoneModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        </div>
+        
+        <div style="margin-bottom: 16px; padding: 12px; background: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107; font-size: 13px; color: #856404;">
+            Já existe(m) registro(s) com este telefone. Você pode vincular a um existente ou criar mesmo assim.
+        </div>
+        
+        <div id="duplicate-phone-list" style="margin-bottom: 20px;"></div>
+        
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button type="button" id="duplicate-force-create-btn" onclick="forceCreateDuplicate()" style="flex: 1; padding: 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; min-width: 140px;">
+                Criar Mesmo Assim
+            </button>
+            <button type="button" onclick="closeDuplicatePhoneModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Cancelar
+            </button>
+        </div>
     </div>
 </div>
 

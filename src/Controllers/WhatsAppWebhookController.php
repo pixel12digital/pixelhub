@@ -714,8 +714,11 @@ class WhatsAppWebhookController extends Controller
             $db = DB::getConnection();
 
             // Busca todos os tenants com telefone cadastrado
-            $stmt = $db->query("SELECT id, name, phone FROM tenants WHERE phone IS NOT NULL AND phone != '' ORDER BY id ASC");
+            $stmt = $db->query("SELECT id, name, phone FROM tenants WHERE phone IS NOT NULL AND phone != '' AND (is_archived IS NULL OR is_archived = 0) ORDER BY id ASC");
             $tenants = $stmt->fetchAll();
+
+            // Coleta TODOS os matches (para detectar duplicidade)
+            $matches = [];
 
             foreach ($tenants as $tenant) {
                 $tenantPhone = preg_replace('/[^0-9]/', '', $tenant['phone']);
@@ -727,31 +730,48 @@ class WhatsAppWebhookController extends Controller
                     $tenantPhone = '55' . $tenantPhone;
                 }
 
+                $matched = false;
+
                 // 1. Comparação exata
                 if ($contactDigits === $tenantPhone) {
-                    error_log(sprintf(
-                        '[RESOLVE_TENANT_BY_PHONE] MATCH EXATO: from=%s → tenant_id=%d (%s), phone=%s',
-                        $from, $tenant['id'], $tenant['name'], $tenant['phone']
-                    ));
-                    return (int) $tenant['id'];
+                    $matched = true;
                 }
 
                 // 2. Tolerância de 9º dígito (números BR com 55 + DDD)
-                if (strlen($contactDigits) >= 12 && strlen($tenantPhone) >= 12 &&
+                if (!$matched && strlen($contactDigits) >= 12 && strlen($tenantPhone) >= 12 &&
                     substr($contactDigits, 0, 2) === '55' && substr($tenantPhone, 0, 2) === '55') {
                     
-                    // Extrai DDD + número base (sem 9º dígito) de ambos
                     $contactBase = $this->removeNinthDigit($contactDigits);
                     $tenantBase = $this->removeNinthDigit($tenantPhone);
 
                     if ($contactBase === $tenantBase) {
-                        error_log(sprintf(
-                            '[RESOLVE_TENANT_BY_PHONE] MATCH COM TOLERÂNCIA 9º DÍGITO: from=%s (base=%s) → tenant_id=%d (%s), phone=%s (base=%s)',
-                            $from, $contactBase, $tenant['id'], $tenant['name'], $tenant['phone'], $tenantBase
-                        ));
-                        return (int) $tenant['id'];
+                        $matched = true;
                     }
                 }
+
+                if ($matched) {
+                    $matches[] = $tenant;
+                }
+            }
+
+            // Se encontrou exatamente 1 match → vincula automaticamente
+            if (count($matches) === 1) {
+                $tenant = $matches[0];
+                error_log(sprintf(
+                    '[RESOLVE_TENANT_BY_PHONE] MATCH ÚNICO: from=%s → tenant_id=%d (%s), phone=%s',
+                    $from, $tenant['id'], $tenant['name'], $tenant['phone']
+                ));
+                return (int) $tenant['id'];
+            }
+
+            // Se encontrou múltiplos matches → NÃO vincula automaticamente (evita vincular no errado)
+            if (count($matches) > 1) {
+                $matchIds = array_map(function($m) { return $m['id'] . ':' . $m['name']; }, $matches);
+                error_log(sprintf(
+                    '[RESOLVE_TENANT_BY_PHONE] MÚLTIPLOS MATCHES (%d): from=%s → matches=[%s] - conversa será não vinculada (requer escolha manual)',
+                    count($matches), $from, implode(', ', $matchIds)
+                ));
+                return null;
             }
 
             // Nenhum tenant encontrado pelo telefone

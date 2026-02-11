@@ -2764,6 +2764,7 @@ class CommunicationHubController extends Controller
                     c.contact_external_id,
                     c.contact_name,
                     c.tenant_id,
+                    c.lead_id,
                     c.is_incoming_lead,
                     c.status,
                     c.assigned_to,
@@ -2774,9 +2775,12 @@ class CommunicationHubController extends Controller
                     c.created_at,
                     COALESCE(t.name, 'Sem tenant') as tenant_name,
                     t.phone as tenant_phone,
+                    l.name as lead_name,
+                    l.status as lead_status,
                     u.name as assigned_to_name
                 FROM conversations c
                 LEFT JOIN tenants t ON c.tenant_id = t.id
+                LEFT JOIN leads l ON c.lead_id = l.id
                 LEFT JOIN users u ON c.assigned_to = u.id
                 {$whereClause}
                 ORDER BY COALESCE(c.last_message_at, c.created_at) DESC, c.created_at DESC
@@ -2907,6 +2911,9 @@ class CommunicationHubController extends Controller
                         'conversation_key' => $conv['conversation_key'],
                         'tenant_id' => $conv['tenant_id'] ?: null,
                         'tenant_name' => $conv['tenant_name'] ?: 'Sem tenant',
+                        'lead_id' => $conv['lead_id'] ?? null,
+                        'lead_name' => $conv['lead_name'] ?? null,
+                        'lead_status' => $conv['lead_status'] ?? null,
                         'contact' => ContactHelper::formatContactId($conv['contact_external_id'], $realPhone),
                         'contact_name' => $conv['contact_name'],
                         'last_activity' => $conv['last_message_at'] ?: $conv['created_at'],
@@ -5430,27 +5437,41 @@ class CommunicationHubController extends Controller
             return;
         }
 
+        // Flag: se force_create=true, ignora duplicidade (usuário confirmou)
+        $forceCreate = !empty($input['force_create']);
+
         $db = DB::getConnection();
 
         try {
-            $db->beginTransaction();
-
             // Busca a conversa
             $stmt = $db->prepare("SELECT * FROM conversations WHERE id = ?");
             $stmt->execute([$conversationId]);
             $conversation = $stmt->fetch();
 
             if (!$conversation) {
-                $db->rollBack();
                 $this->json(['success' => false, 'error' => 'Conversa não encontrada'], 404);
                 return;
             }
 
-            if (!$conversation['is_incoming_lead']) {
-                $db->rollBack();
-                $this->json(['success' => false, 'error' => 'Esta conversa não é um incoming lead'], 400);
-                return;
+            // Proteção contra duplicidade por telefone
+            $phoneToCheck = $phone ?: ($conversation['contact_external_id'] ?? '');
+            if (!$forceCreate && !empty($phoneToCheck)) {
+                $duplicates = \PixelHub\Services\LeadService::findDuplicatesByPhone($phoneToCheck);
+                $totalDuplicates = count($duplicates['tenants']) + count($duplicates['leads']);
+                
+                if ($totalDuplicates > 0) {
+                    $this->json([
+                        'success' => false,
+                        'code' => 'DUPLICATE_PHONE',
+                        'message' => 'Já existe(m) registro(s) com este telefone. Deseja vincular a um existente ou criar mesmo assim?',
+                        'duplicates' => $duplicates,
+                        'conversation_id' => $conversationId,
+                    ]);
+                    return;
+                }
             }
+
+            $db->beginTransaction();
 
             // Cria o tenant
             $stmt = $db->prepare("
@@ -5460,7 +5481,7 @@ class CommunicationHubController extends Controller
             ");
             $stmt->execute([
                 $name,
-                $phone ?: $conversation['contact_external_id'],
+                $phoneToCheck ?: null,
                 $email ?: null
             ]);
 
@@ -5470,6 +5491,7 @@ class CommunicationHubController extends Controller
             $updateStmt = $db->prepare("
                 UPDATE conversations 
                 SET tenant_id = ?,
+                    lead_id = NULL,
                     is_incoming_lead = 0,
                     updated_at = NOW()
                 WHERE id = ?
@@ -5486,8 +5508,200 @@ class CommunicationHubController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            $db->rollBack();
+            if ($db->inTransaction()) $db->rollBack();
             error_log("[CommunicationHub] Erro ao criar tenant: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Cria lead a partir de uma conversa não vinculada
+     * 
+     * POST /communication-hub/incoming-lead/create-lead
+     */
+    public function createLeadFromConversation(): void
+    {
+        Auth::requireInternal();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $conversationId = isset($input['conversation_id']) ? (int) $input['conversation_id'] : 0;
+        $name = trim($input['name'] ?? '');
+        $phone = trim($input['phone'] ?? '');
+        $email = trim($input['email'] ?? '');
+        $notes = trim($input['notes'] ?? '');
+
+        if ($conversationId <= 0) {
+            $this->json(['success' => false, 'error' => 'conversation_id é obrigatório'], 400);
+            return;
+        }
+
+        if (empty($name)) {
+            $this->json(['success' => false, 'error' => 'Nome é obrigatório'], 400);
+            return;
+        }
+
+        // Flag: se force_create=true, ignora duplicidade (usuário confirmou)
+        $forceCreate = !empty($input['force_create']);
+
+        $db = DB::getConnection();
+
+        try {
+            // Busca a conversa
+            $stmt = $db->prepare("SELECT * FROM conversations WHERE id = ?");
+            $stmt->execute([$conversationId]);
+            $conversation = $stmt->fetch();
+
+            if (!$conversation) {
+                $this->json(['success' => false, 'error' => 'Conversa não encontrada'], 404);
+                return;
+            }
+
+            // Proteção contra duplicidade por telefone
+            $phoneToCheck = $phone ?: ($conversation['contact_external_id'] ?? '');
+            if (!$forceCreate && !empty($phoneToCheck)) {
+                $duplicates = \PixelHub\Services\LeadService::findDuplicatesByPhone($phoneToCheck);
+                $totalDuplicates = count($duplicates['tenants']) + count($duplicates['leads']);
+                
+                if ($totalDuplicates > 0) {
+                    $this->json([
+                        'success' => false,
+                        'code' => 'DUPLICATE_PHONE',
+                        'message' => 'Já existe(m) registro(s) com este telefone. Deseja vincular a um existente ou criar mesmo assim?',
+                        'duplicates' => $duplicates,
+                        'conversation_id' => $conversationId,
+                    ]);
+                    return;
+                }
+            }
+
+            // Cria o lead
+            $leadId = \PixelHub\Services\LeadService::create([
+                'name' => $name,
+                'phone' => $phoneToCheck ?: null,
+                'email' => $email ?: null,
+                'source' => 'whatsapp',
+                'notes' => $notes ?: null,
+                'created_by' => $_SESSION['user_id'] ?? null,
+            ]);
+
+            // Vincula conversa ao lead
+            \PixelHub\Services\LeadService::linkToConversation($conversationId, $leadId);
+
+            $this->json([
+                'success' => true,
+                'lead_id' => $leadId,
+                'conversation_id' => $conversationId,
+                'message' => 'Lead criado e conversa vinculada com sucesso'
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao criar lead: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Vincula conversa a um lead existente
+     * 
+     * POST /communication-hub/incoming-lead/link-lead
+     */
+    public function linkConversationToLead(): void
+    {
+        Auth::requireInternal();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $conversationId = isset($input['conversation_id']) ? (int) $input['conversation_id'] : 0;
+        $leadId = isset($input['lead_id']) ? (int) $input['lead_id'] : 0;
+
+        if ($conversationId <= 0 || $leadId <= 0) {
+            $this->json(['success' => false, 'error' => 'conversation_id e lead_id são obrigatórios'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            // Verifica se a conversa existe
+            $stmt = $db->prepare("SELECT * FROM conversations WHERE id = ?");
+            $stmt->execute([$conversationId]);
+            $conversation = $stmt->fetch();
+
+            if (!$conversation) {
+                $this->json(['success' => false, 'error' => 'Conversa não encontrada'], 404);
+                return;
+            }
+
+            // Verifica se o lead existe
+            $lead = \PixelHub\Services\LeadService::findById($leadId);
+            if (!$lead) {
+                $this->json(['success' => false, 'error' => 'Lead não encontrado'], 404);
+                return;
+            }
+
+            // Vincula
+            \PixelHub\Services\LeadService::linkToConversation($conversationId, $leadId);
+
+            $this->json([
+                'success' => true,
+                'lead_id' => $leadId,
+                'conversation_id' => $conversationId,
+                'message' => 'Conversa vinculada ao lead com sucesso'
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao vincular lead: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Lista leads para modal de vincular
+     * 
+     * GET /communication-hub/leads-list
+     */
+    public function getLeadsList(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $search = $_GET['search'] ?? null;
+
+        try {
+            $leads = \PixelHub\Services\LeadService::list($search, 200);
+            $this->json(['success' => true, 'leads' => $leads]);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao listar leads: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Verifica duplicidade por telefone (leads + tenants)
+     * 
+     * GET /communication-hub/check-phone-duplicates?phone=5547999999999
+     */
+    public function checkPhoneDuplicates(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $phone = $_GET['phone'] ?? '';
+
+        if (empty($phone)) {
+            $this->json(['success' => true, 'duplicates' => ['leads' => [], 'tenants' => []], 'total' => 0]);
+            return;
+        }
+
+        try {
+            $duplicates = \PixelHub\Services\LeadService::findDuplicatesByPhone($phone);
+            $total = count($duplicates['tenants']) + count($duplicates['leads']);
+            $this->json([
+                'success' => true,
+                'duplicates' => $duplicates,
+                'total' => $total
+            ]);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao verificar duplicidade: " . $e->getMessage());
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }

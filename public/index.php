@@ -665,6 +665,10 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Incoming Leads actions
     $router->post('/communication-hub/incoming-lead/create-tenant', 'CommunicationHubController@createTenantFromIncomingLead');
     $router->post('/communication-hub/incoming-lead/link-tenant', 'CommunicationHubController@linkIncomingLeadToTenant');
+    $router->post('/communication-hub/incoming-lead/create-lead', 'CommunicationHubController@createLeadFromConversation');
+    $router->post('/communication-hub/incoming-lead/link-lead', 'CommunicationHubController@linkConversationToLead');
+    $router->get('/communication-hub/leads-list', 'CommunicationHubController@getLeadsList');
+    $router->get('/communication-hub/check-phone-duplicates', 'CommunicationHubController@checkPhoneDuplicates');
     $router->post('/communication-hub/incoming-lead/reject', 'CommunicationHubController@rejectIncomingLead');
     $router->post('/communication-hub/conversation/change-tenant', 'CommunicationHubController@changeConversationTenant');
     $router->post('/communication-hub/conversation/update-status', 'CommunicationHubController@updateConversationStatus');
