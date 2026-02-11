@@ -716,6 +716,19 @@ $highlightBlockId = $expandBlockId ?? 0;
     </div>
 </div>
 
+<!-- Modal de Detalhes da Tarefa (Agenda) -->
+<div id="agendaTaskDetailModal" class="agenda-task-modal">
+    <div class="atm-content" style="max-width: 900px; max-height: 90vh; display: flex; flex-direction: column;">
+        <div class="atm-header">
+            <h3 id="atd-title">Detalhes da Tarefa</h3>
+            <button class="atm-close" id="atd-close-btn">&times;</button>
+        </div>
+        <div id="atd-content" style="overflow-y: auto; flex: 1; min-height: 0;">
+            <p>Carregando...</p>
+        </div>
+    </div>
+</div>
+
 <script>
 const baseUrl = '<?= $baseUrl ?>';
 const dataStr = '<?= $dataStr ?>';
@@ -947,6 +960,299 @@ document.getElementById('agendaTaskForm').addEventListener('submit', function(e)
     });
 });
 
+// ===== MODAL DE DETALHES DA TAREFA (AGENDA) =====
+var _atdCurrentTask = null;
+var _atdCurrentTaskId = 0;
+
+function atdEscapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function openAgendaTaskDetailModal(taskId) {
+    _atdCurrentTaskId = taskId;
+    document.getElementById('agendaTaskDetailModal').style.display = 'block';
+    document.getElementById('atd-content').innerHTML = '<p style="padding:20px;color:#666;">Carregando...</p>';
+    document.getElementById('atd-title').textContent = 'Detalhes da Tarefa';
+
+    fetch('<?= pixelhub_url('/tasks') ?>/' + taskId)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) {
+                document.getElementById('atd-content').innerHTML = '<p style="color:#c33;padding:20px;">Erro: ' + atdEscapeHtml(data.error) + '</p>';
+                return;
+            }
+            _atdCurrentTask = data;
+            atdRenderView(data, taskId);
+        })
+        .catch(function(err) {
+            console.error('Erro:', err);
+            document.getElementById('atd-content').innerHTML = '<p style="color:#c33;padding:20px;">Erro ao carregar detalhes da tarefa</p>';
+        });
+}
+
+function atdCloseDetailModal() {
+    document.getElementById('agendaTaskDetailModal').style.display = 'none';
+    _atdCurrentTask = null;
+    _atdCurrentTaskId = 0;
+}
+
+document.getElementById('atd-close-btn').addEventListener('click', atdCloseDetailModal);
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('agendaTaskDetailModal').style.display === 'block') {
+        atdCloseDetailModal();
+    }
+});
+document.getElementById('agendaTaskDetailModal').addEventListener('click', function(e) {
+    if (e.target === this) atdCloseDetailModal();
+});
+
+function atdFormatDate(dateStr) {
+    if (!dateStr) return '';
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        var p = dateStr.split('-');
+        return p[2] + '/' + p[1] + '/' + p[0];
+    }
+    return dateStr;
+}
+
+function atdRenderView(data, taskId) {
+    var statusLabels = { 'backlog': 'Backlog', 'em_andamento': 'Em Andamento', 'aguardando_cliente': 'Aguardando Cliente', 'concluida': 'Concluída' };
+    var typeLabels = { 'internal': 'Tarefa interna', 'client_ticket': 'Ticket / Problema de cliente' };
+    var statusLabel = statusLabels[data.status] || data.status;
+    var typeLabel = typeLabels[data.task_type || 'internal'] || 'Tarefa interna';
+
+    document.getElementById('atd-title').textContent = data.title || 'Sem título';
+
+    var html = '';
+    html += '<div id="atd-error" style="display:none;background:#ffebee;color:#c33;padding:10px;border-radius:4px;margin-bottom:15px;"></div>';
+    html += '<div id="atd-success" style="display:none;background:#e8f5e9;color:#2e7d32;padding:10px;border-radius:4px;margin-bottom:15px;"></div>';
+
+    // Visualização
+    html += '<div id="atd-view-mode">';
+    if (data.description) {
+        html += '<p style="color:#666;margin-bottom:15px;white-space:pre-wrap;">' + atdEscapeHtml(data.description) + '</p>';
+    }
+    html += '<div style="margin-bottom:15px;line-height:2;">';
+    html += '<strong>Projeto:</strong> ' + atdEscapeHtml(data.project_name || '-') + '<br>';
+    if (data.tenant_name) html += '<strong>Cliente:</strong> ' + atdEscapeHtml(data.tenant_name) + '<br>';
+    html += '<strong>Tipo:</strong> ' + typeLabel + '<br>';
+    html += '<strong>Status:</strong> <select id="atd-status-select" data-task-id="' + taskId + '" style="padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px;font-weight:500;">';
+    ['backlog','em_andamento','aguardando_cliente','concluida'].forEach(function(s) {
+        html += '<option value="' + s + '"' + (data.status === s ? ' selected' : '') + '>' + statusLabels[s] + '</option>';
+    });
+    html += '</select><br>';
+    if (data.assignee) html += '<strong>Responsável:</strong> ' + atdEscapeHtml(data.assignee) + '<br>';
+    if (data.start_date) html += '<strong>Início:</strong> ' + atdFormatDate(data.start_date) + '<br>';
+    if (data.due_date) html += '<strong>Prazo:</strong> ' + atdFormatDate(data.due_date) + '<br>';
+    html += '</div>';
+
+    // Bloco de conclusão
+    if (data.completed_at) {
+        html += '<div style="background:#e8f5e9;padding:15px;border-radius:4px;margin-bottom:15px;">';
+        html += '<strong style="color:#2e7d32;">Concluída em:</strong> ' + atdEscapeHtml(data.completed_at_formatted || data.completed_at) + '<br>';
+        if (data.completed_by_name) html += '<strong style="color:#2e7d32;">Por:</strong> ' + atdEscapeHtml(data.completed_by_name) + '<br>';
+        if (data.completion_note) {
+            html += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #c8e6c9;"><strong style="color:#2e7d32;">Resumo:</strong><br><div style="margin-top:5px;white-space:pre-wrap;">' + atdEscapeHtml(data.completion_note) + '</div></div>';
+        }
+        html += '</div>';
+    }
+    html += '</div>';
+
+    // Edição (oculta por padrão)
+    html += '<div id="atd-edit-mode" style="display:none;">';
+    html += '<form id="atd-edit-form">';
+    html += '<input type="hidden" name="id" value="' + taskId + '">';
+    html += '<div class="atm-form-group"><label>Título *</label><input type="text" name="title" value="' + atdEscapeHtml(data.title) + '" required maxlength="200"></div>';
+    html += '<div class="atm-form-group"><label>Descrição</label><textarea name="description" style="min-height:80px;resize:vertical;">' + atdEscapeHtml(data.description || '') + '</textarea></div>';
+    html += '<div class="atm-form-group"><label>Status</label><select name="status">';
+    ['backlog','em_andamento','aguardando_cliente','concluida'].forEach(function(s) {
+        html += '<option value="' + s + '"' + (data.status === s ? ' selected' : '') + '>' + statusLabels[s] + '</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="atm-form-group"><label>Responsável</label><input type="text" name="assignee" value="' + atdEscapeHtml(data.assignee || '') + '" placeholder="Nome ou email"></div>';
+    html += '<div class="atm-form-group"><label>Data de início</label><input type="date" name="start_date" value="' + (data.start_date || '') + '"></div>';
+    html += '<div class="atm-form-group"><label>Prazo</label><input type="date" name="due_date" value="' + (data.due_date || '') + '"></div>';
+    html += '<div class="atm-form-group"><label>Tipo</label><select name="task_type">';
+    html += '<option value="internal"' + ((data.task_type || 'internal') === 'internal' ? ' selected' : '') + '>Tarefa interna</option>';
+    html += '<option value="client_ticket"' + (data.task_type === 'client_ticket' ? ' selected' : '') + '>Ticket / Problema de cliente</option>';
+    html += '</select></div>';
+    if (data.status === 'concluida') {
+        html += '<div class="atm-form-group"><label>Resumo da conclusão</label><textarea name="completion_note" style="min-height:80px;resize:vertical;">' + atdEscapeHtml(data.completion_note || '') + '</textarea></div>';
+    }
+    html += '<div class="atm-actions">';
+    html += '<button type="button" class="atm-btn atm-btn-secondary" onclick="atdCancelEdit()">Cancelar</button>';
+    html += '<button type="submit" class="atm-btn atm-btn-primary">Salvar</button>';
+    html += '</div></form></div>';
+
+    // Checklist
+    html += '<div style="margin-top:24px;padding-top:20px;border-top:2px solid #f0f0f0;">';
+    html += '<h4 style="margin-bottom:15px;color:#023A8D;">Checklist</h4>';
+    html += '<div id="atd-checklist-items">';
+    if (data.checklist && data.checklist.length > 0) {
+        data.checklist.forEach(function(item) {
+            html += atdRenderChecklistItem(item);
+        });
+    } else {
+        html += '<p style="color:#999;font-size:13px;">Nenhum item no checklist.</p>';
+    }
+    html += '</div>';
+    html += '<div style="display:flex;gap:8px;margin-top:8px;align-items:center;">';
+    html += '<input type="text" id="atd-new-checklist-input" placeholder="Adicionar item..." style="flex:1;padding:8px;border:1px solid #ddd;border-radius:4px;">';
+    html += '<button type="button" onclick="atdAddChecklistItem(' + taskId + ')" class="atm-btn atm-btn-primary" style="padding:6px 12px;font-size:13px;">Adicionar</button>';
+    html += '</div></div>';
+
+    // Botões de ação
+    html += '<div class="atm-actions" id="atd-view-actions">';
+    html += '<button type="button" class="atm-btn atm-btn-primary" onclick="atdStartEdit()">Editar Tarefa</button>';
+    var boardUrl = '<?= pixelhub_url('/tasks/board') ?>?task_id=' + taskId;
+    html += '<a href="' + boardUrl + '" class="atm-btn atm-btn-secondary" style="text-decoration:none;text-align:center;" target="_blank">Abrir no Kanban</a>';
+    html += '<button type="button" class="atm-btn atm-btn-secondary" onclick="atdCloseDetailModal()">Fechar</button>';
+    html += '</div>';
+
+    document.getElementById('atd-content').innerHTML = html;
+
+    // Event: mudança de status inline
+    var statusSelect = document.getElementById('atd-status-select');
+    if (statusSelect) {
+        statusSelect.addEventListener('change', function() {
+            var newStatus = this.value;
+            var tid = parseInt(this.dataset.taskId, 10);
+            var fd = new FormData();
+            fd.append('task_id', tid);
+            fd.append('new_status', newStatus);
+            fetch('<?= pixelhub_url('/tasks/move') ?>', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: fd
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.success) {
+                    var suc = document.getElementById('atd-success');
+                    if (suc) { suc.textContent = 'Status atualizado!'; suc.style.display = 'block'; setTimeout(function() { suc.style.display = 'none'; }, 2000); }
+                } else if (d.checklist_pending) {
+                    if (confirm(d.message + '\n\nClique OK para marcar todos como concluídos.')) {
+                        var fd2 = new FormData();
+                        fd2.append('task_id', tid);
+                        fd2.append('new_status', newStatus);
+                        fd2.append('mark_all_checklist_ok', '1');
+                        fetch('<?= pixelhub_url('/tasks/move') ?>', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: fd2 })
+                        .then(function(r) { return r.json(); })
+                        .then(function(d2) { if (d2.success) { openAgendaTaskDetailModal(tid); } else { alert(d2.error || 'Erro'); } });
+                    } else {
+                        statusSelect.value = _atdCurrentTask.status;
+                    }
+                } else {
+                    alert(d.error || 'Erro ao atualizar status');
+                    statusSelect.value = _atdCurrentTask.status;
+                }
+            })
+            .catch(function() { alert('Erro ao atualizar status'); statusSelect.value = _atdCurrentTask.status; });
+        });
+    }
+
+    // Event: Enter no input de checklist
+    var clInput = document.getElementById('atd-new-checklist-input');
+    if (clInput) {
+        clInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); atdAddChecklistItem(taskId); }
+        });
+    }
+
+    // Event: submit do form de edição
+    var editForm = document.getElementById('atd-edit-form');
+    if (editForm) {
+        editForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var btn = this.querySelector('button[type="submit"]');
+            var origText = btn ? btn.textContent : '';
+            if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+            var fd = new FormData(this);
+            fetch('<?= pixelhub_url('/tasks/update') ?>', {
+                method: 'POST',
+                body: fd,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.error) {
+                    alert('Erro: ' + d.error);
+                    if (btn) { btn.disabled = false; btn.textContent = origText; }
+                    return;
+                }
+                // Recarrega o modal com dados atualizados
+                openAgendaTaskDetailModal(_atdCurrentTaskId);
+            })
+            .catch(function() { alert('Erro ao salvar'); if (btn) { btn.disabled = false; btn.textContent = origText; } });
+        });
+    }
+}
+
+function atdRenderChecklistItem(item) {
+    var safeLabel = atdEscapeHtml(item.label || '');
+    var checked = item.is_done ? ' checked' : '';
+    var doneStyle = item.is_done ? 'text-decoration:line-through;color:#999;' : '';
+    return '<div class="atm-checklist-item" data-checklist-id="' + item.id + '" style="padding:8px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px;">' +
+        '<input type="checkbox"' + checked + ' onchange="atdToggleChecklistItem(' + item.id + ', this.checked)" style="cursor:pointer;">' +
+        '<span class="atm-checklist-label" style="flex:1;' + doneStyle + '">' + safeLabel + '</span>' +
+        '</div>';
+}
+
+function atdToggleChecklistItem(itemId, isDone) {
+    var fd = new FormData();
+    fd.append('checklist_id', itemId);
+    fd.append('is_done', isDone ? '1' : '0');
+    fetch('<?= pixelhub_url('/tasks/checklist/toggle') ?>', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: fd
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (!d.success) alert(d.error || 'Erro ao atualizar checklist');
+    })
+    .catch(function() { alert('Erro ao atualizar checklist'); });
+}
+
+function atdAddChecklistItem(taskId) {
+    var input = document.getElementById('atd-new-checklist-input');
+    if (!input) return;
+    var label = input.value.trim();
+    if (!label) return;
+    var fd = new FormData();
+    fd.append('task_id', taskId);
+    fd.append('label', label);
+    fetch('<?= pixelhub_url('/tasks/checklist/add') ?>', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: fd
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.success || d.id) {
+            input.value = '';
+            // Recarrega modal para mostrar item novo
+            openAgendaTaskDetailModal(taskId);
+        } else {
+            alert(d.error || 'Erro ao adicionar item');
+        }
+    })
+    .catch(function() { alert('Erro ao adicionar item'); });
+}
+
+function atdStartEdit() {
+    document.getElementById('atd-view-mode').style.display = 'none';
+    document.getElementById('atd-edit-mode').style.display = 'block';
+    document.getElementById('atd-view-actions').style.display = 'none';
+}
+
+function atdCancelEdit() {
+    document.getElementById('atd-view-mode').style.display = 'block';
+    document.getElementById('atd-edit-mode').style.display = 'none';
+    document.getElementById('atd-view-actions').style.display = 'flex';
+}
+
 function applyFilters(val, type) {
     const params = new URLSearchParams(window.location.search);
     params.set(type, val || '');
@@ -1125,7 +1431,7 @@ function loadBlockContent(blockId, container) {
                         const thFim = (t.task_hora_fim || '').toString().substring(0, 5);
                         const durMins = (thIni && thFim) ? (parseInt(thFim.split(':')[0])*60 + parseInt(thFim.split(':')[1]) - parseInt(thIni.split(':')[0])*60 - parseInt(thIni.split(':')[1])) : 0;
                         const durStr = durMins > 0 ? durMins + ' min' : '—';
-                        html += '<tr data-task-id="' + t.id + '" data-abt-id="' + abtId + '"><td><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></td>';
+                        html += '<tr data-task-id="' + t.id + '" data-abt-id="' + abtId + '"><td><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="javascript:void(0)" onclick="openAgendaTaskDetailModal(' + t.id + ')" style="cursor:pointer;">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></td>';
                         html += '<td><input type="text" class="task-time-input task-time-inicio" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" value="' + (thIni || '') + '" placeholder="HH:MM" maxlength="5" title="Início (mín: ' + blockInicio + ')"></td>';
                         html += '<td><input type="text" class="task-time-input task-time-fim" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" data-min-inicio="' + (thIni || blockInicio) + '" value="' + (thFim || '') + '" placeholder="HH:MM" maxlength="5" title="Fim (o bloco será ajustado ao salvar)"></td>';
                         html += '<td class="task-dur-display">' + durStr + '</td></tr>';
@@ -1139,7 +1445,7 @@ function loadBlockContent(blockId, container) {
                         const tit = (t.title || '').replace(/</g,'&lt;');
                         const pid = t.project_id || '';
                         const url = pid ? boardBase + '?project_id=' + pid + '&task_id=' + t.id : boardBase + '?task_id=' + t.id;
-                        html += '<li data-task-id="' + t.id + '"><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="' + url + '">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></li>';
+                        html += '<li data-task-id="' + t.id + '"><span style="color:#64748b;">↳</span> <span class="task-name-wrap"><a href="javascript:void(0)" onclick="openAgendaTaskDetailModal(' + t.id + ')" style="cursor:pointer;">' + tit + '</a> <button type="button" class="block-task-unlink" data-block-id="' + blockId + '" data-task-id="' + t.id + '" data-abt-id="' + abtId + '" title="Desvincular"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></span></li>';
                     });
                     html += '</ul>';
                 }
