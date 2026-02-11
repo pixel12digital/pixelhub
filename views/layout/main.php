@@ -1631,6 +1631,34 @@
                 </div>
             </div>
             
+            <!-- CRM / Comercial -->
+            <?php
+            $crmActive = $isActive(['/opportunities']);
+            $crmExpanded = $shouldExpand(['/opportunities']);
+            ?>
+            <div class="sidebar-module" data-module="crm">
+                <div class="sidebar-module-header <?= $crmActive ? 'active' : '' ?> <?= $crmExpanded ? 'is-open' : '' ?>" data-title="CRM / Comercial">
+                    <span class="sidebar-item-content">
+                        <span class="sidebar-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                            </svg>
+                        </span>
+                        <span class="sidebar-text">CRM / Comercial</span>
+                    </span>
+                    <span class="sidebar-chevron">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 9l6 6 6-6"></path>
+                        </svg>
+                    </span>
+                </div>
+                <div class="sidebar-module-content <?= $crmExpanded ? 'is-open' : '' ?>">
+                    <a href="<?= pixelhub_url('/opportunities') ?>" class="sub-item <?= (strpos($currentUri, '/opportunities') !== false) ? 'active' : '' ?>">
+                        <span class="sidebar-text">Oportunidades</span>
+                    </a>
+                </div>
+            </div>
+            
             <div class="sidebar-divider"></div>
             
             <!-- Comunicação (toggle Inbox) - Painel oculto no menu, rota /communication-hub intacta -->

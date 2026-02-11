@@ -1704,6 +1704,12 @@ body.communication-hub-page {
                                                     Arquivar
                                                 </button>
                                             <?php endif; ?>
+                                            <?php if (!empty($thread['tenant_id']) || !empty($thread['lead_id'])): ?>
+                                            <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); openCreateOpportunityModal(<?= $conversationId ?>, '<?= $contactName ?>', <?= !empty($thread['tenant_id']) ? $thread['tenant_id'] : 'null' ?>, <?= !empty($thread['lead_id']) ? $thread['lead_id'] : 'null' ?>, '<?= htmlspecialchars($thread['tenant_name'] ?? $thread['lead_name'] ?? '', ENT_QUOTES) ?>'); closeConversationMenu(this);">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                                                Criar Oportunidade
+                                            </button>
+                                            <?php endif; ?>
                                             <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); openEditContactNameModal(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                                 Editar nome
@@ -2483,6 +2489,12 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                                     }
                                     return '';
                                 })()}
+                                ${(thread.tenant_id || thread.lead_id) ? `
+                                <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); openCreateOpportunityModal(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || '')}', ${thread.tenant_id || 'null'}, ${thread.lead_id || 'null'}, '${escapeHtml(thread.tenant_name || thread.lead_name || '')}'); closeConversationMenu(this);">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                                    Criar Oportunidade
+                                </button>
+                                ` : ''}
                                 <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); openEditContactNameModal(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || '')}'); closeConversationMenu(this);">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                     Editar nome
@@ -7173,6 +7185,108 @@ async function changeConversationTenant(event) {
         });
     };
 })();
+</script>
+
+<!-- Modal: Criar Oportunidade a partir do Inbox -->
+<div id="create-opportunity-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Criar Oportunidade</h2>
+            <button onclick="closeCreateOpportunityModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+        </div>
+        
+        <div style="margin-bottom: 16px; padding: 10px; background: #f0f2f5; border-radius: 6px;">
+            <div style="font-size: 12px; color: #667781; margin-bottom: 4px;">Vinculado a:</div>
+            <div style="font-weight: 600; color: #111b21;" id="opp-modal-contact-name"></div>
+        </div>
+        
+        <form onsubmit="submitCreateOpportunity(event)">
+            <input type="hidden" id="opp-modal-conversation-id" value="">
+            <input type="hidden" id="opp-modal-tenant-id" value="">
+            <input type="hidden" id="opp-modal-lead-id" value="">
+            
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 600;">Nome da oportunidade *</label>
+                <input type="text" id="opp-modal-name" required placeholder="Ex: Site institucional - Empresa X" 
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 600;">Valor estimado</label>
+                <input type="text" id="opp-modal-value" placeholder="0,00" 
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="flex: 1; padding: 12px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Criar Oportunidade
+                </button>
+                <button type="button" onclick="closeCreateOpportunityModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openCreateOpportunityModal(conversationId, contactName, tenantId, leadId, linkedName) {
+    const modal = document.getElementById('create-opportunity-modal');
+    if (!modal) return;
+    
+    document.getElementById('opp-modal-conversation-id').value = conversationId || '';
+    document.getElementById('opp-modal-tenant-id').value = tenantId || '';
+    document.getElementById('opp-modal-lead-id').value = leadId || '';
+    document.getElementById('opp-modal-contact-name').textContent = linkedName || contactName || 'Contato';
+    document.getElementById('opp-modal-name').value = '';
+    document.getElementById('opp-modal-value').value = '';
+    
+    modal.style.display = 'flex';
+}
+
+function closeCreateOpportunityModal() {
+    const modal = document.getElementById('create-opportunity-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function submitCreateOpportunity(event) {
+    event.preventDefault();
+    
+    const name = document.getElementById('opp-modal-name').value.trim();
+    const value = document.getElementById('opp-modal-value').value.trim();
+    const tenantId = document.getElementById('opp-modal-tenant-id').value;
+    const leadId = document.getElementById('opp-modal-lead-id').value;
+    const conversationId = document.getElementById('opp-modal-conversation-id').value;
+    
+    if (!name) { alert('Nome é obrigatório'); return; }
+    
+    try {
+        const res = await fetch('<?= pixelhub_url('/opportunities/create-ajax') ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name,
+                estimated_value: value,
+                tenant_id: tenantId || null,
+                lead_id: leadId || null,
+                conversation_id: conversationId || null
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeCreateOpportunityModal();
+            if (typeof showToast === 'function') showToast('Oportunidade criada com sucesso!', 'success');
+            if (confirm('Oportunidade criada! Deseja abrir a ficha?')) {
+                window.open('<?= pixelhub_url('/opportunities/view?id=') ?>' + data.opportunity_id, '_blank');
+            }
+        } else {
+            alert('Erro: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (e) {
+        console.error('Erro ao criar oportunidade:', e);
+        alert('Erro ao criar oportunidade. Tente novamente.');
+    }
+}
 </script>
 
 <!-- Modal: Criar Cliente a partir de Incoming Lead -->

@@ -681,6 +681,17 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/communication-hub/transcribe', 'CommunicationHubController@transcribe');
     $router->get('/communication-hub/transcription-status', 'CommunicationHubController@getTranscriptionStatus');
 
+    // Rotas de Oportunidades / CRM (apenas internos)
+    $router->get('/opportunities', 'OpportunitiesController@index');
+    $router->get('/opportunities/view', 'OpportunitiesController@show');
+    $router->post('/opportunities/store', 'OpportunitiesController@store');
+    $router->post('/opportunities/update', 'OpportunitiesController@update');
+    $router->post('/opportunities/change-stage', 'OpportunitiesController@changeStage');
+    $router->post('/opportunities/mark-lost', 'OpportunitiesController@markLost');
+    $router->post('/opportunities/reopen', 'OpportunitiesController@reopen');
+    $router->post('/opportunities/create-ajax', 'OpportunitiesController@createAjax');
+    $router->post('/opportunities/add-note', 'OpportunitiesController@addNote');
+
     // Rotas de acessos e links de infraestrutura (apenas internos)
     $router->get('/owner/shortcuts', 'OwnerShortcutsController@index');
     $router->post('/owner/shortcuts/store', 'OwnerShortcutsController@store');
