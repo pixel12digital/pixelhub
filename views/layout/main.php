@@ -174,6 +174,12 @@
             color: #dc2626;
         }
         
+        /* Animação do indicador de gravação no header */
+        @keyframes headerRecPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
         /* Badge de mensagens não lidas no ícone Comunicação (sidebar) */
         .sidebar-icon-comunicacao {
             position: relative;
@@ -1516,6 +1522,18 @@
     <header class="header">
         <h1>Pixel Hub</h1>
         
+        <!-- Indicador de gravação de tela (visível apenas durante gravação) -->
+        <div id="header-rec-indicator" style="display:none; align-items:center; gap:8px; background:rgba(220,53,69,0.15); border:1px solid rgba(220,53,69,0.4); border-radius:20px; padding:4px 14px 4px 10px; cursor:pointer; transition:all 0.3s;" onclick="headerRecFocus()">
+            <span id="header-rec-dot" style="width:10px;height:10px;border-radius:50%;background:#dc3545;animation:headerRecPulse 1.2s infinite;flex-shrink:0;"></span>
+            <span id="header-rec-timer" style="font-family:'Courier New',monospace;font-size:13px;font-weight:600;color:white;min-width:42px;">00:00</span>
+            <button id="header-rec-pause" onclick="event.stopPropagation();headerRecPause()" title="Pausar" style="background:none;border:none;color:white;cursor:pointer;padding:2px;display:flex;align-items:center;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            </button>
+            <button id="header-rec-stop" onclick="event.stopPropagation();headerRecStop()" title="Encerrar" style="background:none;border:none;color:#ff6b6b;cursor:pointer;padding:2px;display:flex;align-items:center;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+            </button>
+        </div>
+        
         <!-- Menu de Usuário (estilo SaaS) -->
         <div class="header-user-menu">
             <?php 
@@ -2409,6 +2427,108 @@
                 window.PixelHubScreenRecorder.open(null, 'library');
             }
         }
+    </script>
+    
+    <!-- ===== INDICADOR DE GRAVAÇÃO NO HEADER (BroadcastChannel) ===== -->
+    <script>
+    (function() {
+        var recChannel = new BroadcastChannel('pixelhub-screen-recorder');
+        var recPopup = null; // Referência à popup (se aberta desta janela)
+        var recIsPaused = false;
+        
+        var indicator = document.getElementById('header-rec-indicator');
+        var timerEl = document.getElementById('header-rec-timer');
+        var dotEl = document.getElementById('header-rec-dot');
+        var pauseBtn = document.getElementById('header-rec-pause');
+        
+        function formatDur(s) {
+            return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+        }
+        
+        function showIndicator() {
+            if (indicator) indicator.style.display = 'flex';
+        }
+        function hideIndicator() {
+            if (indicator) indicator.style.display = 'none';
+            if (timerEl) timerEl.textContent = '00:00';
+            recIsPaused = false;
+            updatePauseBtn();
+        }
+        function updatePauseBtn() {
+            if (!pauseBtn) return;
+            if (recIsPaused) {
+                pauseBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';
+                pauseBtn.title = 'Retomar';
+                if (dotEl) { dotEl.style.background = '#fd7e14'; dotEl.style.animation = 'none'; }
+            } else {
+                pauseBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+                pauseBtn.title = 'Pausar';
+                if (dotEl) { dotEl.style.background = '#dc3545'; dotEl.style.animation = 'headerRecPulse 1.2s infinite'; }
+            }
+        }
+        
+        recChannel.onmessage = function(e) {
+            var d = e.data;
+            if (d.type === 'recording-started') {
+                showIndicator();
+                recIsPaused = false;
+                updatePauseBtn();
+            } else if (d.type === 'recording-tick') {
+                if (timerEl) timerEl.textContent = formatDur(d.duration);
+            } else if (d.type === 'recording-paused') {
+                recIsPaused = true;
+                updatePauseBtn();
+            } else if (d.type === 'recording-resumed') {
+                recIsPaused = false;
+                updatePauseBtn();
+            } else if (d.type === 'recording-stopped' || d.type === 'recording-saved' || d.type === 'recording-discarded' || d.type === 'popup-closed') {
+                hideIndicator();
+            }
+        };
+        
+        // Guarda referência da popup quando aberta
+        var origOpen = window.PixelHubScreenRecorder ? window.PixelHubScreenRecorder.open : null;
+        function patchOpen() {
+            if (!window.PixelHubScreenRecorder) return;
+            var _origOpen = window.PixelHubScreenRecorder.open;
+            window.PixelHubScreenRecorder.open = function(taskId, mode) {
+                _origOpen.call(this, taskId, mode);
+                // Tenta capturar a referência da popup
+                var wins = window.open('', 'pixelhub-screen-recorder');
+                if (wins && !wins.closed) recPopup = wins;
+            };
+        }
+        if (window.PixelHubScreenRecorder) patchOpen();
+        else setTimeout(patchOpen, 500);
+        
+        // Funções globais para os botões do header
+        window.headerRecPause = function() {
+            recChannel.postMessage({ type: recIsPaused ? 'command-resume' : 'command-pause' });
+        };
+        window.headerRecStop = function() {
+            recChannel.postMessage({ type: 'command-stop' });
+        };
+        window.headerRecFocus = function() {
+            if (recPopup && !recPopup.closed) {
+                recPopup.focus();
+            } else {
+                // Tenta reabrir/focar a popup existente
+                var w = window.open('', 'pixelhub-screen-recorder');
+                if (w && !w.closed) { w.focus(); recPopup = w; }
+            }
+        };
+        
+        // Ao carregar a página, pergunta à popup se há gravação em andamento
+        recChannel.postMessage({ type: 'request-status' });
+        recChannel.addEventListener('message', function statusHandler(e) {
+            if (e.data.type === 'status' && e.data.isRecording) {
+                showIndicator();
+                if (timerEl) timerEl.textContent = formatDur(e.data.duration);
+                recIsPaused = e.data.isPaused;
+                updatePauseBtn();
+            }
+        });
+    })();
     </script>
     
     <!-- ===== INBOX DRAWER GLOBAL SCRIPT ===== -->

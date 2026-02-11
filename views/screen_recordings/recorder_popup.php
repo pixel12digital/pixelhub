@@ -544,7 +544,7 @@ function showError(msg) {
     stopAllStreams();
 }
 
-// Escuta mensagens da janela principal
+// Escuta mensagens da janela principal (header indicator)
 channel.onmessage = function(e) {
     if (e.data.type === 'request-status') {
         channel.postMessage({
@@ -553,6 +553,12 @@ channel.onmessage = function(e) {
             isPaused: isPaused,
             duration: durationSeconds
         });
+    } else if (e.data.type === 'command-pause') {
+        if (isRecording && !isPaused) togglePause();
+    } else if (e.data.type === 'command-resume') {
+        if (isRecording && isPaused) togglePause();
+    } else if (e.data.type === 'command-stop') {
+        if (isRecording) stopRecording();
     }
 };
 
