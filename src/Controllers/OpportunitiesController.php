@@ -6,6 +6,7 @@ use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
 use PixelHub\Services\OpportunityService;
+use PixelHub\Services\LeadService;
 
 /**
  * Controller para o módulo CRM / Comercial — Oportunidades
@@ -284,5 +285,131 @@ class OpportunitiesController extends Controller
         $stmt2->execute([$id, $note, $user['id'] ?? null]);
 
         $this->json(['success' => true, 'notes' => $newNotes]);
+    }
+
+    /**
+     * Busca leads via AJAX (autocomplete)
+     * GET /leads/search-ajax?q=termo
+     */
+    public function searchLeads(): void
+    {
+        Auth::requireInternal();
+
+        $query = trim($_GET['q'] ?? '');
+        if (strlen($query) < 3) {
+            $this->json(['success' => true, 'leads' => []]);
+            return;
+        }
+
+        $leads = LeadService::list($query, 20);
+        $this->json(['success' => true, 'leads' => $leads]);
+    }
+
+    /**
+     * Busca clientes/tenants via AJAX (autocomplete)
+     * GET /tenants/search-opp?q=termo
+     */
+    public function searchTenants(): void
+    {
+        Auth::requireInternal();
+
+        $query = trim($_GET['q'] ?? '');
+        if (strlen($query) < 3) {
+            $this->json(['success' => true, 'tenants' => []]);
+            return;
+        }
+
+        $db = DB::getConnection();
+        $searchTerm = '%' . $query . '%';
+        $searchDigits = preg_replace('/[^0-9]/', '', $query);
+
+        if (!empty($searchDigits)) {
+            $stmt = $db->prepare("
+                SELECT id, name, phone, email
+                FROM tenants
+                WHERE status = 'active'
+                AND (name LIKE ? OR email LIKE ? OR REPLACE(REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', ''), ' ', '') LIKE ?)
+                ORDER BY name ASC
+                LIMIT 20
+            ");
+            $stmt->execute([$searchTerm, $searchTerm, '%' . $searchDigits . '%']);
+        } else {
+            $stmt = $db->prepare("
+                SELECT id, name, phone, email
+                FROM tenants
+                WHERE status = 'active'
+                AND (name LIKE ? OR email LIKE ?)
+                ORDER BY name ASC
+                LIMIT 20
+            ");
+            $stmt->execute([$searchTerm, $searchTerm]);
+        }
+
+        $tenants = $stmt->fetchAll() ?: [];
+        $this->json(['success' => true, 'tenants' => $tenants]);
+    }
+
+    /**
+     * Cria lead rápido via AJAX (do modal de oportunidade)
+     * POST /leads/store-ajax
+     */
+    public function storeLeadAjax(): void
+    {
+        Auth::requireInternal();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!$input) {
+            $this->json(['success' => false, 'error' => 'Dados inválidos'], 400);
+            return;
+        }
+
+        $name = trim($input['name'] ?? '');
+        $phone = trim($input['phone'] ?? '');
+        $email = trim($input['email'] ?? '');
+
+        if (empty($name)) {
+            $this->json(['success' => false, 'error' => 'Nome é obrigatório'], 400);
+            return;
+        }
+
+        if (empty($phone) && empty($email)) {
+            $this->json(['success' => false, 'error' => 'Informe pelo menos um telefone ou e-mail'], 400);
+            return;
+        }
+
+        // Verifica duplicidade por telefone
+        if (!empty($phone)) {
+            $duplicates = LeadService::findDuplicatesByPhone($phone);
+            $hasLeadDuplicates = !empty($duplicates['leads']);
+            $hasTenantDuplicates = !empty($duplicates['tenants']);
+
+            if (($hasLeadDuplicates || $hasTenantDuplicates) && empty($input['force_create'])) {
+                $this->json([
+                    'success' => false,
+                    'duplicate' => true,
+                    'duplicates' => $duplicates,
+                    'message' => 'Já existe um cadastro com este telefone. Deseja usar o existente ou criar mesmo assim?',
+                ]);
+                return;
+            }
+        }
+
+        try {
+            $id = LeadService::create([
+                'name' => $name,
+                'phone' => $phone,
+                'email' => $email,
+                'source' => 'crm_manual',
+            ]);
+
+            $lead = LeadService::findById($id);
+            $this->json([
+                'success' => true,
+                'lead' => $lead,
+            ]);
+        } catch (\Exception $e) {
+            error_log("[Opportunities] Erro ao criar lead: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
     }
 }

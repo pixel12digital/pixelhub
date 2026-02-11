@@ -171,6 +171,7 @@ $stageColors = [
                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
             </div>
             
+            <!-- Radio: Lead ou Cliente -->
             <div style="margin-bottom: 6px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">Vincular a: *</label>
                 <div style="display: flex; gap: 16px; margin-bottom: 12px;">
@@ -185,25 +186,68 @@ $stageColors = [
                 </div>
             </div>
             
-            <div style="margin-bottom: 16px;">
-                <div id="lead-select-wrap">
-                    <select id="create-lead-select" name="lead_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                        <option value="">Selecione um lead...</option>
-                    </select>
+            <!-- Busca de Lead (autocomplete) -->
+            <div id="lead-search-wrap" style="margin-bottom: 16px; position: relative;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <label style="font-weight: 600; flex: 1;">Buscar Lead *</label>
+                    <button type="button" onclick="toggleCreateLeadForm()" id="btn-create-lead" 
+                            style="background: none; border: 1px solid #0d6efd; color: #0d6efd; padding: 3px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: 600;">
+                        + Criar Lead
+                    </button>
                 </div>
-                <div id="tenant-select-wrap" style="display: none;">
-                    <select id="create-tenant-select" name="tenant_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                        <option value="">Selecione um cliente...</option>
-                        <?php
-                        $db = \PixelHub\Core\DB::getConnection();
-                        $tenantsList = $db->query("SELECT id, name FROM tenants WHERE status = 'active' ORDER BY name ASC")->fetchAll() ?: [];
-                        foreach ($tenantsList as $t): ?>
-                            <option value="<?= $t['id'] ?>"><?= htmlspecialchars($t['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                <input type="text" id="lead-search-input" placeholder="Digite 3+ caracteres (nome, telefone ou e-mail)..." autocomplete="off"
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <input type="hidden" name="lead_id" id="lead-id-hidden" value="">
+                <div id="lead-selected-badge" style="display: none; margin-top: 6px; padding: 8px 12px; background: #e7f1ff; border: 1px solid #0d6efd; border-radius: 6px; font-size: 13px;">
+                    <span id="lead-selected-name" style="font-weight: 600; color: #0d6efd;"></span>
+                    <button type="button" onclick="clearLeadSelection()" style="background: none; border: none; color: #dc3545; cursor: pointer; font-size: 16px; float: right; line-height: 1;">&times;</button>
                 </div>
-                <div id="contact-validation-msg" style="display: none; color: #dc3545; font-size: 12px; margin-top: 4px; font-weight: 600;">Selecione um lead ou cliente para vincular.</div>
+                <div id="lead-autocomplete-results" style="display: none; position: absolute; left: 0; right: 0; top: 100%; background: white; border: 1px solid #ddd; border-radius: 0 0 6px 6px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></div>
             </div>
+
+            <!-- Mini-form: Criar Lead inline -->
+            <div id="create-lead-form" style="display: none; margin-bottom: 16px; padding: 14px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <span style="font-weight: 600; font-size: 13px; color: #333;">Criar novo Lead</span>
+                    <button type="button" onclick="toggleCreateLeadForm()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: #666;">&times;</button>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <input type="text" id="new-lead-name" placeholder="Nome *" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px;">
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <input type="text" id="new-lead-phone" placeholder="Telefone" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px;">
+                    <input type="email" id="new-lead-email" placeholder="E-mail" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px;">
+                </div>
+                <div id="new-lead-error" style="display: none; color: #dc3545; font-size: 12px; margin-bottom: 8px; font-weight: 600;"></div>
+                <!-- Aviso de duplicidade -->
+                <div id="new-lead-duplicate-warn" style="display: none; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; margin-bottom: 8px; font-size: 12px;">
+                    <div style="font-weight: 600; margin-bottom: 6px; color: #856404;">Cadastro existente encontrado:</div>
+                    <div id="new-lead-duplicate-list"></div>
+                    <div style="display: flex; gap: 8px; margin-top: 8px;">
+                        <button type="button" onclick="forceCreateLead()" style="padding: 5px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">Criar mesmo assim</button>
+                        <button type="button" onclick="cancelCreateLead()" style="padding: 5px 12px; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">Cancelar</button>
+                    </div>
+                </div>
+                <button type="button" onclick="submitCreateLead()" id="btn-submit-lead" 
+                        style="width: 100%; padding: 8px; background: #198754; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px;">
+                    Salvar Lead
+                </button>
+            </div>
+
+            <!-- Busca de Cliente (autocomplete) -->
+            <div id="tenant-search-wrap" style="display: none; margin-bottom: 16px; position: relative;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 600;">Buscar Cliente *</label>
+                <input type="text" id="tenant-search-input" placeholder="Digite 3+ caracteres (nome, telefone ou e-mail)..." autocomplete="off"
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <input type="hidden" name="tenant_id" id="tenant-id-hidden" value="">
+                <div id="tenant-selected-badge" style="display: none; margin-top: 6px; padding: 8px 12px; background: #e8f5e9; border: 1px solid #198754; border-radius: 6px; font-size: 13px;">
+                    <span id="tenant-selected-name" style="font-weight: 600; color: #198754;"></span>
+                    <button type="button" onclick="clearTenantSelection()" style="background: none; border: none; color: #dc3545; cursor: pointer; font-size: 16px; float: right; line-height: 1;">&times;</button>
+                </div>
+                <div id="tenant-autocomplete-results" style="display: none; position: absolute; left: 0; right: 0; top: 100%; background: white; border: 1px solid #ddd; border-radius: 0 0 6px 6px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></div>
+            </div>
+
+            <div id="contact-validation-msg" style="display: none; color: #dc3545; font-size: 12px; margin-bottom: 12px; font-weight: 600;"></div>
             
             <div style="display: flex; gap: 12px; margin-bottom: 16px;">
                 <div style="flex: 1;">
@@ -241,18 +285,23 @@ $stageColors = [
 </div>
 
 <script>
+const LEADS_SEARCH_URL = '<?= pixelhub_url('/leads/search-ajax') ?>';
+const TENANTS_SEARCH_URL = '<?= pixelhub_url('/tenants/search-opp') ?>';
+const LEADS_STORE_URL = '<?= pixelhub_url('/leads/store-ajax') ?>';
+let leadSearchTimeout = null;
+let tenantSearchTimeout = null;
+
+// ===== Filtros da lista =====
 function applyFilters() {
     const search = document.getElementById('searchFilter').value;
     const stage = document.getElementById('stageFilter').value;
     const responsible = document.getElementById('responsibleFilter').value;
     const status = document.getElementById('statusFilter').value;
-    
     let url = '<?= pixelhub_url('/opportunities') ?>?';
     if (search) url += 'search=' + encodeURIComponent(search) + '&';
     if (stage) url += 'stage=' + stage + '&';
     if (responsible) url += 'responsible=' + responsible + '&';
     if (status) url += 'status=' + status + '&';
-    
     window.location.href = url;
 }
 
@@ -261,93 +310,280 @@ function filterByStatus(status) {
     applyFilters();
 }
 
+// ===== Modal abrir/fechar =====
 function openCreateModal() {
     document.getElementById('create-opp-modal').style.display = 'flex';
-    loadLeadsForSelect();
+    resetModal();
 }
 
 function closeCreateModal() {
     document.getElementById('create-opp-modal').style.display = 'none';
 }
 
+function resetModal() {
+    clearLeadSelection();
+    clearTenantSelection();
+    document.getElementById('lead-search-input').value = '';
+    document.getElementById('tenant-search-input').value = '';
+    document.getElementById('create-lead-form').style.display = 'none';
+    document.getElementById('new-lead-duplicate-warn').style.display = 'none';
+    document.getElementById('new-lead-error').style.display = 'none';
+    document.getElementById('contact-validation-msg').style.display = 'none';
+}
+
+// ===== Toggle Lead / Cliente =====
 function toggleContactSelect() {
     const type = document.querySelector('input[name="contact_type"]:checked').value;
-    const leadWrap = document.getElementById('lead-select-wrap');
-    const tenantWrap = document.getElementById('tenant-select-wrap');
-    const leadSelect = document.getElementById('create-lead-select');
-    const tenantSelect = document.getElementById('create-tenant-select');
+    const leadWrap = document.getElementById('lead-search-wrap');
+    const tenantWrap = document.getElementById('tenant-search-wrap');
     const labelLead = document.getElementById('radio-label-lead');
     const labelTenant = document.getElementById('radio-label-tenant');
-    const validationMsg = document.getElementById('contact-validation-msg');
-    
-    if (validationMsg) validationMsg.style.display = 'none';
-    
+    document.getElementById('contact-validation-msg').style.display = 'none';
+
     if (type === 'lead') {
         leadWrap.style.display = 'block';
-        leadSelect.name = 'lead_id';
         tenantWrap.style.display = 'none';
-        tenantSelect.name = '';
-        labelLead.style.border = '2px solid #0d6efd';
-        labelLead.style.background = '#e7f1ff';
-        labelLead.style.color = '#0d6efd';
-        labelTenant.style.border = '2px solid #ddd';
-        labelTenant.style.background = 'white';
-        labelTenant.style.color = '#666';
+        document.getElementById('tenant-id-hidden').value = '';
+        document.getElementById('tenant-id-hidden').name = '';
+        document.getElementById('lead-id-hidden').name = 'lead_id';
+        labelLead.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 16px;border:2px solid #0d6efd;border-radius:8px;background:#e7f1ff;font-weight:600;color:#0d6efd;';
+        labelTenant.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 16px;border:2px solid #ddd;border-radius:8px;background:white;font-weight:600;color:#666;';
     } else {
         leadWrap.style.display = 'none';
-        leadSelect.name = '';
         tenantWrap.style.display = 'block';
-        tenantSelect.name = 'tenant_id';
-        labelTenant.style.border = '2px solid #198754';
-        labelTenant.style.background = '#e8f5e9';
-        labelTenant.style.color = '#198754';
-        labelLead.style.border = '2px solid #ddd';
-        labelLead.style.background = 'white';
-        labelLead.style.color = '#666';
+        document.getElementById('lead-id-hidden').value = '';
+        document.getElementById('lead-id-hidden').name = '';
+        document.getElementById('tenant-id-hidden').name = 'tenant_id';
+        labelTenant.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 16px;border:2px solid #198754;border-radius:8px;background:#e8f5e9;font-weight:600;color:#198754;';
+        labelLead.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 16px;border:2px solid #ddd;border-radius:8px;background:white;font-weight:600;color:#666;';
     }
 }
 
+// ===== Autocomplete: Lead =====
+document.getElementById('lead-search-input').addEventListener('input', function() {
+    const q = this.value.trim();
+    if (leadSearchTimeout) clearTimeout(leadSearchTimeout);
+    if (q.length < 3) { document.getElementById('lead-autocomplete-results').style.display = 'none'; return; }
+    leadSearchTimeout = setTimeout(() => searchLeads(q), 300);
+});
+
+async function searchLeads(q) {
+    const container = document.getElementById('lead-autocomplete-results');
+    try {
+        const res = await fetch(LEADS_SEARCH_URL + '?q=' + encodeURIComponent(q));
+        const data = await res.json();
+        if (!data.success || !data.leads.length) {
+            container.innerHTML = '<div style="padding:12px;color:#888;text-align:center;font-size:13px;">Nenhum lead encontrado. Use "+ Criar Lead" acima.</div>';
+            container.style.display = 'block';
+            return;
+        }
+        container.innerHTML = '';
+        data.leads.forEach(l => {
+            const item = document.createElement('div');
+            item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;';
+            item.onmouseenter = () => item.style.background = '#f0f4ff';
+            item.onmouseleave = () => item.style.background = 'white';
+            const detail = [l.phone, l.email].filter(Boolean).join(' · ');
+            item.innerHTML = '<div style="font-weight:600;color:#333;">' + escHtml(l.name) + '</div>' +
+                (detail ? '<div style="color:#888;font-size:12px;">' + escHtml(detail) + '</div>' : '');
+            item.onclick = () => selectLead(l.id, l.name, detail);
+            container.appendChild(item);
+        });
+        container.style.display = 'block';
+    } catch(e) { console.warn('Erro busca leads:', e); }
+}
+
+function selectLead(id, name, detail) {
+    document.getElementById('lead-id-hidden').value = id;
+    document.getElementById('lead-search-input').style.display = 'none';
+    document.getElementById('lead-autocomplete-results').style.display = 'none';
+    document.getElementById('lead-selected-name').textContent = name + (detail ? ' — ' + detail : '');
+    document.getElementById('lead-selected-badge').style.display = 'block';
+    document.getElementById('contact-validation-msg').style.display = 'none';
+}
+
+function clearLeadSelection() {
+    document.getElementById('lead-id-hidden').value = '';
+    document.getElementById('lead-search-input').style.display = 'block';
+    document.getElementById('lead-search-input').value = '';
+    document.getElementById('lead-selected-badge').style.display = 'none';
+    document.getElementById('lead-autocomplete-results').style.display = 'none';
+}
+
+// ===== Autocomplete: Cliente =====
+document.getElementById('tenant-search-input').addEventListener('input', function() {
+    const q = this.value.trim();
+    if (tenantSearchTimeout) clearTimeout(tenantSearchTimeout);
+    if (q.length < 3) { document.getElementById('tenant-autocomplete-results').style.display = 'none'; return; }
+    tenantSearchTimeout = setTimeout(() => searchTenants(q), 300);
+});
+
+async function searchTenants(q) {
+    const container = document.getElementById('tenant-autocomplete-results');
+    try {
+        const res = await fetch(TENANTS_SEARCH_URL + '?q=' + encodeURIComponent(q));
+        const data = await res.json();
+        if (!data.success || !data.tenants.length) {
+            container.innerHTML = '<div style="padding:12px;color:#888;text-align:center;font-size:13px;">Nenhum cliente encontrado.</div>';
+            container.style.display = 'block';
+            return;
+        }
+        container.innerHTML = '';
+        data.tenants.forEach(t => {
+            const item = document.createElement('div');
+            item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;';
+            item.onmouseenter = () => item.style.background = '#f0fff4';
+            item.onmouseleave = () => item.style.background = 'white';
+            const detail = [t.phone, t.email].filter(Boolean).join(' · ');
+            item.innerHTML = '<div style="font-weight:600;color:#333;">' + escHtml(t.name) + '</div>' +
+                (detail ? '<div style="color:#888;font-size:12px;">' + escHtml(detail) + '</div>' : '');
+            item.onclick = () => selectTenant(t.id, t.name, detail);
+            container.appendChild(item);
+        });
+        container.style.display = 'block';
+    } catch(e) { console.warn('Erro busca tenants:', e); }
+}
+
+function selectTenant(id, name, detail) {
+    document.getElementById('tenant-id-hidden').value = id;
+    document.getElementById('tenant-search-input').style.display = 'none';
+    document.getElementById('tenant-autocomplete-results').style.display = 'none';
+    document.getElementById('tenant-selected-name').textContent = name + (detail ? ' — ' + detail : '');
+    document.getElementById('tenant-selected-badge').style.display = 'block';
+    document.getElementById('contact-validation-msg').style.display = 'none';
+}
+
+function clearTenantSelection() {
+    document.getElementById('tenant-id-hidden').value = '';
+    document.getElementById('tenant-search-input').style.display = 'block';
+    document.getElementById('tenant-search-input').value = '';
+    document.getElementById('tenant-selected-badge').style.display = 'none';
+    document.getElementById('tenant-autocomplete-results').style.display = 'none';
+}
+
+// ===== Fechar dropdowns ao clicar fora =====
+document.addEventListener('click', function(e) {
+    const lr = document.getElementById('lead-autocomplete-results');
+    const li = document.getElementById('lead-search-input');
+    if (lr && li && !li.contains(e.target) && !lr.contains(e.target)) lr.style.display = 'none';
+    const tr = document.getElementById('tenant-autocomplete-results');
+    const ti = document.getElementById('tenant-search-input');
+    if (tr && ti && !ti.contains(e.target) && !tr.contains(e.target)) tr.style.display = 'none';
+});
+
+// ===== Criar Lead inline =====
+function toggleCreateLeadForm() {
+    const form = document.getElementById('create-lead-form');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    if (form.style.display === 'block') {
+        document.getElementById('new-lead-name').value = '';
+        document.getElementById('new-lead-phone').value = '';
+        document.getElementById('new-lead-email').value = '';
+        document.getElementById('new-lead-error').style.display = 'none';
+        document.getElementById('new-lead-duplicate-warn').style.display = 'none';
+        document.getElementById('new-lead-name').focus();
+    }
+}
+
+async function submitCreateLead(forceCreate) {
+    const name = document.getElementById('new-lead-name').value.trim();
+    const phone = document.getElementById('new-lead-phone').value.trim();
+    const email = document.getElementById('new-lead-email').value.trim();
+    const errorEl = document.getElementById('new-lead-error');
+    const dupWarn = document.getElementById('new-lead-duplicate-warn');
+
+    if (!name) { errorEl.textContent = 'Nome é obrigatório.'; errorEl.style.display = 'block'; return; }
+    if (!phone && !email) { errorEl.textContent = 'Informe pelo menos um telefone ou e-mail.'; errorEl.style.display = 'block'; return; }
+    errorEl.style.display = 'none';
+
+    const btn = document.getElementById('btn-submit-lead');
+    btn.disabled = true; btn.textContent = 'Salvando...';
+
+    try {
+        const res = await fetch(LEADS_STORE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, phone, email, force_create: forceCreate ? true : false })
+        });
+        const data = await res.json();
+
+        if (data.duplicate) {
+            // Mostra aviso de duplicidade
+            const listEl = document.getElementById('new-lead-duplicate-list');
+            let html = '';
+            if (data.duplicates.leads) {
+                Object.values(data.duplicates.leads).forEach(d => {
+                    html += '<div style="padding:4px 0;"><strong>Lead:</strong> ' + escHtml(d.name) + ' (' + escHtml(d.phone || '') + ')</div>';
+                });
+            }
+            if (data.duplicates.tenants) {
+                Object.values(data.duplicates.tenants).forEach(d => {
+                    html += '<div style="padding:4px 0;"><strong>Cliente:</strong> ' + escHtml(d.name) + ' (' + escHtml(d.phone || '') + ')</div>';
+                });
+            }
+            listEl.innerHTML = html;
+            dupWarn.style.display = 'block';
+            btn.disabled = false; btn.textContent = 'Salvar Lead';
+            return;
+        }
+
+        if (!data.success) {
+            errorEl.textContent = data.error || 'Erro ao criar lead.';
+            errorEl.style.display = 'block';
+            btn.disabled = false; btn.textContent = 'Salvar Lead';
+            return;
+        }
+
+        // Sucesso: seleciona o lead criado
+        const lead = data.lead;
+        const detail = [lead.phone, lead.email].filter(Boolean).join(' · ');
+        selectLead(lead.id, lead.name, detail);
+        document.getElementById('create-lead-form').style.display = 'none';
+        btn.disabled = false; btn.textContent = 'Salvar Lead';
+    } catch(e) {
+        errorEl.textContent = 'Erro de conexão.';
+        errorEl.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Salvar Lead';
+    }
+}
+
+function forceCreateLead() {
+    document.getElementById('new-lead-duplicate-warn').style.display = 'none';
+    submitCreateLead(true);
+}
+
+function cancelCreateLead() {
+    document.getElementById('new-lead-duplicate-warn').style.display = 'none';
+}
+
+// ===== Validação do form =====
 function validateCreateForm() {
     const type = document.querySelector('input[name="contact_type"]:checked').value;
-    const validationMsg = document.getElementById('contact-validation-msg');
-    
+    const msg = document.getElementById('contact-validation-msg');
+
     if (type === 'lead') {
-        const val = document.getElementById('create-lead-select').value;
-        if (!val) {
-            validationMsg.textContent = 'Selecione um lead para vincular.';
-            validationMsg.style.display = 'block';
-            document.getElementById('create-lead-select').focus();
+        if (!document.getElementById('lead-id-hidden').value) {
+            msg.textContent = 'Selecione um lead para vincular à oportunidade.';
+            msg.style.display = 'block';
+            document.getElementById('lead-search-input').focus();
             return false;
         }
     } else {
-        const val = document.getElementById('create-tenant-select').value;
-        if (!val) {
-            validationMsg.textContent = 'Selecione um cliente para vincular.';
-            validationMsg.style.display = 'block';
-            document.getElementById('create-tenant-select').focus();
+        if (!document.getElementById('tenant-id-hidden').value) {
+            msg.textContent = 'Selecione um cliente para vincular à oportunidade.';
+            msg.style.display = 'block';
+            document.getElementById('tenant-search-input').focus();
             return false;
         }
     }
-    
-    if (validationMsg) validationMsg.style.display = 'none';
+    msg.style.display = 'none';
     return true;
 }
 
-async function loadLeadsForSelect() {
-    try {
-        const res = await fetch('<?= pixelhub_url('/communication-hub/leads-list') ?>');
-        const data = await res.json();
-        const select = document.getElementById('create-lead-select');
-        if (data.success && select) {
-            select.innerHTML = '<option value="">Selecione um lead...</option>';
-            data.leads.forEach(function(l) {
-                const opt = document.createElement('option');
-                opt.value = l.id;
-                opt.textContent = l.name + (l.phone ? ' (' + l.phone + ')' : '');
-                select.appendChild(opt);
-            });
-        }
-    } catch (e) { console.warn('Erro ao carregar leads:', e); }
+function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str || '';
+    return d.innerHTML;
 }
 </script>
 
