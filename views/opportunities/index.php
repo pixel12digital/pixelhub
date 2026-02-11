@@ -164,28 +164,35 @@ $stageColors = [
             <button onclick="closeCreateModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
         </div>
         
-        <form method="POST" action="<?= pixelhub_url('/opportunities/store') ?>">
+        <form method="POST" action="<?= pixelhub_url('/opportunities/store') ?>" onsubmit="return validateCreateForm()">
             <div style="margin-bottom: 16px;">
                 <label style="display: block; margin-bottom: 6px; font-weight: 600;">Nome da oportunidade *</label>
                 <input type="text" name="name" required placeholder="Ex: Site institucional - Empresa X" 
                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
             </div>
             
-            <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-                <div style="flex: 1;">
-                    <label style="display: block; margin-bottom: 6px; font-weight: 600;">Tipo de vínculo *</label>
-                    <select id="create-contact-type" onchange="toggleContactSelect()" 
-                            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                        <option value="lead">Lead</option>
-                        <option value="tenant">Cliente</option>
-                    </select>
+            <div style="margin-bottom: 6px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Vincular a: *</label>
+                <div style="display: flex; gap: 16px; margin-bottom: 12px;">
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 16px; border: 2px solid #0d6efd; border-radius: 8px; background: #e7f1ff; font-weight: 600; color: #0d6efd;" id="radio-label-lead">
+                        <input type="radio" name="contact_type" value="lead" checked onchange="toggleContactSelect()" style="accent-color: #0d6efd;">
+                        Lead
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 16px; border: 2px solid #ddd; border-radius: 8px; background: white; font-weight: 600; color: #666;" id="radio-label-tenant">
+                        <input type="radio" name="contact_type" value="tenant" onchange="toggleContactSelect()" style="accent-color: #198754;">
+                        Cliente
+                    </label>
                 </div>
-                <div style="flex: 2;">
-                    <label style="display: block; margin-bottom: 6px; font-weight: 600;">Selecionar *</label>
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+                <div id="lead-select-wrap">
                     <select id="create-lead-select" name="lead_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
                         <option value="">Selecione um lead...</option>
                     </select>
-                    <select id="create-tenant-select" name="tenant_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; display: none;">
+                </div>
+                <div id="tenant-select-wrap" style="display: none;">
+                    <select id="create-tenant-select" name="tenant_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
                         <option value="">Selecione um cliente...</option>
                         <?php
                         $db = \PixelHub\Core\DB::getConnection();
@@ -195,6 +202,7 @@ $stageColors = [
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <div id="contact-validation-msg" style="display: none; color: #dc3545; font-size: 12px; margin-top: 4px; font-weight: 600;">Selecione um lead ou cliente para vincular.</div>
             </div>
             
             <div style="display: flex; gap: 12px; margin-bottom: 16px;">
@@ -263,21 +271,66 @@ function closeCreateModal() {
 }
 
 function toggleContactSelect() {
-    const type = document.getElementById('create-contact-type').value;
+    const type = document.querySelector('input[name="contact_type"]:checked').value;
+    const leadWrap = document.getElementById('lead-select-wrap');
+    const tenantWrap = document.getElementById('tenant-select-wrap');
     const leadSelect = document.getElementById('create-lead-select');
     const tenantSelect = document.getElementById('create-tenant-select');
+    const labelLead = document.getElementById('radio-label-lead');
+    const labelTenant = document.getElementById('radio-label-tenant');
+    const validationMsg = document.getElementById('contact-validation-msg');
+    
+    if (validationMsg) validationMsg.style.display = 'none';
     
     if (type === 'lead') {
-        leadSelect.style.display = 'block';
+        leadWrap.style.display = 'block';
         leadSelect.name = 'lead_id';
-        tenantSelect.style.display = 'none';
+        tenantWrap.style.display = 'none';
         tenantSelect.name = '';
+        labelLead.style.border = '2px solid #0d6efd';
+        labelLead.style.background = '#e7f1ff';
+        labelLead.style.color = '#0d6efd';
+        labelTenant.style.border = '2px solid #ddd';
+        labelTenant.style.background = 'white';
+        labelTenant.style.color = '#666';
     } else {
-        leadSelect.style.display = 'none';
+        leadWrap.style.display = 'none';
         leadSelect.name = '';
-        tenantSelect.style.display = 'block';
+        tenantWrap.style.display = 'block';
         tenantSelect.name = 'tenant_id';
+        labelTenant.style.border = '2px solid #198754';
+        labelTenant.style.background = '#e8f5e9';
+        labelTenant.style.color = '#198754';
+        labelLead.style.border = '2px solid #ddd';
+        labelLead.style.background = 'white';
+        labelLead.style.color = '#666';
     }
+}
+
+function validateCreateForm() {
+    const type = document.querySelector('input[name="contact_type"]:checked').value;
+    const validationMsg = document.getElementById('contact-validation-msg');
+    
+    if (type === 'lead') {
+        const val = document.getElementById('create-lead-select').value;
+        if (!val) {
+            validationMsg.textContent = 'Selecione um lead para vincular.';
+            validationMsg.style.display = 'block';
+            document.getElementById('create-lead-select').focus();
+            return false;
+        }
+    } else {
+        const val = document.getElementById('create-tenant-select').value;
+        if (!val) {
+            validationMsg.textContent = 'Selecione um cliente para vincular.';
+            validationMsg.style.display = 'block';
+            document.getElementById('create-tenant-select').focus();
+            return false;
+        }
+    }
+    
+    if (validationMsg) validationMsg.style.display = 'none';
+    return true;
 }
 
 async function loadLeadsForSelect() {
