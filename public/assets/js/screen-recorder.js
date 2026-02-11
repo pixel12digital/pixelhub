@@ -37,50 +37,6 @@
         return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
     }
 
-    // Flag para permitir navegação após confirmação do usuário
-    state.navigationAllowed = false;
-
-    // Intercepta cliques em links durante gravação (capture phase)
-    document.addEventListener('click', function(e) {
-        if (!state.isRecording || state.navigationAllowed) return;
-        
-        const link = e.target.closest('a[href]');
-        if (!link) return;
-        
-        const href = link.getAttribute('href');
-        if (!href || href === '' || href === '#' || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) {
-            return;
-        }
-        
-        // Bloqueia a navegação
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        
-        console.log('[ScreenRecorder] Link intercepted. href=', href);
-        
-        if (confirm('Gravação de tela em andamento!\n\nSe você navegar, a gravação será perdida.\nDeseja encerrar a gravação e navegar?')) {
-            console.log('[ScreenRecorder] User confirmed navigation to:', href);
-            state.navigationAllowed = true;
-            // Limpa gravação
-            if (window.PixelHubScreenRecorder) {
-                window.PixelHubScreenRecorder.close(true);
-            }
-            // Navega
-            window.location.href = href;
-        }
-    }, true); // capture: true
-
-    // Intercepta navegação via beforeunload (fallback para window.location.href direto, forms, etc.)
-    window.addEventListener('beforeunload', function(e) {
-        if (!state.isRecording || state.navigationAllowed) return;
-        
-        console.log('[ScreenRecorder] beforeunload during recording');
-        e.preventDefault();
-        e.returnValue = '';
-        return '';
-    });
-
     // Formata duração em segundos para mm:ss
     function formatDuration(seconds) {
         const mins = Math.floor(seconds / 60);
@@ -780,7 +736,6 @@
             state.chunks = [];
             state.durationSeconds = 0;
             state.isRecording = true;
-            state.navigationAllowed = false;
             
             // Configura o MediaRecorder
             const options = {
@@ -891,17 +846,11 @@
                 
                 // Listener para quando o usuário para o compartilhamento manualmente
                 if (stream && stream.getVideoTracks().length > 0) {
-                    const videoTrack = stream.getVideoTracks()[0];
-                    videoTrack.addEventListener('ended', function() {
-                        console.warn('[ScreenRecorder] Video track ended event fired. isRecording=', state.isRecording, 'readyState=', videoTrack.readyState, 'enabled=', videoTrack.enabled);
+                    stream.getVideoTracks()[0].addEventListener('ended', function() {
                         if (state.isRecording) {
-                            console.warn('[ScreenRecorder] Stopping recording due to video track ended');
                             this.stop();
                         }
                     }.bind(this));
-                    
-                    // Log quando a track é criada
-                    console.log('[ScreenRecorder] Video track created. readyState=', videoTrack.readyState, 'enabled=', videoTrack.enabled, 'id=', videoTrack.id);
                 }
         },
 
