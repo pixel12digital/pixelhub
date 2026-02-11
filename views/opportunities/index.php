@@ -193,29 +193,29 @@ $stageColors = [
             $stageTotal = 0;
             foreach ($stageOpps as $so) { $stageTotal += (float)($so['estimated_value'] ?? 0); }
         ?>
-        <div style="min-width: 260px; max-width: 280px; flex: 1; background: #f4f5f7; border-radius: 8px; display: flex; flex-direction: column; max-height: calc(100vh - 300px);">
+        <div class="kanban-column" data-stage="<?= $stageKey ?>" style="min-width: 260px; max-width: 280px; flex: 1; background: #f4f5f7; border-radius: 8px; display: flex; flex-direction: column; max-height: calc(100vh - 300px); transition: background 0.2s;">
             <!-- Header da coluna -->
             <div style="padding: 12px 14px; border-bottom: 3px solid <?= $stageColor ?>; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
                 <div>
                     <span style="font-weight: 700; font-size: 13px; color: #333;"><?= $stageLabel ?></span>
-                    <span style="background: <?= $stageColor ?>; color: white; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-left: 6px;"><?= count($stageOpps) ?></span>
+                    <span class="kanban-count" style="background: <?= $stageColor ?>; color: white; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-left: 6px;"><?= count($stageOpps) ?></span>
                 </div>
                 <?php if ($stageTotal > 0): ?>
-                    <span style="font-size: 11px; color: #666; font-weight: 600;">R$ <?= number_format($stageTotal, 2, ',', '.') ?></span>
+                    <span class="kanban-total" style="font-size: 11px; color: #666; font-weight: 600;">R$ <?= number_format($stageTotal, 2, ',', '.') ?></span>
                 <?php endif; ?>
             </div>
             <!-- Cards -->
-            <div style="padding: 8px; overflow-y: auto; flex: 1;">
+            <div class="kanban-cards" style="padding: 8px; overflow-y: auto; flex: 1; min-height: 60px;">
                 <?php if (empty($stageOpps)): ?>
-                    <div style="padding: 20px 10px; text-align: center; color: #aaa; font-size: 12px;">Nenhuma oportunidade</div>
+                    <div class="kanban-empty" style="padding: 20px 10px; text-align: center; color: #aaa; font-size: 12px;">Nenhuma oportunidade</div>
                 <?php else: ?>
                     <?php foreach ($stageOpps as $opp):
                         $contactName = $opp['contact_name'] ?? 'Sem vínculo';
                         $contactType = $opp['contact_type'] ?? '';
                         $updatedAt = !empty($opp['updated_at']) ? date('d/m H:i', strtotime($opp['updated_at'])) : date('d/m H:i', strtotime($opp['created_at']));
                     ?>
-                    <div onclick="window.location.href='<?= pixelhub_url('/opportunities/view?id=' . $opp['id']) ?>'"
-                         style="background: white; border-radius: 6px; padding: 12px; margin-bottom: 8px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 3px solid <?= $stageColor ?>; transition: box-shadow 0.15s, transform 0.15s;"
+                    <div class="kanban-card" draggable="true" data-opp-id="<?= $opp['id'] ?>" data-stage="<?= $stageKey ?>"
+                         style="background: white; border-radius: 6px; padding: 12px; margin-bottom: 8px; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 3px solid <?= $stageColor ?>; transition: box-shadow 0.15s, transform 0.15s;"
                          onmouseover="this.style.boxShadow='0 3px 8px rgba(0,0,0,0.15)'; this.style.transform='translateY(-1px)'"
                          onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'; this.style.transform='none'">
                         <div style="font-weight: 600; font-size: 13px; color: #111; margin-bottom: 6px; line-height: 1.3;">
@@ -245,6 +245,14 @@ $stageColors = [
         </div>
         <?php endforeach; ?>
     </div>
+    <!-- Drop indicator style -->
+    <style>
+        .kanban-card { user-select: none; }
+        .kanban-card.dragging { opacity: 0.4; transform: rotate(2deg) !important; }
+        .kanban-column.drag-over { background: #e3e8f0 !important; }
+        .kanban-column.drag-over .kanban-cards { outline: 2px dashed #023A8D; outline-offset: -4px; border-radius: 6px; }
+        .kanban-card-placeholder { border: 2px dashed #023A8D; border-radius: 6px; margin-bottom: 8px; background: rgba(2,58,141,0.05); min-height: 60px; }
+    </style>
 </div>
 
 <!-- Modal: Criar Oportunidade -->
@@ -419,6 +427,162 @@ function setViewMode(mode) {
         setViewMode('kanban');
     }
 })();
+
+// ===== Kanban Drag & Drop =====
+const CHANGE_STAGE_URL = '<?= pixelhub_url('/opportunities/change-stage') ?>';
+const OPP_VIEW_URL = '<?= pixelhub_url('/opportunities/view') ?>';
+const STAGE_COLORS = <?= json_encode($stageColors) ?>;
+let draggedCard = null;
+let dragStartTime = 0;
+
+// Drag start
+document.addEventListener('dragstart', function(e) {
+    const card = e.target.closest('.kanban-card');
+    if (!card) return;
+    draggedCard = card;
+    dragStartTime = Date.now();
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', card.dataset.oppId);
+});
+
+// Drag end
+document.addEventListener('dragend', function(e) {
+    if (draggedCard) {
+        draggedCard.classList.remove('dragging');
+        draggedCard = null;
+    }
+    document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
+    document.querySelectorAll('.kanban-card-placeholder').forEach(p => p.remove());
+});
+
+// Drag over columns
+document.addEventListener('dragover', function(e) {
+    const column = e.target.closest('.kanban-column');
+    if (!column || !draggedCard) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    // Highlight
+    document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
+    column.classList.add('drag-over');
+
+    // Placeholder positioning
+    const cardsContainer = column.querySelector('.kanban-cards');
+    let placeholder = cardsContainer.querySelector('.kanban-card-placeholder');
+    if (!placeholder) {
+        placeholder = document.createElement('div');
+        placeholder.className = 'kanban-card-placeholder';
+    }
+
+    const cards = [...cardsContainer.querySelectorAll('.kanban-card:not(.dragging)')];
+    let insertBefore = null;
+    for (const c of cards) {
+        const rect = c.getBoundingClientRect();
+        if (e.clientY < rect.top + rect.height / 2) {
+            insertBefore = c;
+            break;
+        }
+    }
+
+    if (insertBefore) {
+        cardsContainer.insertBefore(placeholder, insertBefore);
+    } else {
+        cardsContainer.appendChild(placeholder);
+    }
+});
+
+// Drag leave
+document.addEventListener('dragleave', function(e) {
+    const column = e.target.closest('.kanban-column');
+    if (!column) return;
+    const related = e.relatedTarget ? e.relatedTarget.closest('.kanban-column') : null;
+    if (related !== column) {
+        column.classList.remove('drag-over');
+        column.querySelectorAll('.kanban-card-placeholder').forEach(p => p.remove());
+    }
+});
+
+// Drop
+document.addEventListener('drop', async function(e) {
+    e.preventDefault();
+    const column = e.target.closest('.kanban-column');
+    if (!column || !draggedCard) return;
+
+    const newStage = column.dataset.stage;
+    const oldStage = draggedCard.dataset.stage;
+    const oppId = draggedCard.dataset.oppId;
+
+    // Remove placeholders and highlights
+    document.querySelectorAll('.kanban-card-placeholder').forEach(p => p.remove());
+    document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over'));
+
+    if (newStage === oldStage) {
+        draggedCard.classList.remove('dragging');
+        draggedCard = null;
+        return;
+    }
+
+    // Move card visually
+    const cardsContainer = column.querySelector('.kanban-cards');
+    const emptyMsg = cardsContainer.querySelector('.kanban-empty');
+    if (emptyMsg) emptyMsg.remove();
+
+    draggedCard.classList.remove('dragging');
+    draggedCard.dataset.stage = newStage;
+    draggedCard.style.borderLeftColor = STAGE_COLORS[newStage] || '#6c757d';
+    draggedCard.style.cursor = 'grab';
+    cardsContainer.appendChild(draggedCard);
+
+    // Remove empty msg from old column if needed, or add it
+    const oldColumn = document.querySelector('.kanban-column[data-stage="' + oldStage + '"]');
+    if (oldColumn) {
+        const oldCards = oldColumn.querySelectorAll('.kanban-card');
+        if (oldCards.length === 0) {
+            const oldCardsContainer = oldColumn.querySelector('.kanban-cards');
+            oldCardsContainer.innerHTML = '<div class="kanban-empty" style="padding: 20px 10px; text-align: center; color: #aaa; font-size: 12px;">Nenhuma oportunidade</div>';
+        }
+    }
+
+    // Update counts
+    updateKanbanCounts();
+
+    draggedCard = null;
+
+    // Call API
+    try {
+        const res = await fetch(CHANGE_STAGE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: parseInt(oppId), stage: newStage })
+        });
+        const data = await res.json();
+        if (!data.success) {
+            alert('Erro ao mover: ' + (data.error || 'Erro desconhecido'));
+            window.location.reload();
+        }
+    } catch (err) {
+        alert('Erro de conexão ao mover oportunidade.');
+        window.location.reload();
+    }
+});
+
+// Click to open (only if not dragging)
+document.addEventListener('click', function(e) {
+    const card = e.target.closest('.kanban-card');
+    if (!card) return;
+    if (Date.now() - dragStartTime < 200 || dragStartTime === 0) {
+        window.location.href = OPP_VIEW_URL + '?id=' + card.dataset.oppId;
+    }
+});
+
+function updateKanbanCounts() {
+    document.querySelectorAll('.kanban-column').forEach(col => {
+        const count = col.querySelectorAll('.kanban-card').length;
+        const countEl = col.querySelector('.kanban-count');
+        if (countEl) countEl.textContent = count;
+    });
+}
 
 // ===== Filtros da lista =====
 function applyFilters() {
