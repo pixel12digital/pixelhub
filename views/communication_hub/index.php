@@ -7629,10 +7629,33 @@ async function submitCreateOpportunity(event) {
 
 <?php
 $content = ob_get_clean();
-// Constrói caminho do layout: sobe 1 nível de communication_hub para views, depois layout/main.php
-$viewsDir = dirname(__DIR__); // views/communication_hub -> views
-$layoutFile = $viewsDir . DIRECTORY_SEPARATOR . 'layout' . DIRECTORY_SEPARATOR . 'main.php';
-require $layoutFile;
+
+if (!empty($_GET['embed'])) {
+    // Modo embed: renderiza sem layout principal (para uso em iframe/drawer)
+    ?>
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Inbox</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; overflow: hidden; height: 100vh; }
+            .communication-hub-container { height: 100vh !important; max-height: 100vh !important; margin: 0 !important; }
+        </style>
+    </head>
+    <body class="communication-hub-page">
+        <?= $content ?>
+    </body>
+    </html>
+    <?php
+} else {
+    // Modo normal: usa layout principal
+    $viewsDir = dirname(__DIR__);
+    $layoutFile = $viewsDir . DIRECTORY_SEPARATOR . 'layout' . DIRECTORY_SEPARATOR . 'main.php';
+    require $layoutFile;
+}
 ?>
 
 

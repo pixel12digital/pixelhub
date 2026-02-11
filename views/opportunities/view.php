@@ -329,13 +329,75 @@ $isLost = $opp['status'] === 'lost';
     </div>
 </div>
 
+<!-- Inbox Drawer Overlay -->
+<div id="inbox-drawer-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:3000;">
+    <div id="inbox-drawer-backdrop" style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); transition:opacity 0.3s;" onclick="closeInboxDrawer()"></div>
+    <div id="inbox-drawer-panel" style="position:absolute; top:0; right:-55%; width:55%; height:100%; background:white; box-shadow:-4px 0 20px rgba(0,0,0,0.15); transition:right 0.3s ease; display:flex; flex-direction:column; z-index:1;">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:#023A8D; color:white; flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span style="font-weight:700; font-size:15px;">Inbox</span>
+            </div>
+            <button onclick="closeInboxDrawer()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer; line-height:1; padding:0 4px;">&times;</button>
+        </div>
+        <iframe id="inbox-drawer-iframe" style="flex:1; border:none; width:100%; height:100%;" src="about:blank"></iframe>
+    </div>
+</div>
+<style>
+    @media (max-width: 900px) {
+        #inbox-drawer-panel { width: 90% !important; right: -90% !important; }
+        #inbox-drawer-panel.open { right: 0 !important; }
+    }
+    @media (min-width: 901px) {
+        #inbox-drawer-panel.open { right: 0 !important; }
+    }
+</style>
+
 <script>
 const OPP_ID = <?= $opp['id'] ?>;
 const INBOX_URL = '<?= pixelhub_url('/communication-hub') ?>';
 
 function openWhatsApp(phone) {
-    window.location.href = INBOX_URL + '?phone=' + encodeURIComponent(phone);
+    const overlay = document.getElementById('inbox-drawer-overlay');
+    const panel = document.getElementById('inbox-drawer-panel');
+    const iframe = document.getElementById('inbox-drawer-iframe');
+    
+    // Build embed URL with phone
+    const embedUrl = INBOX_URL + '?embed=1&phone=' + encodeURIComponent(phone);
+    iframe.src = embedUrl;
+    
+    // Show overlay
+    overlay.style.display = 'block';
+    // Trigger animation
+    requestAnimationFrame(() => {
+        panel.classList.add('open');
+    });
+    // Prevent body scroll
+    document.body.style.overflow = 'hidden';
 }
+
+function closeInboxDrawer() {
+    const overlay = document.getElementById('inbox-drawer-overlay');
+    const panel = document.getElementById('inbox-drawer-panel');
+    const iframe = document.getElementById('inbox-drawer-iframe');
+    
+    panel.classList.remove('open');
+    setTimeout(() => {
+        overlay.style.display = 'none';
+        iframe.src = 'about:blank';
+    }, 300);
+    document.body.style.overflow = '';
+}
+
+// Close drawer with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const overlay = document.getElementById('inbox-drawer-overlay');
+        if (overlay && overlay.style.display !== 'none') {
+            closeInboxDrawer();
+        }
+    }
+});
 
 function openEmail(email) {
     window.open('mailto:' + encodeURIComponent(email), '_blank');
