@@ -1693,8 +1693,8 @@
             
             <!-- Financeiro -->
             <?php
-            $financeiroActive = $isActive(['/billing/overview', '/billing/collections', '/recurring-contracts']);
-            $financeiroExpanded = $shouldExpand(['/billing/overview', '/billing/collections', '/recurring-contracts']);
+            $financeiroActive = $isActive(['/billing/overview', '/recurring-contracts']);
+            $financeiroExpanded = $shouldExpand(['/billing/overview', '/recurring-contracts']);
             ?>
             <div class="sidebar-module" data-module="financeiro">
                 <div class="sidebar-module-header <?= $financeiroActive ? 'active' : '' ?> <?= $financeiroExpanded ? 'is-open' : '' ?>" data-title="Financeiro">
@@ -1716,9 +1716,6 @@
                 <div class="sidebar-module-content <?= $financeiroExpanded ? 'is-open' : '' ?>">
                     <a href="<?= pixelhub_url('/billing/overview') ?>" class="sub-item <?= (strpos($currentUri, '/billing/overview') !== false) ? 'active' : '' ?>">
                         <span class="sidebar-text">Central de Cobranças</span>
-                    </a>
-                    <a href="<?= pixelhub_url('/billing/collections') ?>" class="sub-item <?= (strpos($currentUri, '/billing/collections') !== false && strpos($currentUri, '/billing/overview') === false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Histórico de Cobranças</span>
                     </a>
                     <a href="<?= pixelhub_url('/recurring-contracts') ?>" class="sub-item <?= (strpos($currentUri, '/recurring-contracts') !== false) ? 'active' : '' ?>">
                         <span class="sidebar-text">Carteira Recorrente</span>

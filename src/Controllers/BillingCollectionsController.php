@@ -15,32 +15,37 @@ use PixelHub\Services\BillingDispatchQueueService;
 class BillingCollectionsController extends Controller
 {
     /**
-     * Tela principal de cobranças
+     * Redireciona para Central de Cobranças (aba faturas)
+     * Mantém compatibilidade com links antigos para /billing/collections
      */
     public function index(): void
     {
-        Auth::requireInternal();
+        $params = $_GET;
+        $params['tab'] = 'faturas';
+        $qs = http_build_query($params);
+        header('Location: ' . pixelhub_url('/billing/overview') . '?' . $qs);
+        exit;
+    }
 
-        $db = DB::getConnection();
-
-        // Filtros
+    /**
+     * Carrega dados da aba "Por Fatura" (antigo Histórico de Cobranças)
+     * Retorna array com dados para a view partial
+     */
+    private function loadFaturasData(\PDO $db): array
+    {
         $statusFilter = $_GET['status'] ?? 'all';
         $whatsappStageFilter = $_GET['whatsapp_stage'] ?? 'all';
         $tenantIdFilter = isset($_GET['tenant_id']) && $_GET['tenant_id'] !== '' ? (int) $_GET['tenant_id'] : null;
 
-        // Monta query base - sempre exclui cobranças deletadas
         $where = ["(bi.is_deleted IS NULL OR bi.is_deleted = 0)"];
         $params = [];
 
-        // Filtro por tenant (cliente)
         if ($tenantIdFilter) {
             $where[] = "bi.tenant_id = ?";
             $params[] = $tenantIdFilter;
         }
 
-        // Filtro de status
         if ($statusFilter === 'all') {
-            // Por padrão, mostra apenas cobranças em aberto (pending/overdue)
             $where[] = "bi.status IN ('pending', 'overdue')";
         } elseif ($statusFilter === 'vencendo') {
             $where[] = "bi.due_date >= CURDATE() AND bi.due_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND bi.status = 'pending'";
@@ -56,7 +61,6 @@ class BillingCollectionsController extends Controller
             $where[] = "bi.status = 'paid'";
         }
 
-        // Filtro de estágio WhatsApp
         if ($whatsappStageFilter !== 'all' && $whatsappStageFilter !== 'none') {
             $where[] = "bi.whatsapp_last_stage = ?";
             $params[] = $whatsappStageFilter;
@@ -66,7 +70,6 @@ class BillingCollectionsController extends Controller
 
         $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        // Busca faturas
         $sql = "
             SELECT 
                 bi.*,
@@ -92,7 +95,6 @@ class BillingCollectionsController extends Controller
         $stmt->execute($params);
         $invoices = $stmt->fetchAll();
 
-        // Calcula resumo - apenas cobranças em aberto e não deletadas
         $stmt = $db->query("
             SELECT 
                 SUM(CASE WHEN status = 'overdue' AND (is_deleted IS NULL OR is_deleted = 0) THEN amount ELSE 0 END) as total_overdue,
@@ -103,18 +105,17 @@ class BillingCollectionsController extends Controller
         ");
         $summary = $stmt->fetch();
 
-        // Busca lista de tenants para o filtro (sempre busca todos para o select)
         $stmt = $db->query("SELECT id, name, nome_fantasia, person_type FROM tenants WHERE status = 'active' ORDER BY name ASC");
         $tenantsList = $stmt->fetchAll();
 
-        $this->view('billing_collections.index', [
+        return [
             'invoices' => $invoices,
-            'summary' => $summary,
+            'faturas_summary' => $summary,
             'statusFilter' => $statusFilter,
             'whatsappStageFilter' => $whatsappStageFilter,
             'tenantIdFilter' => $tenantIdFilter,
             'tenantsList' => $tenantsList,
-        ]);
+        ];
     }
 
     /**
@@ -457,7 +458,16 @@ class BillingCollectionsController extends Controller
             $tenants = $stmt->fetchAll();
         }
 
-        $this->view('billing_collections.overview', [
+        // ─── Aba ativa ───────────────────────────────────────────
+        $activeTab = $_GET['tab'] ?? 'clientes';
+
+        // ─── Dados da aba "Por Fatura" (carrega sob demanda) ──
+        $faturasData = [];
+        if ($activeTab === 'faturas') {
+            $faturasData = $this->loadFaturasData($db);
+        }
+
+        $this->view('billing_collections.overview', array_merge([
             'tenants' => $tenants,
             'statusGeral' => $statusGeral,
             'semContatoRecente' => $semContatoRecente,
@@ -467,7 +477,8 @@ class BillingCollectionsController extends Controller
             'perPage' => $perPage,
             'total' => $total,
             'totalPages' => $totalPages,
-        ]);
+            'activeTab' => $activeTab,
+        ], $faturasData));
     }
 
     /**

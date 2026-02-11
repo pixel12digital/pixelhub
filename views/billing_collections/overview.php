@@ -9,7 +9,7 @@ $baseUrl = pixelhub_url('');
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: start;">
     <div>
         <h2>Central de Cobranças</h2>
-        <p>Visão geral de cobranças agrupadas por cliente</p>
+        <p>Gestão completa de cobranças e faturas</p>
     </div>
     <div style="display: flex; gap: 10px; align-items: center;">
         <a href="<?= pixelhub_url('/billing/notifications-log') ?>" style="background: #6f42c1; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;" id="auditLink">
@@ -77,9 +77,27 @@ $baseUrl = pixelhub_url('');
     </div>
 <?php endif; ?>
 
+<!-- Abas -->
+<?php $activeTab = $activeTab ?? 'clientes'; ?>
+<div style="display: flex; gap: 0; margin-bottom: 20px; border-bottom: 2px solid #dee2e6;">
+    <a href="<?= pixelhub_url('/billing/overview?tab=clientes') ?>" 
+       style="padding: 10px 20px; font-weight: 600; font-size: 14px; text-decoration: none; border-bottom: 3px solid <?= $activeTab === 'clientes' ? '#023A8D' : 'transparent' ?>; color: <?= $activeTab === 'clientes' ? '#023A8D' : '#6c757d' ?>; margin-bottom: -2px;">
+        Por Cliente
+    </a>
+    <a href="<?= pixelhub_url('/billing/overview?tab=faturas') ?>" 
+       style="padding: 10px 20px; font-weight: 600; font-size: 14px; text-decoration: none; border-bottom: 3px solid <?= $activeTab === 'faturas' ? '#023A8D' : 'transparent' ?>; color: <?= $activeTab === 'faturas' ? '#023A8D' : '#6c757d' ?>; margin-bottom: -2px;">
+        Por Fatura
+    </a>
+</div>
+
+<?php if ($activeTab === 'faturas'): ?>
+    <?php include __DIR__ . '/_tab_faturas.php'; ?>
+<?php else: ?>
+
 <!-- Filtros -->
 <div class="card">
     <form method="GET" action="<?= pixelhub_url('/billing/overview') ?>" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end;">
+        <input type="hidden" name="tab" value="clientes">
         <div>
             <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Status Geral:</label>
             <select name="status_geral" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
@@ -511,6 +529,8 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(() => {});
 });
 </script>
+
+<?php endif; // fim da aba 'clientes' ?>
 
 <?php
 $content = ob_get_clean();
