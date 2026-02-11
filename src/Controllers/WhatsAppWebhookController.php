@@ -219,10 +219,18 @@ class WhatsAppWebhookController extends Controller
                 }
             }
 
-            // Tenta resolver tenant_id pelo channel
-            $tenantId = $this->resolveTenantByChannel($channelId);
+            // CORREÇÃO: Resolve tenant_id pelo TELEFONE do contato, não pelo canal
+            // O canal identifica apenas a sessão do gateway (ImobSites, pixel12digital, etc.)
+            // O tenant é determinado pelo telefone de quem enviou a mensagem
+            // Se não encontrar tenant pelo telefone → conversa vai como "Não vinculada"
+            $tenantId = $this->resolveTenantByPhone($from);
             
-            error_log('[WHATSAPP INBOUND RAW] Tenant ID resolvido: ' . ($tenantId ?: 'NULL'));
+            error_log(sprintf(
+                '[WHATSAPP INBOUND] Tenant resolvido por TELEFONE: from=%s, tenant_id=%s, channel=%s',
+                $from ?: 'NULL',
+                $tenantId ?: 'NULL (não vinculado)',
+                $channelId ?: 'NULL'
+            ));
 
             // 🔍 INSTRUMENTAÇÃO COMPLETA: Log antes de ingerir
             $timestamp = date('Y-m-d H:i:s');
@@ -263,7 +271,7 @@ class WhatsAppWebhookController extends Controller
                     'raw_event_type' => $eventType
                 ];
                 if ($tenantId !== null) {
-                    $metadata['tenant_resolved_from_channel'] = true;
+                    $metadata['tenant_resolved_from_phone'] = true;
                 }
                 $eventId = EventIngestionService::ingest([
                     'event_type' => $internalEventType,
@@ -653,8 +661,119 @@ class WhatsAppWebhookController extends Controller
     }
 
     /**
+     * Resolve tenant_id pelo telefone do contato (from)
+     * 
+     * Busca na tabela tenants se o número do contato corresponde ao telefone
+     * de algum tenant cadastrado. Usa tolerância de 9º dígito para números BR.
+     * 
+     * @param string|null $from Telefone do contato (pode conter @c.us, @lid, etc.)
+     * @return int|null ID do tenant ou null se não encontrado (conversa vai como não vinculada)
+     */
+    private function resolveTenantByPhone(?string $from): ?int
+    {
+        if (empty($from)) {
+            error_log('[RESOLVE_TENANT_BY_PHONE] from está vazio - conversa será não vinculada');
+            return null;
+        }
+
+        // Normaliza: remove @c.us, @lid, etc. e mantém só dígitos
+        $cleaned = preg_replace('/@.*$/', '', $from);
+        $contactDigits = preg_replace('/[^0-9]/', '', $cleaned);
+
+        if (empty($contactDigits) || strlen($contactDigits) < 8) {
+            error_log(sprintf(
+                '[RESOLVE_TENANT_BY_PHONE] Telefone inválido ou curto demais: from=%s, digits=%s - conversa será não vinculada',
+                $from, $contactDigits
+            ));
+            return null;
+        }
+
+        // Garante prefixo 55 para números BR
+        if (substr($contactDigits, 0, 2) !== '55' && (strlen($contactDigits) === 10 || strlen($contactDigits) === 11)) {
+            $contactDigits = '55' . $contactDigits;
+        }
+
+        try {
+            $db = DB::getConnection();
+
+            // Busca todos os tenants com telefone cadastrado
+            $stmt = $db->query("SELECT id, name, phone FROM tenants WHERE phone IS NOT NULL AND phone != '' ORDER BY id ASC");
+            $tenants = $stmt->fetchAll();
+
+            foreach ($tenants as $tenant) {
+                $tenantPhone = preg_replace('/[^0-9]/', '', $tenant['phone']);
+                
+                if (empty($tenantPhone)) continue;
+
+                // Garante prefixo 55 para números BR do tenant
+                if (substr($tenantPhone, 0, 2) !== '55' && (strlen($tenantPhone) === 10 || strlen($tenantPhone) === 11)) {
+                    $tenantPhone = '55' . $tenantPhone;
+                }
+
+                // 1. Comparação exata
+                if ($contactDigits === $tenantPhone) {
+                    error_log(sprintf(
+                        '[RESOLVE_TENANT_BY_PHONE] MATCH EXATO: from=%s → tenant_id=%d (%s), phone=%s',
+                        $from, $tenant['id'], $tenant['name'], $tenant['phone']
+                    ));
+                    return (int) $tenant['id'];
+                }
+
+                // 2. Tolerância de 9º dígito (números BR com 55 + DDD)
+                if (strlen($contactDigits) >= 12 && strlen($tenantPhone) >= 12 &&
+                    substr($contactDigits, 0, 2) === '55' && substr($tenantPhone, 0, 2) === '55') {
+                    
+                    // Extrai DDD + número base (sem 9º dígito) de ambos
+                    $contactBase = $this->removeNinthDigit($contactDigits);
+                    $tenantBase = $this->removeNinthDigit($tenantPhone);
+
+                    if ($contactBase === $tenantBase) {
+                        error_log(sprintf(
+                            '[RESOLVE_TENANT_BY_PHONE] MATCH COM TOLERÂNCIA 9º DÍGITO: from=%s (base=%s) → tenant_id=%d (%s), phone=%s (base=%s)',
+                            $from, $contactBase, $tenant['id'], $tenant['name'], $tenant['phone'], $tenantBase
+                        ));
+                        return (int) $tenant['id'];
+                    }
+                }
+            }
+
+            // Nenhum tenant encontrado pelo telefone
+            error_log(sprintf(
+                '[RESOLVE_TENANT_BY_PHONE] Nenhum tenant encontrado para from=%s (digits=%s) - conversa será não vinculada',
+                $from, $contactDigits
+            ));
+            return null;
+
+        } catch (\Exception $e) {
+            error_log('[RESOLVE_TENANT_BY_PHONE] Erro ao buscar tenant: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Remove o 9º dígito de um número BR para comparação
+     * 
+     * Formato: 55 + DDD(2) + 9(opcional) + número(8)
+     * - 13 dígitos (com 9): 55 + DD + 9 + XXXXXXXX → remove o 9 → 55 + DD + XXXXXXXX (12)
+     * - 12 dígitos (sem 9): 55 + DD + XXXXXXXX → mantém como está
+     * 
+     * @param string $digits Número apenas dígitos
+     * @return string Número base sem 9º dígito (sempre 12 dígitos para BR)
+     */
+    private function removeNinthDigit(string $digits): string
+    {
+        // Se tem 13 dígitos (55 + DDD + 9 + 8 dígitos), remove o 9
+        if (strlen($digits) === 13 && substr($digits, 0, 2) === '55') {
+            return substr($digits, 0, 4) . substr($digits, 5); // 55+DD + últimos 8
+        }
+        // Se tem 12 dígitos, já está sem o 9
+        return $digits;
+    }
+
+    /**
      * Resolve tenant_id pelo channel_id
      * 
+     * @deprecated Mantido para referência. Não é mais usado para inbound.
      * @param string|null $channelId ID do channel
      * @return int|null ID do tenant ou null se não encontrado
      */

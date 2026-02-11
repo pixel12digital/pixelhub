@@ -982,11 +982,14 @@ class ConversationService
         // Se o tenant_id vier NULL do evento, mantém NULL para que apareça em "Não vinculados"
         
         // CORREÇÃO 2: Valida se o telefone do contato corresponde ao telefone do tenant
-        // EXCEÇÃO: explicit_tenant_selection (usuário escolheu no modal) ou tenant_resolved_from_channel (webhook resolveu pelo canal)
+        // EXCEÇÃO: explicit_tenant_selection (usuário escolheu no modal), 
+        //          tenant_resolved_from_phone (webhook já validou pelo telefone),
+        //          tenant_resolved_from_channel (legado, mantido por compatibilidade)
         $explicitTenant = !empty($eventData['metadata']['explicit_tenant_selection']);
+        $tenantFromPhone = !empty($eventData['metadata']['tenant_resolved_from_phone']);
         $tenantFromChannel = !empty($eventData['metadata']['tenant_resolved_from_channel']);
         $contactExternalId = $channelInfo['contact_external_id'] ?? '';
-        if ($tenantId !== null && !empty($contactExternalId) && !$explicitTenant && !$tenantFromChannel) {
+        if ($tenantId !== null && !empty($contactExternalId) && !$explicitTenant && !$tenantFromPhone && !$tenantFromChannel) {
             if (!self::validatePhoneBelongsToTenant($contactExternalId, $tenantId)) {
                 error_log(sprintf(
                     '[CONVERSATION CREATE] Vinculação REJEITADA: contato=%s não pertence ao tenant_id=%d - conversa irá para "Não vinculados"',
