@@ -241,8 +241,7 @@
 
 <script>
 const MAX_DURATION = 600; // 10 minutos
-const UPLOAD_URL = '<?= pixelhub_url('/tasks/attachments/upload') ?>';
-const BASE_URL = '<?= pixelhub_url('') ?>';
+const BASE_URL = window.location.origin + '<?= pixelhub_url('') ?>'.replace(/\/$/, '');
 
 // BroadcastChannel para comunicar com a janela principal
 const channel = new BroadcastChannel('pixelhub-screen-recorder');
@@ -466,6 +465,8 @@ async function saveRecording() {
     try {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', BASE_URL + '/tasks/attachments/upload');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.withCredentials = true;
 
         xhr.upload.onprogress = function(e) {
             if (e.lengthComputable) {
@@ -476,6 +477,7 @@ async function saveRecording() {
         };
 
         xhr.onload = function() {
+            console.log('[RecorderPopup] Upload response:', xhr.status, xhr.responseText.substring(0, 500));
             if (xhr.status >= 200 && xhr.status < 300) {
                 let data;
                 try { data = JSON.parse(xhr.responseText); } catch (e) { data = {}; }
