@@ -211,12 +211,17 @@ $stageColors = [
                     <span style="font-weight: 600; font-size: 13px; color: #333;">Criar novo Lead</span>
                     <button type="button" onclick="toggleCreateLeadForm()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: #666;">&times;</button>
                 </div>
-                <div style="margin-bottom: 8px;">
-                    <input type="text" id="new-lead-name" placeholder="Nome *" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px;">
-                </div>
                 <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                    <input type="text" id="new-lead-phone" placeholder="Telefone" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px;">
-                    <input type="email" id="new-lead-email" placeholder="E-mail" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px;">
+                    <input type="text" id="new-lead-phone" placeholder="Telefone *" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px;">
+                    <input type="email" id="new-lead-email" placeholder="E-mail *" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px;">
+                </div>
+                <div style="color: #888; font-size: 11px; margin: -4px 0 8px 0;">Preencha pelo menos telefone ou e-mail</div>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <input type="text" id="new-lead-name" placeholder="Nome do contato (opcional)" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px;">
+                    <input type="text" id="new-lead-company" placeholder="Empresa (opcional)" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px;">
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <input type="text" id="new-lead-notes" placeholder="Observação (opcional)" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px;">
                 </div>
                 <div id="new-lead-error" style="display: none; color: #dc3545; font-size: 12px; margin-bottom: 8px; font-weight: 600;"></div>
                 <!-- Aviso de duplicidade -->
@@ -328,6 +333,8 @@ function resetModal() {
     document.getElementById('create-lead-form').style.display = 'none';
     document.getElementById('new-lead-duplicate-warn').style.display = 'none';
     document.getElementById('new-lead-error').style.display = 'none';
+    document.getElementById('new-lead-company').value = '';
+    document.getElementById('new-lead-notes').value = '';
     document.getElementById('contact-validation-msg').style.display = 'none';
 }
 
@@ -383,10 +390,12 @@ async function searchLeads(q) {
             item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;';
             item.onmouseenter = () => item.style.background = '#f0f4ff';
             item.onmouseleave = () => item.style.background = 'white';
-            const detail = [l.phone, l.email].filter(Boolean).join(' · ');
-            item.innerHTML = '<div style="font-weight:600;color:#333;">' + escHtml(l.name) + '</div>' +
+            const label = l.name || l.company || l.phone || l.email || 'Lead #' + l.id;
+            const parts = [l.phone, l.email].filter(Boolean);
+            const detail = l.name ? parts.join(' · ') : (l.company ? parts.join(' · ') : parts.slice(1).join(' · '));
+            item.innerHTML = '<div style="font-weight:600;color:#333;">' + escHtml(label) + '</div>' +
                 (detail ? '<div style="color:#888;font-size:12px;">' + escHtml(detail) + '</div>' : '');
-            item.onclick = () => selectLead(l.id, l.name, detail);
+            item.onclick = () => selectLead(l.id, label, detail);
             container.appendChild(item);
         });
         container.style.display = 'block';
@@ -477,22 +486,25 @@ function toggleCreateLeadForm() {
     form.style.display = form.style.display === 'none' ? 'block' : 'none';
     if (form.style.display === 'block') {
         document.getElementById('new-lead-name').value = '';
+        document.getElementById('new-lead-company').value = '';
         document.getElementById('new-lead-phone').value = '';
         document.getElementById('new-lead-email').value = '';
+        document.getElementById('new-lead-notes').value = '';
         document.getElementById('new-lead-error').style.display = 'none';
         document.getElementById('new-lead-duplicate-warn').style.display = 'none';
-        document.getElementById('new-lead-name').focus();
+        document.getElementById('new-lead-phone').focus();
     }
 }
 
 async function submitCreateLead(forceCreate) {
     const name = document.getElementById('new-lead-name').value.trim();
+    const company = document.getElementById('new-lead-company').value.trim();
     const phone = document.getElementById('new-lead-phone').value.trim();
     const email = document.getElementById('new-lead-email').value.trim();
+    const notes = document.getElementById('new-lead-notes').value.trim();
     const errorEl = document.getElementById('new-lead-error');
     const dupWarn = document.getElementById('new-lead-duplicate-warn');
 
-    if (!name) { errorEl.textContent = 'Nome é obrigatório.'; errorEl.style.display = 'block'; return; }
     if (!phone && !email) { errorEl.textContent = 'Informe pelo menos um telefone ou e-mail.'; errorEl.style.display = 'block'; return; }
     errorEl.style.display = 'none';
 
@@ -503,7 +515,7 @@ async function submitCreateLead(forceCreate) {
         const res = await fetch(LEADS_STORE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, phone, email, force_create: forceCreate ? true : false })
+            body: JSON.stringify({ name, company, phone, email, notes, force_create: forceCreate ? true : false })
         });
         const data = await res.json();
 
@@ -536,8 +548,10 @@ async function submitCreateLead(forceCreate) {
 
         // Sucesso: seleciona o lead criado
         const lead = data.lead;
-        const detail = [lead.phone, lead.email].filter(Boolean).join(' · ');
-        selectLead(lead.id, lead.name, detail);
+        const label = lead.name || lead.company || lead.phone || lead.email || 'Lead #' + lead.id;
+        const parts = [lead.phone, lead.email].filter(Boolean);
+        const detail = lead.name ? parts.join(' · ') : parts.slice(1).join(' · ');
+        selectLead(lead.id, label, detail);
         document.getElementById('create-lead-form').style.display = 'none';
         btn.disabled = false; btn.textContent = 'Salvar Lead';
     } catch(e) {

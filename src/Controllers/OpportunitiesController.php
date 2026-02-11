@@ -364,13 +364,10 @@ class OpportunitiesController extends Controller
         }
 
         $name = trim($input['name'] ?? '');
+        $company = trim($input['company'] ?? '');
         $phone = trim($input['phone'] ?? '');
         $email = trim($input['email'] ?? '');
-
-        if (empty($name)) {
-            $this->json(['success' => false, 'error' => 'Nome é obrigatório'], 400);
-            return;
-        }
+        $notes = trim($input['notes'] ?? '');
 
         if (empty($phone) && empty($email)) {
             $this->json(['success' => false, 'error' => 'Informe pelo menos um telefone ou e-mail'], 400);
@@ -396,9 +393,11 @@ class OpportunitiesController extends Controller
 
         try {
             $id = LeadService::create([
-                'name' => $name,
+                'name' => $name ?: null,
+                'company' => $company ?: null,
                 'phone' => $phone,
                 'email' => $email,
+                'notes' => $notes ?: null,
                 'source' => 'crm_manual',
             ]);
 

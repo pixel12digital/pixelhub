@@ -15,22 +15,28 @@ class LeadService
     /**
      * Cria um novo lead
      * 
-     * @param array $data [name, phone, email, source, notes, created_by]
+     * @param array $data [name, company, phone, email, source, notes, created_by]
      * @return int ID do lead criado
      */
     public static function create(array $data): int
     {
         $db = DB::getConnection();
 
+        $name = !empty($data['name']) ? trim($data['name']) : null;
+        $phone = !empty($data['phone']) ? trim($data['phone']) : null;
+        $email = !empty($data['email']) ? trim($data['email']) : null;
+        $company = !empty($data['company']) ? trim($data['company']) : null;
+
         $stmt = $db->prepare("
-            INSERT INTO leads (name, phone, email, source, status, notes, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, 'new', ?, ?, NOW(), NOW())
+            INSERT INTO leads (name, company, phone, email, source, status, notes, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'new', ?, ?, NOW(), NOW())
         ");
 
         $stmt->execute([
-            trim($data['name']),
-            !empty($data['phone']) ? trim($data['phone']) : null,
-            !empty($data['email']) ? trim($data['email']) : null,
+            $name,
+            $company,
+            $phone,
+            $email,
             $data['source'] ?? 'whatsapp',
             $data['notes'] ?? null,
             $data['created_by'] ?? null,
@@ -70,12 +76,14 @@ class LeadService
             $searchDigits = preg_replace('/[^0-9]/', '', $search);
             
             if (!empty($searchDigits)) {
-                $where[] = "(name LIKE ? OR email LIKE ? OR REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', '') LIKE ?)";
+                $where[] = "(name LIKE ? OR company LIKE ? OR email LIKE ? OR REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', '') LIKE ?)";
+                $params[] = $searchTerm;
                 $params[] = $searchTerm;
                 $params[] = $searchTerm;
                 $params[] = '%' . $searchDigits . '%';
             } else {
-                $where[] = "(name LIKE ? OR email LIKE ?)";
+                $where[] = "(name LIKE ? OR company LIKE ? OR email LIKE ?)";
+                $params[] = $searchTerm;
                 $params[] = $searchTerm;
                 $params[] = $searchTerm;
             }
@@ -85,7 +93,7 @@ class LeadService
         $params[] = $limit;
 
         $stmt = $db->prepare("
-            SELECT id, name, phone, email, source, status, created_at
+            SELECT id, name, company, phone, email, source, status, created_at
             FROM leads
             WHERE {$whereClause}
             ORDER BY created_at DESC
