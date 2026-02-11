@@ -37,6 +37,24 @@
         return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
     }
 
+    // Detecta mudanças de visibilidade da página
+    document.addEventListener('visibilitychange', function() {
+        if (state.isRecording && state.screenStream) {
+            console.log('[ScreenRecorder] Page visibility changed. document.hidden=', document.hidden, 'isRecording=', state.isRecording);
+            const videoTrack = state.screenStream.getVideoTracks()[0];
+            if (videoTrack) {
+                console.log('[ScreenRecorder] Video track state during visibility change: readyState=', videoTrack.readyState, 'enabled=', videoTrack.enabled);
+            }
+        }
+    });
+
+    // Detecta quando a página está sendo descarregada
+    window.addEventListener('beforeunload', function() {
+        if (state.isRecording) {
+            console.log('[ScreenRecorder] Page unloading while recording. isRecording=', state.isRecording);
+        }
+    });
+
     // Formata duração em segundos para mm:ss
     function formatDuration(seconds) {
         const mins = Math.floor(seconds / 60);
@@ -846,11 +864,17 @@
                 
                 // Listener para quando o usuário para o compartilhamento manualmente
                 if (stream && stream.getVideoTracks().length > 0) {
-                    stream.getVideoTracks()[0].addEventListener('ended', function() {
+                    const videoTrack = stream.getVideoTracks()[0];
+                    videoTrack.addEventListener('ended', function() {
+                        console.warn('[ScreenRecorder] Video track ended event fired. isRecording=', state.isRecording, 'readyState=', videoTrack.readyState, 'enabled=', videoTrack.enabled);
                         if (state.isRecording) {
+                            console.warn('[ScreenRecorder] Stopping recording due to video track ended');
                             this.stop();
                         }
                     }.bind(this));
+                    
+                    // Log quando a track é criada
+                    console.log('[ScreenRecorder] Video track created. readyState=', videoTrack.readyState, 'enabled=', videoTrack.enabled, 'id=', videoTrack.id);
                 }
         },
 
