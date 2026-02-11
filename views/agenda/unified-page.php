@@ -1105,8 +1105,8 @@ function atdRenderView(data, taskId) {
     // Botões de ação
     html += '<div class="atm-actions" id="atd-view-actions">';
     html += '<button type="button" class="atm-btn atm-btn-primary" onclick="atdStartEdit()">Editar Tarefa</button>';
-    var boardUrl = '<?= pixelhub_url('/tasks/board') ?>?task_id=' + taskId;
-    html += '<a href="' + boardUrl + '" class="atm-btn atm-btn-secondary" style="text-decoration:none;text-align:center;" target="_blank">Abrir no Kanban</a>';
+    var boardUrl = '<?= pixelhub_url('/projects/board') ?>?project_id=' + (data.project_id || '') + '&task_id=' + taskId;
+    html += '<a href="' + boardUrl + '" class="atm-btn atm-btn-secondary" style="text-decoration:none;text-align:center;">Abrir no Kanban</a>';
     html += '<button type="button" class="atm-btn atm-btn-secondary" onclick="atdCloseDetailModal()">Fechar</button>';
     html += '</div>';
 
