@@ -7,6 +7,7 @@ use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
 use PixelHub\Services\OpportunityService;
 use PixelHub\Services\LeadService;
+use PixelHub\Services\PhoneNormalizer;
 
 /**
  * Controller para o módulo CRM / Comercial — Oportunidades
@@ -409,6 +410,74 @@ class OpportunitiesController extends Controller
         } catch (\Exception $e) {
             error_log("[Opportunities] Erro ao criar lead: " . $e->getMessage());
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Busca conversa existente pelo telefone (para botão WhatsApp)
+     * GET /opportunities/find-conversation?phone=47999999999
+     */
+    public function findConversation(): void
+    {
+        Auth::requireInternal();
+
+        $phone = trim($_GET['phone'] ?? '');
+        if (empty($phone)) {
+            $this->json(['success' => false, 'error' => 'Telefone não informado'], 400);
+            return;
+        }
+
+        $normalized = PhoneNormalizer::toE164OrNull($phone);
+        if (!$normalized) {
+            $this->json(['success' => false, 'found' => false]);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        // Busca conversa pelo contact_external_id normalizado (com e sem 9º dígito)
+        $digits = preg_replace('/[^0-9]/', '', $normalized);
+        $variations = [$digits];
+
+        // Variação do 9º dígito BR
+        if (strlen($digits) === 13 && substr($digits, 0, 2) === '55') {
+            $ddd = substr($digits, 2, 2);
+            $number = substr($digits, 4);
+            if (strlen($number) === 9 && $number[0] === '9') {
+                $variations[] = '55' . $ddd . substr($number, 1);
+            }
+        } elseif (strlen($digits) === 12 && substr($digits, 0, 2) === '55') {
+            $ddd = substr($digits, 2, 2);
+            $number = substr($digits, 4);
+            if (strlen($number) === 8) {
+                $variations[] = '55' . $ddd . '9' . $number;
+            }
+        }
+
+        $placeholders = implode(',', array_fill(0, count($variations), '?'));
+        $stmt = $db->prepare("
+            SELECT id, contact_external_id, contact_name, channel_type
+            FROM conversations
+            WHERE REPLACE(contact_external_id, '+', '') IN ({$placeholders})
+            ORDER BY updated_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute($variations);
+        $conversation = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if ($conversation) {
+            $this->json([
+                'success' => true,
+                'found' => true,
+                'thread_id' => $conversation['id'],
+                'channel' => $conversation['channel_type'] ?? 'whatsapp',
+                'contact_name' => $conversation['contact_name'],
+            ]);
+        } else {
+            $this->json([
+                'success' => true,
+                'found' => false,
+            ]);
         }
     }
 }

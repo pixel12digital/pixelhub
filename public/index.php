@@ -694,6 +694,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/leads/search-ajax', 'OpportunitiesController@searchLeads');
     $router->get('/tenants/search-opp', 'OpportunitiesController@searchTenants');
     $router->post('/leads/store-ajax', 'OpportunitiesController@storeLeadAjax');
+    $router->get('/opportunities/find-conversation', 'OpportunitiesController@findConversation');
 
     // Rotas de acessos e links de infraestrutura (apenas internos)
     $router->get('/owner/shortcuts', 'OwnerShortcutsController@index');
