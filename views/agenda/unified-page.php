@@ -729,8 +729,23 @@ function loadBlockContent(blockId, container) {
                 html += '<div class="block-add-task-row">';
                 html += '<select id="block-add-task-select-' + blockId + '"><option value="">Selecionar tarefa…</option></select>';
                 html += '<button type="button" class="btn-add-task-to-block" data-block-id="' + blockId + '">Vincular</button>';
+                html += '<span style="color:#cbd5e1;margin:0 4px;">|</span>';
+                html += '<button type="button" class="btn-create-task-inline" data-block-id="' + blockId + '" data-project-id="' + projectId + '" style="background:#023A8D;color:#fff;border:1px solid #023A8D;padding:6px 12px;border-radius:4px;font-size:12px;cursor:pointer;white-space:nowrap;" title="Criar nova tarefa e vincular a este bloco">+ Criar Nova</button>';
                 html += '<button type="button" class="block-add-task-close" data-block-id="' + blockId + '" title="Fechar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
+                html += '</div>';
+                // Formulário inline para criar tarefa nova
+                html += '<div id="block-create-task-form-' + blockId + '" style="display:none;margin-top:10px;padding:12px;background:#f0f7ff;border-radius:6px;border:2px solid #023A8D;">';
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+                html += '<span style="font-size:12px;font-weight:600;color:#023A8D;">Criar Nova Tarefa</span>';
+                html += '<button type="button" class="btn-cancel-create-task" data-block-id="' + blockId + '" style="background:none;border:none;color:#666;cursor:pointer;font-size:16px;line-height:1;padding:0;">×</button>';
+                html += '</div>';
+                html += '<input type="text" id="block-new-task-title-' + blockId + '" placeholder="Título da tarefa *" style="width:100%;padding:8px 12px;border:1px solid #023A8D;border-radius:4px;font-size:13px;margin-bottom:8px;box-sizing:border-box;">';
+                html += '<textarea id="block-new-task-desc-' + blockId + '" placeholder="Descrição (opcional)" rows="2" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:4px;font-size:13px;margin-bottom:8px;box-sizing:border-box;resize:vertical;"></textarea>';
+                html += '<div style="display:flex;gap:8px;justify-content:flex-end;">';
+                html += '<button type="button" class="btn-cancel-create-task" data-block-id="' + blockId + '" style="padding:6px 14px;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;cursor:pointer;">Cancelar</button>';
+                html += '<button type="button" class="btn-save-new-task" data-block-id="' + blockId + '" data-project-id="' + projectId + '" style="padding:6px 14px;background:#023A8D;color:#fff;border:1px solid #023A8D;border-radius:4px;font-size:12px;cursor:pointer;font-weight:600;">Criar e Vincular</button>';
                 html += '</div></div>';
+                html += '</div>';
             }
             container.innerHTML = html;
 
@@ -939,6 +954,83 @@ function loadBlockContent(blockId, container) {
                             })
                             .catch(() => { alert('Erro ao vincular'); btn.disabled = false; btn.textContent = 'Vincular'; });
                         });
+
+                        // Botão "Criar Nova" — abre formulário inline
+                        container.querySelector('.btn-create-task-inline')?.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            const createForm = document.getElementById('block-create-task-form-' + blockId);
+                            if (createForm) {
+                                const isVisible = createForm.style.display === 'block';
+                                createForm.style.display = isVisible ? 'none' : 'block';
+                                if (!isVisible) {
+                                    const titleInput = document.getElementById('block-new-task-title-' + blockId);
+                                    if (titleInput) titleInput.focus();
+                                }
+                            }
+                        });
+
+                        // Botões "Cancelar" do formulário de criação
+                        container.querySelectorAll('.btn-cancel-create-task').forEach(function(btn) {
+                            btn.addEventListener('click', function(e) {
+                                e.stopPropagation();
+                                const bid = this.dataset.blockId;
+                                const createForm = document.getElementById('block-create-task-form-' + bid);
+                                if (createForm) createForm.style.display = 'none';
+                            });
+                        });
+
+                        // Botão "Criar e Vincular" — envia para createQuickTask via AJAX
+                        container.querySelector('.btn-save-new-task')?.addEventListener('click', function() {
+                            const bid = parseInt(this.dataset.blockId, 10);
+                            const pid = parseInt(this.dataset.projectId, 10);
+                            const titleInput = document.getElementById('block-new-task-title-' + bid);
+                            const descInput = document.getElementById('block-new-task-desc-' + bid);
+                            const titulo = titleInput ? titleInput.value.trim() : '';
+                            const descricao = descInput ? descInput.value.trim() : '';
+                            if (!titulo) {
+                                titleInput.style.borderColor = '#dc2626';
+                                titleInput.focus();
+                                return;
+                            }
+                            const btn = this;
+                            btn.disabled = true;
+                            btn.textContent = 'Criando…';
+                            const fd = new FormData();
+                            fd.append('block_id', bid);
+                            fd.append('project_id', pid);
+                            fd.append('titulo', titulo);
+                            fd.append('descricao', descricao);
+                            fetch('<?= pixelhub_url('/agenda/bloco/create-quick-task') ?>', {
+                                method: 'POST',
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                                body: fd
+                            })
+                            .then(r => r.json())
+                            .then(d => {
+                                if (d.success) {
+                                    loadBlockContent(bid, container);
+                                } else {
+                                    alert(d.error || 'Erro ao criar tarefa');
+                                    btn.disabled = false;
+                                    btn.textContent = 'Criar e Vincular';
+                                }
+                            })
+                            .catch(() => { alert('Erro ao criar tarefa'); btn.disabled = false; btn.textContent = 'Criar e Vincular'; });
+                        });
+
+                        // Enter no campo título cria a tarefa
+                        const newTaskTitle = document.getElementById('block-new-task-title-' + blockId);
+                        if (newTaskTitle) {
+                            newTaskTitle.addEventListener('keydown', function(e) {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    container.querySelector('.btn-save-new-task')?.click();
+                                }
+                            });
+                            newTaskTitle.addEventListener('input', function() {
+                                this.style.borderColor = '#023A8D';
+                            });
+                        }
                     })
                     .catch(() => {});
             }

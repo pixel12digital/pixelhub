@@ -2036,6 +2036,18 @@ class AgendaController extends Controller
                 AgendaService::setFocusTaskForBlock($blockId, $taskId);
             }
             
+            // Se for requisição AJAX, retorna JSON
+            $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            if ($isAjax) {
+                $this->json([
+                    'success' => true,
+                    'task_id' => $taskId,
+                    'block_id' => $blockId,
+                    'message' => 'Tarefa criada e vinculada ao bloco com sucesso'
+                ]);
+                return;
+            }
+            
             header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId));
             exit;
         } catch (\Exception $e) {
