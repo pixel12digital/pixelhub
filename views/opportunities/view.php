@@ -334,7 +334,7 @@ const OPP_ID = <?= $opp['id'] ?>;
 const INBOX_URL = '<?= pixelhub_url('/communication-hub') ?>';
 
 function openWhatsApp(phone) {
-    window.open(INBOX_URL + '?phone=' + encodeURIComponent(phone), '_blank');
+    window.location.href = INBOX_URL + '?phone=' + encodeURIComponent(phone);
 }
 
 function openEmail(email) {
