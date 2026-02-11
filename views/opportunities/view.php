@@ -331,37 +331,10 @@ $isLost = $opp['status'] === 'lost';
 
 <script>
 const OPP_ID = <?= $opp['id'] ?>;
-const FIND_CONVERSATION_URL = '<?= pixelhub_url('/opportunities/find-conversation') ?>';
 const INBOX_URL = '<?= pixelhub_url('/communication-hub') ?>';
 
-async function openWhatsApp(phone) {
-    const btn = event.currentTarget;
-    const originalBg = btn.style.background;
-    btn.style.opacity = '0.6';
-    btn.disabled = true;
-
-    try {
-        const res = await fetch(FIND_CONVERSATION_URL + '?phone=' + encodeURIComponent(phone));
-        const data = await res.json();
-
-        if (data.found && data.thread_id) {
-            window.open(INBOX_URL + '?thread_id=' + data.thread_id + '&channel=' + (data.channel || 'whatsapp'), '_blank');
-        } else {
-            const digits = phone.replace(/[^0-9]/g, '');
-            const waPhone = digits.startsWith('55') ? digits : '55' + digits;
-            if (confirm('Não há conversa no Inbox com este número.\n\nDeseja abrir no WhatsApp Web?')) {
-                window.open('https://wa.me/' + waPhone, '_blank');
-            }
-        }
-    } catch (e) {
-        console.error('Erro ao buscar conversa:', e);
-        const digits = phone.replace(/[^0-9]/g, '');
-        const waPhone = digits.startsWith('55') ? digits : '55' + digits;
-        window.open('https://wa.me/' + waPhone, '_blank');
-    } finally {
-        btn.style.opacity = '1';
-        btn.disabled = false;
-    }
+function openWhatsApp(phone) {
+    window.open(INBOX_URL + '?phone=' + encodeURIComponent(phone), '_blank');
 }
 
 function openEmail(email) {

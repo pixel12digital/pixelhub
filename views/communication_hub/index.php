@@ -2142,7 +2142,35 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const threadIdFromUrl = urlParams.get('thread_id');
     const channelFromUrl = urlParams.get('channel') || 'whatsapp';
+    const phoneFromUrl = urlParams.get('phone');
     
+    // Se veio ?phone=X, busca conversa existente ou abre nova mensagem
+    if (phoneFromUrl) {
+        console.log('[Hub] Abrindo via phone param:', phoneFromUrl);
+        setTimeout(async () => {
+            try {
+                const res = await fetch('<?= pixelhub_url('/opportunities/find-conversation') ?>?phone=' + encodeURIComponent(phoneFromUrl));
+                const data = await res.json();
+                if (data.found && data.thread_id) {
+                    loadConversation(data.thread_id, data.channel || 'whatsapp');
+                } else {
+                    openNewMessageModal();
+                    const toInput = document.getElementById('new-message-to');
+                    const toContainer = document.getElementById('new-message-to-container');
+                    if (toInput) { toInput.value = phoneFromUrl; }
+                    if (toContainer) { toContainer.style.display = 'block'; }
+                    const channelSelect = document.getElementById('new-message-channel');
+                    if (channelSelect) { channelSelect.value = 'whatsapp'; channelSelect.dispatchEvent(new Event('change')); }
+                }
+            } catch (e) {
+                console.error('[Hub] Erro ao buscar conversa por phone:', e);
+                openNewMessageModal();
+                const toInput = document.getElementById('new-message-to');
+                if (toInput) { toInput.value = phoneFromUrl; }
+                document.getElementById('new-message-to-container').style.display = 'block';
+            }
+        }, 600);
+    } else {
     // Tenta URL primeiro, depois sessionStorage
     const threadId = threadIdFromUrl || sessionStorage.getItem('hub_selected_thread_id');
     const channel = channelFromUrl || sessionStorage.getItem('hub_selected_channel') || 'whatsapp';
@@ -2164,6 +2192,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('[LOG TEMPORARIO] DOMContentLoaded - Thread salva NÃO encontrada, não reabre');
             }
         }, 500);
+    }
     }
 });
 
