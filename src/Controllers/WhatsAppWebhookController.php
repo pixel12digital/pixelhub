@@ -39,11 +39,28 @@ class WhatsAppWebhookController extends Controller
         }
 
         try {
-            // 🔍 PASSO 0: Persistir payload bruto (auditoria e reprocessamento)
+            // 🔍 PASSO 0: Ler payload e short-circuit para eventos de alto volume
             $rawPayload = file_get_contents('php://input');
             $payload = json_decode($rawPayload, true);
-            $payloadHash = substr(md5($rawPayload), 0, 16);
             $eventTypeForLog = (is_array($payload) ? ($payload['event'] ?? $payload['type'] ?? null) : null);
+
+            // ─── SHORT-CIRCUIT: Eventos de alto volume que não geram mensagens ───
+            // connection.update: ~2800+/dia, apenas status da sessão (available/unavailable/recording_audio)
+            // message.ack: confirmações de leitura/entrega, sem valor no Inbox
+            // NÃO persiste em webhook_raw_logs (economia de ~2800 INSERTs/dia)
+            $shortCircuitEvents = ['connection.update', 'message.ack'];
+            if (in_array($eventTypeForLog, $shortCircuitEvents, true)) {
+                http_response_code(200);
+                echo json_encode([
+                    'success' => true,
+                    'code' => 'EVENT_SKIPPED',
+                    'message' => 'Event type not processed (high-volume)'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            // Persistir payload bruto (auditoria e reprocessamento) — apenas eventos relevantes
+            $payloadHash = substr(md5($rawPayload), 0, 16);
             try {
                 $dbLog = DB::getConnection();
                 $dbLog->prepare("

@@ -2103,7 +2103,65 @@ class CommunicationHubController extends Controller
                             if (!stripos($error, 'timeout')) {
                                 $error = $messageType === 'audio'
                                     ? 'Timeout ao enviar áudio. O gateway pode estar sobrecarregado ou o arquivo muito grande.'
-                                    : 'Timeout na requisição ao gateway. O gateway pode estar sobrecarregado.';
+                                    : 'Timeout na requisição ao gateway. A mensagem pode ter sido enviada mesmo assim.';
+                            }
+                            
+                            // ─── TIMEOUT RESILIENCE: Registra evento outbound para texto ───
+                            // Para mensagens de TEXTO, o gateway provavelmente enviou a mensagem
+                            // mas não respondeu a tempo. Registra no Inbox com flag delivery_uncertain
+                            // para que a mensagem apareça na conversa.
+                            // NÃO se aplica a mídia (áudio/imagem/vídeo) pois o upload pode ter falhado.
+                            if ($messageType === 'text' && !empty($phoneNormalized)) {
+                                try {
+                                    $normalizedChannelId = strtolower(str_replace(' ', '', $targetChannelId));
+                                    $timeoutEventPayload = [
+                                        'to' => $phoneNormalized,
+                                        'timestamp' => time(),
+                                        'channel_id' => $targetChannelId,
+                                        'type' => 'text',
+                                        'message' => [
+                                            'to' => $phoneNormalized,
+                                            'text' => $message,
+                                            'timestamp' => time()
+                                        ],
+                                        'text' => $message
+                                    ];
+                                    $timeoutMetadata = [
+                                        'sent_by' => Auth::user()['id'] ?? null,
+                                        'sent_by_name' => Auth::user()['name'] ?? null,
+                                        'channel_id' => $normalizedChannelId,
+                                        'delivery_uncertain' => true,
+                                        'timeout_at' => date('Y-m-d H:i:s'),
+                                        'request_id' => $requestId
+                                    ];
+                                    if (empty($threadId) && $tenantId !== null) {
+                                        $timeoutMetadata['explicit_tenant_selection'] = true;
+                                    }
+                                    
+                                    $timeoutEventId = EventIngestionService::ingest([
+                                        'event_type' => 'whatsapp.outbound.message',
+                                        'source_system' => 'pixelhub_operator',
+                                        'payload' => $timeoutEventPayload,
+                                        'tenant_id' => $tenantId,
+                                        'metadata' => $timeoutMetadata
+                                    ]);
+                                    
+                                    error_log("[CommunicationHub::send] ⚠️ TIMEOUT mas evento registrado com delivery_uncertain: event_id={$timeoutEventId}, to={$phoneNormalized}, request_id={$requestId}");
+                                    
+                                    // Marca como sucesso parcial para o frontend
+                                    $hasAnySuccess = true;
+                                    $sendResults[] = [
+                                        'channel_id' => $targetChannelId,
+                                        'success' => true,
+                                        'event_id' => $timeoutEventId,
+                                        'message_id' => null,
+                                        'delivery_uncertain' => true
+                                    ];
+                                    continue; // Pula o bloco de erro abaixo
+                                } catch (\Throwable $timeoutEx) {
+                                    error_log("[CommunicationHub::send] Erro ao registrar evento timeout: " . $timeoutEx->getMessage());
+                                    // Continua para o bloco de erro normal
+                                }
                             }
                         }
                         // Detecta áudio muito grande (só se não for timeout)
