@@ -124,7 +124,6 @@ $parents = array_filter($allCategories, fn($c) => empty($c['parent_id']));
                             <div class="cat-row" draggable="true">
                                 <span class="cat-grip">⠿</span>
                                 <span class="cat-name"><?= htmlspecialchars($cat['name']) ?></span>
-                                <span class="cat-badge"><?= (int)($cat['template_count'] ?? 0) ?> tpl</span>
                                 <div class="cat-actions">
                                     <button class="btn-edit" onclick="editCat(<?= $cat['id'] ?>, '<?= htmlspecialchars(addslashes($cat['name'])) ?>', '')">Editar</button>
                                     <button class="btn-del" onclick="deleteCat(<?= $cat['id'] ?>, '<?= htmlspecialchars(addslashes($cat['name'])) ?>')">×</button>
@@ -137,7 +136,6 @@ $parents = array_filter($allCategories, fn($c) => empty($c['parent_id']));
                                             <div class="cat-row" draggable="true">
                                                 <span class="cat-grip">⠿</span>
                                                 <span class="cat-name"><?= htmlspecialchars($child['name']) ?></span>
-                                                <span class="cat-badge"><?= (int)($child['template_count'] ?? 0) ?> tpl</span>
                                                 <div class="cat-actions">
                                                     <button class="btn-edit" onclick="editCat(<?= $child['id'] ?>, '<?= htmlspecialchars(addslashes($child['name'])) ?>', '<?= $cat['id'] ?>')">Editar</button>
                                                     <button class="btn-del" onclick="deleteCat(<?= $child['id'] ?>, '<?= htmlspecialchars(addslashes($child['name'])) ?>')">×</button>
