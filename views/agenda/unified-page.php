@@ -394,7 +394,7 @@ $highlightBlockId = $expandBlockId ?? 0;
             </select>
         </div>
         <div class="col-tipo">
-            <select name="tipo_id" required style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+            <select name="tipo_id" id="quick-add-tipo" required style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
                 <option value="">Bloco</option>
                 <?php foreach ($tipos as $t): ?><option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option><?php endforeach; ?>
             </select>
@@ -1948,6 +1948,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             const opt = document.createElement('option');
                             opt.value = t.id;
                             opt.textContent = (t.name || '').toString();
+                            if (t.default_block_type_id) opt.dataset.defaultBlockTypeId = t.default_block_type_id;
                             qaTaskSelect.appendChild(opt);
                         });
                     } else if (d.success && (!d.types || d.types.length === 0)) {
@@ -1962,6 +1963,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     qaTaskSelect.innerHTML = '<option value="">Erro ao carregar</option>';
                 });
         }
+        // Auto-preenche bloco ao selecionar atividade com bloco padrão
+        const qaTipo = document.getElementById('quick-add-tipo');
+        qaTaskSelect.addEventListener('change', function() {
+            if (!qaTipo) return;
+            const isAvulsa = !qaProject.value || qaProject.value === '';
+            if (!isAvulsa) return; // Só auto-preenche para atividade avulsa
+            const selectedOpt = this.options[this.selectedIndex];
+            const defaultBt = selectedOpt ? selectedOpt.dataset.defaultBlockTypeId : null;
+            if (defaultBt) {
+                qaTipo.value = defaultBt;
+            }
+        });
         qaProject.addEventListener('change', function() {
             const isAvulsa = this.value === '';
             if (isAvulsa) {

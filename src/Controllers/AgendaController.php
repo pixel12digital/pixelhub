@@ -1774,7 +1774,7 @@ class AgendaController extends Controller
         try {
             $db = \PixelHub\Core\DB::getConnection();
             $stmt = $db->query("
-                SELECT id, name
+                SELECT id, name, default_block_type_id
                 FROM activity_types
                 WHERE ativo = 1
                 ORDER BY name ASC

@@ -47,8 +47,12 @@ class ActivityTypesController extends Controller
     {
         Auth::requireInternal();
 
+        $db = DB::getConnection();
+        $blockTypes = $db->query("SELECT id, nome, cor FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC")->fetchAll(\PDO::FETCH_ASSOC);
+
         $this->view('activity_types.form', [
             'type' => null,
+            'blockTypes' => $blockTypes,
         ]);
     }
 
@@ -61,6 +65,7 @@ class ActivityTypesController extends Controller
 
         $name = trim($_POST['name'] ?? '');
         $ativo = isset($_POST['ativo']) ? 1 : 0;
+        $defaultBlockTypeId = isset($_POST['default_block_type_id']) && $_POST['default_block_type_id'] !== '' ? (int)$_POST['default_block_type_id'] : null;
 
         if (empty($name)) {
             $this->redirect('/settings/activity-types/create?error=' . urlencode('Nome é obrigatório.'));
@@ -70,10 +75,10 @@ class ActivityTypesController extends Controller
         try {
             $db = DB::getConnection();
             $stmt = $db->prepare("
-                INSERT INTO activity_types (name, ativo)
-                VALUES (?, ?)
+                INSERT INTO activity_types (name, ativo, default_block_type_id)
+                VALUES (?, ?, ?)
             ");
-            $stmt->execute([$name, $ativo]);
+            $stmt->execute([$name, $ativo, $defaultBlockTypeId]);
             $this->redirect('/settings/activity-types?success=created');
         } catch (\PDOException $e) {
             error_log("Erro ao criar tipo de atividade: " . $e->getMessage());
@@ -104,8 +109,11 @@ class ActivityTypesController extends Controller
             return;
         }
 
+        $blockTypes = $db->query("SELECT id, nome, cor FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC")->fetchAll(\PDO::FETCH_ASSOC);
+
         $this->view('activity_types.form', [
             'type' => $type,
+            'blockTypes' => $blockTypes,
         ]);
     }
 
@@ -124,6 +132,7 @@ class ActivityTypesController extends Controller
 
         $name = trim($_POST['name'] ?? '');
         $ativo = isset($_POST['ativo']) ? 1 : 0;
+        $defaultBlockTypeId = isset($_POST['default_block_type_id']) && $_POST['default_block_type_id'] !== '' ? (int)$_POST['default_block_type_id'] : null;
 
         if (empty($name)) {
             $this->redirect('/settings/activity-types/edit?id=' . $id . '&error=' . urlencode('Nome é obrigatório.'));
@@ -134,10 +143,10 @@ class ActivityTypesController extends Controller
             $db = DB::getConnection();
             $stmt = $db->prepare("
                 UPDATE activity_types
-                SET name = ?, ativo = ?, updated_at = NOW()
+                SET name = ?, ativo = ?, default_block_type_id = ?, updated_at = NOW()
                 WHERE id = ?
             ");
-            $stmt->execute([$name, $ativo, $id]);
+            $stmt->execute([$name, $ativo, $defaultBlockTypeId, $id]);
             $this->redirect('/settings/activity-types?success=updated');
         } catch (\PDOException $e) {
             error_log("Erro ao atualizar tipo de atividade: " . $e->getMessage());

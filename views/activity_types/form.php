@@ -31,6 +31,19 @@ $isEdit = !empty($type);
                    style="width: 100%; max-width: 400px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
         </div>
 
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px;">Bloco padrão (opcional)</label>
+            <select name="default_block_type_id" style="width: 100%; max-width: 400px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
+                <option value="">— Nenhum (selecionar manualmente)</option>
+                <?php foreach ($blockTypes ?? [] as $bt): ?>
+                    <option value="<?= (int)$bt['id'] ?>" <?= ((int)($type['default_block_type_id'] ?? 0)) === (int)$bt['id'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($bt['nome']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <p style="color: #6b7280; font-size: 12px; margin-top: 4px;">Ao selecionar esta atividade na Agenda, o bloco será preenchido automaticamente.</p>
+        </div>
+
         <div style="margin-bottom: 24px;">
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                 <input type="checkbox" name="ativo" value="1" <?= ($type['ativo'] ?? 1) ? 'checked' : '' ?>>
