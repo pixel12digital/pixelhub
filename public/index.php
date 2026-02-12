@@ -569,6 +569,11 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/settings/whatsapp-templates/ajax-templates', 'WhatsAppTemplatesController@getTemplatesAjax');
     $router->get('/settings/whatsapp-templates/quick-replies', 'WhatsAppTemplatesController@getQuickReplies');
     $router->get('/settings/whatsapp-templates/template-data', 'WhatsAppTemplatesController@getTemplateData');
+    $router->get('/settings/whatsapp-templates/categories', 'WhatsAppTemplatesController@categories');
+    $router->post('/settings/whatsapp-templates/categories/store', 'WhatsAppTemplatesController@storeCategory');
+    $router->post('/settings/whatsapp-templates/categories/update', 'WhatsAppTemplatesController@updateCategory');
+    $router->post('/settings/whatsapp-templates/categories/delete', 'WhatsAppTemplatesController@deleteCategory');
+    $router->get('/settings/whatsapp-templates/categories/ajax', 'WhatsAppTemplatesController@getCategoriesAjax');
 
     // Rotas de Configurações - Cláusulas de Contrato
     $router->get('/settings/contract-clauses', 'ContractClausesController@index');

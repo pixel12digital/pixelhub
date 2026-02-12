@@ -52,23 +52,39 @@ ob_start();
 
 <!-- Filtro por categoria -->
 <div class="card" style="margin-bottom: 20px;">
-    <form method="get" action="<?= pixelhub_url('/settings/whatsapp-templates') ?>" style="display: flex; gap: 10px; align-items: center;">
+    <form method="get" action="<?= pixelhub_url('/settings/whatsapp-templates') ?>" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
         <label style="font-weight: 600;">Categoria:</label>
-        <select name="category" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <select name="category_id" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; min-width: 200px;">
             <option value="">Todas</option>
-            <option value="comercial" <?= ($category ?? '') === 'comercial' ? 'selected' : '' ?>>Comercial</option>
-            <option value="campanha" <?= ($category ?? '') === 'campanha' ? 'selected' : '' ?>>Campanha</option>
-            <option value="geral" <?= ($category ?? '') === 'geral' ? 'selected' : '' ?>>Geral</option>
+            <?php
+            $allCategories = $allCategories ?? [];
+            $parents = array_filter($allCategories, fn($c) => empty($c['parent_id']));
+            $children = array_filter($allCategories, fn($c) => !empty($c['parent_id']));
+            foreach ($parents as $parent):
+                $sel = ($category_id ?? null) == $parent['id'] ? 'selected' : '';
+            ?>
+                <option value="<?= $parent['id'] ?>" <?= $sel ?>><?= htmlspecialchars($parent['name']) ?></option>
+                <?php foreach ($children as $child):
+                    if ($child['parent_id'] != $parent['id']) continue;
+                    $selC = ($category_id ?? null) == $child['id'] ? 'selected' : '';
+                ?>
+                    <option value="<?= $child['id'] ?>" <?= $selC ?>>&nbsp;&nbsp;└ <?= htmlspecialchars($child['name']) ?></option>
+                <?php endforeach; ?>
+            <?php endforeach; ?>
         </select>
         <button type="submit" style="background: #023A8D; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
             Filtrar
         </button>
-        <?php if (!empty($category)): ?>
+        <?php if (!empty($category_id)): ?>
             <a href="<?= pixelhub_url('/settings/whatsapp-templates') ?>" 
                style="background: #6c757d; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600;">
                 Limpar
             </a>
         <?php endif; ?>
+        <a href="<?= pixelhub_url('/settings/whatsapp-templates/categories') ?>" 
+           style="margin-left: auto; color: #023A8D; font-size: 13px; font-weight: 600; text-decoration: none;">
+            ⚙ Gerenciar Categorias
+        </a>
     </form>
 </div>
 
@@ -101,13 +117,13 @@ ob_start();
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?php
-                        $categoryLabels = [
-                            'comercial' => 'Comercial',
-                            'campanha' => 'Campanha',
-                            'geral' => 'Geral',
-                        ];
-                        $catLabel = $categoryLabels[$template['category']] ?? $template['category'];
-                        echo htmlspecialchars($catLabel);
+                        if (!empty($template['parent_category_name']) && !empty($template['category_name'])) {
+                            echo htmlspecialchars($template['parent_category_name']) . ' <span style="color: #999;">›</span> ' . htmlspecialchars($template['category_name']);
+                        } elseif (!empty($template['category_name'])) {
+                            echo htmlspecialchars($template['category_name']);
+                        } else {
+                            echo '<span style="color: #999;">Sem categoria</span>';
+                        }
                         ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">

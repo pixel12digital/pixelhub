@@ -82,15 +82,33 @@ $defaultVariables = [
         </div>
 
         <div style="margin-bottom: 20px;">
-            <label for="category" style="display: block; margin-bottom: 5px; font-weight: 600;">Categoria *</label>
-            <select id="category" 
-                    name="category" 
+            <label for="category_id" style="display: block; margin-bottom: 5px; font-weight: 600;">Categoria *</label>
+            <select id="category_id" 
+                    name="category_id" 
                     required 
                     style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
-                <option value="geral" <?= ($template['category'] ?? 'geral') === 'geral' ? 'selected' : '' ?>>Geral</option>
-                <option value="comercial" <?= ($template['category'] ?? '') === 'comercial' ? 'selected' : '' ?>>Comercial</option>
-                <option value="campanha" <?= ($template['category'] ?? '') === 'campanha' ? 'selected' : '' ?>>Campanha</option>
+                <option value="">Selecione...</option>
+                <?php
+                $allCategories = $allCategories ?? [];
+                $currentCategoryId = $template['category_id'] ?? null;
+                // Separa pais e filhos
+                $parents = array_filter($allCategories, fn($c) => empty($c['parent_id']));
+                $children = array_filter($allCategories, fn($c) => !empty($c['parent_id']));
+                foreach ($parents as $parent):
+                    $selected = ($currentCategoryId == $parent['id']) ? 'selected' : '';
+                ?>
+                    <option value="<?= $parent['id'] ?>" <?= $selected ?>><?= htmlspecialchars($parent['name']) ?></option>
+                    <?php foreach ($children as $child):
+                        if ($child['parent_id'] != $parent['id']) continue;
+                        $selectedChild = ($currentCategoryId == $child['id']) ? 'selected' : '';
+                    ?>
+                        <option value="<?= $child['id'] ?>" <?= $selectedChild ?>>&nbsp;&nbsp;&nbsp;└ <?= htmlspecialchars($child['name']) ?></option>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
             </select>
+            <small style="color: #666; font-size: 12px;">
+                <a href="<?= pixelhub_url('/settings/whatsapp-templates/categories') ?>" style="color: #023A8D;">Gerenciar categorias</a>
+            </small>
         </div>
 
         <div style="margin-bottom: 20px;">

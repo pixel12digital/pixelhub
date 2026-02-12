@@ -2653,7 +2653,8 @@
             const filtered = InboxTemplatesState.templates.filter(function(t) {
                 if (!term) return true;
                 return (t.name || '').toLowerCase().includes(term) ||
-                       (t.category || '').toLowerCase().includes(term) ||
+                       (t.category_name || '').toLowerCase().includes(term) ||
+                       (t.parent_category_name || '').toLowerCase().includes(term) ||
                        (t.description || '').toLowerCase().includes(term) ||
                        (t.content || '').toLowerCase().includes(term);
             });
@@ -2662,20 +2663,83 @@
                     (term ? 'Nenhum resultado para "' + term + '".' : 'Nenhum template cadastrado.') + '</div>';
                 return;
             }
-            var catLabels = { comercial: 'Comercial', campanha: 'Campanha', geral: 'Geral' };
-            container.innerHTML = filtered.map(function(t) {
-                var catLabel = catLabels[t.category] || t.category || 'Geral';
-                var catColor = t.category === 'comercial' ? '#023A8D' : (t.category === 'campanha' ? '#e67e22' : '#666');
-                var preview = (t.content || '').substring(0, 70).replace(/\n/g, ' ');
-                return '<div class="inbox-tpl-item" data-tpl-id="' + t.id + '" style="padding: 8px 14px; cursor: pointer; border-bottom: 1px solid #f0f0f0; transition: background 0.15s;" onmouseover="this.style.background=\'#f0f5ff\'" onmouseout="this.style.background=\'transparent\'">' +
-                    '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">' +
-                    '<span style="font-weight: 600; font-size: 12px; color: #333;">' + escapeInboxHtml(t.name) + '</span>' +
-                    '<span style="font-size: 9px; color: ' + catColor + '; background: ' + catColor + '15; padding: 1px 5px; border-radius: 3px; font-weight: 600;">' + escapeInboxHtml(catLabel) + '</span>' +
-                    '</div>' +
-                    '<div style="font-size: 11px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + escapeInboxHtml(preview) + (t.content && t.content.length > 70 ? '...' : '') + '</div>' +
-                    '</div>';
-            }).join('');
+            // Se buscando, mostra flat (sem accordion)
+            if (term) {
+                container.innerHTML = filtered.map(function(t) {
+                    var breadcrumb = t.parent_category_name ? t.parent_category_name + ' › ' + (t.category_name || '') : (t.category_name || 'Geral');
+                    var preview = (t.content || '').substring(0, 70).replace(/\n/g, ' ');
+                    return '<div class="inbox-tpl-item" data-tpl-id="' + t.id + '" style="padding: 8px 14px; cursor: pointer; border-bottom: 1px solid #f0f0f0; transition: background 0.15s;" onmouseover="this.style.background=\'#f0f5ff\'" onmouseout="this.style.background=\'transparent\'">' +
+                        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">' +
+                        '<span style="font-weight: 600; font-size: 12px; color: #333;">' + escapeInboxHtml(t.name) + '</span>' +
+                        '<span style="font-size: 9px; color: #023A8D; background: #023A8D15; padding: 1px 5px; border-radius: 3px; font-weight: 600;">' + escapeInboxHtml(breadcrumb) + '</span>' +
+                        '</div>' +
+                        '<div style="font-size: 11px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + escapeInboxHtml(preview) + (t.content && t.content.length > 70 ? '...' : '') + '</div>' +
+                        '</div>';
+                }).join('');
+                return;
+            }
+            // Agrupa por categoria pai > subcategoria (accordion)
+            var groups = {};
+            var groupOrder = [];
+            filtered.forEach(function(t) {
+                var parentName = t.parent_category_name || t.category_name || 'Geral';
+                var subName = t.parent_category_name ? (t.category_name || '') : '';
+                var groupKey = parentName;
+                if (!groups[groupKey]) { groups[groupKey] = { subs: {} }; groupOrder.push(groupKey); }
+                var subKey = subName || '__root__';
+                if (!groups[groupKey].subs[subKey]) groups[groupKey].subs[subKey] = [];
+                groups[groupKey].subs[subKey].push(t);
+            });
+            var html = '';
+            groupOrder.forEach(function(gk) {
+                var g = groups[gk];
+                var subKeys = Object.keys(g.subs);
+                var totalInGroup = subKeys.reduce(function(s, k) { return s + g.subs[k].length; }, 0);
+                var gid = 'tplGrp_' + containerId + '_' + gk.replace(/[^a-zA-Z0-9]/g, '_');
+                html += '<div style="border-bottom: 1px solid #eee;">';
+                html += '<div onclick="toggleTplGroup(\'' + gid + '\')" style="padding: 8px 14px; cursor: pointer; background: #f8f9fa; display: flex; justify-content: space-between; align-items: center; user-select: none;" onmouseover="this.style.background=\'#eef2f7\'" onmouseout="this.style.background=\'#f8f9fa\'">';
+                html += '<span style="font-weight: 700; font-size: 12px; color: #023A8D;">' + escapeInboxHtml(gk) + '</span>';
+                html += '<span style="font-size: 10px; color: #999;">' + totalInGroup + ' <span id="' + gid + '_arrow" style="display:inline-block;transition:transform 0.2s;">▸</span></span>';
+                html += '</div>';
+                html += '<div id="' + gid + '" style="display: none;">';
+                subKeys.forEach(function(sk) {
+                    var items = g.subs[sk];
+                    if (sk !== '__root__' && sk !== '') {
+                        var sid = gid + '_sub_' + sk.replace(/[^a-zA-Z0-9]/g, '_');
+                        html += '<div onclick="toggleTplGroup(\'' + sid + '\')" style="padding: 6px 14px 6px 28px; cursor: pointer; background: #fafbfc; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f0f0f0;" onmouseover="this.style.background=\'#f0f4fa\'" onmouseout="this.style.background=\'#fafbfc\'">';
+                        html += '<span style="font-weight: 600; font-size: 11px; color: #555;">└ ' + escapeInboxHtml(sk) + '</span>';
+                        html += '<span style="font-size: 10px; color: #bbb;">' + items.length + ' <span id="' + sid + '_arrow" style="display:inline-block;transition:transform 0.2s;">▸</span></span>';
+                        html += '</div>';
+                        html += '<div id="' + sid + '" style="display: none;">';
+                    }
+                    items.forEach(function(t) {
+                        var preview = (t.content || '').substring(0, 70).replace(/\n/g, ' ');
+                        html += '<div class="inbox-tpl-item" data-tpl-id="' + t.id + '" style="padding: 7px 14px 7px ' + (sk !== '__root__' && sk !== '' ? '42' : '28') + 'px; cursor: pointer; border-top: 1px solid #f5f5f5; transition: background 0.15s;" onmouseover="this.style.background=\'#f0f5ff\'" onmouseout="this.style.background=\'transparent\'">';
+                        html += '<div style="font-weight: 600; font-size: 12px; color: #333; margin-bottom: 1px;">' + escapeInboxHtml(t.name) + '</div>';
+                        html += '<div style="font-size: 11px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + escapeInboxHtml(preview) + (t.content && t.content.length > 70 ? '...' : '') + '</div>';
+                        html += '</div>';
+                    });
+                    if (sk !== '__root__' && sk !== '') {
+                        html += '</div>';
+                    }
+                });
+                html += '</div></div>';
+            });
+            container.innerHTML = html;
         }
+
+        window.toggleTplGroup = function(id) {
+            var el = document.getElementById(id);
+            var arrow = document.getElementById(id + '_arrow');
+            if (!el) return;
+            if (el.style.display === 'none') {
+                el.style.display = 'block';
+                if (arrow) arrow.style.transform = 'rotate(90deg)';
+            } else {
+                el.style.display = 'none';
+                if (arrow) arrow.style.transform = 'rotate(0deg)';
+            }
+        };
 
         function setInboxTemplatesError(msg, containerId) {
             var c = document.getElementById(containerId);

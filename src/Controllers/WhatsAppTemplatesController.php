@@ -20,25 +20,40 @@ class WhatsAppTemplatesController extends Controller
         Auth::requireInternal();
 
         $db = DB::getConnection();
-        $category = $_GET['category'] ?? null;
+        $categoryId = isset($_GET['category_id']) && $_GET['category_id'] !== '' ? (int) $_GET['category_id'] : null;
 
-        $sql = "SELECT * FROM whatsapp_templates WHERE 1=1";
+        $sql = "SELECT t.*, c.name AS category_name, pc.name AS parent_category_name
+                FROM whatsapp_templates t
+                LEFT JOIN whatsapp_template_categories c ON c.id = t.category_id
+                LEFT JOIN whatsapp_template_categories pc ON pc.id = c.parent_id
+                WHERE 1=1";
         $params = [];
 
-        if ($category !== null && $category !== '') {
-            $sql .= " AND category = ?";
-            $params[] = $category;
+        if ($categoryId !== null) {
+            // Filtra pela categoria OU suas subcategorias
+            $sql .= " AND (t.category_id = ? OR t.category_id IN (SELECT id FROM whatsapp_template_categories WHERE parent_id = ?))";
+            $params[] = $categoryId;
+            $params[] = $categoryId;
         }
 
-        $sql .= " ORDER BY created_at DESC";
+        $sql .= " ORDER BY t.created_at DESC";
 
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
         $templates = $stmt->fetchAll() ?: [];
 
+        // Carrega categorias para filtro
+        $allCategories = $db->query("
+            SELECT id, name, parent_id, sort_order
+            FROM whatsapp_template_categories
+            WHERE is_active = 1
+            ORDER BY sort_order ASC, name ASC
+        ")->fetchAll() ?: [];
+
         $this->view('whatsapp_templates.index', [
             'templates' => $templates,
-            'category' => $category,
+            'category_id' => $categoryId,
+            'allCategories' => $allCategories,
         ]);
     }
 
@@ -49,8 +64,17 @@ class WhatsAppTemplatesController extends Controller
     {
         Auth::requireInternal();
 
+        $db = DB::getConnection();
+        $allCategories = $db->query("
+            SELECT id, name, parent_id, sort_order
+            FROM whatsapp_template_categories
+            WHERE is_active = 1
+            ORDER BY sort_order ASC, name ASC
+        ")->fetchAll() ?: [];
+
         $this->view('whatsapp_templates.form', [
             'template' => null,
+            'allCategories' => $allCategories,
         ]);
     }
 
@@ -65,10 +89,19 @@ class WhatsAppTemplatesController extends Controller
 
         $name = trim($_POST['name'] ?? '');
         $code = trim($_POST['code'] ?? '') ?: null;
-        $category = trim($_POST['category'] ?? 'geral');
+        $categoryId = isset($_POST['category_id']) && $_POST['category_id'] !== '' ? (int) $_POST['category_id'] : null;
         $description = trim($_POST['description'] ?? '') ?: null;
         $content = trim($_POST['content'] ?? '');
         $isActive = isset($_POST['is_active']) ? 1 : 0;
+
+        // Resolve category slug a partir do category_id para manter backward compat
+        $category = 'geral';
+        if ($categoryId) {
+            $catStmt = $db->prepare("SELECT slug FROM whatsapp_template_categories WHERE id = ?");
+            $catStmt->execute([$categoryId]);
+            $catRow = $catStmt->fetch();
+            if ($catRow) $category = $catRow['slug'];
+        }
 
         // Validações
         if (empty($name)) {
@@ -81,12 +114,6 @@ class WhatsAppTemplatesController extends Controller
             return;
         }
 
-        // Valida categoria
-        $validCategories = ['comercial', 'campanha', 'geral'];
-        if (!in_array($category, $validCategories)) {
-            $category = 'geral';
-        }
-
         // Extrai variáveis do conteúdo
         $variables = WhatsAppTemplateService::extractVariables($content);
         $variablesJson = !empty($variables) ? json_encode($variables) : null;
@@ -94,14 +121,15 @@ class WhatsAppTemplatesController extends Controller
         try {
             $stmt = $db->prepare("
                 INSERT INTO whatsapp_templates 
-                (name, code, category, description, content, variables, is_active, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                (name, code, category, category_id, description, content, variables, is_active, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             ");
 
             $stmt->execute([
                 $name,
                 $code,
                 $category,
+                $categoryId,
                 $description,
                 $content,
                 $variablesJson,
@@ -136,8 +164,17 @@ class WhatsAppTemplatesController extends Controller
             return;
         }
 
+        $db = DB::getConnection();
+        $allCategories = $db->query("
+            SELECT id, name, parent_id, sort_order
+            FROM whatsapp_template_categories
+            WHERE is_active = 1
+            ORDER BY sort_order ASC, name ASC
+        ")->fetchAll() ?: [];
+
         $this->view('whatsapp_templates.form', [
             'template' => $template,
+            'allCategories' => $allCategories,
         ]);
     }
 
@@ -153,10 +190,19 @@ class WhatsAppTemplatesController extends Controller
         $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
         $name = trim($_POST['name'] ?? '');
         $code = trim($_POST['code'] ?? '') ?: null;
-        $category = trim($_POST['category'] ?? 'geral');
+        $categoryId = isset($_POST['category_id']) && $_POST['category_id'] !== '' ? (int) $_POST['category_id'] : null;
         $description = trim($_POST['description'] ?? '') ?: null;
         $content = trim($_POST['content'] ?? '');
         $isActive = isset($_POST['is_active']) ? 1 : 0;
+
+        // Resolve category slug a partir do category_id para manter backward compat
+        $category = 'geral';
+        if ($categoryId) {
+            $catStmt = $db->prepare("SELECT slug FROM whatsapp_template_categories WHERE id = ?");
+            $catStmt->execute([$categoryId]);
+            $catRow = $catStmt->fetch();
+            if ($catRow) $category = $catRow['slug'];
+        }
 
         if ($id <= 0) {
             $this->redirect('/settings/whatsapp-templates?error=missing_id');
@@ -174,12 +220,6 @@ class WhatsAppTemplatesController extends Controller
             return;
         }
 
-        // Valida categoria
-        $validCategories = ['comercial', 'campanha', 'geral'];
-        if (!in_array($category, $validCategories)) {
-            $category = 'geral';
-        }
-
         // Extrai variáveis do conteúdo
         $variables = WhatsAppTemplateService::extractVariables($content);
         $variablesJson = !empty($variables) ? json_encode($variables) : null;
@@ -187,7 +227,7 @@ class WhatsAppTemplatesController extends Controller
         try {
             $stmt = $db->prepare("
                 UPDATE whatsapp_templates 
-                SET name = ?, code = ?, category = ?, description = ?, 
+                SET name = ?, code = ?, category = ?, category_id = ?, description = ?, 
                     content = ?, variables = ?, is_active = ?, updated_at = NOW()
                 WHERE id = ?
             ");
@@ -196,6 +236,7 @@ class WhatsAppTemplatesController extends Controller
                 $name,
                 $code,
                 $category,
+                $categoryId,
                 $description,
                 $content,
                 $variablesJson,
@@ -316,12 +357,22 @@ class WhatsAppTemplatesController extends Controller
 
         $tenantId = isset($_GET['tenant_id']) ? (int) $_GET['tenant_id'] : 0;
 
-        $templates = WhatsAppTemplateService::getActiveTemplates();
+        $db = DB::getConnection();
+
+        // Busca templates com dados de categoria
+        $templates = $db->query("
+            SELECT t.*, c.name AS category_name, c.parent_id AS category_parent_id,
+                   pc.name AS parent_category_name, pc.id AS parent_category_id
+            FROM whatsapp_templates t
+            LEFT JOIN whatsapp_template_categories c ON c.id = t.category_id
+            LEFT JOIN whatsapp_template_categories pc ON pc.id = c.parent_id
+            WHERE t.is_active = 1
+            ORDER BY c.sort_order ASC, c.name ASC, t.name ASC
+        ")->fetchAll() ?: [];
 
         // Se tem tenant_id, resolve variáveis
         $vars = [];
         if ($tenantId > 0) {
-            $db = DB::getConnection();
             $stmt = $db->prepare("SELECT * FROM tenants WHERE id = ?");
             $stmt->execute([$tenantId]);
             $tenant = $stmt->fetch();
@@ -344,12 +395,26 @@ class WhatsAppTemplatesController extends Controller
                 'id' => (int) $template['id'],
                 'name' => $template['name'],
                 'category' => $template['category'],
+                'category_id' => $template['category_id'] ? (int) $template['category_id'] : null,
+                'category_name' => $template['category_name'] ?? null,
+                'parent_category_id' => $template['parent_category_id'] ? (int) $template['parent_category_id'] : null,
+                'parent_category_name' => $template['parent_category_name'] ?? null,
                 'description' => $template['description'] ?? '',
                 'content' => $content,
             ];
         }, $templates);
 
-        echo json_encode(['success' => true, 'templates' => $result]);
+        // Busca árvore de categorias
+        $categories = $db->query("
+            SELECT id, name, slug, parent_id, sort_order
+            FROM whatsapp_template_categories
+            WHERE is_active = 1
+            ORDER BY sort_order ASC, name ASC
+        ")->fetchAll() ?: [];
+
+        $tree = $this->buildCategoryTree($categories);
+
+        echo json_encode(['success' => true, 'templates' => $result, 'categories' => $tree]);
     }
 
     /**
@@ -448,6 +513,258 @@ class WhatsAppTemplatesController extends Controller
             'whatsapp_link' => $whatsappLink,
             'variables' => $vars,
         ]);
+    }
+
+    // =============================================
+    // CATEGORIAS DE TEMPLATES (hierárquicas)
+    // =============================================
+
+    /**
+     * Lista categorias (tela de gerenciamento)
+     */
+    public function categories(): void
+    {
+        Auth::requireInternal();
+
+        $db = DB::getConnection();
+
+        $categories = $db->query("
+            SELECT c.*, 
+                   p.name AS parent_name,
+                   (SELECT COUNT(*) FROM whatsapp_templates t WHERE t.category_id = c.id) AS template_count,
+                   (SELECT COUNT(*) FROM whatsapp_template_categories sub WHERE sub.parent_id = c.id) AS subcategory_count
+            FROM whatsapp_template_categories c
+            LEFT JOIN whatsapp_template_categories p ON p.id = c.parent_id
+            ORDER BY c.parent_id IS NULL DESC, c.parent_id ASC, c.sort_order ASC, c.name ASC
+        ")->fetchAll() ?: [];
+
+        // Organiza em árvore
+        $tree = $this->buildCategoryTree($categories);
+
+        $this->view('whatsapp_templates.categories', [
+            'categories' => $categories,
+            'tree' => $tree,
+        ]);
+    }
+
+    /**
+     * Salva nova categoria (AJAX ou form)
+     */
+    public function storeCategory(): void
+    {
+        Auth::requireInternal();
+
+        $db = DB::getConnection();
+
+        $name = trim($_POST['name'] ?? '');
+        $parentId = isset($_POST['parent_id']) && $_POST['parent_id'] !== '' ? (int) $_POST['parent_id'] : null;
+        $sortOrder = isset($_POST['sort_order']) ? (int) $_POST['sort_order'] : 0;
+
+        if (empty($name)) {
+            if ($this->isAjax()) {
+                $this->json(['success' => false, 'error' => 'Nome é obrigatório']);
+                return;
+            }
+            $this->redirect('/settings/whatsapp-templates/categories?error=missing_name');
+            return;
+        }
+
+        $slug = $this->generateSlug($name);
+
+        try {
+            $stmt = $db->prepare("
+                INSERT INTO whatsapp_template_categories (name, slug, parent_id, sort_order)
+                VALUES (?, ?, ?, ?)
+            ");
+            $stmt->execute([$name, $slug, $parentId, $sortOrder]);
+
+            $id = (int) $db->lastInsertId();
+
+            if ($this->isAjax()) {
+                $this->json(['success' => true, 'id' => $id, 'name' => $name, 'slug' => $slug]);
+                return;
+            }
+            $this->redirect('/settings/whatsapp-templates/categories?success=created');
+        } catch (\Exception $e) {
+            error_log("Erro ao criar categoria: " . $e->getMessage());
+            if ($this->isAjax()) {
+                $this->json(['success' => false, 'error' => 'Erro ao criar categoria']);
+                return;
+            }
+            $this->redirect('/settings/whatsapp-templates/categories?error=database_error');
+        }
+    }
+
+    /**
+     * Atualiza categoria
+     */
+    public function updateCategory(): void
+    {
+        Auth::requireInternal();
+
+        $db = DB::getConnection();
+
+        $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
+        $name = trim($_POST['name'] ?? '');
+        $parentId = isset($_POST['parent_id']) && $_POST['parent_id'] !== '' ? (int) $_POST['parent_id'] : null;
+        $sortOrder = isset($_POST['sort_order']) ? (int) $_POST['sort_order'] : 0;
+
+        if ($id <= 0 || empty($name)) {
+            if ($this->isAjax()) {
+                $this->json(['success' => false, 'error' => 'Dados inválidos']);
+                return;
+            }
+            $this->redirect('/settings/whatsapp-templates/categories?error=invalid');
+            return;
+        }
+
+        // Previne loop: categoria não pode ser pai de si mesma
+        if ($parentId === $id) {
+            $parentId = null;
+        }
+
+        $slug = $this->generateSlug($name);
+
+        try {
+            $stmt = $db->prepare("
+                UPDATE whatsapp_template_categories 
+                SET name = ?, slug = ?, parent_id = ?, sort_order = ?, updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$name, $slug, $parentId, $sortOrder, $id]);
+
+            if ($this->isAjax()) {
+                $this->json(['success' => true]);
+                return;
+            }
+            $this->redirect('/settings/whatsapp-templates/categories?success=updated');
+        } catch (\Exception $e) {
+            error_log("Erro ao atualizar categoria: " . $e->getMessage());
+            if ($this->isAjax()) {
+                $this->json(['success' => false, 'error' => 'Erro ao atualizar']);
+                return;
+            }
+            $this->redirect('/settings/whatsapp-templates/categories?error=database_error');
+        }
+    }
+
+    /**
+     * Exclui categoria (move templates para "sem categoria")
+     */
+    public function deleteCategory(): void
+    {
+        Auth::requireInternal();
+
+        $db = DB::getConnection();
+
+        $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
+
+        if ($id <= 0) {
+            if ($this->isAjax()) {
+                $this->json(['success' => false, 'error' => 'ID inválido']);
+                return;
+            }
+            $this->redirect('/settings/whatsapp-templates/categories?error=invalid');
+            return;
+        }
+
+        try {
+            // Move subcategorias para raiz
+            $db->prepare("UPDATE whatsapp_template_categories SET parent_id = NULL WHERE parent_id = ?")->execute([$id]);
+
+            // Remove category_id dos templates
+            $db->prepare("UPDATE whatsapp_templates SET category_id = NULL WHERE category_id = ?")->execute([$id]);
+
+            // Exclui categoria
+            $db->prepare("DELETE FROM whatsapp_template_categories WHERE id = ?")->execute([$id]);
+
+            if ($this->isAjax()) {
+                $this->json(['success' => true]);
+                return;
+            }
+            $this->redirect('/settings/whatsapp-templates/categories?success=deleted');
+        } catch (\Exception $e) {
+            error_log("Erro ao excluir categoria: " . $e->getMessage());
+            if ($this->isAjax()) {
+                $this->json(['success' => false, 'error' => 'Erro ao excluir']);
+                return;
+            }
+            $this->redirect('/settings/whatsapp-templates/categories?error=delete_failed');
+        }
+    }
+
+    /**
+     * API: Retorna árvore de categorias (AJAX)
+     */
+    public function getCategoriesAjax(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+
+        $db = DB::getConnection();
+
+        $categories = $db->query("
+            SELECT c.id, c.name, c.slug, c.parent_id, c.sort_order, c.is_active,
+                   (SELECT COUNT(*) FROM whatsapp_templates t WHERE t.category_id = c.id AND t.is_active = 1) AS template_count
+            FROM whatsapp_template_categories c
+            WHERE c.is_active = 1
+            ORDER BY c.sort_order ASC, c.name ASC
+        ")->fetchAll() ?: [];
+
+        $tree = $this->buildCategoryTree($categories);
+
+        echo json_encode(['success' => true, 'categories' => $categories, 'tree' => $tree]);
+    }
+
+    /**
+     * Monta árvore hierárquica de categorias
+     */
+    private function buildCategoryTree(array $categories): array
+    {
+        $tree = [];
+        $byId = [];
+
+        foreach ($categories as $cat) {
+            $cat['children'] = [];
+            $byId[$cat['id']] = $cat;
+        }
+
+        foreach ($byId as $id => $cat) {
+            if ($cat['parent_id'] && isset($byId[$cat['parent_id']])) {
+                $byId[$cat['parent_id']]['children'][] = &$byId[$id];
+            } else {
+                $tree[] = &$byId[$id];
+            }
+        }
+
+        return $tree;
+    }
+
+    /**
+     * Gera slug a partir do nome
+     */
+    private function generateSlug(string $name): string
+    {
+        $slug = mb_strtolower($name);
+        $slug = preg_replace('/[áàãâä]/u', 'a', $slug);
+        $slug = preg_replace('/[éèêë]/u', 'e', $slug);
+        $slug = preg_replace('/[íìîï]/u', 'i', $slug);
+        $slug = preg_replace('/[óòõôö]/u', 'o', $slug);
+        $slug = preg_replace('/[úùûü]/u', 'u', $slug);
+        $slug = preg_replace('/[ç]/u', 'c', $slug);
+        $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
+        $slug = trim($slug, '-');
+        return $slug;
+    }
+
+    /**
+     * Verifica se é requisição AJAX
+     */
+    private function isAjax(): bool
+    {
+        return (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+            || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+            || !empty($_GET['ajax']);
     }
 }
 
