@@ -45,11 +45,16 @@ $plan = $plan ?? null;
             <select id="service_type" name="service_type" required
                     style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                 <option value="">Selecione o tipo de serviço</option>
-                <option value="hospedagem" <?= (isset($plan) && ($plan['service_type'] ?? '') === 'hospedagem') ? 'selected' : '' ?>>Hospedagem</option>
-                <option value="ecommerce" <?= (isset($plan) && ($plan['service_type'] ?? '') === 'ecommerce') ? 'selected' : '' ?>>E-commerce</option>
-                <option value="manutencao" <?= (isset($plan) && ($plan['service_type'] ?? '') === 'manutencao') ? 'selected' : '' ?>>Manutenção</option>
-                <option value="saas" <?= (isset($plan) && ($plan['service_type'] ?? '') === 'saas') ? 'selected' : '' ?>>SaaS</option>
+                <?php foreach (($serviceTypes ?? []) as $st): ?>
+                    <option value="<?= htmlspecialchars($st['slug']) ?>"
+                            <?= (isset($plan) && ($plan['service_type'] ?? '') === $st['slug']) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($st['name']) ?>
+                    </option>
+                <?php endforeach; ?>
             </select>
+            <small style="color: #666; font-size: 12px; display: block; margin-top: 5px;">
+                Gerencie os tipos em <strong>Configurações > Infraestrutura > Tipos de Serviço</strong>.
+            </small>
         </div>
 
         <div style="margin-bottom: 20px;">

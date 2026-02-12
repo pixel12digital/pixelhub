@@ -475,6 +475,13 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/hosting-plans/toggle-status', 'HostingPlanController@toggleStatus');
     $router->post('/hosting-plans/delete', 'HostingPlanController@delete');
 
+    // Rotas de tipos de serviço para planos
+    $router->get('/settings/plan-service-types', 'PlanServiceTypeController@index');
+    $router->post('/settings/plan-service-types/store', 'PlanServiceTypeController@store');
+    $router->post('/settings/plan-service-types/update', 'PlanServiceTypeController@update');
+    $router->post('/settings/plan-service-types/toggle-status', 'PlanServiceTypeController@toggleStatus');
+    $router->post('/settings/plan-service-types/delete', 'PlanServiceTypeController@delete');
+
     // Webhook do Asaas
     $router->post('/webhook/asaas', 'AsaasWebhookController@handle');
     

@@ -25,10 +25,12 @@ class HostingController extends Controller
 
         // Busca todos os hosting accounts com dados do tenant e provedor do plano
         $stmt = $db->query("
-            SELECT ha.*, t.name as tenant_name, hp.provider as plan_provider, hp.service_type as plan_service_type
+            SELECT ha.*, t.name as tenant_name, hp.provider as plan_provider, hp.service_type as plan_service_type,
+                   pst.name as service_type_name
             FROM hosting_accounts ha
             INNER JOIN tenants t ON ha.tenant_id = t.id
             LEFT JOIN hosting_plans hp ON ha.hosting_plan_id = hp.id
+            LEFT JOIN plan_service_types pst ON hp.service_type = pst.slug
             ORDER BY ha.created_at DESC
         ");
         $hostingAccounts = $stmt->fetchAll();

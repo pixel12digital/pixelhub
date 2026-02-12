@@ -22,8 +22,10 @@ class HostingPlanController extends Controller
         $db = DB::getConnection();
 
         $stmt = $db->query("
-            SELECT * FROM hosting_plans
-            ORDER BY is_active DESC, name ASC
+            SELECT hp.*, pst.name as service_type_name
+            FROM hosting_plans hp
+            LEFT JOIN plan_service_types pst ON hp.service_type = pst.slug
+            ORDER BY hp.is_active DESC, hp.name ASC
         ");
         $plans = $stmt->fetchAll();
 
@@ -39,8 +41,13 @@ class HostingPlanController extends Controller
     {
         Auth::requireInternal();
 
+        $db = DB::getConnection();
+        $stmt = $db->query("SELECT id, name, slug FROM plan_service_types WHERE is_active = 1 ORDER BY sort_order ASC, name ASC");
+        $serviceTypes = $stmt->fetchAll();
+
         $this->view('hosting_plans.form', [
             'plan' => null,
+            'serviceTypes' => $serviceTypes,
         ]);
     }
 
@@ -70,7 +77,15 @@ class HostingPlanController extends Controller
             return;
         }
 
-        if (empty($serviceType) || !in_array($serviceType, ['hospedagem', 'ecommerce', 'manutencao', 'saas'], true)) {
+        if (empty($serviceType)) {
+            $this->redirect('/hosting-plans/create?error=missing_service_type');
+            return;
+        }
+
+        // Valida service_type contra o banco
+        $stCheck = $db->prepare("SELECT id FROM plan_service_types WHERE slug = ? AND is_active = 1");
+        $stCheck->execute([$serviceType]);
+        if (!$stCheck->fetch()) {
             $this->redirect('/hosting-plans/create?error=missing_service_type');
             return;
         }
@@ -153,8 +168,12 @@ class HostingPlanController extends Controller
             return;
         }
 
+        $stmt = $db->query("SELECT id, name, slug FROM plan_service_types WHERE is_active = 1 ORDER BY sort_order ASC, name ASC");
+        $serviceTypes = $stmt->fetchAll();
+
         $this->view('hosting_plans.form', [
             'plan' => $plan,
+            'serviceTypes' => $serviceTypes,
         ]);
     }
 
@@ -189,7 +208,15 @@ class HostingPlanController extends Controller
             return;
         }
 
-        if (empty($serviceType) || !in_array($serviceType, ['hospedagem', 'ecommerce', 'manutencao', 'saas'], true)) {
+        if (empty($serviceType)) {
+            $this->redirect('/hosting-plans/edit?id=' . $planId . '&error=missing_service_type');
+            return;
+        }
+
+        // Valida service_type contra o banco
+        $stCheck = $db->prepare("SELECT id FROM plan_service_types WHERE slug = ? AND is_active = 1");
+        $stCheck->execute([$serviceType]);
+        if (!$stCheck->fetch()) {
             $this->redirect('/hosting-plans/edit?id=' . $planId . '&error=missing_service_type');
             return;
         }

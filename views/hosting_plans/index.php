@@ -79,11 +79,7 @@ ob_start();
                         <?= htmlspecialchars($plan['name']) ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <?php
-                        $serviceTypeLabels = ['hospedagem' => 'Hospedagem', 'ecommerce' => 'E-commerce', 'manutencao' => 'Manutenção', 'saas' => 'SaaS'];
-                        $st = $plan['service_type'] ?? '';
-                        echo htmlspecialchars($serviceTypeLabels[$st] ?? ($st ?: '—'));
-                        ?>
+                        <?= htmlspecialchars($plan['service_type_name'] ?? '—') ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?php

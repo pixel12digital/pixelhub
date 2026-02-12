@@ -1856,8 +1856,8 @@
             
             <!-- Configurações (com subgrupos colapsáveis) -->
             <?php
-            $configuracoesActive = $isActive(['/billing/service-types', '/billing/templates', '/settings/hosting-providers', '/settings/whatsapp-templates', '/settings/contract-clauses', '/settings/agenda-block-templates', '/settings/agenda-block-types', '/settings/company', '/diagnostic/financial', '/diagnostic/communication', '/settings/asaas', '/settings/ai', '/settings/whatsapp-gateway', '/settings/smtp', '/settings/communication-events', '/owner/shortcuts']);
-            $configuracoesExpanded = $shouldExpand(['/billing/service-types', '/billing/templates', '/settings/hosting-providers', '/settings/whatsapp-templates', '/settings/contract-clauses', '/settings/agenda-block-templates', '/settings/agenda-block-types', '/settings/company', '/diagnostic/financial', '/diagnostic/communication', '/settings/asaas', '/settings/ai', '/settings/whatsapp-gateway', '/settings/smtp', '/settings/communication-events', '/owner/shortcuts']);
+            $configuracoesActive = $isActive(['/billing/service-types', '/billing/templates', '/settings/hosting-providers', '/settings/plan-service-types', '/settings/whatsapp-templates', '/settings/contract-clauses', '/settings/agenda-block-templates', '/settings/agenda-block-types', '/settings/company', '/diagnostic/financial', '/diagnostic/communication', '/settings/asaas', '/settings/ai', '/settings/whatsapp-gateway', '/settings/smtp', '/settings/communication-events', '/owner/shortcuts']);
+            $configuracoesExpanded = $shouldExpand(['/billing/service-types', '/billing/templates', '/settings/hosting-providers', '/settings/plan-service-types', '/settings/whatsapp-templates', '/settings/contract-clauses', '/settings/agenda-block-templates', '/settings/agenda-block-types', '/settings/company', '/diagnostic/financial', '/diagnostic/communication', '/settings/asaas', '/settings/ai', '/settings/whatsapp-gateway', '/settings/smtp', '/settings/communication-events', '/owner/shortcuts']);
             
             // Determinar qual subgrupo deve estar aberto baseado na rota atual
             $diagnosticoOpen = $shouldExpand(['/diagnostic/financial', '/diagnostic/communication']);
@@ -1867,7 +1867,7 @@
             $mensagensOpen = $shouldExpand(['/settings/whatsapp-templates', '/settings/communication-events']);
             $contratosOpen = $shouldExpand(['/settings/contract-clauses']);
             $agendaOpen = $shouldExpand(['/settings/agenda-block-templates', '/settings/agenda-block-types']);
-            $infraOpen = $shouldExpand(['/settings/hosting-providers', '/owner/shortcuts']);
+            $infraOpen = $shouldExpand(['/settings/hosting-providers', '/settings/plan-service-types', '/owner/shortcuts']);
             ?>
             <div class="sidebar-module" data-module="configuracoes">
                 <div class="sidebar-module-header <?= $configuracoesActive ? 'active' : '' ?> <?= $configuracoesExpanded ? 'is-open' : '' ?>" data-title="Configurações">
@@ -2031,6 +2031,9 @@
                         <div class="sidebar-subgroup-content <?= $infraOpen ? 'is-open' : '' ?>">
                             <a href="<?= pixelhub_url('/settings/hosting-providers') ?>" class="sub-item <?= (strpos($currentUri, '/settings/hosting-providers') !== false) ? 'active' : '' ?>">
                                 <span class="sidebar-text">Provedores de Hospedagem</span>
+                            </a>
+                            <a href="<?= pixelhub_url('/settings/plan-service-types') ?>" class="sub-item <?= (strpos($currentUri, '/settings/plan-service-types') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Tipos de Serviço</span>
                             </a>
                             <a href="<?= pixelhub_url('/owner/shortcuts') ?>" class="sub-item <?= (strpos($currentUri, '/owner/shortcuts') !== false) ? 'active' : '' ?>">
                                 <span class="sidebar-text">Acessos & Links</span>
