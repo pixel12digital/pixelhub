@@ -129,6 +129,16 @@ class WhatsAppMediaService
             // NÃO retorna aqui - continua para fazer download do arquivo completo
         }
         
+        // CORREÇÃO: Se não detectou mídia em nenhum formato, retorna null imediatamente
+        // Isso evita que mensagens de texto puro (tipo 'chat') sejam tratadas como mídia
+        // quando o fallback genérico captura $payload['id'] (message ID) como mediaId
+        if (!$base64AudioData && !$base64ImageData && !$wppConnectMediaType && !$baileysMediaType) {
+            $rawType = $rawPayload['type'] ?? $payload['type'] ?? $payload['message']['type'] ?? null;
+            if (!$rawType || !in_array($rawType, ['audio', 'ptt', 'image', 'video', 'document', 'sticker'])) {
+                return null;
+            }
+        }
+
         // Extrai mediaId (suporta múltiplos formatos: Baileys, WPP Connect, padrão)
         $mediaId = null;
         if ($baileysMediaData) {

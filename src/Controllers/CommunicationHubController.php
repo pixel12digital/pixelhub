@@ -3878,8 +3878,10 @@ class CommunicationHubController extends Controller
                 }
             }
             
-            // Se encontrou mídia, limpa conteúdo se for base64
+            // Se encontrou mídia, limpa conteúdo se for base64/binário
+            // CORREÇÃO: Não zera texto legítimo (com espaços/quebras) mesmo que seja longo
             if ($mediaInfo && !empty($content)) {
+                $hasSpacesOrNewlines = strpos($content, ' ') !== false || strpos($content, "\n") !== false;
                 if (strlen($content) > 100 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', $content)) {
                     $textCleaned = preg_replace('/\s+/', '', $content);
                     $decoded = base64_decode($textCleaned, true);
@@ -3891,7 +3893,7 @@ class CommunicationHubController extends Controller
                             $content = '';
                         }
                     }
-                } elseif (strlen($content) > 500) {
+                } elseif (strlen($content) > 500 && !$hasSpacesOrNewlines) {
                     $content = '';
                 }
             }
