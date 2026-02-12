@@ -226,6 +226,43 @@ $baseUrl = pixelhub_url('');
                     </svg>
                 </button>
                 
+                <!-- Botão de Templates / Respostas Rápidas -->
+                <div style="position: relative;">
+                    <button type="button" id="templates-btn" 
+                            title="Templates e respostas rápidas"
+                            style="padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
+                            onmouseover="this.style.background='#e9ecef'; this.style.borderColor='#023A8D';"
+                            onmouseout="if(!document.getElementById('templates-panel').classList.contains('is-open')){this.style.background='#f8f9fa'; this.style.borderColor='#ddd';}">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                        </svg>
+                    </button>
+                    
+                    <!-- Painel flutuante de templates -->
+                    <div id="templates-panel" 
+                         style="display: none; position: absolute; bottom: 52px; left: 0; width: 380px; max-height: 400px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 100; overflow: hidden; flex-direction: column;">
+                        <!-- Header do painel -->
+                        <div style="padding: 12px 16px; border-bottom: 1px solid #eee; background: #f8f9fa; border-radius: 12px 12px 0 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span style="font-weight: 700; font-size: 14px; color: #333;">Templates</span>
+                                <button type="button" id="templates-panel-close" 
+                                        style="background: none; border: none; cursor: pointer; padding: 2px; color: #999; font-size: 18px; line-height: 1;"
+                                        title="Fechar">&times;</button>
+                            </div>
+                            <input type="text" id="templates-search" 
+                                   placeholder="Buscar template..." 
+                                   autocomplete="off"
+                                   style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; box-sizing: border-box;">
+                        </div>
+                        <!-- Lista de templates -->
+                        <div id="templates-list" style="overflow-y: auto; max-height: 300px; padding: 6px 0;">
+                            <div style="padding: 20px; text-align: center; color: #999; font-size: 13px;">
+                                Carregando templates...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <div style="flex: 1;">
                     <textarea name="message" id="message-input" rows="2" 
                               placeholder="Digite sua mensagem ou cole uma imagem (Ctrl+V)..." 
@@ -1191,6 +1228,237 @@ function normalizeUrlPath(path) {
     
     return path;
 }
+
+// ============================================================================
+// Templates / Respostas Rápidas
+// ============================================================================
+
+const TemplatesState = {
+    templates: [],       // Cache dos templates carregados
+    isLoaded: false,     // Se já carregou do servidor
+    isOpen: false,       // Se o painel está aberto
+    isLoading: false,    // Se está carregando
+};
+
+/**
+ * Carrega templates do servidor (com cache)
+ */
+async function loadTemplates() {
+    if (TemplatesState.isLoaded || TemplatesState.isLoading) return;
+    TemplatesState.isLoading = true;
+
+    const tenantId = document.querySelector('input[name="tenant_id"]')?.value || '';
+    const url = normalizeUrlPath(THREAD_CONFIG.baseUrl + '/settings/whatsapp-templates/quick-replies' + (tenantId ? '?tenant_id=' + tenantId : ''));
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        if (data.success && Array.isArray(data.templates)) {
+            TemplatesState.templates = data.templates;
+            TemplatesState.isLoaded = true;
+            renderTemplatesList('');
+        } else {
+            renderTemplatesError('Nenhum template encontrado.');
+        }
+    } catch (err) {
+        console.error('[Templates] Erro ao carregar:', err);
+        renderTemplatesError('Erro ao carregar templates.');
+    } finally {
+        TemplatesState.isLoading = false;
+    }
+}
+
+/**
+ * Renderiza a lista de templates no painel (filtrada por busca)
+ */
+function renderTemplatesList(searchTerm) {
+    const container = document.getElementById('templates-list');
+    if (!container) return;
+
+    const term = (searchTerm || '').toLowerCase().trim();
+    const filtered = TemplatesState.templates.filter(t => {
+        if (!term) return true;
+        return (t.name || '').toLowerCase().includes(term) ||
+               (t.category || '').toLowerCase().includes(term) ||
+               (t.description || '').toLowerCase().includes(term) ||
+               (t.content || '').toLowerCase().includes(term);
+    });
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: #999; font-size: 13px;">' +
+            (term ? 'Nenhum template encontrado para "' + escapeHtml(term) + '".' : 'Nenhum template cadastrado.') +
+            '</div>';
+        return;
+    }
+
+    const categoryLabels = { comercial: 'Comercial', campanha: 'Campanha', geral: 'Geral' };
+
+    container.innerHTML = filtered.map(t => {
+        const catLabel = categoryLabels[t.category] || t.category || 'Geral';
+        const catColor = t.category === 'comercial' ? '#023A8D' : (t.category === 'campanha' ? '#e67e22' : '#666');
+        const preview = (t.content || '').substring(0, 80).replace(/\n/g, ' ');
+        return '<div class="template-item" data-template-id="' + t.id + '" ' +
+               'style="padding: 10px 16px; cursor: pointer; border-bottom: 1px solid #f0f0f0; transition: background 0.15s;" ' +
+               'onmouseover="this.style.background=\'#f0f5ff\'" onmouseout="this.style.background=\'transparent\'">' +
+               '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">' +
+               '<span style="font-weight: 600; font-size: 13px; color: #333;">' + escapeHtml(t.name) + '</span>' +
+               '<span style="font-size: 10px; color: ' + catColor + '; background: ' + catColor + '15; padding: 2px 6px; border-radius: 4px; font-weight: 600;">' + escapeHtml(catLabel) + '</span>' +
+               '</div>' +
+               (t.description ? '<div style="font-size: 11px; color: #888; margin-bottom: 3px;">' + escapeHtml(t.description) + '</div>' : '') +
+               '<div style="font-size: 12px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + escapeHtml(preview) + (t.content && t.content.length > 80 ? '...' : '') + '</div>' +
+               '</div>';
+    }).join('');
+}
+
+/**
+ * Renderiza mensagem de erro no painel
+ */
+function renderTemplatesError(msg) {
+    const container = document.getElementById('templates-list');
+    if (container) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: #c33; font-size: 13px;">' + escapeHtml(msg) + '</div>';
+    }
+}
+
+/**
+ * Abre/fecha o painel de templates
+ */
+function toggleTemplatesPanel() {
+    const panel = document.getElementById('templates-panel');
+    const btn = document.getElementById('templates-btn');
+    if (!panel) return;
+
+    TemplatesState.isOpen = !TemplatesState.isOpen;
+
+    if (TemplatesState.isOpen) {
+        panel.style.display = 'flex';
+        panel.classList.add('is-open');
+        btn.style.background = '#e9ecef';
+        btn.style.borderColor = '#023A8D';
+        loadTemplates();
+        // Foca no campo de busca
+        setTimeout(() => {
+            const search = document.getElementById('templates-search');
+            if (search) search.focus();
+        }, 100);
+    } else {
+        closeTemplatesPanel();
+    }
+}
+
+/**
+ * Fecha o painel de templates
+ */
+function closeTemplatesPanel() {
+    const panel = document.getElementById('templates-panel');
+    const btn = document.getElementById('templates-btn');
+    if (panel) {
+        panel.style.display = 'none';
+        panel.classList.remove('is-open');
+    }
+    if (btn) {
+        btn.style.background = '#f8f9fa';
+        btn.style.borderColor = '#ddd';
+    }
+    TemplatesState.isOpen = false;
+    // Limpa busca
+    const search = document.getElementById('templates-search');
+    if (search) search.value = '';
+}
+
+/**
+ * Insere o conteúdo do template no textarea
+ */
+function insertTemplate(templateId) {
+    const template = TemplatesState.templates.find(t => t.id === templateId);
+    if (!template) return;
+
+    const messageInput = document.getElementById('message-input');
+    if (!messageInput) return;
+
+    // Se já tem texto, adiciona em nova linha; senão, substitui
+    const currentText = messageInput.value.trim();
+    if (currentText) {
+        messageInput.value = currentText + '\n\n' + template.content;
+    } else {
+        messageInput.value = template.content;
+    }
+
+    // Fecha o painel
+    closeTemplatesPanel();
+
+    // Foca no textarea e posiciona cursor no final
+    messageInput.focus();
+    messageInput.selectionStart = messageInput.selectionEnd = messageInput.value.length;
+
+    // Ajusta altura do textarea se necessário
+    messageInput.style.height = 'auto';
+    messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
+}
+
+// Registra handlers do painel de templates
+document.addEventListener('DOMContentLoaded', function() {
+    const templatesBtn = document.getElementById('templates-btn');
+    const templatesPanelClose = document.getElementById('templates-panel-close');
+    const templatesSearch = document.getElementById('templates-search');
+    const templatesList = document.getElementById('templates-list');
+
+    // Toggle do painel
+    if (templatesBtn) {
+        templatesBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleTemplatesPanel();
+        });
+    }
+
+    // Fechar painel
+    if (templatesPanelClose) {
+        templatesPanelClose.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeTemplatesPanel();
+        });
+    }
+
+    // Busca em tempo real
+    if (templatesSearch) {
+        templatesSearch.addEventListener('input', function() {
+            renderTemplatesList(this.value);
+        });
+        // Esc fecha o painel
+        templatesSearch.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeTemplatesPanel();
+                document.getElementById('message-input')?.focus();
+            }
+        });
+    }
+
+    // Click em template da lista (delegação de eventos)
+    if (templatesList) {
+        templatesList.addEventListener('click', function(e) {
+            const item = e.target.closest('.template-item');
+            if (item) {
+                const templateId = parseInt(item.dataset.templateId, 10);
+                if (templateId) {
+                    insertTemplate(templateId);
+                }
+            }
+        });
+    }
+
+    // Fecha painel ao clicar fora
+    document.addEventListener('click', function(e) {
+        if (TemplatesState.isOpen) {
+            const panel = document.getElementById('templates-panel');
+            const btn = document.getElementById('templates-btn');
+            if (panel && btn && !panel.contains(e.target) && !btn.contains(e.target)) {
+                closeTemplatesPanel();
+            }
+        }
+    });
+});
 
 // ============================================================================
 // Inicialização

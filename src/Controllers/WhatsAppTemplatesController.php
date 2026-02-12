@@ -301,6 +301,58 @@ class WhatsAppTemplatesController extends Controller
     }
 
     /**
+     * API: Retorna templates ativos com conteúdo completo (para painel de ações rápidas no chat)
+     * 
+     * GET /settings/whatsapp-templates/quick-replies?tenant_id=X
+     * 
+     * Se tenant_id for fornecido, as variáveis são pré-resolvidas.
+     * Caso contrário, retorna o conteúdo bruto com placeholders.
+     */
+    public function getQuickReplies(): void
+    {
+        Auth::requireInternal();
+
+        header('Content-Type: application/json; charset=utf-8');
+
+        $tenantId = isset($_GET['tenant_id']) ? (int) $_GET['tenant_id'] : 0;
+
+        $templates = WhatsAppTemplateService::getActiveTemplates();
+
+        // Se tem tenant_id, resolve variáveis
+        $vars = [];
+        if ($tenantId > 0) {
+            $db = DB::getConnection();
+            $stmt = $db->prepare("SELECT * FROM tenants WHERE id = ?");
+            $stmt->execute([$tenantId]);
+            $tenant = $stmt->fetch();
+
+            if ($tenant) {
+                $stmt = $db->prepare("SELECT * FROM hosting_accounts WHERE tenant_id = ? ORDER BY domain ASC");
+                $stmt->execute([$tenantId]);
+                $hostingAccounts = $stmt->fetchAll() ?: [];
+
+                $vars = WhatsAppTemplateService::prepareDefaultVariables($tenant, $hostingAccounts);
+            }
+        }
+
+        $result = array_map(function($template) use ($vars) {
+            $content = $template['content'] ?? '';
+            if (!empty($vars)) {
+                $content = WhatsAppTemplateService::renderContent($template, $vars);
+            }
+            return [
+                'id' => (int) $template['id'],
+                'name' => $template['name'],
+                'category' => $template['category'],
+                'description' => $template['description'] ?? '',
+                'content' => $content,
+            ];
+        }, $templates);
+
+        echo json_encode(['success' => true, 'templates' => $result]);
+    }
+
+    /**
      * API: Retorna dados para modal de WhatsApp no cliente
      * 
      * Aceita template_id opcional. Se não fornecido, retorna apenas dados do tenant.
