@@ -1318,6 +1318,9 @@ class AgendaController extends Controller
             if (array_key_exists('projeto_foco_id', $_POST)) {
                 $dados['projeto_foco_id'] = isset($_POST['projeto_foco_id']) && $_POST['projeto_foco_id'] !== '' ? (int)$_POST['projeto_foco_id'] : null;
             }
+            if (array_key_exists('activity_type_id', $_POST)) {
+                $dados['activity_type_id'] = isset($_POST['activity_type_id']) && $_POST['activity_type_id'] !== '' ? (int)$_POST['activity_type_id'] : null;
+            }
             
             // Horários reais (opcionais, apenas no formulário completo)
             if (isset($_POST['hora_inicio_real']) && $_POST['hora_inicio_real'] !== '') {
@@ -1342,6 +1345,8 @@ class AgendaController extends Controller
                         'tipo_cor' => $bloco['tipo_cor'] ?? null,
                         'projeto_foco_nome' => $bloco['projeto_foco_nome'] ?? null,
                         'focus_task_title' => $bloco['focus_task_title'] ?? null,
+                        'activity_type_id' => $bloco['activity_type_id'] ?? null,
+                        'activity_type_name' => $bloco['activity_type_name'] ?? null,
                     ],
                 ]);
                 return;

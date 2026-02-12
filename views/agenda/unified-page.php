@@ -479,7 +479,11 @@ $highlightBlockId = $expandBlockId ?? 0;
                             <span class="expand-icon"><?= $isExpanded ? '▾' : '▸' ?></span>
                         </button>
                         <div class="block-main">
-                            <a href="<?= $projetoUrl ?>" class="block-project-link" onclick="event.stopPropagation()"><?= htmlspecialchars($projetoNome) ?></a>
+                            <?php if (empty($bloco['projeto_foco_id'])): ?>
+                                <span class="inline-edit-atividade block-project-link" data-block-id="<?= (int)$bloco['id'] ?>" data-activity-type-id="<?= (int)($bloco['activity_type_id'] ?? 0) ?>" onclick="event.stopPropagation()" title="Clique para alterar a atividade" style="cursor:pointer;"><?= htmlspecialchars($projetoNome) ?></span>
+                            <?php else: ?>
+                                <a href="<?= $projetoUrl ?>" class="block-project-link" onclick="event.stopPropagation()"><?= htmlspecialchars($projetoNome) ?></a>
+                            <?php endif; ?>
                             <?php if (!empty($bloco['focus_task_title'])): ?>
                                 <?php if ($taskUrl): ?><a href="<?= $taskUrl ?>" class="block-task-link" onclick="event.stopPropagation()">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></a><?php else: ?><span class="block-task">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></span><?php endif; ?>
                             <?php endif; ?>
@@ -1409,6 +1413,100 @@ function initInlineEditTipo() {
     });
 }
 
+var _cachedActivityTypes = null;
+function initInlineEditAtividade() {
+    document.querySelectorAll('.inline-edit-atividade').forEach(span => {
+        if (span.dataset.atividadeInited) return;
+        span.dataset.atividadeInited = '1';
+        span.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const blockId = this.dataset.blockId;
+            const currentAtId = parseInt(this.dataset.activityTypeId) || 0;
+            const spanEl = this;
+            const row = this.closest('.block-row');
+            if (!row || !blockId) return;
+            
+            function renderSelect(types) {
+                const select = document.createElement('select');
+                select.className = 'inline-edit-tipo-select';
+                const optEmpty = document.createElement('option');
+                optEmpty.value = '';
+                optEmpty.textContent = 'Atividade avulsa';
+                select.appendChild(optEmpty);
+                types.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.id;
+                    opt.textContent = t.name;
+                    if (parseInt(t.id) === currentAtId) opt.selected = true;
+                    select.appendChild(opt);
+                });
+                
+                spanEl.style.display = 'none';
+                spanEl.parentNode.insertBefore(select, spanEl.nextSibling);
+                select.focus();
+                
+                const cleanup = () => {
+                    if (select.parentNode) select.remove();
+                    spanEl.style.display = '';
+                    spanEl.dataset.atividadeInited = '';
+                    initInlineEditAtividade();
+                };
+                const save = () => {
+                    const newAtId = select.value ? parseInt(select.value) : null;
+                    if ((newAtId || 0) === currentAtId) { cleanup(); return; }
+                    const fd = new FormData();
+                    fd.append('id', blockId);
+                    fd.append('activity_type_id', newAtId || '');
+                    fd.append('hora_inicio', row.dataset.horaInicio || '');
+                    fd.append('hora_fim', row.dataset.horaFim || '');
+                    fetch('<?= pixelhub_url('/agenda/bloco/editar') ?>', {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        body: fd
+                    })
+                    .then(r => r.json())
+                    .then(d => {
+                        if (d.success && d.bloco) {
+                            const newName = d.bloco.activity_type_name || select.options[select.selectedIndex].text || 'Atividade avulsa';
+                            spanEl.textContent = newName;
+                            spanEl.dataset.activityTypeId = d.bloco.activity_type_id || 0;
+                            cleanup();
+                        } else {
+                            alert(d.error || 'Erro ao salvar');
+                            cleanup();
+                        }
+                    })
+                    .catch(() => { alert('Erro ao salvar'); cleanup(); });
+                };
+                select.addEventListener('change', save);
+                select.addEventListener('blur', function() { setTimeout(cleanup, 150); });
+                select.addEventListener('keydown', function(ev) {
+                    if (ev.key === 'Escape') { ev.preventDefault(); cleanup(); }
+                });
+            }
+            
+            if (_cachedActivityTypes) {
+                renderSelect(_cachedActivityTypes);
+            } else {
+                spanEl.textContent = 'Carregando...';
+                fetch('<?= pixelhub_url('/agenda/activity-types') ?>')
+                    .then(r => r.json())
+                    .then(d => {
+                        if (d.success && d.types) {
+                            _cachedActivityTypes = d.types;
+                            spanEl.textContent = spanEl.dataset.activityTypeId > 0 ? '' : 'Atividade avulsa';
+                            renderSelect(d.types);
+                        } else {
+                            alert('Erro ao carregar tipos de atividade');
+                            spanEl.dataset.atividadeInited = '';
+                        }
+                    })
+                    .catch(() => { alert('Erro ao carregar tipos'); spanEl.dataset.atividadeInited = ''; });
+            }
+        });
+    });
+}
+
 function toggleBlockExpand(blockId) {
     const el = document.getElementById('block-expand-' + blockId);
     if (!el) return;
@@ -1776,6 +1874,7 @@ function generateBlocks() {
 document.addEventListener('DOMContentLoaded', function() {
     initInlineEditTime();
     initInlineEditTipo();
+    initInlineEditAtividade();
     const qaProject = document.getElementById('quick-add-project');
     const qaTaskSelect = document.getElementById('quick-add-task-select');
     const qaTaskId = document.getElementById('quick-add-task-id');

@@ -417,6 +417,7 @@ class AgendaService
         $horaFim = isset($dados['hora_fim']) ? trim($dados['hora_fim']) : $bloco['hora_fim'];
         $tipoId = isset($dados['tipo_id']) && (int)$dados['tipo_id'] > 0 ? (int)$dados['tipo_id'] : (int)$bloco['tipo_id'];
         $projetoFocoId = isset($dados['projeto_foco_id']) ? ($dados['projeto_foco_id'] ? (int)$dados['projeto_foco_id'] : null) : $bloco['projeto_foco_id'];
+        $activityTypeId = array_key_exists('activity_type_id', $dados) ? ($dados['activity_type_id'] ? (int)$dados['activity_type_id'] : null) : ($bloco['activity_type_id'] ?? null);
         
         // Verifica se o tipo existe (evita erro de FK)
         $stmt = $db->prepare("SELECT id FROM agenda_block_types WHERE id = ?");
@@ -463,8 +464,8 @@ class AgendaService
         $horaFimReal = isset($dados['hora_fim_real']) && $dados['hora_fim_real'] !== '' ? trim($dados['hora_fim_real']) : null;
         
         // Monta query dinamicamente para incluir horários reais e projeto_foco se fornecidos
-        $fields = ['hora_inicio = ?', 'hora_fim = ?', 'tipo_id = ?', 'projeto_foco_id = ?', 'duracao_planejada = ?', 'updated_at = NOW()'];
-        $values = [$horaInicio, $horaFim, $tipoId, $projetoFocoId, $duracaoMinutos];
+        $fields = ['hora_inicio = ?', 'hora_fim = ?', 'tipo_id = ?', 'projeto_foco_id = ?', 'activity_type_id = ?', 'duracao_planejada = ?', 'updated_at = NOW()'];
+        $values = [$horaInicio, $horaFim, $tipoId, $projetoFocoId, $activityTypeId, $duracaoMinutos];
         
         if ($horaInicioReal !== null) {
             $fields[] = 'hora_inicio_real = ?';
