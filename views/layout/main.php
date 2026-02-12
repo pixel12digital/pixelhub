@@ -3778,7 +3778,64 @@
         };
         window.inboxOpenEditContactNameModal = function(convId, name) {
             if (typeof openEditContactNameModal === 'function') { openEditContactNameModal(convId, name); return; }
-            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+            // Inline modal para editar nome no Inbox
+            let modal = document.getElementById('inboxEditNameModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'inboxEditNameModal';
+                modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:100010;';
+                modal.innerHTML = `
+                    <div style="background:#fff;border-radius:12px;padding:24px;width:360px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+                        <h3 style="margin:0 0 16px;font-size:16px;color:#1a1a2e;">Editar nome do contato</h3>
+                        <input type="hidden" id="inboxEditNameConvId">
+                        <input type="text" id="inboxEditNameInput" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;" placeholder="Nome do contato">
+                        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+                            <button type="button" onclick="document.getElementById('inboxEditNameModal').style.display='none'" style="padding:8px 16px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;">Cancelar</button>
+                            <button type="button" onclick="inboxSaveContactName()" style="padding:8px 16px;border:none;border-radius:8px;background:#023A8D;color:#fff;cursor:pointer;font-size:13px;">Salvar</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(modal);
+                modal.addEventListener('click', function(e) { if (e.target === modal) modal.style.display = 'none'; });
+            }
+            document.getElementById('inboxEditNameConvId').value = convId;
+            document.getElementById('inboxEditNameInput').value = name || '';
+            modal.style.display = 'flex';
+            setTimeout(() => { const inp = document.getElementById('inboxEditNameInput'); if (inp) { inp.focus(); inp.select(); } }, 100);
+        };
+        window.inboxSaveContactName = async function() {
+            const convId = document.getElementById('inboxEditNameConvId').value;
+            const newName = (document.getElementById('inboxEditNameInput').value || '').trim();
+            if (!newName) { alert('Nome é obrigatório'); return; }
+            try {
+                const res = await fetch(INBOX_BASE_URL + '/communication-hub/conversation/update-contact-name', {
+                    method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'same-origin',
+                    body: JSON.stringify({ conversation_id: parseInt(convId), contact_name: newName })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    document.getElementById('inboxEditNameModal').style.display = 'none';
+                    // Atualiza header se é a conversa ativa
+                    const header = document.getElementById('inboxChatHeader');
+                    if (header) {
+                        const h3 = header.querySelector('h3');
+                        if (h3) h3.textContent = newName;
+                        const avatar = header.querySelector('.chat-avatar');
+                        if (avatar) avatar.textContent = newName.charAt(0).toUpperCase();
+                    }
+                    // Atualiza nome na lista de conversas
+                    const convEl = document.querySelector('.inbox-drawer-conversation[data-conversation-id="' + convId + '"]');
+                    if (convEl) {
+                        const nameEl = convEl.querySelector('.conv-name');
+                        if (nameEl) nameEl.textContent = newName;
+                    }
+                    if (typeof loadInboxConversations === 'function') loadInboxConversations();
+                } else {
+                    alert('Erro: ' + (result.error || 'Erro desconhecido'));
+                }
+            } catch (err) {
+                console.error('[Inbox] Erro ao atualizar nome:', err);
+                alert('Erro ao atualizar nome do contato');
+            }
         };
         window.inboxOpenChangeTenantModal = function(convId, name, tenantId, tenantName) {
             if (typeof openChangeTenantModal === 'function') { openChangeTenantModal(convId, name, tenantId, tenantName); return; }
@@ -4172,6 +4229,17 @@
             return html;
         }
         
+        function formatWhatsAppText(text) {
+            if (!text) return '';
+            let s = escapeInboxHtml(text);
+            s = s.replace(/```([\s\S]*?)```/g, '<code>$1</code>');
+            s = s.replace(/\*([^*\n]+)\*/g, '<b>$1</b>');
+            s = s.replace(/(?<![\w])_([^_\n]+)_(?![\w])/g, '<i>$1</i>');
+            s = s.replace(/~([^~\n]+)~/g, '<s>$1</s>');
+            s = s.replace(/\n/g, '<br>');
+            return s;
+        }
+        
         function renderInboxHeader(thread) {
             const header = document.getElementById('inboxChatHeader');
             if (!header) return;
@@ -4257,11 +4325,11 @@
                     // Se tem legenda (caption), adiciona abaixo - igual ao Painel
                     const isAudioPlaceholder = content && /^\[(?:Á|A)udio\]$/i.test(content.trim());
                     if (content && content.trim() && !(mediaType && (mediaType === 'audio' || mediaType === 'ptt' || mediaType === 'voice') && isAudioPlaceholder)) {
-                        renderedContent += `<div style="margin-top: 6px;">${escapeInboxHtml(content)}</div>`;
+                        renderedContent += `<div style="margin-top: 6px;">${formatWhatsAppText(content)}</div>`;
                     }
                 } else if (content && content.trim()) {
                     // Só texto
-                    renderedContent = escapeInboxHtml(content);
+                    renderedContent = formatWhatsAppText(content);
                 } else {
                     // CORREÇÃO: Para mensagens outbound sem conteúdo e sem mídia,
                     // não renderiza a bolha (duplicata do webhook).

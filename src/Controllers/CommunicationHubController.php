@@ -1802,6 +1802,17 @@ class CommunicationHubController extends Controller
                         $stage = 'persist_message';
                         error_log('[CommunicationHub::send] STAGE=' . $stage);
                         
+                        // Resolve nome do contato (tenant) para incluir no evento outbound
+                        $contactNameForEvent = null;
+                        if ($tenantId) {
+                            try {
+                                $tnStmt = $db->prepare("SELECT name FROM tenants WHERE id = ? LIMIT 1");
+                                $tnStmt->execute([$tenantId]);
+                                $tnRow = $tnStmt->fetch(\PDO::FETCH_ASSOC);
+                                if ($tnRow) $contactNameForEvent = $tnRow['name'];
+                            } catch (\Exception $e) { /* ignora */ }
+                        }
+                        
                         // Cria evento de envio para este canal
                         $eventPayload = [
                             'to' => $phoneNormalized,
@@ -1809,6 +1820,9 @@ class CommunicationHubController extends Controller
                             'channel_id' => $targetChannelId,
                             'type' => $messageType
                         ];
+                        if ($contactNameForEvent) {
+                            $eventPayload['contact_name'] = $contactNameForEvent;
+                        }
                         
                         if ($messageType === 'audio') {
                             $eventPayload['message'] = [
@@ -4309,7 +4323,7 @@ class CommunicationHubController extends Controller
                     'tenant_id' => $conversation['tenant_id'],
                     'tenant_name' => $conversation['tenant_name'],
                     'contact' => ContactHelper::formatContactId($conversation['contact_external_id'], $realPhone),
-                    'contact_name' => $conversation['contact_name'],
+                    'contact_name' => $conversation['contact_name'] ?: ($conversation['tenant_name'] ?: null),
                     'channel' => 'whatsapp',
                     'channel_id' => $channelId,
                     'status' => $conversation['status'],

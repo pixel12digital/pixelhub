@@ -342,6 +342,13 @@ class ConversationService
                     ?? null;
                 
                 error_log('[CONVERSATION UPSERT] extractChannelInfo: OUTBOUND extraction - to/remoteJid result: ' . ($rawFrom ?: 'NULL'));
+                
+                // Para outbound, tenta extrair nome do contato do payload (ex: nome do tenant)
+                $contactName = $payload['notifyName']
+                    ?? $payload['contact_name']
+                    ?? $payload['message']['notifyName']
+                    ?? $payload['raw']['payload']['notifyName']
+                    ?? null;
             }
             
             error_log('[CONVERSATION UPSERT] extractChannelInfo: WhatsApp ' . $direction . ' - rawFrom: ' . ($rawFrom ?: 'NULL'));
