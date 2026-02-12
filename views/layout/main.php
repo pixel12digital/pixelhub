@@ -641,8 +641,9 @@
             display: flex;
             align-items: flex-end;
             gap: 12px;
-            overflow: hidden;
+            overflow: visible;
             min-width: 0;
+            position: relative;
         }
         .inbox-drawer-input textarea {
             flex: 1;
@@ -2162,7 +2163,7 @@
                                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
                             </svg>
                         </button>
-                        <div id="inboxTemplatesPanel" style="display: none; position: absolute; bottom: 48px; left: 0; width: 360px; max-height: 380px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.18); z-index: 200; overflow: hidden; flex-direction: column;">
+                        <div id="inboxTemplatesPanel" style="display: none; position: fixed; bottom: 70px; width: 360px; max-height: 380px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.18); z-index: 1100; overflow: hidden; flex-direction: column;">
                             <div style="padding: 10px 14px; border-bottom: 1px solid #eee; background: #f8f9fa; border-radius: 12px 12px 0 0;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                     <span style="font-weight: 700; font-size: 13px; color: #333;">Templates</span>
@@ -2617,10 +2618,15 @@
         // ===== TEMPLATES / RESPOSTAS RÁPIDAS NO INBOX =====
         const InboxTemplatesState = { templates: [], isLoaded: false, isLoading: false, isOpen: false };
 
-        async function loadInboxTemplates() {
-            if (InboxTemplatesState.isLoaded || InboxTemplatesState.isLoading) return;
+        async function loadInboxTemplates(targetContainerId) {
+            targetContainerId = targetContainerId || 'inboxTemplatesList';
+            // Se já carregou, apenas re-renderiza no container alvo
+            if (InboxTemplatesState.isLoaded) {
+                renderInboxTemplatesList('', targetContainerId);
+                return;
+            }
+            if (InboxTemplatesState.isLoading) return;
             InboxTemplatesState.isLoading = true;
-            const tenantId = InboxState.currentThreadId ? '' : '';
             const url = INBOX_BASE_URL + '/settings/whatsapp-templates/quick-replies';
             try {
                 const res = await fetch(url);
@@ -2628,13 +2634,13 @@
                 if (data.success && Array.isArray(data.templates)) {
                     InboxTemplatesState.templates = data.templates;
                     InboxTemplatesState.isLoaded = true;
-                    renderInboxTemplatesList('', 'inboxTemplatesList');
+                    renderInboxTemplatesList('', targetContainerId);
                 } else {
-                    setInboxTemplatesError('Nenhum template encontrado.', 'inboxTemplatesList');
+                    setInboxTemplatesError('Nenhum template encontrado.', targetContainerId);
                 }
             } catch (err) {
                 console.error('[InboxTemplates] Erro:', err);
-                setInboxTemplatesError('Erro ao carregar templates.', 'inboxTemplatesList');
+                setInboxTemplatesError('Erro ao carregar templates.', targetContainerId);
             } finally {
                 InboxTemplatesState.isLoading = false;
             }
@@ -2678,11 +2684,18 @@
 
         window.toggleInboxTemplatesPanel = function() {
             var panel = document.getElementById('inboxTemplatesPanel');
+            var btn = document.getElementById('inboxBtnTemplates');
             if (!panel) return;
             InboxTemplatesState.isOpen = !InboxTemplatesState.isOpen;
             if (InboxTemplatesState.isOpen) {
+                // Posiciona o painel acima do botão usando coordenadas fixas
+                if (btn) {
+                    var rect = btn.getBoundingClientRect();
+                    panel.style.left = rect.left + 'px';
+                    panel.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+                }
                 panel.style.display = 'flex';
-                loadInboxTemplates();
+                loadInboxTemplates('inboxTemplatesList');
                 setTimeout(function() { var s = document.getElementById('inboxTemplatesSearch'); if (s) s.focus(); }, 80);
             } else {
                 closeInboxTemplatesPanel();
@@ -2759,12 +2772,8 @@
             window._newMsgTplOpen = !window._newMsgTplOpen;
             if (window._newMsgTplOpen) {
                 panel.style.display = 'flex';
-                loadInboxTemplates(); // Reutiliza o mesmo cache
-                setTimeout(function() {
-                    renderInboxTemplatesList('', 'newMsgTemplatesList');
-                    var s = document.getElementById('newMsgTemplatesSearch');
-                    if (s) s.focus();
-                }, 80);
+                loadInboxTemplates('newMsgTemplatesList');
+                setTimeout(function() { var s = document.getElementById('newMsgTemplatesSearch'); if (s) s.focus(); }, 80);
             } else {
                 closeNewMsgTemplatesPanel();
             }
