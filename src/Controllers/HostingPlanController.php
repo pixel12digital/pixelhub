@@ -54,6 +54,7 @@ class HostingPlanController extends Controller
         $db = DB::getConnection();
 
         $name = trim($_POST['name'] ?? '');
+        $provider = trim($_POST['provider'] ?? '');
         $rawAmount = $_POST['amount'] ?? '0';
         $billingCycle = $_POST['billing_cycle'] ?? 'mensal';
         $description = trim($_POST['description'] ?? '');
@@ -65,6 +66,11 @@ class HostingPlanController extends Controller
         // Validações
         if (empty($name)) {
             $this->redirect('/hosting-plans/create?error=missing_name');
+            return;
+        }
+
+        if (empty($provider) || !in_array($provider, ['hostmedia', 'vercel'], true)) {
+            $this->redirect('/hosting-plans/create?error=missing_provider');
             return;
         }
 
@@ -92,13 +98,14 @@ class HostingPlanController extends Controller
         try {
             $stmt = $db->prepare("
                 INSERT INTO hosting_plans 
-                (name, amount, billing_cycle, annual_enabled, annual_monthly_amount, annual_total_amount, 
+                (name, provider, amount, billing_cycle, annual_enabled, annual_monthly_amount, annual_total_amount, 
                  description, is_active, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             ");
 
             $stmt->execute([
                 $name,
+                $provider,
                 $amount,
                 $billingCycle,
                 $annualEnabled,
@@ -155,6 +162,7 @@ class HostingPlanController extends Controller
 
         $planId = isset($_POST['id']) ? (int) $_POST['id'] : 0;
         $name = trim($_POST['name'] ?? '');
+        $provider = trim($_POST['provider'] ?? '');
         $rawAmount = $_POST['amount'] ?? '0';
         $billingCycle = $_POST['billing_cycle'] ?? 'mensal';
         $description = trim($_POST['description'] ?? '');
@@ -170,6 +178,11 @@ class HostingPlanController extends Controller
 
         if (empty($name)) {
             $this->redirect('/hosting-plans/edit?id=' . $planId . '&error=missing_name');
+            return;
+        }
+
+        if (empty($provider) || !in_array($provider, ['hostmedia', 'vercel'], true)) {
+            $this->redirect('/hosting-plans/edit?id=' . $planId . '&error=missing_provider');
             return;
         }
 
@@ -197,7 +210,7 @@ class HostingPlanController extends Controller
         try {
             $stmt = $db->prepare("
                 UPDATE hosting_plans 
-                SET name = ?, amount = ?, billing_cycle = ?, annual_enabled = ?, 
+                SET name = ?, provider = ?, amount = ?, billing_cycle = ?, annual_enabled = ?, 
                     annual_monthly_amount = ?, annual_total_amount = ?, 
                     description = ?, is_active = ?, updated_at = NOW()
                 WHERE id = ?
@@ -205,6 +218,7 @@ class HostingPlanController extends Controller
 
             $stmt->execute([
                 $name,
+                $provider,
                 $amount,
                 $billingCycle,
                 $annualEnabled,

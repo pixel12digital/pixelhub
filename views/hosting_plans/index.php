@@ -57,6 +57,7 @@ ob_start();
         <thead>
             <tr style="background: #f5f5f5;">
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Nome</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Provedor</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Valor</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ciclo</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Status</th>
@@ -66,7 +67,7 @@ ob_start();
         <tbody>
             <?php if (empty($plans)): ?>
                 <tr>
-                    <td colspan="5" style="padding: 20px; text-align: center; color: #666;">
+                    <td colspan="6" style="padding: 20px; text-align: center; color: #666;">
                         Nenhum plano cadastrado.
                     </td>
                 </tr>
@@ -75,6 +76,13 @@ ob_start();
                 <tr>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?= htmlspecialchars($plan['name']) ?>
+                    </td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                        <?php
+                        $providerLabels = ['hostmedia' => 'HostMedia', 'vercel' => 'Vercel'];
+                        $prov = $plan['provider'] ?? '';
+                        echo htmlspecialchars($providerLabels[$prov] ?? ($prov ?: '—'));
+                        ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?php if (!empty($plan['annual_enabled']) && !empty($plan['annual_total_amount']) && !empty($plan['annual_monthly_amount'])): ?>

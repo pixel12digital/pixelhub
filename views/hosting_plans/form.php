@@ -15,6 +15,7 @@ $plan = $plan ?? null;
             <?php
             $error = $_GET['error'];
             if ($error === 'missing_name') echo 'Nome do plano é obrigatório.';
+            elseif ($error === 'missing_provider') echo 'Selecione um provedor.';
             elseif ($error === 'invalid_amount') echo 'Valor mensal inválido.';
             elseif ($error === 'invalid_annual_amount') echo 'Valores anuais inválidos. Preencha ambos os campos quando ativar o plano anual.';
             elseif ($error === 'database_error') echo 'Erro ao salvar no banco de dados.';
@@ -36,6 +37,16 @@ $plan = $plan ?? null;
                    value="<?= htmlspecialchars($plan['name'] ?? '') ?>" 
                    placeholder="ex: Hospedagem Pixel 49,90"
                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label for="provider" style="display: block; margin-bottom: 5px; font-weight: 600;">Provedor *</label>
+            <select id="provider" name="provider" required
+                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <option value="">Selecione o provedor</option>
+                <option value="hostmedia" <?= (isset($plan) && ($plan['provider'] ?? '') === 'hostmedia') ? 'selected' : '' ?>>HostMedia</option>
+                <option value="vercel" <?= (isset($plan) && ($plan['provider'] ?? '') === 'vercel') ? 'selected' : '' ?>>Vercel</option>
+            </select>
         </div>
 
         <!-- Configuração Mensal -->

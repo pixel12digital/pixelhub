@@ -23,11 +23,12 @@ class HostingController extends Controller
 
         $db = DB::getConnection();
 
-        // Busca todos os hosting accounts com dados do tenant
+        // Busca todos os hosting accounts com dados do tenant e provedor do plano
         $stmt = $db->query("
-            SELECT ha.*, t.name as tenant_name
+            SELECT ha.*, t.name as tenant_name, hp.provider as plan_provider
             FROM hosting_accounts ha
             INNER JOIN tenants t ON ha.tenant_id = t.id
+            LEFT JOIN hosting_plans hp ON ha.hosting_plan_id = hp.id
             ORDER BY ha.created_at DESC
         ");
         $hostingAccounts = $stmt->fetchAll();
