@@ -574,6 +574,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/settings/whatsapp-templates/categories/update', 'WhatsAppTemplatesController@updateCategory');
     $router->post('/settings/whatsapp-templates/categories/delete', 'WhatsAppTemplatesController@deleteCategory');
     $router->get('/settings/whatsapp-templates/categories/ajax', 'WhatsAppTemplatesController@getCategoriesAjax');
+    $router->post('/settings/whatsapp-templates/categories/reorder', 'WhatsAppTemplatesController@reorderCategories');
 
     // Rotas de Configurações - Cláusulas de Contrato
     $router->get('/settings/contract-clauses', 'ContractClausesController@index');

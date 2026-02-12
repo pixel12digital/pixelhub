@@ -694,6 +694,45 @@ class WhatsAppTemplatesController extends Controller
     }
 
     /**
+     * API: Salva ordem e hierarquia das categorias (AJAX, após drag-and-drop)
+     * 
+     * POST body JSON: { items: [ { id, parent_id, sort_order }, ... ] }
+     */
+    public function reorderCategories(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $items = $input['items'] ?? [];
+
+        if (empty($items)) {
+            echo json_encode(['success' => false, 'error' => 'Nenhum item recebido']);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            $stmt = $db->prepare("UPDATE whatsapp_template_categories SET parent_id = ?, sort_order = ?, updated_at = NOW() WHERE id = ?");
+
+            foreach ($items as $item) {
+                $id = (int) ($item['id'] ?? 0);
+                $parentId = isset($item['parent_id']) && $item['parent_id'] !== null && $item['parent_id'] !== '' ? (int) $item['parent_id'] : null;
+                $sortOrder = (int) ($item['sort_order'] ?? 0);
+
+                if ($id <= 0) continue;
+                $stmt->execute([$parentId, $sortOrder, $id]);
+            }
+
+            echo json_encode(['success' => true]);
+        } catch (\Exception $e) {
+            error_log("[WhatsAppTemplates] Erro ao reordenar categorias: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'Erro ao salvar ordem']);
+        }
+    }
+
+    /**
      * API: Retorna árvore de categorias (AJAX)
      */
     public function getCategoriesAjax(): void
