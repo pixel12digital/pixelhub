@@ -44,7 +44,7 @@ $plan = $plan ?? null;
             <select id="provider" name="provider" required
                     style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                 <option value="">Selecione o provedor</option>
-                <option value="hostmedia" <?= (isset($plan) && ($plan['provider'] ?? '') === 'hostmedia') ? 'selected' : '' ?>>HostMedia</option>
+                <option value="hostmedia" <?= (isset($plan) && ($plan['provider'] ?? '') === 'hostmedia') ? 'selected' : '' ?>>HostMídia</option>
                 <option value="vercel" <?= (isset($plan) && ($plan['provider'] ?? '') === 'vercel') ? 'selected' : '' ?>>Vercel</option>
             </select>
         </div>

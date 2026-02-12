@@ -63,7 +63,7 @@ $providerMap = $providerMap ?? [];
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?php
-                        $providerLabels = ['hostmedia' => 'HostMedia', 'vercel' => 'Vercel'];
+                        $providerLabels = ['hostmedia' => 'HostMídia', 'vercel' => 'Vercel'];
                         $planProvider = $hostingAccount['plan_provider'] ?? '';
                         echo htmlspecialchars($providerLabels[$planProvider] ?? ($planProvider ?: '—'));
                         ?>
