@@ -224,8 +224,8 @@
         .inbox-drawer {
             position: fixed;
             top: 0;
-            right: -850px;
-            width: 850px;
+            right: -55vw;
+            width: 55vw;
             max-width: 95vw;
             height: 100vh;
             background: #fff;
@@ -2155,6 +2155,26 @@
                             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
                         </svg>
                     </button>
+                    <!-- Botão Templates / Respostas Rápidas -->
+                    <div style="position: relative;">
+                        <button type="button" class="inbox-media-btn" id="inboxBtnTemplates" onclick="toggleInboxTemplatesPanel()" title="Templates e respostas rápidas">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                            </svg>
+                        </button>
+                        <div id="inboxTemplatesPanel" style="display: none; position: absolute; bottom: 48px; left: 0; width: 360px; max-height: 380px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.18); z-index: 200; overflow: hidden; flex-direction: column;">
+                            <div style="padding: 10px 14px; border-bottom: 1px solid #eee; background: #f8f9fa; border-radius: 12px 12px 0 0;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <span style="font-weight: 700; font-size: 13px; color: #333;">Templates</span>
+                                    <button type="button" onclick="closeInboxTemplatesPanel()" style="background: none; border: none; cursor: pointer; padding: 2px; color: #999; font-size: 16px; line-height: 1;" title="Fechar">&times;</button>
+                                </div>
+                                <input type="text" id="inboxTemplatesSearch" placeholder="Buscar template..." autocomplete="off" style="width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
+                            </div>
+                            <div id="inboxTemplatesList" style="overflow-y: auto; max-height: 280px; padding: 4px 0;">
+                                <div style="padding: 16px; text-align: center; color: #999; font-size: 12px;">Carregando templates...</div>
+                            </div>
+                        </div>
+                    </div>
                     <textarea id="inboxMessageInput" rows="1" placeholder="Digite sua mensagem ou cole uma imagem (Ctrl+V)..." autocomplete="nope" data-lpignore="true" data-1p-ignore data-form-type="other" onkeydown="handleInboxInputKeypress(event)" oninput="autoResizeInboxTextarea(this); updateInboxSendMicVisibility()"></textarea>
                     <button type="button" class="inbox-media-btn" id="inboxBtnMic" onclick="startInboxRecording()" title="Gravar áudio">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2594,6 +2614,192 @@
         const INBOX_MAX_RECORDING_MS = 120000; // 2 min
         const INBOX_MIN_AUDIO_BYTES = 2000;
         
+        // ===== TEMPLATES / RESPOSTAS RÁPIDAS NO INBOX =====
+        const InboxTemplatesState = { templates: [], isLoaded: false, isLoading: false, isOpen: false };
+
+        async function loadInboxTemplates() {
+            if (InboxTemplatesState.isLoaded || InboxTemplatesState.isLoading) return;
+            InboxTemplatesState.isLoading = true;
+            const tenantId = InboxState.currentThreadId ? '' : '';
+            const url = INBOX_BASE_URL + '/settings/whatsapp-templates/quick-replies';
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.success && Array.isArray(data.templates)) {
+                    InboxTemplatesState.templates = data.templates;
+                    InboxTemplatesState.isLoaded = true;
+                    renderInboxTemplatesList('', 'inboxTemplatesList');
+                } else {
+                    setInboxTemplatesError('Nenhum template encontrado.', 'inboxTemplatesList');
+                }
+            } catch (err) {
+                console.error('[InboxTemplates] Erro:', err);
+                setInboxTemplatesError('Erro ao carregar templates.', 'inboxTemplatesList');
+            } finally {
+                InboxTemplatesState.isLoading = false;
+            }
+        }
+
+        function renderInboxTemplatesList(searchTerm, containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const term = (searchTerm || '').toLowerCase().trim();
+            const filtered = InboxTemplatesState.templates.filter(function(t) {
+                if (!term) return true;
+                return (t.name || '').toLowerCase().includes(term) ||
+                       (t.category || '').toLowerCase().includes(term) ||
+                       (t.description || '').toLowerCase().includes(term) ||
+                       (t.content || '').toLowerCase().includes(term);
+            });
+            if (filtered.length === 0) {
+                container.innerHTML = '<div style="padding: 16px; text-align: center; color: #999; font-size: 12px;">' +
+                    (term ? 'Nenhum resultado para "' + term + '".' : 'Nenhum template cadastrado.') + '</div>';
+                return;
+            }
+            var catLabels = { comercial: 'Comercial', campanha: 'Campanha', geral: 'Geral' };
+            container.innerHTML = filtered.map(function(t) {
+                var catLabel = catLabels[t.category] || t.category || 'Geral';
+                var catColor = t.category === 'comercial' ? '#023A8D' : (t.category === 'campanha' ? '#e67e22' : '#666');
+                var preview = (t.content || '').substring(0, 70).replace(/\n/g, ' ');
+                return '<div class="inbox-tpl-item" data-tpl-id="' + t.id + '" style="padding: 8px 14px; cursor: pointer; border-bottom: 1px solid #f0f0f0; transition: background 0.15s;" onmouseover="this.style.background=\'#f0f5ff\'" onmouseout="this.style.background=\'transparent\'">' +
+                    '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">' +
+                    '<span style="font-weight: 600; font-size: 12px; color: #333;">' + escapeInboxHtml(t.name) + '</span>' +
+                    '<span style="font-size: 9px; color: ' + catColor + '; background: ' + catColor + '15; padding: 1px 5px; border-radius: 3px; font-weight: 600;">' + escapeInboxHtml(catLabel) + '</span>' +
+                    '</div>' +
+                    '<div style="font-size: 11px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + escapeInboxHtml(preview) + (t.content && t.content.length > 70 ? '...' : '') + '</div>' +
+                    '</div>';
+            }).join('');
+        }
+
+        function setInboxTemplatesError(msg, containerId) {
+            var c = document.getElementById(containerId);
+            if (c) c.innerHTML = '<div style="padding: 16px; text-align: center; color: #c33; font-size: 12px;">' + msg + '</div>';
+        }
+
+        window.toggleInboxTemplatesPanel = function() {
+            var panel = document.getElementById('inboxTemplatesPanel');
+            if (!panel) return;
+            InboxTemplatesState.isOpen = !InboxTemplatesState.isOpen;
+            if (InboxTemplatesState.isOpen) {
+                panel.style.display = 'flex';
+                loadInboxTemplates();
+                setTimeout(function() { var s = document.getElementById('inboxTemplatesSearch'); if (s) s.focus(); }, 80);
+            } else {
+                closeInboxTemplatesPanel();
+            }
+        };
+
+        window.closeInboxTemplatesPanel = function() {
+            var panel = document.getElementById('inboxTemplatesPanel');
+            if (panel) panel.style.display = 'none';
+            InboxTemplatesState.isOpen = false;
+            var s = document.getElementById('inboxTemplatesSearch');
+            if (s) s.value = '';
+        };
+
+        // Busca em tempo real no painel do Inbox
+        document.addEventListener('DOMContentLoaded', function() {
+            var search = document.getElementById('inboxTemplatesSearch');
+            if (search) {
+                search.addEventListener('input', function() { renderInboxTemplatesList(this.value, 'inboxTemplatesList'); });
+                search.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closeInboxTemplatesPanel(); document.getElementById('inboxMessageInput')?.focus(); } });
+            }
+            // Delegação de clique nos itens do painel Inbox
+            var list = document.getElementById('inboxTemplatesList');
+            if (list) {
+                list.addEventListener('click', function(e) {
+                    var item = e.target.closest('.inbox-tpl-item');
+                    if (item) {
+                        var tplId = parseInt(item.dataset.tplId, 10);
+                        var tpl = InboxTemplatesState.templates.find(function(t) { return t.id === tplId; });
+                        if (tpl) {
+                            insertInboxTemplate(tpl.content, 'inboxMessageInput');
+                            closeInboxTemplatesPanel();
+                        }
+                    }
+                });
+            }
+            // Fecha painel ao clicar fora
+            document.addEventListener('click', function(e) {
+                if (InboxTemplatesState.isOpen) {
+                    var panel = document.getElementById('inboxTemplatesPanel');
+                    var btn = document.getElementById('inboxBtnTemplates');
+                    if (panel && btn && !panel.contains(e.target) && !btn.contains(e.target)) {
+                        closeInboxTemplatesPanel();
+                    }
+                }
+                if (window._newMsgTplOpen) {
+                    var panel2 = document.getElementById('newMsgTemplatesPanel');
+                    var btn2 = document.getElementById('newMsgBtnTemplates');
+                    if (panel2 && btn2 && !panel2.contains(e.target) && !btn2.contains(e.target)) {
+                        closeNewMsgTemplatesPanel();
+                    }
+                }
+            });
+        });
+
+        function insertInboxTemplate(content, textareaId) {
+            var ta = document.getElementById(textareaId);
+            if (!ta || !content) return;
+            var cur = ta.value.trim();
+            ta.value = cur ? cur + '\n\n' + content : content;
+            ta.focus();
+            ta.selectionStart = ta.selectionEnd = ta.value.length;
+            // Auto-resize
+            if (typeof autoResizeInboxTextarea === 'function') autoResizeInboxTextarea(ta);
+            if (typeof updateInboxSendMicVisibility === 'function') updateInboxSendMicVisibility();
+        }
+
+        // ===== TEMPLATES NO MODAL NOVA MENSAGEM =====
+        window._newMsgTplOpen = false;
+
+        window.toggleNewMsgTemplatesPanel = function() {
+            var panel = document.getElementById('newMsgTemplatesPanel');
+            if (!panel) return;
+            window._newMsgTplOpen = !window._newMsgTplOpen;
+            if (window._newMsgTplOpen) {
+                panel.style.display = 'flex';
+                loadInboxTemplates(); // Reutiliza o mesmo cache
+                setTimeout(function() {
+                    renderInboxTemplatesList('', 'newMsgTemplatesList');
+                    var s = document.getElementById('newMsgTemplatesSearch');
+                    if (s) s.focus();
+                }, 80);
+            } else {
+                closeNewMsgTemplatesPanel();
+            }
+        };
+
+        window.closeNewMsgTemplatesPanel = function() {
+            var panel = document.getElementById('newMsgTemplatesPanel');
+            if (panel) panel.style.display = 'none';
+            window._newMsgTplOpen = false;
+            var s = document.getElementById('newMsgTemplatesSearch');
+            if (s) s.value = '';
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var search = document.getElementById('newMsgTemplatesSearch');
+            if (search) {
+                search.addEventListener('input', function() { renderInboxTemplatesList(this.value, 'newMsgTemplatesList'); });
+                search.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closeNewMsgTemplatesPanel(); document.getElementById('new-message-text')?.focus(); } });
+            }
+            var list = document.getElementById('newMsgTemplatesList');
+            if (list) {
+                list.addEventListener('click', function(e) {
+                    var item = e.target.closest('.inbox-tpl-item');
+                    if (item) {
+                        var tplId = parseInt(item.dataset.tplId, 10);
+                        var tpl = InboxTemplatesState.templates.find(function(t) { return t.id === tplId; });
+                        if (tpl) {
+                            insertInboxTemplate(tpl.content, 'new-message-text');
+                            closeNewMsgTemplatesPanel();
+                        }
+                    }
+                });
+            }
+        });
+
         // ===== FUNÇÕES DE MÍDIA (Anexos) =====
         window.triggerInboxFileInput = function() {
             const fileInput = document.getElementById('inboxFileInput');

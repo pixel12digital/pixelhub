@@ -75,7 +75,27 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             </div>
             
             <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Mensagem</label>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label style="font-weight: 600; margin: 0;">Mensagem</label>
+                    <div style="position: relative;">
+                        <button type="button" id="newMsgBtnTemplates" onclick="toggleNewMsgTemplatesPanel()" title="Templates e respostas rápidas" style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; padding: 4px 10px; font-size: 12px; color: #666; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                            Templates
+                        </button>
+                        <div id="newMsgTemplatesPanel" style="display: none; position: absolute; bottom: 36px; right: 0; width: 340px; max-height: 350px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.18); z-index: 2100; overflow: hidden; flex-direction: column;">
+                            <div style="padding: 10px 14px; border-bottom: 1px solid #eee; background: #f8f9fa; border-radius: 12px 12px 0 0;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <span style="font-weight: 700; font-size: 13px; color: #333;">Templates</span>
+                                    <button type="button" onclick="closeNewMsgTemplatesPanel()" style="background: none; border: none; cursor: pointer; padding: 2px; color: #999; font-size: 16px; line-height: 1;" title="Fechar">&times;</button>
+                                </div>
+                                <input type="text" id="newMsgTemplatesSearch" placeholder="Buscar template..." autocomplete="off" style="width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
+                            </div>
+                            <div id="newMsgTemplatesList" style="overflow-y: auto; max-height: 260px; padding: 4px 0;">
+                                <div style="padding: 16px; text-align: center; color: #999; font-size: 12px;">Carregando templates...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <textarea name="message" id="new-message-text" required rows="5" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; resize: vertical;"></textarea>
             </div>
             
