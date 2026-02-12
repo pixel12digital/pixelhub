@@ -4,8 +4,8 @@ $providerMap = $providerMap ?? [];
 ?>
 
 <div class="content-header">
-    <h2>Contas de Hospedagem</h2>
-    <p>Gerenciamento de contas de hospedagem</p>
+    <h2>Serviços Ativos</h2>
+    <p>Serviços com recorrência ativa por cliente</p>
 </div>
 
 <?php if (isset($_GET['success']) && $_GET['success'] === 'created'): ?>
@@ -112,6 +112,6 @@ $providerMap = $providerMap ?? [];
 
 <?php
 $content = ob_get_clean();
-$title = 'Hospedagem';
+$title = 'Serviços Ativos';
 require __DIR__ . '/../layout/main.php';
 ?>

@@ -1800,7 +1800,7 @@
                         <span class="sidebar-text">Pedidos de Serviço</span>
                     </a>
                     <a href="<?= pixelhub_url('/hosting') ?>" class="sub-item <?= (strpos($currentUri, '/hosting') !== false && strpos($currentUri, '/hosting-plans') === false && strpos($currentUri, '/services') === false && strpos($currentUri, '/service-orders') === false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Hospedagem & Cobranças</span>
+                        <span class="sidebar-text">Serviços Ativos</span>
                     </a>
                     <a href="<?= pixelhub_url('/hosting-plans') ?>" class="sub-item <?= (strpos($currentUri, '/hosting-plans') !== false) ? 'active' : '' ?>">
                         <span class="sidebar-text">Planos de Hospedagem</span>
