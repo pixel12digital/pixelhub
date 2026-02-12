@@ -48,7 +48,7 @@ class ActivityTypesController extends Controller
         Auth::requireInternal();
 
         $db = DB::getConnection();
-        $blockTypes = $db->query("SELECT id, nome, cor FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC")->fetchAll(\PDO::FETCH_ASSOC);
+        $blockTypes = $db->query("SELECT id, nome, cor_hex FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC")->fetchAll(\PDO::FETCH_ASSOC);
 
         $this->view('activity_types.form', [
             'type' => null,
@@ -109,7 +109,7 @@ class ActivityTypesController extends Controller
             return;
         }
 
-        $blockTypes = $db->query("SELECT id, nome, cor FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC")->fetchAll(\PDO::FETCH_ASSOC);
+        $blockTypes = $db->query("SELECT id, nome, cor_hex FROM agenda_block_types WHERE ativo = 1 ORDER BY nome ASC")->fetchAll(\PDO::FETCH_ASSOC);
 
         $this->view('activity_types.form', [
             'type' => $type,
