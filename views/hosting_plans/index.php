@@ -4,12 +4,12 @@ ob_start();
 
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center;">
     <div>
-        <h2>Planos de Hospedagem</h2>
-        <p>Gerenciar planos disponíveis para contas de hospedagem</p>
+        <h2>Planos</h2>
+        <p>Gerencie planos de serviços recorrentes</p>
     </div>
     <a href="<?= pixelhub_url('/hosting-plans/create') ?>" 
        style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; display: inline-block;">
-        Novo Plano de Hospedagem
+        Novo Plano
     </a>
 </div>
 
@@ -57,6 +57,7 @@ ob_start();
         <thead>
             <tr style="background: #f5f5f5;">
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Nome</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Serviço</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Provedor</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Valor</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ciclo</th>
@@ -67,7 +68,7 @@ ob_start();
         <tbody>
             <?php if (empty($plans)): ?>
                 <tr>
-                    <td colspan="6" style="padding: 20px; text-align: center; color: #666;">
+                    <td colspan="7" style="padding: 20px; text-align: center; color: #666;">
                         Nenhum plano cadastrado.
                     </td>
                 </tr>
@@ -76,6 +77,13 @@ ob_start();
                 <tr>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?= htmlspecialchars($plan['name']) ?>
+                    </td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                        <?php
+                        $serviceTypeLabels = ['hospedagem' => 'Hospedagem', 'ecommerce' => 'E-commerce', 'manutencao' => 'Manutenção', 'saas' => 'SaaS'];
+                        $st = $plan['service_type'] ?? '';
+                        echo htmlspecialchars($serviceTypeLabels[$st] ?? ($st ?: '—'));
+                        ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?php
@@ -141,7 +149,7 @@ ob_start();
 
 <?php
 $content = ob_get_clean();
-$title = 'Planos de Hospedagem';
+$title = 'Planos';
 require __DIR__ . '/../layout/main.php';
 ?>
 

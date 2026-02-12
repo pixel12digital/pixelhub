@@ -5,7 +5,7 @@ $plan = $plan ?? null;
 ?>
 
 <div class="content-header">
-    <h2><?= $plan ? 'Editar Plano de Hospedagem' : 'Novo Plano de Hospedagem' ?></h2>
+    <h2><?= $plan ? 'Editar Plano' : 'Novo Plano' ?></h2>
     <p><?= $plan ? 'Atualizar informações do plano' : 'Cadastrar novo plano' ?></p>
 </div>
 
@@ -15,6 +15,7 @@ $plan = $plan ?? null;
             <?php
             $error = $_GET['error'];
             if ($error === 'missing_name') echo 'Nome do plano é obrigatório.';
+            elseif ($error === 'missing_service_type') echo 'Selecione o tipo de serviço.';
             elseif ($error === 'missing_provider') echo 'Selecione um provedor.';
             elseif ($error === 'invalid_amount') echo 'Valor mensal inválido.';
             elseif ($error === 'invalid_annual_amount') echo 'Valores anuais inválidos. Preencha ambos os campos quando ativar o plano anual.';
@@ -37,6 +38,18 @@ $plan = $plan ?? null;
                    value="<?= htmlspecialchars($plan['name'] ?? '') ?>" 
                    placeholder="ex: Hospedagem Pixel 49,90"
                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label for="service_type" style="display: block; margin-bottom: 5px; font-weight: 600;">Serviço *</label>
+            <select id="service_type" name="service_type" required
+                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <option value="">Selecione o tipo de serviço</option>
+                <option value="hospedagem" <?= (isset($plan) && ($plan['service_type'] ?? '') === 'hospedagem') ? 'selected' : '' ?>>Hospedagem</option>
+                <option value="ecommerce" <?= (isset($plan) && ($plan['service_type'] ?? '') === 'ecommerce') ? 'selected' : '' ?>>E-commerce</option>
+                <option value="manutencao" <?= (isset($plan) && ($plan['service_type'] ?? '') === 'manutencao') ? 'selected' : '' ?>>Manutenção</option>
+                <option value="saas" <?= (isset($plan) && ($plan['service_type'] ?? '') === 'saas') ? 'selected' : '' ?>>SaaS</option>
+            </select>
         </div>
 
         <div style="margin-bottom: 20px;">

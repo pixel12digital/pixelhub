@@ -29,6 +29,7 @@ $providerMap = $providerMap ?? [];
             <tr style="background: #f5f5f5;">
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Cliente</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Domínio</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Serviço</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Provedor</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Valor</th>
             </tr>
@@ -36,8 +37,8 @@ $providerMap = $providerMap ?? [];
         <tbody>
             <?php if (empty($hostingAccounts)): ?>
                 <tr>
-                    <td colspan="4" style="padding: 20px; text-align: center; color: #666;">
-                        Nenhuma conta de hospedagem cadastrada.
+                    <td colspan="5" style="padding: 20px; text-align: center; color: #666;">
+                        Nenhum serviço ativo cadastrado.
                     </td>
                 </tr>
             <?php else: ?>
@@ -51,6 +52,13 @@ $providerMap = $providerMap ?? [];
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?= htmlspecialchars($hostingAccount['domain']) ?>
+                    </td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                        <?php
+                        $serviceTypeLabels = ['hospedagem' => 'Hospedagem', 'ecommerce' => 'E-commerce', 'manutencao' => 'Manutenção', 'saas' => 'SaaS'];
+                        $planServiceType = $hostingAccount['plan_service_type'] ?? '';
+                        echo htmlspecialchars($serviceTypeLabels[$planServiceType] ?? ($planServiceType ?: '—'));
+                        ?>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?php

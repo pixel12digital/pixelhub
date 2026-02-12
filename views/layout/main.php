@@ -1803,7 +1803,7 @@
                         <span class="sidebar-text">Serviços Ativos</span>
                     </a>
                     <a href="<?= pixelhub_url('/hosting-plans') ?>" class="sub-item <?= (strpos($currentUri, '/hosting-plans') !== false) ? 'active' : '' ?>">
-                        <span class="sidebar-text">Planos de Hospedagem</span>
+                        <span class="sidebar-text">Planos</span>
                     </a>
                 </div>
             </div>
