@@ -20,8 +20,17 @@ $providerMap = $providerMap ?? [];
     </div>
 <?php endif; ?>
 
+<div class="card" style="margin-bottom: 0; padding-bottom: 0;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+        <input type="text" id="hostingSearchInput" placeholder="Buscar por cliente ou domínio..." 
+               style="flex: 1; padding: 10px 14px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; outline: none; transition: border-color 0.2s;"
+               onfocus="this.style.borderColor='#023A8D'" onblur="this.style.borderColor='#ccc'">
+        <span id="hostingSearchCount" style="color: #999; font-size: 13px; white-space: nowrap;"></span>
+    </div>
+</div>
+
 <div class="card">
-    <table style="width: 100%; border-collapse: collapse;">
+    <table id="hostingTable" style="width: 100%; border-collapse: collapse;">
         <thead>
             <tr style="background: #f5f5f5;">
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Cliente</th>
@@ -104,6 +113,39 @@ $providerMap = $providerMap ?? [];
         </tbody>
     </table>
 </div>
+
+<script>
+(function() {
+    const input = document.getElementById('hostingSearchInput');
+    const countEl = document.getElementById('hostingSearchCount');
+    const table = document.getElementById('hostingTable');
+    if (!input || !table) return;
+    const rows = table.querySelectorAll('tbody tr');
+    const total = rows.length;
+
+    function filterRows() {
+        const term = input.value.trim().toLowerCase();
+        if (term.length > 0 && term.length < 3) {
+            rows.forEach(r => r.style.display = '');
+            countEl.textContent = '';
+            return;
+        }
+        let visible = 0;
+        rows.forEach(function(row) {
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 2) { row.style.display = ''; visible++; return; }
+            const cliente = (cells[0].textContent || '').toLowerCase();
+            const dominio = (cells[1].textContent || '').toLowerCase();
+            const match = !term || cliente.indexOf(term) !== -1 || dominio.indexOf(term) !== -1;
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        countEl.textContent = term ? visible + ' de ' + total : '';
+    }
+
+    input.addEventListener('input', filterRows);
+})();
+</script>
 
 <?php
 $content = ob_get_clean();
