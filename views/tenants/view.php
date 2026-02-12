@@ -186,7 +186,7 @@ function copyInvoiceUrl(url, btn) {
 /**
  * Botão WhatsApp do header: verifica se o tenant tem conversa existente no Inbox.
  * Se sim, abre o Inbox Drawer com a conversa selecionada.
- * Se não, abre o modal de WhatsApp manual (mesmo comportamento anterior).
+ * Se não, abre o Inbox + modal "Nova Mensagem" com canal WhatsApp e cliente pré-selecionados.
  */
 function handleWhatsAppClick(tenantId) {
     const btn = document.getElementById('btn-whatsapp-header');
@@ -202,29 +202,23 @@ function handleWhatsAppClick(tenantId) {
                 // Tem conversa existente — abre o Inbox Drawer com a conversa selecionada
                 if (typeof openInboxDrawer === 'function') {
                     openInboxDrawer();
-                    // Aguarda o drawer abrir e carregar, depois seleciona a conversa
                     setTimeout(function() {
                         if (typeof loadInboxConversation === 'function') {
                             loadInboxConversation(data.thread_id, data.channel || 'whatsapp');
                         }
                     }, 400);
                 } else {
-                    // Fallback: abre a página do Communication Hub diretamente
                     window.location.href = '<?= pixelhub_url('/communication-hub/thread') ?>?id=' + encodeURIComponent(data.thread_id) + '&channel=' + (data.channel || 'whatsapp');
                 }
             } else {
-                // Sem conversa existente — abre o modal de WhatsApp manual
-                if (typeof openWhatsAppModal === 'function') {
-                    openWhatsAppModal(tenantId);
-                }
+                // Sem conversa existente — abre Inbox + modal Nova Mensagem pré-preenchido
+                openInboxNewConversation(tenantId);
             }
         })
         .catch(function(err) {
             console.error('[WhatsApp] Erro ao verificar conversa:', err);
-            // Em caso de erro, abre o modal manual como fallback
-            if (typeof openWhatsAppModal === 'function') {
-                openWhatsAppModal(tenantId);
-            }
+            // Em caso de erro, tenta abrir Inbox + Nova Mensagem mesmo assim
+            openInboxNewConversation(tenantId);
         })
         .finally(function() {
             if (btn) {
@@ -232,6 +226,67 @@ function handleWhatsAppClick(tenantId) {
                 btn.style.pointerEvents = '';
             }
         });
+}
+
+/**
+ * Abre o Inbox Drawer e o modal "Nova Mensagem" com canal WhatsApp e cliente pré-selecionados.
+ */
+function openInboxNewConversation(tenantId) {
+    // Abre o Inbox Drawer
+    if (typeof openInboxDrawer === 'function') {
+        openInboxDrawer();
+    }
+
+    // Abre o modal de Nova Mensagem após o Inbox carregar
+    setTimeout(function() {
+        if (typeof openNewMessageModal === 'function') {
+            openNewMessageModal();
+
+            // Pré-seleciona canal WhatsApp
+            setTimeout(function() {
+                var channelSelect = document.getElementById('new-message-channel');
+                if (channelSelect) {
+                    channelSelect.value = 'whatsapp';
+                    channelSelect.dispatchEvent(new Event('change'));
+                }
+
+                // Pré-seleciona sessão (se só tiver uma, seleciona automaticamente)
+                var sessionSelect = document.getElementById('new-message-session');
+                if (sessionSelect && sessionSelect.options.length === 2) {
+                    sessionSelect.selectedIndex = 1;
+                }
+
+                // Pré-seleciona o cliente no dropdown pesquisável
+                var tenantIdStr = String(tenantId);
+                var list = document.getElementById('modalClienteDropdownList');
+                if (list) {
+                    var item = list.querySelector('[data-value="' + tenantIdStr + '"]');
+                    if (item) {
+                        // Simula seleção do item
+                        var hiddenInput = document.getElementById('modalClienteTenantId');
+                        var searchInput = document.getElementById('modalClienteSearchInput');
+                        if (hiddenInput) hiddenInput.value = tenantIdStr;
+                        if (searchInput) searchInput.value = item.dataset.name || '';
+                        item.classList.add('selected');
+
+                        // Preenche telefone no campo "Para"
+                        var phone = item.dataset.phone || '';
+                        if (phone) {
+                            var toInput = document.getElementById('new-message-to');
+                            var toContainer = document.getElementById('new-message-to-container');
+                            if (toInput) toInput.value = phone;
+                            if (toContainer) toContainer.style.display = 'block';
+                        }
+                    }
+                }
+            }, 100);
+        } else {
+            // Fallback: abre o modal antigo de WhatsApp
+            if (typeof openWhatsAppModal === 'function') {
+                openWhatsAppModal(tenantId);
+            }
+        }
+    }, 300);
 }
 </script>
 
