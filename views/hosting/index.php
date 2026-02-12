@@ -3,15 +3,9 @@ ob_start();
 $providerMap = $providerMap ?? [];
 ?>
 
-<div class="content-header" style="display: flex; justify-content: space-between; align-items: center;">
-    <div>
-        <h2>Contas de Hospedagem</h2>
-        <p>Gerenciamento de sites e backups</p>
-    </div>
-    <a href="<?= pixelhub_url('/hosting/create?redirect_to=hosting') ?>" 
-       style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; display: inline-block;">
-        Nova conta de hospedagem
-    </a>
+<div class="content-header">
+    <h2>Contas de Hospedagem</h2>
+    <p>Gerenciamento de contas de hospedagem</p>
 </div>
 
 <?php if (isset($_GET['success']) && $_GET['success'] === 'created'): ?>
@@ -37,15 +31,12 @@ $providerMap = $providerMap ?? [];
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Domínio</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Provedor</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Valor</th>
-                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Backup</th>
-                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Decisão</th>
-                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($hostingAccounts)): ?>
                 <tr>
-                    <td colspan="7" style="padding: 20px; text-align: center; color: #666;">
+                    <td colspan="4" style="padding: 20px; text-align: center; color: #666;">
                         Nenhuma conta de hospedagem cadastrada.
                     </td>
                 </tr>
@@ -78,29 +69,6 @@ $providerMap = $providerMap ?? [];
                             echo '-';
                         }
                         ?>
-                    </td>
-                    <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <?php
-                        $status = $hostingAccount['backup_status'];
-                        if ($status === 'completo' && !empty($hostingAccount['last_backup_at'])) {
-                            $backupDate = date('d/m/Y', strtotime($hostingAccount['last_backup_at']));
-                            echo '<span style="color: #3c3; font-weight: 600;">Backup em ' . $backupDate . '</span>';
-                        } else {
-                            echo '<span style="color: #c33; font-weight: 600;">Sem backup</span>';
-                        }
-                        ?>
-                    </td>
-                    <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <?= htmlspecialchars($hostingAccount['decision']) ?>
-                    </td>
-                    <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <a href="<?= pixelhub_url('/hosting/backups?hosting_id=' . $hostingAccount['id']) ?>" 
-                           class="btn btn-small"
-                           style="background: #6c757d; color: white; text-decoration: none;"
-                           data-tooltip="Backups"
-                           aria-label="Backups">
-                            Backups
-                        </a>
                     </td>
                 </tr>
                 <?php endforeach; ?>
