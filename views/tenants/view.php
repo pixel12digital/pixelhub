@@ -182,6 +182,57 @@ function copyInvoiceUrl(url, btn) {
         document.body.removeChild(ta);
     }
 }
+
+/**
+ * Botão WhatsApp do header: verifica se o tenant tem conversa existente no Inbox.
+ * Se sim, abre o Inbox Drawer com a conversa selecionada.
+ * Se não, abre o modal de WhatsApp manual (mesmo comportamento anterior).
+ */
+function handleWhatsAppClick(tenantId) {
+    const btn = document.getElementById('btn-whatsapp-header');
+    if (btn) {
+        btn.style.opacity = '0.6';
+        btn.style.pointerEvents = 'none';
+    }
+
+    fetch('<?= pixelhub_url('/communication-hub/find-tenant-conversation') ?>?tenant_id=' + tenantId)
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.found && data.thread_id) {
+                // Tem conversa existente — abre o Inbox Drawer com a conversa selecionada
+                if (typeof openInboxDrawer === 'function') {
+                    openInboxDrawer();
+                    // Aguarda o drawer abrir e carregar, depois seleciona a conversa
+                    setTimeout(function() {
+                        if (typeof loadInboxConversation === 'function') {
+                            loadInboxConversation(data.thread_id, data.channel || 'whatsapp');
+                        }
+                    }, 400);
+                } else {
+                    // Fallback: abre a página do Communication Hub diretamente
+                    window.location.href = '<?= pixelhub_url('/communication-hub/thread') ?>?id=' + encodeURIComponent(data.thread_id) + '&channel=' + (data.channel || 'whatsapp');
+                }
+            } else {
+                // Sem conversa existente — abre o modal de WhatsApp manual
+                if (typeof openWhatsAppModal === 'function') {
+                    openWhatsAppModal(tenantId);
+                }
+            }
+        })
+        .catch(function(err) {
+            console.error('[WhatsApp] Erro ao verificar conversa:', err);
+            // Em caso de erro, abre o modal manual como fallback
+            if (typeof openWhatsAppModal === 'function') {
+                openWhatsAppModal(tenantId);
+            }
+        })
+        .finally(function() {
+            if (btn) {
+                btn.style.opacity = '';
+                btn.style.pointerEvents = '';
+            }
+        });
+}
 </script>
 
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -190,7 +241,8 @@ function copyInvoiceUrl(url, btn) {
         <p>Painel do Cliente</p>
     </div>
     <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-        <button onclick="openWhatsAppModal(<?= $tenant['id'] ?>)" 
+        <button onclick="handleWhatsAppClick(<?= $tenant['id'] ?>)" 
+                id="btn-whatsapp-header"
                 class="btn-action btn-action-success"
                 data-tooltip="WhatsApp"
                 aria-label="WhatsApp">

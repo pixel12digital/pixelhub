@@ -4566,6 +4566,70 @@ class CommunicationHubController extends Controller
     }
 
     /**
+     * Busca a conversa WhatsApp mais recente de um tenant
+     * 
+     * GET /communication-hub/find-tenant-conversation?tenant_id=X
+     * 
+     * Retorna {found: bool, thread_id: string, channel: string} se encontrou conversa ativa
+     * ou {found: false} se não encontrou
+     */
+    public function findTenantConversation(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $tenantId = isset($_GET['tenant_id']) ? (int) $_GET['tenant_id'] : 0;
+
+        if ($tenantId <= 0) {
+            $this->json(['found' => false, 'error' => 'tenant_id é obrigatório']);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            // Busca a conversa WhatsApp mais recente do tenant (ativa ou qualquer status exceto closed)
+            $stmt = $db->prepare("
+                SELECT 
+                    c.id,
+                    c.conversation_key,
+                    c.channel_type,
+                    c.contact_external_id,
+                    c.contact_name,
+                    c.status,
+                    c.last_message_at,
+                    c.message_count
+                FROM conversations c
+                WHERE c.tenant_id = ?
+                  AND c.channel_type = 'whatsapp'
+                ORDER BY c.last_message_at DESC
+                LIMIT 1
+            ");
+            $stmt->execute([$tenantId]);
+            $conversation = $stmt->fetch();
+
+            if ($conversation) {
+                $threadId = 'whatsapp_' . $conversation['id'];
+                $this->json([
+                    'found' => true,
+                    'thread_id' => $threadId,
+                    'channel' => 'whatsapp',
+                    'conversation_id' => (int) $conversation['id'],
+                    'contact_name' => $conversation['contact_name'],
+                    'status' => $conversation['status'],
+                    'last_message_at' => $conversation['last_message_at'],
+                    'message_count' => (int) $conversation['message_count'],
+                ]);
+            } else {
+                $this->json(['found' => false]);
+            }
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao buscar conversa do tenant: " . $e->getMessage());
+            $this->json(['found' => false, 'error' => 'Erro ao buscar conversa']);
+        }
+    }
+
+    /**
      * Verifica se há novas mensagens ou atualizações na lista de conversas
      * 
      * GET /communication-hub/check-updates?after_timestamp=Y

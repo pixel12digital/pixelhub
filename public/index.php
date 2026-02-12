@@ -665,6 +665,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/communication-hub/send', 'CommunicationHubController@send');
     $router->get('/communication-hub/filter-options', 'CommunicationHubController@getFilterOptions');
     $router->get('/communication-hub/conversations-list', 'CommunicationHubController@getConversationsList');
+    $router->get('/communication-hub/find-tenant-conversation', 'CommunicationHubController@findTenantConversation');
     $router->get('/communication-hub/check-updates', 'CommunicationHubController@checkUpdates');
     $router->get('/communication-hub/messages/check', 'CommunicationHubController@checkNewMessages');
     $router->get('/communication-hub/messages/new', 'CommunicationHubController@getNewMessages');
