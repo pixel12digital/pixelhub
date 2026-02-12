@@ -61,9 +61,10 @@ $types = $types ?? [];
             <thead>
                 <tr style="background: #f9fafb;">
                     <th style="padding: 10px 12px; text-align: left; font-weight: 600; color: #6b7280; font-size: 13px;">Nome</th>
+                    <th style="padding: 10px 12px; text-align: center; font-weight: 600; color: #6b7280; font-size: 13px;">Bloco Padrão</th>
                     <th style="padding: 10px 12px; text-align: center; font-weight: 600; color: #6b7280; font-size: 13px;">Status</th>
                     <th style="padding: 10px 12px; text-align: center; font-weight: 600; color: #6b7280; font-size: 13px;">Uso</th>
-                    <th style="padding: 10px 12px; text-align: right; font-weight: 600; color: #6b7280; font-size: 13px;">Ações</th>
+                    <th style="padding: 10px 12px; text-align: center; font-weight: 600; color: #6b7280; font-size: 13px;">Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -71,6 +72,15 @@ $types = $types ?? [];
                     <tr style="border-bottom: 1px solid #f3f4f6; <?= !$t['ativo'] ? 'opacity: 0.7;' : '' ?>">
                         <td style="padding: 10px 12px; font-size: 13px; font-weight: 500;">
                             <?= htmlspecialchars($t['name']) ?>
+                        </td>
+                        <td style="padding: 10px 12px; text-align: center;">
+                            <?php if (!empty($t['default_block_type_nome'])): ?>
+                                <span style="display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; color: #fff; background: <?= htmlspecialchars($t['default_block_type_cor'] ?? '#6b7280') ?>;">
+                                    <?= htmlspecialchars($t['default_block_type_nome']) ?>
+                                </span>
+                            <?php else: ?>
+                                <span style="color: #9ca3af; font-size: 12px;">—</span>
+                            <?php endif; ?>
                         </td>
                         <td style="padding: 10px 12px; text-align: center;">
                             <?php if ($t['ativo']): ?>
@@ -82,8 +92,8 @@ $types = $types ?? [];
                         <td style="padding: 10px 12px; text-align: center; font-size: 12px; color: #6b7280;">
                             <?= (int)($t['blocks_count'] ?? 0) ?> blocos
                         </td>
-                        <td style="padding: 10px 12px; text-align: right;">
-                            <span style="display: inline-flex; align-items: center; gap: 4px;">
+                        <td style="padding: 10px 12px; text-align: center;">
+                            <span style="display: inline-flex; align-items: center; gap: 4px; justify-content: center;">
                                 <a href="<?= pixelhub_url('/settings/activity-types/edit?id=' . $t['id']) ?>" 
                                    class="btn-icon" title="Editar">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>

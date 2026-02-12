@@ -23,8 +23,11 @@ class ActivityTypesController extends Controller
             $db = DB::getConnection();
             $stmt = $db->query("
                 SELECT t.*,
-                    (SELECT COUNT(*) FROM agenda_blocks WHERE activity_type_id = t.id) as blocks_count
+                    (SELECT COUNT(*) FROM agenda_blocks WHERE activity_type_id = t.id) as blocks_count,
+                    bt.nome as default_block_type_nome,
+                    bt.cor_hex as default_block_type_cor
                 FROM activity_types t
+                LEFT JOIN agenda_block_types bt ON bt.id = t.default_block_type_id
                 ORDER BY t.name ASC
             ");
             $types = $stmt->fetchAll(\PDO::FETCH_ASSOC);
