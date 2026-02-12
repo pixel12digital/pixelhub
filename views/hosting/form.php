@@ -91,11 +91,18 @@ $providers = $providers ?? [];
                     <option value="">Selecione um plano...</option>
                     <?php if (!empty($hostingPlans)): ?>
                         <?php foreach ($hostingPlans as $plan): ?>
+                            <?php
+                            $planProviderLabels = ['hostmedia' => 'HostMídia', 'vercel' => 'Vercel'];
+                            $planProv = $plan['provider'] ?? '';
+                            $planProvLabel = $planProviderLabels[$planProv] ?? '';
+                            $planProvSuffix = $planProvLabel ? ' [' . $planProvLabel . ']' : '';
+                            ?>
                             <option value="<?= $plan['id'] ?>"
                                 data-amount="<?= htmlspecialchars($plan['amount']) ?>"
                                 data-billing-cycle="<?= htmlspecialchars($plan['billing_cycle']) ?>"
+                                data-provider="<?= htmlspecialchars($planProv) ?>"
                                 <?php if (!empty($hostingAccount['hosting_plan_id']) && $hostingAccount['hosting_plan_id'] == $plan['id']) echo 'selected'; ?>>
-                                <?= htmlspecialchars($plan['name']) ?> — R$ <?= number_format($plan['amount'], 2, ',', '.') ?> (<?= htmlspecialchars($plan['billing_cycle']) ?>)
+                                <?= htmlspecialchars($plan['name']) ?> — R$ <?= number_format($plan['amount'], 2, ',', '.') ?> (<?= htmlspecialchars($plan['billing_cycle']) ?>)<?= $planProvSuffix ?>
                             </option>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -145,74 +152,8 @@ $providers = $providers ?? [];
             </div>
         </div>
 
-        <div style="margin-bottom: 20px;">
-            <label for="current_provider" style="display: block; margin-bottom: 5px; font-weight: 600;">Provedor Atual</label>
-            <select id="current_provider" name="current_provider" 
-                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                <?php if (!empty($providers)): ?>
-                    <?php foreach ($providers as $provider): ?>
-                        <option value="<?= htmlspecialchars($provider['slug']) ?>" 
-                                <?= ($hostingAccount['current_provider'] ?? 'hostinger') === $provider['slug'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($provider['name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <!-- Fallback: lista padrão caso não haja provedores cadastrados -->
-                    <option value="hostinger" <?= ($hostingAccount['current_provider'] ?? 'hostinger') === 'hostinger' ? 'selected' : '' ?>>Hostinger</option>
-                    <option value="hostweb" <?= ($hostingAccount['current_provider'] ?? '') === 'hostweb' ? 'selected' : '' ?>>HostWeb</option>
-                    <option value="externo" <?= ($hostingAccount['current_provider'] ?? '') === 'externo' ? 'selected' : '' ?>>Externo</option>
-                <?php endif; ?>
-                <!-- Opção especial para sites sem hospedagem ativa -->
-                <option value="nenhum_backup" <?= ($hostingAccount['current_provider'] ?? '') === 'nenhum_backup' ? 'selected' : '' ?>>
-                    Nenhum (Somente backup externo)
-                </option>
-            </select>
-            <?php if (empty($providers)): ?>
-                <small style="color: #856404; font-size: 12px; display: block; margin-top: 5px;">
-                    <span style="display: inline-block; width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg></span> Nenhum provedor configurado. Configure em <strong>Configurações > Configurações de Infraestrutura > Provedores de Hospedagem</strong>.
-                </small>
-            <?php endif; ?>
-            
-            <!-- Mensagem informativa quando nenhum_backup estiver selecionado -->
-            <div id="nenhum-backup-info" style="display: none; margin-top: 15px; padding: 15px; background: #e7f3ff; border: 1px solid #023A8D; border-radius: 4px;">
-                <p style="margin: 0; color: #023A8D; font-size: 14px;">
-                    <strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg></span> Informação:</strong> Este site está sem hospedagem ativa. Use a aba <strong>Docs & Backups</strong> para ver os links de backup (Google Drive, GitHub, etc.).
-                </p>
-            </div>
-            
-            <!-- DNS do HostWeb -->
-            <div id="hostweb-dns-info" style="display: none; margin-top: 15px; padding: 15px; background: #e7f3ff; border: 1px solid #023A8D; border-radius: 4px;">
-                <h4 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 600; color: #023A8D;">DNS NameServers - HostWeb</h4>
-                <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-bottom: 10px;">
-                    <div>
-                        <label style="display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: #333;">NameServer1:</label>
-                        <input type="text" id="hostweb-ns1" value="ns1.r225us.hmservers.net" readonly 
-                               style="width: 100%; padding: 8px; border: 1px solid #023A8D; border-radius: 4px; background: white; font-family: monospace; cursor: text;"
-                               onclick="this.select();">
-                    </div>
-                    <div style="display: flex; align-items: flex-end;">
-                        <button type="button" onclick="copyToClipboard('hostweb-ns1', this)" 
-                                style="background: #023A8D; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;">
-                            <span style="display: inline-block; width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></span> Copiar
-                        </button>
-                    </div>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px;">
-                    <div>
-                        <label style="display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: #333;">NameServer2:</label>
-                        <input type="text" id="hostweb-ns2" value="ns2.r225us.hmservers.net" readonly 
-                               style="width: 100%; padding: 8px; border: 1px solid #023A8D; border-radius: 4px; background: white; font-family: monospace; cursor: text;"
-                               onclick="this.select();">
-                    </div>
-                    <div style="display: flex; align-items: flex-end;">
-                        <button type="button" onclick="copyToClipboard('hostweb-ns2', this)" 
-                                style="background: #023A8D; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;">
-                            <span style="display: inline-block; width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></span> Copiar
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Provedor agora vem do Plano de Hospedagem selecionado (hosting_plans.provider) -->
+        <input type="hidden" name="current_provider" value="<?= htmlspecialchars($hostingAccount['current_provider'] ?? 'hostmedia') ?>">
 
         <div style="margin-bottom: 20px;">
             <label for="hostinger_expiration_date" style="display: block; margin-bottom: 5px; font-weight: 600;">Vencimento da Hospedagem</label>
@@ -389,52 +330,6 @@ function copyToClipboard(inputId, button) {
     }
 }
 
-function toggleHostWebDNS() {
-    var providerSelect = document.getElementById('current_provider');
-    var dnsInfo = document.getElementById('hostweb-dns-info');
-    
-    if (!providerSelect || !dnsInfo) return;
-    
-    var selectedValue = providerSelect.value;
-    if (selectedValue === 'hostweb') {
-        dnsInfo.style.display = 'block';
-    } else {
-        dnsInfo.style.display = 'none';
-    }
-}
-
-function toggleNenhumBackupInfo() {
-    var providerSelect = document.getElementById('current_provider');
-    var nenhumBackupInfo = document.getElementById('nenhum-backup-info');
-    var credentialsSection = document.querySelector('div[style*="background: #f9f9f9"][style*="border-left: 4px solid #023A8D"]');
-    
-    if (!providerSelect) return;
-    
-    var selectedValue = providerSelect.value;
-    var isNenhumBackup = selectedValue === 'nenhum_backup';
-    
-    // Mostra/esconde mensagem informativa
-    if (nenhumBackupInfo) {
-        nenhumBackupInfo.style.display = isNenhumBackup ? 'block' : 'none';
-    }
-    
-    // Desabilita campos de credenciais quando nenhum_backup estiver selecionado
-    if (credentialsSection) {
-        var credentialInputs = credentialsSection.querySelectorAll('input[type="text"], input[type="password"]');
-        credentialInputs.forEach(function(input) {
-            if (isNenhumBackup) {
-                input.disabled = true;
-                input.style.background = '#f5f5f5';
-                input.style.cursor = 'not-allowed';
-            } else {
-                input.disabled = false;
-                input.style.background = '';
-                input.style.cursor = '';
-            }
-        });
-    }
-}
-
 function toggleHostingExpiration() {
     var checkbox = document.getElementById('has_no_hosting_expiration');
     var dateInput = document.getElementById('hostinger_expiration_date');
@@ -454,20 +349,6 @@ function toggleHostingExpiration() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    // Toggle DNS do HostWeb e info de nenhum_backup
-    var providerSelect = document.getElementById('current_provider');
-    if (providerSelect) {
-        // Verifica valor inicial
-        toggleHostWebDNS();
-        toggleNenhumBackupInfo();
-        
-        // Adiciona listener para mudanças
-        providerSelect.addEventListener('change', function() {
-            toggleHostWebDNS();
-            toggleNenhumBackupInfo();
-        });
-    }
-    
     // Toggle campo de vencimento de hospedagem
     var expirationCheckbox = document.getElementById('has_no_hosting_expiration');
     if (expirationCheckbox) {

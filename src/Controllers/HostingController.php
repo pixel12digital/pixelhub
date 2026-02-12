@@ -67,7 +67,7 @@ class HostingController extends Controller
         $tenants = $stmt->fetchAll();
 
         // Busca planos de hospedagem ativos
-        $stmt = $db->query("SELECT id, name, amount, billing_cycle FROM hosting_plans WHERE is_active = 1 ORDER BY name");
+        $stmt = $db->query("SELECT id, name, provider, amount, billing_cycle FROM hosting_plans WHERE is_active = 1 ORDER BY name");
         $hostingPlans = $stmt->fetchAll();
 
         // Busca provedores de hospedagem ativos
@@ -256,18 +256,11 @@ class HostingController extends Controller
             $tenants = $stmt->fetchAll();
 
             // Busca planos de hospedagem ativos
-            $stmt = $db->query("SELECT id, name, amount, billing_cycle FROM hosting_plans WHERE is_active = 1 ORDER BY name");
+            $stmt = $db->query("SELECT id, name, provider, amount, billing_cycle FROM hosting_plans WHERE is_active = 1 ORDER BY name");
             $hostingPlans = $stmt->fetchAll();
 
             // Busca provedores de hospedagem ativos
-            try {
-                $providers = HostingProviderService::getAllActive();
-            } catch (\Throwable $e) {
-                if (function_exists('pixelhub_log')) {
-                    pixelhub_log("HostingController@edit: Erro ao buscar provedores: " . $e->getMessage());
-                }
-                $providers = [];
-            }
+            $providers = HostingProviderService::getAllActive();
 
             $this->view('hosting.form', [
                 'tenantId' => $tenantId,
