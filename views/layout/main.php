@@ -2616,24 +2616,32 @@
         const INBOX_MIN_AUDIO_BYTES = 2000;
         
         // ===== TEMPLATES / RESPOSTAS RÁPIDAS NO INBOX =====
-        const InboxTemplatesState = { templates: [], isLoaded: false, isLoading: false, isOpen: false };
+        const InboxTemplatesState = { templates: [], isLoaded: false, isLoading: false, isOpen: false, tenantId: null };
 
         async function loadInboxTemplates(targetContainerId) {
             targetContainerId = targetContainerId || 'inboxTemplatesList';
-            // Se já carregou, apenas re-renderiza no container alvo
+            var currentTenantId = sessionStorage.getItem('inbox_selected_tenant_id') || '';
+            // Invalida cache se mudou de tenant
+            if (InboxTemplatesState.isLoaded && InboxTemplatesState.tenantId !== currentTenantId) {
+                InboxTemplatesState.isLoaded = false;
+                InboxTemplatesState.templates = [];
+            }
+            // Se já carregou para este tenant, apenas re-renderiza
             if (InboxTemplatesState.isLoaded) {
                 renderInboxTemplatesList('', targetContainerId);
                 return;
             }
             if (InboxTemplatesState.isLoading) return;
             InboxTemplatesState.isLoading = true;
-            const url = INBOX_BASE_URL + '/settings/whatsapp-templates/quick-replies';
+            var url = INBOX_BASE_URL + '/settings/whatsapp-templates/quick-replies';
+            if (currentTenantId) url += '?tenant_id=' + encodeURIComponent(currentTenantId);
             try {
                 const res = await fetch(url);
                 const data = await res.json();
                 if (data.success && Array.isArray(data.templates)) {
                     InboxTemplatesState.templates = data.templates;
                     InboxTemplatesState.isLoaded = true;
+                    InboxTemplatesState.tenantId = currentTenantId;
                     renderInboxTemplatesList('', targetContainerId);
                 } else {
                     setInboxTemplatesError('Nenhum template encontrado.', targetContainerId);
