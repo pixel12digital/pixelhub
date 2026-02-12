@@ -273,6 +273,48 @@ class WhatsAppWebhookController extends Controller
             // que calculateIdempotencyKey produza a mesma chave para ambos
             if ($internalEventType === 'whatsapp.outbound.message') {
                 $payload = $this->normalizeOutboundPayloadForIdempotency($payload);
+                
+                // CORREÇÃO: Deduplicação por message_id para webhooks outbound.
+                // Quando o send() já registrou o evento com um message_id no metadata,
+                // o webhook que chega depois com o mesmo message_id é redundante.
+                // Isso evita a bolha "[Mídia]" que aparecia quando o timestamp bucket
+                // da fallback key não coincidia entre send() e webhook.
+                $webhookMsgId = $payload['id'] ?? $payload['message_id'] ?? $payload['message']['id']
+                    ?? $payload['message']['key']['id'] ?? $payload['raw']['payload']['key']['id'] ?? null;
+                if (!empty($webhookMsgId)) {
+                    try {
+                        $dbDedup = DB::getConnection();
+                        $dedupStmt = $dbDedup->prepare("
+                            SELECT event_id FROM communication_events 
+                            WHERE event_type = 'whatsapp.outbound.message'
+                            AND (
+                                JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.message_id')) = ?
+                                OR JSON_UNQUOTE(JSON_EXTRACT(payload, '$.message_id')) = ?
+                                OR JSON_UNQUOTE(JSON_EXTRACT(payload, '$.id')) = ?
+                            )
+                            LIMIT 1
+                        ");
+                        $dedupStmt->execute([$webhookMsgId, $webhookMsgId, $webhookMsgId]);
+                        $existingEvent = $dedupStmt->fetch();
+                        if ($existingEvent) {
+                            error_log(sprintf(
+                                '[HUB_WEBHOOK_DEDUP] DROP_OUTBOUND_DUPLICATE message_id=%s existing_event_id=%s source=webhook',
+                                $webhookMsgId,
+                                $existingEvent['event_id']
+                            ));
+                            http_response_code(200);
+                            echo json_encode([
+                                'success' => true,
+                                'code' => 'DUPLICATE_OUTBOUND',
+                                'message' => 'Outbound message already registered by send()',
+                                'existing_event_id' => $existingEvent['event_id']
+                            ], JSON_UNESCAPED_UNICODE);
+                            exit;
+                        }
+                    } catch (\Throwable $dedupEx) {
+                        error_log('[HUB_WEBHOOK_DEDUP] Erro na deduplicação por message_id: ' . $dedupEx->getMessage());
+                    }
+                }
             }
             
             // Cria evento normalizado

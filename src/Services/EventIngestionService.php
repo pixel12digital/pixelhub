@@ -479,6 +479,12 @@ class EventIngestionService
             // Mídia: send usa type=audio, webhook usa ptt; normalizar para mesmo hash
             $mediaTypeNorm = ($msgType === 'ptt' || $msgType === 'voice') ? 'audio' : $msgType;
             $contentHash = md5('media:' . $mediaTypeNorm);
+            // CORREÇÃO: Para mídia, o contentHash é fixo, então a deduplicação depende
+            // 100% do timestamp bucket. Amplia de 60s para 300s (5 min) para garantir
+            // que send() e webhook (que chega segundos depois) caiam no mesmo bucket.
+            // Sem isso, se o send() é às 10:00:59 e o webhook às 10:01:02, os buckets
+            // de 60s seriam diferentes e a deduplicação falharia, gerando bolha "[Mídia]".
+            $tsBucket = $ts !== null ? (string) (floor((float) $ts / 300) * 300) : '0';
         } else {
             // Texto: send usa text; webhook usa body (vários caminhos)
             $content = $payload['text']

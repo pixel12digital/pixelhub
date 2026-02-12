@@ -3973,8 +3973,9 @@
                     // Só texto
                     renderedContent = escapeInboxHtml(content);
                 } else {
-                    // Sem conteúdo e sem mídia: exibe placeholder (igual appendInboxMessages)
-                    // Evita painel vazio quando backend retorna mensagens com content/media vazios
+                    // CORREÇÃO: Para mensagens outbound sem conteúdo e sem mídia,
+                    // não renderiza a bolha (duplicata do webhook).
+                    if (direction === 'outbound') return;
                     renderedContent = '<em style="color: #999;">[Mídia]</em>';
                 }
                 
@@ -4311,6 +4312,13 @@
                 } else if (content && content.trim()) {
                     renderedContent = escapeInboxHtml(content);
                 } else {
+                    // CORREÇÃO: Para mensagens outbound sem conteúdo e sem mídia,
+                    // não renderiza a bolha. São duplicatas do webhook que escaparam
+                    // da deduplicação backend e apareciam como "[Mídia]" poluindo a conversa.
+                    if (direction === 'outbound') {
+                        console.log('[Inbox] Suprimindo bolha outbound vazia (duplicata webhook):', msgId);
+                        return;
+                    }
                     renderedContent = '<em style="color: #999;">[Mídia]</em>';
                 }
                 
