@@ -121,6 +121,9 @@ $highlightBlockId = $expandBlockId ?? 0;
 .agenda-list-table .btn-icon:hover { color: #dc2626; }
 .inline-edit-time { cursor: pointer; padding: 2px 4px; border-radius: 4px; }
 .inline-edit-time:hover { background: #e2e8f0; }
+.inline-edit-tipo { cursor: pointer; transition: opacity 0.15s; }
+.inline-edit-tipo:hover { opacity: 0.8; filter: brightness(1.1); }
+.inline-edit-tipo-select { padding: 4px 8px; font-size: 12px; font-weight: 600; border: 2px solid #3b82f6; border-radius: 6px; background: white; cursor: pointer; min-width: 120px; }
 /* Input de hora no modo edição: min-width para HH:MM + ícone relógio, sem corte */
 .inline-edit-time-input { width: 140px; min-width: 130px; padding: 6px 10px; font-size: 13px; border: 1px solid #3b82f6; border-radius: 6px; box-sizing: border-box; height: 36px; }
 .agenda-time-popover { position: fixed; z-index: 1000; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 8px; }
@@ -493,7 +496,7 @@ $highlightBlockId = $expandBlockId ?? 0;
                     }
                     echo htmlspecialchars($clienteNome);
                 ?></td>
-                <td class="col-tipo"><span style="background: <?= $corBorda ?>; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: white;"><?= htmlspecialchars($bloco['tipo_nome']) ?></span></td>
+                <td class="col-tipo" onclick="event.stopPropagation()"><span class="inline-edit-tipo" data-block-id="<?= (int)$bloco['id'] ?>" data-tipo-id="<?= (int)($bloco['tipo_id'] ?? 0) ?>" style="background: <?= $corBorda ?>; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: white; display:inline-block;" title="Clique para alterar o bloco"><?= htmlspecialchars($bloco['tipo_nome']) ?></span></td>
                 <td class="col-inicio" onclick="event.stopPropagation()">
                     <span class="inline-edit-time" data-field="hora_inicio" data-block-id="<?= (int)$bloco['id'] ?>" title="Clique para editar"><?= $horaInicioFmt ?></span><?= $isCurrent ? ' <span style="color:#1976d2;font-size:10px;">●</span>' : '' ?>
                 </td>
@@ -733,7 +736,7 @@ $highlightBlockId = $expandBlockId ?? 0;
 const baseUrl = '<?= $baseUrl ?>';
 const dataStr = '<?= $dataStr ?>';
 const taskParam = '<?= $taskParam ?>';
-window.AGENDA_TIPOS = <?= json_encode(array_map(fn($t) => ['id' => (int)$t['id'], 'nome' => $t['nome'] ?? ''], $tipos ?? [])) ?>;
+window.AGENDA_TIPOS = <?= json_encode(array_map(fn($t) => ['id' => (int)$t['id'], 'nome' => $t['nome'] ?? '', 'cor' => $t['cor'] ?? '#94a3b8'], $tipos ?? [])) ?>;
 window.AGENDA_HIGHLIGHT_TASK_ID = <?= (int)$highlightTaskId ?>;
 window.AGENDA_HIGHLIGHT_BLOCK_ID = <?= (int)$highlightBlockId ?>;
 
@@ -1334,6 +1337,78 @@ function initInlineEditTime() {
     });
 }
 
+function initInlineEditTipo() {
+    document.querySelectorAll('.inline-edit-tipo').forEach(span => {
+        if (span.dataset.tipoInited) return;
+        span.dataset.tipoInited = '1';
+        span.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const blockId = this.dataset.blockId;
+            const currentTipoId = parseInt(this.dataset.tipoId) || 0;
+            const spanEl = this;
+            const row = this.closest('.block-row');
+            if (!row || !blockId) return;
+            
+            const select = document.createElement('select');
+            select.className = 'inline-edit-tipo-select';
+            (window.AGENDA_TIPOS || []).forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = t.nome;
+                if (t.id === currentTipoId) opt.selected = true;
+                select.appendChild(opt);
+            });
+            
+            spanEl.style.display = 'none';
+            spanEl.parentNode.insertBefore(select, spanEl.nextSibling);
+            select.focus();
+            
+            const cleanup = () => {
+                if (select.parentNode) select.remove();
+                spanEl.style.display = '';
+                spanEl.dataset.tipoInited = '';
+                initInlineEditTipo();
+            };
+            const save = () => {
+                const newTipoId = parseInt(select.value);
+                if (newTipoId === currentTipoId) { cleanup(); return; }
+                const fd = new FormData();
+                fd.append('id', blockId);
+                fd.append('tipo_id', newTipoId);
+                fd.append('hora_inicio', row.dataset.horaInicio || '');
+                fd.append('hora_fim', row.dataset.horaFim || '');
+                fetch('<?= pixelhub_url('/agenda/bloco/editar') ?>', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: fd
+                })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success && d.bloco) {
+                        spanEl.textContent = d.bloco.tipo_nome || select.options[select.selectedIndex].text;
+                        spanEl.style.background = d.bloco.tipo_cor || '#94a3b8';
+                        spanEl.dataset.tipoId = d.bloco.tipo_id;
+                        // Atualiza borda da linha
+                        row.style.borderLeftColor = d.bloco.tipo_cor || '#94a3b8';
+                        const borderTd = row.querySelector('.col-item');
+                        if (borderTd) borderTd.style.borderLeftColor = d.bloco.tipo_cor || '#94a3b8';
+                        cleanup();
+                    } else {
+                        alert(d.error || 'Erro ao salvar');
+                        cleanup();
+                    }
+                })
+                .catch(() => { alert('Erro ao salvar'); cleanup(); });
+            };
+            select.addEventListener('change', save);
+            select.addEventListener('blur', function() { setTimeout(cleanup, 150); });
+            select.addEventListener('keydown', function(ev) {
+                if (ev.key === 'Escape') { ev.preventDefault(); cleanup(); }
+            });
+        });
+    });
+}
+
 function toggleBlockExpand(blockId) {
     const el = document.getElementById('block-expand-' + blockId);
     if (!el) return;
@@ -1700,6 +1775,7 @@ function generateBlocks() {
 
 document.addEventListener('DOMContentLoaded', function() {
     initInlineEditTime();
+    initInlineEditTipo();
     const qaProject = document.getElementById('quick-add-project');
     const qaTaskSelect = document.getElementById('quick-add-task-select');
     const qaTaskId = document.getElementById('quick-add-task-id');
