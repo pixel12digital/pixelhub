@@ -77,7 +77,52 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             <div style="margin-bottom: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <label style="font-weight: 600; margin: 0;">Mensagem</label>
-                    <div style="position: relative;">
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <div style="position: relative;">
+                            <button type="button" id="newMsgBtnAI" onclick="toggleNewMsgAIPanel()" title="Sugestão IA" style="background: #f8f5ff; border: 1px solid #d4c5f9; border-radius: 6px; cursor: pointer; padding: 4px 10px; font-size: 12px; color: #6f42c1; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s; font-weight: 600;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 1 4 4v1a3 3 0 0 1 3 3v1a2 2 0 0 1-2 2h-1l-1 5H9l-1-5H7a2 2 0 0 1-2-2v-1a3 3 0 0 1 3-3V6a4 4 0 0 1 4-4z"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/></svg>
+                                IA
+                            </button>
+                            <div id="newMsgAIPanel" style="display: none; position: absolute; bottom: 36px; right: 0; width: 380px; max-height: 480px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.2); z-index: 2100; overflow: hidden; flex-direction: column;">
+                                <div style="padding: 10px 14px; border-bottom: 1px solid #eee; background: linear-gradient(135deg, #6f42c1 0%, #023A8D 100%); border-radius: 12px 12px 0 0;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-weight: 700; font-size: 13px; color: white;">IA Assistente</span>
+                                        <button type="button" onclick="closeNewMsgAIPanel()" style="background: none; border: none; cursor: pointer; padding: 2px; color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1;" title="Fechar">&times;</button>
+                                    </div>
+                                </div>
+                                <div style="padding: 10px 14px; border-bottom: 1px solid #f0f0f0; background: #fafafa;">
+                                    <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+                                        <div style="flex: 1;">
+                                            <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Contexto</label>
+                                            <select id="newMsgAIContext" style="width: 100%; padding: 5px 6px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: white;">
+                                                <option value="geral">Carregando...</option>
+                                            </select>
+                                        </div>
+                                        <div style="flex: 1;">
+                                            <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Objetivo</label>
+                                            <select id="newMsgAIObjective" style="width: 100%; padding: 5px 6px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: white;">
+                                                <option value="first_contact">Primeiro contato</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; gap: 6px; align-items: end;">
+                                        <div style="flex: 1;">
+                                            <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Observação (opcional)</label>
+                                            <input type="text" id="newMsgAINote" placeholder="Ex: cliente veio do Google Ads" style="width: 100%; padding: 5px 6px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
+                                        </div>
+                                        <button type="button" id="newMsgAIGenerateBtn" onclick="generateNewMsgAISuggestions()" style="padding: 5px 12px; background: #6f42c1; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; height: 28px;">
+                                            Gerar
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="newMsgAIResults" style="overflow-y: auto; max-height: 280px; padding: 0;">
+                                    <div style="padding: 20px 14px; text-align: center; color: #999; font-size: 12px;">
+                                        Selecione o contexto e clique em <strong>Gerar</strong>.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="position: relative;">
                         <button type="button" id="newMsgBtnTemplates" onclick="toggleNewMsgTemplatesPanel()" title="Templates e respostas rápidas" style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; padding: 4px 10px; font-size: 12px; color: #666; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                             Templates
@@ -94,6 +139,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                                 <div style="padding: 16px; text-align: center; color: #999; font-size: 12px;">Carregando templates...</div>
                             </div>
                         </div>
+                    </div>
                     </div>
                 </div>
                 <textarea name="message" id="new-message-text" required rows="5" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; resize: vertical;"></textarea>
@@ -296,5 +342,157 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             items.forEach(function(i) { i.classList.remove('selected'); i.style.display = ''; });
         };
     }
+
+    // ============================================================================
+    // IA Assistente no Modal Nova Mensagem
+    // ============================================================================
+    var _newMsgAIOpen = false;
+    var _newMsgAIContextsLoaded = false;
+    var _newMsgAILastSuggestion = null;
+    var _newMsgAIBaseUrl = '<?= rtrim(pixelhub_url(""), "/") ?>';
+
+    window.toggleNewMsgAIPanel = function() {
+        var panel = document.getElementById('newMsgAIPanel');
+        if (!panel) return;
+        _newMsgAIOpen = !_newMsgAIOpen;
+        if (_newMsgAIOpen) {
+            panel.style.display = 'flex';
+            if (!_newMsgAIContextsLoaded) loadNewMsgAIContexts();
+        } else {
+            closeNewMsgAIPanel();
+        }
+    };
+
+    window.closeNewMsgAIPanel = function() {
+        var panel = document.getElementById('newMsgAIPanel');
+        if (panel) panel.style.display = 'none';
+        _newMsgAIOpen = false;
+    };
+
+    function loadNewMsgAIContexts() {
+        fetch(_newMsgAIBaseUrl + '/api/ai/contexts', { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var ctxSelect = document.getElementById('newMsgAIContext');
+            var objSelect = document.getElementById('newMsgAIObjective');
+            if (ctxSelect && data.contexts) {
+                ctxSelect.innerHTML = data.contexts.map(function(c) {
+                    return '<option value="' + c.slug + '">' + c.name + '</option>';
+                }).join('');
+            }
+            if (objSelect && data.objectives) {
+                objSelect.innerHTML = '';
+                for (var key in data.objectives) {
+                    var opt = document.createElement('option');
+                    opt.value = key;
+                    opt.textContent = data.objectives[key];
+                    objSelect.appendChild(opt);
+                }
+            }
+            _newMsgAIContextsLoaded = true;
+        })
+        .catch(function(err) { console.error('[IA Modal] Erro ao carregar contextos:', err); });
+    }
+
+    window.generateNewMsgAISuggestions = function() {
+        var btn = document.getElementById('newMsgAIGenerateBtn');
+        var results = document.getElementById('newMsgAIResults');
+        if (!results) return;
+
+        var contextSlug = (document.getElementById('newMsgAIContext') || {}).value || 'geral';
+        var objective = (document.getElementById('newMsgAIObjective') || {}).value || 'first_contact';
+        var note = (document.getElementById('newMsgAINote') || {}).value || '';
+        var contactName = (document.getElementById('modalClienteSearchInput') || {}).value || '';
+        var contactPhone = (document.getElementById('new-message-to') || {}).value || '';
+
+        if (btn) { btn.disabled = true; btn.textContent = 'Gerando...'; }
+        results.innerHTML = '<div style="padding: 20px 14px; text-align: center;"><div style="display: inline-block; width: 20px; height: 20px; border: 3px solid #6f42c1; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div><div style="margin-top: 6px; color: #666; font-size: 11px;">Gerando sugestões...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+
+        fetch(_newMsgAIBaseUrl + '/api/ai/suggest-reply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ context_slug: contextSlug, objective: objective, attendant_note: note, contact_name: contactName, contact_phone: contactPhone })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (btn) { btn.disabled = false; btn.textContent = 'Gerar'; }
+            if (!data.success) {
+                results.innerHTML = '<div style="padding: 14px; color: #dc3545; font-size: 12px; text-align: center;">' + (data.error || 'Erro ao gerar sugestões') + '</div>';
+                return;
+            }
+            _newMsgAILastSuggestion = data;
+            renderNewMsgAISuggestions(data, results);
+        })
+        .catch(function(err) {
+            if (btn) { btn.disabled = false; btn.textContent = 'Gerar'; }
+            results.innerHTML = '<div style="padding: 14px; color: #dc3545; font-size: 12px; text-align: center;">Erro: ' + err.message + '</div>';
+        });
+    };
+
+    function renderNewMsgAISuggestions(data, container) {
+        var html = '';
+        if (data.lead_summary) {
+            html += '<div style="padding: 6px 14px; background: #f0f5ff; border-bottom: 1px solid #e0e8f5; font-size: 11px; color: #555;">';
+            html += '<strong>Resumo:</strong> ' + escapeHtmlSafe(data.lead_summary) + '</div>';
+        }
+        if (data.suggestions && data.suggestions.length) {
+            data.suggestions.forEach(function(s, i) {
+                var colors = ['#198754', '#023A8D', '#e67e22'];
+                html += '<div style="padding: 8px 14px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.15s;" onmouseover="this.style.background=\'#f8f5ff\'" onmouseout="this.style.background=\'transparent\'">';
+                html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">';
+                html += '<span style="font-size: 11px; font-weight: 700; color: ' + (colors[i] || '#666') + ';">' + escapeHtmlSafe(s.label || ('Opção ' + (i+1))) + '</span>';
+                html += '<button type="button" onclick="useNewMsgAISuggestion(' + i + ')" style="font-size: 10px; padding: 2px 8px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Usar</button>';
+                html += '</div>';
+                html += '<div style="font-size: 11px; color: #333; white-space: pre-wrap; line-height: 1.4;">' + escapeHtmlSafe(s.text || '') + '</div>';
+                html += '</div>';
+            });
+        }
+        if (data.qualification_questions && data.qualification_questions.length) {
+            html += '<div style="padding: 6px 14px; background: #fafafa; border-top: 1px solid #eee;">';
+            html += '<div style="font-size: 10px; font-weight: 700; color: #555; margin-bottom: 3px;">Perguntas sugeridas:</div>';
+            data.qualification_questions.forEach(function(q) {
+                html += '<div style="font-size: 10px; color: #666; padding: 1px 0; cursor: pointer;" onclick="useNewMsgAIQuestion(this)" onmouseover="this.style.color=\'#6f42c1\'" onmouseout="this.style.color=\'#666\'">• ' + escapeHtmlSafe(q) + '</div>';
+            });
+            html += '</div>';
+        }
+        container.innerHTML = html;
+    }
+
+    window.useNewMsgAISuggestion = function(index) {
+        if (!_newMsgAILastSuggestion || !_newMsgAILastSuggestion.suggestions) return;
+        var s = _newMsgAILastSuggestion.suggestions[index];
+        if (!s) return;
+        var ta = document.getElementById('new-message-text');
+        if (ta) { ta.value = s.text || ''; ta.focus(); }
+        closeNewMsgAIPanel();
+    };
+
+    window.useNewMsgAIQuestion = function(el) {
+        var text = (el.textContent || '').replace(/^[•\s]+/, '').trim();
+        if (!text) return;
+        var ta = document.getElementById('new-message-text');
+        if (!ta) return;
+        var cur = ta.value.trim();
+        ta.value = cur ? cur + '\n' + text : text;
+        ta.focus();
+    };
+
+    function escapeHtmlSafe(str) {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Fecha painel IA ao clicar fora
+    document.addEventListener('click', function(e) {
+        if (_newMsgAIOpen) {
+            var panel = document.getElementById('newMsgAIPanel');
+            var btn = document.getElementById('newMsgBtnAI');
+            if (panel && btn && !panel.contains(e.target) && !btn.contains(e.target)) {
+                closeNewMsgAIPanel();
+            }
+        }
+    });
 })();
 </script>
