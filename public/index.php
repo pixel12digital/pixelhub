@@ -720,6 +720,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Rotas de Oportunidades / CRM (apenas internos)
     $router->get('/opportunities', 'OpportunitiesController@index');
     $router->get('/opportunities/view', 'OpportunitiesController@show');
+    $router->get('/opportunities/view-by-lead', 'OpportunitiesController@viewByLead');
     $router->post('/opportunities/store', 'OpportunitiesController@store');
     $router->post('/opportunities/update', 'OpportunitiesController@update');
     $router->post('/opportunities/change-stage', 'OpportunitiesController@changeStage');

@@ -4324,7 +4324,7 @@
                 const tenantLink = (tenantId && conv.tenant_name && conv.tenant_name !== 'Sem tenant')
                     ? ` <a href="${INBOX_BASE_URL}/tenants/view?id=${tenantId}" onclick="event.stopPropagation();" style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para ver detalhes do cliente">• ${tenantName}</a>`
                     : (leadId
-                        ? ` <span style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px;" title="Lead vinculado">• ${escapeInboxHtml(leadName ? ('Lead: ' + leadName) : ('Lead #' + leadId))}${leadPhone ? ' (' + escapeInboxHtml(leadPhone) + ')' : ''}</span>`
+                        ? ` <a href="${INBOX_BASE_URL}/opportunities/view-by-lead?lead_id=${encodeURIComponent(leadId)}" onclick="event.stopPropagation();" style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para abrir a oportunidade do lead">• ${escapeInboxHtml(leadName ? ('Lead: ' + leadName) : ('Lead #' + leadId))}${leadPhone ? ' (' + escapeInboxHtml(leadPhone) + ')' : ''}</a>`
                         : ' <span style="opacity: 0.7; font-size: 10px;">• Novo contato</span>'
                     );
                 const line2 = channel === 'whatsapp' 

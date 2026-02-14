@@ -89,6 +89,40 @@ class OpportunitiesController extends Controller
     }
 
     /**
+     * Abre a oportunidade mais recente vinculada a um lead
+     * GET /opportunities/view-by-lead?lead_id=X
+     */
+    public function viewByLead(): void
+    {
+        Auth::requireInternal();
+
+        $leadId = (int) ($_GET['lead_id'] ?? 0);
+        if (!$leadId) {
+            $this->redirect('/opportunities?error=invalid_lead');
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            $stmt = $db->prepare("SELECT id FROM opportunities WHERE lead_id = ? ORDER BY COALESCE(updated_at, created_at) DESC, id DESC LIMIT 1");
+            $stmt->execute([$leadId]);
+            $row = $stmt->fetch();
+        } catch (\Exception $e) {
+            error_log('[Opportunities] Erro ao buscar oportunidade por lead_id=' . $leadId . ': ' . $e->getMessage());
+            $this->redirect('/opportunities?error=database_error');
+            return;
+        }
+
+        if (empty($row['id'])) {
+            $this->redirect('/opportunities?error=no_opportunity_for_lead&lead_id=' . $leadId);
+            return;
+        }
+
+        $this->redirect('/opportunities/view?id=' . (int) $row['id']);
+    }
+
+    /**
      * Salva nova oportunidade (form submit)
      * POST /opportunities/store
      */
