@@ -38,6 +38,12 @@ class Auth
             return null;
         }
 
+        // Bloqueia login de usuários inativos
+        if (isset($user['is_active']) && !$user['is_active']) {
+            error_log("Tentativa de login de usuário inativo: {$email}");
+            return null;
+        }
+
         if (!password_verify($password, $user['password_hash'])) {
             RateLimiter::recordFailure($rateLimitKey);
             error_log("Tentativa de login com senha incorreta para: {$email}");
@@ -46,6 +52,15 @@ class Auth
         
         // Login bem-sucedido: limpa tentativas
         RateLimiter::clearAttempts($rateLimitKey);
+
+        // Registra último login
+        try {
+            $stmtLogin = $db->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?");
+            $stmtLogin->execute([$user['id']]);
+            $user['last_login_at'] = date('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            // Não bloqueia login se falhar
+        }
 
         // Remove password_hash antes de salvar na sessão
         unset($user['password_hash']);
