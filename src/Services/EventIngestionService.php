@@ -320,17 +320,23 @@ class EventIngestionService
                 } catch (\Exception $e) {
                     error_log("[EventIngestion] Erro ao atualizar conversation_id (não crítico): " . $e->getMessage());
                 }
-                
-                if (function_exists('pixelhub_log')) {
-                    pixelhub_log(sprintf(
-                        '[EventIngestion] Conversa resolvida: conversation_id=%d, conversation_key=%s',
-                        $conversation['id'],
-                        $conversation['conversation_key']
-                    ));
+
+                // ===== HISTÓRICO DA OPORTUNIDADE (custo zero, inbound) =====
+                // Registra recebimento de mensagem (apenas WhatsApp inbound) para oportunidades vinculadas à conversa
+                if ($eventType === 'whatsapp.inbound.message') {
+                    try {
+                        $convId = (int) $conversation['id'];
+                        $oppStmt = $db->prepare("SELECT id FROM opportunities WHERE conversation_id = ? ORDER BY id DESC LIMIT 1");
+                        $oppStmt->execute([$convId]);
+                        $opp = $oppStmt->fetch();
+                        if (!empty($opp['id'])) {
+                            \PixelHub\Services\OpportunityService::addInteractionHistory((int) $opp['id'], 'WhatsApp: Recebido', null);
+                        }
+                    } catch (\Throwable $hx) {
+                        // Não quebra ingestão se falhar histórico
+                    }
                 }
-                
-                // Marca evento como processado quando conversa foi resolvida com sucesso
-                self::updateStatus($eventId, 'processed');
+
             } else {
                 // Tenta extrair mais informações do payload para melhorar o erro
                 $payloadEvent = $payload['event'] ?? $payload['raw']['payload']['event'] ?? null;

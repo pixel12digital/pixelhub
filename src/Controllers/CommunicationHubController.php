@@ -24,80 +24,6 @@ use PDO;
 class CommunicationHubController extends Controller
 {
     /**
-     * Gera um rótulo curto (2-3 palavras) para registrar no histórico
-     */
-    private function generateHistoryIntentLabel(string $message): string
-    {
-        $message = trim($message);
-        if ($message === '') return 'Mensagem enviada';
-
-        $apiKey = trim((string) Env::get('OPENAI_API_KEY', ''));
-        if ($apiKey === '') {
-            return $this->fallbackHistoryIntentLabel($message);
-        }
-
-        $prompt = "Classifique a intenção comercial da mensagem abaixo e devolva um rótulo curto em PT-BR com 2 a 3 palavras.\n\n" .
-            "Responda SOMENTE em JSON no formato: {\"label\":\"...\",\"confidence\":0.0}\n" .
-            "Regras: label com no máximo 3 palavras; não invente fatos; se incerto use 'Mensagem enviada'.\n\n" .
-            "MENSAGEM: \"" . mb_substr($message, 0, 1200) . "\"";
-
-        try {
-            $ch = curl_init('https://api.openai.com/v1/chat/completions');
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST => true,
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: application/json',
-                    'Authorization: Bearer ' . $apiKey,
-                ],
-                CURLOPT_POSTFIELDS => json_encode([
-                    'model' => Env::get('OPENAI_MODEL', 'gpt-4.1-mini'),
-                    'messages' => [
-                        ['role' => 'user', 'content' => $prompt],
-                    ],
-                    'temperature' => 0.2,
-                    'max_tokens' => 60,
-                ]),
-                CURLOPT_TIMEOUT => 10,
-            ]);
-            $resp = curl_exec($ch);
-            $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            if ($http !== 200 || !$resp) {
-                return $this->fallbackHistoryIntentLabel($message);
-            }
-
-            $data = json_decode($resp, true);
-            $content = $data['choices'][0]['message']['content'] ?? '';
-            $content = trim((string) $content);
-
-            // Extrai JSON de dentro de possíveis fences
-            if (preg_match('/\{.*\}/s', $content, $m)) {
-                $json = json_decode($m[0], true);
-                $label = trim((string) ($json['label'] ?? ''));
-                $confidence = (float) ($json['confidence'] ?? 0);
-                if ($label !== '' && $confidence >= 0.6) {
-                    return $label;
-                }
-            }
-
-            return $this->fallbackHistoryIntentLabel($message);
-        } catch (\Throwable $e) {
-            return $this->fallbackHistoryIntentLabel($message);
-        }
-    }
-
-    private function fallbackHistoryIntentLabel(string $message): string
-    {
-        $m = mb_strtolower($message);
-        if (strpos($m, 'orçamento') !== false || strpos($m, 'proposta') !== false) return 'Proposta enviada';
-        if (strpos($m, 'agendar') !== false || strpos($m, 'reuni') !== false || strpos($m, 'call') !== false) return 'Agendar reunião';
-        if (strpos($m, 'seguindo') !== false || strpos($m, 'retorno') !== false || strpos($m, 'lembr') !== false) return 'Follow-up';
-        if (strpos($m, 'pagamento') !== false || strpos($m, 'boleto') !== false) return 'Cobrança';
-        return 'Mensagem enviada';
-    }
-    /**
      * Cache estático de existência de tabelas (evita SHOW TABLES repetidos no mesmo request)
      * @var array<string, bool>
      */
@@ -2347,8 +2273,7 @@ class CommunicationHubController extends Controller
                                         $oppStmt->execute([$convId]);
                                         $opp = $oppStmt->fetch();
                                         if (!empty($opp['id'])) {
-                                            $label = $this->generateHistoryIntentLabel($message);
-                                            OpportunityService::addInteractionHistory((int) $opp['id'], 'WhatsApp: ' . $label, Auth::user()['id'] ?? null);
+                                            OpportunityService::addInteractionHistory((int) $opp['id'], 'WhatsApp: Enviado', Auth::user()['id'] ?? null);
                                         }
                                     } catch (\Throwable $hx) {
                                         // Não quebra envio se falhar histórico
