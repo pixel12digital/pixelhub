@@ -4108,10 +4108,13 @@ class CommunicationHubController extends Controller
                     c.*,
                     t.name as tenant_name,
                     t.phone as tenant_phone,
+                    l.name as lead_name,
+                    l.phone as lead_phone,
                     tmc.channel_id as tenant_channel_id,
                     u.name as assigned_to_name
                 FROM conversations c
                 LEFT JOIN tenants t ON c.tenant_id = t.id
+                LEFT JOIN leads l ON c.lead_id = l.id
                 LEFT JOIN tenant_message_channels tmc ON c.tenant_id = tmc.tenant_id AND tmc.provider = 'wpp_gateway' AND tmc.is_enabled = 1
                 LEFT JOIN users u ON c.assigned_to = u.id
                 WHERE c.id = ?
