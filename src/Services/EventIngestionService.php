@@ -326,11 +326,48 @@ class EventIngestionService
                 if ($eventType === 'whatsapp.inbound.message') {
                     try {
                         $convId = (int) $conversation['id'];
+                        $oppId = null;
+
+                        // 1) Vínculo direto
                         $oppStmt = $db->prepare("SELECT id FROM opportunities WHERE conversation_id = ? ORDER BY id DESC LIMIT 1");
                         $oppStmt->execute([$convId]);
                         $opp = $oppStmt->fetch();
                         if (!empty($opp['id'])) {
-                            \PixelHub\Services\OpportunityService::addInteractionHistory((int) $opp['id'], 'WhatsApp: Recebido', null);
+                            $oppId = (int) $opp['id'];
+                        }
+
+                        // 2) Fallback: por lead_id/tenant_id + auto-vincula conversation_id
+                        if (!$oppId) {
+                            $convStmt = $db->prepare("SELECT lead_id, tenant_id FROM conversations WHERE id = ? LIMIT 1");
+                            $convStmt->execute([$convId]);
+                            $c = $convStmt->fetch();
+                            if ($c) {
+                                $leadId = !empty($c['lead_id']) ? (int) $c['lead_id'] : null;
+                                $tenantId = !empty($c['tenant_id']) ? (int) $c['tenant_id'] : null;
+                                if ($leadId) {
+                                    $s = $db->prepare("SELECT id FROM opportunities WHERE lead_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1");
+                                    $s->execute([$leadId]);
+                                    $o2 = $s->fetch();
+                                    if (!empty($o2['id'])) $oppId = (int) $o2['id'];
+                                } elseif ($tenantId) {
+                                    $s = $db->prepare("SELECT id FROM opportunities WHERE tenant_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1");
+                                    $s->execute([$tenantId]);
+                                    $o2 = $s->fetch();
+                                    if (!empty($o2['id'])) $oppId = (int) $o2['id'];
+                                }
+                                if ($oppId) {
+                                    try {
+                                        $upd = $db->prepare("UPDATE opportunities SET conversation_id = ?, updated_at = NOW() WHERE id = ?");
+                                        $upd->execute([$convId, $oppId]);
+                                    } catch (\Throwable $e) {
+                                        // não bloqueia
+                                    }
+                                }
+                            }
+                        }
+
+                        if ($oppId) {
+                            \PixelHub\Services\OpportunityService::addInteractionHistory((int) $oppId, 'WhatsApp: Recebido', null);
                         }
                     } catch (\Throwable $hx) {
                         // Não quebra ingestão se falhar histórico

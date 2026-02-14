@@ -23,6 +23,45 @@ use PDO;
  */
 class CommunicationHubController extends Controller
 {
+    private function resolveOpportunityIdForConversation(PDO $db, int $conversationId): ?int
+    {
+        // 1) Vínculo direto
+        $oppStmt = $db->prepare("SELECT id FROM opportunities WHERE conversation_id = ? ORDER BY id DESC LIMIT 1");
+        $oppStmt->execute([$conversationId]);
+        $opp = $oppStmt->fetch();
+        if (!empty($opp['id'])) {
+            return (int) $opp['id'];
+        }
+
+        // 2) Fallback: tenta encontrar oportunidade por lead_id/tenant_id e auto-vincular conversation_id
+        $convStmt = $db->prepare("SELECT lead_id, tenant_id FROM conversations WHERE id = ? LIMIT 1");
+        $convStmt->execute([$conversationId]);
+        $conv = $convStmt->fetch();
+        if (!$conv) return null;
+
+        $leadId = !empty($conv['lead_id']) ? (int) $conv['lead_id'] : null;
+        $tenantId = !empty($conv['tenant_id']) ? (int) $conv['tenant_id'] : null;
+        if (!$leadId && !$tenantId) return null;
+
+        if ($leadId) {
+            $stmt = $db->prepare("SELECT id FROM opportunities WHERE lead_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1");
+            $stmt->execute([$leadId]);
+        } else {
+            $stmt = $db->prepare("SELECT id FROM opportunities WHERE tenant_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1");
+            $stmt->execute([$tenantId]);
+        }
+        $opp2 = $stmt->fetch();
+        if (empty($opp2['id'])) return null;
+
+        $oppId = (int) $opp2['id'];
+        try {
+            $upd = $db->prepare("UPDATE opportunities SET conversation_id = ?, updated_at = NOW() WHERE id = ?");
+            $upd->execute([$conversationId, $oppId]);
+        } catch (\Throwable $e) {
+            // não bloqueia
+        }
+        return $oppId;
+    }
     /**
      * Cache estático de existência de tabelas (evita SHOW TABLES repetidos no mesmo request)
      * @var array<string, bool>
@@ -2269,11 +2308,9 @@ class CommunicationHubController extends Controller
                                     // Registra somente em caso de conversa vinculada a uma oportunidade
                                     try {
                                         $convId = (int) $ev['conversation_id'];
-                                        $oppStmt = $db->prepare("SELECT id FROM opportunities WHERE conversation_id = ? ORDER BY id DESC LIMIT 1");
-                                        $oppStmt->execute([$convId]);
-                                        $opp = $oppStmt->fetch();
-                                        if (!empty($opp['id'])) {
-                                            OpportunityService::addInteractionHistory((int) $opp['id'], 'WhatsApp: Enviado', Auth::user()['id'] ?? null);
+                                        $oppId = $this->resolveOpportunityIdForConversation($db, $convId);
+                                        if (!empty($oppId)) {
+                                            OpportunityService::addInteractionHistory((int) $oppId, 'WhatsApp: Enviado', Auth::user()['id'] ?? null);
                                         }
                                     } catch (\Throwable $hx) {
                                         // Não quebra envio se falhar histórico
