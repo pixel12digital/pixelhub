@@ -1011,17 +1011,29 @@ class ConversationService
         $messageTimestamp = self::extractMessageTimestamp($eventData);
 
         try {
-            // Marca como incoming_lead se tenant_id é NULL (número não cadastrado)
+            // Se tenant_id é NULL, tenta resolver lead_id pelo telefone do contato
+            $leadId = null;
             $isIncomingLead = ($tenantId === null) ? 1 : 0;
+            
+            if ($tenantId === null && !empty($contactExternalId)) {
+                $leadId = self::resolveLeadByPhone($contactExternalId);
+                if ($leadId !== null) {
+                    $isIncomingLead = 0; // Tem lead vinculado, não é incoming
+                    error_log(sprintf(
+                        '[CONVERSATION CREATE] Lead resolvido por telefone: contato=%s → lead_id=%d',
+                        $contactExternalId, $leadId
+                    ));
+                }
+            }
             
             // NOVA ARQUITETURA: Usa remote_key, contact_key, thread_key como identidade primária
             $stmt = $db->prepare("
                 INSERT INTO conversations 
                 (conversation_key, channel_type, channel_account_id, channel_id, session_id,
                  contact_external_id, remote_key, contact_key, thread_key,
-                 contact_name, tenant_id, is_incoming_lead, status, last_message_at, last_message_direction, 
+                 contact_name, tenant_id, lead_id, is_incoming_lead, status, last_message_at, last_message_direction, 
                  message_count, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, 1, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, 1, ?, ?)
             ");
 
             $stmt->execute([
@@ -1036,7 +1048,8 @@ class ConversationService
                 $channelInfo['thread_key'] ?? null,
                 $channelInfo['contact_name'],
                 $tenantId,
-                $isIncomingLead, // Marca como incoming lead se não tem tenant
+                $leadId,
+                $isIncomingLead, // Marca como incoming lead se não tem tenant NEM lead
                 $messageTimestamp, // Usa timestamp da mensagem ao invés de NOW()
                 $direction,
                 $now,
@@ -1259,13 +1272,34 @@ class ConversationService
                 ");
                 $updateTenantStmt->execute([$tenantId, $conversationId]);
             } else {
-                // Se tenant_id é NULL, marca como incoming_lead se ainda não estiver marcado
-                $updateIncomingLeadStmt = $db->prepare("
-                    UPDATE conversations 
-                    SET is_incoming_lead = 1
-                    WHERE id = ? AND tenant_id IS NULL AND is_incoming_lead = 0
-                ");
-                $updateIncomingLeadStmt->execute([$conversationId]);
+                // Se tenant_id é NULL, tenta resolver lead_id pelo telefone
+                $currentLeadStmt = $db->prepare("SELECT lead_id FROM conversations WHERE id = ?");
+                $currentLeadStmt->execute([$conversationId]);
+                $currentLeadId = $currentLeadStmt->fetchColumn();
+                
+                if (empty($currentLeadId) && !empty($contactExternalId)) {
+                    $resolvedLeadId = self::resolveLeadByPhone($contactExternalId);
+                    if ($resolvedLeadId !== null) {
+                        $updateLeadStmt = $db->prepare("
+                            UPDATE conversations 
+                            SET lead_id = ?, is_incoming_lead = 0
+                            WHERE id = ? AND tenant_id IS NULL AND lead_id IS NULL
+                        ");
+                        $updateLeadStmt->execute([$resolvedLeadId, $conversationId]);
+                        error_log(sprintf(
+                            '[CONVERSATION UPDATE] Lead resolvido por telefone: conversation_id=%d, contato=%s → lead_id=%d',
+                            $conversationId, $contactExternalId, $resolvedLeadId
+                        ));
+                    } else {
+                        // Nenhum lead encontrado, marca como incoming_lead
+                        $updateIncomingLeadStmt = $db->prepare("
+                            UPDATE conversations 
+                            SET is_incoming_lead = 1
+                            WHERE id = ? AND tenant_id IS NULL AND lead_id IS NULL AND is_incoming_lead = 0
+                        ");
+                        $updateIncomingLeadStmt->execute([$conversationId]);
+                    }
+                }
             }
 
             // CORREÇÃO CRÍTICA: Atualiza channel_id SEMPRE para eventos inbound
@@ -2143,6 +2177,82 @@ class ConversationService
             error_log('[LID_PHONE_MAPPING] Erro ao criar mapeamento: ' . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Resolve lead_id pelo telefone do contato
+     * 
+     * Busca na tabela leads se o número do contato corresponde ao telefone
+     * de algum lead cadastrado. Usa tolerância de 9º dígito para números BR.
+     * 
+     * @param string $contactExternalId Telefone/ID do contato (pode conter @c.us, @lid, etc.)
+     * @return int|null ID do lead ou null se não encontrado
+     */
+    private static function resolveLeadByPhone(string $contactExternalId): ?int
+    {
+        try {
+            $db = DB::getConnection();
+            
+            // Normaliza: remove @c.us, @lid, etc. e mantém só dígitos
+            $cleaned = preg_replace('/@.*$/', '', $contactExternalId);
+            $contactDigits = preg_replace('/[^0-9]/', '', $cleaned);
+            
+            if (empty($contactDigits) || strlen($contactDigits) < 8) {
+                return null;
+            }
+            
+            // Garante prefixo 55 para números BR
+            if (substr($contactDigits, 0, 2) !== '55' && (strlen($contactDigits) === 10 || strlen($contactDigits) === 11)) {
+                $contactDigits = '55' . $contactDigits;
+            }
+            
+            // Busca leads com telefone cadastrado
+            $stmt = $db->query("SELECT id, name, phone FROM leads WHERE phone IS NOT NULL AND phone != '' ORDER BY id DESC");
+            $leads = $stmt->fetchAll();
+            
+            foreach ($leads as $lead) {
+                $leadPhone = preg_replace('/[^0-9]/', '', $lead['phone']);
+                if (empty($leadPhone)) continue;
+                
+                // Garante prefixo 55
+                if (substr($leadPhone, 0, 2) !== '55' && (strlen($leadPhone) === 10 || strlen($leadPhone) === 11)) {
+                    $leadPhone = '55' . $leadPhone;
+                }
+                
+                // Comparação exata
+                if ($contactDigits === $leadPhone) {
+                    return (int) $lead['id'];
+                }
+                
+                // Tolerância de 9º dígito BR
+                if (strlen($contactDigits) >= 12 && strlen($leadPhone) >= 12 &&
+                    substr($contactDigits, 0, 2) === '55' && substr($leadPhone, 0, 2) === '55') {
+                    
+                    $contactBase = self::stripNinthDigit($contactDigits);
+                    $leadBase = self::stripNinthDigit($leadPhone);
+                    
+                    if ($contactBase === $leadBase) {
+                        return (int) $lead['id'];
+                    }
+                }
+            }
+            
+            return null;
+        } catch (\Exception $e) {
+            error_log('[RESOLVE_LEAD_BY_PHONE] Erro: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Remove 9º dígito de número BR para comparação
+     */
+    private static function stripNinthDigit(string $digits): string
+    {
+        if (strlen($digits) === 13 && substr($digits, 0, 2) === '55') {
+            return substr($digits, 0, 4) . substr($digits, 5);
+        }
+        return $digits;
     }
 
     /**
