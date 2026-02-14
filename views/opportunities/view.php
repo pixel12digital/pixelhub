@@ -214,9 +214,12 @@ $isLost = $opp['status'] === 'lost';
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="background: #1565c0; color: white; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600;">Lead</span>
                         <div>
-                            <strong><?= htmlspecialchars($opp['lead_name'] ?? '') ?></strong>
+                            <strong><?= htmlspecialchars(!empty($opp['lead_name']) ? $opp['lead_name'] : ('Lead #' . ($opp['lead_id'] ?? ''))) ?></strong>
                             <?php if ($hasPhone): ?>
                                 <div style="font-size: 12px; color: #666;"><?= htmlspecialchars($contactPhone) ?></div>
+                            <?php endif; ?>
+                            <?php if ($hasEmail): ?>
+                                <div style="font-size: 12px; color: #666;"><?= htmlspecialchars($contactEmail) ?></div>
                             <?php endif; ?>
                         </div>
                     </div>
