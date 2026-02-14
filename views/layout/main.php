@@ -3783,8 +3783,19 @@
             }
         };
         window.inboxOverlayClick = function() {
-            if (InboxState.isOpen && document.getElementById('inboxDrawer')?.classList.contains('inbox--minimized') === false) {
-                toggleInboxMinimized();
+            const drawer = document.getElementById('inboxDrawer');
+            const overlay = document.getElementById('inboxOverlay');
+            if (!drawer || !overlay) return;
+
+            // Se overlay estiver aberto, sempre permite sair dele
+            if (InboxState.isOpen && overlay.classList.contains('open')) {
+                // Se não está minimizado, minimiza (comportamento padrão)
+                if (!drawer.classList.contains('inbox--minimized')) {
+                    toggleInboxMinimized();
+                } else {
+                    // Estado inconsistente: overlay aberto + minimizado. Corrige removendo overlay.
+                    overlay.classList.remove('open');
+                }
             }
         };
         window.inboxCloseBtnClick = function(e) {
@@ -3798,6 +3809,14 @@
             const drawer = document.getElementById('inboxDrawer');
             const overlay = document.getElementById('inboxOverlay');
             if (!drawer || !overlay) return;
+
+            // Se estava minimizado, expande antes de abrir overlay (evita overlay travado com Inbox colapsado)
+            if (drawer.classList.contains('inbox--minimized')) {
+                drawer.classList.remove('inbox--minimized');
+                document.body.classList.remove('inbox-minimized');
+                const handle = document.getElementById('inboxChevronHandle');
+                if (handle) handle.setAttribute('title', 'Minimizar');
+            }
             
             drawer.classList.add('open');
             overlay.classList.add('open');
@@ -4379,6 +4398,14 @@
         // ===== CARREGAR CONVERSA =====
         window.loadInboxConversation = async function(threadId, channel) {
             console.log('[Inbox] Carregando conversa:', threadId, channel);
+
+            // Normaliza thread_id do WhatsApp: às vezes chega apenas o conversation_id numérico
+            if ((channel === 'whatsapp' || !channel) && typeof threadId === 'string' && /^\d+$/.test(threadId)) {
+                threadId = 'whatsapp_' + threadId;
+            }
+            if ((channel === 'whatsapp' || !channel) && typeof threadId === 'number') {
+                threadId = 'whatsapp_' + threadId;
+            }
             
             // Cancela fetch anterior (AbortController - mesmo padrão Fase 1)
             if (InboxState.currentLoadController) {
