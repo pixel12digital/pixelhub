@@ -2171,45 +2171,43 @@
                                 <circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/>
                             </svg>
                         </button>
-                        <!-- Painel IA -->
-                        <div id="inboxAIPanel" style="display: none; position: fixed; bottom: 70px; width: 400px; max-height: 520px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.2); z-index: 1100; overflow: hidden; flex-direction: column;">
-                            <div style="padding: 12px 16px; border-bottom: 1px solid #eee; background: linear-gradient(135deg, #6f42c1 0%, #023A8D 100%); border-radius: 12px 12px 0 0;">
+                        <!-- Painel IA - Chat Conversacional -->
+                        <div id="inboxAIPanel" style="display: none; position: fixed; bottom: 70px; width: 420px; max-height: 560px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.2); z-index: 1100; overflow: hidden; flex-direction: column;">
+                            <div style="padding: 10px 16px; border-bottom: 1px solid #eee; background: linear-gradient(135deg, #6f42c1 0%, #023A8D 100%); border-radius: 12px 12px 0 0;">
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
                                     <span style="font-weight: 700; font-size: 14px; color: white;">IA Assistente</span>
-                                    <button type="button" onclick="closeInboxAIPanel()" style="background: none; border: none; cursor: pointer; padding: 2px; color: rgba(255,255,255,0.8); font-size: 18px; line-height: 1;" title="Fechar">&times;</button>
+                                    <button type="button" onclick="closeInboxAIPanel()" style="background: none; border: none; cursor: pointer; padding: 2px; color: rgba(255,255,255,0.8); font-size: 18px; line-height: 1;">&times;</button>
                                 </div>
                             </div>
-                            <!-- Configuração -->
-                            <div id="inboxAIConfig" style="padding: 12px 16px; border-bottom: 1px solid #f0f0f0; background: #fafafa;">
-                                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                            <!-- Config -->
+                            <div style="padding: 10px 16px; border-bottom: 1px solid #f0f0f0; background: #fafafa;">
+                                <div style="display: flex; gap: 8px; margin-bottom: 6px;">
                                     <div style="flex: 1;">
-                                        <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Contexto</label>
-                                        <select id="inboxAIContext" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: white;">
+                                        <label style="font-size: 10px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Contexto</label>
+                                        <select id="inboxAIContext" style="width: 100%; padding: 5px 6px; border: 1px solid #ddd; border-radius: 5px; font-size: 11px; background: white;">
                                             <option value="geral">Carregando...</option>
                                         </select>
                                     </div>
                                     <div style="flex: 1;">
-                                        <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Objetivo</label>
-                                        <select id="inboxAIObjective" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: white;">
+                                        <label style="font-size: 10px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Objetivo</label>
+                                        <select id="inboxAIObjective" style="width: 100%; padding: 5px 6px; border: 1px solid #ddd; border-radius: 5px; font-size: 11px; background: white;">
                                             <option value="first_contact">Primeiro contato</option>
                                         </select>
                                     </div>
                                 </div>
-                                <div style="display: flex; gap: 8px; align-items: end;">
-                                    <div style="flex: 1;">
-                                        <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Observação (opcional)</label>
-                                        <input type="text" id="inboxAINote" placeholder="Ex: cliente veio do Google Ads" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
-                                    </div>
-                                    <button type="button" id="inboxAIGenerateBtn" onclick="generateAISuggestions()" style="padding: 6px 14px; background: #6f42c1; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; height: 30px;">
-                                        Gerar
-                                    </button>
+                                <div>
+                                    <label style="font-size: 10px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Observação (opcional)</label>
+                                    <textarea id="inboxAINote" rows="2" placeholder="Ex: cliente veio do Google Ads, estou respondendo atrasado..." style="width: 100%; padding: 5px 6px; border: 1px solid #ddd; border-radius: 5px; font-size: 11px; box-sizing: border-box; resize: none; font-family: inherit; line-height: 1.3;"></textarea>
                                 </div>
                             </div>
-                            <!-- Resultados -->
-                            <div id="inboxAIResults" style="overflow-y: auto; max-height: 320px; padding: 0;">
-                                <div style="padding: 24px 16px; text-align: center; color: #999; font-size: 13px;">
-                                    Selecione o contexto e clique em <strong>Gerar</strong> para receber sugestões da IA.
-                                </div>
+                            <!-- Chat Messages -->
+                            <div id="inboxAIChatArea" style="flex: 1; overflow-y: auto; max-height: 300px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;">
+                                <div style="text-align: center; color: #999; font-size: 12px; padding: 20px 0;">Configure acima e envie uma mensagem para iniciar.<br><br><span style="font-size: 11px;">Ex: "Gere uma resposta para este cliente"<br>"Mude o tom para mais informal"<br>"Adicione informação sobre frete grátis"</span></div>
+                            </div>
+                            <!-- Input do chat -->
+                            <div style="padding: 10px 16px; border-top: 1px solid #eee; background: #fafafa; display: flex; gap: 8px; align-items: flex-end;">
+                                <textarea id="inboxAIChatInput" rows="2" placeholder="Peça para gerar ou refinar a resposta..." style="flex: 1; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 12px; font-family: inherit; resize: none; line-height: 1.4; box-sizing: border-box;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendInboxAIChat();}"></textarea>
+                                <button type="button" id="inboxAISendBtn" onclick="sendInboxAIChat()" style="padding: 8px 12px; background: #6f42c1; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; height: 36px;">Enviar</button>
                             </div>
                         </div>
                     </div>
@@ -2840,9 +2838,9 @@
         };
 
         // ============================================================================
-        // IA Assistente - Painel de sugestões inteligentes
+        // IA Assistente - Chat Conversacional no Inbox
         // ============================================================================
-        var InboxAIState = { isOpen: false, contextsLoaded: false, lastSuggestion: null, lastContext: '', lastObjective: '' };
+        var InboxAIState = { isOpen: false, contextsLoaded: false, chatHistory: [], lastResponse: '', lastContext: '', lastObjective: '' };
         var _aiBaseUrl = '<?= rtrim(pixelhub_url(""), "/") ?>';
 
         window.toggleInboxAIPanel = function() {
@@ -2858,6 +2856,8 @@
                 }
                 panel.style.display = 'flex';
                 if (!InboxAIState.contextsLoaded) loadAIContexts();
+                var input = document.getElementById('inboxAIChatInput');
+                if (input) setTimeout(function() { input.focus(); }, 100);
             } else {
                 closeInboxAIPanel();
             }
@@ -2892,126 +2892,129 @@
                 }
                 InboxAIState.contextsLoaded = true;
             })
-            .catch(function(err) { console.error('[IA] Erro ao carregar contextos:', err); });
+            .catch(function(err) { console.error('[IA] Erro:', err); });
         }
 
-        window.generateAISuggestions = function() {
-            var btn = document.getElementById('inboxAIGenerateBtn');
-            var results = document.getElementById('inboxAIResults');
-            if (!results) return;
+        function renderInboxAIChat() {
+            var area = document.getElementById('inboxAIChatArea');
+            if (!area) return;
+            if (!InboxAIState.chatHistory.length) {
+                area.innerHTML = '<div style="text-align: center; color: #999; font-size: 12px; padding: 20px 0;">Configure acima e envie uma mensagem para iniciar.<br><br><span style="font-size: 11px;">Ex: "Gere uma resposta para este cliente"<br>"Mude o tom para mais informal"<br>"Adicione informação sobre frete grátis"</span></div>';
+                return;
+            }
+            var html = '';
+            InboxAIState.chatHistory.forEach(function(msg) {
+                if (msg.role === 'user') {
+                    html += '<div style="align-self: flex-end; background: #e8f0fe; color: #1a1a2e; padding: 8px 12px; border-radius: 12px 12px 2px 12px; max-width: 85%; font-size: 12px; line-height: 1.4; word-wrap: break-word;">' + escapeInboxHtml(msg.content) + '</div>';
+                } else {
+                    html += '<div style="align-self: flex-start; background: #f3eaff; color: #1a1a2e; padding: 8px 12px; border-radius: 12px 12px 12px 2px; max-width: 85%; font-size: 12px; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word;">';
+                    html += escapeInboxHtml(msg.content);
+                    html += '<div style="margin-top: 6px; display: flex; gap: 6px;">';
+                    html += '<button type="button" onclick="useInboxAIResponse(this)" data-text="' + escapeInboxHtml(msg.content).replace(/"/g, '&quot;') + '" style="font-size: 10px; padding: 3px 10px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Usar esta resposta</button>';
+                    html += '<button type="button" onclick="copyInboxAIResponse(this)" data-text="' + escapeInboxHtml(msg.content).replace(/"/g, '&quot;') + '" style="font-size: 10px; padding: 3px 8px; background: #e0e0e0; color: #555; border: none; border-radius: 4px; cursor: pointer;">Copiar</button>';
+                    html += '</div></div>';
+                }
+            });
+            area.innerHTML = html;
+            area.scrollTop = area.scrollHeight;
+        }
+
+        window.sendInboxAIChat = function() {
+            var input = document.getElementById('inboxAIChatInput');
+            var sendBtn = document.getElementById('inboxAISendBtn');
+            if (!input) return;
+            var text = input.value.trim();
+            if (!text) return;
+
+            InboxAIState.chatHistory.push({ role: 'user', content: text });
+            input.value = '';
+            renderInboxAIChat();
+
+            var area = document.getElementById('inboxAIChatArea');
+            var loadingDiv = document.createElement('div');
+            loadingDiv.id = 'inboxAILoading';
+            loadingDiv.style.cssText = 'align-self: flex-start; padding: 10px 16px; color: #6f42c1; font-size: 12px;';
+            loadingDiv.innerHTML = '<div style="display: inline-block; width: 14px; height: 14px; border: 2px solid #6f42c1; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px;"></div>Pensando...<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+            area.appendChild(loadingDiv);
+            area.scrollTop = area.scrollHeight;
+
+            if (sendBtn) { sendBtn.disabled = true; sendBtn.style.opacity = '0.6'; }
 
             var contextSlug = (document.getElementById('inboxAIContext') || {}).value || 'geral';
             var objective = (document.getElementById('inboxAIObjective') || {}).value || 'first_contact';
             var note = (document.getElementById('inboxAINote') || {}).value || '';
+            var convId = window._currentInboxConversationId || null;
 
             InboxAIState.lastContext = contextSlug;
             InboxAIState.lastObjective = objective;
 
-            // Pega conversation_id da conversa aberta
-            var convId = window._currentInboxConversationId || null;
-
-            if (btn) { btn.disabled = true; btn.textContent = 'Gerando...'; }
-            results.innerHTML = '<div style="padding: 24px 16px; text-align: center;"><div style="display: inline-block; width: 24px; height: 24px; border: 3px solid #6f42c1; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div><div style="margin-top: 8px; color: #666; font-size: 12px;">Analisando conversa e gerando sugestões...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
-
-            fetch(_aiBaseUrl + '/api/ai/suggest-reply', {
+            fetch(_aiBaseUrl + '/api/ai/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
-                body: JSON.stringify({ context_slug: contextSlug, objective: objective, attendant_note: note, conversation_id: convId })
+                body: JSON.stringify({
+                    context_slug: contextSlug,
+                    objective: objective,
+                    attendant_note: note,
+                    conversation_id: convId,
+                    ai_chat_messages: InboxAIState.chatHistory
+                })
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (btn) { btn.disabled = false; btn.textContent = 'Gerar'; }
+                var ld = document.getElementById('inboxAILoading');
+                if (ld) ld.remove();
+                if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+
                 if (!data.success) {
-                    results.innerHTML = '<div style="padding: 16px; color: #dc3545; font-size: 13px; text-align: center;">' + (data.error || 'Erro ao gerar sugestões') + '</div>';
-                    return;
+                    InboxAIState.chatHistory.push({ role: 'assistant', content: 'Erro: ' + (data.error || 'Erro desconhecido') });
+                } else {
+                    InboxAIState.chatHistory.push({ role: 'assistant', content: data.message });
+                    InboxAIState.lastResponse = data.message;
                 }
-                InboxAIState.lastSuggestion = data;
-                renderAISuggestions(data, results);
+                renderInboxAIChat();
+                if (input) input.focus();
             })
             .catch(function(err) {
-                if (btn) { btn.disabled = false; btn.textContent = 'Gerar'; }
-                results.innerHTML = '<div style="padding: 16px; color: #dc3545; font-size: 13px; text-align: center;">Erro de conexão: ' + err.message + '</div>';
+                var ld = document.getElementById('inboxAILoading');
+                if (ld) ld.remove();
+                if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+                InboxAIState.chatHistory.push({ role: 'assistant', content: 'Erro: ' + err.message });
+                renderInboxAIChat();
             });
         };
 
-        function renderAISuggestions(data, container) {
-            var html = '';
-
-            // Lead summary
-            if (data.lead_summary) {
-                html += '<div style="padding: 8px 16px; background: #f0f5ff; border-bottom: 1px solid #e0e8f5; font-size: 11px; color: #555;">';
-                html += '<strong>Resumo:</strong> ' + escapeHtml(data.lead_summary);
-                if (data.learned_examples_count > 0) {
-                    html += ' <span style="color: #6f42c1; font-weight: 600;">(' + data.learned_examples_count + ' aprendizados aplicados)</span>';
-                }
-                html += '</div>';
-            }
-
-            // Sugestões
-            if (data.suggestions && data.suggestions.length) {
-                data.suggestions.forEach(function(s, i) {
-                    var labelColors = ['#198754', '#023A8D', '#e67e22'];
-                    html += '<div style="padding: 10px 16px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.15s;" onmouseover="this.style.background=\'#f8f5ff\'" onmouseout="this.style.background=\'transparent\'">';
-                    html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">';
-                    html += '<span style="font-size: 11px; font-weight: 700; color: ' + (labelColors[i] || '#666') + ';">' + escapeHtml(s.label || ('Opção ' + (i+1))) + '</span>';
-                    html += '<button type="button" onclick="useAISuggestion(' + i + ')" style="font-size: 11px; padding: 2px 10px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Usar</button>';
-                    html += '</div>';
-                    html += '<div style="font-size: 12px; color: #333; white-space: pre-wrap; line-height: 1.4;">' + escapeHtml(s.text || '') + '</div>';
-                    html += '</div>';
-                });
-            }
-
-            // Perguntas de qualificação
-            if (data.qualification_questions && data.qualification_questions.length) {
-                html += '<div style="padding: 8px 16px; background: #fafafa; border-top: 1px solid #eee;">';
-                html += '<div style="font-size: 11px; font-weight: 700; color: #555; margin-bottom: 4px;">Perguntas sugeridas:</div>';
-                data.qualification_questions.forEach(function(q) {
-                    html += '<div style="font-size: 11px; color: #666; padding: 2px 0; cursor: pointer;" onclick="useAIQuestion(this)" onmouseover="this.style.color=\'#6f42c1\'" onmouseout="this.style.color=\'#666\'">• ' + escapeHtml(q) + '</div>';
-                });
-                html += '</div>';
-            }
-
-            container.innerHTML = html;
-        }
-
-        window.useAISuggestion = function(index) {
-            if (!InboxAIState.lastSuggestion || !InboxAIState.lastSuggestion.suggestions) return;
-            var suggestion = InboxAIState.lastSuggestion.suggestions[index];
-            if (!suggestion) return;
-
+        window.useInboxAIResponse = function(btn) {
+            var text = btn.getAttribute('data-text') || '';
+            if (!text) return;
             var ta = document.getElementById('inboxMessageInput');
             if (!ta) return;
-
-            var originalText = suggestion.text || '';
-            ta.value = originalText;
+            ta.value = text;
             ta.focus();
             ta.selectionStart = ta.selectionEnd = ta.value.length;
             if (typeof autoResizeInboxTextarea === 'function') autoResizeInboxTextarea(ta);
             if (typeof updateInboxSendMicVisibility === 'function') updateInboxSendMicVisibility();
 
-            // Salva referência para aprendizado quando o atendente enviar
             window._aiPendingLearn = {
                 context_slug: InboxAIState.lastContext,
                 objective: InboxAIState.lastObjective,
-                ai_suggestion: originalText,
-                situation_summary: InboxAIState.lastSuggestion.lead_summary || '',
+                ai_suggestion: text,
+                situation_summary: 'Chat IA - Inbox',
                 conversation_id: window._currentInboxConversationId || null
             };
 
             closeInboxAIPanel();
         };
 
-        window.useAIQuestion = function(el) {
-            var text = (el.textContent || '').replace(/^[•\s]+/, '').trim();
-            if (!text) return;
-            var ta = document.getElementById('inboxMessageInput');
-            if (!ta) return;
-            var cur = ta.value.trim();
-            ta.value = cur ? cur + '\n' + text : text;
-            ta.focus();
-            if (typeof autoResizeInboxTextarea === 'function') autoResizeInboxTextarea(ta);
-            if (typeof updateInboxSendMicVisibility === 'function') updateInboxSendMicVisibility();
+        window.copyInboxAIResponse = function(btn) {
+            var text = btn.getAttribute('data-text') || '';
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(function() {
+                    var orig = btn.textContent;
+                    btn.textContent = 'Copiado!';
+                    setTimeout(function() { btn.textContent = orig; }, 1500);
+                });
+            }
         };
 
         // Hook: após enviar mensagem, registra aprendizado se houve edição
@@ -3023,7 +3026,6 @@
                     var ta = document.getElementById('inboxMessageInput');
                     var finalText = ta ? ta.value.trim() : '';
                     if (finalText && pending.ai_suggestion) {
-                        // Envia aprendizado em background
                         fetch(_aiBaseUrl + '/api/ai/learn', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },

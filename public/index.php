@@ -646,6 +646,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/api/ai/contexts', 'AISuggestController@contexts');
     $router->post('/api/ai/suggest-reply', 'AISuggestController@suggestReply');
     $router->post('/api/ai/learn', 'AISuggestController@learn');
+    $router->post('/api/ai/chat', 'AISuggestController@chat');
     $router->get('/settings/ai-contexts', 'AISuggestController@adminContexts');
     $router->get('/api/ai/contexts/all', 'AISuggestController@allContexts');
     $router->post('/api/ai/contexts/save', 'AISuggestController@saveContext');

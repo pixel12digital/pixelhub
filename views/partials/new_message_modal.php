@@ -113,43 +113,44 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
     </div>
 </div>
 
-<!-- Painel IA flutuante (fixed, fora do modal para não ser cortado) -->
-<div id="newMsgAIPanel" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 420px; max-height: 520px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); z-index: 10000; overflow: hidden; flex-direction: column;">
-    <div style="padding: 12px 16px; border-bottom: 1px solid #eee; background: linear-gradient(135deg, #6f42c1 0%, #023A8D 100%); border-radius: 12px 12px 0 0;">
+<!-- Painel IA flutuante - Chat Conversacional -->
+<div id="newMsgAIPanel" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 440px; max-height: 600px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); z-index: 10000; overflow: hidden; flex-direction: column;">
+    <!-- Header -->
+    <div style="padding: 10px 16px; border-bottom: 1px solid #eee; background: linear-gradient(135deg, #6f42c1 0%, #023A8D 100%); border-radius: 12px 12px 0 0;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="font-weight: 700; font-size: 14px; color: white;">IA Assistente</span>
-            <button type="button" onclick="closeNewMsgAIPanel()" style="background: none; border: none; cursor: pointer; padding: 2px; color: rgba(255,255,255,0.8); font-size: 18px; line-height: 1;" title="Fechar">&times;</button>
+            <button type="button" onclick="closeNewMsgAIPanel()" style="background: none; border: none; cursor: pointer; padding: 2px; color: rgba(255,255,255,0.8); font-size: 18px; line-height: 1;">&times;</button>
         </div>
     </div>
-    <div style="padding: 12px 16px; border-bottom: 1px solid #f0f0f0; background: #fafafa;">
-        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+    <!-- Config (colapsável) -->
+    <div id="newMsgAICfg" style="padding: 10px 16px; border-bottom: 1px solid #f0f0f0; background: #fafafa;">
+        <div style="display: flex; gap: 8px; margin-bottom: 6px;">
             <div style="flex: 1;">
-                <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Contexto</label>
-                <select id="newMsgAIContext" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: white;">
+                <label style="font-size: 10px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Contexto</label>
+                <select id="newMsgAIContext" style="width: 100%; padding: 5px 6px; border: 1px solid #ddd; border-radius: 5px; font-size: 11px; background: white;">
                     <option value="geral">Carregando...</option>
                 </select>
             </div>
             <div style="flex: 1;">
-                <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Objetivo</label>
-                <select id="newMsgAIObjective" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: white;">
+                <label style="font-size: 10px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Objetivo</label>
+                <select id="newMsgAIObjective" style="width: 100%; padding: 5px 6px; border: 1px solid #ddd; border-radius: 5px; font-size: 11px; background: white;">
                     <option value="first_contact">Primeiro contato</option>
                 </select>
             </div>
         </div>
-        <div style="margin-bottom: 6px;">
-            <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Observação (opcional)</label>
-            <textarea id="newMsgAINote" rows="3" placeholder="Ex: cliente veio do Google Ads, estou respondendo atrasado, lead pediu orçamento..." style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; box-sizing: border-box; resize: vertical; font-family: inherit; line-height: 1.4;"></textarea>
-        </div>
-        <div style="text-align: right;">
-            <button type="button" id="newMsgAIGenerateBtn" onclick="generateNewMsgAISuggestions()" style="padding: 6px 14px; background: #6f42c1; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;">
-                Gerar
-            </button>
+        <div>
+            <label style="font-size: 10px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Observação (opcional)</label>
+            <textarea id="newMsgAINote" rows="2" placeholder="Ex: cliente veio do Google Ads, estou respondendo atrasado..." style="width: 100%; padding: 5px 6px; border: 1px solid #ddd; border-radius: 5px; font-size: 11px; box-sizing: border-box; resize: none; font-family: inherit; line-height: 1.3;"></textarea>
         </div>
     </div>
-    <div id="newMsgAIResults" style="overflow-y: auto; max-height: 320px; padding: 0;">
-        <div style="padding: 24px 16px; text-align: center; color: #999; font-size: 13px;">
-            Selecione o contexto e clique em <strong>Gerar</strong> para receber sugestões da IA.
-        </div>
+    <!-- Chat Messages -->
+    <div id="newMsgAIChatArea" style="flex: 1; overflow-y: auto; max-height: 340px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="text-align: center; color: #999; font-size: 12px; padding: 20px 0;">Configure acima e envie uma mensagem para iniciar.</div>
+    </div>
+    <!-- Input do chat -->
+    <div style="padding: 10px 16px; border-top: 1px solid #eee; background: #fafafa; display: flex; gap: 8px; align-items: flex-end;">
+        <textarea id="newMsgAIChatInput" rows="2" placeholder="Peça para gerar ou refinar a resposta..." style="flex: 1; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 12px; font-family: inherit; resize: none; line-height: 1.4; box-sizing: border-box;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendNewMsgAIChat();}"></textarea>
+        <button type="button" id="newMsgAISendBtn" onclick="sendNewMsgAIChat()" style="padding: 8px 12px; background: #6f42c1; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; height: 36px;">Enviar</button>
     </div>
 </div>
 
@@ -344,11 +345,12 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
     }
 
     // ============================================================================
-    // IA Assistente no Modal Nova Mensagem
+    // IA Assistente - Chat Conversacional no Modal Nova Mensagem
     // ============================================================================
     var _newMsgAIOpen = false;
     var _newMsgAIContextsLoaded = false;
-    var _newMsgAILastSuggestion = null;
+    var _newMsgAIChatHistory = []; // {role: 'user'|'assistant', content: '...'}
+    var _newMsgAILastResponse = ''; // última resposta da IA (para aprendizado)
     var _newMsgAIBaseUrl = '<?= rtrim(pixelhub_url(""), "/") ?>';
 
     window.toggleNewMsgAIPanel = function() {
@@ -358,6 +360,8 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         if (_newMsgAIOpen) {
             panel.style.display = 'flex';
             if (!_newMsgAIContextsLoaded) loadNewMsgAIContexts();
+            var input = document.getElementById('newMsgAIChatInput');
+            if (input) setTimeout(function() { input.focus(); }, 100);
         } else {
             closeNewMsgAIPanel();
         }
@@ -392,13 +396,60 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             }
             _newMsgAIContextsLoaded = true;
         })
-        .catch(function(err) { console.error('[IA Modal] Erro ao carregar contextos:', err); });
+        .catch(function(err) { console.error('[IA Chat] Erro:', err); });
     }
 
-    window.generateNewMsgAISuggestions = function() {
-        var btn = document.getElementById('newMsgAIGenerateBtn');
-        var results = document.getElementById('newMsgAIResults');
-        if (!results) return;
+    function escapeHtmlSafe(str) {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function renderNewMsgAIChat() {
+        var area = document.getElementById('newMsgAIChatArea');
+        if (!area) return;
+        if (!_newMsgAIChatHistory.length) {
+            area.innerHTML = '<div style="text-align: center; color: #999; font-size: 12px; padding: 20px 0;">Configure acima e envie uma mensagem para iniciar.<br><br><span style="font-size: 11px;">Ex: "Gere uma mensagem de primeiro contato"<br>"Mude o tom para mais informal"<br>"Mencione que temos frete grátis"</span></div>';
+            return;
+        }
+        var html = '';
+        _newMsgAIChatHistory.forEach(function(msg) {
+            if (msg.role === 'user') {
+                html += '<div style="align-self: flex-end; background: #e8f0fe; color: #1a1a2e; padding: 8px 12px; border-radius: 12px 12px 2px 12px; max-width: 85%; font-size: 12px; line-height: 1.4; word-wrap: break-word;">' + escapeHtmlSafe(msg.content) + '</div>';
+            } else {
+                html += '<div style="align-self: flex-start; background: #f3eaff; color: #1a1a2e; padding: 8px 12px; border-radius: 12px 12px 12px 2px; max-width: 85%; font-size: 12px; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word; position: relative;">';
+                html += escapeHtmlSafe(msg.content);
+                html += '<div style="margin-top: 6px; display: flex; gap: 6px;">';
+                html += '<button type="button" onclick="useNewMsgAIResponse(this)" data-text="' + escapeHtmlSafe(msg.content).replace(/"/g, '&quot;') + '" style="font-size: 10px; padding: 3px 10px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Usar esta resposta</button>';
+                html += '<button type="button" onclick="copyNewMsgAIResponse(this)" data-text="' + escapeHtmlSafe(msg.content).replace(/"/g, '&quot;') + '" style="font-size: 10px; padding: 3px 8px; background: #e0e0e0; color: #555; border: none; border-radius: 4px; cursor: pointer;">Copiar</button>';
+                html += '</div></div>';
+            }
+        });
+        area.innerHTML = html;
+        area.scrollTop = area.scrollHeight;
+    }
+
+    window.sendNewMsgAIChat = function() {
+        var input = document.getElementById('newMsgAIChatInput');
+        var sendBtn = document.getElementById('newMsgAISendBtn');
+        if (!input) return;
+        var text = input.value.trim();
+        if (!text) return;
+
+        // Adiciona mensagem do usuário
+        _newMsgAIChatHistory.push({ role: 'user', content: text });
+        input.value = '';
+        renderNewMsgAIChat();
+
+        // Mostra loading
+        var area = document.getElementById('newMsgAIChatArea');
+        var loadingDiv = document.createElement('div');
+        loadingDiv.id = 'newMsgAILoading';
+        loadingDiv.style.cssText = 'align-self: flex-start; padding: 10px 16px; color: #6f42c1; font-size: 12px;';
+        loadingDiv.innerHTML = '<div style="display: inline-block; width: 14px; height: 14px; border: 2px solid #6f42c1; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px;"></div>Pensando...<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+        area.appendChild(loadingDiv);
+        area.scrollTop = area.scrollHeight;
+
+        if (sendBtn) { sendBtn.disabled = true; sendBtn.style.opacity = '0.6'; }
 
         var contextSlug = (document.getElementById('newMsgAIContext') || {}).value || 'geral';
         var objective = (document.getElementById('newMsgAIObjective') || {}).value || 'first_contact';
@@ -406,92 +457,70 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         var contactName = (document.getElementById('modalClienteSearchInput') || {}).value || '';
         var contactPhone = (document.getElementById('new-message-to') || {}).value || '';
 
-        if (btn) { btn.disabled = true; btn.textContent = 'Gerando...'; }
-        results.innerHTML = '<div style="padding: 20px 14px; text-align: center;"><div style="display: inline-block; width: 20px; height: 20px; border: 3px solid #6f42c1; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div><div style="margin-top: 6px; color: #666; font-size: 11px;">Gerando sugestões...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
-
-        fetch(_newMsgAIBaseUrl + '/api/ai/suggest-reply', {
+        fetch(_newMsgAIBaseUrl + '/api/ai/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin',
-            body: JSON.stringify({ context_slug: contextSlug, objective: objective, attendant_note: note, contact_name: contactName, contact_phone: contactPhone })
+            body: JSON.stringify({
+                context_slug: contextSlug,
+                objective: objective,
+                attendant_note: note,
+                contact_name: contactName,
+                contact_phone: contactPhone,
+                ai_chat_messages: _newMsgAIChatHistory
+            })
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            if (btn) { btn.disabled = false; btn.textContent = 'Gerar'; }
+            var ld = document.getElementById('newMsgAILoading');
+            if (ld) ld.remove();
+            if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+
             if (!data.success) {
-                results.innerHTML = '<div style="padding: 14px; color: #dc3545; font-size: 12px; text-align: center;">' + (data.error || 'Erro ao gerar sugestões') + '</div>';
-                return;
+                _newMsgAIChatHistory.push({ role: 'assistant', content: 'Erro: ' + (data.error || 'Erro desconhecido') });
+            } else {
+                _newMsgAIChatHistory.push({ role: 'assistant', content: data.message });
+                _newMsgAILastResponse = data.message;
             }
-            _newMsgAILastSuggestion = data;
-            renderNewMsgAISuggestions(data, results);
+            renderNewMsgAIChat();
+            if (input) input.focus();
         })
         .catch(function(err) {
-            if (btn) { btn.disabled = false; btn.textContent = 'Gerar'; }
-            results.innerHTML = '<div style="padding: 14px; color: #dc3545; font-size: 12px; text-align: center;">Erro: ' + err.message + '</div>';
+            var ld = document.getElementById('newMsgAILoading');
+            if (ld) ld.remove();
+            if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+            _newMsgAIChatHistory.push({ role: 'assistant', content: 'Erro de conexão: ' + err.message });
+            renderNewMsgAIChat();
         });
     };
 
-    function renderNewMsgAISuggestions(data, container) {
-        var html = '';
-        if (data.lead_summary) {
-            html += '<div style="padding: 6px 14px; background: #f0f5ff; border-bottom: 1px solid #e0e8f5; font-size: 11px; color: #555;">';
-            html += '<strong>Resumo:</strong> ' + escapeHtmlSafe(data.lead_summary) + '</div>';
-        }
-        if (data.suggestions && data.suggestions.length) {
-            data.suggestions.forEach(function(s, i) {
-                var colors = ['#198754', '#023A8D', '#e67e22'];
-                html += '<div style="padding: 8px 14px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.15s;" onmouseover="this.style.background=\'#f8f5ff\'" onmouseout="this.style.background=\'transparent\'">';
-                html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">';
-                html += '<span style="font-size: 11px; font-weight: 700; color: ' + (colors[i] || '#666') + ';">' + escapeHtmlSafe(s.label || ('Opção ' + (i+1))) + '</span>';
-                html += '<button type="button" onclick="useNewMsgAISuggestion(' + i + ')" style="font-size: 10px; padding: 2px 8px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Usar</button>';
-                html += '</div>';
-                html += '<div style="font-size: 11px; color: #333; white-space: pre-wrap; line-height: 1.4;">' + escapeHtmlSafe(s.text || '') + '</div>';
-                html += '</div>';
-            });
-        }
-        if (data.qualification_questions && data.qualification_questions.length) {
-            html += '<div style="padding: 6px 14px; background: #fafafa; border-top: 1px solid #eee;">';
-            html += '<div style="font-size: 10px; font-weight: 700; color: #555; margin-bottom: 3px;">Perguntas sugeridas:</div>';
-            data.qualification_questions.forEach(function(q) {
-                html += '<div style="font-size: 10px; color: #666; padding: 1px 0; cursor: pointer;" onclick="useNewMsgAIQuestion(this)" onmouseover="this.style.color=\'#6f42c1\'" onmouseout="this.style.color=\'#666\'">• ' + escapeHtmlSafe(q) + '</div>';
-            });
-            html += '</div>';
-        }
-        container.innerHTML = html;
-    }
-
-    window.useNewMsgAISuggestion = function(index) {
-        if (!_newMsgAILastSuggestion || !_newMsgAILastSuggestion.suggestions) return;
-        var s = _newMsgAILastSuggestion.suggestions[index];
-        if (!s) return;
+    window.useNewMsgAIResponse = function(btn) {
+        var text = btn.getAttribute('data-text') || '';
+        if (!text) return;
         var ta = document.getElementById('new-message-text');
-        if (ta) { ta.value = s.text || ''; ta.focus(); }
+        if (ta) { ta.value = text; ta.focus(); }
 
-        // Salva referência para aprendizado quando o atendente enviar
+        // Salva referência para aprendizado
         window._newMsgAIPendingLearn = {
             context_slug: (document.getElementById('newMsgAIContext') || {}).value || 'geral',
             objective: (document.getElementById('newMsgAIObjective') || {}).value || 'first_contact',
-            ai_suggestion: s.text || '',
-            situation_summary: _newMsgAILastSuggestion.lead_summary || ''
+            ai_suggestion: text,
+            situation_summary: 'Chat IA - Nova Mensagem'
         };
 
         closeNewMsgAIPanel();
     };
 
-    window.useNewMsgAIQuestion = function(el) {
-        var text = (el.textContent || '').replace(/^[•\s]+/, '').trim();
-        if (!text) return;
-        var ta = document.getElementById('new-message-text');
-        if (!ta) return;
-        var cur = ta.value.trim();
-        ta.value = cur ? cur + '\n' + text : text;
-        ta.focus();
+    window.copyNewMsgAIResponse = function(btn) {
+        var text = btn.getAttribute('data-text') || '';
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(function() {
+                var orig = btn.textContent;
+                btn.textContent = 'Copiado!';
+                setTimeout(function() { btn.textContent = orig; }, 1500);
+            });
+        }
     };
-
-    function escapeHtmlSafe(str) {
-        if (!str) return '';
-        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
 
     // Fecha painel IA ao clicar fora
     document.addEventListener('click', function(e) {
@@ -513,7 +542,6 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 var ta = document.getElementById('new-message-text');
                 var finalText = ta ? ta.value.trim() : '';
                 if (finalText && pending.ai_suggestion) {
-                    // Envia aprendizado em background
                     fetch(_newMsgAIBaseUrl + '/api/ai/learn', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },

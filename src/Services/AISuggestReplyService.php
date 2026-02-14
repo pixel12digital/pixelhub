@@ -138,6 +138,65 @@ class AISuggestReplyService
     }
 
     /**
+     * Chat conversacional com a IA — gera 1 resposta e permite refinamento
+     * Recebe o histórico de mensagens do chat IA (não da conversa WhatsApp)
+     */
+    public static function chat(array $params): array
+    {
+        $contextSlug = $params['context_slug'] ?? 'geral';
+        $objective = $params['objective'] ?? 'first_contact';
+        $attendantNote = $params['attendant_note'] ?? '';
+        $conversationHistory = $params['conversation_history'] ?? [];
+        $contactName = $params['contact_name'] ?? '';
+        $contactPhone = $params['contact_phone'] ?? '';
+        $aiChatMessages = $params['ai_chat_messages'] ?? []; // histórico do chat com a IA
+        $hasHistory = !empty($conversationHistory);
+
+        $aiContext = self::getContext($contextSlug);
+        if (!$aiContext) {
+            $aiContext = self::getContext('geral');
+        }
+
+        $learnedExamples = self::getLearnedExamples($contextSlug, $objective, 5);
+
+        $systemPrompt = self::buildChatSystemPrompt($aiContext, $objective, $hasHistory, $learnedExamples);
+        $userContext = self::buildUserPrompt($conversationHistory, $contactName, $contactPhone, $attendantNote, $objective, $hasHistory);
+
+        $apiKey = self::getApiKey();
+        if (empty($apiKey)) {
+            return ['success' => false, 'error' => 'Chave de API OpenAI não configurada.'];
+        }
+
+        try {
+            // Monta array de mensagens para OpenAI
+            $messages = [['role' => 'system', 'content' => $systemPrompt]];
+
+            if (empty($aiChatMessages)) {
+                // Primeira mensagem: envia contexto do lead + pede resposta
+                $messages[] = ['role' => 'user', 'content' => $userContext . "\n\nGere UMA resposta pronta para enviar via WhatsApp."];
+            } else {
+                // Conversa em andamento: envia contexto inicial + histórico do chat IA
+                $messages[] = ['role' => 'user', 'content' => $userContext];
+                foreach ($aiChatMessages as $msg) {
+                    $role = ($msg['role'] ?? 'user') === 'assistant' ? 'assistant' : 'user';
+                    $messages[] = ['role' => $role, 'content' => $msg['content'] ?? ''];
+                }
+            }
+
+            $response = self::callOpenAIChat($apiKey, $messages);
+            return [
+                'success' => true,
+                'message' => $response,
+                'context_used' => $aiContext['name'] ?? $contextSlug,
+                'learned_examples_count' => count($learnedExamples),
+            ];
+        } catch (\Exception $e) {
+            error_log('[AISuggestReply] Chat erro: ' . $e->getMessage());
+            return ['success' => false, 'error' => 'Erro: ' . $e->getMessage()];
+        }
+    }
+
+    /**
      * Lista contextos de atendimento ativos
      */
     public static function listContexts(): array
@@ -256,6 +315,111 @@ Regras:
 PROMPT;
 
         return $prompt;
+    }
+
+    /**
+     * Monta system prompt para modo chat conversacional (1 resposta + refinamento)
+     */
+    private static function buildChatSystemPrompt(array $aiContext, string $objective, bool $hasHistory, array $learnedExamples): string
+    {
+        $objectiveLabel = self::OBJECTIVES[$objective] ?? $objective;
+
+        $learningSection = '';
+        if (!empty($learnedExamples)) {
+            $learningSection = "\n\n## Aprendizado (estilo preferido pela equipe)\n";
+            foreach ($learnedExamples as $i => $ex) {
+                $num = $i + 1;
+                $learningSection .= "\nExemplo {$num}:\n";
+                $learningSection .= "IA sugeriu: {$ex['ai_suggestion']}\n";
+                $learningSection .= "Atendente preferiu: {$ex['human_response']}\n";
+            }
+            $learningSection .= "\nAdapte seu estilo para se aproximar do que os atendentes preferem.";
+        }
+
+        $knowledgeSection = '';
+        if (!empty($aiContext['knowledge_base'])) {
+            $kb = $aiContext['knowledge_base'];
+            if (mb_strlen($kb) > 3000) {
+                $kb = mb_substr($kb, 0, 3000) . '... [truncado]';
+            }
+            $knowledgeSection = "\n\n## Base de Conhecimento\n{$kb}";
+        }
+
+        $historyInstruction = $hasHistory
+            ? "Há histórico de conversa com o contato. Leia e continue naturalmente."
+            : "Primeiro contato — gere uma mensagem de abertura.";
+
+        return <<<PROMPT
+{$aiContext['system_prompt']}
+{$knowledgeSection}
+{$learningSection}
+
+## Modo de operação
+Você está em modo CHAT com o atendente. Seu trabalho:
+1. Gere UMA resposta pronta para enviar ao cliente via WhatsApp
+2. O atendente pode pedir ajustes: "mude o tom", "mais curto", "mencione X", "mais informal"
+3. Você ajusta e gera uma nova versão
+4. Quando o atendente aprovar, ele usa a resposta
+
+Objetivo atual: {$objectiveLabel}
+{$historyInstruction}
+
+Regras:
+- Responda SEMPRE com a mensagem pronta para enviar (texto plano, sem markdown)
+- Se o atendente pedir ajuste, gere a versão corrigida completa (não apenas o trecho alterado)
+- Seja conciso nas explicações — o foco é a mensagem para o cliente
+- Se o atendente perguntar algo, responda brevemente e inclua a mensagem atualizada
+- Não use **, ##, ``` ou qualquer formatação markdown — apenas texto plano com quebras de linha
+PROMPT;
+    }
+
+    /**
+     * Chama OpenAI com array de mensagens (multi-turn)
+     */
+    private static function callOpenAIChat(string $apiKey, array $messages): string
+    {
+        $model = Env::get('OPENAI_MODEL', 'gpt-4o-mini');
+        $temperature = (float) Env::get('OPENAI_TEMPERATURE', '0.7');
+        $maxTokens = (int) Env::get('OPENAI_MAX_TOKENS', '800');
+        $maxTokens = max($maxTokens, 600);
+
+        $ch = curl_init('https://api.openai.com/v1/chat/completions');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $apiKey,
+            ],
+            CURLOPT_POSTFIELDS => json_encode([
+                'model' => $model,
+                'messages' => $messages,
+                'temperature' => $temperature,
+                'max_tokens' => $maxTokens,
+            ]),
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if ($error) {
+            throw new \Exception('Erro de conexão: ' . $error);
+        }
+        if ($httpCode !== 200) {
+            $errorData = json_decode($response, true);
+            throw new \Exception('Erro OpenAI: ' . ($errorData['error']['message'] ?? "HTTP {$httpCode}"));
+        }
+
+        $data = json_decode($response, true);
+        $content = $data['choices'][0]['message']['content'] ?? '';
+        if (empty($content)) {
+            throw new \Exception('Resposta vazia da OpenAI');
+        }
+
+        return $content;
     }
 
     /**

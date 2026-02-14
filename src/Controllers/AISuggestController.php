@@ -114,6 +114,53 @@ class AISuggestController extends Controller
     }
 
     /**
+     * Chat conversacional com a IA
+     * POST /api/ai/chat
+     */
+    public function chat(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+
+        $input = json_decode(file_get_contents('php://input') ?: '{}', true) ?: [];
+
+        $contextSlug = trim($input['context_slug'] ?? 'geral');
+        $objective = trim($input['objective'] ?? 'first_contact');
+        $attendantNote = trim($input['attendant_note'] ?? '');
+        $conversationId = $input['conversation_id'] ?? null;
+        $contactName = trim($input['contact_name'] ?? '');
+        $contactPhone = trim($input['contact_phone'] ?? '');
+        $aiChatMessages = $input['ai_chat_messages'] ?? [];
+
+        // Busca histórico da conversa WhatsApp se tiver conversation_id
+        $conversationHistory = [];
+        if (!empty($conversationId)) {
+            $conversationHistory = $this->getConversationHistory((int) $conversationId);
+            if (empty($contactName) || empty($contactPhone)) {
+                $convInfo = $this->getConversationInfo((int) $conversationId);
+                if (empty($contactName) && !empty($convInfo['contact_name'])) {
+                    $contactName = $convInfo['contact_name'];
+                }
+                if (empty($contactPhone) && !empty($convInfo['contact_phone'])) {
+                    $contactPhone = $convInfo['contact_phone'];
+                }
+            }
+        }
+
+        $result = AISuggestReplyService::chat([
+            'context_slug' => $contextSlug,
+            'objective' => $objective,
+            'attendant_note' => $attendantNote,
+            'conversation_history' => $conversationHistory,
+            'contact_name' => $contactName,
+            'contact_phone' => $contactPhone,
+            'ai_chat_messages' => $aiChatMessages,
+        ]);
+
+        $this->json($result, $result['success'] ? 200 : 400);
+    }
+
+    /**
      * Página admin de contextos IA
      * GET /settings/ai-contexts
      */
