@@ -642,6 +642,11 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/settings/whatsapp-gateway/sessions/reconnect', 'WhatsAppGatewaySettingsController@sessionsReconnect');
     $router->post('/settings/whatsapp-gateway/sessions/disconnect', 'WhatsAppGatewaySettingsController@sessionsDisconnect');
 
+    // IA Assistente de Respostas
+    $router->get('/api/ai/contexts', 'AISuggestController@contexts');
+    $router->post('/api/ai/suggest-reply', 'AISuggestController@suggestReply');
+    $router->post('/api/ai/learn', 'AISuggestController@learn');
+
     // Gerenciamento de Usuários
     $router->get('/settings/users', 'UsersController@index');
     $router->post('/settings/users/store', 'UsersController@store');

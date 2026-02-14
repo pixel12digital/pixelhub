@@ -2163,6 +2163,56 @@
                             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
                         </svg>
                     </button>
+                    <!-- Botão IA Assistente -->
+                    <div style="position: relative;">
+                        <button type="button" class="inbox-media-btn" id="inboxBtnAI" onclick="toggleInboxAIPanel()" title="Sugestão IA" style="color: #6f42c1;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2a4 4 0 0 1 4 4v1a3 3 0 0 1 3 3v1a2 2 0 0 1-2 2h-1l-1 5H9l-1-5H7a2 2 0 0 1-2-2v-1a3 3 0 0 1 3-3V6a4 4 0 0 1 4-4z"/>
+                                <circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/>
+                            </svg>
+                        </button>
+                        <!-- Painel IA -->
+                        <div id="inboxAIPanel" style="display: none; position: fixed; bottom: 70px; width: 400px; max-height: 520px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.2); z-index: 1100; overflow: hidden; flex-direction: column;">
+                            <div style="padding: 12px 16px; border-bottom: 1px solid #eee; background: linear-gradient(135deg, #6f42c1 0%, #023A8D 100%); border-radius: 12px 12px 0 0;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-weight: 700; font-size: 14px; color: white;">IA Assistente</span>
+                                    <button type="button" onclick="closeInboxAIPanel()" style="background: none; border: none; cursor: pointer; padding: 2px; color: rgba(255,255,255,0.8); font-size: 18px; line-height: 1;" title="Fechar">&times;</button>
+                                </div>
+                            </div>
+                            <!-- Configuração -->
+                            <div id="inboxAIConfig" style="padding: 12px 16px; border-bottom: 1px solid #f0f0f0; background: #fafafa;">
+                                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                                    <div style="flex: 1;">
+                                        <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Contexto</label>
+                                        <select id="inboxAIContext" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: white;">
+                                            <option value="geral">Carregando...</option>
+                                        </select>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Objetivo</label>
+                                        <select id="inboxAIObjective" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: white;">
+                                            <option value="first_contact">Primeiro contato</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 8px; align-items: end;">
+                                    <div style="flex: 1;">
+                                        <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Observação (opcional)</label>
+                                        <input type="text" id="inboxAINote" placeholder="Ex: cliente veio do Google Ads" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
+                                    </div>
+                                    <button type="button" id="inboxAIGenerateBtn" onclick="generateAISuggestions()" style="padding: 6px 14px; background: #6f42c1; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; height: 30px;">
+                                        Gerar
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- Resultados -->
+                            <div id="inboxAIResults" style="overflow-y: auto; max-height: 320px; padding: 0;">
+                                <div style="padding: 24px 16px; text-align: center; color: #999; font-size: 13px;">
+                                    Selecione o contexto e clique em <strong>Gerar</strong> para receber sugestões da IA.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <!-- Botão Templates / Respostas Rápidas -->
                     <div style="position: relative;">
                         <button type="button" class="inbox-media-btn" id="inboxBtnTemplates" onclick="toggleInboxTemplatesPanel()" title="Templates e respostas rápidas">
@@ -2788,6 +2838,222 @@
             var s = document.getElementById('inboxTemplatesSearch');
             if (s) s.value = '';
         };
+
+        // ============================================================================
+        // IA Assistente - Painel de sugestões inteligentes
+        // ============================================================================
+        var InboxAIState = { isOpen: false, contextsLoaded: false, lastSuggestion: null, lastContext: '', lastObjective: '' };
+        var _aiBaseUrl = '<?= rtrim(pixelhub_url(""), "/") ?>';
+
+        window.toggleInboxAIPanel = function() {
+            var panel = document.getElementById('inboxAIPanel');
+            var btn = document.getElementById('inboxBtnAI');
+            if (!panel) return;
+            InboxAIState.isOpen = !InboxAIState.isOpen;
+            if (InboxAIState.isOpen) {
+                if (btn) {
+                    var rect = btn.getBoundingClientRect();
+                    panel.style.left = Math.max(10, rect.left - 150) + 'px';
+                    panel.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+                }
+                panel.style.display = 'flex';
+                if (!InboxAIState.contextsLoaded) loadAIContexts();
+            } else {
+                closeInboxAIPanel();
+            }
+        };
+
+        window.closeInboxAIPanel = function() {
+            var panel = document.getElementById('inboxAIPanel');
+            if (panel) panel.style.display = 'none';
+            InboxAIState.isOpen = false;
+        };
+
+        function loadAIContexts() {
+            fetch(_aiBaseUrl + '/api/ai/contexts', { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                var ctxSelect = document.getElementById('inboxAIContext');
+                var objSelect = document.getElementById('inboxAIObjective');
+                if (ctxSelect && data.contexts) {
+                    ctxSelect.innerHTML = data.contexts.map(function(c) {
+                        return '<option value="' + c.slug + '">' + c.name + '</option>';
+                    }).join('');
+                }
+                if (objSelect && data.objectives) {
+                    objSelect.innerHTML = '';
+                    for (var key in data.objectives) {
+                        var opt = document.createElement('option');
+                        opt.value = key;
+                        opt.textContent = data.objectives[key];
+                        objSelect.appendChild(opt);
+                    }
+                }
+                InboxAIState.contextsLoaded = true;
+            })
+            .catch(function(err) { console.error('[IA] Erro ao carregar contextos:', err); });
+        }
+
+        window.generateAISuggestions = function() {
+            var btn = document.getElementById('inboxAIGenerateBtn');
+            var results = document.getElementById('inboxAIResults');
+            if (!results) return;
+
+            var contextSlug = (document.getElementById('inboxAIContext') || {}).value || 'geral';
+            var objective = (document.getElementById('inboxAIObjective') || {}).value || 'first_contact';
+            var note = (document.getElementById('inboxAINote') || {}).value || '';
+
+            InboxAIState.lastContext = contextSlug;
+            InboxAIState.lastObjective = objective;
+
+            // Pega conversation_id da conversa aberta
+            var convId = window._currentInboxConversationId || null;
+
+            if (btn) { btn.disabled = true; btn.textContent = 'Gerando...'; }
+            results.innerHTML = '<div style="padding: 24px 16px; text-align: center;"><div style="display: inline-block; width: 24px; height: 24px; border: 3px solid #6f42c1; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div><div style="margin-top: 8px; color: #666; font-size: 12px;">Analisando conversa e gerando sugestões...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+
+            fetch(_aiBaseUrl + '/api/ai/suggest-reply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ context_slug: contextSlug, objective: objective, attendant_note: note, conversation_id: convId })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (btn) { btn.disabled = false; btn.textContent = 'Gerar'; }
+                if (!data.success) {
+                    results.innerHTML = '<div style="padding: 16px; color: #dc3545; font-size: 13px; text-align: center;">' + (data.error || 'Erro ao gerar sugestões') + '</div>';
+                    return;
+                }
+                InboxAIState.lastSuggestion = data;
+                renderAISuggestions(data, results);
+            })
+            .catch(function(err) {
+                if (btn) { btn.disabled = false; btn.textContent = 'Gerar'; }
+                results.innerHTML = '<div style="padding: 16px; color: #dc3545; font-size: 13px; text-align: center;">Erro de conexão: ' + err.message + '</div>';
+            });
+        };
+
+        function renderAISuggestions(data, container) {
+            var html = '';
+
+            // Lead summary
+            if (data.lead_summary) {
+                html += '<div style="padding: 8px 16px; background: #f0f5ff; border-bottom: 1px solid #e0e8f5; font-size: 11px; color: #555;">';
+                html += '<strong>Resumo:</strong> ' + escapeHtml(data.lead_summary);
+                if (data.learned_examples_count > 0) {
+                    html += ' <span style="color: #6f42c1; font-weight: 600;">(' + data.learned_examples_count + ' aprendizados aplicados)</span>';
+                }
+                html += '</div>';
+            }
+
+            // Sugestões
+            if (data.suggestions && data.suggestions.length) {
+                data.suggestions.forEach(function(s, i) {
+                    var labelColors = ['#198754', '#023A8D', '#e67e22'];
+                    html += '<div style="padding: 10px 16px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.15s;" onmouseover="this.style.background=\'#f8f5ff\'" onmouseout="this.style.background=\'transparent\'">';
+                    html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">';
+                    html += '<span style="font-size: 11px; font-weight: 700; color: ' + (labelColors[i] || '#666') + ';">' + escapeHtml(s.label || ('Opção ' + (i+1))) + '</span>';
+                    html += '<button type="button" onclick="useAISuggestion(' + i + ')" style="font-size: 11px; padding: 2px 10px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Usar</button>';
+                    html += '</div>';
+                    html += '<div style="font-size: 12px; color: #333; white-space: pre-wrap; line-height: 1.4;">' + escapeHtml(s.text || '') + '</div>';
+                    html += '</div>';
+                });
+            }
+
+            // Perguntas de qualificação
+            if (data.qualification_questions && data.qualification_questions.length) {
+                html += '<div style="padding: 8px 16px; background: #fafafa; border-top: 1px solid #eee;">';
+                html += '<div style="font-size: 11px; font-weight: 700; color: #555; margin-bottom: 4px;">Perguntas sugeridas:</div>';
+                data.qualification_questions.forEach(function(q) {
+                    html += '<div style="font-size: 11px; color: #666; padding: 2px 0; cursor: pointer;" onclick="useAIQuestion(this)" onmouseover="this.style.color=\'#6f42c1\'" onmouseout="this.style.color=\'#666\'">• ' + escapeHtml(q) + '</div>';
+                });
+                html += '</div>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        window.useAISuggestion = function(index) {
+            if (!InboxAIState.lastSuggestion || !InboxAIState.lastSuggestion.suggestions) return;
+            var suggestion = InboxAIState.lastSuggestion.suggestions[index];
+            if (!suggestion) return;
+
+            var ta = document.getElementById('inboxMessageInput');
+            if (!ta) return;
+
+            var originalText = suggestion.text || '';
+            ta.value = originalText;
+            ta.focus();
+            ta.selectionStart = ta.selectionEnd = ta.value.length;
+            if (typeof autoResizeInboxTextarea === 'function') autoResizeInboxTextarea(ta);
+            if (typeof updateInboxSendMicVisibility === 'function') updateInboxSendMicVisibility();
+
+            // Salva referência para aprendizado quando o atendente enviar
+            window._aiPendingLearn = {
+                context_slug: InboxAIState.lastContext,
+                objective: InboxAIState.lastObjective,
+                ai_suggestion: originalText,
+                situation_summary: InboxAIState.lastSuggestion.lead_summary || '',
+                conversation_id: window._currentInboxConversationId || null
+            };
+
+            closeInboxAIPanel();
+        };
+
+        window.useAIQuestion = function(el) {
+            var text = (el.textContent || '').replace(/^[•\s]+/, '').trim();
+            if (!text) return;
+            var ta = document.getElementById('inboxMessageInput');
+            if (!ta) return;
+            var cur = ta.value.trim();
+            ta.value = cur ? cur + '\n' + text : text;
+            ta.focus();
+            if (typeof autoResizeInboxTextarea === 'function') autoResizeInboxTextarea(ta);
+            if (typeof updateInboxSendMicVisibility === 'function') updateInboxSendMicVisibility();
+        };
+
+        // Hook: após enviar mensagem, registra aprendizado se houve edição
+        var _origSendInboxMessage = window.sendInboxMessage;
+        if (typeof _origSendInboxMessage === 'function') {
+            window.sendInboxMessage = function() {
+                var pending = window._aiPendingLearn;
+                if (pending) {
+                    var ta = document.getElementById('inboxMessageInput');
+                    var finalText = ta ? ta.value.trim() : '';
+                    if (finalText && pending.ai_suggestion) {
+                        // Envia aprendizado em background
+                        fetch(_aiBaseUrl + '/api/ai/learn', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({
+                                context_slug: pending.context_slug,
+                                objective: pending.objective,
+                                situation_summary: pending.situation_summary,
+                                ai_suggestion: pending.ai_suggestion,
+                                human_response: finalText,
+                                conversation_id: pending.conversation_id
+                            })
+                        }).catch(function() {});
+                    }
+                    window._aiPendingLearn = null;
+                }
+                return _origSendInboxMessage.apply(this, arguments);
+            };
+        }
+
+        // Fecha painel IA ao clicar fora
+        document.addEventListener('click', function(e) {
+            if (InboxAIState.isOpen) {
+                var panel = document.getElementById('inboxAIPanel');
+                var btn = document.getElementById('inboxBtnAI');
+                if (panel && btn && !panel.contains(e.target) && !btn.contains(e.target)) {
+                    closeInboxAIPanel();
+                }
+            }
+        });
 
         // Busca em tempo real no painel do Inbox
         document.addEventListener('DOMContentLoaded', function() {
