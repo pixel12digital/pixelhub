@@ -553,4 +553,95 @@ class OpportunitiesController extends Controller
             ]);
         }
     }
+    
+    /**
+     * Busca histórico de mensagens da conversa vinculada à oportunidade
+     * GET /api/opportunities/conversation-history?id=X
+     */
+    public function conversationHistory(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+        
+        $oppId = (int) ($_GET['id'] ?? 0);
+        if (!$oppId) {
+            $this->json(['success' => false, 'error' => 'ID inválido']);
+            return;
+        }
+        
+        $db = DB::getConnection();
+        
+        // Busca conversation_id da oportunidade
+        $stmt = $db->prepare("
+            SELECT conversation_id, lead_id, tenant_id 
+            FROM opportunities 
+            WHERE id = ? 
+            LIMIT 1
+        ");
+        $stmt->execute([$oppId]);
+        $opp = $stmt->fetch();
+        
+        if (!$opp) {
+            $this->json(['success' => false, 'error' => 'Oportunidade não encontrada']);
+            return;
+        }
+        
+        $conversationId = $opp['conversation_id'];
+        
+        // Se não tem conversation_id, tenta buscar pela lead_id ou tenant_id
+        if (!$conversationId) {
+            if ($opp['lead_id']) {
+                $convStmt = $db->prepare("SELECT id FROM conversations WHERE lead_id = ? ORDER BY updated_at DESC LIMIT 1");
+                $convStmt->execute([$opp['lead_id']]);
+            } elseif ($opp['tenant_id']) {
+                $convStmt = $db->prepare("SELECT id FROM conversations WHERE tenant_id = ? ORDER BY updated_at DESC LIMIT 1");
+                $convStmt->execute([$opp['tenant_id']]);
+            }
+            
+            if (isset($convStmt)) {
+                $conv = $convStmt->fetch();
+                $conversationId = $conv['id'] ?? null;
+            }
+        }
+        
+        if (!$conversationId) {
+            $this->json(['success' => true, 'messages' => []]);
+            return;
+        }
+        
+        // Busca últimas 20 mensagens da conversa
+        $msgStmt = $db->prepare("
+            SELECT 
+                event_type,
+                payload,
+                created_at
+            FROM communication_events
+            WHERE conversation_id = ?
+            AND event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+            AND status = 'processed'
+            ORDER BY created_at DESC
+            LIMIT 20
+        ");
+        $msgStmt->execute([$conversationId]);
+        $events = $msgStmt->fetchAll();
+        
+        $messages = [];
+        foreach (array_reverse($events) as $event) {
+            $payload = json_decode($event['payload'], true);
+            $text = $payload['message']['text'] ?? $payload['text'] ?? '';
+            
+            if ($text) {
+                $messages[] = [
+                    'direction' => str_contains($event['event_type'], 'inbound') ? 'inbound' : 'outbound',
+                    'text' => $text,
+                    'timestamp' => $event['created_at'],
+                ];
+            }
+        }
+        
+        $this->json([
+            'success' => true,
+            'messages' => $messages,
+        ]);
+    }
 }

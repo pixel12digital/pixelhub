@@ -663,7 +663,7 @@ async function sendFollowupAIChat() {
     const loadingDiv = document.createElement('div');
     loadingDiv.id = 'followupAILoading';
     loadingDiv.style.cssText = 'align-self: flex-start; padding: 10px 16px; color: #6f42c1; font-size: 12px;';
-    loadingDiv.innerHTML = '<div style="display: inline-block; width: 14px; height: 14px; border: 2px solid #6f42c1; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px;"></div>Pensando...<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+    loadingDiv.innerHTML = '<div style="display: inline-block; width: 14px; height: 14px; border: 2px solid #6f42c1; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px;"></div>Analisando conversa e gerando follow-up...<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
     area.appendChild(loadingDiv);
     area.scrollTop = area.scrollHeight;
     
@@ -672,6 +672,27 @@ async function sendFollowupAIChat() {
     const notes = document.getElementById('followup-notes').value || '';
     const oppName = '<?= htmlspecialchars($opp['name']) ?>';
     const leadName = '<?= htmlspecialchars($opp['lead_name'] ?? $opp['tenant_name'] ?? '') ?>';
+    const oppId = OPP_ID;
+    
+    // Busca histórico da conversa para contexto
+    let conversationContext = '';
+    try {
+        const convRes = await fetch('<?= pixelhub_url('/api/opportunities/conversation-history') ?>?id=' + oppId, {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        });
+        if (convRes.ok) {
+            const convData = await convRes.json();
+            if (convData.success && convData.messages) {
+                conversationContext = '\n\nHistórico recente da conversa:\n' + convData.messages.slice(-10).map(m => 
+                    `${m.direction === 'inbound' ? leadName : 'Você'}: ${m.text}`
+                ).join('\n');
+            }
+        }
+    } catch (e) {
+        console.log('Não foi possível buscar histórico:', e);
+    }
     
     try {
         const res = await fetch('<?= pixelhub_url('/api/ai/chat') ?>', {
@@ -681,7 +702,7 @@ async function sendFollowupAIChat() {
             body: JSON.stringify({
                 context_slug: 'geral',
                 objective: 'follow_up',
-                attendant_note: `Oportunidade: ${oppName}\nContato: ${leadName}\nObservações: ${notes}`,
+                attendant_note: `Oportunidade: ${oppName}\nContato: ${leadName}\nObservações do follow-up: ${notes}${conversationContext}\n\nGere um título curto e uma mensagem de follow-up. Formato:\nTÍTULO: [título aqui]\nMENSAGEM: [mensagem aqui]`,
                 conversation_id: null,
                 ai_chat_messages: FollowupAIState.chatHistory
             })
@@ -712,10 +733,45 @@ async function sendFollowupAIChat() {
 function useFollowupAIResponse(btn) {
     const text = btn.getAttribute('data-text') || '';
     if (!text) return;
-    const ta = document.getElementById('followup-message');
-    if (!ta) return;
-    ta.value = text;
-    ta.focus();
+    
+    // Extrai título e mensagem do formato "TÍTULO: xxx\nMENSAGEM: yyy"
+    const titleMatch = text.match(/TÍTULO:\s*(.+?)(?:\n|$)/i);
+    const messageMatch = text.match(/MENSAGEM:\s*(.+)/is);
+    
+    const titleField = document.getElementById('followup-title');
+    const messageField = document.getElementById('followup-message');
+    
+    if (titleMatch && messageMatch) {
+        // Formato estruturado encontrado
+        if (titleField) {
+            titleField.value = titleMatch[1].trim();
+            titleField.readOnly = false;
+            titleField.style.background = 'white';
+            titleField.style.cursor = 'text';
+        }
+        if (messageField) {
+            messageField.value = messageMatch[1].trim();
+            messageField.readOnly = false;
+            messageField.style.background = 'white';
+            messageField.style.cursor = 'text';
+        }
+    } else {
+        // Fallback: usa texto completo como mensagem e gera título automático
+        if (messageField) {
+            messageField.value = text;
+            messageField.readOnly = false;
+            messageField.style.background = 'white';
+            messageField.style.cursor = 'text';
+        }
+        if (titleField) {
+            const oppName = '<?= htmlspecialchars($opp['name']) ?>';
+            titleField.value = `Follow-up - ${oppName}`;
+            titleField.readOnly = false;
+            titleField.style.background = 'white';
+            titleField.style.cursor = 'text';
+        }
+    }
+    
     closeFollowupAIChat();
 }
 
@@ -790,9 +846,15 @@ async function submitFollowup() {
         </div>
         
         <div style="margin-bottom: 16px;">
-            <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Título *</label>
-            <input type="text" id="followup-title" placeholder="Ex: Follow-up - <?= htmlspecialchars($opp['name']) ?>" 
-                   style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label style="font-weight: 600; font-size: 13px; color: #555;">Título *</label>
+                <button type="button" onclick="openFollowupAIChat()" 
+                        style="padding: 4px 10px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600;">
+                    Gerar com IA
+                </button>
+            </div>
+            <input type="text" id="followup-title" readonly placeholder="Clique em 'Gerar com IA' para criar título e mensagem automaticamente" 
+                   style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5; box-sizing: border-box; cursor: not-allowed;">
         </div>
         
         <div style="display: flex; gap: 12px; margin-bottom: 16px;">
@@ -815,15 +877,9 @@ async function submitFollowup() {
         </div>
         
         <div style="margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <label style="font-weight: 600; font-size: 13px; color: #555;">Mensagem para enviar automaticamente</label>
-                <button type="button" onclick="openFollowupAIChat()" 
-                        style="padding: 4px 10px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600;">
-                    Gerar com IA
-                </button>
-            </div>
-            <textarea id="followup-message" placeholder="Digite a mensagem que será enviada automaticamente no dia/hora agendados..." 
-                      style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; min-height: 100px; resize: vertical; box-sizing: border-box;"></textarea>
+            <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Mensagem para enviar automaticamente</label>
+            <textarea id="followup-message" readonly placeholder="Será gerada automaticamente pela IA junto com o título" 
+                      style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; min-height: 100px; resize: vertical; background: #f5f5f5; box-sizing: border-box; cursor: not-allowed;"></textarea>
             <div style="font-size: 11px; color: #888; margin-top: 4px;">
                 Deixe vazio para apenas agendar sem envio automático
             </div>
