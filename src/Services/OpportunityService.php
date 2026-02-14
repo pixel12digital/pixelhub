@@ -144,10 +144,11 @@ class OpportunityService
 
         $stmt = $db->prepare("
             SELECT o.*,
-                   COALESCE(t.name, l.name) as contact_name,
+                   COALESCE(t.name, l.name, l.phone, l.email) as contact_name,
                    CASE WHEN o.tenant_id IS NOT NULL THEN 'cliente' ELSE 'lead' END as contact_type,
                    t.name as tenant_name,
                    l.name as lead_name,
+                   l.phone as lead_phone,
                    u.name as responsible_name
             FROM opportunities o
             LEFT JOIN tenants t ON o.tenant_id = t.id
