@@ -2790,6 +2790,7 @@ class CommunicationHubController extends Controller
                     COALESCE(t.name, 'Sem tenant') as tenant_name,
                     t.phone as tenant_phone,
                     l.name as lead_name,
+                    l.phone as lead_phone,
                     l.status as lead_status,
                     u.name as assigned_to_name
                 FROM conversations c
@@ -2924,9 +2925,10 @@ class CommunicationHubController extends Controller
                         'conversation_id' => $conv['id'],
                         'conversation_key' => $conv['conversation_key'],
                         'tenant_id' => $conv['tenant_id'] ?: null,
-                        'tenant_name' => $conv['tenant_name'] ?: 'Sem tenant',
+                        'tenant_name' => (!empty($conv['tenant_id']) && $conv['tenant_name'] !== 'Sem tenant') ? $conv['tenant_name'] : null,
                         'lead_id' => $conv['lead_id'] ?? null,
                         'lead_name' => $conv['lead_name'] ?? null,
+                        'lead_phone' => !empty($conv['lead_id']) ? ($conv['lead_phone'] ?? null) : null,
                         'lead_status' => $conv['lead_status'] ?? null,
                         'contact' => ContactHelper::formatContactId($conv['contact_external_id'], $realPhone),
                         'contact_name' => $conv['contact_name'],

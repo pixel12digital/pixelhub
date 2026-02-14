@@ -1623,7 +1623,7 @@ body.communication-hub-page {
                                             $displayName = $thread['contact_name'] ?? null;
                                             if (empty($displayName) && !empty($thread['tenant_id'])) $displayName = $thread['tenant_name'] ?? null;
                                             if (empty($displayName) && !empty($thread['lead_name'])) $displayName = $thread['lead_name'];
-                                            if (empty($displayName) && !empty($thread['lead_id'])) $displayName = 'Lead #' . $thread['lead_id'];
+                                            if (empty($displayName) && !empty($thread['lead_id'])) $displayName = !empty($thread['lead_phone']) ? 'Lead: ' . $thread['lead_phone'] : 'Lead #' . $thread['lead_id'];
                                             if (empty($displayName)) $displayName = 'Sem nome';
                                         ?>
                                         <?= htmlspecialchars($displayName) ?>
@@ -1653,7 +1653,7 @@ body.communication-hub-page {
                                            style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" 
                                            title="Clique para ver detalhes do cliente">• <?= htmlspecialchars($thread['tenant_name']) ?></a>
                                     <?php elseif (!empty($thread['lead_id'])): ?>
-                                        <span style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px;" title="Lead vinculado">• Lead<?= !empty($thread['lead_name']) ? ': ' . htmlspecialchars($thread['lead_name']) : '' ?></span>
+                                        <span style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px;" title="Lead vinculado">• Lead<?= !empty($thread['lead_name']) ? ': ' . htmlspecialchars($thread['lead_name']) : (!empty($thread['lead_phone']) ? ' (' . htmlspecialchars($thread['lead_phone']) . ')' : '') ?></span>
                                     <?php elseif (!isset($thread['tenant_name']) || $thread['tenant_id'] === null): ?>
                                         <span style="opacity: 0.7; font-size: 10px;">• Novo contato</span>
                                     <?php endif; ?>
@@ -2426,7 +2426,7 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
     threads.forEach((thread, index) => {
         const threadId = escapeHtml(thread.thread_id || '');
         const channel = escapeHtml(thread.channel || 'whatsapp');
-        const contactName = escapeHtml(thread.contact_name || (thread.tenant_id ? thread.tenant_name : null) || thread.lead_name || (thread.lead_id ? 'Lead #' + thread.lead_id : 'Sem nome'));
+        const contactName = escapeHtml(thread.contact_name || (thread.tenant_id ? thread.tenant_name : null) || thread.lead_name || (thread.lead_id ? (thread.lead_phone ? 'Lead: ' + thread.lead_phone : 'Lead #' + thread.lead_id) : 'Sem nome'));
         const contact = escapeHtml(thread.contact || 'Número não identificado');
         const tenantName = escapeHtml(thread.tenant_name || '');
         const unreadCount = thread.unread_count || 0;
@@ -2464,7 +2464,7 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                                    style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" 
                                    title="Clique para ver detalhes do cliente">• ${tenantName}</a>` : 
                                 (thread.lead_id ? 
-                                    `<span style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px;" title="Lead vinculado">• Lead${thread.lead_name ? ': ' + escapeHtml(thread.lead_name) : ''}</span>` :
+                                    `<span style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px;" title="Lead vinculado">• Lead${thread.lead_name ? ': ' + escapeHtml(thread.lead_name) : (thread.lead_phone ? ' (' + escapeHtml(thread.lead_phone) + ')' : '')}</span>` :
                                     (!thread.tenant_id ? 
                                         '<span style="opacity: 0.7; font-size: 10px;">• Novo contato</span>' : ''))
                             }
