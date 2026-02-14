@@ -404,6 +404,14 @@ class OpportunityService
     }
 
     /**
+     * Registra uma interação genérica (ex: WhatsApp enviado) no histórico
+     */
+    public static function addInteractionHistory(int $oppId, string $description, ?int $userId = null): void
+    {
+        self::addHistory($oppId, 'note_added', null, null, $description, $userId);
+    }
+
+    /**
      * Conta oportunidades por status
      */
     public static function countByStatus(): array
