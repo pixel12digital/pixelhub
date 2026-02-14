@@ -4532,7 +4532,12 @@
             const header = document.getElementById('inboxChatHeader');
             if (!header) return;
             
-            const name = thread.contact_name || thread.phone || 'Sem nome';
+            const name = thread.contact_name
+                || (thread.tenant_id ? thread.tenant_name : null)
+                || thread.lead_name
+                || (thread.lead_id ? ('Lead #' + thread.lead_id) : null)
+                || thread.phone
+                || 'Sem nome';
             const initial = name.charAt(0).toUpperCase();
             const phone = thread.phone || '';
             
