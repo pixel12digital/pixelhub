@@ -114,6 +114,80 @@ class AISuggestController extends Controller
     }
 
     /**
+     * Página admin de contextos IA
+     * GET /settings/ai-contexts
+     */
+    public function adminContexts(): void
+    {
+        Auth::requireInternal();
+        $this->view('settings.ai_contexts');
+    }
+
+    /**
+     * Lista todos os contextos (admin, inclui inativos)
+     * GET /api/ai/contexts/all
+     */
+    public function allContexts(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+
+        $db = DB::getConnection();
+        $contexts = $db->query("
+            SELECT id, name, slug, description, system_prompt, knowledge_base, is_active, sort_order, created_at, updated_at
+            FROM ai_contexts
+            ORDER BY sort_order ASC, name ASC
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $this->json(['success' => true, 'contexts' => $contexts]);
+    }
+
+    /**
+     * Salva contexto (create ou update)
+     * POST /api/ai/contexts/save
+     */
+    public function saveContext(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+
+        $input = json_decode(file_get_contents('php://input') ?: '{}', true) ?: [];
+        $id = $input['id'] ?? null;
+        $name = trim($input['name'] ?? '');
+        $slug = trim($input['slug'] ?? '');
+        $description = trim($input['description'] ?? '');
+        $systemPrompt = trim($input['system_prompt'] ?? '');
+        $knowledgeBase = trim($input['knowledge_base'] ?? '');
+        $isActive = (int) ($input['is_active'] ?? 1);
+        $sortOrder = (int) ($input['sort_order'] ?? 0);
+
+        if (empty($name) || empty($slug) || empty($systemPrompt)) {
+            $this->json(['success' => false, 'error' => 'Nome, slug e prompt do sistema são obrigatórios'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+        $now = date('Y-m-d H:i:s');
+
+        if ($id) {
+            $stmt = $db->prepare("
+                UPDATE ai_contexts SET name = ?, slug = ?, description = ?, system_prompt = ?, knowledge_base = ?, is_active = ?, sort_order = ?, updated_at = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$name, $slug, $description, $systemPrompt, $knowledgeBase ?: null, $isActive, $sortOrder, $now, $id]);
+        } else {
+            $stmt = $db->prepare("
+                INSERT INTO ai_contexts (name, slug, description, system_prompt, knowledge_base, is_active, sort_order, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([$name, $slug, $description, $systemPrompt, $knowledgeBase ?: null, $isActive, $sortOrder, $now, $now]);
+            $id = (int) $db->lastInsertId();
+        }
+
+        $this->json(['success' => true, 'id' => (int) $id]);
+    }
+
+    /**
      * Busca histórico de mensagens de uma conversa
      */
     private function getConversationHistory(int $conversationId): array

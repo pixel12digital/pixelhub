@@ -78,50 +78,10 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <label style="font-weight: 600; margin: 0;">Mensagem</label>
                     <div style="display: flex; gap: 6px; align-items: center;">
-                        <div style="position: relative;">
-                            <button type="button" id="newMsgBtnAI" onclick="toggleNewMsgAIPanel()" title="Sugestão IA" style="background: #f8f5ff; border: 1px solid #d4c5f9; border-radius: 6px; cursor: pointer; padding: 4px 10px; font-size: 12px; color: #6f42c1; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s; font-weight: 600;">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 1 4 4v1a3 3 0 0 1 3 3v1a2 2 0 0 1-2 2h-1l-1 5H9l-1-5H7a2 2 0 0 1-2-2v-1a3 3 0 0 1 3-3V6a4 4 0 0 1 4-4z"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/></svg>
-                                IA
-                            </button>
-                            <div id="newMsgAIPanel" style="display: none; position: absolute; bottom: 36px; right: 0; width: 380px; max-height: 480px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.2); z-index: 2100; overflow: hidden; flex-direction: column;">
-                                <div style="padding: 10px 14px; border-bottom: 1px solid #eee; background: linear-gradient(135deg, #6f42c1 0%, #023A8D 100%); border-radius: 12px 12px 0 0;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: 700; font-size: 13px; color: white;">IA Assistente</span>
-                                        <button type="button" onclick="closeNewMsgAIPanel()" style="background: none; border: none; cursor: pointer; padding: 2px; color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1;" title="Fechar">&times;</button>
-                                    </div>
-                                </div>
-                                <div style="padding: 10px 14px; border-bottom: 1px solid #f0f0f0; background: #fafafa;">
-                                    <div style="display: flex; gap: 6px; margin-bottom: 6px;">
-                                        <div style="flex: 1;">
-                                            <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Contexto</label>
-                                            <select id="newMsgAIContext" style="width: 100%; padding: 5px 6px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: white;">
-                                                <option value="geral">Carregando...</option>
-                                            </select>
-                                        </div>
-                                        <div style="flex: 1;">
-                                            <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Objetivo</label>
-                                            <select id="newMsgAIObjective" style="width: 100%; padding: 5px 6px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: white;">
-                                                <option value="first_contact">Primeiro contato</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div style="display: flex; gap: 6px; align-items: end;">
-                                        <div style="flex: 1;">
-                                            <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Observação (opcional)</label>
-                                            <input type="text" id="newMsgAINote" placeholder="Ex: cliente veio do Google Ads" style="width: 100%; padding: 5px 6px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
-                                        </div>
-                                        <button type="button" id="newMsgAIGenerateBtn" onclick="generateNewMsgAISuggestions()" style="padding: 5px 12px; background: #6f42c1; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; height: 28px;">
-                                            Gerar
-                                        </button>
-                                    </div>
-                                </div>
-                                <div id="newMsgAIResults" style="overflow-y: auto; max-height: 280px; padding: 0;">
-                                    <div style="padding: 20px 14px; text-align: center; color: #999; font-size: 12px;">
-                                        Selecione o contexto e clique em <strong>Gerar</strong>.
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <button type="button" id="newMsgBtnAI" onclick="toggleNewMsgAIPanel()" title="Sugestão IA" style="background: #f8f5ff; border: 1px solid #d4c5f9; border-radius: 6px; cursor: pointer; padding: 4px 10px; font-size: 12px; color: #6f42c1; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s; font-weight: 600;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 1 4 4v1a3 3 0 0 1 3 3v1a2 2 0 0 1-2 2h-1l-1 5H9l-1-5H7a2 2 0 0 1-2-2v-1a3 3 0 0 1 3-3V6a4 4 0 0 1 4-4z"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/></svg>
+                            IA
+                        </button>
                         <div style="position: relative;">
                         <button type="button" id="newMsgBtnTemplates" onclick="toggleNewMsgTemplatesPanel()" title="Templates e respostas rápidas" style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; padding: 4px 10px; font-size: 12px; color: #666; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
@@ -150,6 +110,46 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 <button type="button" onclick="closeNewMessageModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Cancelar</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Painel IA flutuante (fixed, fora do modal para não ser cortado) -->
+<div id="newMsgAIPanel" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 420px; max-height: 520px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); z-index: 10000; overflow: hidden; flex-direction: column;">
+    <div style="padding: 12px 16px; border-bottom: 1px solid #eee; background: linear-gradient(135deg, #6f42c1 0%, #023A8D 100%); border-radius: 12px 12px 0 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-weight: 700; font-size: 14px; color: white;">IA Assistente</span>
+            <button type="button" onclick="closeNewMsgAIPanel()" style="background: none; border: none; cursor: pointer; padding: 2px; color: rgba(255,255,255,0.8); font-size: 18px; line-height: 1;" title="Fechar">&times;</button>
+        </div>
+    </div>
+    <div style="padding: 12px 16px; border-bottom: 1px solid #f0f0f0; background: #fafafa;">
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <div style="flex: 1;">
+                <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Contexto</label>
+                <select id="newMsgAIContext" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: white;">
+                    <option value="geral">Carregando...</option>
+                </select>
+            </div>
+            <div style="flex: 1;">
+                <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Objetivo</label>
+                <select id="newMsgAIObjective" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: white;">
+                    <option value="first_contact">Primeiro contato</option>
+                </select>
+            </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: end;">
+            <div style="flex: 1;">
+                <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Observação (opcional)</label>
+                <input type="text" id="newMsgAINote" placeholder="Ex: cliente veio do Google Ads" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
+            </div>
+            <button type="button" id="newMsgAIGenerateBtn" onclick="generateNewMsgAISuggestions()" style="padding: 6px 14px; background: #6f42c1; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; height: 30px;">
+                Gerar
+            </button>
+        </div>
+    </div>
+    <div id="newMsgAIResults" style="overflow-y: auto; max-height: 320px; padding: 0;">
+        <div style="padding: 24px 16px; text-align: center; color: #999; font-size: 13px;">
+            Selecione o contexto e clique em <strong>Gerar</strong> para receber sugestões da IA.
+        </div>
     </div>
 </div>
 

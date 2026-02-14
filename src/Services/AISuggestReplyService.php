@@ -212,8 +212,20 @@ class AISuggestReplyService
             $learningSection .= "\nAprenda com estas correções: adapte seu estilo para se aproximar do que os atendentes preferem.";
         }
 
+        // Monta seção de base de conhecimento
+        $knowledgeSection = '';
+        if (!empty($aiContext['knowledge_base'])) {
+            $kb = $aiContext['knowledge_base'];
+            // Limita a 3000 chars para não estourar tokens
+            if (mb_strlen($kb) > 3000) {
+                $kb = mb_substr($kb, 0, 3000) . '... [truncado]';
+            }
+            $knowledgeSection = "\n\n## Base de Conhecimento (informações do produto/serviço)\nUse estas informações para responder com precisão sobre o que oferecemos:\n\n{$kb}";
+        }
+
         $prompt = <<<PROMPT
 {$aiContext['system_prompt']}
+{$knowledgeSection}
 {$learningSection}
 
 ## Sua tarefa agora
