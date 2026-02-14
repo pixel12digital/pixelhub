@@ -136,12 +136,12 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 </select>
             </div>
         </div>
-        <div style="display: flex; gap: 8px; align-items: end;">
-            <div style="flex: 1;">
-                <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Observação (opcional)</label>
-                <input type="text" id="newMsgAINote" placeholder="Ex: cliente veio do Google Ads" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; box-sizing: border-box;">
-            </div>
-            <button type="button" id="newMsgAIGenerateBtn" onclick="generateNewMsgAISuggestions()" style="padding: 6px 14px; background: #6f42c1; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; height: 30px;">
+        <div style="margin-bottom: 6px;">
+            <label style="font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 3px;">Observação (opcional)</label>
+            <textarea id="newMsgAINote" rows="3" placeholder="Ex: cliente veio do Google Ads, estou respondendo atrasado, lead pediu orçamento..." style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; box-sizing: border-box; resize: vertical; font-family: inherit; line-height: 1.4;"></textarea>
+        </div>
+        <div style="text-align: right;">
+            <button type="button" id="newMsgAIGenerateBtn" onclick="generateNewMsgAISuggestions()" style="padding: 6px 14px; background: #6f42c1; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;">
                 Gerar
             </button>
         </div>
