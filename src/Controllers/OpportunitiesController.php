@@ -456,6 +456,7 @@ class OpportunitiesController extends Controller
         Auth::requireInternal();
 
         $phone = trim($_GET['phone'] ?? '');
+        $oppId = (int) ($_GET['opp_id'] ?? 0);
         if (empty($phone)) {
             $this->json(['success' => false, 'error' => 'Telefone não informado'], 400);
             return;
@@ -500,10 +501,30 @@ class OpportunitiesController extends Controller
         $conversation = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         if ($conversation) {
+            // Se veio de uma oportunidade, persiste o vínculo conversation_id → opportunity
+            if ($oppId > 0) {
+                try {
+                    $chk = $db->prepare("SELECT id, conversation_id FROM opportunities WHERE id = ? LIMIT 1");
+                    $chk->execute([$oppId]);
+                    $opp = $chk->fetch(\PDO::FETCH_ASSOC);
+                    if ($opp) {
+                        $currentConvId = (int) ($opp['conversation_id'] ?? 0);
+                        $newConvId = (int) $conversation['id'];
+                        if ($newConvId > 0 && $currentConvId !== $newConvId) {
+                            $upd = $db->prepare("UPDATE opportunities SET conversation_id = ?, updated_at = NOW() WHERE id = ?");
+                            $upd->execute([$newConvId, $oppId]);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    // Não bloqueia o fluxo
+                }
+            }
+
             $this->json([
                 'success' => true,
                 'found' => true,
-                'thread_id' => $conversation['id'],
+                'conversation_id' => (int) $conversation['id'],
+                'thread_id' => 'whatsapp_' . (int) $conversation['id'],
                 'channel' => $conversation['channel_type'] ?? 'whatsapp',
                 'contact_name' => $conversation['contact_name'],
             ]);

@@ -344,7 +344,7 @@ async function openWhatsApp(phone) {
 
     // Busca conversa existente pelo telefone
     try {
-        const res = await fetch(FIND_CONVERSATION_URL + '?phone=' + encodeURIComponent(phone));
+        const res = await fetch(FIND_CONVERSATION_URL + '?phone=' + encodeURIComponent(phone) + '&opp_id=' + encodeURIComponent(OPP_ID));
         const data = await res.json();
 
         if (data.success && data.found && data.thread_id) {
