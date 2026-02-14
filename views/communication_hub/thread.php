@@ -10,7 +10,14 @@ $baseUrl = pixelhub_url('');
     <div>
         <h2>
             <a href="<?= pixelhub_url('/communication-hub') ?>" style="color: #007bff; text-decoration: none; margin-right: 10px;">← Voltar</a>
-            Conversa: <?= htmlspecialchars($thread['contact_name'] ?? $thread['tenant_name'] ?? 'Cliente') ?>
+            Conversa: <?php
+                $displayName = $thread['contact_name'] ?? null;
+                if (empty($displayName) && !empty($thread['tenant_id'])) $displayName = $thread['tenant_name'] ?? null;
+                if (empty($displayName) && !empty($thread['lead_name'])) $displayName = $thread['lead_name'];
+                if (empty($displayName) && !empty($thread['lead_id'])) $displayName = 'Lead #' . $thread['lead_id'];
+                if (empty($displayName)) $displayName = 'Cliente';
+                echo htmlspecialchars($displayName);
+            ?>
         </h2>
         <p style="display: flex; align-items: center; gap: 8px;">
             <?php if ($channel === 'whatsapp'): ?>
@@ -34,7 +41,14 @@ $baseUrl = pixelhub_url('');
         <div style="padding: 15px; border-bottom: 2px solid #dee2e6; background: #f8f9fa;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <strong><?= htmlspecialchars($thread['contact_name'] ?? $thread['tenant_name'] ?? 'Cliente') ?></strong>
+                    <strong><?php
+                        $displayName = $thread['contact_name'] ?? null;
+                        if (empty($displayName) && !empty($thread['tenant_id'])) $displayName = $thread['tenant_name'] ?? null;
+                        if (empty($displayName) && !empty($thread['lead_name'])) $displayName = $thread['lead_name'];
+                        if (empty($displayName) && !empty($thread['lead_id'])) $displayName = 'Lead #' . $thread['lead_id'];
+                        if (empty($displayName)) $displayName = 'Cliente';
+                        echo htmlspecialchars($displayName);
+                    ?></strong>
                     <?php if ($channel === 'whatsapp' && isset($thread['contact'])): ?>
                         <br><small style="color: #666;"><?= htmlspecialchars($thread['contact']) ?></small>
                     <?php endif; ?>
