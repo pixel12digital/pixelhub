@@ -360,6 +360,19 @@ async function openWhatsApp(phone) {
                 if (typeof openInboxNovaConversa === 'function') {
                     openInboxNovaConversa();
                 }
+
+                // Se esta oportunidade é Lead, define contexto no modal (esconde busca de cliente)
+                try {
+                    const leadId = <?= !empty($opp['lead_id']) ? (int) $opp['lead_id'] : 'null' ?>;
+                    const leadName = <?= json_encode($opp['lead_name'] ?? null) ?>;
+                    const leadPhone = <?= json_encode($opp['lead_phone'] ?? null) ?>;
+                    if (leadId && typeof window.setNewMessageLeadContext === 'function') {
+                        window.setNewMessageLeadContext({ lead_id: leadId, lead_name: leadName, lead_phone: leadPhone || phone });
+                    }
+                } catch (e) {
+                    // silencioso
+                }
+
                 // Pré-preenche o campo "Para" com o telefone
                 setTimeout(() => {
                     const toField = document.getElementById('new-message-to');
@@ -370,6 +383,18 @@ async function openWhatsApp(phone) {
                     // Seleciona canal WhatsApp
                     const channelSelect = document.getElementById('new-message-channel');
                     if (channelSelect) {
+
+            // Se esta oportunidade é Lead, define contexto no modal (esconde busca de cliente)
+            try {
+                const leadId = <?= !empty($opp['lead_id']) ? (int) $opp['lead_id'] : 'null' ?>;
+                const leadName = <?= json_encode($opp['lead_name'] ?? null) ?>;
+                const leadPhone = <?= json_encode($opp['lead_phone'] ?? null) ?>;
+                if (leadId && typeof window.setNewMessageLeadContext === 'function') {
+                    window.setNewMessageLeadContext({ lead_id: leadId, lead_name: leadName, lead_phone: leadPhone || phone });
+                }
+            } catch (e) {
+                // silencioso
+            }
                         channelSelect.value = 'whatsapp';
                         channelSelect.dispatchEvent(new Event('change', { bubbles: true }));
                     }

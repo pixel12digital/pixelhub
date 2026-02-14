@@ -53,7 +53,19 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             </div>
             
             <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Cliente</label>
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;" id="new-message-contact-label">Cliente</label>
+
+                <div id="new-message-lead-container" style="display: none;">
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; background: #f8f9fa;">
+                        <span style="background: #1565c0; color: white; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600;">Lead</span>
+                        <div style="flex: 1; min-width: 0;">
+                            <div id="new-message-lead-display" style="font-weight: 700; color: #111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+                            <div id="new-message-lead-phone" style="font-size: 12px; color: #666;"></div>
+                        </div>
+                    </div>
+                    <input type="hidden" name="lead_id" id="new-message-lead-id" value="">
+                </div>
+
                 <div class="searchable-dropdown" id="modalClienteDropdown">
                     <input type="text" class="searchable-dropdown-input" id="modalClienteSearchInput" placeholder="Buscar cliente..." autocomplete="off" style="height: 42px; font-size: 14px;">
                     <input type="hidden" name="tenant_id" id="modalClienteTenantId" value="">
@@ -174,6 +186,52 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         if (toContainer) toContainer.style.display = 'none';
         if (sessionContainer) sessionContainer.style.display = 'none';
         if (typeof resetModalClienteDropdown === 'function') resetModalClienteDropdown();
+
+        // Reset contexto de Lead (se existir)
+        if (typeof window.resetNewMessageLeadContext === 'function') {
+            window.resetNewMessageLeadContext();
+        }
+    };
+
+    // ===== CONTEXTO DE LEAD (quando abrimos Nova Mensagem a partir de um Lead vinculado) =====
+    window.setNewMessageLeadContext = function(leadData) {
+        leadData = leadData || {};
+        var leadId = leadData.lead_id || leadData.leadId || '';
+        var leadName = leadData.lead_name || leadData.leadName || '';
+        var leadPhone = leadData.lead_phone || leadData.leadPhone || '';
+
+        var leadContainer = document.getElementById('new-message-lead-container');
+        var leadDisplay = document.getElementById('new-message-lead-display');
+        var leadPhoneEl = document.getElementById('new-message-lead-phone');
+        var leadIdInput = document.getElementById('new-message-lead-id');
+        var label = document.getElementById('new-message-contact-label');
+        var clienteDropdown = document.getElementById('modalClienteDropdown');
+        var tenantIdInput = document.getElementById('modalClienteTenantId');
+
+        if (label) label.textContent = 'Lead';
+        if (clienteDropdown) clienteDropdown.style.display = 'none';
+        if (tenantIdInput) tenantIdInput.value = '';
+
+        if (leadIdInput) leadIdInput.value = leadId;
+        if (leadDisplay) leadDisplay.textContent = (leadName && String(leadName).trim() !== '') ? leadName : ('Lead #' + leadId);
+        if (leadPhoneEl) leadPhoneEl.textContent = leadPhone ? leadPhone : '';
+        if (leadContainer) leadContainer.style.display = 'block';
+    };
+
+    window.resetNewMessageLeadContext = function() {
+        var leadContainer = document.getElementById('new-message-lead-container');
+        var leadDisplay = document.getElementById('new-message-lead-display');
+        var leadPhoneEl = document.getElementById('new-message-lead-phone');
+        var leadIdInput = document.getElementById('new-message-lead-id');
+        var label = document.getElementById('new-message-contact-label');
+        var clienteDropdown = document.getElementById('modalClienteDropdown');
+
+        if (leadIdInput) leadIdInput.value = '';
+        if (leadDisplay) leadDisplay.textContent = '';
+        if (leadPhoneEl) leadPhoneEl.textContent = '';
+        if (leadContainer) leadContainer.style.display = 'none';
+        if (clienteDropdown) clienteDropdown.style.display = '';
+        if (label) label.textContent = 'Cliente';
     };
     
     window.toggleNewMessageSessionField = function() {
