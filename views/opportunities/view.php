@@ -585,11 +585,157 @@ function closeScheduleFollowupModal() {
     document.getElementById('schedule-followup-modal').style.display = 'none';
 }
 
+const FollowupAIState = {
+    chatHistory: [],
+    lastResponse: '',
+    lastContext: 'geral',
+    lastObjective: 'follow_up'
+};
+
+function openFollowupAIChat() {
+    FollowupAIState.chatHistory = [];
+    FollowupAIState.lastResponse = '';
+    document.getElementById('followup-ai-modal').style.display = 'flex';
+    renderFollowupAIChat();
+    setTimeout(() => {
+        const input = document.getElementById('followupAIChatInput');
+        if (input) input.focus();
+    }, 100);
+}
+
+function closeFollowupAIChat() {
+    document.getElementById('followup-ai-modal').style.display = 'none';
+}
+
+function renderFollowupAIChat() {
+    const area = document.getElementById('followupAIChatArea');
+    if (!area) return;
+    area.innerHTML = '';
+    
+    if (FollowupAIState.chatHistory.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.style.cssText = 'text-align: center; padding: 40px 20px; color: #999; font-size: 13px;';
+        emptyDiv.textContent = 'Peça para a IA gerar uma mensagem de follow-up baseada no contexto da oportunidade';
+        area.appendChild(emptyDiv);
+        return;
+    }
+    
+    FollowupAIState.chatHistory.forEach(msg => {
+        const bubble = document.createElement('div');
+        bubble.style.cssText = msg.role === 'user' 
+            ? 'align-self: flex-end; background: #023A8D; color: white; padding: 10px 14px; border-radius: 12px 12px 0 12px; max-width: 75%; font-size: 13px; line-height: 1.4; word-wrap: break-word;'
+            : 'align-self: flex-start; background: #f0f0f0; color: #333; padding: 10px 14px; border-radius: 12px 12px 12px 0; max-width: 75%; font-size: 13px; line-height: 1.4; word-wrap: break-word;';
+        bubble.textContent = msg.content;
+        area.appendChild(bubble);
+        
+        if (msg.role === 'assistant' && msg.content && !msg.content.startsWith('Erro:')) {
+            const btnDiv = document.createElement('div');
+            btnDiv.style.cssText = 'align-self: flex-start; display: flex; gap: 6px; margin-top: 6px;';
+            btnDiv.innerHTML = `
+                <button onclick="useFollowupAIResponse(this)" data-text="${msg.content.replace(/"/g, '&quot;')}" 
+                        style="padding: 6px 12px; background: #023A8D; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">
+                    Usar esta resposta
+                </button>
+                <button onclick="copyFollowupAIResponse(this)" data-text="${msg.content.replace(/"/g, '&quot;')}" 
+                        style="padding: 6px 12px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">
+                    Copiar
+                </button>
+            `;
+            area.appendChild(btnDiv);
+        }
+    });
+    
+    area.scrollTop = area.scrollHeight;
+}
+
+async function sendFollowupAIChat() {
+    const input = document.getElementById('followupAIChatInput');
+    const sendBtn = document.getElementById('followupAISendBtn');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+    
+    FollowupAIState.chatHistory.push({ role: 'user', content: text });
+    input.value = '';
+    renderFollowupAIChat();
+    
+    const area = document.getElementById('followupAIChatArea');
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = 'followupAILoading';
+    loadingDiv.style.cssText = 'align-self: flex-start; padding: 10px 16px; color: #6f42c1; font-size: 12px;';
+    loadingDiv.innerHTML = '<div style="display: inline-block; width: 14px; height: 14px; border: 2px solid #6f42c1; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px;"></div>Pensando...<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+    area.appendChild(loadingDiv);
+    area.scrollTop = area.scrollHeight;
+    
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.style.opacity = '0.6'; }
+    
+    const notes = document.getElementById('followup-notes').value || '';
+    const oppName = '<?= htmlspecialchars($opp['name']) ?>';
+    const leadName = '<?= htmlspecialchars($opp['lead_name'] ?? $opp['tenant_name'] ?? '') ?>';
+    
+    try {
+        const res = await fetch('<?= pixelhub_url('/api/ai/chat') ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                context_slug: 'geral',
+                objective: 'follow_up',
+                attendant_note: `Oportunidade: ${oppName}\nContato: ${leadName}\nObservações: ${notes}`,
+                conversation_id: null,
+                ai_chat_messages: FollowupAIState.chatHistory
+            })
+        });
+        const data = await res.json();
+        
+        const ld = document.getElementById('followupAILoading');
+        if (ld) ld.remove();
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+        
+        if (!data.success) {
+            FollowupAIState.chatHistory.push({ role: 'assistant', content: 'Erro: ' + (data.error || 'Erro desconhecido') });
+        } else {
+            FollowupAIState.chatHistory.push({ role: 'assistant', content: data.message });
+            FollowupAIState.lastResponse = data.message;
+        }
+        renderFollowupAIChat();
+        if (input) input.focus();
+    } catch (err) {
+        const ld = document.getElementById('followupAILoading');
+        if (ld) ld.remove();
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+        FollowupAIState.chatHistory.push({ role: 'assistant', content: 'Erro: ' + err.message });
+        renderFollowupAIChat();
+    }
+}
+
+function useFollowupAIResponse(btn) {
+    const text = btn.getAttribute('data-text') || '';
+    if (!text) return;
+    const ta = document.getElementById('followup-message');
+    if (!ta) return;
+    ta.value = text;
+    ta.focus();
+    closeFollowupAIChat();
+}
+
+function copyFollowupAIResponse(btn) {
+    const text = btn.getAttribute('data-text') || '';
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+            const orig = btn.textContent;
+            btn.textContent = 'Copiado!';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+        });
+    }
+}
+
 async function submitFollowup() {
     const title = document.getElementById('followup-title').value.trim();
     const date = document.getElementById('followup-date').value;
     const time = document.getElementById('followup-time').value;
     const notes = document.getElementById('followup-notes').value.trim();
+    const message = document.getElementById('followup-message').value.trim();
     
     if (!title) {
         alert('Título é obrigatório');
@@ -608,6 +754,7 @@ async function submitFollowup() {
     formData.append('notes', notes);
     formData.append('opportunity_id', OPP_ID);
     formData.append('related_type', 'opportunity');
+    formData.append('scheduled_message', message);
     
     try {
         const res = await fetch('<?= pixelhub_url('/agenda/manual-item/novo') ?>', {
@@ -617,7 +764,7 @@ async function submitFollowup() {
         
         if (res.redirected || res.ok) {
             closeScheduleFollowupModal();
-            alert('Follow-up agendado com sucesso!');
+            alert('Follow-up agendado com sucesso!' + (message ? ' A mensagem será enviada automaticamente.' : ''));
             window.location.reload();
         } else {
             alert('Erro ao agendar follow-up');
@@ -661,10 +808,25 @@ async function submitFollowup() {
             </div>
         </div>
         
-        <div style="margin-bottom: 20px;">
+        <div style="margin-bottom: 16px;">
             <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Observações</label>
             <textarea id="followup-notes" placeholder="Detalhes do follow-up..." 
-                      style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; min-height: 80px; resize: vertical; box-sizing: border-box;"></textarea>
+                      style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; min-height: 60px; resize: vertical; box-sizing: border-box;"></textarea>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label style="font-weight: 600; font-size: 13px; color: #555;">Mensagem para enviar automaticamente</label>
+                <button type="button" onclick="openFollowupAIChat()" 
+                        style="padding: 4px 10px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600;">
+                    Gerar com IA
+                </button>
+            </div>
+            <textarea id="followup-message" placeholder="Digite a mensagem que será enviada automaticamente no dia/hora agendados..." 
+                      style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; min-height: 100px; resize: vertical; box-sizing: border-box;"></textarea>
+            <div style="font-size: 11px; color: #888; margin-top: 4px;">
+                Deixe vazio para apenas agendar sem envio automático
+            </div>
         </div>
         
         <div style="display: flex; gap: 10px; justify-content: flex-end;">
@@ -675,6 +837,28 @@ async function submitFollowup() {
             <button onclick="submitFollowup()" 
                     style="padding: 10px 20px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
                 Agendar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: IA Chat para Follow-up -->
+<div id="followup-ai-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 8px; padding: 0; max-width: 600px; width: 90%; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <div style="padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 16px; color: #333;">IA - Gerar Mensagem de Follow-up</h3>
+            <button onclick="closeFollowupAIChat()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+        </div>
+        
+        <div id="followupAIChatArea" style="flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-height: 300px; max-height: 400px;"></div>
+        
+        <div style="padding: 10px 16px; border-top: 1px solid #eee; background: #fafafa; display: flex; gap: 8px; align-items: flex-end;">
+            <textarea id="followupAIChatInput" rows="2" placeholder="Ex: Gere uma mensagem de follow-up profissional e amigável" 
+                      style="flex: 1; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 12px; font-family: inherit; resize: none; line-height: 1.4; box-sizing: border-box;" 
+                      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendFollowupAIChat();}"></textarea>
+            <button type="button" id="followupAISendBtn" onclick="sendFollowupAIChat()" 
+                    style="padding: 8px 12px; background: #6f42c1; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; height: 36px;">
+                Enviar
             </button>
         </div>
     </div>

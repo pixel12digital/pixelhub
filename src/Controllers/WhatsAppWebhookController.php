@@ -359,6 +359,22 @@ class WhatsAppWebhookController extends Controller
                     }
                 }
                 
+                // Detecta resposta para mensagens agendadas (follow-ups)
+                if ($eventSaved && $internalEventType === 'whatsapp.inbound.message') {
+                    try {
+                        $db = DB::getConnection();
+                        $convStmt = $db->prepare("SELECT conversation_id FROM communication_events WHERE event_id = ? LIMIT 1");
+                        $convStmt->execute([$eventId]);
+                        $convRow = $convStmt->fetch();
+                        if ($convRow && $convRow['conversation_id']) {
+                            require_once __DIR__ . '/../Services/ScheduledMessageService.php';
+                            \PixelHub\Services\ScheduledMessageService::detectResponse($convRow['conversation_id']);
+                        }
+                    } catch (\Exception $e) {
+                        error_log("[WEBHOOK] Erro ao detectar resposta de follow-up: " . $e->getMessage());
+                    }
+                }
+                
                 // 🔍 INSTRUMENTAÇÃO: Log após ingestão bem-sucedida
                 error_log(sprintf(
                     '[WEBHOOK INSTRUMENTADO] INSERT REALIZADO: event_id=%s, saved=%s, timestamp=%s, from=%s, tenant_id=%s, channel_id=%s',

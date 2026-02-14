@@ -1043,6 +1043,25 @@ class AgendaController extends Controller
                 'opportunity_id' => !empty($_POST['opportunity_id']) ? (int)$_POST['opportunity_id'] : null,
                 'related_type' => $_POST['related_type'] ?? null,
             ]);
+            
+            // Se há mensagem agendada, salvar na tabela scheduled_messages
+            $scheduledMessage = trim($_POST['scheduled_message'] ?? '');
+            if (!empty($scheduledMessage)) {
+                try {
+                    require_once __DIR__ . '/../Services/ScheduledMessageService.php';
+                    \PixelHub\Services\ScheduledMessageService::create([
+                        'agenda_item_id' => $id,
+                        'opportunity_id' => !empty($_POST['opportunity_id']) ? (int)$_POST['opportunity_id'] : null,
+                        'lead_id' => !empty($_POST['lead_id']) ? (int)$_POST['lead_id'] : null,
+                        'message_text' => $scheduledMessage,
+                        'scheduled_at' => ($_POST['item_date'] ?? $dataStr) . ' ' . (!empty($_POST['time_start']) ? $_POST['time_start'] : '10:00') . ':00',
+                        'created_by' => $userId,
+                    ]);
+                } catch (\Exception $e) {
+                    error_log("Erro ao salvar mensagem agendada: " . $e->getMessage());
+                }
+            }
+            
             header('Location: ' . $redirectUrl . '&sucesso=' . urlencode('Compromisso adicionado com sucesso.'));
             exit;
         } catch (\RuntimeException $e) {
