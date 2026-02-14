@@ -1619,7 +1619,14 @@ body.communication-hub-page {
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
                                 <div style="flex: 1; min-width: 0;">
                                     <div style="font-weight: 600; font-size: 14px; color: #111b21; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                        <?= htmlspecialchars($thread['contact_name'] ?? $thread['tenant_name'] ?? 'Cliente') ?>
+                                        <?php
+                                            $displayName = $thread['contact_name'] ?? null;
+                                            if (empty($displayName) && !empty($thread['tenant_id'])) $displayName = $thread['tenant_name'] ?? null;
+                                            if (empty($displayName) && !empty($thread['lead_name'])) $displayName = $thread['lead_name'];
+                                            if (empty($displayName) && !empty($thread['lead_id'])) $displayName = 'Sem nome';
+                                            if (empty($displayName)) $displayName = 'Sem nome';
+                                        ?>
+                                        <?= htmlspecialchars($displayName) ?>
                                     </div>
                                     <div style="font-size: 12px; color: #667781; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
                                     <?php if ($thread['channel'] === 'whatsapp'): ?>
@@ -1645,10 +1652,10 @@ body.communication-hub-page {
                                            onclick="event.stopPropagation();" 
                                            style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" 
                                            title="Clique para ver detalhes do cliente">• <?= htmlspecialchars($thread['tenant_name']) ?></a>
-                                    <?php elseif (!empty($thread['lead_id']) && !empty($thread['lead_name'])): ?>
-                                        <span style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px;" title="Lead vinculado">• Lead: <?= htmlspecialchars($thread['lead_name']) ?></span>
+                                    <?php elseif (!empty($thread['lead_id'])): ?>
+                                        <span style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px;" title="Lead vinculado">• Lead<?= !empty($thread['lead_name']) ? ': ' . htmlspecialchars($thread['lead_name']) : '' ?></span>
                                     <?php elseif (!isset($thread['tenant_name']) || $thread['tenant_id'] === null): ?>
-                                        <span style="opacity: 0.7; font-size: 10px;">• Sem tenant</span>
+                                        <span style="opacity: 0.7; font-size: 10px;">• Novo contato</span>
                                     <?php endif; ?>
                                 </div>
                                 <?php if (isset($thread['conversation_key']) && defined('APP_DEBUG') && APP_DEBUG): ?>
@@ -2419,9 +2426,9 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
     threads.forEach((thread, index) => {
         const threadId = escapeHtml(thread.thread_id || '');
         const channel = escapeHtml(thread.channel || 'whatsapp');
-        const contactName = escapeHtml(thread.contact_name || thread.tenant_name || 'Cliente');
+        const contactName = escapeHtml(thread.contact_name || (thread.tenant_id ? thread.tenant_name : null) || thread.lead_name || 'Sem nome');
         const contact = escapeHtml(thread.contact || 'Número não identificado');
-        const tenantName = escapeHtml(thread.tenant_name || 'Sem tenant');
+        const tenantName = escapeHtml(thread.tenant_name || '');
         const unreadCount = thread.unread_count || 0;
         const messageCount = thread.message_count || 0;
         const lastActivity = thread.last_activity || 'now';
@@ -2456,10 +2463,10 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                                    onclick="event.stopPropagation();" 
                                    style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" 
                                    title="Clique para ver detalhes do cliente">• ${tenantName}</a>` : 
-                                (thread.lead_id && thread.lead_name ? 
-                                    `<span style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px;" title="Lead vinculado">• Lead: ${escapeHtml(thread.lead_name)}</span>` :
-                                    (!thread.tenant_name || thread.tenant_id === null ? 
-                                        '<span style="opacity: 0.7; font-size: 10px;">• Sem tenant</span>' : ''))
+                                (thread.lead_id ? 
+                                    `<span style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px;" title="Lead vinculado">• Lead${thread.lead_name ? ': ' + escapeHtml(thread.lead_name) : ''}</span>` :
+                                    (!thread.tenant_id ? 
+                                        '<span style="opacity: 0.7; font-size: 10px;">• Novo contato</span>' : ''))
                             }
                         </div>
                     </div>
@@ -3484,7 +3491,7 @@ function renderConversation(thread, messages, channel) {
         body.classList.add('view-thread');
     }
     
-    const contactName = thread.contact_name || thread.tenant_name || 'Cliente';
+    const contactName = thread.contact_name || (thread.tenant_id ? thread.tenant_name : null) || thread.lead_name || 'Sem nome';
     const contact = thread.contact || 'Número não identificado';
     
     let html = `
