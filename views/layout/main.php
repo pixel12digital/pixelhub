@@ -1968,11 +1968,8 @@
                             <a href="<?= pixelhub_url('/settings/smtp') ?>" class="sub-item <?= (strpos($currentUri, '/settings/smtp') !== false) ? 'active' : '' ?>">
                                 <span class="sidebar-text">Configurações SMTP</span>
                             </a>
-                            <a href="<?= pixelhub_url('/settings/ai') ?>" class="sub-item <?= (strpos($currentUri, '/settings/ai') !== false && strpos($currentUri, '/settings/ai-contexts') === false) ? 'active' : '' ?>">
+                            <a href="<?= pixelhub_url('/settings/ai') ?>" class="sub-item <?= (strpos($currentUri, '/settings/ai') !== false) ? 'active' : '' ?>">
                                 <span class="sidebar-text">Configurações IA</span>
-                            </a>
-                            <a href="<?= pixelhub_url('/settings/ai-contexts') ?>" class="sub-item <?= (strpos($currentUri, '/settings/ai-contexts') !== false) ? 'active' : '' ?>">
-                                <span class="sidebar-text">Contextos IA</span>
                             </a>
                         </div>
                     </div>
