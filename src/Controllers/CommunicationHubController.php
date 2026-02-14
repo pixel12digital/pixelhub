@@ -4327,8 +4327,13 @@ class CommunicationHubController extends Controller
                     'conversation_key' => $conversation['conversation_key'],
                     'tenant_id' => $conversation['tenant_id'],
                     'tenant_name' => $conversation['tenant_name'],
+                    'lead_id' => $conversation['lead_id'] ?? null,
+                    'lead_name' => $conversation['lead_name'] ?? null,
+                    'lead_phone' => $conversation['lead_phone'] ?? null,
                     'contact' => ContactHelper::formatContactId($conversation['contact_external_id'], $realPhone),
-                    'contact_name' => $conversation['contact_name'] ?: ($conversation['tenant_name'] ?: null),
+                    'contact_name' => $conversation['contact_name']
+                        ?: ($conversation['tenant_name'] ?: null)
+                        ?: ($conversation['lead_name'] ?: (!empty($conversation['lead_id']) ? ('Lead #' . $conversation['lead_id']) : null)),
                     'channel' => 'whatsapp',
                     'channel_id' => $channelId,
                     'status' => $conversation['status'],
