@@ -1039,6 +1039,9 @@ class AgendaController extends Controller
                 'item_type' => $_POST['item_type'] ?? 'outro',
                 'notes' => $_POST['notes'] ?? null,
                 'created_by' => $userId,
+                'lead_id' => !empty($_POST['lead_id']) ? (int)$_POST['lead_id'] : null,
+                'opportunity_id' => !empty($_POST['opportunity_id']) ? (int)$_POST['opportunity_id'] : null,
+                'related_type' => $_POST['related_type'] ?? null,
             ]);
             header('Location: ' . $redirectUrl . '&sucesso=' . urlencode('Compromisso adicionado com sucesso.'));
             exit;

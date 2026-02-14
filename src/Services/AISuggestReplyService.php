@@ -58,8 +58,8 @@ class AISuggestReplyService
             $aiContext = self::getContext('geral');
         }
 
-        // Busca exemplos de aprendizado anteriores
-        $learnedExamples = self::getLearnedExamples($contextSlug, $objective, 5);
+        // Busca exemplos de aprendizado anteriores (reduzido para economizar tokens)
+        $learnedExamples = self::getLearnedExamples($contextSlug, $objective, 3);
 
         // Monta os prompts
         $systemPrompt = self::buildSystemPrompt($aiContext, $objective, $tone, $hasHistory, $learnedExamples);
@@ -276,8 +276,8 @@ class AISuggestReplyService
         if (!empty($aiContext['knowledge_base'])) {
             $kb = $aiContext['knowledge_base'];
             // Limita a 3000 chars para não estourar tokens
-            if (mb_strlen($kb) > 3000) {
-                $kb = mb_substr($kb, 0, 3000) . '... [truncado]';
+            if (mb_strlen($kb) > 1500) {
+                $kb = mb_substr($kb, 0, 1500) . '... [truncado]';
             }
             $knowledgeSection = "\n\n## Base de Conhecimento (informações do produto/serviço)\nUse estas informações para responder com precisão sobre o que oferecemos:\n\n{$kb}";
         }
@@ -339,8 +339,8 @@ PROMPT;
         $knowledgeSection = '';
         if (!empty($aiContext['knowledge_base'])) {
             $kb = $aiContext['knowledge_base'];
-            if (mb_strlen($kb) > 3000) {
-                $kb = mb_substr($kb, 0, 3000) . '... [truncado]';
+            if (mb_strlen($kb) > 1500) {
+                $kb = mb_substr($kb, 0, 1500) . '... [truncado]';
             }
             $knowledgeSection = "\n\n## Base de Conhecimento\n{$kb}";
         }
@@ -378,7 +378,7 @@ PROMPT;
      */
     private static function callOpenAIChat(string $apiKey, array $messages): string
     {
-        $model = Env::get('OPENAI_MODEL', 'gpt-4o-mini');
+        $model = Env::get('OPENAI_MODEL', 'gpt-4.1-mini');
         $temperature = (float) Env::get('OPENAI_TEMPERATURE', '0.7');
         $maxTokens = (int) Env::get('OPENAI_MAX_TOKENS', '800');
         $maxTokens = max($maxTokens, 600);
@@ -438,8 +438,8 @@ PROMPT;
 
         if ($hasHistory && !empty($history)) {
             $parts[] = "\n--- HISTÓRICO DA CONVERSA (últimas mensagens) ---";
-            // Limita a últimas 20 mensagens para não estourar tokens
-            $recentHistory = array_slice($history, -20);
+            // Limita a últimas 10 mensagens para economizar tokens
+            $recentHistory = array_slice($history, -10);
             foreach ($recentHistory as $msg) {
                 $direction = ($msg['direction'] ?? 'in') === 'out' ? 'Atendente' : 'Contato';
                 $text = $msg['text'] ?? $msg['message'] ?? $msg['content'] ?? '';
@@ -466,12 +466,12 @@ PROMPT;
      */
     private static function callOpenAI(string $apiKey, string $systemPrompt, string $userPrompt): array
     {
-        $model = Env::get('OPENAI_MODEL', 'gpt-4o-mini');
+        $model = Env::get('OPENAI_MODEL', 'gpt-4.1-mini');
         $temperature = (float) Env::get('OPENAI_TEMPERATURE', '0.7');
         $maxTokens = (int) Env::get('OPENAI_MAX_TOKENS', '800');
 
-        // Para sugestões, precisamos de mais tokens
-        $maxTokens = max($maxTokens, 1000);
+        // Otimizado para economizar tokens
+        $maxTokens = max($maxTokens, 600);
 
         $ch = curl_init('https://api.openai.com/v1/chat/completions');
         curl_setopt_array($ch, [

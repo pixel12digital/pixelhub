@@ -129,9 +129,73 @@ $erro = $_GET['erro'] ?? null;
         </div>
 
         <div class="form-group">
+            <label for="related_type">Vincular a</label>
+            <select id="related_type" name="related_type" onchange="toggleRelatedFields(this.value)">
+                <option value="">Nenhum vínculo</option>
+                <option value="lead" <?= ($_POST['related_type'] ?? '') === 'lead' ? 'selected' : '' ?>>Lead</option>
+                <option value="opportunity" <?= ($_POST['related_type'] ?? '') === 'opportunity' ? 'selected' : '' ?>>Oportunidade</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="lead_field" style="display: <?= ($_POST['related_type'] ?? '') === 'lead' ? 'block' : 'none' ?>;">
+            <label for="lead_id">Lead</label>
+            <select id="lead_id" name="lead_id">
+                <option value="">Selecione um lead</option>
+                <?php
+                try {
+                    $db = \PixelHub\Core\DB::getConnection();
+                    $stmt = $db->query("SELECT id, name, phone FROM leads WHERE status != 'converted' ORDER BY name ASC");
+                    $leads = $stmt->fetchAll();
+                    foreach ($leads as $lead) {
+                        $selected = ($_POST['lead_id'] ?? '') == $lead['id'] ? 'selected' : '';
+                        $displayName = $lead['name'] ?: 'Lead #' . $lead['id'];
+                        if ($lead['phone']) $displayName .= ' (' . $lead['phone'] . ')';
+                        echo '<option value="' . $lead['id'] . '" ' . $selected . '>' . htmlspecialchars($displayName) . '</option>';
+                    }
+                } catch (\Exception $e) {
+                    error_log("Erro ao buscar leads: " . $e->getMessage());
+                }
+                ?>
+            </select>
+        </div>
+
+        <div class="form-group" id="opportunity_field" style="display: <?= ($_POST['related_type'] ?? '') === 'opportunity' ? 'block' : 'none' ?>;">
+            <label for="opportunity_id">Oportunidade</label>
+            <select id="opportunity_id" name="opportunity_id">
+                <option value="">Selecione uma oportunidade</option>
+                <?php
+                try {
+                    $db = \PixelHub\Core\DB::getConnection();
+                    $stmt = $db->query("SELECT o.id, o.name, o.value, t.name as tenant_name, l.name as lead_name FROM opportunities o LEFT JOIN tenants t ON o.tenant_id = t.id LEFT JOIN leads l ON o.lead_id = l.id WHERE o.status NOT IN ('won', 'lost') ORDER BY o.created_at DESC LIMIT 50");
+                    $opportunities = $stmt->fetchAll();
+                    foreach ($opportunities as $opp) {
+                        $selected = ($_POST['opportunity_id'] ?? '') == $opp['id'] ? 'selected' : '';
+                        $displayName = $opp['name'];
+                        $relatedName = $opp['tenant_name'] ?: $opp['lead_name'];
+                        if ($relatedName) $displayName .= ' - ' . $relatedName;
+                        if ($opp['value']) $displayName .= ' (R$ ' . number_format($opp['value'], 2, ',', '.') . ')';
+                        echo '<option value="' . $opp['id'] . '" ' . $selected . '>' . htmlspecialchars($displayName) . '</option>';
+                    }
+                } catch (\Exception $e) {
+                    error_log("Erro ao buscar oportunidades: " . $e->getMessage());
+                }
+                ?>
+            </select>
+        </div>
+
+        <div class="form-group">
             <label for="notes">Observações</label>
             <textarea id="notes" name="notes" placeholder="Detalhes, local, participantes..."><?= htmlspecialchars($_POST['notes'] ?? '') ?></textarea>
         </div>
+
+        <script>
+        function toggleRelatedFields(type) {
+            document.getElementById('lead_field').style.display = type === 'lead' ? 'block' : 'none';
+            document.getElementById('opportunity_field').style.display = type === 'opportunity' ? 'block' : 'none';
+            if (type !== 'lead') document.getElementById('lead_id').value = '';
+            if (type !== 'opportunity') document.getElementById('opportunity_id').value = '';
+        }
+        </script>
 
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Adicionar</button>

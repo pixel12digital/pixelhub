@@ -2991,6 +2991,9 @@ class AgendaService
         $itemType = !empty($data['item_type']) ? trim($data['item_type']) : 'outro';
         $notes = !empty($data['notes']) ? trim($data['notes']) : null;
         $createdBy = isset($data['created_by']) ? (int)$data['created_by'] : null;
+        $leadId = !empty($data['lead_id']) ? (int)$data['lead_id'] : null;
+        $opportunityId = !empty($data['opportunity_id']) ? (int)$data['opportunity_id'] : null;
+        $relatedType = !empty($data['related_type']) ? trim($data['related_type']) : null;
 
         if (empty($title)) {
             throw new \RuntimeException('Título é obrigatório.');
@@ -3009,10 +3012,10 @@ class AgendaService
 
         $db = DB::getConnection();
         $stmt = $db->prepare("
-            INSERT INTO agenda_manual_items (title, item_date, time_start, time_end, item_type, notes, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO agenda_manual_items (title, item_date, time_start, time_end, item_type, notes, created_by, lead_id, opportunity_id, related_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        $stmt->execute([$title, $itemDate, $timeStart, $timeEnd, $itemType, $notes, $createdBy]);
+        $stmt->execute([$title, $itemDate, $timeStart, $timeEnd, $itemType, $notes, $createdBy, $leadId, $opportunityId, $relatedType]);
         return (int)$db->lastInsertId();
     }
 
