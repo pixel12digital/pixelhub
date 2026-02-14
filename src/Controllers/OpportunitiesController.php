@@ -79,12 +79,30 @@ class OpportunitiesController extends Controller
             // Tabela pode não existir
         }
 
+        // Busca próximos compromissos agendados para esta oportunidade
+        $upcomingSchedules = [];
+        try {
+            $stmt = $db->prepare("
+                SELECT id, title, item_date, time_start, time_end, notes
+                FROM agenda_manual_items
+                WHERE opportunity_id = ?
+                AND item_date >= CURDATE()
+                ORDER BY item_date ASC, COALESCE(time_start, '00:00:00') ASC
+                LIMIT 3
+            ");
+            $stmt->execute([$id]);
+            $upcomingSchedules = $stmt->fetchAll() ?: [];
+        } catch (\Exception $e) {
+            error_log('[Opportunities] Erro ao buscar compromissos agendados: ' . $e->getMessage());
+        }
+
         $this->view('opportunities.view', [
             'opportunity' => $opportunity,
             'history' => $history,
             'users' => $users,
             'services' => $services,
             'stages' => OpportunityService::STAGES,
+            'upcomingSchedules' => $upcomingSchedules,
         ]);
     }
 

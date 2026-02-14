@@ -75,6 +75,13 @@ $isLost = $opp['status'] === 'lost';
                 style="padding: 8px 16px; border-radius: 20px; border: 2px solid #dc3545; background: white; color: #dc3545; font-weight: 600; cursor: pointer; font-size: 13px;">
             &#10007; Perdeu
         </button>
+        
+        <div style="border-left: 2px solid #ddd; margin: 0 8px;"></div>
+        
+        <button onclick="openScheduleFollowupModal()" 
+                style="padding: 8px 16px; border-radius: 20px; border: 2px solid #023A8D; background: white; color: #023A8D; font-weight: 600; cursor: pointer; font-size: 13px;">
+            Agendar Follow-up
+        </button>
     </div>
 </div>
 <?php elseif ($isLost || $isWon): ?>
@@ -158,6 +165,48 @@ $isLost = $opp['status'] === 'lost';
                 </div>
                 <?php endif; ?>
             </form>
+        </div>
+        
+        <!-- Próximos Compromissos -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="margin: 0; font-size: 16px; color: #333;">Próximos Compromissos</h3>
+                <button onclick="openScheduleFollowupModal()" 
+                        style="padding: 6px 12px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                    + Agendar
+                </button>
+            </div>
+            <?php if (!empty($upcomingSchedules) && count($upcomingSchedules) > 0): ?>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <?php foreach ($upcomingSchedules as $schedule): ?>
+                        <div style="padding: 10px; background: #f8f9fa; border-left: 3px solid #023A8D; border-radius: 4px;">
+                            <div style="font-weight: 600; font-size: 13px; color: #333;">
+                                <?= htmlspecialchars($schedule['title']) ?>
+                            </div>
+                            <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                                <?= date('d/m/Y', strtotime($schedule['item_date'])) ?>
+                                <?php if ($schedule['time_start']): ?>
+                                    às <?= date('H:i', strtotime($schedule['time_start'])) ?>
+                                <?php endif; ?>
+                            </div>
+                            <?php if ($schedule['notes']): ?>
+                                <div style="font-size: 12px; color: #888; margin-top: 4px;">
+                                    <?= htmlspecialchars(substr($schedule['notes'], 0, 80)) ?><?= strlen($schedule['notes']) > 80 ? '...' : '' ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                    <?php if (count($upcomingSchedules) >= 3): ?>
+                        <a href="<?= pixelhub_url('/agenda') ?>" style="font-size: 12px; color: #023A8D; text-decoration: none; text-align: center; padding: 6px;">
+                            Ver todos na agenda &rarr;
+                        </a>
+                    <?php endif; ?>
+                </div>
+            <?php else: ?>
+                <div style="padding: 16px; text-align: center; color: #888; font-size: 13px;">
+                    Nenhum follow-up agendado
+                </div>
+            <?php endif; ?>
         </div>
         
         <!-- Vínculo -->
@@ -522,7 +571,114 @@ async function addNote() {
         alert('Erro ao adicionar nota');
     }
 }
+
+function openScheduleFollowupModal() {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    document.getElementById('followup-date').value = tomorrowStr;
+    document.getElementById('followup-time').value = '10:00';
+    document.getElementById('schedule-followup-modal').style.display = 'flex';
+}
+
+function closeScheduleFollowupModal() {
+    document.getElementById('schedule-followup-modal').style.display = 'none';
+}
+
+async function submitFollowup() {
+    const title = document.getElementById('followup-title').value.trim();
+    const date = document.getElementById('followup-date').value;
+    const time = document.getElementById('followup-time').value;
+    const notes = document.getElementById('followup-notes').value.trim();
+    
+    if (!title) {
+        alert('Título é obrigatório');
+        return;
+    }
+    if (!date) {
+        alert('Data é obrigatória');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('item_date', date);
+    formData.append('time_start', time);
+    formData.append('item_type', 'followup');
+    formData.append('notes', notes);
+    formData.append('opportunity_id', OPP_ID);
+    formData.append('related_type', 'opportunity');
+    
+    try {
+        const res = await fetch('<?= pixelhub_url('/agenda/manual-item/novo') ?>', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (res.redirected || res.ok) {
+            closeScheduleFollowupModal();
+            alert('Follow-up agendado com sucesso!');
+            window.location.reload();
+        } else {
+            alert('Erro ao agendar follow-up');
+        }
+    } catch (e) {
+        alert('Erro ao agendar follow-up: ' + e.message);
+    }
+}
 </script>
+
+<!-- Modal: Agendar Follow-up -->
+<div id="schedule-followup-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 8px; padding: 24px; max-width: 500px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; font-size: 18px; color: #333;">Agendar Follow-up</h3>
+            <button onclick="closeScheduleFollowupModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Oportunidade</label>
+            <input type="text" value="<?= htmlspecialchars($opp['name']) ?>" disabled 
+                   style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5; box-sizing: border-box;">
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Título *</label>
+            <input type="text" id="followup-title" placeholder="Ex: Follow-up - <?= htmlspecialchars($opp['name']) ?>" 
+                   style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+        </div>
+        
+        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Data *</label>
+                <input type="date" id="followup-date" 
+                       style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Horário</label>
+                <input type="time" id="followup-time" 
+                       style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Observações</label>
+            <textarea id="followup-notes" placeholder="Detalhes do follow-up..." 
+                      style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; min-height: 80px; resize: vertical; box-sizing: border-box;"></textarea>
+        </div>
+        
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button onclick="closeScheduleFollowupModal()" 
+                    style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                Cancelar
+            </button>
+            <button onclick="submitFollowup()" 
+                    style="padding: 10px 20px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                Agendar
+            </button>
+        </div>
+    </div>
+</div>
 
 <?php
 $content = ob_get_clean();
