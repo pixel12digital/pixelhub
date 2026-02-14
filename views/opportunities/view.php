@@ -597,10 +597,89 @@ function openFollowupAIChat() {
     FollowupAIState.lastResponse = '';
     document.getElementById('followup-ai-modal').style.display = 'flex';
     renderFollowupAIChat();
+    
+    // Gera automaticamente ao abrir o modal
     setTimeout(() => {
-        const input = document.getElementById('followupAIChatInput');
-        if (input) input.focus();
+        autoGenerateFollowup();
     }, 100);
+}
+
+async function autoGenerateFollowup() {
+    const area = document.getElementById('followupAIChatArea');
+    const sendBtn = document.getElementById('followupAISendBtn');
+    
+    // Mostra loading imediatamente
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = 'followupAILoading';
+    loadingDiv.style.cssText = 'align-self: flex-start; padding: 10px 16px; color: #6f42c1; font-size: 12px;';
+    loadingDiv.innerHTML = '<div style="display: inline-block; width: 14px; height: 14px; border: 2px solid #6f42c1; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px;"></div>Analisando conversa e gerando follow-up...<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+    area.appendChild(loadingDiv);
+    area.scrollTop = area.scrollHeight;
+    
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.style.opacity = '0.6'; }
+    
+    const notes = document.getElementById('followup-notes').value || '';
+    const oppName = '<?= htmlspecialchars($opp['name']) ?>';
+    const leadName = '<?= htmlspecialchars($opp['lead_name'] ?? $opp['tenant_name'] ?? '') ?>';
+    const oppId = OPP_ID;
+    
+    // Busca histórico da conversa para contexto
+    let conversationContext = '';
+    try {
+        const convRes = await fetch('<?= pixelhub_url('/api/opportunities/conversation-history') ?>?id=' + oppId, {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        });
+        if (convRes.ok) {
+            const convData = await convRes.json();
+            if (convData.success && convData.messages && convData.messages.length > 0) {
+                conversationContext = '\n\nHistórico recente da conversa:\n' + convData.messages.slice(-10).map(m => 
+                    `${m.direction === 'inbound' ? leadName : 'Você'}: ${m.text}`
+                ).join('\n');
+            }
+        }
+    } catch (e) {
+        console.log('Não foi possível buscar histórico:', e);
+    }
+    
+    // Adiciona mensagem automática ao histórico
+    const autoMessage = 'Gere um título curto e uma mensagem de follow-up profissional baseada no contexto';
+    FollowupAIState.chatHistory.push({ role: 'user', content: autoMessage });
+    
+    try {
+        const res = await fetch('<?= pixelhub_url('/api/ai/chat') ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                context_slug: 'geral',
+                objective: 'follow_up',
+                attendant_note: `Oportunidade: ${oppName}\nContato: ${leadName}\nObservações do follow-up: ${notes}${conversationContext}\n\nGere um título curto e uma mensagem de follow-up. Formato:\nTÍTULO: [título aqui]\nMENSAGEM: [mensagem aqui]`,
+                conversation_id: null,
+                ai_chat_messages: FollowupAIState.chatHistory
+            })
+        });
+        const data = await res.json();
+        
+        const ld = document.getElementById('followupAILoading');
+        if (ld) ld.remove();
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+        
+        if (!data.success) {
+            FollowupAIState.chatHistory.push({ role: 'assistant', content: 'Erro: ' + (data.error || 'Erro desconhecido') });
+        } else {
+            FollowupAIState.chatHistory.push({ role: 'assistant', content: data.message });
+            FollowupAIState.lastResponse = data.message;
+        }
+        renderFollowupAIChat();
+    } catch (err) {
+        const ld = document.getElementById('followupAILoading');
+        if (ld) ld.remove();
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+        FollowupAIState.chatHistory.push({ role: 'assistant', content: 'Erro: ' + err.message });
+        renderFollowupAIChat();
+    }
 }
 
 function closeFollowupAIChat() {
