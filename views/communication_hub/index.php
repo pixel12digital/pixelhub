@@ -1623,7 +1623,7 @@ body.communication-hub-page {
                                             $displayName = $thread['contact_name'] ?? null;
                                             if (empty($displayName) && !empty($thread['tenant_id'])) $displayName = $thread['tenant_name'] ?? null;
                                             if (empty($displayName) && !empty($thread['lead_name'])) $displayName = $thread['lead_name'];
-                                            if (empty($displayName) && !empty($thread['lead_id'])) $displayName = 'Sem nome';
+                                            if (empty($displayName) && !empty($thread['lead_id'])) $displayName = 'Lead #' . $thread['lead_id'];
                                             if (empty($displayName)) $displayName = 'Sem nome';
                                         ?>
                                         <?= htmlspecialchars($displayName) ?>
@@ -2426,7 +2426,7 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
     threads.forEach((thread, index) => {
         const threadId = escapeHtml(thread.thread_id || '');
         const channel = escapeHtml(thread.channel || 'whatsapp');
-        const contactName = escapeHtml(thread.contact_name || (thread.tenant_id ? thread.tenant_name : null) || thread.lead_name || 'Sem nome');
+        const contactName = escapeHtml(thread.contact_name || (thread.tenant_id ? thread.tenant_name : null) || thread.lead_name || (thread.lead_id ? 'Lead #' + thread.lead_id : 'Sem nome'));
         const contact = escapeHtml(thread.contact || 'Número não identificado');
         const tenantName = escapeHtml(thread.tenant_name || '');
         const unreadCount = thread.unread_count || 0;
@@ -3491,7 +3491,7 @@ function renderConversation(thread, messages, channel) {
         body.classList.add('view-thread');
     }
     
-    const contactName = thread.contact_name || (thread.tenant_id ? thread.tenant_name : null) || thread.lead_name || 'Sem nome';
+    const contactName = thread.contact_name || (thread.tenant_id ? thread.tenant_name : null) || thread.lead_name || (thread.lead_id ? 'Lead #' + thread.lead_id : 'Sem nome');
     const contact = thread.contact || 'Número não identificado';
     
     let html = `
