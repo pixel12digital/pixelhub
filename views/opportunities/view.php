@@ -644,7 +644,7 @@ async function autoGenerateFollowup() {
     }
     
     // Adiciona mensagem automática ao histórico
-    const autoMessage = 'Gere um título curto e uma mensagem de follow-up profissional baseada no contexto';
+    const autoMessage = 'Gere um resumo interno e uma mensagem de follow-up profissional baseada no contexto';
     FollowupAIState.chatHistory.push({ role: 'user', content: autoMessage });
     
     try {
@@ -655,7 +655,7 @@ async function autoGenerateFollowup() {
             body: JSON.stringify({
                 context_slug: 'geral',
                 objective: 'follow_up',
-                attendant_note: `Oportunidade: ${oppName}\nContato: ${leadName}\nObservações do follow-up: ${notes}${conversationContext}\n\nGere um título curto e uma mensagem de follow-up. Formato:\nTÍTULO: [título aqui]\nMENSAGEM: [mensagem aqui]`,
+                attendant_note: `Oportunidade: ${oppName}\nContato: ${leadName}\nObservações do follow-up: ${notes}${conversationContext}\n\nGere:\n1) RESUMO INTERNO: Um título curto para lembrete interno (ex: "Follow-up Adriana - Conversar após Carnaval")\n2) MENSAGEM: A mensagem que será enviada ao cliente\n\nFormato:\nRESUMO: [resumo interno aqui]\nMENSAGEM: [mensagem para o cliente aqui]`,
                 conversation_id: null,
                 ai_chat_messages: FollowupAIState.chatHistory
             })
@@ -668,73 +668,17 @@ async function autoGenerateFollowup() {
         
         if (!data.success) {
             FollowupAIState.chatHistory.push({ role: 'assistant', content: 'Erro: ' + (data.error || 'Erro desconhecido') });
-            renderFollowupAIChat();
         } else {
             FollowupAIState.chatHistory.push({ role: 'assistant', content: data.message });
             FollowupAIState.lastResponse = data.message;
-            renderFollowupAIChat();
-            
-            // Preenche automaticamente título e mensagem nos campos
-            setTimeout(() => {
-                autoFillFields(data.message);
-            }, 500);
         }
+        renderFollowupAIChat();
     } catch (err) {
         const ld = document.getElementById('followupAILoading');
         if (ld) ld.remove();
         if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
         FollowupAIState.chatHistory.push({ role: 'assistant', content: 'Erro: ' + err.message });
         renderFollowupAIChat();
-    }
-}
-
-function autoFillFields(text) {
-    // Extrai título e mensagem do formato "TÍTULO: xxx\nMENSAGEM: yyy"
-    const titleMatch = text.match(/TÍTULO:\s*(.+?)(?:\n|$)/i);
-    const messageMatch = text.match(/MENSAGEM:\s*(.+)/is);
-    
-    const titleField = document.getElementById('followup-title');
-    const messageField = document.getElementById('followup-message');
-    
-    if (titleMatch && messageMatch) {
-        // Formato estruturado encontrado
-        if (titleField) {
-            titleField.value = titleMatch[1].trim();
-            titleField.readOnly = false;
-            titleField.style.background = 'white';
-            titleField.style.cursor = 'text';
-        }
-        if (messageField) {
-            messageField.value = messageMatch[1].trim();
-            messageField.readOnly = false;
-            messageField.style.background = 'white';
-            messageField.style.cursor = 'text';
-        }
-        
-        // Fecha modal automaticamente após preencher
-        setTimeout(() => {
-            closeFollowupAIChat();
-        }, 1000);
-    } else {
-        // Fallback: usa texto completo como mensagem e gera título automático
-        if (messageField) {
-            messageField.value = text;
-            messageField.readOnly = false;
-            messageField.style.background = 'white';
-            messageField.style.cursor = 'text';
-        }
-        if (titleField) {
-            const oppName = '<?= htmlspecialchars($opp['name']) ?>';
-            titleField.value = `Follow-up - ${oppName}`;
-            titleField.readOnly = false;
-            titleField.style.background = 'white';
-            titleField.style.cursor = 'text';
-        }
-        
-        // Fecha modal automaticamente
-        setTimeout(() => {
-            closeFollowupAIChat();
-        }, 1000);
     }
 }
 
@@ -869,43 +813,63 @@ function useFollowupAIResponse(btn) {
     const text = btn.getAttribute('data-text') || '';
     if (!text) return;
     
-    // Extrai título e mensagem do formato "TÍTULO: xxx\nMENSAGEM: yyy"
-    const titleMatch = text.match(/TÍTULO:\s*(.+?)(?:\n|$)/i);
+    // Extrai resumo interno e mensagem do formato "RESUMO: xxx\nMENSAGEM: yyy"
+    const summaryMatch = text.match(/RESUMO:\s*(.+?)(?:\n|$)/i);
     const messageMatch = text.match(/MENSAGEM:\s*(.+)/is);
     
     const titleField = document.getElementById('followup-title');
     const messageField = document.getElementById('followup-message');
+    const notesField = document.getElementById('followup-notes');
     
-    if (titleMatch && messageMatch) {
+    let finalSummary = '';
+    let finalMessage = '';
+    
+    if (summaryMatch && messageMatch) {
         // Formato estruturado encontrado
+        finalSummary = summaryMatch[1].trim();
+        finalMessage = messageMatch[1].trim();
+        
         if (titleField) {
-            titleField.value = titleMatch[1].trim();
+            titleField.value = finalSummary;
             titleField.readOnly = false;
             titleField.style.background = 'white';
             titleField.style.cursor = 'text';
         }
         if (messageField) {
-            messageField.value = messageMatch[1].trim();
+            messageField.value = finalMessage;
             messageField.readOnly = false;
             messageField.style.background = 'white';
             messageField.style.cursor = 'text';
         }
     } else {
-        // Fallback: usa texto completo como mensagem e gera título automático
+        // Fallback: usa texto completo como mensagem e gera resumo automático
+        finalMessage = text;
+        const oppName = '<?= htmlspecialchars($opp['name']) ?>';
+        const leadName = '<?= htmlspecialchars($opp['lead_name'] ?? $opp['tenant_name'] ?? '') ?>';
+        finalSummary = `Follow-up ${leadName} - ${oppName}`;
+        
         if (messageField) {
-            messageField.value = text;
+            messageField.value = finalMessage;
             messageField.readOnly = false;
             messageField.style.background = 'white';
             messageField.style.cursor = 'text';
         }
         if (titleField) {
-            const oppName = '<?= htmlspecialchars($opp['name']) ?>';
-            titleField.value = `Follow-up - ${oppName}`;
+            titleField.value = finalSummary;
             titleField.readOnly = false;
             titleField.style.background = 'white';
             titleField.style.cursor = 'text';
         }
     }
+    
+    // Salva referência para aprendizado (igual ao Inbox)
+    window._followupAIPendingLearn = {
+        context_slug: 'geral',
+        objective: 'follow_up',
+        ai_suggestion: finalMessage,
+        situation_summary: `Follow-up: ${finalSummary}. Observações: ${notesField ? notesField.value : ''}`,
+        conversation_id: null
+    };
     
     closeFollowupAIChat();
 }
@@ -919,6 +883,40 @@ function copyFollowupAIResponse(btn) {
             setTimeout(() => { btn.textContent = orig; }, 1500);
         });
     }
+}
+
+function calculateSimilarity(str1, str2) {
+    if (!str1 || !str2) return 0;
+    const len1 = str1.length;
+    const len2 = str2.length;
+    const maxLen = Math.max(len1, len2);
+    if (maxLen === 0) return 1;
+    const distance = levenshteinDistance(str1, str2);
+    return 1 - (distance / maxLen);
+}
+
+function levenshteinDistance(str1, str2) {
+    const matrix = [];
+    for (let i = 0; i <= str2.length; i++) {
+        matrix[i] = [i];
+    }
+    for (let j = 0; j <= str1.length; j++) {
+        matrix[0][j] = j;
+    }
+    for (let i = 1; i <= str2.length; i++) {
+        for (let j = 1; j <= str1.length; j++) {
+            if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1,
+                    matrix[i][j - 1] + 1,
+                    matrix[i - 1][j] + 1
+                );
+            }
+        }
+    }
+    return matrix[str2.length][str1.length];
 }
 
 async function submitFollowup() {
@@ -935,6 +933,35 @@ async function submitFollowup() {
     if (!date) {
         alert('Data é obrigatória');
         return;
+    }
+    
+    // Captura aprendizado da IA antes de enviar
+    const pending = window._followupAIPendingLearn;
+    if (pending && message && pending.ai_suggestion) {
+        // Calcula diferença entre sugestão da IA e mensagem final
+        const similarity = calculateSimilarity(pending.ai_suggestion, message);
+        
+        // Se usuário editou mais de 10%, salva para aprendizado
+        if (similarity < 0.9) {
+            try {
+                await fetch('<?= pixelhub_url('/api/ai/learn') ?>', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        context_slug: pending.context_slug,
+                        objective: pending.objective,
+                        situation_summary: pending.situation_summary,
+                        ai_suggestion: pending.ai_suggestion,
+                        human_response: message,
+                        conversation_id: pending.conversation_id
+                    })
+                });
+            } catch (e) {
+                console.log('Erro ao salvar aprendizado:', e);
+            }
+        }
+        window._followupAIPendingLearn = null;
     }
     
     const formData = new FormData();
