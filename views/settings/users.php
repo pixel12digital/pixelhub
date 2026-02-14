@@ -2,6 +2,7 @@
 $roles = $roles ?? [];
 $roleDescriptions = $roleDescriptions ?? [];
 $users = $users ?? [];
+ob_start();
 ?>
 
 <div style="max-width: 1100px; margin: 0 auto;">
@@ -340,3 +341,8 @@ document.getElementById('user-modal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
 });
 </script>
+
+<?php
+$content = ob_get_clean();
+include __DIR__ . '/../layout/main.php';
+?>
