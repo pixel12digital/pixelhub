@@ -202,7 +202,7 @@ $users = $users ?? [];
 </div>
 
 <script>
-var baseUrl = '<?= function_exists("pixelhub_url") ? pixelhub_url("") : "" ?>';
+var baseUrl = '<?= function_exists("pixelhub_url") ? rtrim(pixelhub_url(""), "/") : "" ?>';
 var roleDescriptions = <?= json_encode($roleDescriptions, JSON_UNESCAPED_UNICODE) ?>;
 
 // Atualiza descrição do perfil ao mudar select
