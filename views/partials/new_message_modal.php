@@ -466,6 +466,15 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         if (!s) return;
         var ta = document.getElementById('new-message-text');
         if (ta) { ta.value = s.text || ''; ta.focus(); }
+
+        // Salva referência para aprendizado quando o atendente enviar
+        window._newMsgAIPendingLearn = {
+            context_slug: (document.getElementById('newMsgAIContext') || {}).value || 'geral',
+            objective: (document.getElementById('newMsgAIObjective') || {}).value || 'first_contact',
+            ai_suggestion: s.text || '',
+            situation_summary: _newMsgAILastSuggestion.lead_summary || ''
+        };
+
         closeNewMsgAIPanel();
     };
 
@@ -494,5 +503,35 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             }
         }
     });
+
+    // Hook: após enviar mensagem no modal, registra aprendizado se houve edição
+    var _origSendNewMessage = window.sendNewMessage;
+    if (typeof _origSendNewMessage === 'function') {
+        window.sendNewMessage = function(e) {
+            var pending = window._newMsgAIPendingLearn;
+            if (pending) {
+                var ta = document.getElementById('new-message-text');
+                var finalText = ta ? ta.value.trim() : '';
+                if (finalText && pending.ai_suggestion) {
+                    // Envia aprendizado em background
+                    fetch(_newMsgAIBaseUrl + '/api/ai/learn', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({
+                            context_slug: pending.context_slug,
+                            objective: pending.objective,
+                            situation_summary: pending.situation_summary,
+                            ai_suggestion: pending.ai_suggestion,
+                            human_response: finalText,
+                            conversation_id: null
+                        })
+                    }).catch(function() {});
+                }
+                window._newMsgAIPendingLearn = null;
+            }
+            return _origSendNewMessage.apply(this, arguments);
+        };
+    }
 })();
 </script>
