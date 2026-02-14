@@ -585,6 +585,8 @@ class WhatsAppGatewaySettingsController extends Controller
      */
     private function getGatewayClient(?int $timeout = null): WhatsAppGatewayClient
     {
+        // Força recarregar .env para garantir valores atualizados (ex: após alterar WPP_GATEWAY_BASE_URL)
+        Env::load(__DIR__ . '/../../.env', true);
         $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br:8443');
         $baseUrl = rtrim($baseUrl, '/');
         $secret = self::getDecryptedSecret();
