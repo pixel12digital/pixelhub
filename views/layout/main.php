@@ -1578,6 +1578,10 @@
             </div>
         </div>
     </header>
+
+    <!-- Banner Global de Alertas do Sistema (monitoramento WhatsApp) -->
+    <div id="system-alerts-banner" style="display:none; position:fixed; top:60px; left:0; right:0; z-index:99; transition: transform 0.3s ease;">
+    </div>
     
     <div class="container">
         <nav class="sidebar" id="sidebar">
@@ -4794,6 +4798,156 @@
             div.textContent = str;
             return div.innerHTML;
         }
+    })();
+    </script>
+
+    <!-- Sistema de Alertas Globais (monitoramento WhatsApp) -->
+    <script>
+    (function() {
+        var ALERT_POLL_INTERVAL = 60000; // 60 segundos
+        var ALERT_REPOLL_UNACK = 30000;  // 30 segundos se há alertas não reconhecidos
+        var alertPollTimer = null;
+        var bannerEl = document.getElementById('system-alerts-banner');
+        if (!bannerEl) return;
+
+        var baseUrl = '<?= function_exists("pixelhub_url") ? pixelhub_url("") : "" ?>';
+
+        function fetchAlerts() {
+            fetch(baseUrl + '/api/system-alerts', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                renderAlerts(data.alerts || []);
+                // Se há alertas não reconhecidos, poll mais rápido
+                var interval = data.has_unacknowledged ? ALERT_REPOLL_UNACK : ALERT_POLL_INTERVAL;
+                scheduleNextPoll(interval);
+            })
+            .catch(function(err) {
+                console.warn('[SystemAlerts] Erro ao buscar alertas:', err.message);
+                scheduleNextPoll(ALERT_POLL_INTERVAL);
+            });
+        }
+
+        function scheduleNextPoll(interval) {
+            if (alertPollTimer) clearTimeout(alertPollTimer);
+            alertPollTimer = setTimeout(fetchAlerts, interval);
+        }
+
+        function renderAlerts(alerts) {
+            // Filtra apenas não reconhecidos
+            var unacked = alerts.filter(function(a) { return !a.acknowledged_at; });
+
+            if (unacked.length === 0) {
+                bannerEl.style.display = 'none';
+                bannerEl.innerHTML = '';
+                // Restaura margin-top do container
+                var container = document.querySelector('.container');
+                if (container) container.style.marginTop = '60px';
+                return;
+            }
+
+            var html = '';
+            unacked.forEach(function(alert) {
+                var icon = alert.severity === 'critical'
+                    ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+                    : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+
+                var bgColor = alert.severity === 'critical' ? '#dc2626' : '#f59e0b';
+                var textColor = alert.severity === 'critical' ? '#fff' : '#1f2937';
+                var borderColor = alert.severity === 'critical' ? '#b91c1c' : '#d97706';
+
+                var timeAgo = formatAlertTime(alert.first_detected_at);
+                var checks = alert.check_count > 1 ? ' (detectado ' + alert.check_count + 'x)' : '';
+
+                html += '<div data-alert-id="' + alert.id + '" style="'
+                    + 'display:flex; align-items:center; gap:12px; padding:12px 20px;'
+                    + 'background:' + bgColor + '; color:' + textColor + ';'
+                    + 'border-bottom:2px solid ' + borderColor + ';'
+                    + 'font-size:14px; line-height:1.4;'
+                    + '">'
+                    + '<div style="flex-shrink:0;">' + icon + '</div>'
+                    + '<div style="flex:1; min-width:0;">'
+                    + '<strong>' + escapeAlertHtml(alert.title) + '</strong>'
+                    + '<span style="opacity:0.85; margin-left:8px; font-size:12px;">' + timeAgo + checks + '</span>'
+                    + '<div style="font-size:13px; opacity:0.9; margin-top:2px; white-space:pre-line;">' + escapeAlertHtml(alert.message).substring(0, 200) + '</div>'
+                    + '</div>'
+                    + '<button onclick="acknowledgeAlert(' + alert.id + ')" style="'
+                    + 'flex-shrink:0; padding:6px 16px; border:2px solid ' + textColor + ';'
+                    + 'background:transparent; color:' + textColor + '; border-radius:4px;'
+                    + 'cursor:pointer; font-size:13px; font-weight:600; white-space:nowrap;'
+                    + '">Ciente</button>'
+                    + '</div>';
+            });
+
+            bannerEl.innerHTML = html;
+            bannerEl.style.display = 'block';
+
+            // Ajusta margin-top do container para não ficar atrás do banner
+            var bannerHeight = bannerEl.offsetHeight;
+            var container = document.querySelector('.container');
+            if (container) container.style.marginTop = (60 + bannerHeight) + 'px';
+        }
+
+        window.acknowledgeAlert = function(alertId) {
+            var btn = bannerEl.querySelector('[data-alert-id="' + alertId + '"] button');
+            if (btn) { btn.disabled = true; btn.textContent = 'OK...'; }
+
+            fetch(baseUrl + '/api/system-alerts/acknowledge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ alert_id: alertId })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    // Remove o alerta do banner
+                    var el = bannerEl.querySelector('[data-alert-id="' + alertId + '"]');
+                    if (el) el.remove();
+                    // Se não sobrou nenhum, esconde o banner
+                    if (!bannerEl.querySelector('[data-alert-id]')) {
+                        bannerEl.style.display = 'none';
+                        var container = document.querySelector('.container');
+                        if (container) container.style.marginTop = '60px';
+                    } else {
+                        // Recalcula altura
+                        var bannerHeight = bannerEl.offsetHeight;
+                        var container = document.querySelector('.container');
+                        if (container) container.style.marginTop = (60 + bannerHeight) + 'px';
+                    }
+                }
+            })
+            .catch(function(err) {
+                if (btn) { btn.disabled = false; btn.textContent = 'Ciente'; }
+                console.warn('[SystemAlerts] Erro ao reconhecer alerta:', err.message);
+            });
+        };
+
+        function formatAlertTime(dateStr) {
+            if (!dateStr) return '';
+            try {
+                var d = new Date(dateStr);
+                var now = new Date();
+                var diff = (now - d) / 1000;
+                if (diff < 60) return 'agora';
+                if (diff < 3600) return Math.floor(diff / 60) + 'min atr\u00e1s';
+                if (diff < 86400) return Math.floor(diff / 3600) + 'h atr\u00e1s';
+                return Math.floor(diff / 86400) + 'd atr\u00e1s';
+            } catch(e) { return ''; }
+        }
+
+        function escapeAlertHtml(s) {
+            if (!s) return '';
+            var div = document.createElement('div');
+            div.textContent = s;
+            return div.innerHTML;
+        }
+
+        // Inicia polling após 3 segundos (não bloqueia carregamento da página)
+        setTimeout(fetchAlerts, 3000);
     })();
     </script>
 </body>
