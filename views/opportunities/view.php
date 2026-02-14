@@ -171,10 +171,10 @@ $isLost = $opp['status'] === 'lost';
         <div class="card" style="margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <h3 style="margin: 0; font-size: 16px; color: #333;">Próximos Compromissos</h3>
-                <button onclick="openScheduleFollowupModal()" 
-                        style="padding: 6px 12px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">
-                    + Agendar
-                </button>
+                <a href="javascript:void(0)" onclick="document.getElementById('schedule-followup-modal') ? openScheduleFollowupModal() : null;" 
+                   style="font-size: 12px; color: #023A8D; text-decoration: none; font-weight: 600;">
+                    Novo follow-up
+                </a>
             </div>
             <?php if (!empty($upcomingSchedules) && count($upcomingSchedules) > 0): ?>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -870,8 +870,6 @@ function useFollowupAIResponse(btn) {
         situation_summary: `Follow-up: ${finalSummary}. Observações: ${notesField ? notesField.value : ''}`,
         conversation_id: null
     };
-    
-    closeFollowupAIChat();
 }
 
 function copyFollowupAIResponse(btn) {
