@@ -4305,15 +4305,28 @@
                 const time = formatInboxDateBrasilia(conv.last_activity);
                 const threadId = (conv.thread_id || '').replace(/'/g, "\\'");
                 const channel = conv.channel || 'whatsapp';
-                const contactName = escapeInboxHtml(conv.contact_name || conv.tenant_name || conv.phone || 'Cliente');
-                const contact = escapeInboxHtml(conv.contact || 'Número não identificado');
-                const tenantName = escapeInboxHtml(conv.tenant_name || 'Sem tenant');
                 const tenantId = conv.tenant_id;
+                const leadId = conv.lead_id;
+                const leadName = conv.lead_name;
+                const leadPhone = conv.lead_phone;
+                const contactName = escapeInboxHtml(
+                    conv.contact_name
+                    || (tenantId ? conv.tenant_name : null)
+                    || leadName
+                    || (leadId ? ('Lead #' + leadId) : null)
+                    || conv.phone
+                    || 'Cliente'
+                );
+                const contact = escapeInboxHtml(conv.contact || 'Número não identificado');
+                const tenantName = escapeInboxHtml(conv.tenant_name || '');
                 const convId = conv.conversation_id || 0;
-                const channelId = conv.channel_id ? ` <span style="opacity: 0.6; font-size: 11px;">• ${escapeInboxHtml(conv.channel_id)}</span>` : (conv.channel_type ? ` <span style="opacity: 0.7;">• ${(conv.channel_type || '').toUpperCase()}</span>` : '');
-                const tenantLink = (tenantId && conv.tenant_name && conv.tenant_name !== 'Sem tenant') 
+                const channelId = conv.channel_id ? ` <span style="opacity: 0.6; font-size: 11px;">• ${escapeInboxHtml(conv.channel_id)}</span>` : (conv.channel_type ? ` <span style="opacity: 0.7; font-size: 11px;">• ${(conv.channel_type || '').toUpperCase()}</span>` : '');
+                const tenantLink = (tenantId && conv.tenant_name && conv.tenant_name !== 'Sem tenant')
                     ? ` <a href="${INBOX_BASE_URL}/tenants/view?id=${tenantId}" onclick="event.stopPropagation();" style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para ver detalhes do cliente">• ${tenantName}</a>`
-                    : (!tenantId ? ' <span style="opacity: 0.7; font-size: 10px;">• Sem tenant</span>' : '');
+                    : (leadId
+                        ? ` <span style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px;" title="Lead vinculado">• ${escapeInboxHtml(leadName ? ('Lead: ' + leadName) : ('Lead #' + leadId))}${leadPhone ? ' (' + escapeInboxHtml(leadPhone) + ')' : ''}</span>`
+                        : ' <span style="opacity: 0.7; font-size: 10px;">• Novo contato</span>'
+                    );
                 const line2 = channel === 'whatsapp' 
                     ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg><span>${contact}</span>${channelId}${tenantLink}`
                     : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Chat Interno</span>${tenantLink}`;
