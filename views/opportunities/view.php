@@ -668,17 +668,73 @@ async function autoGenerateFollowup() {
         
         if (!data.success) {
             FollowupAIState.chatHistory.push({ role: 'assistant', content: 'Erro: ' + (data.error || 'Erro desconhecido') });
+            renderFollowupAIChat();
         } else {
             FollowupAIState.chatHistory.push({ role: 'assistant', content: data.message });
             FollowupAIState.lastResponse = data.message;
+            renderFollowupAIChat();
+            
+            // Preenche automaticamente título e mensagem nos campos
+            setTimeout(() => {
+                autoFillFields(data.message);
+            }, 500);
         }
-        renderFollowupAIChat();
     } catch (err) {
         const ld = document.getElementById('followupAILoading');
         if (ld) ld.remove();
         if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
         FollowupAIState.chatHistory.push({ role: 'assistant', content: 'Erro: ' + err.message });
         renderFollowupAIChat();
+    }
+}
+
+function autoFillFields(text) {
+    // Extrai título e mensagem do formato "TÍTULO: xxx\nMENSAGEM: yyy"
+    const titleMatch = text.match(/TÍTULO:\s*(.+?)(?:\n|$)/i);
+    const messageMatch = text.match(/MENSAGEM:\s*(.+)/is);
+    
+    const titleField = document.getElementById('followup-title');
+    const messageField = document.getElementById('followup-message');
+    
+    if (titleMatch && messageMatch) {
+        // Formato estruturado encontrado
+        if (titleField) {
+            titleField.value = titleMatch[1].trim();
+            titleField.readOnly = false;
+            titleField.style.background = 'white';
+            titleField.style.cursor = 'text';
+        }
+        if (messageField) {
+            messageField.value = messageMatch[1].trim();
+            messageField.readOnly = false;
+            messageField.style.background = 'white';
+            messageField.style.cursor = 'text';
+        }
+        
+        // Fecha modal automaticamente após preencher
+        setTimeout(() => {
+            closeFollowupAIChat();
+        }, 1000);
+    } else {
+        // Fallback: usa texto completo como mensagem e gera título automático
+        if (messageField) {
+            messageField.value = text;
+            messageField.readOnly = false;
+            messageField.style.background = 'white';
+            messageField.style.cursor = 'text';
+        }
+        if (titleField) {
+            const oppName = '<?= htmlspecialchars($opp['name']) ?>';
+            titleField.value = `Follow-up - ${oppName}`;
+            titleField.readOnly = false;
+            titleField.style.background = 'white';
+            titleField.style.cursor = 'text';
+        }
+        
+        // Fecha modal automaticamente
+        setTimeout(() => {
+            closeFollowupAIChat();
+        }, 1000);
     }
 }
 
