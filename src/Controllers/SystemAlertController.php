@@ -227,22 +227,10 @@ class SystemAlertController extends Controller
                 }
             }
 
-            // 3. Verificar se há sessões esperadas que não apareceram na lista
-            // (sessão removida do gateway = problema grave)
-            $expectedSessions = self::getExpectedSessions($db);
-            foreach ($expectedSessions as $expected) {
-                if (!isset($results['sessions'][$expected])) {
-                    self::createOrUpdateAlert($db, 'session_missing', 'critical',
-                        "Sessão WhatsApp \"{$expected}\" não encontrada no gateway",
-                        "A sessão \"{$expected}\" deveria existir no gateway mas não foi encontrada. Pode ter sido removida acidentalmente ou o gateway perdeu os dados. É necessário recriar a sessão.",
-                        $expected, [
-                            'session_id' => $expected,
-                            'cause' => 'Sessão não encontrada na lista do gateway',
-                            'available_sessions' => array_keys($results['sessions']),
-                        ]
-                    );
-                    $results['alerts_created']++;
-                }
+            // 3. Resolver alertas session_missing antigos (se sessão reapareceu)
+            foreach (array_keys($results['sessions']) as $sid) {
+                $resolved = self::resolveAlertBySession($db, 'session_missing', $sid);
+                if ($resolved) $results['alerts_resolved']++;
             }
 
             // Log permanente
@@ -366,26 +354,6 @@ class SystemAlertController extends Controller
         return false;
     }
 
-    /**
-     * Retorna lista de sessões esperadas (que já tiveram atividade)
-     */
-    private static function getExpectedSessions(PDO $db): array
-    {
-        try {
-            // Sessões que tiveram atividade nos últimos 30 dias
-            $stmt = $db->query("
-                SELECT DISTINCT 
-                    LOWER(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(payload_json, '$.session')), ' ', '')) as session_id
-                FROM webhook_raw_logs
-                WHERE created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
-                AND event_type IN ('message', 'onmessage', 'onselfmessage')
-                HAVING session_id IS NOT NULL AND session_id != ''
-            ");
-            return $stmt->fetchAll(PDO::FETCH_COLUMN);
-        } catch (\Throwable $e) {
-            return [];
-        }
-    }
 
     private function logAlertEvent(PDO $db, int $alertId, string $eventType, ?string $details): void
     {
