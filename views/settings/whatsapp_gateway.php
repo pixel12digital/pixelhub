@@ -525,53 +525,84 @@ function loadSessions() {
                 error.style.display = 'block';
                 return;
             }
+
+            const expectedChannel = 'pixel12digital';
             const sessions = data.sessions || [];
+
+            // Se nenhuma sessão veio do gateway, não deixar a UI vazia: orientar criação/reconexão.
             if (sessions.length === 0) {
-                list.innerHTML = '<p style="color: #666; padding: 16px;">Nenhuma sessão encontrada no gateway.</p>';
-            } else {
-                sessions.forEach(s => {
-                    const card = document.createElement('div');
-                    card.style.cssText = 'padding: 16px; border: 1px solid #dee2e6; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;';
-                    const statusColor = s.status === 'connected' ? (s.is_zombie ? '#ffc107' : '#28a745') : '#dc3545';
-                    const statusText = s.is_zombie ? 'Possivelmente desconectado' : (s.status === 'connected' ? 'Conectado' : s.status === 'disconnected' ? 'Desconectado' : s.status);
-                    const lastActivity = s.last_activity_at ? formatRelativeTime(s.last_activity_at) : '—';
-                    const isConnected = s.status === 'connected' && !s.is_zombie;
-                    const btnLabel = isConnected ? 'Desconectar' : 'Reconectar';
-                    const btnClass = isConnected ? 'btn-disconnect' : 'btn-reconnect';
-                    const btnStyle = isConnected
-                        ? 'padding: 8px 16px; background: transparent; color: #6c757d; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer; font-size: 13px;'
-                        : 'padding: 8px 16px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;';
-                    card.innerHTML = `
-                        <div>
-                            <strong style="font-size: 15px;">${escapeHtml(s.id)}</strong>
-                            <div style="margin-top: 6px; font-size: 13px; color: #666;">
-                                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${statusColor}; margin-right: 6px;"></span>
-                                ${escapeHtml(statusText)}
-                                ${s.last_activity_at ? ' · Última atividade: ' + lastActivity : ''}
-                            </div>
+                list.innerHTML = `
+                    <div style="padding: 16px; border: 1px solid #ffeeba; border-radius: 6px; background: #fff3cd; color: #856404;">
+                        <strong>Nenhuma sessão encontrada no gateway.</strong><br>
+                        Clique em "Criar sessão" e use exatamente: <code>${expectedChannel}</code> para a sessão Pixel 12 Digital.
+                    </div>
+                `;
+                // Pré-preenche o input para não depender de adivinhação
+                const input = document.getElementById('new-session-id');
+                if (input && !input.value) input.value = expectedChannel;
+                return;
+            }
+
+            // Renderiza sessões retornadas
+            let foundExpected = false;
+            sessions.forEach(s => {
+                const card = document.createElement('div');
+                card.style.cssText = 'padding: 16px; border: 1px solid #dee2e6; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;';
+                const statusColor = s.status === 'connected' ? (s.is_zombie ? '#ffc107' : '#28a745') : '#dc3545';
+                const statusText = s.is_zombie ? 'Possivelmente desconectado' : (s.status === 'connected' ? 'Conectado' : s.status === 'disconnected' ? 'Desconectado' : s.status);
+                const lastActivity = s.last_activity_at ? formatRelativeTime(s.last_activity_at) : '—';
+                const isConnected = s.status === 'connected' && !s.is_zombie;
+                const btnLabel = isConnected ? 'Desconectar' : 'Reconectar';
+                const btnClass = isConnected ? 'btn-disconnect' : 'btn-reconnect';
+                const btnStyle = isConnected
+                    ? 'padding: 8px 16px; background: transparent; color: #6c757d; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer; font-size: 13px;'
+                    : 'padding: 8px 16px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;';
+                if ((s.id || '').toLowerCase().replace(/\s+/g, '') === expectedChannel.toLowerCase()) {
+                    foundExpected = true;
+                }
+                card.innerHTML = `
+                    <div>
+                        <strong style="font-size: 15px;">${escapeHtml(s.id)}</strong>
+                        <div style="margin-top: 6px; font-size: 13px; color: #666;">
+                            <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${statusColor}; margin-right: 6px;"></span>
+                            ${escapeHtml(statusText)}
+                            ${s.last_activity_at ? ' · Última atividade: ' + lastActivity : ''}
                         </div>
-                        <button type="button" class="${btnClass}" data-channel="${escapeHtml(s.id)}" style="${btnStyle}">
-                            ${btnLabel}
-                        </button>
-                    `;
-                    const btn = card.querySelector('.' + btnClass);
-                    btn.addEventListener('click', () => {
-                        if (isConnected) {
-                            if (!confirm('Desconectar esta sessão no gateway? Será necessário criar a sessão novamente e escanear o QR para usar.')) return;
-                            fetch(sessionsBaseUrl + '/sessions/disconnect', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                                body: JSON.stringify({ channel_id: s.id })
-                            })
-                            .then(r => r.json())
-                            .then(data => { if (data.success) loadSessions(); else alert(data.error || 'Erro ao desconectar'); })
-                            .catch(err => alert('Erro: ' + err.message));
-                        } else {
-                            reconnectSession(s.id);
-                        }
-                    });
-                    list.appendChild(card);
+                    </div>
+                    <button type="button" class="${btnClass}" data-channel="${escapeHtml(s.id)}" style="${btnStyle}">
+                        ${btnLabel}
+                    </button>
+                `;
+                const btn = card.querySelector('.' + btnClass);
+                btn.addEventListener('click', () => {
+                    if (isConnected) {
+                        if (!confirm('Desconectar esta sessão no gateway? Será necessário criar a sessão novamente e escanear o QR para usar.')) return;
+                        fetch(sessionsBaseUrl + '/sessions/disconnect', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                            body: JSON.stringify({ channel_id: s.id })
+                        })
+                        .then(r => r.json())
+                        .then(data => { if (data.success) loadSessions(); else alert(data.error || 'Erro ao desconectar'); })
+                        .catch(err => alert('Erro: ' + err.message));
+                    } else {
+                        reconnectSession(s.id);
+                    }
                 });
+                list.appendChild(card);
+            });
+
+            // Se o gateway não retornou pixel12digital, orienta o usuário explicitamente
+            if (!foundExpected) {
+                const warn = document.createElement('div');
+                warn.style.cssText = 'padding: 14px; border: 1px solid #ffeeba; border-radius: 6px; background: #fff3cd; color: #856404;';
+                warn.innerHTML = `
+                    <strong>Sessão "${expectedChannel}" ausente no gateway.</strong><br>
+                    Clique em "Criar sessão" ou "Reconectar" usando exatamente <code>${expectedChannel}</code> para que o WhatsApp Pixel 12 Digital apareça aqui.
+                `;
+                list.prepend(warn);
+                const input = document.getElementById('new-session-id');
+                if (input && !input.value) input.value = expectedChannel;
             }
         })
         .catch(err => {
