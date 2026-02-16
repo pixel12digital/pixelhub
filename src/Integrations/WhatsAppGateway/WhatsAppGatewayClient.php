@@ -100,6 +100,16 @@ class WhatsAppGatewayClient
     }
 
     /**
+     * Lista sessões disponíveis no gateway (para descoberta automática)
+     * 
+     * @return array { success: bool, sessions: array, total: int, error?: string }
+     */
+    public function getAvailableSessions(): array
+    {
+        return $this->request('GET', '/api/available-sessions');
+    }
+
+    /**
      * Obtém QR code para conectar o WhatsApp
      * 
      * @param string $channelId ID do canal

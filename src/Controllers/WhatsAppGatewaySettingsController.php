@@ -607,7 +607,7 @@ class WhatsAppGatewaySettingsController extends Controller
 
         try {
             $gateway = $this->getGatewayClient(30);
-            $result = $gateway->request('GET', '/api/available-sessions');
+            $result = $gateway->getAvailableSessions();
             
             if (!empty($result['success']) && isset($result['sessions'])) {
                 $this->json([
