@@ -265,9 +265,11 @@ $pixelhubBaseUrl = pixelhub_url('');
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
             Sessões WhatsApp
+            <span id="whatsapp-status-badge" style="display: none; padding: 2px 8px; font-size: 11px; background: #dc3545; color: white; border-radius: 12px; font-weight: bold;">!</span>
         </span>
         <button type="button" id="btn-refresh-sessions" style="padding: 6px 12px; font-size: 13px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Atualizar</button>
     </h3>
+    <div id="whatsapp-alert" style="display: none; padding: 12px 16px; border: 1px solid #ffeeba; border-radius: 6px; background: #fff3cd; color: #856404; margin-bottom: 16px; font-size: 14px; line-height: 1.5;"></div>
     <p style="margin-bottom: 8px; color: #666; font-size: 14px;">Gerencie sessões, verifique status e reconecte diretamente pelo Pixel Hub. A VPS permanece apenas como gateway.</p>
     <p style="margin-bottom: 16px; color: #6c757d; font-size: 12px;">Ao clicar em <strong>Atualizar</strong>, a lista é buscada no gateway (VPS) e exibe todas as sessões e o status de cada uma.</p>
 
@@ -545,6 +547,7 @@ function loadSessions() {
 
             // Renderiza sessões retornadas
             let foundExpected = false;
+            let expectedSessionStatus = null;
             sessions.forEach(s => {
                 const card = document.createElement('div');
                 card.style.cssText = 'padding: 16px; border: 1px solid #dee2e6; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;';
@@ -559,6 +562,7 @@ function loadSessions() {
                     : 'padding: 8px 16px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;';
                 if ((s.id || '').toLowerCase().replace(/\s+/g, '') === expectedChannel.toLowerCase()) {
                     foundExpected = true;
+                    expectedSessionStatus = { status: s.status, is_zombie: s.is_zombie, last_activity_at: s.last_activity_at };
                 }
                 card.innerHTML = `
                     <div>
@@ -603,6 +607,31 @@ function loadSessions() {
                 list.prepend(warn);
                 const input = document.getElementById('new-session-id');
                 if (input && !input.value) input.value = expectedChannel;
+                // Mostra badge e alerta no topo
+                const badge = document.getElementById('whatsapp-status-badge');
+                const alert = document.getElementById('whatsapp-alert');
+                if (badge) { badge.style.display = 'inline-block'; badge.textContent = 'Ausente'; }
+                if (alert) {
+                    alert.style.display = 'block';
+                    alert.innerHTML = `<strong>Atenção:</strong> A sessão <strong>${expectedChannel}</strong> não foi encontrada no gateway. Use "Criar sessão" para restaurá-la.`;
+                }
+            } else {
+                // Avalia status da sessão encontrada
+                const badge = document.getElementById('whatsapp-status-badge');
+                const alert = document.getElementById('whatsapp-alert');
+                const isOk = expectedSessionStatus && expectedSessionStatus.status === 'connected' && !expectedSessionStatus.is_zombie;
+                if (!isOk) {
+                    const statusText = expectedSessionStatus && expectedSessionStatus.is_zombie ? 'Possivelmente desconectado' : (expectedSessionStatus ? expectedSessionStatus.status : 'Desconhecido');
+                    if (badge) { badge.style.display = 'inline-block'; badge.textContent = statusText === 'Possivelmente desconectado' ? 'Zombie' : statusText; }
+                    if (alert) {
+                        alert.style.display = 'block';
+                        alert.innerHTML = `<strong>Atenção:</strong> A sessão <strong>${expectedChannel}</strong> está <strong>${statusText}</strong>. Clique em "Reconectar" para tentar restaurar.`;
+                    }
+                } else {
+                    // Oculta badge/alerta se a sessão está ok
+                    if (badge) badge.style.display = 'none';
+                    if (alert) alert.style.display = 'none';
+                }
             }
         })
         .catch(err => {
