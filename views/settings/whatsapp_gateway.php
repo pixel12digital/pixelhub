@@ -671,22 +671,36 @@ function stopQrConnectedPoll() {
 function startQrConnectedPoll(channelId) {
     stopQrConnectedPoll();
     if (!channelId) return;
+    console.log('[QR-Poll] Iniciando polling para canal:', channelId);
+    var pollCount = 0;
+    var maxPolls = 24; // ~2 minutos
     window._qrConnectedCheckInterval = setInterval(function() {
+        pollCount++;
         fetch(sessionsBaseUrl + '/sessions', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(function(r) { return r.json(); })
             .then(function(data) {
+                console.log('[QR-Poll] Resposta do gateway:', data);
                 if (!data.success || !data.sessions || !data.sessions.length) return;
                 var session = data.sessions.find(function(s) {
                     var id = (s.id || s.name || '').toString().toLowerCase().replace(/\s+/g, '');
-                    return id === channelId.toLowerCase().replace(/\s+/g, '');
+                    var target = channelId.toLowerCase().replace(/\s+/g, '');
+                    console.log('[QR-Poll] Comparando:', id, '===', target);
+                    return id === target;
                 });
+                console.log('[QR-Poll] Sessão encontrada:', session);
                 if (session && (session.status === 'connected' || String(session.status).toLowerCase() === 'connected')) {
+                    console.log('[QR-Poll] Sessão conectada! Fechando QR e recarregando.');
+                    stopQrConnectedPoll();
+                    document.getElementById('qr-modal').style.display = 'none';
+                    loadSessions();
+                } else if (pollCount >= maxPolls) {
+                    console.warn('[QR-Poll] Timeout após 2 minutos. Fechando QR e recarregando.');
                     stopQrConnectedPoll();
                     document.getElementById('qr-modal').style.display = 'none';
                     loadSessions();
                 }
             })
-            .catch(function() {});
+            .catch(function(err) { console.warn('[QR-Poll] Erro:', err); });
     }, 5000);
 }
 
