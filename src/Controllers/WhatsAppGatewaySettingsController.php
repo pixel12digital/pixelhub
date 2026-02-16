@@ -597,6 +597,43 @@ class WhatsAppGatewaySettingsController extends Controller
     }
 
     /**
+     * Lista sessões disponíveis no gateway (para descoberta automática)
+     * GET /settings/whatsapp-gateway/available-sessions
+     */
+    public function availableSessions(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+
+        try {
+            $gateway = $this->getGatewayClient(30);
+            $result = $gateway->request('GET', '/api/available-sessions');
+            
+            if (!empty($result['success']) && isset($result['sessions'])) {
+                $this->json([
+                    'success' => true,
+                    'sessions' => $result['sessions'],
+                    'total' => $result['total'] ?? count($result['sessions'])
+                ]);
+            } else {
+                $this->json([
+                    'success' => false,
+                    'error' => $result['error'] ?? 'Não foi possível obter sessões disponíveis',
+                    'sessions' => [],
+                    'total' => 0
+                ]);
+            }
+        } catch (\Throwable $e) {
+            $this->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'sessions' => [],
+                'total' => 0
+            ]);
+        }
+    }
+
+    /**
      * Lista sessões WhatsApp com status e última atividade
      * GET /settings/whatsapp-gateway/sessions
      */

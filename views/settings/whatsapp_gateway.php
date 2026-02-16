@@ -282,14 +282,18 @@ $pixelhubBaseUrl = pixelhub_url('');
     <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #dee2e6;">
         <h4 style="margin-bottom: 12px; font-size: 14px; color: #333;">Nova sessão</h4>
         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-            <input type="text" id="new-session-id" placeholder="Nome da sessão (ex: pixel12digital)" maxlength="50"
-                style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 200px;"
-                pattern="[-a-zA-Z0-9_]+" title="Apenas letras, números, _ e -">
+            <div style="position: relative; flex: 1; min-width: 200px;">
+                <input type="text" id="new-session-id" list="available-sessions-list" placeholder="Nome da sessão (ex: pixel12digital)" maxlength="50"
+                    style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; width: 100%;"
+                    pattern="[-a-zA-Z0-9_]+" title="Apenas letras, números, _ e -">
+                <datalist id="available-sessions-list"></datalist>
+                <small id="available-sessions-hint" style="display: none; color: #28a745; font-size: 11px; margin-top: 4px;"></small>
+            </div>
             <button type="button" id="btn-create-session" style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
                 Criar sessão
             </button>
         </div>
-        <small style="color: #666; display: block; margin-top: 6px;">Use apenas letras, números, underscore (_) e hífen (-).</small>
+        <small style="color: #666; display: block; margin-top: 6px;">Use apenas letras, números, underscore (_) e hífen (-). Digite para ver sugestões de sessões disponíveis.</small>
     </div>
 </div>
 
@@ -873,9 +877,40 @@ document.getElementById('qr-modal').addEventListener('click', function(e) {
 
 document.getElementById('btn-refresh-sessions').addEventListener('click', loadSessions);
 
+// Carrega sessões disponíveis do gateway para autocomplete
+function loadAvailableSessions() {
+    fetch(sessionsBaseUrl + '/available-sessions', {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.sessions && data.sessions.length > 0) {
+            const datalist = document.getElementById('available-sessions-list');
+            const hint = document.getElementById('available-sessions-hint');
+            
+            datalist.innerHTML = '';
+            data.sessions.forEach(session => {
+                const option = document.createElement('option');
+                option.value = session.id;
+                option.textContent = session.name + ' (' + session.status + ')';
+                datalist.appendChild(option);
+            });
+            
+            hint.textContent = data.sessions.length + ' sessão(ões) disponível(is) no gateway';
+            hint.style.display = 'block';
+            
+            console.log('[Available Sessions] Carregadas:', data.sessions.length);
+        }
+    })
+    .catch(err => {
+        console.warn('[Available Sessions] Erro ao carregar:', err);
+    });
+}
+
 // Carrega sessões ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
     loadSessions();
+    loadAvailableSessions();
     // Atualiza lista automaticamente a cada 5 min (reflete desconexão no gateway)
     if (window._sessionsRefreshInterval) clearInterval(window._sessionsRefreshInterval);
     window._sessionsRefreshInterval = setInterval(loadSessions, 5 * 60 * 1000);
