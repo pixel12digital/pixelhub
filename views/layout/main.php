@@ -4023,6 +4023,14 @@
             if (typeof openCreateTenantModal === 'function') { openCreateTenantModal(convId, name, contact); return; }
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
         };
+        window.inboxOpenCreateLeadModal = function(convId, name, contact) {
+            if (typeof openCreateLeadModal === 'function') { openCreateLeadModal(convId, name, contact); return; }
+            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+        };
+        window.inboxOpenLinkLeadModal = function(convId, name) {
+            if (typeof openLinkLeadModal === 'function') { openLinkLeadModal(convId, name); return; }
+            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+        };
         window.inboxIgnoreConversation = function(convId, name) {
             if (typeof ignoreConversation === 'function') { ignoreConversation(convId, name); return; }
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
@@ -4300,6 +4308,9 @@
                                         <button type="button" class="incoming-lead-menu-toggle" onclick="event.stopPropagation(); toggleIncomingLeadMenu(this)" aria-label="Mais opções">⋮</button>
                                         <div class="incoming-lead-menu-dropdown">
                                             <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); inboxOpenCreateTenantModal(${convId}, '${contactName}', '${contact}'); closeIncomingLeadMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>Criar Cliente</button>
+                                            <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); inboxOpenCreateLeadModal(${convId}, '${contactName}', '${contact}'); closeIncomingLeadMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Criar Lead</button>
+                                            <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); inboxOpenLinkLeadModal(${convId}, '${contactName}'); closeIncomingLeadMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Vincular a Lead</button>
+                                            <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); inboxOpenLinkTenantModal(${convId}, '${contactName}'); closeIncomingLeadMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Vincular a Cliente</button>
                                             ${ignoreBtn}
                                             <button type="button" class="incoming-lead-menu-item danger" onclick="event.stopPropagation(); inboxDeleteConversation(${convId}, '${contactName}'); closeIncomingLeadMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>Excluir</button>
                                         </div>
@@ -5265,6 +5276,208 @@
         // Inicia polling após 3 segundos (não bloqueia carregamento da página)
         setTimeout(fetchAlerts, 3000);
     })();
-    </script>
+</script>
+
+<!-- Funções JS do Hub reutilizadas no Inbox -->
+<script>
+function closeCreateLeadModal() {
+    const modal = document.getElementById('create-lead-modal');
+    if (modal) modal.style.display = 'none';
+}
+function closeLinkLeadModal() {
+    const modal = document.getElementById('link-lead-modal');
+    if (modal) modal.style.display = 'none';
+}
+function filterLinkLeadOptions(searchTerm) {
+    const search = (searchTerm || '').toLowerCase().trim();
+    const select = document.getElementById('link-lead-select');
+    const noResults = document.getElementById('link-lead-no-results');
+    if (!select) return;
+    const options = select.querySelectorAll('option');
+    let visibleCount = 0;
+    if (options.length > 0) options[0].style.display = '';
+    for (let i = 1; i < options.length; i++) {
+        const opt = options[i];
+        const name = (opt.getAttribute('data-name') || '');
+        const email = (opt.getAttribute('data-email') || '');
+        const phone = (opt.getAttribute('data-phone') || '');
+        const searchNorm = search.replace(/[^a-z0-9]/g, '');
+        const match = search === '' || name.includes(search) || email.includes(search) || phone.includes(searchNorm);
+        opt.style.display = match ? '' : 'none';
+        if (match) visibleCount++;
+    }
+    if (noResults) {
+        noResults.style.display = (search !== '' && visibleCount === 0) ? 'block' : 'none';
+        select.style.display = (search !== '' && visibleCount === 0) ? 'none' : 'block';
+    }
+    if (visibleCount === 1 && search !== '') {
+        for (let i = 1; i < options.length; i++) {
+            if (options[i].style.display !== 'none') { select.value = options[i].value; break; }
+        }
+    } else if (search === '') select.value = '';
+}
+async function createLeadFromConversation(event) {
+    event.preventDefault();
+    const conversationId = document.getElementById('create-lead-conversation-id').value;
+    const name = document.getElementById('create-lead-name').value.trim();
+    const phone = document.getElementById('create-lead-phone').value.trim();
+    const email = document.getElementById('create-lead-email').value.trim();
+    const notes = document.getElementById('create-lead-notes').value.trim();
+    if (!name) { alert('Nome é obrigatório'); return; }
+    try {
+        const response = await fetch(INBOX_BASE_URL + '/communication-hub/incoming-lead/create-lead', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversation_id: parseInt(conversationId), name, phone, email, notes, force_create: false })
+        });
+        const result = await response.json();
+        if (result.success) {
+            alert('Lead criado e conversa vinculada com sucesso!');
+            closeCreateLeadModal();
+            if (typeof loadInboxConversations === 'function') loadInboxConversations();
+        } else {
+            alert('Erro: ' + (result.error || result.message || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao criar lead:', error);
+        alert('Erro ao criar lead. Tente novamente.');
+    }
+}
+async function linkConversationToLead(event) {
+    event.preventDefault();
+    const conversationId = document.getElementById('link-lead-conversation-id').value;
+    const leadId = document.getElementById('link-lead-select').value;
+    if (!leadId) { alert('Selecione um lead'); return; }
+    try {
+        const response = await fetch(INBOX_BASE_URL + '/communication-hub/incoming-lead/link-lead', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversation_id: parseInt(conversationId), lead_id: parseInt(leadId) })
+        });
+        const result = await response.json();
+        if (result.success) {
+            alert('Conversa vinculada ao lead com sucesso!');
+            closeLinkLeadModal();
+            if (typeof loadInboxConversations === 'function') loadInboxConversations();
+        } else {
+            alert('Erro: ' + (result.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao vincular lead:', error);
+        alert('Erro ao vincular conversa ao lead. Tente novamente.');
+    }
+}
+</script>
+
+<!-- Modais do Communication Hub reutilizados no Inbox -->
+<!-- Modal: Criar Lead -->
+<div id="create-lead-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Criar Novo Lead</h2>
+            <button onclick="closeCreateLeadModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        </div>
+        <div style="margin-bottom: 16px; padding: 10px; background: #e8f4fd; border-radius: 6px; border-left: 4px solid #0d6efd; font-size: 13px; color: #0a58ca;">
+            Lead = contato em negociação, ainda não é cliente.
+        </div>
+        <form onsubmit="createLeadFromConversation(event)">
+            <input type="hidden" id="create-lead-conversation-id" value="">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Nome *</label>
+                <input type="text" id="create-lead-name" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Telefone</label>
+                <input type="text" id="create-lead-phone" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="5511999999999">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">E-mail</label>
+                <input type="email" id="create-lead-email" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="lead@exemplo.com">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Observações</label>
+                <textarea id="create-lead-notes" rows="3" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; resize: vertical;" placeholder="Anotações sobre o lead..."></textarea>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="flex: 1; padding: 12px; background: #0d6efd; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Criar Lead
+                </button>
+                <button type="button" onclick="closeCreateLeadModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Vincular a Lead Existente -->
+<div id="link-lead-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Vincular a Lead Existente</h2>
+            <button onclick="closeLinkLeadModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        </div>
+        <div style="margin-bottom: 20px; padding: 12px; background: #f0f2f5; border-radius: 6px;">
+            <div style="font-size: 12px; color: #667781; margin-bottom: 4px;">Contato:</div>
+            <div style="font-weight: 600; color: #111b21;" id="link-lead-contact-name"></div>
+        </div>
+        <form onsubmit="linkConversationToLead(event)">
+            <input type="hidden" id="link-lead-conversation-id" value="">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Buscar Lead *</label>
+                <input type="text" id="link-lead-search" placeholder="Digite nome, email ou telefone..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box;" onkeyup="filterLinkLeadOptions(this.value)">
+                <select id="link-lead-select" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; max-height: 200px; overflow-y: auto;">
+                    <option value="">Carregando leads...</option>
+                </select>
+                <div id="link-lead-no-results" style="display: none; margin-top: 8px; padding: 8px; background: #fff3cd; border-radius: 4px; color: #856404; font-size: 12px;">
+                    Nenhum lead encontrado com essa busca.
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="flex: 1; padding: 12px; background: #0d6efd; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Vincular
+                </button>
+                <button type="button" onclick="closeLinkLeadModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Vincular a Cliente Existente -->
+<div id="inbox-link-tenant-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Vincular a Cliente Existente</h2>
+            <button onclick="inboxCloseLinkTenantModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        </div>
+        <div style="margin-bottom: 20px; padding: 12px; background: #f0f2f5; border-radius: 6px;">
+            <div style="font-size: 12px; color: #667781; margin-bottom: 4px;">Contato:</div>
+            <div style="font-weight: 600; color: #111b21;" id="inbox-link-tenant-contact-name"></div>
+        </div>
+        <form onsubmit="inboxLinkIncomingLeadToTenant(event)">
+            <input type="hidden" id="inbox-link-tenant-conversation-id" value="">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Buscar Cliente *</label>
+                <input type="text" id="inbox-link-tenant-search" placeholder="Digite nome, email ou CPF/CNPJ..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box;" onkeyup="inboxFilterLinkTenantOptions(this.value)">
+                <select id="inbox-link-tenant-select" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; max-height: 200px; overflow-y: auto;">
+                    <option value="">Selecione um cliente...</option>
+                </select>
+                <div id="inbox-link-tenant-no-results" style="display: none; margin-top: 8px; padding: 8px; background: #fff3cd; border-radius: 4px; color: #856404; font-size: 12px;">
+                    Nenhum cliente encontrado com essa busca.
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="flex: 1; padding: 12px; background: #0d6efd; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Vincular
+                </button>
+                <button type="button" onclick="inboxCloseLinkTenantModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 </body>
 </html>
