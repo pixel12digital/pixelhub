@@ -288,6 +288,8 @@ class ConversationService
 
         // Extrai contact_external_id (telefone, e-mail, etc.)
         $contactExternalId = null;
+        // Nome do contato: só deve ser usado quando vem de inbound (remetente real)
+        // Outbound usa dados da nossa sessão, não do contato
         $contactName = null;
 
         if ($channelType === 'whatsapp') {
@@ -343,12 +345,8 @@ class ConversationService
                 
                 error_log('[CONVERSATION UPSERT] extractChannelInfo: OUTBOUND extraction - to/remoteJid result: ' . ($rawFrom ?: 'NULL'));
                 
-                // Para outbound, tenta extrair nome do contato do payload (ex: nome do tenant)
-                $contactName = $payload['notifyName']
-                    ?? $payload['contact_name']
-                    ?? $payload['message']['notifyName']
-                    ?? $payload['raw']['payload']['notifyName']
-                    ?? null;
+                // OUTBOUND: não usar notifyName/sender (representam a sessão nossa) para contact_name
+                $contactName = null;
             }
             
             error_log('[CONVERSATION UPSERT] extractChannelInfo: WhatsApp ' . $direction . ' - rawFrom: ' . ($rawFrom ?: 'NULL'));
@@ -689,6 +687,15 @@ class ConversationService
         }
         
         error_log('[CONVERSATION UPSERT] extractChannelInfo: remote_id_raw=' . ($remoteIdRaw ?: 'NULL') . ', remote_key=' . ($remoteKeyValue ?: 'NULL') . ', contact_key=' . ($contactKey ?: 'NULL') . ', phone_e164=' . ($phoneE164 ?: 'NULL'));
+
+        // Sanitiza contact_name para evitar gravar o nome da sessão (ex: pixel12digital)
+        if (!empty($contactName)) {
+            $sessionIdNormalized = $channelId ? mb_strtolower(str_replace(' ', '', (string) $channelId), 'UTF-8') : null;
+            $nameNormalized = mb_strtolower(str_replace(' ', '', (string) $contactName), 'UTF-8');
+            if ($sessionIdNormalized && $nameNormalized === $sessionIdNormalized) {
+                $contactName = null; // não usar nome da sessão como nome do contato
+            }
+        }
 
         return [
             'channel_type' => $channelType,
