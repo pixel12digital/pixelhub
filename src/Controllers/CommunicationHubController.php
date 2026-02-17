@@ -2310,9 +2310,10 @@ class CommunicationHubController extends Controller
                                         $convId = (int) $ev['conversation_id'];
                                         $oppId = $this->resolveOpportunityIdForConversation($db, $convId);
                                         if (!empty($oppId)) {
-                                            OpportunityService::addInteractionHistory((int) $oppId, 'WhatsApp: Enviado', Auth::user()['id'] ?? null);
+                                            // REMOVIDO: Não registra mais WhatsApp no histórico de negócio
+                                            // OpportunityService::addInteractionHistory((int) $oppId, 'WhatsApp: Enviado', Auth::user()['id'] ?? null);
                                             
-                                            // NOVO: Timeline estruturada de interações
+                                            // NOVO: Timeline estruturada de interações (único local)
                                             try {
                                                 \PixelHub\Services\OpportunityInteractionService::logWhatsApp(
                                                     (int) $oppId,

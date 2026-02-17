@@ -367,9 +367,10 @@ class EventIngestionService
                         }
 
                         if ($oppId) {
-                            \PixelHub\Services\OpportunityService::addInteractionHistory((int) $oppId, 'WhatsApp: Recebido', null);
+                            // REMOVIDO: Não registra mais WhatsApp no histórico de negócio
+                            // \PixelHub\Services\OpportunityService::addInteractionHistory((int) $oppId, 'WhatsApp: Recebido', null);
                             
-                            // NOVO: Timeline estruturada de interações
+                            // NOVO: Timeline estruturada de interações (único local)
                             try {
                                 \PixelHub\Services\OpportunityInteractionService::logWhatsApp(
                                     (int) $oppId,
