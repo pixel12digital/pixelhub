@@ -87,8 +87,32 @@ $baseUrl = pixelhub_url('');
                     ?>
                     <div class="message-bubble <?= $isOutbound ? 'outbound' : 'inbound' ?>" 
                          data-message-id="<?= htmlspecialchars($msgId) ?>"
+                         data-event-id="<?= htmlspecialchars($msg['event_id'] ?? '') ?>"
                          data-timestamp="<?= htmlspecialchars($msgTimestamp) ?>"
-                         style="margin-bottom: 15px; display: flex; <?= $isOutbound ? 'justify-content: flex-end;' : '' ?>">
+                         style="margin-bottom: 15px; display: flex; <?= $isOutbound ? 'justify-content: flex-end;' : '' ?>; position: relative;">
+                        
+                        <!-- Menu dropdown (seta) - estilo WhatsApp -->
+                        <div class="message-menu-container" style="position: absolute; top: 5px; <?= $isOutbound ? 'right: 5px;' : 'left: 5px;' ?>; z-index: 10;">
+                            <button type="button" class="message-menu-toggle" 
+                                    onclick="toggleMessageMenu(this, '<?= htmlspecialchars($msg['event_id'] ?? '') ?>')"
+                                    style="background: none; border: none; cursor: pointer; padding: 4px; border-radius: 4px; opacity: 0.7; transition: opacity 0.2s;"
+                                    onmouseover="this.style.opacity='1'" 
+                                    onmouseout="this.style.opacity='0.7'">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="<?= $isOutbound ? '#128C7E' : '#666' ?>" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 5v14M5 12h14"/>
+                                </svg>
+                            </button>
+                            
+                            <!-- Menu dropdown -->
+                            <div class="message-menu-dropdown" style="display: none; position: absolute; top: 100%; <?= $isOutbound ? 'right: 0;' : 'left: 0;' ?>; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); min-width: 150px; z-index: 1000; margin-top: 2px;">
+                                <button type="button" class="message-menu-item" 
+                                        onclick="deleteMessage('<?= htmlspecialchars($msg['event_id'] ?? '') ?>', '<?= htmlspecialchars($msgId) ?>')"
+                                        style="display: block; width: 100%; padding: 8px 12px; border: none; background: none; text-align: left; cursor: pointer; font-size: 13px; color: #dc3545; border-radius: 0;">
+                                    🗑️ Excluir mensagem
+                                </button>
+                            </div>
+                        </div>
+                        
                         <div style="max-width: 70%; padding: 12px 16px; border-radius: 18px; <?= $isOutbound ? 'background: #dcf8c6; margin-left: auto;' : 'background: white;' ?>">
                             <?php 
                             // Mostra informação do remetente
@@ -1568,6 +1592,83 @@ document.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('beforeunload', function() {
     stopPolling();
 });
+
+/**
+ * Abre/fecha o menu dropdown de uma mensagem (estilo WhatsApp)
+ */
+function toggleMessageMenu(button, eventId) {
+    // Fecha todos os outros menus
+    document.querySelectorAll('.message-menu-dropdown').forEach(dropdown => {
+        if (dropdown !== button.nextElementSibling) {
+            dropdown.style.display = 'none';
+        }
+    });
+    
+    // Abre/fecha o menu atual
+    const dropdown = button.nextElementSibling;
+    if (dropdown.style.display === 'none' || dropdown.style.display === '') {
+        dropdown.style.display = 'block';
+        
+        // Fecha ao clicar fora
+        setTimeout(() => {
+            document.addEventListener('click', function closeMenu(e) {
+                if (!button.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.style.display = 'none';
+                    document.removeEventListener('click', closeMenu);
+                }
+            });
+        }, 10);
+    } else {
+        dropdown.style.display = 'none';
+    }
+}
+
+/**
+ * Exclui uma mensagem individual
+ */
+async function deleteMessage(eventId, messageId) {
+    if (!eventId) {
+        showToast('ID da mensagem não encontrado', 'error');
+        return;
+    }
+    
+    if (!confirm('Excluir esta mensagem?\n\n⚠️ Esta ação NÃO pode ser desfeita!')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/communication-hub/message/delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                event_id: eventId
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Remove a mensagem do DOM
+            const messageElement = document.querySelector(`[data-event-id="${eventId}"]`);
+            if (messageElement) {
+                messageElement.style.opacity = '0.5';
+                messageElement.style.textDecoration = 'line-through';
+                setTimeout(() => {
+                    messageElement.remove();
+                }, 500);
+            }
+            
+            showToast('Mensagem excluída', 'success');
+        } else {
+            showToast(result.error || 'Erro ao excluir mensagem', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao excluir mensagem:', error);
+        showToast('Erro ao excluir mensagem', 'error');
+    }
+}
 </script>
 
 <?php

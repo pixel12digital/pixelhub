@@ -3668,7 +3668,7 @@ class CommunicationHubController extends Controller
             $paramsWithTenant[] = $tenantId;
         }
 
-        $whereClause = "WHERE " . implode(" AND ", $whereWithTenant);
+        $whereClause = "WHERE ce.deleted_at IS NULL AND " . implode(" AND ", $whereWithTenant);
 
         // Busca eventos filtrados (limitado para performance)
         // [LOG TEMPORARIO] Query do thread
@@ -6453,6 +6453,90 @@ class CommunicationHubController extends Controller
         } catch (\Exception $e) {
             $db->rollBack();
             error_log("[CommunicationHub] Erro ao excluir conversa: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Exclui uma mensagem individual permanentemente
+     * 
+     * POST /communication-hub/message/delete
+     * 
+     * Body JSON:
+     * - event_id: string (obrigatório) - ID do evento/mensagem
+     * 
+     * Implementa soft delete através de campo deleted_at na tabela communication_events
+     */
+    public function deleteMessage(): void
+    {
+        Auth::requireInternal();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $eventId = $input['event_id'] ?? '';
+
+        if (empty($eventId)) {
+            $this->json(['success' => false, 'error' => 'event_id é obrigatório'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            // Verifica se o evento existe e é uma mensagem
+            $checkStmt = $db->prepare("
+                SELECT id, event_id, event_type, conversation_id, 
+                       JSON_EXTRACT(payload, '$.content') as content,
+                       JSON_EXTRACT(payload, '$.message.body') as body,
+                       created_at
+                FROM communication_events 
+                WHERE event_id = ? 
+                AND event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+                AND deleted_at IS NULL
+            ");
+            $checkStmt->execute([$eventId]);
+            $event = $checkStmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$event) {
+                $this->json(['success' => false, 'error' => 'Mensagem não encontrada ou já excluída'], 404);
+                return;
+            }
+
+            // Soft delete - marca como excluído
+            $deleteStmt = $db->prepare("
+                UPDATE communication_events 
+                SET deleted_at = NOW() 
+                WHERE event_id = ?
+            ");
+            $deleteStmt->execute([$eventId]);
+
+            // Remove mídia associada se existir
+            $deleteMediaStmt = $db->prepare("
+                DELETE FROM communication_media 
+                WHERE event_id = ?
+            ");
+            $deleteMediaStmt->execute([$eventId]);
+            $deletedMedia = $deleteMediaStmt->rowCount();
+
+            // Log da operação
+            $messageContent = substr($event['content'] ?: $event['body'] ?: 'Mídia', 0, 100);
+            error_log(sprintf(
+                "[CommunicationHub] Mensagem %s EXCLUÍDA: event_id=%s, conversation_id=%s, content=%s, midias=%d",
+                $eventId,
+                $event['id'],
+                $event['conversation_id'],
+                $messageContent,
+                $deletedMedia
+            ));
+
+            $this->json([
+                'success' => true,
+                'event_id' => $eventId,
+                'deleted_media' => $deletedMedia,
+                'message' => "Mensagem excluída permanentemente."
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao excluir mensagem: " . $e->getMessage());
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
