@@ -172,27 +172,13 @@ class OpportunityService
                    l.name as lead_name,
                    l.phone as lead_phone,
                    u.name as responsible_name,
-                   -- Dias sem interação
-                   COALESCE(
-                       DATEDIFF(CURRENT_DATE, (
-                           SELECT MAX(ce.event_timestamp)
-                           FROM communication_events ce
-                           WHERE (
-                               (o.lead_id IS NOT NULL AND ce.lead_id = o.lead_id) OR
-                               (o.tenant_id IS NOT NULL AND ce.tenant_id = o.tenant_id)
-                           )
-                           AND ce.event_type IN ('message_sent', 'call_made', 'meeting_scheduled', 'note_added', 'email_sent')
-                       )),
-                       DATEDIFF(CURRENT_DATE, o.created_at)
-                   ) as days_inactive,
-                   -- Tem tarefa agendada
-                   EXISTS(
-                       SELECT 1 
-                       FROM agenda_manual_items ami
-                       WHERE ami.opportunity_id = o.id
-                       AND ami.item_date >= CURRENT_DATE
-                       AND ami.created_at IS NOT NULL
-                   ) as has_scheduled_task
+                   -- Dias sem interação (simplificado)
+                   DATEDIFF(CURRENT_DATE, o.updated_at) as days_inactive,
+                   -- Tem tarefa agendada (simplificado)
+                   (SELECT COUNT(*) FROM agenda_manual_items ami 
+                    WHERE ami.opportunity_id = o.id 
+                    AND ami.item_date >= CURRENT_DATE 
+                    LIMIT 1) > 0 as has_scheduled_task
             FROM opportunities o
             LEFT JOIN tenants t ON o.tenant_id = t.id
             LEFT JOIN leads l ON o.lead_id = l.id
