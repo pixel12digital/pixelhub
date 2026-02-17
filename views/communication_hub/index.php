@@ -3313,9 +3313,15 @@ async function loadConversation(threadId, channel) {
         // Renderiza conversa
         renderConversation(result.thread, result.messages, result.channel);
         
-        // Define variável global para a IA Assistente
+        // Define variáveis globais para a IA Assistente (redundante mas garante disponibilidade)
         window._currentInboxConversationId = result.thread.conversation_id || null;
-        console.log('[Hub] conversation_id definido para IA:', window._currentInboxConversationId);
+        window._currentInboxMessages = result.messages || [];
+        window._currentInboxThread = result.thread || {};
+        console.log('[Hub] Variáveis globais definidas para IA:', {
+            conversationId: window._currentInboxConversationId,
+            messagesCount: window._currentInboxMessages.length,
+            threadId: window._currentInboxThread.id
+        });
         
         // Atualiza mensagem de boas-vindas da IA se o painel estiver aberto
         if (typeof updateInboxAIWelcomeMessage === 'function') {
