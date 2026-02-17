@@ -4020,16 +4020,89 @@
             }
         };
         window.inboxOpenCreateTenantModal = function(convId, name, contact) {
-            if (typeof openCreateTenantModal === 'function') { openCreateTenantModal(convId, name, contact); return; }
+            // Se existir função do Hub na página, usa; senão, abre modal local
+            if (typeof openCreateTenantModal === 'function') { 
+                openCreateTenantModal(convId, name, contact); 
+                return; 
+            }
+            // Implementação local fallback - abre Communication Hub em nova aba
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
         };
         window.inboxOpenCreateLeadModal = function(convId, name, contact) {
-            if (typeof openCreateLeadModal === 'function') { openCreateLeadModal(convId, name, contact); return; }
-            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+            const modal = document.getElementById('create-lead-modal');
+            if (!modal) { console.error('Modal create-lead-modal não encontrado'); return; }
+            document.getElementById('create-lead-conversation-id').value = convId;
+            document.getElementById('create-lead-name').value = name || '';
+            document.getElementById('create-lead-phone').value = contact || '';
+            document.getElementById('create-lead-email').value = '';
+            document.getElementById('create-lead-notes').value = '';
+            modal.style.display = 'flex';
         };
         window.inboxOpenLinkLeadModal = function(convId, name) {
-            if (typeof openLinkLeadModal === 'function') { openLinkLeadModal(convId, name); return; }
-            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+            const modal = document.getElementById('link-lead-modal');
+            if (!modal) { console.error('Modal link-lead-modal não encontrado'); return; }
+            document.getElementById('link-lead-conversation-id').value = convId;
+            document.getElementById('link-lead-contact-name').textContent = name || 'Contato Desconhecido';
+            const searchInput = document.getElementById('link-lead-search');
+            if (searchInput) searchInput.value = '';
+            const select = document.getElementById('link-lead-select');
+            if (select) select.innerHTML = '<option value="">Carregando leads...</option>';
+            modal.style.display = 'flex';
+            // Carrega leads via AJAX
+            fetch(INBOX_BASE_URL + '/communication-hub/leads-list')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && select) {
+                        select.innerHTML = '<option value="">Selecione um lead...</option>';
+                        if (data.leads.length === 0) {
+                            select.innerHTML = '<option value="">Nenhum lead cadastrado</option>';
+                        } else {
+                            data.leads.forEach(function(l) {
+                                const opt = document.createElement('option');
+                                opt.value = l.id;
+                                opt.textContent = l.name + (l.phone ? ' (' + l.phone + ')' : '') + (l.email ? ' - ' + l.email : '');
+                                opt.setAttribute('data-name', (l.name || '').toLowerCase());
+                                opt.setAttribute('data-email', (l.email || '').toLowerCase());
+                                opt.setAttribute('data-phone', (l.phone || '').replace(/\D/g, ''));
+                                select.appendChild(opt);
+                            });
+                        }
+                    }
+                })
+                .catch(e => { console.warn('[Inbox] Erro ao carregar leads:', e); });
+        };
+        window.inboxShowLinkOptions = function(convId, name) {
+            // Criar modal dinâmico para escolher entre Lead e Cliente
+            const existingModal = document.getElementById('inbox-link-options-modal');
+            if (existingModal) existingModal.remove();
+            
+            const modal = document.createElement('div');
+            modal.id = 'inbox-link-options-modal';
+            modal.style.cssText = 'display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;';
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 12px; padding: 30px; max-width: 400px; width: 90%;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="margin: 0;">Vincular Conversa</h2>
+                        <button onclick="this.closest('#inbox-link-options-modal').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+                    </div>
+                    <div style="margin-bottom: 20px; padding: 12px; background: #f0f2f5; border-radius: 6px;">
+                        <div style="font-size: 12px; color: #667781; margin-bottom: 4px;">Contato:</div>
+                        <div style="font-weight: 600; color: #111b21;">${name || 'Contato Desconhecido'}</div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <button type="button" onclick="this.closest('#inbox-link-options-modal').remove(); inboxOpenLinkLeadModal(${convId}, '${name}');" style="padding: 12px; background: #0d6efd; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                            Vincular a Lead Existente
+                        </button>
+                        <button type="button" onclick="this.closest('#inbox-link-options-modal').remove(); inboxOpenLinkTenantModal(${convId}, '${name}');" style="padding: 12px; background: #0d6efd; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                            Vincular a Cliente Existente
+                        </button>
+                        <button type="button" onclick="this.closest('#inbox-link-options-modal').remove();" style="padding: 12px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
         };
         window.inboxIgnoreConversation = function(convId, name) {
             if (typeof ignoreConversation === 'function') { ignoreConversation(convId, name); return; }
@@ -4318,7 +4391,7 @@
                                 </div>
                             </div>
                             <div class="incoming-lead-actions" style="margin-top: 8px;">
-                                <button type="button" class="incoming-lead-btn-primary" onclick="event.stopPropagation(); this.closest('.inbox-drawer-conversation')?.querySelector('.incoming-lead-menu-dropdown')?.classList.remove('show'); inboxOpenLinkTenantModal(${convId}, '${contactName}')">Vincular</button>
+                                <button type="button" class="incoming-lead-btn-primary" onclick="event.stopPropagation(); this.closest('.inbox-drawer-conversation')?.querySelector('.incoming-lead-menu-dropdown')?.classList.remove('show'); inboxShowLinkOptions(${convId}, '${contactName}')">Vincular</button>
                             </div>
                         </div>
                     `;
