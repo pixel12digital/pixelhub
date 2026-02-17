@@ -2641,7 +2641,7 @@
         'use strict';
         
         // Estado do Inbox Drawer
-        const InboxState = {
+        window.InboxState = {
             isOpen: false,
             conversations: [],
             incomingLeads: [],
