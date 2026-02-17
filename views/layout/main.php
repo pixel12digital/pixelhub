@@ -2971,22 +2971,56 @@
             var note = (document.getElementById('inboxAINote') || {}).value || '';
             var convId = window._currentInboxConversationId || null;
             
-            // Log para telemetria
-            console.log('[IA] Gerando rascunho:', { context: contextSlug, objective: objective, hasConversation: !!convId });
+            // Coleta histórico completo do thread
+            var threadMessages = window._currentInboxMessages || [];
+            var thread = window._currentInboxThread || {};
+            
+            // Log para telemetria e debug
+            console.log('[IA] Gerando rascunho:', { 
+                context: contextSlug, 
+                objective: objective, 
+                hasConversation: !!convId,
+                messagesCount: threadMessages.length,
+                threadId: thread.id,
+                leadId: thread.lead_id,
+                contactId: thread.contact_id
+            });
+            
+            // Verificação técnica obrigatória
+            if (threadMessages.length === 0) {
+                console.warn('[IA] AVISO: Nenhuma mensagem encontrada no thread atual');
+            }
+            
+            // Prepara payload completo
+            var payload = {
+                context_slug: contextSlug,
+                objective: objective,
+                attendant_note: note,
+                conversation_id: convId,
+                ai_chat_messages: [], // Sem histórico de chat IA para rascunho inicial
+                user_prompt: 'gere uma resposta inicial baseada no contexto e histórico da conversa',
+                // Dados completos do thread
+                thread_id: thread.id,
+                lead_id: thread.lead_id,
+                contact_id: thread.contact_id,
+                thread_messages: threadMessages.map(function(msg) {
+                    return {
+                        id: msg.id,
+                        sender_type: msg.direction === 'outbound' ? 'agent' : 'contact',
+                        sender_name: msg.sent_by_name || (msg.direction === 'outbound' ? 'Atendente' : thread.contact_name || 'Cliente'),
+                        message_text: msg.content || '',
+                        message_type: msg.media ? 'media' : 'text',
+                        created_at: msg.timestamp || msg.created_at
+                    };
+                })
+            };
             
             // Chamada API
             fetch(_aiBaseUrl + '/api/ai/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
-                body: JSON.stringify({
-                    context_slug: contextSlug,
-                    objective: objective,
-                    attendant_note: note,
-                    conversation_id: convId,
-                    ai_chat_messages: [], // Sem histórico de chat IA para rascunho inicial
-                    user_prompt: 'gere uma resposta inicial baseada no contexto e histórico da conversa'
-                })
+                body: JSON.stringify(payload)
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {

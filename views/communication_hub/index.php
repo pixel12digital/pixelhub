@@ -3239,6 +3239,8 @@ async function loadConversation(threadId, channel) {
     
     // Limpa também o ID da conversa para a IA
     window._currentInboxConversationId = null;
+    window._currentInboxMessages = [];
+    window._currentInboxThread = {};
     
     // [LOG TEMPORARIO] Reset de estado
     console.log('[LOG TEMPORARIO] loadConversation() - ESTADO RESETADO para thread_id=' + threadId);
@@ -3490,8 +3492,13 @@ function renderConversation(thread, messages, channel) {
     const placeholder = document.getElementById('conversation-placeholder');
     const content = document.getElementById('conversation-content');
     
+    // Armazena mensagens globalmente para a IA
+    window._currentInboxMessages = messages || [];
+    window._currentInboxThread = thread || {};
+    
     // Log para debug: verifica channel_id da thread
     console.log('[CommunicationHub] renderConversation - thread.channel_id:', thread.channel_id, 'thread:', thread);
+    console.log('[CommunicationHub] Mensagens armazenadas para IA:', messages.length, 'mensagens');
     
     // Oculta placeholder e mostra conteúdo
     if (placeholder) placeholder.style.display = 'none';

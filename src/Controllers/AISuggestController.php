@@ -131,10 +131,36 @@ class AISuggestController extends Controller
         $contactName = trim($input['contact_name'] ?? '');
         $contactPhone = trim($input['contact_phone'] ?? '');
         $aiChatMessages = $input['ai_chat_messages'] ?? [];
+        
+        // Dados do thread (novo)
+        $threadId = $input['thread_id'] ?? null;
+        $leadId = $input['lead_id'] ?? null;
+        $contactId = $input['contact_id'] ?? null;
+        $threadMessages = $input['thread_messages'] ?? [];
 
-        // Busca histórico da conversa WhatsApp se tiver conversation_id
+        // Log obrigatório para debug
+        error_log('[AI DRAFT REQUEST] thread_id: ' . ($threadId ?: 'null') . 
+                 ' | messages_count: ' . count($threadMessages) . 
+                 ' | conversation_id: ' . ($conversationId ?: 'null'));
+        
+        if (!empty($threadMessages)) {
+            $firstMsg = $threadMessages[0]['message_text'] ?? '';
+            error_log('[AI DRAFT REQUEST] first_message: "' . substr($firstMsg, 0, 100) . '..."');
+        }
+
+        // Prioriza thread_messages sobre conversation_history do banco
         $conversationHistory = [];
-        if (!empty($conversationId)) {
+        if (!empty($threadMessages)) {
+            // Converte thread_messages para formato conversation_history
+            $conversationHistory = array_map(function($msg) {
+                return [
+                    'direction' => $msg['sender_type'] === 'agent' ? 'out' : 'in',
+                    'text' => $msg['message_text'] ?? '',
+                    'created_at' => $msg['created_at'] ?? ''
+                ];
+            }, $threadMessages);
+        } elseif (!empty($conversationId)) {
+            // Fallback: busca do banco como antes
             $conversationHistory = $this->getConversationHistory((int) $conversationId);
             if (empty($contactName) || empty($contactPhone)) {
                 $convInfo = $this->getConversationInfo((int) $conversationId);
