@@ -409,51 +409,87 @@ async function openWhatsApp(phone) {
                 }
             }, 500);
         } else {
-            // Sem conversa: abre modal "Nova Conversa" com telefone pré-preenchido
-            console.log('[Opp WhatsApp] Nenhuma conversa encontrada, abrindo modal Nova Mensagem');
+            // Sem conversa encontrada pela API: tenta buscar por nome no Inbox (fallback robusto)
+            console.log('[Opp WhatsApp] Nenhuma conversa encontrada pela API, tentando fallback por nome');
+            
             setTimeout(() => {
-                if (typeof openNewMessageModal === 'function') {
-                    openNewMessageModal();
-                }
-
-                // Se esta oportunidade é Lead, define contexto no modal (esconde busca de cliente)
-                try {
-                    const leadId = <?= !empty($opp['lead_id']) ? (int) $opp['lead_id'] : 'null' ?>;
-                    const leadName = <?= json_encode($opp['lead_name'] ?? null) ?>;
-                    const leadPhone = <?= json_encode($opp['lead_phone'] ?? null) ?>;
-                    if (leadId && typeof window.setNewMessageLeadContext === 'function') {
-                        window.setNewMessageLeadContext({ lead_id: leadId, lead_name: leadName, lead_phone: leadPhone || phone });
+                // Tenta buscar conversa por nome/telefone na lista do Inbox
+                const conversations = document.querySelectorAll('[data-conversation-id]');
+                let foundConversation = null;
+                
+                // Primeiro: busca por nome se for Lead conhecido
+                <?php if (!empty($opp['lead_name'])): ?>
+                const leadName = <?= json_encode($opp['lead_name']) ?>;
+                for (let conv of conversations) {
+                    const name = conv.querySelector('.conv-name')?.textContent;
+                    if (name && name.toLowerCase().includes(leadName.toLowerCase())) {
+                        foundConversation = {
+                            threadId: conv.getAttribute('data-thread-id'),
+                            channel: conv.getAttribute('data-channel')
+                        };
+                        console.log('[Opp WhatsApp] Conversa encontrada por nome:', leadName, foundConversation);
+                        break;
                     }
-                } catch (e) {
-                    // silencioso
                 }
-
-                // Pré-preenche o campo "Para" com o telefone
-                setTimeout(() => {
-                    const toField = document.getElementById('new-message-to');
-                    if (toField) {
-                        toField.value = phone;
-                        toField.dispatchEvent(new Event('input', { bubbles: true }));
+                <?php endif; ?>
+                
+                // Segundo: busca por telefone nos contatos
+                if (!foundConversation) {
+                    const phoneDigits = phone.replace(/\D/g, '');
+                    for (let conv of conversations) {
+                        const name = conv.querySelector('.conv-name')?.textContent;
+                        if (name && name.includes(phoneDigits)) {
+                            foundConversation = {
+                                threadId: conv.getAttribute('data-thread-id'),
+                                channel: conv.getAttribute('data-channel')
+                            };
+                            console.log('[Opp WhatsApp] Conversa encontrada por telefone:', phone, foundConversation);
+                            break;
+                        }
                     }
-                    // Seleciona canal WhatsApp
-                    const channelSelect = document.getElementById('new-message-channel');
-                    if (channelSelect) {
-
-            // Se esta oportunidade é Lead, define contexto no modal (esconde busca de cliente)
-            try {
-                const leadId = <?= !empty($opp['lead_id']) ? (int) $opp['lead_id'] : 'null' ?>;
-                const leadName = <?= json_encode($opp['lead_name'] ?? null) ?>;
-                const leadPhone = <?= json_encode($opp['lead_phone'] ?? null) ?>;
-                if (leadId && typeof window.setNewMessageLeadContext === 'function') {
-                    window.setNewMessageLeadContext({ lead_id: leadId, lead_name: leadName, lead_phone: leadPhone || phone });
                 }
-            } catch (e) {
-                // silencioso
-            }
-                        channelSelect.value = 'whatsapp';
-                        channelSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                
+                if (foundConversation) {
+                    // Carrega a conversa encontrada
+                    setTimeout(() => {
+                        if (typeof loadInboxConversation === 'function') {
+                            loadInboxConversation(foundConversation.threadId, foundConversation.channel);
+                        }
+                    }, 300);
+                } else {
+                    // Último recurso: abre modal "Nova Conversa"
+                    console.log('[Opp WhatsApp] Nenhuma conversa encontrada, abrindo modal Nova Mensagem');
+                    if (typeof openNewMessageModal === 'function') {
+                        openNewMessageModal();
+                        
+                        // Se esta oportunidade é Lead, define contexto no modal (esconde busca de cliente)
+                        try {
+                            const leadId = <?= !empty($opp['lead_id']) ? (int) $opp['lead_id'] : 'null' ?>;
+                            const leadName = <?= json_encode($opp['lead_name'] ?? null) ?>;
+                            const leadPhone = <?= json_encode($opp['lead_phone'] ?? null) ?>;
+                            if (leadId && typeof window.setNewMessageLeadContext === 'function') {
+                                window.setNewMessageLeadContext({ lead_id: leadId, lead_name: leadName, lead_phone: leadPhone || phone });
+                            }
+                        } catch (e) {
+                            // silencioso
+                        }
+
+                        // Pré-preenche o campo "Para" com o telefone
+                        setTimeout(() => {
+                            const toField = document.getElementById('new-message-to');
+                            if (toField) {
+                                toField.value = phone;
+                                toField.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                            // Seleciona canal WhatsApp
+                            const channelSelect = document.getElementById('new-message-channel');
+                            if (channelSelect) {
+                                channelSelect.value = 'whatsapp';
+                                channelSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                        }, 300);
                     }
-                }, 300);
+                }
             }, 500);
         }
     } catch (err) {

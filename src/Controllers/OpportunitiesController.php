@@ -507,9 +507,34 @@ class OpportunitiesController extends Controller
             }
         }
 
+        // Gera variações mais completas para busca
+        $allVariations = $variations;
+        
+        // Adiciona variações com sufixos comuns
+        $suffixes = ['', '-0', '_0', '@c.us', '@g.us', '@s.whatsapp.net'];
+        foreach ($variations as $variation) {
+            foreach ($suffixes as $suffix) {
+                $allVariations[] = $variation . $suffix;
+            }
+        }
+        
+        // Adiciona prefixos possíveis
+        $prefixes = ['', 'whatsapp', 'wa'];
+        foreach ($variations as $variation) {
+            foreach ($prefixes as $prefix) {
+                if (!empty($prefix)) {
+                    $allVariations[] = $prefix . $variation;
+                    $allVariations[] = $variation . '.' . $prefix;
+                }
+            }
+        }
+        
+        // Remove duplicatas
+        $allVariations = array_unique($allVariations);
+        
         // Busca na tabela conversations (Inbox) com telefone normalizado e com prefixo '+'
         try {
-            $placeholders = implode(',', array_fill(0, count($variations), '?'));
+            $placeholders = implode(',', array_fill(0, count($allVariations), '?'));
             $sql = "
                 SELECT id, contact_external_id, contact_name, channel_id
                 FROM conversations
@@ -525,11 +550,15 @@ class OpportunitiesController extends Controller
             ";
             $stmt = $db->prepare($sql);
             // Executa com variações duplicadas (para os dois IN)
-            $stmt->execute(array_merge($variations, $variations, $variations, [$digits]));
+            $params = array_merge($allVariations, $allVariations, $allVariations, [$digits]);
+            $stmt->execute($params);
             $thread = $stmt->fetch(\PDO::FETCH_ASSOC);
             
-            // Log para debug
-            error_log('[OpportunitiesController] find-conversation - phone: ' . $phone . ' | normalized: ' . $normalized . ' | variations: ' . json_encode($variations) . ' | found: ' . ($thread ? 'yes' : 'no'));
+            // Log para debug mais detalhado
+            error_log('[OpportunitiesController] find-conversation - phone: ' . $phone . ' | normalized: ' . $normalized . ' | variations: ' . json_encode($allVariations) . ' | found: ' . ($thread ? 'yes' : 'no'));
+            if ($thread) {
+                error_log('[OpportunitiesController] find-conversation - FOUND contact_external_id: ' . $thread['contact_external_id']);
+            }
         } catch (\Throwable $e) {
             error_log('[OpportunitiesController] find-conversation ERROR: ' . $e->getMessage());
             $this->json(['success' => false, 'error' => 'Erro interno ao buscar conversa'], 500);
