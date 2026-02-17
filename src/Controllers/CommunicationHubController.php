@@ -5742,7 +5742,7 @@ class CommunicationHubController extends Controller
             ]);
 
             // Vincula conversa ao lead
-            $this->linkConversationToLead($conversationId, $leadId);
+            self::linkConversationToLeadInternal($conversationId, $leadId);
 
             $this->json([
                 'success' => true,
@@ -5845,6 +5845,37 @@ class CommunicationHubController extends Controller
         }
         
         return $result;
+    }
+
+    /**
+     * Vincula conversa a um lead (método interno)
+     * 
+     * @param int $conversationId ID da conversa
+     * @param int $leadId ID do lead
+     * @return bool Sucesso da operação
+     */
+    private static function linkConversationToLeadInternal(int $conversationId, int $leadId): bool
+    {
+        $db = DB::getConnection();
+        
+        try {
+            // Atualiza conversa com lead_id
+            $stmt = $db->prepare("
+                UPDATE conversations 
+                SET lead_id = ?, updated_at = NOW() 
+                WHERE id = ?
+            ");
+            $result = $stmt->execute([$leadId, $conversationId]);
+            
+            if ($result) {
+                error_log("[CommunicationHub] Conversa {$conversationId} vinculada ao lead {$leadId}");
+            }
+            
+            return $result;
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao vincular conversa {$conversationId} ao lead {$leadId}: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**
