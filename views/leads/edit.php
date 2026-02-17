@@ -174,3 +174,9 @@ $opportunities = $opportunities ?? [];
     margin-bottom: 20px;
 }
 </style>
+
+<?php
+$content = ob_get_clean();
+$title = (!empty($lead['name']) ? htmlspecialchars($lead['name']) : 'Lead #' . $lead['id']) . ' — Lead — Pixel Hub';
+require __DIR__ . '/../layout/main.php';
+?>
