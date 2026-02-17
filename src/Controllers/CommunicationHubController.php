@@ -5909,8 +5909,11 @@ class CommunicationHubController extends Controller
                 return;
             }
 
-            // Verifica se o lead existe
-            $lead = \PixelHub\Services\ContactService::findById($leadId);
+            // Verifica se o lead existe (tabela leads legada)
+            $stmt = $db->prepare("SELECT * FROM leads WHERE id = ?");
+            $stmt->execute([$leadId]);
+            $lead = $stmt->fetch();
+            
             if (!$lead) {
                 $this->json(['success' => false, 'error' => 'Lead não encontrado'], 404);
                 return;
