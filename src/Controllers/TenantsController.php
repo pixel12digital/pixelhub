@@ -725,6 +725,12 @@ class TenantsController extends Controller
         $status = $_POST['status'] ?? 'active';
         $internalNotes = trim($_POST['internal_notes'] ?? '');
         
+        // Campos específicos de Lead
+        $contactType = trim($_POST['contact_type'] ?? '');
+        $source = trim($_POST['source'] ?? '');
+        $company = trim($_POST['company'] ?? '');
+        $notes = trim($_POST['notes'] ?? '');
+        
         // Campos de endereço
         $addressCep = trim($_POST['address_cep'] ?? '');
         $addressStreet = trim($_POST['address_street'] ?? '');

@@ -9,8 +9,13 @@ $hasAsaasCustomerId = !empty($tenant['asaas_customer_id'] ?? null);
 
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center;">
     <div>
-        <h2><?= $tenant ? 'Editar Cliente' : 'Novo Cliente' ?></h2>
-        <p><?= $tenant ? 'Atualizar informações do cliente' : 'Cadastrar novo cliente' ?></p>
+        <?php if (($tenant['contact_type'] ?? 'client') === 'lead'): ?>
+            <h2>Editar Lead</h2>
+            <p>Atualizar informações do lead</p>
+        <?php else: ?>
+            <h2><?= $tenant ? 'Editar Cliente' : 'Novo Cliente' ?></h2>
+            <p><?= $tenant ? 'Atualizar informações do cliente' : 'Cadastrar novo cliente' ?></p>
+        <?php endif; ?>
     </div>
     <?php if ($hasAsaasCustomerId): ?>
         <?php
@@ -199,6 +204,40 @@ $hasAsaasCustomerId = !empty($tenant['asaas_customer_id'] ?? null);
                            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                 </div>
             </div>
+
+            <!-- Campos específicos de Lead -->
+            <?php if (($tenant['contact_type'] ?? 'client') === 'lead'): ?>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee;">
+                <h3 style="margin: 0 0 20px 0; color: #333; font-size: 18px; font-weight: 600;">Informações do Lead</h3>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                    <div>
+                        <label for="source" style="display: block; margin-bottom: 5px; font-weight: 600;">Origem do Lead</label>
+                        <select id="source" name="source" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="">Selecione...</option>
+                            <option value="whatsapp" <?= ($tenant['source'] ?? '') === 'whatsapp' ? 'selected' : '' ?>>WhatsApp</option>
+                            <option value="site" <?= ($tenant['source'] ?? '') === 'site' ? 'selected' : '' ?>>Site</option>
+                            <option value="indicacao" <?= ($tenant['source'] ?? '') === 'indicacao' ? 'selected' : '' ?>>Indicação</option>
+                            <option value="outro" <?= ($tenant['source'] ?? '') === 'outro' ? 'selected' : '' ?>>Outro</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="company" style="display: block; margin-bottom: 5px; font-weight: 600;">Empresa</label>
+                        <input type="text" id="company" name="company" 
+                               value="<?= htmlspecialchars($tenant['company'] ?? '') ?>" 
+                               placeholder="Nome da empresa (opcional)"
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label for="notes" style="display: block; margin-bottom: 5px; font-weight: 600;">Observações do Lead</label>
+                    <textarea id="notes" name="notes" rows="4" 
+                              placeholder="Observações importantes sobre este lead..."
+                              style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"><?= htmlspecialchars($tenant['notes'] ?? '') ?></textarea>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <!-- Endereço -->
             <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee;">
