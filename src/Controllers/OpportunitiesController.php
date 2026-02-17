@@ -508,17 +508,22 @@ class OpportunitiesController extends Controller
         }
 
         $placeholders = implode(',', array_fill(0, count($variations), '?'));
+        
+        // Busca na tabela threads (Inbox) ao invés de conversations
         $stmt = $db->prepare("
-            SELECT id, contact_external_id, contact_name, channel_type
-            FROM conversations
-            WHERE REPLACE(contact_external_id, '+', '') IN ({$placeholders})
-            ORDER BY updated_at DESC
+            SELECT id, contact_phone, contact_name, channel_id
+            FROM threads
+            WHERE REPLACE(REPLACE(contact_phone, '+', ''), '-', '') IN ({$placeholders})
+            ORDER BY last_message_at DESC
             LIMIT 1
         ");
         $stmt->execute($variations);
-        $conversation = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $thread = $stmt->fetch(\PDO::FETCH_ASSOC);
+        
+        // Log para debug
+        error_log('[OpportunitiesController] find-conversation - phone: ' . $phone . ' | normalized: ' . $normalized . ' | variations: ' . json_encode($variations) . ' | found: ' . ($thread ? 'yes' : 'no'));
 
-        if ($conversation) {
+        if ($thread) {
             // Se veio de uma oportunidade, persiste o vínculo conversation_id → opportunity
             if ($oppId > 0) {
                 try {
@@ -527,10 +532,10 @@ class OpportunitiesController extends Controller
                     $opp = $chk->fetch(\PDO::FETCH_ASSOC);
                     if ($opp) {
                         $currentConvId = (int) ($opp['conversation_id'] ?? 0);
-                        $newConvId = (int) $conversation['id'];
-                        if ($newConvId > 0 && $currentConvId !== $newConvId) {
+                        $newThreadId = (int) $thread['id'];
+                        if ($newThreadId > 0 && $currentConvId !== $newThreadId) {
                             $upd = $db->prepare("UPDATE opportunities SET conversation_id = ?, updated_at = NOW() WHERE id = ?");
-                            $upd->execute([$newConvId, $oppId]);
+                            $upd->execute([$newThreadId, $oppId]);
                         }
                     }
                 } catch (\Throwable $e) {
@@ -541,10 +546,10 @@ class OpportunitiesController extends Controller
             $this->json([
                 'success' => true,
                 'found' => true,
-                'conversation_id' => (int) $conversation['id'],
-                'thread_id' => 'whatsapp_' . (int) $conversation['id'],
-                'channel' => $conversation['channel_type'] ?? 'whatsapp',
-                'contact_name' => $conversation['contact_name'],
+                'conversation_id' => (int) $thread['id'],
+                'thread_id' => 'whatsapp_' . (int) $thread['id'],
+                'channel' => $thread['channel_id'] ?? 'whatsapp',
+                'contact_name' => $thread['contact_name'],
             ]);
         } else {
             $this->json([
