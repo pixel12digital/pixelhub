@@ -152,6 +152,13 @@ class AISuggestReplyService
         $aiChatMessages = $params['ai_chat_messages'] ?? []; // histórico do chat com a IA
         $hasHistory = !empty($conversationHistory);
 
+        // Log obrigatório para debug
+        error_log('[AI CHAT] conversation_history count: ' . count($conversationHistory));
+        if (!empty($conversationHistory)) {
+            $firstMsg = $conversationHistory[0]['text'] ?? '';
+            error_log('[AI CHAT] first_history_message: "' . substr($firstMsg, 0, 100) . '..."');
+        }
+
         $aiContext = self::getContext($contextSlug);
         if (!$aiContext) {
             $aiContext = self::getContext('geral');
@@ -161,6 +168,10 @@ class AISuggestReplyService
 
         $systemPrompt = self::buildChatSystemPrompt($aiContext, $objective, $hasHistory, $learnedExamples);
         $userContext = self::buildUserPrompt($conversationHistory, $contactName, $contactPhone, $attendantNote, $objective, $hasHistory);
+        
+        // Log do contexto gerado para debug
+        error_log('[AI CHAT] userContext length: ' . strlen($userContext));
+        error_log('[AI CHAT] userContext preview: "' . substr($userContext, 0, 200) . '..."');
 
         $apiKey = self::getApiKey();
         if (empty($apiKey)) {
@@ -172,8 +183,9 @@ class AISuggestReplyService
             $messages = [['role' => 'system', 'content' => $systemPrompt]];
 
             if (empty($aiChatMessages)) {
-                // Primeira mensagem: envia contexto do lead + pede resposta
-                $messages[] = ['role' => 'user', 'content' => $userContext . "\n\nGere UMA resposta pronta para enviar via WhatsApp."];
+                // Primeira mensagem: envia contexto do lead + histórico + pede resposta
+                $fullContext = $userContext . "\n\nGere UMA resposta pronta para enviar via WhatsApp.";
+                $messages[] = ['role' => 'user', 'content' => $fullContext];
             } else {
                 // Conversa em andamento: envia contexto inicial + histórico do chat IA
                 $messages[] = ['role' => 'user', 'content' => $userContext];
