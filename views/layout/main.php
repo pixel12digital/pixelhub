@@ -5555,7 +5555,18 @@ async function createLeadFromConversation(event) {
 // Mostra opções de leads duplicados no modal
 function showDuplicateOptions(duplicates, conversationId, name, phone, email, notes) {
     const modal = document.getElementById('create-lead-modal');
+    if (!modal) {
+        console.error('Modal create-lead-modal não encontrado no DOM');
+        alert('Erro: Modal não encontrado. Recarregue a página e tente novamente.');
+        return;
+    }
+    
     const content = modal.querySelector('.modal-content');
+    if (!content) {
+        console.error('Conteúdo do modal não encontrado');
+        alert('Erro: Conteúdo do modal não encontrado. Recarregue a página e tente novamente.');
+        return;
+    }
     
     // Filtra apenas leads (não tenants)
     const leadsOnly = duplicates.filter(d => d.type === 'lead' || d.contact_type === 'lead');
@@ -5689,7 +5700,7 @@ async function linkConversationToLead(event) {
 <!-- Modais do Communication Hub reutilizados no Inbox -->
 <!-- Modal: Criar Lead -->
 <div id="create-lead-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
-    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+    <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h2 style="margin: 0;">Criar Novo Lead</h2>
             <button onclick="closeCreateLeadModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
