@@ -162,6 +162,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
     <!-- Input do chat -->
     <div style="padding: 10px 16px; border-top: 1px solid #eee; background: #fafafa; display: flex; gap: 8px; align-items: flex-end;">
         <textarea id="newMsgAIChatInput" rows="2" placeholder="Peça para gerar ou refinar a resposta..." style="flex: 1; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 12px; font-family: inherit; resize: none; line-height: 1.4; box-sizing: border-box;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendNewMsgAIChat();}"></textarea>
+        <button type="button" id="newMsgAIGenerateBtn" onclick="generateAIDraft()" style="padding: 8px 12px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; height: 36px;" title="Gerar rascunho automático com contexto da oportunidade">Gerar Rascunho</button>
         <button type="button" id="newMsgAISendBtn" onclick="sendNewMsgAIChat()" style="padding: 8px 12px; background: #6f42c1; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; height: 36px;">Enviar</button>
     </div>
 </div>
@@ -565,6 +566,15 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             _newMsgAIChatHistory.push({ role: 'assistant', content: 'Erro de conexão: ' + err.message });
             renderNewMsgAIChat();
         });
+    };
+
+    window.generateAIDraft = function() {
+        // Limpa o campo de input e envia comando automático
+        var input = document.getElementById('newMsgAIChatInput');
+        if (input) {
+            input.value = 'Gerar rascunho automático';
+        }
+        sendNewMsgAIChat();
     };
 
     window.useNewMsgAIResponse = function(btn) {

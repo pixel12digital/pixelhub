@@ -6,6 +6,7 @@ use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
 use PixelHub\Services\AISuggestReplyService;
+use PixelHub\Services\OpportunityService;
 use PDO;
 
 /**
@@ -435,7 +436,7 @@ class AISuggestController extends Controller
             $contextParts[] = "**Valor estimado**: R$ " . number_format($opportunity['estimated_value'], 2, ',', '.');
         }
         if (!empty($opportunity['stage'])) {
-            $stages = \PixelHub\Services\OpportunityService::STAGES;
+            $stages = OpportunityService::STAGES;
             $stageLabel = $stages[$opportunity['stage']] ?? $opportunity['stage'];
             $contextParts[] = "**Etapa atual**: {$stageLabel}";
         }
