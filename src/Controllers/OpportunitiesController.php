@@ -507,20 +507,32 @@ class OpportunitiesController extends Controller
             }
         }
 
-        // Busca na tabela threads (Inbox) - contact_phone já está normalizado (apenas dígitos)
-        $placeholders = implode(',', array_fill(0, count($variations), '?'));
-        $stmt = $db->prepare("
-            SELECT id, contact_phone, contact_name, channel_id
-            FROM threads
-            WHERE contact_phone IN ({$placeholders})
-            ORDER BY last_message_at DESC
-            LIMIT 1
-        ");
-        $stmt->execute($variations);
-        $thread = $stmt->fetch(\PDO::FETCH_ASSOC);
-        
-        // Log para debug
-        error_log('[OpportunitiesController] find-conversation - phone: ' . $phone . ' | normalized: ' . $normalized . ' | variations: ' . json_encode($variations) . ' | found: ' . ($thread ? 'yes' : 'no'));
+        // Busca na tabela conversations (Inbox) com telefone normalizado e com prefixo '+'
+        try {
+            $placeholders = implode(',', array_fill(0, count($variations), '?'));
+            $sql = "
+                SELECT id, contact_external_id, contact_name, channel_id
+                FROM conversations
+                WHERE channel_type = 'whatsapp'
+                  AND (
+                        contact_external_id IN ({$placeholders})
+                     OR REPLACE(REPLACE(contact_external_id, '+', ''), ' ', '') IN ({$placeholders})
+                  )
+                ORDER BY last_message_at DESC, id DESC
+                LIMIT 1
+            ";
+            $stmt = $db->prepare($sql);
+            // Executa com variações duplicadas (para os dois IN)
+            $stmt->execute(array_merge($variations, $variations));
+            $thread = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            // Log para debug
+            error_log('[OpportunitiesController] find-conversation - phone: ' . $phone . ' | normalized: ' . $normalized . ' | variations: ' . json_encode($variations) . ' | found: ' . ($thread ? 'yes' : 'no'));
+        } catch (\Throwable $e) {
+            error_log('[OpportunitiesController] find-conversation ERROR: ' . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro interno ao buscar conversa'], 500);
+            return;
+        }
 
         if ($thread) {
             // Se veio de uma oportunidade, persiste o vínculo conversation_id → opportunity
