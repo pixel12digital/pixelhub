@@ -286,7 +286,7 @@ $isLost = $opp['status'] === 'lost';
                         </div>
                     </div>
                     <div style="display: flex; gap: 6px;">
-                        <button onclick="window.location.href='<?= pixelhub_url('/tenants/edit?id=' . ($opp['tenant_id'] ?? $opp['lead_id'])) ?>'" 
+                        <button onclick="window.location.href='<?= pixelhub_url('/leads/edit?id=' . $opp['lead_id']) ?>'" 
                                 title="Editar Lead"
                                 style="width: 34px; height: 34px; border-radius: 50%; border: none; background: #6c757d; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: opacity 0.2s;">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

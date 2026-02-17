@@ -736,6 +736,9 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/contacts/search', 'ContactsController@search');
     $router->get('/contacts/check-duplicate', 'ContactsController@checkDuplicate');
     
+    // Rotas de Leads (tabela leads legada)
+    $router->get('/leads/edit', 'LeadsController@edit');
+    $router->post('/leads/update', 'LeadsController@update');
     
     // Rotas de acessos e links de infraestrutura (apenas internos)
     $router->get('/owner/shortcuts', 'OwnerShortcutsController@index');
