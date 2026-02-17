@@ -5917,7 +5917,7 @@ class CommunicationHubController extends Controller
             }
 
             // Vincula (inclui criação automática de opportunity se necessário)
-            $this->linkConversationToLead($conversationId, $leadId);
+            self::linkConversationToLeadInternal($conversationId, $leadId);
 
             // Verifica se opportunity foi criada automaticamente para dar feedback
             $db = DB::getConnection();
