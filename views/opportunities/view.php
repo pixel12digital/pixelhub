@@ -271,7 +271,7 @@ $isLost = $opp['status'] === 'lost';
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="background: #1565c0; color: white; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600;">Lead</span>
                         <div>
-                            <strong><a href="<?= pixelhub_url('/tenants/view?id=' . ($opp['tenant_id'] ?? $opp['lead_id'])) ?>" 
+                            <strong><a href="<?= pixelhub_url('/leads/edit?id=' . $opp['lead_id']) ?>" 
                                    style="color: #1565c0; text-decoration: none; hover: text-decoration: underline;"
                                    onmouseover="this.style.textDecoration='underline'" 
                                    onmouseout="this.style.textDecoration='none'">
