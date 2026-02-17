@@ -572,12 +572,24 @@ function initKanbanDragDrop() {
         }
     });
 
-    // Click to open (only if not dragging, scoped to Kanban container)
+    // Double-click to open (scoped to Kanban container)
+    let lastClickTime = 0;
+    let lastClickedCard = null;
+    
     kanbanContainer.addEventListener('click', function(e) {
         const card = e.target.closest('.kanban-card');
         if (!card) return;
-        if (Date.now() - dragStartTime < 200 || dragStartTime === 0) {
+        
+        const currentTime = Date.now();
+        const isDoubleClick = lastClickedCard === card && (currentTime - lastClickTime < 300);
+        
+        if (isDoubleClick) {
+            // Double-click detected - open opportunity details
             window.location.href = OPP_VIEW_URL + '?id=' + card.dataset.oppId;
+        } else {
+            // Single click - just update tracking variables
+            lastClickTime = currentTime;
+            lastClickedCard = card;
         }
     });
 }
