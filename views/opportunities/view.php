@@ -386,6 +386,8 @@ const OPP_ID = <?= $opp['id'] ?>;
 const FIND_CONVERSATION_URL = '<?= pixelhub_url('/opportunities/find-conversation') ?>';
 
 async function openWhatsApp(phone) {
+    console.log('[Opp WhatsApp] Abrindo para telefone:', phone);
+    
     // Abre o Inbox drawer global (já existe no layout main.php)
     if (typeof openInboxDrawer === 'function') {
         openInboxDrawer();
@@ -395,9 +397,12 @@ async function openWhatsApp(phone) {
     try {
         const res = await fetch(FIND_CONVERSATION_URL + '?phone=' + encodeURIComponent(phone) + '&opp_id=' + encodeURIComponent(OPP_ID));
         const data = await res.json();
+        
+        console.log('[Opp WhatsApp] Resposta find-conversation:', data);
 
         if (data.success && data.found && data.thread_id) {
             // Conversa encontrada: abre direto nela (aguarda drawer carregar)
+            console.log('[Opp WhatsApp] Conversa encontrada, abrindo thread:', data.thread_id);
             setTimeout(() => {
                 if (typeof loadInboxConversation === 'function') {
                     loadInboxConversation(data.thread_id, data.channel || 'whatsapp');
@@ -405,9 +410,10 @@ async function openWhatsApp(phone) {
             }, 500);
         } else {
             // Sem conversa: abre modal "Nova Conversa" com telefone pré-preenchido
+            console.log('[Opp WhatsApp] Nenhuma conversa encontrada, abrindo modal Nova Mensagem');
             setTimeout(() => {
-                if (typeof openInboxNovaConversa === 'function') {
-                    openInboxNovaConversa();
+                if (typeof openNewMessageModal === 'function') {
+                    openNewMessageModal();
                 }
 
                 // Se esta oportunidade é Lead, define contexto no modal (esconde busca de cliente)

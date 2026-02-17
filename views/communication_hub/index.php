@@ -3309,9 +3309,12 @@ async function loadConversation(threadId, channel) {
         
         console.log('[Hub] Thread encontrado:', result.thread);
         console.log('[Hub] Mensagens encontradas:', result.messages?.length || 0);
+        console.log('[Hub] ANTES de renderConversation - thread.id:', result.thread?.id);
         
         // Renderiza conversa
         renderConversation(result.thread, result.messages, result.channel);
+        
+        console.log('[Hub] DEPOIS de renderConversation - definindo variáveis globais');
         
         // Define variáveis globais para a IA Assistente (redundante mas garante disponibilidade)
         window._currentInboxConversationId = result.thread.conversation_id || null;
