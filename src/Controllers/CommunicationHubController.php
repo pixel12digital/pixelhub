@@ -5859,10 +5859,10 @@ class CommunicationHubController extends Controller
         $db = DB::getConnection();
         
         try {
-            // Atualiza conversa com lead_id
+            // Atualiza conversa com lead_id e remove flag de incoming lead
             $stmt = $db->prepare("
                 UPDATE conversations 
-                SET lead_id = ?, updated_at = NOW() 
+                SET lead_id = ?, is_incoming_lead = 0, updated_at = NOW() 
                 WHERE id = ?
             ");
             $result = $stmt->execute([$leadId, $conversationId]);
