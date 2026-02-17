@@ -507,13 +507,12 @@ class OpportunitiesController extends Controller
             }
         }
 
+        // Busca na tabela threads (Inbox) - contact_phone já está normalizado (apenas dígitos)
         $placeholders = implode(',', array_fill(0, count($variations), '?'));
-        
-        // Busca na tabela threads (Inbox) ao invés de conversations
         $stmt = $db->prepare("
             SELECT id, contact_phone, contact_name, channel_id
             FROM threads
-            WHERE REPLACE(REPLACE(contact_phone, '+', ''), '-', '') IN ({$placeholders})
+            WHERE contact_phone IN ({$placeholders})
             ORDER BY last_message_at DESC
             LIMIT 1
         ");
