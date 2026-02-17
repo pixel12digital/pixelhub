@@ -74,9 +74,9 @@ $stageColors = [
     </div>
     
     <div style="display: flex; gap: 10px; align-items: center; flex: 1; flex-wrap: wrap;">
-        <input type="text" id="searchFilter" placeholder="Buscar por nome, cliente ou lead..." 
+        <input type="text" id="searchFilter" placeholder="Buscar por nome, cliente, lead, e-mail ou telefone..." 
                value="<?= htmlspecialchars($filters['search'] ?? '') ?>"
-               onkeyup="if(event.key==='Enter')applyFilters()"
+               onkeyup="handleSearchKeyup(event)"
                style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 200px; flex: 1;">
         
         <select id="stageFilter" onchange="applyFilters()" 
@@ -607,6 +607,253 @@ function updateKanbanCounts() {
         const countEl = col.querySelector('.kanban-count');
         if (countEl) countEl.textContent = count;
     });
+}
+
+// ===== Auto-search com debounce =====
+let searchTimeout = null;
+let currentSearchRequest = null;
+
+function handleSearchKeyup(event) {
+    const input = event.target;
+    const query = input.value.trim();
+    
+    // Se for Enter, faz busca imediata (fallback)
+    if (event.key === 'Enter') {
+        if (searchTimeout) clearTimeout(searchTimeout);
+        if (currentSearchRequest) currentSearchRequest.abort();
+        applyFilters();
+        return;
+    }
+    
+    // Cancela request anterior
+    if (currentSearchRequest) {
+        currentSearchRequest.abort();
+        currentSearchRequest = null;
+    }
+    
+    // Limpa timeout anterior
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+        searchTimeout = null;
+    }
+    
+    // Verifica regras de disparo
+    if (!shouldTriggerSearch(query)) {
+        // Se abaixo do mínimo, volta ao estado padrão
+        if (query.length === 0) {
+            resetToDefaultState();
+        }
+        return;
+    }
+    
+    // Debounce de 350ms
+    searchTimeout = setTimeout(() => {
+        performAutoSearch(query);
+    }, 350);
+}
+
+function shouldTriggerSearch(query) {
+    if (query.length === 0) return false;
+    
+    // Verifica se é só números
+    const isNumericOnly = /^\d+$/.test(query);
+    
+    if (isNumericOnly) {
+        // Regra B: Numérico - dispara com ≥ 2 dígitos
+        return query.length >= 2;
+    } else {
+        // Regra A: Texto - dispara com ≥ 3 caracteres
+        return query.length >= 3;
+    }
+}
+
+async function performAutoSearch(query) {
+    showLoadingState();
+    
+    try {
+        const url = '<?= pixelhub_url('/opportunities/search-ajax') ?>';
+        const params = new URLSearchParams({
+            q: query,
+            stage: document.getElementById('stageFilter').value,
+            responsible: document.getElementById('responsibleFilter').value,
+            status: document.getElementById('statusFilter').value
+        });
+        
+        currentSearchRequest = fetch(url + '?' + params.toString(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        
+        const response = await currentSearchRequest;
+        currentSearchRequest = null;
+        
+        if (!response.ok) throw new Error('Erro na busca');
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            updateKanbanWithResults(data.opportunities);
+            updateListView(data.opportunities);
+        } else {
+            showErrorState(data.error || 'Erro na busca');
+        }
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('Erro na busca:', error);
+            showErrorState('Erro de conexão');
+        }
+    }
+}
+
+function showLoadingState() {
+    // Mostra estado de carregamento no Kanban
+    document.querySelectorAll('.kanban-cards').forEach(container => {
+        container.innerHTML = '<div class="kanban-loading" style="padding: 20px; text-align: center; color: #666; font-size: 13px;">Buscando...</div>';
+    });
+    
+    // Mostra loading na lista
+    const listTable = document.querySelector('#view-list table tbody');
+    if (listTable) {
+        listTable.innerHTML = '<tr><td colspan="6" style="padding: 40px; text-align: center; color: #666;">Buscando...</td></tr>';
+    }
+}
+
+function showErrorState(message) {
+    // Mostra erro no Kanban
+    document.querySelectorAll('.kanban-cards').forEach(container => {
+        container.innerHTML = `<div class="kanban-error" style="padding: 20px; text-align: center; color: #dc3545; font-size: 13px;">${message}</div>`;
+    });
+    
+    // Mostra erro na lista
+    const listTable = document.querySelector('#view-list table tbody');
+    if (listTable) {
+        listTable.innerHTML = `<tr><td colspan="6" style="padding: 40px; text-align: center; color: #dc3545;">${message}</td></tr>`;
+    }
+}
+
+function updateKanbanWithResults(opportunities) {
+    // Agrupa oportunidades por etapa
+    const oppByStage = {};
+    <?php foreach (array_keys($stageColors) as $stageKey): ?>
+    oppByStage['<?= $stageKey ?>'] = [];
+    <?php endforeach; ?>
+    
+    opportunities.forEach(opp => {
+        const stage = opp.stage || 'new';
+        if (oppByStage[stage]) {
+            oppByStage[stage].push(opp);
+        }
+    });
+    
+    // Atualiza cada coluna do Kanban
+    <?php foreach ($stageColors as $stageKey => $stageColor): ?>
+    const column<?= ucfirst($stageKey) ?> = document.querySelector('.kanban-column[data-stage="<?= $stageKey ?>"] .kanban-cards');
+    if (column<?= ucfirst($stageKey) ?>) {
+        const stageOpps = oppByStage['<?= $stageKey ?>'] || [];
+        if (stageOpps.length === 0) {
+            column<?= ucfirst($stageKey) ?>.innerHTML = '<div class="kanban-empty" style="padding: 20px 10px; text-align: center; color: #aaa; font-size: 12px;">Nenhuma oportunidade</div>';
+        } else {
+            let html = '';
+            stageOpps.forEach(opp => {
+                const contactName = opp.contact_name || 'Sem vínculo';
+                const contactType = opp.contact_type || '';
+                const updatedAt = opp.updated_at ? new Date(opp.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                
+                html += `
+                    <div class="kanban-card" draggable="true" data-opp-id="${opp.id}" data-stage="<?= $stageKey ?>"
+                         style="background: white; border-radius: 6px; padding: 12px; margin-bottom: 8px; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 3px solid <?= $stageColor ?>; transition: box-shadow 0.15s, transform 0.15s;"
+                         onmouseover="this.style.boxShadow='0 3px 8px rgba(0,0,0,0.15)'; this.style.transform='translateY(-1px)'"
+                         onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'; this.style.transform='none'"
+                         onclick="window.location.href='<?= pixelhub_url('/opportunities/view') ?>?id=${opp.id}'">
+                        <div style="font-weight: 600; font-size: 13px; color: #111; margin-bottom: 6px; line-height: 1.3;">
+                            ${escHtml(opp.name)}
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 5px;">
+                            ${contactType === 'cliente' 
+                                ? '<span style="background: #e8f5e9; color: #2e7d32; padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 600;">Cliente</span>'
+                                : '<span style="background: #e3f2fd; color: #1565c0; padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 600;">Lead</span>'}
+                            <span style="font-size: 12px; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escHtml(contactName)}</span>
+                        </div>
+                        ${opp.estimated_value ? `
+                            <div style="font-weight: 700; font-size: 14px; color: #023A8D; margin-bottom: 5px;">
+                                R$ ${parseFloat(opp.estimated_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                        ` : ''}
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #888;">
+                            <span>${escHtml(opp.responsible_name || '—')}</span>
+                            <span>${updatedAt}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            column<?= ucfirst($stageKey) ?>.innerHTML = html;
+        }
+        
+        // Atualiza contador da coluna
+        const countEl = document.querySelector('.kanban-column[data-stage="<?= $stageKey ?>"] .kanban-count');
+        if (countEl) countEl.textContent = stageOpps.length;
+    }
+    <?php endforeach; ?>
+    
+    // Reinicia drag & drop
+    initKanbanDragDrop();
+}
+
+function updateListView(opportunities) {
+    const tbody = document.querySelector('#view-list table tbody');
+    if (!tbody) return;
+    
+    if (opportunities.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="padding: 40px; text-align: center; color: #6c757d;"><div style="font-size: 16px; margin-bottom: 10px;">Nenhuma oportunidade encontrada.</div><div style="font-size: 14px;">Tente outros termos de busca.</div></td></tr>';
+        return;
+    }
+    
+    let html = '';
+    opportunities.forEach(opp => {
+        const stageKey = opp.stage || 'new';
+        const stageLabel = '<?= json_encode($stages) ?>'[stageKey] || stageKey;
+        const stageColor = '<?= json_encode($stageColors) ?>'[stageKey] || '#6c757d';
+        const contactName = opp.contact_name || 'Sem vínculo';
+        const contactType = opp.contact_type || '';
+        
+        html += `
+            <tr style="border-bottom: 1px solid #eee; cursor: pointer;" 
+                onclick="window.location.href='<?= pixelhub_url('/opportunities/view') ?>?id=${opp.id}'"
+                onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='white'">
+                <td style="padding: 12px;">
+                    <div style="font-weight: 600; color: #111;">${escHtml(opp.name)}</div>
+                </td>
+                <td style="padding: 12px;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        ${contactType === 'cliente' 
+                            ? '<span style="background: #e8f5e9; color: #2e7d32; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">Cliente</span>'
+                            : '<span style="background: #e3f2fd; color: #1565c0; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">Lead</span>'}
+                        <span style="color: #333;">${escHtml(contactName)}</span>
+                    </div>
+                </td>
+                <td style="padding: 12px; text-align: left;">
+                    <span style="background: ${stageColor}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap;">
+                        ${stageLabel}
+                    </span>
+                </td>
+                <td style="padding: 12px; text-align: left; font-weight: 600; color: #333;">
+                    ${opp.estimated_value ? 'R$ ' + parseFloat(opp.estimated_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
+                </td>
+                <td style="padding: 12px; color: #555;">
+                    ${escHtml(opp.responsible_name || '—')}
+                </td>
+                <td style="padding: 12px; color: #888; font-size: 13px;">
+                    ${new Date(opp.created_at).toLocaleDateString('pt-BR')}
+                </td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+}
+
+function resetToDefaultState() {
+    // Recarrega a página para voltar ao estado padrão
+    window.location.href = '<?= pixelhub_url('/opportunities') ?>';
 }
 
 // ===== Filtros da lista =====

@@ -134,10 +134,32 @@ class OpportunityService
 
         if (!empty($filters['search'])) {
             $search = '%' . trim($filters['search']) . '%';
-            $where[] = '(o.name LIKE ? OR t.name LIKE ? OR l.name LIKE ?)';
-            $params[] = $search;
-            $params[] = $search;
-            $params[] = $search;
+            $searchDigits = preg_replace('/[^0-9]/', '', trim($filters['search']));
+            
+            // Verifica se é busca numérica (telefone)
+            if (!empty($searchDigits) && strlen($searchDigits) >= 2) {
+                // Busca por telefone normalizado + campos de texto
+                $where[] = '(
+                    (o.name LIKE ? OR t.name LIKE ? OR l.name LIKE ? OR t.email LIKE ? OR l.email LIKE ?) OR
+                    (REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(t.phone, \'\'), \'(\', \'\'), \')\', \'\'), \'-\', \'\'), \' \', \'\') LIKE ? OR
+                     REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(l.phone, \'\'), \'(\', \'\'), \')\', \'\'), \'-\', \'\'), \' \', \'\') LIKE ?)
+                )';
+                $params[] = $search;
+                $params[] = $search;
+                $params[] = $search;
+                $params[] = $search;
+                $params[] = $search;
+                $params[] = '%' . $searchDigits . '%';
+                $params[] = '%' . $searchDigits . '%';
+            } else {
+                // Busca só por campos de texto
+                $where[] = '(o.name LIKE ? OR t.name LIKE ? OR l.name LIKE ? OR t.email LIKE ? OR l.email LIKE ?)';
+                $params[] = $search;
+                $params[] = $search;
+                $params[] = $search;
+                $params[] = $search;
+                $params[] = $search;
+            }
         }
 
         $whereClause = implode(' AND ', $where);

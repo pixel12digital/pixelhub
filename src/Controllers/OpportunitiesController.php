@@ -466,6 +466,37 @@ class OpportunitiesController extends Controller
     }
 
     /**
+     * Busca AJAX para auto-search
+     * GET /opportunities/search-ajax?q=termo&stage=X&responsible=Y&status=Z
+     */
+    public function searchAjax(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+        
+        $query = trim($_GET['q'] ?? '');
+        if (empty($query)) {
+            $this->json(['success' => false, 'error' => 'Termo de busca obrigatório']);
+            return;
+        }
+        
+        $filters = [
+            'search' => $query,
+            'stage' => $_GET['stage'] ?? null,
+            'responsible_user_id' => !empty($_GET['responsible']) ? (int) $_GET['responsible'] : null,
+            'status' => $_GET['status'] ?? null,
+        ];
+        
+        try {
+            $opportunities = OpportunityService::list($filters);
+            $this->json(['success' => true, 'opportunities' => $opportunities]);
+        } catch (\Exception $e) {
+            error_log('[Opportunities] Erro na busca AJAX: ' . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro interno'], 500);
+        }
+    }
+    
+    /**
      * Busca conversa existente pelo telefone (para botão WhatsApp)
      * GET /opportunities/find-conversation?phone=47999999999
      */
