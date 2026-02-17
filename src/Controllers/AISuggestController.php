@@ -149,95 +149,115 @@ class AISuggestController extends Controller
         Auth::requireInternal();
         header('Content-Type: application/json; charset=utf-8');
 
-        $input = json_decode(file_get_contents('php://input') ?: '{}', true) ?: [];
+        try {
+            $input = json_decode(file_get_contents('php://input') ?: '{}', true) ?: [];
 
-        $contextSlug = trim($input['context_slug'] ?? 'geral');
-        $objective = trim($input['objective'] ?? 'first_contact');
-        $attendantNote = trim($input['attendant_note'] ?? '');
-        $conversationId = $input['conversation_id'] ?? null;
-        $contactName = trim($input['contact_name'] ?? '');
-        $contactPhone = trim($input['contact_phone'] ?? '');
-        $aiChatMessages = $input['ai_chat_messages'] ?? [];
-        $opportunityId = $input['opportunity_id'] ?? null;
-        
-        // Dados do thread (novo)
-        $threadId = $input['thread_id'] ?? null;
-        $leadId = $input['lead_id'] ?? null;
-        $contactId = $input['contact_id'] ?? null;
-        $threadMessages = $input['thread_messages'] ?? [];
+            $contextSlug = trim($input['context_slug'] ?? 'geral');
+            $objective = trim($input['objective'] ?? 'first_contact');
+            $attendantNote = trim($input['attendant_note'] ?? '');
+            $conversationId = $input['conversation_id'] ?? null;
+            $contactName = trim($input['contact_name'] ?? '');
+            $contactPhone = trim($input['contact_phone'] ?? '');
+            $aiChatMessages = $input['ai_chat_messages'] ?? [];
+            $opportunityId = $input['opportunity_id'] ?? null;
+            
+            // Dados do thread (novo)
+            $threadId = $input['thread_id'] ?? null;
+            $leadId = $input['lead_id'] ?? null;
+            $contactId = $input['contact_id'] ?? null;
+            $threadMessages = $input['thread_messages'] ?? [];
 
-        // Log obrigatório para debug
-        error_log('[AI DRAFT REQUEST] thread_id: ' . ($threadId ?: 'null') . 
-                 ' | messages_count: ' . count($threadMessages) . 
-                 ' | conversation_id: ' . ($conversationId ?: 'null') .
-                 ' | opportunity_id: ' . ($opportunityId ?: 'null'));
-        
-        if (!empty($threadMessages)) {
-            $firstMsg = $threadMessages[0]['message_text'] ?? '';
-            error_log('[AI DRAFT REQUEST] first_message: "' . substr($firstMsg, 0, 100) . '..."');
-        }
+            // Log obrigatório para debug
+            error_log('[AI DRAFT REQUEST] thread_id: ' . ($threadId ?: 'null') . 
+                     ' | messages_count: ' . count($threadMessages) . 
+                     ' | conversation_id: ' . ($conversationId ?: 'null') .
+                     ' | opportunity_id: ' . ($opportunityId ?: 'null'));
+            
+            if (!empty($threadMessages)) {
+                $firstMsg = $threadMessages[0]['message_text'] ?? '';
+                error_log('[AI DRAFT REQUEST] first_message: "' . substr($firstMsg, 0, 100) . '..."');
+            }
 
-        // Se tem opportunity_id, busca dados completos da oportunidade
-        $opportunityContext = '';
-        if (!empty($opportunityId)) {
-            $opportunityData = $this->getOpportunityContext((int) $opportunityId);
-            if ($opportunityData) {
-                $opportunityContext = $opportunityData['context'];
-                // Se não tem nome/telefone, usa da oportunidade
-                if (empty($contactName) && !empty($opportunityData['contact_name'])) {
-                    $contactName = $opportunityData['contact_name'];
-                }
-                if (empty($contactPhone) && !empty($opportunityData['contact_phone'])) {
-                    $contactPhone = $opportunityData['contact_phone'];
+            // Se tem opportunity_id, busca dados completos da oportunidade
+            $opportunityContext = '';
+            if (!empty($opportunityId)) {
+                try {
+                    $opportunityData = $this->getOpportunityContext((int) $opportunityId);
+                    if ($opportunityData) {
+                        $opportunityContext = $opportunityData['context'];
+                        // Se não tem nome/telefone, usa da oportunidade
+                        if (empty($contactName) && !empty($opportunityData['contact_name'])) {
+                            $contactName = $opportunityData['contact_name'];
+                        }
+                        if (empty($contactPhone) && !empty($opportunityData['contact_phone'])) {
+                            $contactPhone = $opportunityData['contact_phone'];
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log('[AI DRAFT] Erro ao buscar contexto da oportunidade ' . $opportunityId . ': ' . $e->getMessage());
+                    // Continua sem contexto da oportunidade
                 }
             }
-        }
 
-        // Prioriza thread_messages sobre conversation_history do banco
-        $conversationHistory = [];
-        if (!empty($threadMessages)) {
-            // Converte thread_messages para formato conversation_history
-            $conversationHistory = array_map(function($msg) {
-                return [
-                    'direction' => $msg['sender_type'] === 'agent' ? 'out' : 'in',
-                    'text' => $msg['message_text'] ?? '',
-                    'created_at' => $msg['created_at'] ?? ''
-                ];
-            }, $threadMessages);
-        } elseif (!empty($conversationId)) {
-            // Fallback: busca do banco como antes
-            $conversationHistory = $this->getConversationHistory((int) $conversationId);
-            if (empty($contactName) || empty($contactPhone)) {
-                $convInfo = $this->getConversationInfo((int) $conversationId);
-                if (empty($contactName) && !empty($convInfo['contact_name'])) {
-                    $contactName = $convInfo['contact_name'];
-                }
-                if (empty($contactPhone) && !empty($convInfo['contact_phone'])) {
-                    $contactPhone = $convInfo['contact_phone'];
+            // Prioriza thread_messages sobre conversation_history do banco
+            $conversationHistory = [];
+            if (!empty($threadMessages)) {
+                // Converte thread_messages para formato conversation_history
+                $conversationHistory = array_map(function($msg) {
+                    return [
+                        'direction' => $msg['sender_type'] === 'agent' ? 'out' : 'in',
+                        'text' => $msg['message_text'] ?? '',
+                        'created_at' => $msg['created_at'] ?? ''
+                    ];
+                }, $threadMessages);
+            } elseif (!empty($conversationId)) {
+                // Fallback: busca do banco como antes
+                $conversationHistory = $this->getConversationHistory((int) $conversationId);
+                if (empty($contactName) || empty($contactPhone)) {
+                    $convInfo = $this->getConversationInfo((int) $conversationId);
+                    if (empty($contactName) && !empty($convInfo['contact_name'])) {
+                        $contactName = $convInfo['contact_name'];
+                    }
+                    if (empty($contactPhone) && !empty($convInfo['contact_phone'])) {
+                        $contactPhone = $convInfo['contact_phone'];
+                    }
                 }
             }
-        }
 
-        // Combina observação do atendente com contexto da oportunidade
-        $fullAttendantNote = $attendantNote;
-        if (!empty($opportunityContext)) {
-            if (!empty($fullAttendantNote)) {
-                $fullAttendantNote .= "\n\n";
+            // Combina observação do atendente com contexto da oportunidade
+            $fullAttendantNote = $attendantNote;
+            if (!empty($opportunityContext)) {
+                if (!empty($fullAttendantNote)) {
+                    $fullAttendantNote .= "\n\n";
+                }
+                $fullAttendantNote .= "[CONTEXTO DA OPORTUNIDADE]\n" . $opportunityContext;
             }
-            $fullAttendantNote .= "[CONTEXTO DA OPORTUNIDADE]\n" . $opportunityContext;
+
+            $result = AISuggestReplyService::chat([
+                'context_slug' => $contextSlug,
+                'objective' => $objective,
+                'attendant_note' => $fullAttendantNote,
+                'conversation_history' => $conversationHistory,
+                'contact_name' => $contactName,
+                'contact_phone' => $contactPhone,
+                'ai_chat_messages' => $aiChatMessages,
+            ]);
+
+            $this->json($result, $result['success'] ? 200 : 400);
+            
+        } catch (Exception $e) {
+            error_log('[AI CHAT] Erro: ' . $e->getMessage() . ' em ' . $e->getFile() . ':' . $e->getLine());
+            $this->json([
+                'success' => false,
+                'error' => 'Erro interno do servidor: ' . $e->getMessage()
+            ], 500);
+        } catch (Error $e) {
+            error_log('[AI CHAT] Error Fatal: ' . $e->getMessage() . ' em ' . $e->getFile() . ':' . $e->getLine());
+            $this->json([
+                'success' => false,
+                'error' => 'Erro interno do servidor: ' . $e->getMessage()
+            ], 500);
         }
-
-        $result = AISuggestReplyService::chat([
-            'context_slug' => $contextSlug,
-            'objective' => $objective,
-            'attendant_note' => $fullAttendantNote,
-            'conversation_history' => $conversationHistory,
-            'contact_name' => $contactName,
-            'contact_phone' => $contactPhone,
-            'ai_chat_messages' => $aiChatMessages,
-        ]);
-
-        $this->json($result, $result['success'] ? 200 : 400);
     }
 
     /**
