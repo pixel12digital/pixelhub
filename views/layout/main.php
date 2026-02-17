@@ -2975,6 +2975,11 @@
             var threadMessages = window._currentInboxMessages || [];
             var thread = window._currentInboxThread || {};
             
+            // Debug: verificar estado das variáveis globais
+            console.log('[IA DEBUG] window._currentInboxMessages:', window._currentInboxMessages);
+            console.log('[IA DEBUG] window._currentInboxThread:', window._currentInboxThread);
+            console.log('[IA DEBUG] window._currentInboxConversationId:', window._currentInboxConversationId);
+            
             // Log para telemetria e debug
             console.log('[IA] Gerando rascunho:', { 
                 context: contextSlug, 
