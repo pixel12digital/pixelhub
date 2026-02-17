@@ -368,6 +368,23 @@ class EventIngestionService
 
                         if ($oppId) {
                             \PixelHub\Services\OpportunityService::addInteractionHistory((int) $oppId, 'WhatsApp: Recebido', null);
+                            
+                            // NOVO: Timeline estruturada de interações
+                            try {
+                                \PixelHub\Services\OpportunityInteractionService::logWhatsApp(
+                                    (int) $oppId,
+                                    'inbound',
+                                    $message['content']['text'] ?? '[Mídia]',
+                                    [
+                                        'message_id' => $message['id'] ?? null,
+                                        'contact_phone' => $message['from'] ?? null,
+                                        'timestamp' => $message['timestamp'] ?? null
+                                    ]
+                                );
+                            } catch (\Throwable $ix) {
+                                // Não quebra se falhar novo sistema
+                                error_log("[Interaction] Erro ao registrar WhatsApp: " . $ix->getMessage());
+                            }
                         }
                     } catch (\Throwable $hx) {
                         // Não quebra ingestão se falhar histórico

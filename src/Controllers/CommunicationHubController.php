@@ -2311,6 +2311,24 @@ class CommunicationHubController extends Controller
                                         $oppId = $this->resolveOpportunityIdForConversation($db, $convId);
                                         if (!empty($oppId)) {
                                             OpportunityService::addInteractionHistory((int) $oppId, 'WhatsApp: Enviado', Auth::user()['id'] ?? null);
+                                            
+                                            // NOVO: Timeline estruturada de interações
+                                            try {
+                                                \PixelHub\Services\OpportunityInteractionService::logWhatsApp(
+                                                    (int) $oppId,
+                                                    'outbound',
+                                                    $message['text'] ?? '[Mídia]',
+                                                    [
+                                                        'message_id' => $ev['id'] ?? null,
+                                                        'contact_phone' => $ev['to'] ?? null,
+                                                        'user_id' => Auth::user()['id'] ?? null
+                                                    ],
+                                                    Auth::user()['id'] ?? null
+                                                );
+                                            } catch (\Throwable $ix) {
+                                                // Não quebra se falhar novo sistema
+                                                error_log("[Interaction] Erro ao registrar WhatsApp enviado: " . $ix->getMessage());
+                                            }
                                         }
                                     } catch (\Throwable $hx) {
                                         // Não quebra envio se falhar histórico
