@@ -195,6 +195,40 @@ class ConversationService
             self::updateConversationMetadata($conversationByLidPhone['id'], $eventData, $channelInfo);
             return $conversationByLidPhone;
         }
+        
+        // VALIDAÇÃO EXTRA: Alerta sobre potencial duplicidade @lid vs E.164 não resolvida
+        // Isso ajuda a identificar casos onde o mapeamento dinâmico pode ser necessário
+        if (strpos($channelInfo['contact_external_id'], '@lid') !== false) {
+            // É @lid - verifica se existe conversa com número E.164 similar
+            $numericPart = preg_replace('/[^0-9]/', '', $channelInfo['contact_external_id']);
+            if (strlen($numericPart) >= 10) {
+                $db = DB::getConnection();
+                $checkStmt = $db->prepare("
+                    SELECT id, contact_external_id, contact_name, last_message_at
+                    FROM conversations 
+                    WHERE channel_type = 'whatsapp' 
+                    AND contact_external_id LIKE ?
+                    AND contact_external_id NOT LIKE '%@lid'
+                    AND (tenant_id IS NULL OR tenant_id = ?)
+                    ORDER BY last_message_at DESC
+                    LIMIT 3
+                ");
+                $likePattern = '%' . substr($numericPart, -8);
+                $checkStmt->execute([$likePattern, $channelInfo['tenant_id'] ?? null]);
+                $potentialMatches = $checkStmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                if (!empty($potentialMatches)) {
+                    error_log('[LID_PHONE_MAPPING] ALERTA_POTENCIAL_DUPLICIDADE: @lid ' . $channelInfo['contact_external_id'] . 
+                        ' pode corresponder a ' . count($potentialMatches) . ' conversas E.164:');
+                    foreach ($potentialMatches as $match) {
+                        error_log('[LID_PHONE_MAPPING]   - ID=' . $match['id'] . 
+                            ' external_id=' . $match['contact_external_id'] . 
+                            ' name=' . ($match['contact_name'] ?? 'NULL') . 
+                            ' last=' . $match['last_message_at']);
+                    }
+                }
+            }
+        }
 
         // Se ainda não encontrou, tenta encontrar conversa com mesmo contato mas channel_account_id diferente
         // (ex.: conversa "shared" vs conversa com tenant específico)
@@ -1509,12 +1543,7 @@ class ConversationService
     }
 
     /**
-     * Busca conversa existente usando mapeamento @lid → E.164 do cache wa_pnlid_cache
-     * 
-     * Isso resolve o problema de duplicidade quando:
-     * - Uma mensagem chega via @lid (ex: 103066917425370@lid)
-     * - Já existe uma conversa com o número E.164 correspondente (ex: 5511988427530)
-     * - Ou vice-versa
+     * Busca conversa por mapeamento @lid ↔ E.164 (com criação dinâmica de mapeamentos)
      * 
      * @param array $channelInfo Informações do canal
      * @return array|null Conversa encontrada ou null
@@ -1533,95 +1562,236 @@ class ConversationService
 
         $db = DB::getConnection();
         $sessionId = $channelInfo['channel_id'] ?? $channelInfo['session_id'] ?? null;
+        $tenantId = $channelInfo['tenant_id'] ?? null;
 
-        try {
-            // Caso 1: contato é @lid - busca número E.164 correspondente
-            if (strpos($contactId, '@lid') !== false) {
-                $pnlid = str_replace('@lid', '', $contactId);
+    try {
+        // Caso 1: contato é @lid - busca número E.164 correspondente
+        if (strpos($contactId, '@lid') !== false) {
+            $pnlid = str_replace('@lid', '', $contactId);
+            
+            // PRIMEIRO: Busca na tabela whatsapp_business_ids (mapeamento oficial)
+            $businessStmt = $db->prepare("
+                SELECT phone_number 
+                FROM whatsapp_business_ids 
+                WHERE business_id = ? 
+                LIMIT 1
+            ");
+            $businessStmt->execute([$contactId]);
+            $businessRow = $businessStmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if ($businessRow && !empty($businessRow['phone_number'])) {
+                $phoneE164 = $businessRow['phone_number'];
+                error_log("[LID_PHONE_MAPPING] @lid {$contactId} -> E.164 {$phoneE164} (via whatsapp_business_ids)");
                 
-                // Busca no cache wa_pnlid_cache
-                $cacheStmt = $db->prepare("
-                    SELECT phone_e164 FROM wa_pnlid_cache 
-                    WHERE pnlid = ? 
-                    AND (session_id = ? OR session_id IS NULL)
+                // Busca conversa com esse número E.164
+                $convStmt = $db->prepare("
+                    SELECT * FROM conversations 
+                    WHERE channel_type = 'whatsapp' 
+                    AND contact_external_id = ?
+                    AND (tenant_id IS NULL OR tenant_id = ?)
                     LIMIT 1
                 ");
-                $cacheStmt->execute([$pnlid, $sessionId]);
-                $cacheRow = $cacheStmt->fetch(\PDO::FETCH_ASSOC);
+                $convStmt->execute([$phoneE164, $tenantId]);
+                $found = $convStmt->fetch(\PDO::FETCH_ASSOC);
                 
-                if ($cacheRow && !empty($cacheRow['phone_e164'])) {
-                    $phoneE164 = $cacheRow['phone_e164'];
-                    error_log("[LID_PHONE_MAPPING] @lid {$contactId} -> E.164 {$phoneE164}");
+                if ($found) {
+                    error_log("[LID_PHONE_MAPPING] Encontrada conversa ID={$found['id']} com E.164 {$phoneE164} para @lid {$contactId}");
+                    return $found;
+                }
+            }
+            
+            // SEGUNDO: Busca no cache wa_pnlid_cache
+            $cacheStmt = $db->prepare("
+                SELECT phone_e164 FROM wa_pnlid_cache 
+                WHERE pnlid = ? 
+                AND (session_id = ? OR session_id IS NULL)
+                LIMIT 1
+            ");
+            $cacheStmt->execute([$pnlid, $sessionId]);
+            $cacheRow = $cacheStmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if ($cacheRow && !empty($cacheRow['phone_e164'])) {
+                $phoneE164 = $cacheRow['phone_e164'];
+                error_log("[LID_PHONE_MAPPING] @lid {$contactId} -> E.164 {$phoneE164} (via wa_pnlid_cache)");
+                
+                // Busca conversa com esse número E.164
+                $convStmt = $db->prepare("
+                    SELECT * FROM conversations 
+                    WHERE channel_type = 'whatsapp' 
+                    AND contact_external_id = ?
+                    AND (tenant_id IS NULL OR tenant_id = ?)
+                    LIMIT 1
+                ");
+                $convStmt->execute([$phoneE164, $tenantId]);
+                $found = $convStmt->fetch(\PDO::FETCH_ASSOC);
+                
+                if ($found) {
+                    error_log("[LID_PHONE_MAPPING] Encontrada conversa ID={$found['id']} com E.164 {$phoneE164} para @lid {$contactId}");
                     
-                    // Busca conversa com esse número E.164
+                    // Cria mapeamento dinâmico em whatsapp_business_ids para futuras consultas
+                    self::createDynamicLidMapping($contactId, $phoneE164);
+                    
+                    return $found;
+                }
+            }
+            
+            // TERCEIRO: Tenta encontrar correspondência por padrão numérico (fallback)
+            // Para @lid como 161263204212784@lid, tenta encontrar conversa com número similar
+            $numericPart = preg_replace('/[^0-9]/', '', $contactId);
+            if (strlen($numericPart) >= 10) {
+                // Tenta encontrar conversa com número E.164 que contenha os últimos dígitos
+                $fallbackStmt = $db->prepare("
+                    SELECT * FROM conversations 
+                    WHERE channel_type = 'whatsapp' 
+                    AND contact_external_id LIKE ?
+                    AND (tenant_id IS NULL OR tenant_id = ?)
+                    ORDER BY LENGTH(contact_external_id) ASC, last_message_at DESC
+                    LIMIT 3
+                ");
+                $likePattern = '%' . substr($numericPart, -8); // últimos 8 dígitos
+                $fallbackStmt->execute([$likePattern, $tenantId]);
+                $candidates = $fallbackStmt->fetchAll(\PDO::FETCH_ASSOC);
+                
+                foreach ($candidates as $candidate) {
+                    $candidatePhone = preg_replace('/[^0-9]/', '', $candidate['contact_external_id']);
+                    // Verifica se os últimos 8-10 dígitos correspondem
+                    $candidateSuffix = substr($candidatePhone, -8);
+                    $lidSuffix = substr($numericPart, -8);
+                    
+                    if ($candidateSuffix === $lidSuffix) {
+                        error_log("[LID_PHONE_MAPPING] CORRESPONDÊNCIA ENCONTRADA: @lid {$contactId} -> E.164 {$candidate['contact_external_id']} (por padrão numérico)");
+                        
+                        // Cria mapeamento dinâmico
+                        self::createDynamicLidMapping($contactId, $candidate['contact_external_id']);
+                        
+                        return $candidate;
+                    }
+                }
+            }
+        }
+        // Caso 2: contato é número E.164 - busca @lid correspondente
+        else {
+            $digits = preg_replace('/[^0-9]/', '', $contactId);
+            
+            // Verifica se parece com número E.164 brasileiro
+            if (strlen($digits) >= 12 && strlen($digits) <= 13 && substr($digits, 0, 2) === '55') {
+                // PRIMEIRO: Busca mapeamento reverso em whatsapp_business_ids
+                $reverseStmt = $db->prepare("
+                    SELECT business_id 
+                    FROM whatsapp_business_ids 
+                    WHERE phone_number = ? 
+                    LIMIT 1
+                ");
+                $reverseStmt->execute([$contactId]);
+                $reverseRow = $reverseStmt->fetch(\PDO::FETCH_ASSOC);
+                
+                if ($reverseRow && !empty($reverseRow['business_id'])) {
+                    error_log("[LID_PHONE_MAPPING] E.164 {$contactId} -> @lid {$reverseRow['business_id']} (via whatsapp_business_ids)");
+                    
+                    // Busca conversa com esse @lid
                     $convStmt = $db->prepare("
                         SELECT * FROM conversations 
                         WHERE channel_type = 'whatsapp' 
                         AND contact_external_id = ?
+                        AND (tenant_id IS NULL OR tenant_id = ?)
                         LIMIT 1
                     ");
-                    $convStmt->execute([$phoneE164]);
+                    $convStmt->execute([$reverseRow['business_id'], $tenantId]);
                     $found = $convStmt->fetch(\PDO::FETCH_ASSOC);
                     
                     if ($found) {
-                        error_log("[LID_PHONE_MAPPING] Encontrada conversa ID={$found['id']} com E.164 {$phoneE164} para @lid {$contactId}");
+                        error_log("[LID_PHONE_MAPPING] Encontrada conversa ID={$found['id']} com @lid {$reverseRow['business_id']} para E.164 {$contactId}");
+                        return $found;
+                    }
+                }
+                
+                // SEGUNDO: Busca no cache wa_pnlid_cache
+                $cacheStmt = $db->prepare("
+                    SELECT pnlid FROM wa_pnlid_cache 
+                    WHERE phone_e164 = ? 
+                    AND (session_id = ? OR session_id IS NULL)
+                    LIMIT 1
+                ");
+                $cacheStmt->execute([$digits, $sessionId]);
+                $cacheRow = $cacheStmt->fetch(\PDO::FETCH_ASSOC);
+                
+                if ($cacheRow && !empty($cacheRow['pnlid'])) {
+                    $pnlidWithSuffix = $cacheRow['pnlid'] . '@lid';
+                    error_log("[LID_PHONE_MAPPING] E.164 {$digits} -> @lid {$pnlidWithSuffix} (via wa_pnlid_cache)");
+                    
+                    // Busca conversa com esse @lid
+                    $convStmt = $db->prepare("
+                        SELECT * FROM conversations 
+                        WHERE channel_type = 'whatsapp' 
+                        AND contact_external_id = ?
+                        AND (tenant_id IS NULL OR tenant_id = ?)
+                        LIMIT 1
+                    ");
+                    $convStmt->execute([$pnlidWithSuffix, $tenantId]);
+                    $found = $convStmt->fetch(\PDO::FETCH_ASSOC);
+                    
+                    if ($found) {
+                        error_log("[LID_PHONE_MAPPING] Encontrada conversa ID={$found['id']} com @lid {$pnlidWithSuffix} para E.164 {$digits}");
+                        
+                        // Cria mapeamento dinâmico
+                        self::createDynamicLidMapping($pnlidWithSuffix, $contactId);
+                        
                         return $found;
                     }
                 }
             }
-            // Caso 2: contato é número E.164 - busca @lid correspondente
-            else {
-                $digits = preg_replace('/[^0-9]/', '', $contactId);
-                
-                // Verifica se parece com número E.164 brasileiro
-                if (strlen($digits) >= 12 && strlen($digits) <= 13 && substr($digits, 0, 2) === '55') {
-                    // Busca no cache wa_pnlid_cache
-                    $cacheStmt = $db->prepare("
-                        SELECT pnlid FROM wa_pnlid_cache 
-                        WHERE phone_e164 = ? 
-                        AND (session_id = ? OR session_id IS NULL)
-                        LIMIT 1
-                    ");
-                    $cacheStmt->execute([$digits, $sessionId]);
-                    $cacheRow = $cacheStmt->fetch(\PDO::FETCH_ASSOC);
-                    
-                    if ($cacheRow && !empty($cacheRow['pnlid'])) {
-                        $pnlidWithSuffix = $cacheRow['pnlid'] . '@lid';
-                        error_log("[LID_PHONE_MAPPING] E.164 {$digits} -> @lid {$pnlidWithSuffix}");
-                        
-                        // Busca conversa com esse @lid
-                        $convStmt = $db->prepare("
-                            SELECT * FROM conversations 
-                            WHERE channel_type = 'whatsapp' 
-                            AND contact_external_id = ?
-                            LIMIT 1
-                        ");
-                        $convStmt->execute([$pnlidWithSuffix]);
-                        $found = $convStmt->fetch(\PDO::FETCH_ASSOC);
-                        
-                        if ($found) {
-                            error_log("[LID_PHONE_MAPPING] Encontrada conversa ID={$found['id']} com @lid {$pnlidWithSuffix} para E.164 {$digits}");
-                            return $found;
-                        }
-                    }
-                }
-            }
-        } catch (\Exception $e) {
-            error_log("[LID_PHONE_MAPPING] Erro: " . $e->getMessage());
         }
-
-        return null;
+    } catch (\Exception $e) {
+        error_log("[LID_PHONE_MAPPING] Erro: " . $e->getMessage());
     }
 
-    /**
-     * Extrai timestamp da mensagem do payload
-     * 
-     * @param array $eventData Dados do evento
-     * @return string Timestamp no formato 'Y-m-d H:i:s'
-     */
-    private static function extractMessageTimestamp(array $eventData): string
-    {
-        $payload = $eventData['payload'] ?? [];
+    return null;
+}
+
+/**
+ * Cria mapeamento dinâmico @lid → phone_number
+ * 
+ * @param string $lidId Business ID (@lid)
+ * @param string $phoneNumber Número E.164
+ */
+private static function createDynamicLidMapping(string $lidId, string $phoneNumber): void
+{
+    try {
+        $db = DB::getConnection();
+        
+        // Verifica se já existe mapeamento
+        $checkStmt = $db->prepare("
+            SELECT id FROM whatsapp_business_ids 
+            WHERE business_id = ? 
+            LIMIT 1
+        ");
+        $checkStmt->execute([$lidId]);
+        $exists = $checkStmt->fetch(\PDO::FETCH_ASSOC);
+        
+        if (!$exists) {
+            // Insere novo mapeamento dinâmico
+            $insertStmt = $db->prepare("
+                INSERT INTO whatsapp_business_ids (business_id, phone_number, created_at, updated_at) 
+                VALUES (?, ?, NOW(), NOW())
+            ");
+            $insertStmt->execute([$lidId, $phoneNumber]);
+            
+            error_log("[LID_PHONE_MAPPING] MAPEAMENTO DINÂMICO CRIADO: {$lidId} -> {$phoneNumber}");
+        }
+    } catch (\Exception $e) {
+        error_log("[LID_PHONE_MAPPING] Erro ao criar mapeamento dinâmico: " . $e->getMessage());
+    }
+}
+
+/**
+ * Extrai timestamp da mensagem do payload
+ * 
+ * @param array $eventData Dados do evento
+ * @return string Timestamp no formato 'Y-m-d H:i:s'
+ */
+private static function extractMessageTimestamp(array $eventData): string
+{
+    $payload = $eventData['payload'] ?? [];
         
         // Tenta extrair timestamp de múltiplas fontes (ordem de prioridade)
         $timestamp = null;
