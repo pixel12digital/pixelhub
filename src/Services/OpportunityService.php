@@ -384,6 +384,7 @@ class OpportunityService
             FROM opportunity_history oh
             LEFT JOIN users u ON oh.user_id = u.id
             WHERE oh.opportunity_id = ?
+            AND oh.description NOT LIKE '%WhatsApp:%'
             ORDER BY oh.created_at DESC
         ");
         $stmt->execute([$opportunityId]);
