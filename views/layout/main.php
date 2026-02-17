@@ -2630,7 +2630,8 @@
         };
         
         // URL base – exposta globalmente para reutilizar em funções fora deste escopo
-        window.INBOX_BASE_URL = window.INBOX_BASE_URL || '<?= pixelhub_url('') ?>';
+        // Remove barra final para evitar '//' ao concatenar endpoints
+        window.INBOX_BASE_URL = window.INBOX_BASE_URL || '<?= rtrim(pixelhub_url(''), '/') ?>';
         
         // ===== ESTADO DE MÍDIA (Anexos) =====
         const InboxMediaState = {
