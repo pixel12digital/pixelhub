@@ -20,6 +20,8 @@ class OpportunityInteractionService
      */
     public static function logWhatsApp(int $opportunityId, string $direction, string $content, array $metadata = [], ?int $userId = null): void
     {
+        error_log("[Interaction] logWhatsApp chamado: oppId={$opportunityId}, direction={$direction}, content=" . substr($content, 0, 50) . "...");
+        
         $title = $direction === 'inbound' ? 'Mensagem recebida' : 'Mensagem enviada';
         
         self::addInteraction($opportunityId, 'whatsapp', $direction, $title, $content, $metadata, $userId);
@@ -119,6 +121,8 @@ class OpportunityInteractionService
      */
     private static function addInteraction(int $opportunityId, string $type, string $direction, string $title, ?string $content, array $metadata, ?int $userId): void
     {
+        error_log("[Interaction] addInteraction: oppId={$opportunityId}, type={$type}, direction={$direction}");
+        
         $db = DB::getConnection();
         $stmt = $db->prepare("
             INSERT INTO opportunity_interactions 
@@ -127,6 +131,8 @@ class OpportunityInteractionService
         ");
         
         $metadataJson = empty($metadata) ? null : json_encode($metadata);
-        $stmt->execute([$opportunityId, $type, $direction, $title, $content, $metadataJson, $userId]);
+        $result = $stmt->execute([$opportunityId, $type, $direction, $title, $content, $metadataJson, $userId]);
+        
+        error_log("[Interaction] addInteraction result: " . ($result ? 'SUCCESS' : 'FAILED'));
     }
 }

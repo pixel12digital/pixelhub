@@ -2310,11 +2310,14 @@ class CommunicationHubController extends Controller
                                         $convId = (int) $ev['conversation_id'];
                                         $oppId = $this->resolveOpportunityIdForConversation($db, $convId);
                                         if (!empty($oppId)) {
+                                            error_log("[Interaction] WhatsApp enviado - oppId encontrado: {$oppId}");
+                                            
                                             // REMOVIDO: Não registra mais WhatsApp no histórico de negócio
                                             // OpportunityService::addInteractionHistory((int) $oppId, 'WhatsApp: Enviado', Auth::user()['id'] ?? null);
                                             
                                             // NOVO: Timeline estruturada de interações (único local)
                                             try {
+                                                error_log("[Interaction] Chamando OpportunityInteractionService::logWhatsApp");
                                                 \PixelHub\Services\OpportunityInteractionService::logWhatsApp(
                                                     (int) $oppId,
                                                     'outbound',
@@ -2326,10 +2329,13 @@ class CommunicationHubController extends Controller
                                                     ],
                                                     Auth::user()['id'] ?? null
                                                 );
+                                                error_log("[Interaction] WhatsApp enviado registrado com sucesso");
                                             } catch (\Throwable $ix) {
                                                 // Não quebra se falhar novo sistema
                                                 error_log("[Interaction] Erro ao registrar WhatsApp enviado: " . $ix->getMessage());
                                             }
+                                        } else {
+                                            error_log("[Interaction] WhatsApp enviado - oppId NÃO encontrado para convId: {$convId}");
                                         }
                                     } catch (\Throwable $hx) {
                                         // Não quebra envio se falhar histórico
