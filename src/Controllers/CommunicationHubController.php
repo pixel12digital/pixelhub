@@ -5606,15 +5606,18 @@ class CommunicationHubController extends Controller
             // Proteção contra duplicidade por telefone
             $phoneToCheck = $phone ?: ($conversation['contact_external_id'] ?? '');
             if (!$forceCreate && !empty($phoneToCheck)) {
-                $duplicates = \PixelHub\Services\ContactService::findDuplicatesByPhone($phoneToCheck);
-                $totalDuplicates = count($duplicates);
+                $duplicates = \PixelHub\Services\LeadService::findDuplicatesByPhone($phoneToCheck);
+                $totalDuplicates = count($duplicates['leads']) + count($duplicates['tenants']);
+                
+                // Converte para formato esperado pelo frontend
+                $formattedDuplicates = self::convertDuplicatesToContactFormat($duplicates);
                 
                 if ($totalDuplicates > 0) {
                     $this->json([
                         'success' => false,
                         'code' => 'DUPLICATE_PHONE',
                         'message' => 'Já existe(m) registro(s) com este telefone. Deseja vincular a um existente ou criar mesmo assim?',
-                        'duplicates' => $duplicates,
+                        'duplicates' => $formattedDuplicates,
                         'conversation_id' => $conversationId,
                     ]);
                     return;
@@ -5709,30 +5712,34 @@ class CommunicationHubController extends Controller
             // Proteção contra duplicidade por telefone
             $phoneToCheck = $phone ?: ($conversation['contact_external_id'] ?? '');
             if (!$forceCreate && !empty($phoneToCheck)) {
-                $duplicates = \PixelHub\Services\ContactService::findDuplicatesByPhone($phoneToCheck);
-                $totalDuplicates = count($duplicates);
+                $duplicates = \PixelHub\Services\LeadService::findDuplicatesByPhone($phoneToCheck);
+                $totalDuplicates = count($duplicates['leads']) + count($duplicates['tenants']);
+                
+                // Converte para formato esperado pelo frontend
+                $formattedDuplicates = self::convertDuplicatesToContactFormat($duplicates);
                 
                 if ($totalDuplicates > 0) {
                     $this->json([
                         'success' => false,
                         'code' => 'DUPLICATE_PHONE',
                         'message' => 'Já existe(m) registro(s) com este telefone. Deseja vincular a um existente ou criar mesmo assim?',
-                        'duplicates' => $duplicates,
+                        'duplicates' => $formattedDuplicates,
                         'conversation_id' => $conversationId,
                     ]);
                     return;
                 }
             }
 
-            // Cria o lead
-            $leadId = \PixelHub\Services\ContactService::create([
+            // Cria o lead na tabela leads (legada)
+            $leadId = self::createLeadInLegacyTable([
                 'name' => $name,
+                'company' => null, // Não informado no modal do Inbox
                 'phone' => $phoneToCheck ?: null,
                 'email' => $email ?: null,
                 'source' => 'whatsapp',
                 'notes' => $notes ?: null,
                 'created_by' => $_SESSION['user_id'] ?? null,
-            ], \PixelHub\Services\ContactService::TYPE_LEAD);
+            ]);
 
             // Vincula conversa ao lead
             $this->linkConversationToLead($conversationId, $leadId);
@@ -5748,6 +5755,96 @@ class CommunicationHubController extends Controller
             error_log("[CommunicationHub] Erro ao criar lead: " . $e->getMessage());
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Cria lead na tabela leads (legada)
+     * 
+     * @param array $data Dados do lead
+     * @return int ID do lead criado
+     */
+    private static function createLeadInLegacyTable(array $data): int
+    {
+        $db = DB::getConnection();
+
+        // Validação básica
+        if (empty($data['name'])) {
+            throw new \InvalidArgumentException('Nome é obrigatório');
+        }
+
+        // Prepara campos para tabela leads
+        $fields = [
+            'name' => trim($data['name']),
+            'company' => !empty($data['company']) ? trim($data['company']) : null,
+            'phone' => !empty($data['phone']) ? trim($data['phone']) : null,
+            'email' => !empty($data['email']) ? trim($data['email']) : null,
+            'source' => $data['source'] ?? 'crm_manual',
+            'status' => 'new',
+            'notes' => $data['notes'] ?? null,
+            'created_by' => $data['created_by'] ?? null,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s')
+        ];
+
+        // Constrói SQL dinamicamente
+        $columns = implode(', ', array_keys($fields));
+        $placeholders = implode(', ', array_fill(0, count($fields), '?'));
+        
+        $stmt = $db->prepare("
+            INSERT INTO leads ({$columns})
+            VALUES ({$placeholders})
+        ");
+
+        $stmt->execute(array_values($fields));
+
+        $leadId = (int) $db->lastInsertId();
+        
+        error_log("[CommunicationHub] Lead {$leadId} criado na tabela leads (legada)");
+        
+        return $leadId;
+    }
+
+    /**
+     * Converte formato LeadService para formato ContactService (frontend)
+     * 
+     * @param array $duplicates Formato ['leads' => [...], 'tenants' => [...]]
+     * @return array Formato unificado de contatos
+     */
+    private static function convertDuplicatesToContactFormat(array $duplicates): array
+    {
+        $result = [];
+        
+        // Adiciona leads
+        foreach ($duplicates['leads'] as $lead) {
+            $result[] = [
+                'id' => $lead['id'],
+                'name' => $lead['name'],
+                'phone' => $lead['phone'],
+                'email' => $lead['email'],
+                'type' => 'lead',
+                'contact_type' => 'lead',
+                'company' => $lead['company'] ?? null,
+                'source' => $lead['source'] ?? null,
+                'status' => $lead['status'] ?? null,
+            ];
+        }
+        
+        // Adiciona tenants
+        foreach ($duplicates['tenants'] as $tenant) {
+            $result[] = [
+                'id' => $tenant['id'],
+                'name' => $tenant['name'],
+                'phone' => $tenant['phone'],
+                'email' => $tenant['email'],
+                'type' => 'tenant',
+                'contact_type' => $tenant['contact_type'] ?? 'client',
+                'company' => null,
+                'source' => $tenant['source'] ?? null,
+                'status' => $tenant['status'] ?? null,
+            ];
+        }
+        
+        return $result;
     }
 
     /**
@@ -5859,11 +5956,12 @@ class CommunicationHubController extends Controller
         }
 
         try {
-            $duplicates = \PixelHub\Services\ContactService::findDuplicatesByPhone($phone);
-            $total = count($duplicates);
+            $duplicates = \PixelHub\Services\LeadService::findDuplicatesByPhone($phone);
+            $formattedDuplicates = self::convertDuplicatesToContactFormat($duplicates);
+            $total = count($formattedDuplicates);
             $this->json([
                 'success' => true,
-                'duplicates' => $duplicates,
+                'duplicates' => $formattedDuplicates,
                 'total' => $total
             ]);
         } catch (\Exception $e) {
