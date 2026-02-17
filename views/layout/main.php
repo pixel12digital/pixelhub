@@ -5540,6 +5540,9 @@ async function createLeadFromConversation(event) {
             alert('Lead criado e conversa vinculada com sucesso!');
             closeCreateLeadModal();
             if (typeof loadInboxConversations === 'function') loadInboxConversations();
+        } else if (result.code === 'DUPLICATE_PHONE' && result.duplicates && result.duplicates.length > 0) {
+            // Mostra opções de duplicidade no modal
+            showDuplicateOptions(result.duplicates, conversationId, name, phone, email, notes);
         } else {
             alert('Erro: ' + (result.error || result.message || 'Erro desconhecido'));
         }
@@ -5548,6 +5551,115 @@ async function createLeadFromConversation(event) {
         alert('Erro ao criar lead. Tente novamente.');
     }
 }
+
+// Mostra opções de leads duplicados no modal
+function showDuplicateOptions(duplicates, conversationId, name, phone, email, notes) {
+    const modal = document.getElementById('create-lead-modal');
+    const content = modal.querySelector('.modal-content');
+    
+    // Filtra apenas leads (não tenants)
+    const leadsOnly = duplicates.filter(d => d.type === 'lead' || d.contact_type === 'lead');
+    
+    if (leadsOnly.length === 0) {
+        // Se não há leads duplicados, cria force_create
+        createLeadForce(conversationId, name, phone, email, notes);
+        return;
+    }
+    
+    // Monta HTML de opções
+    let optionsHtml = '<div style="margin-bottom: 20px;">';
+    optionsHtml += '<h4 style="color: #dc3545; margin-bottom: 12px;">⚠️ Leads encontrados com este telefone:</h4>';
+    
+    leadsOnly.forEach((lead, index) => {
+        optionsHtml += `
+            <div style="border: 1px solid #ddd; border-radius: 6px; padding: 12px; margin-bottom: 8px; background: #f8f9fa;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong style="color: #023A8D;">${lead.name || 'Lead #' + lead.id}</strong>
+                        ${lead.company ? '<div style="font-size: 12px; color: #666;">' + lead.company + '</div>' : ''}
+                        ${lead.phone ? '<div style="font-size: 12px; color: #666;">📞 ' + lead.phone + '</div>' : ''}
+                        ${lead.email ? '<div style="font-size: 12px; color: #666;">📧 ' + lead.email + '</div>' : ''}
+                    </div>
+                    <button onclick="linkToExistingLead(${conversationId}, ${lead.id})" 
+                            style="padding: 6px 12px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                        Vincular
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    optionsHtml += '</div>';
+    
+    // Botão para criar mesmo assim
+    optionsHtml += `
+        <div style="text-align: center; margin-top: 16px;">
+            <button onclick="createLeadForce(${conversationId}, '${name}', '${phone}', '${email}', '${notes}')" 
+                    style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Criar Novo Lead Mesmo Assim
+            </button>
+            <button onclick="closeCreateLeadModal()" 
+                    style="margin-left: 12px; padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Cancelar
+            </button>
+        </div>
+    `;
+    
+    // Substitui o conteúdo do modal
+    content.innerHTML = optionsHtml;
+}
+
+// Vincula a lead existente
+async function linkToExistingLead(conversationId, leadId) {
+    try {
+        const response = await fetch(INBOX_BASE_URL + '/communication-hub/incoming-lead/link-lead', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversation_id: parseInt(conversationId), lead_id: parseInt(leadId) })
+        });
+        const result = await response.json();
+        if (result.success) {
+            alert('Conversa vinculada ao lead existente com sucesso!');
+            closeCreateLeadModal();
+            if (typeof loadInboxConversations === 'function') loadInboxConversations();
+        } else {
+            alert('Erro ao vincular: ' + (result.error || result.message || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao vincular:', error);
+        alert('Erro ao vincular. Tente novamente.');
+    }
+}
+
+// Cria lead force_create (ignora duplicatas)
+async function createLeadForce(conversationId, name, phone, email, notes) {
+    try {
+        const response = await fetch(INBOX_BASE_URL + '/communication-hub/incoming-lead/create-lead', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                conversation_id: parseInt(conversationId), 
+                name, 
+                phone, 
+                email, 
+                notes, 
+                force_create: true 
+            })
+        });
+        const result = await response.json();
+        if (result.success) {
+            alert('Lead criado e conversa vinculada com sucesso!');
+            closeCreateLeadModal();
+            if (typeof loadInboxConversations === 'function') loadInboxConversations();
+        } else {
+            alert('Erro: ' + (result.error || result.message || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro ao criar lead:', error);
+        alert('Erro ao criar lead. Tente novamente.');
+    }
+}
+
 async function linkConversationToLead(event) {
     event.preventDefault();
     const conversationId = document.getElementById('link-lead-conversation-id').value;
