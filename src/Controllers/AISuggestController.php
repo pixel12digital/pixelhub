@@ -241,21 +241,36 @@ class AISuggestController extends Controller
     {
         $db = DB::getConnection();
 
-        // Busca últimas 20 mensagens da conversa
+        // Busca últimas 20 mensagens da conversa via communication_events
         $stmt = $db->prepare("
             SELECT 
-                direction,
-                COALESCE(body, '') as text,
+                CASE 
+                    WHEN event_type LIKE '%outbound%' THEN 'out'
+                    WHEN event_type LIKE '%inbound%' THEN 'in'
+                    ELSE 'in'
+                END as direction,
+                COALESCE(
+                    JSON_UNQUOTE(JSON_EXTRACT(payload, '$.content')),
+                    JSON_UNQUOTE(JSON_EXTRACT(payload, '$.message.content')),
+                    JSON_UNQUOTE(JSON_EXTRACT(payload, '$.data.content')),
+                    ''
+                ) as text,
                 created_at
-            FROM communication_messages
+            FROM communication_events
             WHERE conversation_id = ?
+            AND event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
             ORDER BY created_at DESC
             LIMIT 20
         ");
         $stmt->execute([$conversationId]);
         $messages = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        // Inverte para ordem cronológica
+        // Filtra mensagens vazias e inverte para ordem cronológica
+        $messages = array_filter($messages, function($msg) {
+            $text = $msg['text'] ?? '';
+            return !empty($text) && !preg_match('/^\[(?:Á|A)udio\]$/i', trim($text));
+        });
+        
         return array_reverse($messages);
     }
 

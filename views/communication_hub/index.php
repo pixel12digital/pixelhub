@@ -3237,6 +3237,9 @@ async function loadConversation(threadId, channel) {
     ConversationState.lastEventId = null;
     ConversationState.newMessagesCount = 0;
     
+    // Limpa também o ID da conversa para a IA
+    window._currentInboxConversationId = null;
+    
     // [LOG TEMPORARIO] Reset de estado
     console.log('[LOG TEMPORARIO] loadConversation() - ESTADO RESETADO para thread_id=' + threadId);
     
@@ -3307,6 +3310,15 @@ async function loadConversation(threadId, channel) {
         
         // Renderiza conversa
         renderConversation(result.thread, result.messages, result.channel);
+        
+        // Define variável global para a IA Assistente
+        window._currentInboxConversationId = result.thread.conversation_id || null;
+        console.log('[Hub] conversation_id definido para IA:', window._currentInboxConversationId);
+        
+        // Atualiza mensagem de boas-vindas da IA se o painel estiver aberto
+        if (typeof updateInboxAIWelcomeMessage === 'function') {
+            updateInboxAIWelcomeMessage();
+        }
         
         // Zera badge de não lidas na lista: conversa aberta = considerada lida (comportamento WhatsApp)
         clearUnreadBadgeForThread(threadId);

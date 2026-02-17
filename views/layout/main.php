@@ -2198,7 +2198,9 @@
                             </div>
                             <!-- Chat Messages -->
                             <div id="inboxAIChatArea" style="flex: 1; overflow-y: auto; max-height: 300px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;">
-                                <div style="text-align: center; color: #999; font-size: 12px; padding: 20px 0;">Configure acima e envie uma mensagem para iniciar.<br><br><span style="font-size: 11px;">Ex: "Gere uma resposta para este cliente"<br>"Mude o tom para mais informal"<br>"Adicione informação sobre frete grátis"</span></div>
+                                <div style="text-align: center; color: #999; font-size: 12px; padding: 20px 0;">
+                                    <div id="inboxAIWelcomeMessage">Configure acima e envie uma mensagem para iniciar.<br><br><span style="font-size: 11px;">Ex: "Gere uma resposta para este cliente"<br>"Mude o tom para mais informal"<br>"Adicione informação sobre frete grátis"</span></div>
+                                </div>
                             </div>
                             <!-- Input do chat -->
                             <div style="padding: 10px 16px; border-top: 1px solid #eee; background: #fafafa; display: flex; gap: 8px; align-items: flex-end;">
@@ -2853,8 +2855,17 @@
                 }
                 panel.style.display = 'flex';
                 if (!InboxAIState.contextsLoaded) loadAIContexts();
-                var input = document.getElementById('inboxAIChatInput');
-                if (input) setTimeout(function() { input.focus(); }, 100);
+                // Foco automático no input após abrir
+                setTimeout(function() {
+                    var input = document.getElementById('inboxAIChatInput');
+                    if (input) {
+                        input.focus();
+                        // Se não há conversa, já sugere um comando inicial
+                        if (!window._currentInboxConversationId) {
+                            input.value = 'gere uma resposta para este cliente';
+                        }
+                    }
+                }, 150);
             } else {
                 closeInboxAIPanel();
             }
@@ -2888,9 +2899,42 @@
                     }
                 }
                 InboxAIState.contextsLoaded = true;
+                
+                // Atualiza mensagem de boas-vindas baseado na conversa atual
+                updateInboxAIWelcomeMessage();
             })
-            .catch(function(err) { console.error('[IA] Erro:', err); });
+            .catch(function(err) {
+                console.error('[InboxAI] Erro ao carregar contextos:', err);
+            });
         }
+
+        // Atualiza mensagem de boas-vindas baseado se há conversa aberta
+        function updateInboxAIWelcomeMessage() {
+            var welcomeDiv = document.getElementById('inboxAIWelcomeMessage');
+            if (!welcomeDiv) return;
+            
+            var hasConversation = window._currentInboxConversationId !== null && window._currentInboxConversationId !== undefined;
+            
+            if (hasConversation) {
+                welcomeDiv.innerHTML = '📝 <strong>Conversa detectada!</strong><br><span style="font-size: 11px;">A IA já tem acesso ao histórico. Diga "gere uma resposta" ou "responda esta mensagem" para começar.</span>';
+            } else {
+                welcomeDiv.innerHTML = 'Configure acima e envie uma mensagem para iniciar.<br><br><span style="font-size: 11px;">Ex: "Gere uma resposta para este cliente"<br>"Mude o tom para mais informal"<br>"Adicione informação sobre frete grátis"</span>';
+            }
+        }
+
+        // Atalho de teclado Ctrl+I para abrir IA no Inbox
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+I ou Cmd+I (Mac)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'i' && !e.shiftKey && !e.altKey) {
+                // Verifica se está no Inbox
+                var hubBody = document.getElementById('communication-body');
+                if (hubBody && hubBody.style.display !== 'none') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleInboxAIPanel();
+                }
+            }
+        });
 
         function renderInboxAIChat() {
             var area = document.getElementById('inboxAIChatArea');
