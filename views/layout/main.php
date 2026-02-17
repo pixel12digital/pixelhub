@@ -4839,6 +4839,12 @@
                     sessionStorage.setItem('inbox_selected_channel_id', thread.channel_id || '');
                     console.log('[Inbox] Dados salvos - phone:', phoneValue, 'tenant_id:', thread.tenant_id, 'channel_id:', thread.channel_id);
                     
+                    // === CORREÇÃO: Popular variáveis globais para IA Assistente ===
+                    window._currentInboxThread = thread;
+                    window._currentInboxMessages = result.messages || [];
+                    window._currentInboxConversationId = thread.conversation_id || thread.id || threadId.replace('whatsapp_', '');
+                    console.log('[Inbox] Dados IA populados - messages:', window._currentInboxMessages.length, 'conversation_id:', window._currentInboxConversationId);
+                    
                     // Salva marcadores para polling de novas mensagens
                     const msgs = result.messages || [];
                     if (msgs.length > 0) {
