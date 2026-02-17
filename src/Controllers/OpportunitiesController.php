@@ -517,13 +517,14 @@ class OpportunitiesController extends Controller
                   AND (
                         contact_external_id IN ({$placeholders})
                      OR REPLACE(REPLACE(contact_external_id, '+', ''), ' ', '') IN ({$placeholders})
+                     OR REPLACE(REPLACE(SUBSTRING_INDEX(contact_external_id, '@', 1), '+', ''), ' ', '') IN ({$placeholders})
                   )
                 ORDER BY last_message_at DESC, id DESC
                 LIMIT 1
             ";
             $stmt = $db->prepare($sql);
             // Executa com variações duplicadas (para os dois IN)
-            $stmt->execute(array_merge($variations, $variations));
+            $stmt->execute(array_merge($variations, $variations, $variations));
             $thread = $stmt->fetch(\PDO::FETCH_ASSOC);
             
             // Log para debug
