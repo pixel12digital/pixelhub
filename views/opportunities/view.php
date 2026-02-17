@@ -331,10 +331,6 @@ $isLost = $opp['status'] === 'lost';
                         style="flex: 1; padding: 8px 12px; background: none; border: none; border-bottom: 2px solid #023A8D; color: #023A8D; font-size: 13px; font-weight: 600; cursor: pointer;">
                     Negócio
                 </button>
-                <button onclick="showTimelineTab('interactions')" id="tab-interactions" 
-                        style="flex: 1; padding: 8px 12px; background: none; border: none; border-bottom: 2px solid transparent; color: #666; font-size: 13px; font-weight: 600; cursor: pointer;">
-                    Interações
-                </button>
             </div>
 
             <!-- Conteúdo Aba Negócio (Histórico atual) -->
@@ -373,35 +369,7 @@ $isLost = $opp['status'] === 'lost';
                 <?php endif; ?>
             </div>
 
-            <!-- Conteúdo Aba Interações (Nova timeline) -->
-            <div id="timeline-interactions" style="display: none;">
-                <!-- Filtros no estilo Salesforce -->
-                <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
-                    <select id="interaction-type-filter" onchange="loadInteractions()" 
-                            style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
-                        <option value="">Todos</option>
-                        <option value="whatsapp">WhatsApp</option>
-                        <option value="email">E-mail</option>
-                        <option value="call">Chamada</option>
-                        <option value="note">Nota</option>
-                    </select>
-                    <select id="interaction-direction-filter" onchange="loadInteractions()" 
-                            style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
-                        <option value="">Enviados + Recebidos</option>
-                        <option value="outbound">Enviados</option>
-                        <option value="inbound">Recebidos</option>
-                    </select>
-                </div>
-
-                <div id="interactions-loading" style="text-align: center; padding: 20px; color: #999; display: none;">
-                    Carregando...
-                </div>
-
-                <div id="interactions-list">
-                    <!-- Carregado via AJAX -->
-                </div>
-            </div>
-        </div>
+                    </div>
     </div>
 </div>
 
@@ -1167,122 +1135,14 @@ async function submitFollowup() {
 </div>
 
 <script>
-// Timeline de Interações (estilo CRM)
+// Timeline de Negócio
 function showTimelineTab(tab) {
-    // Esconde todas as abas
-    document.getElementById('timeline-business').style.display = 'none';
-    document.getElementById('timeline-interactions').style.display = 'none';
-    
-    // Remove estilo ativo de todas as abas
-    document.getElementById('tab-business').style.borderBottom = '2px solid transparent';
-    document.getElementById('tab-business').style.color = '#666';
-    document.getElementById('tab-interactions').style.borderBottom = '2px solid transparent';
-    document.getElementById('tab-interactions').style.color = '#666';
-    
-    // Mostra aba selecionada
-    document.getElementById('timeline-' + tab).style.display = 'block';
-    document.getElementById('tab-' + tab).style.borderBottom = '2px solid #023A8D';
-    document.getElementById('tab-' + tab).style.color = '#023A8D';
-    
-    // Carrega interações se aba de interações for selecionada
-    if (tab === 'interactions') {
-        loadInteractions();
-    }
+    // Apenas aba de negócio existe agora
+    document.getElementById('timeline-business').style.display = 'block';
+    document.getElementById('tab-business').style.borderBottom = '2px solid #023A8D';
+    document.getElementById('tab-business').style.color = '#023A8D';
 }
 
-async function loadInteractions() {
-    const container = document.getElementById('interactions-list');
-    const loading = document.getElementById('interactions-loading');
-    
-    loading.style.display = 'block';
-    container.innerHTML = '';
-    
-    try {
-        const typeFilter = document.getElementById('interaction-type-filter').value;
-        const directionFilter = document.getElementById('interaction-direction-filter').value;
-        
-        const params = new URLSearchParams({
-            id: OPP_ID,
-            ...(typeFilter && { type: typeFilter }),
-            ...(directionFilter && { direction: directionFilter })
-        });
-        
-        const response = await fetch('<?= pixelhub_url('/api/opportunities/interactions') ?>?' + params.toString(), {
-            method: 'GET',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            credentials: 'same-origin'
-        });
-        
-        const data = await response.json();
-        
-        if (data.success && data.interactions && data.interactions.length > 0) {
-            renderInteractions(data.interactions);
-        } else {
-            container.innerHTML = '<p style="color: #999; font-size: 13px; text-align: center; padding: 20px;">Nenhuma interação registrada.</p>';
-        }
-    } catch (error) {
-        console.error('Erro ao carregar interações:', error);
-        container.innerHTML = '<p style="color: #dc3545; font-size: 13px; text-align: center; padding: 20px;">Erro ao carregar interações.</p>';
-    } finally {
-        loading.style.display = 'none';
-    }
-}
-
-function renderInteractions(interactions) {
-    const container = document.getElementById('interactions-list');
-    
-    const typeIcons = {
-        'whatsapp': '&#128241;',
-        'email': '&#9993;',
-        'call' : '&#128222;',
-        'meeting': '&#128197;',
-        'note': '&#128221;'
-    };
-    
-    const directionColors = {
-        'inbound': '#28a745',
-        'outbound': '#023A8D'
-    };
-    
-    let html = '<div style="position: relative; padding-left: 20px;">';
-    html += '<div style="position: absolute; left: 6px; top: 0; bottom: 0; width: 2px; background: #e5e7eb;"></div>';
-    
-    interactions.forEach(interaction => {
-        const icon = typeIcons[interaction.interaction_type] || '&#8226;';
-        const color = directionColors[interaction.direction] || '#666';
-        
-        html += `
-            <div style="margin-bottom: 16px; position: relative;">
-                <div style="position: absolute; left: -17px; top: 2px; width: 12px; height: 12px; background: ${color}; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; font-size: 8px; color: white;">
-                    ${icon}
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                    <span style="font-size: 11px; background: ${color}20; color: ${color}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; font-weight: 600;">
-                        ${interaction.interaction_type}
-                    </span>
-                    <span style="font-size: 11px; color: #999;">
-                        ${interaction.direction === 'inbound' ? 'Recebido' : 'Enviado'}
-                    </span>
-                </div>
-                <div style="font-size: 13px; color: #333; margin-bottom: 4px;">
-                    <strong>${interaction.title}</strong>
-                </div>
-                ${interaction.content ? `
-                    <div style="font-size: 12px; color: #666; margin-bottom: 4px; white-space: pre-wrap; max-height: 100px; overflow-y: auto;">
-                        ${interaction.content.length > 200 ? interaction.content.substring(0, 200) + '...' : interaction.content}
-                    </div>
-                ` : ''}
-                <div style="font-size: 11px; color: #999;">
-                    ${new Date(interaction.created_at).toLocaleString('pt-BR')}
-                    ${interaction.user_name ? ' &middot; ' + interaction.user_name : ''}
-                </div>
-            </div>
-        `;
-    });
-    
-    html += '</div>';
-    container.innerHTML = html;
-}
 </script>
 
 <?php

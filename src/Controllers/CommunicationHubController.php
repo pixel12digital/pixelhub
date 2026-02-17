@@ -2315,25 +2315,8 @@ class CommunicationHubController extends Controller
                                             // REMOVIDO: Não registra mais WhatsApp no histórico de negócio
                                             // OpportunityService::addInteractionHistory((int) $oppId, 'WhatsApp: Enviado', Auth::user()['id'] ?? null);
                                             
-                                            // NOVO: Timeline estruturada de interações (único local)
-                                            try {
-                                                error_log("[Interaction] Chamando OpportunityInteractionService::logWhatsApp");
-                                                \PixelHub\Services\OpportunityInteractionService::logWhatsApp(
-                                                    (int) $oppId,
-                                                    'outbound',
-                                                    $message['text'] ?? '[Mídia]',
-                                                    [
-                                                        'message_id' => $ev['id'] ?? null,
-                                                        'contact_phone' => $ev['to'] ?? null,
-                                                        'user_id' => Auth::user()['id'] ?? null
-                                                    ],
-                                                    Auth::user()['id'] ?? null
-                                                );
-                                                error_log("[Interaction] WhatsApp enviado registrado com sucesso");
-                                            } catch (\Throwable $ix) {
-                                                // Não quebra se falhar novo sistema
-                                                error_log("[Interaction] Erro ao registrar WhatsApp enviado: " . $ix->getMessage());
-                                            }
+                                            // REMOVIDO: Sistema de interações desativado
+                                            // \PixelHub\Services\OpportunityInteractionService::logWhatsApp(...)
                                         } else {
                                             error_log("[Interaction] WhatsApp enviado - oppId NÃO encontrado para convId: {$convId}");
                                         }

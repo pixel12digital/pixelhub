@@ -370,22 +370,8 @@ class EventIngestionService
                             // REMOVIDO: Não registra mais WhatsApp no histórico de negócio
                             // \PixelHub\Services\OpportunityService::addInteractionHistory((int) $oppId, 'WhatsApp: Recebido', null);
                             
-                            // NOVO: Timeline estruturada de interações (único local)
-                            try {
-                                \PixelHub\Services\OpportunityInteractionService::logWhatsApp(
-                                    (int) $oppId,
-                                    'inbound',
-                                    $message['content']['text'] ?? '[Mídia]',
-                                    [
-                                        'message_id' => $message['id'] ?? null,
-                                        'contact_phone' => $message['from'] ?? null,
-                                        'timestamp' => $message['timestamp'] ?? null
-                                    ]
-                                );
-                            } catch (\Throwable $ix) {
-                                // Não quebra se falhar novo sistema
-                                error_log("[Interaction] Erro ao registrar WhatsApp: " . $ix->getMessage());
-                            }
+                            // REMOVIDO: Sistema de interações desativado
+                            // \PixelHub\Services\OpportunityInteractionService::logWhatsApp(...)
                         }
                     } catch (\Throwable $hx) {
                         // Não quebra ingestão se falhar histórico

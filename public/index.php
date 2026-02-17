@@ -730,11 +730,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/opportunities/find-conversation', 'OpportunitiesController@findConversation');
     $router->get('/api/opportunities/conversation-history', 'OpportunitiesController@conversationHistory');
     
-    // API de Interações (Timeline estilo CRM)
-    $router->get('/api/opportunities/interactions', 'OpportunityInteractionsController@getInteractions');
-    $router->post('/api/opportunities/interactions/note', 'OpportunityInteractionsController@addNote');
-    $router->get('/api/opportunities/interactions/summary', 'OpportunityInteractionsController@getSummary');
-
+    
     // Rotas de acessos e links de infraestrutura (apenas internos)
     $router->get('/owner/shortcuts', 'OwnerShortcutsController@index');
     $router->post('/owner/shortcuts/store', 'OwnerShortcutsController@store');
