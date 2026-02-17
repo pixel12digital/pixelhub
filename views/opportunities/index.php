@@ -162,6 +162,19 @@ $stageColors = [
                     </td>
                     <td style="padding: 12px; color: #888; font-size: 13px;">
                         <?= date('d/m/Y', strtotime($opp['created_at'])) ?>
+                        <!-- Badges de inatividade e tarefas -->
+                        <div style="display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap;">
+                            <?php if (!empty($opp['days_inactive']) && $opp['days_inactive'] >= 3): ?>
+                                <span style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600;" title="<?= $opp['days_inactive'] ?> dias sem interação">
+                                    <?= $opp['days_inactive'] ?> dias
+                                </span>
+                            <?php endif; ?>
+                            <?php if (!empty($opp['has_scheduled_task'])): ?>
+                                <span style="background: #0d6efd; color: white; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600;" title="Tarefa agendada">
+                                    📅 Tarefa
+                                </span>
+                            <?php endif; ?>
+                        </div>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -237,6 +250,19 @@ $stageColors = [
                         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #888;">
                             <span><?= htmlspecialchars($opp['responsible_name'] ?? '—') ?></span>
                             <span><?= $updatedAt ?></span>
+                        </div>
+                        <!-- Badges de inatividade e tarefas -->
+                        <div style="display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap;">
+                            <?php if (!empty($opp['days_inactive']) && $opp['days_inactive'] >= 3): ?>
+                                <span style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600;" title="<?= $opp['days_inactive'] ?> dias sem interação">
+                                    <?= $opp['days_inactive'] ?> dias
+                                </span>
+                            <?php endif; ?>
+                            <?php if (!empty($opp['has_scheduled_task'])): ?>
+                                <span style="background: #0d6efd; color: white; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600;" title="Tarefa agendada">
+                                    📅 Tarefa
+                                </span>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <?php endforeach; ?>
