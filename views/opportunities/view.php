@@ -232,6 +232,14 @@ $isLost = $opp['status'] === 'lost';
                         </div>
                     </div>
                     <div style="display: flex; gap: 6px;">
+                        <button onclick="window.location.href='<?= pixelhub_url('/tenants/edit?id=' . ($opp['tenant_id'] ?? $opp['lead_id'])) ?>'" 
+                                title="Editar Lead"
+                                style="width: 34px; height: 34px; border-radius: 50%; border: none; background: #6c757d; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: opacity 0.2s;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </button>
                         <?php if ($hasPhone): ?>
                             <button onclick="openWhatsApp('<?= htmlspecialchars($contactPhone, ENT_QUOTES) ?>')" 
                                     title="Enviar WhatsApp"
@@ -263,7 +271,12 @@ $isLost = $opp['status'] === 'lost';
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="background: #1565c0; color: white; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600;">Lead</span>
                         <div>
-                            <strong><?= htmlspecialchars(!empty($opp['lead_name']) ? $opp['lead_name'] : ('Lead #' . ($opp['lead_id'] ?? ''))) ?></strong>
+                            <strong><a href="<?= pixelhub_url('/tenants/view?id=' . ($opp['tenant_id'] ?? $opp['lead_id'])) ?>" 
+                                   style="color: #1565c0; text-decoration: none; hover: text-decoration: underline;"
+                                   onmouseover="this.style.textDecoration='underline'" 
+                                   onmouseout="this.style.textDecoration='none'">
+                                <?= htmlspecialchars(!empty($opp['lead_name']) ? $opp['lead_name'] : ('Lead #' . ($opp['lead_id'] ?? ''))) ?>
+                            </a></strong>
                             <?php if ($hasPhone): ?>
                                 <div style="font-size: 12px; color: #666;"><?= htmlspecialchars($contactPhone) ?></div>
                             <?php endif; ?>
@@ -273,6 +286,14 @@ $isLost = $opp['status'] === 'lost';
                         </div>
                     </div>
                     <div style="display: flex; gap: 6px;">
+                        <button onclick="window.location.href='<?= pixelhub_url('/tenants/edit?id=' . ($opp['tenant_id'] ?? $opp['lead_id'])) ?>'" 
+                                title="Editar Lead"
+                                style="width: 34px; height: 34px; border-radius: 50%; border: none; background: #6c757d; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: opacity 0.2s;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </button>
                         <?php if ($hasPhone): ?>
                             <button onclick="openWhatsApp('<?= htmlspecialchars($contactPhone, ENT_QUOTES) ?>')" 
                                     title="Enviar WhatsApp"
