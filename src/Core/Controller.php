@@ -217,5 +217,61 @@ abstract class Controller
     {
         return Security::sanitize($input, $allowHtml);
     }
-}
 
+    /**
+     * Exige requisição JSON
+     */
+    protected function requireJson(): void
+    {
+        $acceptHeader = $_SERVER['HTTP_ACCEPT'] ?? '';
+        $xRequestedHeader = $_SERVER['HTTP_X_REQUESTED_WITH'] ?? '';
+        
+        if (empty($acceptHeader) || strpos($acceptHeader, 'application/json') === false) {
+            if (empty($xRequestedHeader) || strtolower($xRequestedHeader) !== 'xmlhttprequest') {
+                $this->json(['success' => false, 'error' => 'Aceita apenas requisições JSON'], 400);
+                return;
+            }
+        }
+    }
+    
+    /**
+     * Exige autenticação
+     */
+    protected function requireAuth(): void
+    {
+        if (!Auth::check()) {
+            $this->json(['success' => false, 'error' => 'Não autenticado'], 401);
+            return;
+        }
+    }
+    
+    /**
+     * Exige método HTTP específico
+     */
+    protected function requireMethod(string $method): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== strtoupper($method)) {
+            $this->json(['success' => false, 'error' => 'Método não permitido'], 405);
+            return;
+        }
+    }
+    
+    /**
+     * Obtém input JSON
+     */
+    protected function getInput(): array
+    {
+        $input = file_get_contents('php://input');
+        if (empty($input)) {
+            return [];
+        }
+        
+        $data = json_decode($input, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return [];
+        }
+        
+        return $data;
+    }
+
+    }
