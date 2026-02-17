@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Polling Response</title>
+</head>
+<body>
+    <h1>Debug: Verificar resposta do endpoint /sessions</h1>
+    <button onclick="testEndpoint()">Testar Endpoint</button>
+    <pre id="output"></pre>
+    
+    <script>
+    function testEndpoint() {
+        const sessionsBaseUrl = '/settings/whatsapp-gateway';
+        const output = document.getElementById('output');
+        output.textContent = 'Carregando...\n';
+        
+        fetch(sessionsBaseUrl + '/sessions', { 
+            headers: { 'X-Requested-With': 'XMLHttpRequest' } 
+        })
+        .then(r => r.json())
+        .then(data => {
+            output.textContent = 'Resposta completa:\n' + JSON.stringify(data, null, 2);
+            
+            // Simula o polling
+            const channelId = 'ImobSites';
+            output.textContent += '\n\n=== SIMULAÇÃO DO POLLING ===\n';
+            output.textContent += 'Procurando: ' + channelId + '\n\n';
+            
+            if (!data.success || !data.sessions || !data.sessions.length) {
+                output.textContent += 'ERRO: Resposta inválida ou sem sessões\n';
+                return;
+            }
+            
+            output.textContent += 'Total de sessões: ' + data.sessions.length + '\n\n';
+            
+            data.sessions.forEach((s, index) => {
+                const id = (s.id || s.name || '').toString().toLowerCase().replace(/\s+/g, '');
+                const target = channelId.toLowerCase().replace(/\s+/g, '');
+                output.textContent += `Sessão ${index + 1}:\n`;
+                output.textContent += `  Original: ${s.id || s.name}\n`;
+                output.textContent += `  Normalizado: ${id}\n`;
+                output.textContent += `  Target: ${target}\n`;
+                output.textContent += `  Match: ${id === target ? 'SIM ✅' : 'NÃO'}\n`;
+                output.textContent += `  Status: ${s.status}\n\n`;
+            });
+            
+            const session = data.sessions.find(function(s) {
+                const id = (s.id || s.name || '').toString().toLowerCase().replace(/\s+/g, '');
+                const target = channelId.toLowerCase().replace(/\s+/g, '');
+                return id === target;
+            });
+            
+            output.textContent += '\n=== RESULTADO FINAL ===\n';
+            if (session) {
+                output.textContent += 'Sessão encontrada: ' + JSON.stringify(session, null, 2);
+            } else {
+                output.textContent += 'Sessão NÃO encontrada (undefined)';
+            }
+        })
+        .catch(err => {
+            output.textContent = 'ERRO: ' + err.message;
+        });
+    }
+    </script>
+</body>
+</html>

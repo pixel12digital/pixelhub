@@ -558,12 +558,12 @@ function loadSessions() {
                 const statusColor = s.status === 'connected' ? (s.is_zombie ? '#ffc107' : '#28a745') : '#dc3545';
                 const statusText = s.is_zombie ? 'Possivelmente desconectado' : (s.status === 'connected' ? 'Conectado' : s.status === 'disconnected' ? 'Desconectado' : s.status);
                 const lastActivity = s.last_activity_at ? formatRelativeTime(s.last_activity_at) : '—';
-                const isConnected = s.status === 'connected' && !s.is_zombie;
-                const btnLabel = isConnected ? 'Desconectar' : 'Reconectar';
+                const isConnected = s.status === 'connected';
                 const btnClass = isConnected ? 'btn-disconnect' : 'btn-reconnect';
+                const btnLabel = isConnected ? 'Excluir sessão' : 'Reconectar';
                 const btnStyle = isConnected
-                    ? 'padding: 8px 16px; background: transparent; color: #6c757d; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer; font-size: 13px;'
-                    : 'padding: 8px 16px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;';
+                    ? 'background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;'
+                    : 'background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;';
                 if ((s.id || '').toLowerCase().replace(/\s+/g, '') === expectedChannel.toLowerCase()) {
                     foundExpected = true;
                     expectedSessionStatus = { status: s.status, is_zombie: s.is_zombie, last_activity_at: s.last_activity_at };
@@ -584,7 +584,7 @@ function loadSessions() {
                 const btn = card.querySelector('.' + btnClass);
                 btn.addEventListener('click', () => {
                     if (isConnected) {
-                        if (!confirm('Desconectar esta sessão no gateway? Será necessário criar a sessão novamente e escanear o QR para usar.')) return;
+                        if (!confirm('⚠️ ATENÇÃO: Isso vai EXCLUIR PERMANENTEMENTE a sessão "' + s.id + '" do gateway.\n\nVocê precisará criar a sessão novamente e escanear o QR para usar.\n\nTem certeza que deseja continuar?')) return;
                         fetch(sessionsBaseUrl + '/sessions/disconnect', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -684,11 +684,21 @@ function startQrConnectedPoll(channelId) {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 console.log('[QR-Poll] Resposta do gateway:', data);
+                console.log('[QR-Poll] channelId original:', channelId);
+                console.log('[QR-Poll] channelId normalizado:', channelId.toLowerCase().replace(/\s+/g, ''));
                 if (!data.success || !data.sessions || !data.sessions.length) return;
+                console.log('[QR-Poll] Total de sessões:', data.sessions.length);
+                console.log('[QR-Poll] Sessões disponíveis:', data.sessions.map(function(s) {
+                    return {
+                        original: s.id || s.name,
+                        normalizado: (s.id || s.name || '').toString().toLowerCase().replace(/\s+/g, ''),
+                        status: s.status
+                    };
+                }));
                 var session = data.sessions.find(function(s) {
                     var id = (s.id || s.name || '').toString().toLowerCase().replace(/\s+/g, '');
                     var target = channelId.toLowerCase().replace(/\s+/g, '');
-                    console.log('[QR-Poll] Comparando:', id, '===', target);
+                    console.log('[QR-Poll] Comparando:', id, '===', target, '→', id === target);
                     return id === target;
                 });
                 console.log('[QR-Poll] Sessão encontrada:', session);

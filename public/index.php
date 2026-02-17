@@ -659,11 +659,6 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/settings/users/toggle-status', 'UsersController@toggleStatus');
     $router->get('/settings/users/get', 'UsersController@get');
 
-    // Sistema de Alertas e Monitoramento
-    $router->get('/api/system-alerts', 'SystemAlertController@activeAlerts');
-    $router->post('/api/system-alerts/acknowledge', 'SystemAlertController@acknowledge');
-    $router->get('/api/system-alerts/check', 'SystemAlertController@check');
-    
     // Testes do WhatsApp Gateway
     $router->get('/settings/whatsapp-gateway/test', 'WhatsAppGatewayTestController@index');
     $router->post('/settings/whatsapp-gateway/test/send', 'WhatsAppGatewayTestController@sendTest');
