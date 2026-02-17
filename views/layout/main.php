@@ -2201,11 +2201,36 @@
                                 <div style="text-align: center; color: #999; font-size: 12px; padding: 20px 0;">
                                     <div id="inboxAIWelcomeMessage">Configure acima e envie uma mensagem para iniciar.<br><br><span style="font-size: 11px;">Ex: "Gere uma resposta para este cliente"<br>"Mude o tom para mais informal"<br>"Adicione informação sobre frete grátis"</span></div>
                                 </div>
+                                <!-- Área de Preview do Rascunho (inicialmente oculta) -->
+                                <div id="inboxAIDraftPreview" style="display: none; padding: 12px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; margin: 8px 0;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <span style="font-size: 11px; font-weight: 600; color: #495057;">📝 Rascunho Pronto</span>
+                                        <button type="button" onclick="regenerateInboxAIDraft()" style="font-size: 10px; padding: 2px 8px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Gerar novamente</button>
+                                    </div>
+                                    <div id="inboxAIDraftText" style="font-size: 12px; line-height: 1.4; color: #333; white-space: pre-wrap; word-wrap: break-word; min-height: 40px;"></div>
+                                    <div style="margin-top: 8px; display: flex; gap: 6px;">
+                                        <button type="button" onclick="useInboxAIDraft()" style="font-size: 10px; padding: 4px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Usar esta resposta</button>
+                                        <button type="button" onclick="refineInboxAIDraft()" style="font-size: 10px; padding: 4px 8px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer;">Refinar</button>
+                                        <button type="button" onclick="copyInboxAIDraft()" style="font-size: 10px; padding: 4px 8px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Copiar</button>
+                                    </div>
+                                </div>
                             </div>
                             <!-- Input do chat -->
-                            <div style="padding: 10px 16px; border-top: 1px solid #eee; background: #fafafa; display: flex; gap: 8px; align-items: flex-end;">
-                                <textarea id="inboxAIChatInput" rows="2" placeholder="Peça para gerar ou refinar a resposta..." style="flex: 1; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 12px; font-family: inherit; resize: none; line-height: 1.4; box-sizing: border-box;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendInboxAIChat();}"></textarea>
-                                <button type="button" id="inboxAISendBtn" onclick="sendInboxAIChat()" style="padding: 8px 12px; background: #6f42c1; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; height: 36px;">Enviar</button>
+                            <div style="padding: 10px 16px; border-top: 1px solid #eee; background: #fafafa;">
+                                <!-- Botão Gerar Rascunho -->
+                                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                                    <button type="button" id="inboxAIGenerateBtn" onclick="generateInboxAIDraft()" style="flex: 1; padding: 8px 12px; background: #6f42c1; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+                                        </svg>
+                                        Gerar rascunho
+                                    </button>
+                                </div>
+                                <!-- Chat Input (opcional para refino) -->
+                                <div style="display: flex; gap: 8px; align-items: flex-end;">
+                                    <textarea id="inboxAIChatInput" rows="2" placeholder="Refine a resposta (opcional)..." style="flex: 1; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 12px; font-family: inherit; resize: none; line-height: 1.4; box-sizing: border-box;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendInboxAIChat();}"></textarea>
+                                    <button type="button" id="inboxAISendBtn" onclick="sendInboxAIChat()" style="padding: 8px 12px; background: #6f42c1; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; height: 36px;">Enviar</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2855,15 +2880,25 @@
                 }
                 panel.style.display = 'flex';
                 if (!InboxAIState.contextsLoaded) loadAIContexts();
+                
+                // Limpa estado do rascunho ao abrir
+                InboxAIDraftState.currentDraft = '';
+                InboxAIDraftState.lastGeneratedAt = null;
+                
+                // Esconde preview do rascunho
+                var preview = document.getElementById('inboxAIDraftPreview');
+                if (preview) preview.style.display = 'none';
+                
+                // Mostra mensagem de boas-vindas
+                var welcome = document.getElementById('inboxAIWelcomeMessage');
+                if (welcome && welcome.parentElement) welcome.parentElement.style.display = 'block';
+                
                 // Foco automático no input após abrir
                 setTimeout(function() {
                     var input = document.getElementById('inboxAIChatInput');
                     if (input) {
                         input.focus();
-                        // Se não há conversa, já sugere um comando inicial
-                        if (!window._currentInboxConversationId) {
-                            input.value = 'gere uma resposta para este cliente';
-                        }
+                        input.placeholder = 'Refine a resposta (opcional)...';
                     }
                 }, 150);
             } else {
@@ -2908,6 +2943,151 @@
             });
         }
 
+        // Estado do rascunho
+        var InboxAIDraftState = { 
+            isGenerating: false, 
+            currentDraft: '', 
+            lastGeneratedAt: null 
+        };
+
+        // Gera rascunho automático baseado em contexto + objetivo + histórico
+        window.generateInboxAIDraft = function() {
+            if (InboxAIDraftState.isGenerating) return;
+            
+            var btn = document.getElementById('inboxAIGenerateBtn');
+            var preview = document.getElementById('inboxAIDraftPreview');
+            var draftText = document.getElementById('inboxAIDraftText');
+            
+            // Estado: loading
+            InboxAIDraftState.isGenerating = true;
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<div style="display: inline-block; width: 12px; height: 12px; border: 2px solid white; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle;"></div> Gerando...';
+            }
+            
+            // Coleta dados
+            var contextSlug = (document.getElementById('inboxAIContext') || {}).value || 'geral';
+            var objective = (document.getElementById('inboxAIObjective') || {}).value || 'first_contact';
+            var note = (document.getElementById('inboxAINote') || {}).value || '';
+            var convId = window._currentInboxConversationId || null;
+            
+            // Log para telemetria
+            console.log('[IA] Gerando rascunho:', { context: contextSlug, objective: objective, hasConversation: !!convId });
+            
+            // Chamada API
+            fetch(_aiBaseUrl + '/api/ai/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    context_slug: contextSlug,
+                    objective: objective,
+                    attendant_note: note,
+                    conversation_id: convId,
+                    ai_chat_messages: [], // Sem histórico de chat IA para rascunho inicial
+                    user_prompt: 'gere uma resposta inicial baseada no contexto e histórico da conversa'
+                })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                // Reset estado
+                InboxAIDraftState.isGenerating = false;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/></svg> Gerar rascunho';
+                }
+                
+                if (!data.success) {
+                    alert('Erro ao gerar rascunho: ' + (data.error || 'Erro desconhecido'));
+                    console.error('[IA] Erro:', data);
+                } else {
+                    // Sucesso - mostra rascunho
+                    InboxAIDraftState.currentDraft = data.message;
+                    InboxAIDraftState.lastGeneratedAt = new Date();
+                    
+                    if (draftText) draftText.textContent = data.message;
+                    if (preview) preview.style.display = 'block';
+                    
+                    // Esconde mensagem de boas-vindas
+                    var welcome = document.getElementById('inboxAIWelcomeMessage');
+                    if (welcome) welcome.parentElement.style.display = 'none';
+                    
+                    console.log('[IA] Rascunho gerado com sucesso');
+                }
+            })
+            .catch(function(err) {
+                // Reset estado
+                InboxAIDraftState.isGenerating = false;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/></svg> Gerar rascunho';
+                }
+                
+                alert('Erro de conexão: ' + err.message);
+                console.error('[IA] Erro de conexão:', err);
+            });
+        };
+
+        // Regenera rascunho
+        window.regenerateInboxAIDraft = function() {
+            generateInboxAIDraft();
+        };
+
+        // Usa rascunho no chat
+        window.useInboxAIDraft = function() {
+            var text = InboxAIDraftState.currentDraft;
+            if (!text) return;
+            
+            var ta = document.getElementById('inboxMessageInput');
+            if (!ta) return;
+            
+            ta.value = text;
+            ta.focus();
+            ta.selectionStart = ta.selectionEnd = ta.value.length;
+            if (typeof autoResizeInboxTextarea === 'function') autoResizeInboxTextarea(ta);
+            if (typeof updateInboxSendMicVisibility === 'function') updateInboxSendMicVisibility();
+            
+            // Marca para aprendizado
+            window._aiPendingLearn = {
+                context_slug: (document.getElementById('inboxAIContext') || {}).value || 'geral',
+                objective: (document.getElementById('inboxAIObjective') || {}).value || 'first_contact',
+                ai_suggestion: text,
+                situation_summary: 'Rascunho IA - Inbox',
+                conversation_id: window._currentInboxConversationId || null
+            };
+            
+            closeInboxAIPanel();
+        };
+
+        // Refina rascunho (abre campo de refino)
+        window.refineInboxAIDraft = function() {
+            var input = document.getElementById('inboxAIChatInput');
+            if (input) {
+                input.focus();
+                input.placeholder = 'Como refinar? Ex: "deixe mais informal", "adicione informação sobre frete"...';
+            }
+        };
+
+        // Copia rascunho
+        window.copyInboxAIDraft = function() {
+            var text = InboxAIDraftState.currentDraft;
+            if (!text) return;
+            
+            navigator.clipboard.writeText(text).then(function() {
+                // Feedback visual temporário
+                var btn = event.target;
+                var originalText = btn.textContent;
+                btn.textContent = 'Copiado!';
+                btn.style.background = '#28a745';
+                setTimeout(function() {
+                    btn.textContent = originalText;
+                    btn.style.background = '#6c757d';
+                }, 1500);
+            }).catch(function(err) {
+                console.error('Erro ao copiar:', err);
+            });
+        };
+
         // Atualiza mensagem de boas-vindas baseado se há conversa aberta
         function updateInboxAIWelcomeMessage() {
             var welcomeDiv = document.getElementById('inboxAIWelcomeMessage');
@@ -2916,9 +3096,9 @@
             var hasConversation = window._currentInboxConversationId !== null && window._currentInboxConversationId !== undefined;
             
             if (hasConversation) {
-                welcomeDiv.innerHTML = '📝 <strong>Conversa detectada!</strong><br><span style="font-size: 11px;">A IA já tem acesso ao histórico. Diga "gere uma resposta" ou "responda esta mensagem" para começar.</span>';
+                welcomeDiv.innerHTML = '📝 <strong>Conversa detectada!</strong><br><span style="font-size: 11px;">Clique em "Gerar rascunho" para criar uma resposta baseada no histórico.</span>';
             } else {
-                welcomeDiv.innerHTML = 'Configure acima e envie uma mensagem para iniciar.<br><br><span style="font-size: 11px;">Ex: "Gere uma resposta para este cliente"<br>"Mude o tom para mais informal"<br>"Adicione informação sobre frete grátis"</span>';
+                welcomeDiv.innerHTML = 'Configure acima e clique em "Gerar rascunho" para iniciar.<br><span style="font-size: 11px;">Ou use o campo abaixo para instruções específicas.</span>';
             }
         }
 
@@ -2965,6 +3145,8 @@
             var sendBtn = document.getElementById('inboxAISendBtn');
             if (!input) return;
             var text = input.value.trim();
+            
+            // Se não há texto, não faz nada (o botão Gerar Rascunho cuida disso)
             if (!text) return;
 
             InboxAIState.chatHistory.push({ role: 'user', content: text });
@@ -2989,6 +3171,12 @@
             InboxAIState.lastContext = contextSlug;
             InboxAIState.lastObjective = objective;
 
+            // Se há rascunho atual, inclui como contexto no refinamento
+            var userPrompt = text;
+            if (InboxAIDraftState.currentDraft) {
+                userPrompt = 'Refine esta resposta: "' + InboxAIDraftState.currentDraft + '"\n\nInstruções: ' + text;
+            }
+
             fetch(_aiBaseUrl + '/api/ai/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -2998,7 +3186,8 @@
                     objective: objective,
                     attendant_note: note,
                     conversation_id: convId,
-                    ai_chat_messages: InboxAIState.chatHistory
+                    ai_chat_messages: InboxAIState.chatHistory,
+                    user_prompt: userPrompt
                 })
             })
             .then(function(r) { return r.json(); })
@@ -3012,6 +3201,13 @@
                 } else {
                     InboxAIState.chatHistory.push({ role: 'assistant', content: data.message });
                     InboxAIState.lastResponse = data.message;
+                    
+                    // Atualiza o rascunho com a resposta refinada
+                    InboxAIDraftState.currentDraft = data.message;
+                    var draftText = document.getElementById('inboxAIDraftText');
+                    var preview = document.getElementById('inboxAIDraftPreview');
+                    if (draftText) draftText.textContent = data.message;
+                    if (preview) preview.style.display = 'block';
                 }
                 renderInboxAIChat();
                 if (input) input.focus();
