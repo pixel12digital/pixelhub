@@ -2219,7 +2219,7 @@
                             <div style="padding: 10px 16px; border-top: 1px solid #eee; background: #fafafa;">
                                 <!-- Botão Gerar Rascunho -->
                                 <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                                    <button type="button" id="inboxAIGenerateBtn" onclick="generateInboxAIDraft()" style="flex: 1; padding: 8px 12px; background: #6f42c1; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                    <button type="button" id="inboxAIGenerateBtn" onclick="event.stopPropagation(); generateInboxAIDraft()" style="flex: 1; padding: 8px 12px; background: #6f42c1; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                             <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
                                         </svg>

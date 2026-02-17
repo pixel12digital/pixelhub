@@ -198,8 +198,11 @@ function handleWhatsAppClick(tenantId) {
     fetch('<?= pixelhub_url('/communication-hub/find-tenant-conversation') ?>?tenant_id=' + tenantId)
         .then(function(response) { return response.json(); })
         .then(function(data) {
+            console.log('[WhatsApp] Resposta find-tenant-conversation:', data);
+            
             if (data.found && data.thread_id) {
                 // Tem conversa existente — abre o Inbox Drawer com a conversa selecionada
+                console.log('[WhatsApp] Conversa encontrada, abrindo thread:', data.thread_id);
                 if (typeof openInboxDrawer === 'function') {
                     openInboxDrawer();
                     setTimeout(function() {
@@ -212,6 +215,7 @@ function handleWhatsAppClick(tenantId) {
                 }
             } else {
                 // Sem conversa existente — abre Inbox + modal Nova Mensagem pré-preenchido
+                console.log('[WhatsApp] Nenhuma conversa encontrada, abrindo modal Nova Mensagem');
                 openInboxNewConversation(tenantId);
             }
         })
