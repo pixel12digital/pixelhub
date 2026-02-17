@@ -472,7 +472,7 @@ async function openWhatsApp(phone) {
                     // Último recurso: abre modal "Nova Conversa"
                     console.log('[Opp WhatsApp] Nenhuma conversa encontrada, abrindo modal Nova Mensagem');
                     if (typeof openNewMessageModal === 'function') {
-                        openNewMessageModal();
+                        openNewMessageModal({ opportunity_id: <?= (int) $opp['id'] ?> });
                         
                         // Se esta oportunidade é Lead, define contexto no modal (esconde busca de cliente)
                         try {

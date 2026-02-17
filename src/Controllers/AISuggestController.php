@@ -53,6 +53,23 @@ class AISuggestController extends Controller
         $conversationId = $input['conversation_id'] ?? null;
         $contactName = trim($input['contact_name'] ?? '');
         $contactPhone = trim($input['contact_phone'] ?? '');
+        $opportunityId = $input['opportunity_id'] ?? null;
+
+        // Se tem opportunity_id, busca dados completos da oportunidade
+        $opportunityContext = '';
+        if (!empty($opportunityId)) {
+            $opportunityData = $this->getOpportunityContext((int) $opportunityId);
+            if ($opportunityData) {
+                $opportunityContext = $opportunityData['context'];
+                // Se não tem nome/telefone, usa da oportunidade
+                if (empty($contactName) && !empty($opportunityData['contact_name'])) {
+                    $contactName = $opportunityData['contact_name'];
+                }
+                if (empty($contactPhone) && !empty($opportunityData['contact_phone'])) {
+                    $contactPhone = $opportunityData['contact_phone'];
+                }
+            }
+        }
 
         // Busca histórico da conversa se tiver conversation_id
         $conversationHistory = [];
@@ -75,11 +92,20 @@ class AISuggestController extends Controller
             $conversationHistory = $input['history'];
         }
 
+        // Combina observação do atendente com contexto da oportunidade
+        $fullAttendantNote = $attendantNote;
+        if (!empty($opportunityContext)) {
+            if (!empty($fullAttendantNote)) {
+                $fullAttendantNote .= "\n\n";
+            }
+            $fullAttendantNote .= "[CONTEXTO DA OPORTUNIDADE]\n" . $opportunityContext;
+        }
+
         $result = AISuggestReplyService::suggest([
             'context_slug' => $contextSlug,
             'objective' => $objective,
             'tone' => $tone,
-            'attendant_note' => $attendantNote,
+            'attendant_note' => $fullAttendantNote,
             'conversation_history' => $conversationHistory,
             'contact_name' => $contactName,
             'contact_phone' => $contactPhone,
@@ -131,6 +157,7 @@ class AISuggestController extends Controller
         $contactName = trim($input['contact_name'] ?? '');
         $contactPhone = trim($input['contact_phone'] ?? '');
         $aiChatMessages = $input['ai_chat_messages'] ?? [];
+        $opportunityId = $input['opportunity_id'] ?? null;
         
         // Dados do thread (novo)
         $threadId = $input['thread_id'] ?? null;
@@ -141,11 +168,28 @@ class AISuggestController extends Controller
         // Log obrigatório para debug
         error_log('[AI DRAFT REQUEST] thread_id: ' . ($threadId ?: 'null') . 
                  ' | messages_count: ' . count($threadMessages) . 
-                 ' | conversation_id: ' . ($conversationId ?: 'null'));
+                 ' | conversation_id: ' . ($conversationId ?: 'null') .
+                 ' | opportunity_id: ' . ($opportunityId ?: 'null'));
         
         if (!empty($threadMessages)) {
             $firstMsg = $threadMessages[0]['message_text'] ?? '';
             error_log('[AI DRAFT REQUEST] first_message: "' . substr($firstMsg, 0, 100) . '..."');
+        }
+
+        // Se tem opportunity_id, busca dados completos da oportunidade
+        $opportunityContext = '';
+        if (!empty($opportunityId)) {
+            $opportunityData = $this->getOpportunityContext((int) $opportunityId);
+            if ($opportunityData) {
+                $opportunityContext = $opportunityData['context'];
+                // Se não tem nome/telefone, usa da oportunidade
+                if (empty($contactName) && !empty($opportunityData['contact_name'])) {
+                    $contactName = $opportunityData['contact_name'];
+                }
+                if (empty($contactPhone) && !empty($opportunityData['contact_phone'])) {
+                    $contactPhone = $opportunityData['contact_phone'];
+                }
+            }
         }
 
         // Prioriza thread_messages sobre conversation_history do banco
@@ -173,10 +217,19 @@ class AISuggestController extends Controller
             }
         }
 
+        // Combina observação do atendente com contexto da oportunidade
+        $fullAttendantNote = $attendantNote;
+        if (!empty($opportunityContext)) {
+            if (!empty($fullAttendantNote)) {
+                $fullAttendantNote .= "\n\n";
+            }
+            $fullAttendantNote .= "[CONTEXTO DA OPORTUNIDADE]\n" . $opportunityContext;
+        }
+
         $result = AISuggestReplyService::chat([
             'context_slug' => $contextSlug,
             'objective' => $objective,
-            'attendant_note' => $attendantNote,
+            'attendant_note' => $fullAttendantNote,
             'conversation_history' => $conversationHistory,
             'contact_name' => $contactName,
             'contact_phone' => $contactPhone,
@@ -328,6 +381,112 @@ class AISuggestController extends Controller
         return [
             'contact_name' => $conv['contact_name'] ?: $conv['tenant_name'] ?: '',
             'contact_phone' => $conv['contact_phone'] ?: $conv['tenant_phone'] ?: '',
+        ];
+    }
+
+    /**
+     * Busca contexto completo da oportunidade para IA
+     * Inclui dados da oportunidade, histórico e informações do lead/cliente
+     */
+    private function getOpportunityContext(int $opportunityId): ?array
+    {
+        $db = DB::getConnection();
+
+        // Busca dados da oportunidade
+        $stmt = $db->prepare("
+            SELECT o.*,
+                   l.name as lead_name, l.phone as lead_phone, l.email as lead_email, l.notes as lead_notes,
+                   t.name as tenant_name, t.phone as tenant_phone, t.email as tenant_email,
+                   u.name as responsible_name,
+                   s.name as service_name
+            FROM opportunities o
+            LEFT JOIN leads l ON o.lead_id = l.id
+            LEFT JOIN tenants t ON o.tenant_id = t.id
+            LEFT JOIN users u ON o.responsible_user_id = u.id
+            LEFT JOIN services s ON o.service_id = s.id
+            WHERE o.id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$opportunityId]);
+        $opportunity = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$opportunity) {
+            return null;
+        }
+
+        // Busca histórico da oportunidade
+        $stmt = $db->prepare("
+            SELECT description, created_at, user_name
+            FROM opportunity_history
+            LEFT JOIN users u ON user_id = u.id
+            WHERE opportunity_id = ?
+            ORDER BY created_at DESC
+            LIMIT 10
+        ");
+        $stmt->execute([$opportunityId]);
+        $history = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        // Monta contexto estruturado para a IA
+        $contextParts = [];
+
+        // Dados principais da oportunidade
+        $contextParts[] = "**Oportunidade**: " . $opportunity['name'];
+        if (!empty($opportunity['estimated_value'])) {
+            $contextParts[] = "**Valor estimado**: R$ " . number_format($opportunity['estimated_value'], 2, ',', '.');
+        }
+        if (!empty($opportunity['stage'])) {
+            $stages = \PixelHub\Services\OpportunityService::STAGES;
+            $stageLabel = $stages[$opportunity['stage']] ?? $opportunity['stage'];
+            $contextParts[] = "**Etapa atual**: {$stageLabel}";
+        }
+        if (!empty($opportunity['responsible_name'])) {
+            $contextParts[] = "**Responsável**: " . $opportunity['responsible_name'];
+        }
+
+        // Informações do contato (lead ou cliente)
+        $contactName = $opportunity['lead_name'] ?: $opportunity['tenant_name'] ?: '';
+        $contactPhone = $opportunity['lead_phone'] ?: $opportunity['tenant_phone'] ?: '';
+        $contactEmail = $opportunity['lead_email'] ?: $opportunity['tenant_email'] ?: '';
+
+        if (!empty($contactName)) {
+            $contextParts[] = "**Contato**: {$contactName}";
+        }
+        if (!empty($contactPhone)) {
+            $contextParts[] = "**Telefone**: {$contactPhone}";
+        }
+        if (!empty($contactEmail)) {
+            $contextParts[] = "**E-mail**: {$contactEmail}";
+        }
+
+        // Serviço relacionado
+        if (!empty($opportunity['service_name'])) {
+            $contextParts[] = "**Serviço**: " . $opportunity['service_name'];
+        }
+
+        // Observações da oportunidade
+        if (!empty($opportunity['notes'])) {
+            $contextParts[] = "**Observações**: " . $opportunity['notes'];
+        }
+
+        // Observações do lead (se houver)
+        if (!empty($opportunity['lead_notes'])) {
+            $contextParts[] = "**Observações do lead**: " . $opportunity['lead_notes'];
+        }
+
+        // Histórico relevante
+        if (!empty($history)) {
+            $contextParts[] = "\n**Histórico recente**:";
+            foreach ($history as $item) {
+                $date = date('d/m/Y H:i', strtotime($item['created_at']));
+                $user = $item['user_name'] ?: 'Sistema';
+                $contextParts[] = "- {$date} ({$user}): " . $item['description'];
+            }
+        }
+
+        return [
+            'context' => implode("\n", $contextParts),
+            'contact_name' => $contactName,
+            'contact_phone' => $contactPhone,
         ];
     }
 }

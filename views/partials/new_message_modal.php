@@ -170,9 +170,20 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
 (function() {
     var sendUrl = '<?= htmlspecialchars(pixelhub_url('/communication-hub/send'), ENT_QUOTES) ?>';
     
-    window.openNewMessageModal = function() {
+    window.openNewMessageModal = function(options) {
+        options = options || {};
         var el = document.getElementById('new-message-modal');
-        if (el) el.style.display = 'flex';
+        if (el) {
+            el.style.display = 'flex';
+            
+            // Se tem opportunity_id, armazena globalmente para uso da IA
+            if (options.opportunity_id) {
+                window._currentOpportunityId = options.opportunity_id;
+                console.log('[NewMessage] Contexto da oportunidade definido:', options.opportunity_id);
+            } else {
+                window._currentOpportunityId = null;
+            }
+        }
     };
     
     window.closeNewMessageModal = function() {
@@ -191,6 +202,9 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         if (typeof window.resetNewMessageLeadContext === 'function') {
             window.resetNewMessageLeadContext();
         }
+        
+        // Limpa contexto da oportunidade
+        window._currentOpportunityId = null;
     };
 
     // ===== CONTEXTO DE LEAD (quando abrimos Nova Mensagem a partir de um Lead vinculado) =====
@@ -525,7 +539,8 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 attendant_note: note,
                 contact_name: contactName,
                 contact_phone: contactPhone,
-                ai_chat_messages: _newMsgAIChatHistory
+                ai_chat_messages: _newMsgAIChatHistory,
+                opportunity_id: window._currentOpportunityId || null
             })
         })
         .then(function(r) { return r.json(); })
