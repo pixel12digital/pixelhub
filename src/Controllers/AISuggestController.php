@@ -437,11 +437,11 @@ class AISuggestController extends Controller
 
         // Busca histórico da oportunidade
         $stmt = $db->prepare("
-            SELECT description, created_at, user_name
-            FROM opportunity_history
-            LEFT JOIN users u ON user_id = u.id
-            WHERE opportunity_id = ?
-            ORDER BY created_at DESC
+            SELECT oh.description, oh.created_at, u.name as user_name
+            FROM opportunity_history oh
+            LEFT JOIN users u ON oh.user_id = u.id
+            WHERE oh.opportunity_id = ?
+            ORDER BY oh.created_at DESC
             LIMIT 10
         ");
         $stmt->execute([$opportunityId]);
