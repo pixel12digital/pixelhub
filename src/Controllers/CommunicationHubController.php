@@ -5780,14 +5780,30 @@ class CommunicationHubController extends Controller
                 return;
             }
 
-            // Vincula
+            // Vincula (inclui criação automática de opportunity se necessário)
             \PixelHub\Services\LeadService::linkToConversation($conversationId, $leadId);
+
+            // Verifica se opportunity foi criada automaticamente para dar feedback
+            $db = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT id, stage FROM opportunities 
+                WHERE lead_id = ? AND status = 'active' 
+                ORDER BY created_at DESC LIMIT 1
+            ");
+            $stmt->execute([$leadId]);
+            $opportunity = $stmt->fetch();
+
+            $message = 'Conversa vinculada ao lead com sucesso';
+            if ($opportunity && $opportunity['stage'] === 'new') {
+                $message .= '. Oportunidade criada automaticamente em "Novo"';
+            }
 
             $this->json([
                 'success' => true,
                 'lead_id' => $leadId,
                 'conversation_id' => $conversationId,
-                'message' => 'Conversa vinculada ao lead com sucesso'
+                'opportunity_id' => $opportunity['id'] ?? null,
+                'message' => $message
             ]);
 
         } catch (\Exception $e) {

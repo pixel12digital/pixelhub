@@ -186,9 +186,10 @@ class LeadService
     }
 
     /**
-     * Vincula um lead a uma conversa
+     * Vincula uma conversa a um lead
      * 
      * Remove vínculo com tenant se existir (lead e tenant são mutuamente exclusivos)
+     * Cria opportunity automaticamente se não existir para este lead
      * 
      * @param int $conversationId
      * @param int $leadId
@@ -206,6 +207,9 @@ class LeadService
             WHERE id = ?
         ");
         $stmt->execute([$leadId, $conversationId]);
+
+        // Criar opportunity automaticamente se não existir
+        self::ensureOpportunityExists($leadId, $conversationId);
     }
 
     /**
@@ -293,5 +297,56 @@ class LeadService
             $db->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Garante que exista uma opportunity para o lead
+     * Se não existir, cria automaticamente no stage "new"
+     * 
+     * @param int $leadId
+     * @param int $conversationId
+     */
+    private static function ensureOpportunityExists(int $leadId, int $conversationId): void
+    {
+        $db = DB::getConnection();
+
+        // Verifica se já existe opportunity ativa para este lead
+        $stmt = $db->prepare("
+            SELECT id FROM opportunities 
+            WHERE lead_id = ? AND status = 'active' 
+            LIMIT 1
+        ");
+        $stmt->execute([$leadId]);
+        $existing = $stmt->fetch();
+
+        if ($existing) {
+            // Já existe, não faz nada
+            return;
+        }
+
+        // Busca dados do lead
+        $stmt = $db->prepare("SELECT name, phone, email FROM leads WHERE id = ?");
+        $stmt->execute([$leadId]);
+        $lead = $stmt->fetch();
+
+        if (!$lead) {
+            error_log("[LeadService] Lead {$leadId} não encontrado ao criar opportunity");
+            return;
+        }
+
+        // Cria opportunity automaticamente
+        $opportunityName = $lead['name'] ?: 'Lead #' . $leadId;
+        
+        $stmt = $db->prepare("
+            INSERT INTO opportunities 
+            (name, stage, status, lead_id, conversation_id, created_by, created_at, updated_at)
+            VALUES (?, 'new', 'active', ?, ?, NULL, NOW(), NOW())
+        ");
+        
+        $stmt->execute([$opportunityName, $leadId, $conversationId]);
+        
+        $opportunityId = (int) $db->lastInsertId();
+        
+        error_log("[LeadService] Opportunity {$opportunityId} criada automaticamente para lead {$leadId}");
     }
 }
