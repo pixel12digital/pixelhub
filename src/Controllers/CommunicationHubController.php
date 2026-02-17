@@ -5606,8 +5606,8 @@ class CommunicationHubController extends Controller
             // Proteção contra duplicidade por telefone
             $phoneToCheck = $phone ?: ($conversation['contact_external_id'] ?? '');
             if (!$forceCreate && !empty($phoneToCheck)) {
-                $duplicates = \PixelHub\Services\LeadService::findDuplicatesByPhone($phoneToCheck);
-                $totalDuplicates = count($duplicates['tenants']) + count($duplicates['leads']);
+                $duplicates = \PixelHub\Services\ContactService::findDuplicatesByPhone($phoneToCheck);
+                $totalDuplicates = count($duplicates);
                 
                 if ($totalDuplicates > 0) {
                     $this->json([
@@ -5709,8 +5709,8 @@ class CommunicationHubController extends Controller
             // Proteção contra duplicidade por telefone
             $phoneToCheck = $phone ?: ($conversation['contact_external_id'] ?? '');
             if (!$forceCreate && !empty($phoneToCheck)) {
-                $duplicates = \PixelHub\Services\LeadService::findDuplicatesByPhone($phoneToCheck);
-                $totalDuplicates = count($duplicates['tenants']) + count($duplicates['leads']);
+                $duplicates = \PixelHub\Services\ContactService::findDuplicatesByPhone($phoneToCheck);
+                $totalDuplicates = count($duplicates);
                 
                 if ($totalDuplicates > 0) {
                     $this->json([
@@ -5725,17 +5725,17 @@ class CommunicationHubController extends Controller
             }
 
             // Cria o lead
-            $leadId = \PixelHub\Services\LeadService::create([
+            $leadId = \PixelHub\Services\ContactService::create([
                 'name' => $name,
                 'phone' => $phoneToCheck ?: null,
                 'email' => $email ?: null,
                 'source' => 'whatsapp',
                 'notes' => $notes ?: null,
                 'created_by' => $_SESSION['user_id'] ?? null,
-            ]);
+            ], \PixelHub\Services\ContactService::TYPE_LEAD);
 
             // Vincula conversa ao lead
-            \PixelHub\Services\LeadService::linkToConversation($conversationId, $leadId);
+            $this->linkConversationToLead($conversationId, $leadId);
 
             $this->json([
                 'success' => true,
@@ -5782,14 +5782,14 @@ class CommunicationHubController extends Controller
             }
 
             // Verifica se o lead existe
-            $lead = \PixelHub\Services\LeadService::findById($leadId);
+            $lead = \PixelHub\Services\ContactService::findById($leadId);
             if (!$lead) {
                 $this->json(['success' => false, 'error' => 'Lead não encontrado'], 404);
                 return;
             }
 
             // Vincula (inclui criação automática de opportunity se necessário)
-            \PixelHub\Services\LeadService::linkToConversation($conversationId, $leadId);
+            $this->linkConversationToLead($conversationId, $leadId);
 
             // Verifica se opportunity foi criada automaticamente para dar feedback
             $db = DB::getConnection();
@@ -5833,7 +5833,7 @@ class CommunicationHubController extends Controller
         $search = $_GET['search'] ?? null;
 
         try {
-            $leads = \PixelHub\Services\LeadService::list($search, 200);
+            $leads = \PixelHub\Services\ContactService::searchLeads($search, 200);
             $this->json(['success' => true, 'leads' => $leads]);
         } catch (\Exception $e) {
             error_log("[CommunicationHub] Erro ao listar leads: " . $e->getMessage());
@@ -5859,8 +5859,8 @@ class CommunicationHubController extends Controller
         }
 
         try {
-            $duplicates = \PixelHub\Services\LeadService::findDuplicatesByPhone($phone);
-            $total = count($duplicates['tenants']) + count($duplicates['leads']);
+            $duplicates = \PixelHub\Services\ContactService::findDuplicatesByPhone($phone);
+            $total = count($duplicates);
             $this->json([
                 'success' => true,
                 'duplicates' => $duplicates,

@@ -6,6 +6,7 @@ use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
 use PixelHub\Services\OpportunityService;
+use PixelHub\Services\ContactService;
 use PixelHub\Services\LeadService;
 use PixelHub\Services\PhoneNormalizer;
 
@@ -354,7 +355,7 @@ class OpportunitiesController extends Controller
             return;
         }
 
-        $leads = LeadService::list($query, 20);
+        $leads = ContactService::searchLeads($query, 20);
         $this->json(['success' => true, 'leads' => $leads]);
     }
 
@@ -429,11 +430,10 @@ class OpportunitiesController extends Controller
 
         // Verifica duplicidade por telefone
         if (!empty($phone)) {
-            $duplicates = LeadService::findDuplicatesByPhone($phone);
-            $hasLeadDuplicates = !empty($duplicates['leads']);
-            $hasTenantDuplicates = !empty($duplicates['tenants']);
+            $duplicates = ContactService::findDuplicatesByPhone($phone);
+            $hasDuplicates = !empty($duplicates);
 
-            if (($hasLeadDuplicates || $hasTenantDuplicates) && empty($input['force_create'])) {
+            if ($hasDuplicates && empty($input['force_create'])) {
                 $this->json([
                     'success' => false,
                     'duplicate' => true,
@@ -445,16 +445,16 @@ class OpportunitiesController extends Controller
         }
 
         try {
-            $id = LeadService::create([
+            $id = ContactService::create([
                 'name' => $name ?: null,
                 'company' => $company ?: null,
                 'phone' => $phone,
                 'email' => $email,
                 'notes' => $notes ?: null,
                 'source' => 'crm_manual',
-            ]);
+            ], ContactService::TYPE_LEAD);
 
-            $lead = LeadService::findById($id);
+            $lead = ContactService::findById($id);
             $this->json([
                 'success' => true,
                 'lead' => $lead,

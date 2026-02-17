@@ -297,9 +297,29 @@ function openInboxNewConversation(tenantId) {
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center;">
     <div>
         <h2><?= htmlspecialchars($tenant['name']) ?></h2>
-        <p>Painel do Cliente</p>
+        <p>
+            <?php if (($tenant['contact_type'] ?? 'client') === 'lead'): ?>
+                Painel do Lead
+            <?php else: ?>
+                Painel do Cliente
+            <?php endif; ?>
+        </p>
     </div>
     <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+        <?php if (($tenant['contact_type'] ?? 'client') === 'lead'): ?>
+            <!-- Botão específico para leads -->
+            <button onclick="convertLeadToClient(<?= $tenant['id'] ?>)" 
+                    class="btn-action btn-action-success"
+                    data-tooltip="Converter em Cliente"
+                    aria-label="Converter em Cliente">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="m22 9-6 6m0-6 6 6"/>
+                </svg>
+            </button>
+        <?php endif; ?>
+        
         <button onclick="handleWhatsAppClick(<?= $tenant['id'] ?>)" 
                 id="btn-whatsapp-header"
                 class="btn-action btn-action-success"
@@ -500,28 +520,48 @@ function openInboxNewConversation(tenantId) {
     <!-- ABA: Visão Geral -->
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #e0e0e0;">
-            <h3 style="margin: 0; color: #333; font-size: 18px; font-weight: 600;">Informações do Cliente</h3>
+            <h3 style="margin: 0; color: #333; font-size: 18px; font-weight: 600;">
+                <?php if (($tenant['contact_type'] ?? 'client') === 'lead'): ?>
+                    Informações do Lead
+                <?php else: ?>
+                    Informações do Cliente
+                <?php endif; ?>
+            </h3>
             <div style="display: flex; gap: 5px;">
-                <button onclick="syncAsaasData()" id="sync-asaas-btn"
-                        class="btn-action btn-action-secondary"
-                        data-tooltip="Sincronizar com Asaas"
-                        aria-label="Sincronizar com Asaas">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="23 4 23 10 17 10"></polyline>
-                        <polyline points="1 20 1 14 7 14"></polyline>
-                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                    </svg>
-                    <span id="sync-asaas-text" style="display: none;">Sincronizar com Asaas</span>
-                </button>
-                <button onclick="openEditAsaasFieldsModal()" 
-                        class="btn-action btn-action-secondary"
-                        data-tooltip="Editar Campos do Asaas"
-                        aria-label="Editar Campos do Asaas">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                </button>
+                <?php if (($tenant['contact_type'] ?? 'client') === 'lead'): ?>
+                    <!-- Botões específicos para leads -->
+                    <button onclick="editLeadFields()" 
+                            class="btn-action btn-action-secondary"
+                            data-tooltip="Editar Dados do Lead"
+                            aria-label="Editar Dados do Lead">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                <?php else: ?>
+                    <!-- Botões específicos para clientes -->
+                    <button onclick="syncAsaasData()" id="sync-asaas-btn"
+                            class="btn-action btn-action-secondary"
+                            data-tooltip="Sincronizar com Asaas"
+                            aria-label="Sincronizar com Asaas">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                        <span id="sync-asaas-text" style="display: none;">Sincronizar com Asaas</span>
+                    </button>
+                    <button onclick="openEditAsaasFieldsModal()" 
+                            class="btn-action btn-action-secondary"
+                            data-tooltip="Editar Campos do Asaas"
+                            aria-label="Editar Campos do Asaas">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                <?php endif; ?>
             </div>
         </div>
         <div id="sync-asaas-message" style="display: none; margin-bottom: 20px; padding: 14px; border-radius: 6px; font-size: 14px; line-height: 1.6;"></div>
@@ -577,6 +617,81 @@ function openInboxNewConversation(tenantId) {
         <!-- Informações de Contato -->
         <div style="margin-bottom: 30px; padding-bottom: 25px; border-bottom: 1px solid #e0e0e0;">
             <h4 style="margin: 0 0 20px 0; color: #333; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Contato</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Telefone</div>
+                    <div style="font-size: 14px; color: #333; font-weight: 400; font-family: 'Courier New', monospace;">
+                        <?= htmlspecialchars($tenant['phone'] ?? '-') ?>
+                    </div>
+                </div>
+                <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">E-mail</div>
+                    <div style="font-size: 14px; color: #333; font-weight: 400;">
+                        <?= htmlspecialchars($tenant['email'] ?? '-') ?>
+                    </div>
+                </div>
+                
+                <!-- Campos específicos de leads -->
+                <?php if (($tenant['contact_type'] ?? 'client') === 'lead'): ?>
+                    <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Origem</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;">
+                            <?= htmlspecialchars($tenant['source'] ?? '-') ?>
+                        </div>
+                    </div>
+                    <?php if (!empty($tenant['company'])): ?>
+                    <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Empresa</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;">
+                            <?= htmlspecialchars($tenant['company']) ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Campos específicos de leads -->
+        <?php if (($tenant['contact_type'] ?? 'client') === 'lead'): ?>
+            <!-- Observações do Lead -->
+            <div style="margin-bottom: 30px; padding-bottom: 25px; border-bottom: 1px solid #e0e0e0;">
+                <h4 style="margin: 0 0 20px 0; color: #333; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Observações do Lead</h4>
+                <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff; min-height: 80px;">
+                    <div style="font-size: 14px; color: #333; font-weight: 400; white-space: pre-wrap;">
+                        <?= htmlspecialchars($tenant['notes'] ?? 'Nenhuma observação cadastrada.') ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status e Conversão -->
+            <div style="margin-bottom: 30px;">
+                <h4 style="margin: 0 0 20px 0; color: #333; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Status do Lead</h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                    <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Status Atual</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;">
+                            <span style="display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; background: #e3f2fd; color: #1976d2;">
+                                Lead
+                            </span>
+                        </div>
+                    </div>
+                    <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Cadastrado em</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;">
+                            <?= date('d/m/Y H:i', strtotime($tenant['created_at'])) ?>
+                        </div>
+                    </div>
+                    <?php if (!empty($tenant['created_by'])): ?>
+                    <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Cadastrado por</div>
+                        <div style="font-size: 14px; color: #333; font-weight: 400;">
+                            <?= htmlspecialchars($tenant['created_by_name'] ?? 'ID: ' . $tenant['created_by']) ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
                 <div style="border: 1px solid #e0e0e0; padding: 12px 15px; background: #fff;">
                     <div style="font-size: 11px; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Email</div>
@@ -4023,6 +4138,57 @@ function showLastDispatch(invoiceId, buttonElement) {
     .catch(error => {
         infoDiv.innerHTML = 'Erro ao carregar informações';
     });
+}
+
+// Função para converter lead em cliente
+function convertLeadToClient(contactId) {
+    if (!confirm('Deseja converter este lead em cliente? Esta ação não poderá ser desfeita.')) {
+        return;
+    }
+    
+    const btn = event.target.closest('button');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span style="opacity: 0.6;">Convertendo...</span>';
+    }
+    
+    fetch('<?= pixelhub_url('/contacts/convert-to-client') ?>', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            contact_id: contactId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Recarrega a página para mostrar o novo status
+            window.location.href = '<?= pixelhub_url('/tenants/view?id=' . $tenant['id']) ?>&success=converted';
+        } else {
+            alert('Erro ao converter lead: ' + (data.error || 'Erro desconhecido'));
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m22 9-6 6m0-6 6 6"/></svg>';
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao converter lead. Tente novamente.');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m22 9-6 6m0-6 6 6"/></svg>';
+        }
+    });
+}
+
+// Função para editar dados do lead
+function editLeadFields() {
+    // Abre modal de edição similar ao de clientes, mas com campos específicos de lead
+    // Por enquanto, redireciona para a página de edição genérica
+    window.location.href = '<?= pixelhub_url('/tenants/edit?id=' . $tenant['id']) ?>';
 }
 </script>
 

@@ -730,6 +730,12 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/opportunities/find-conversation', 'OpportunitiesController@findConversation');
     $router->get('/api/opportunities/conversation-history', 'OpportunitiesController@conversationHistory');
     
+    // Rotas de Contatos Unificados (Leads e Clientes)
+    $router->post('/contacts/convert-to-client', 'ContactsController@convertToClient');
+    $router->post('/contacts/update', 'ContactsController@update');
+    $router->get('/contacts/search', 'ContactsController@search');
+    $router->get('/contacts/check-duplicate', 'ContactsController@checkDuplicate');
+    
     
     // Rotas de acessos e links de infraestrutura (apenas internos)
     $router->get('/owner/shortcuts', 'OwnerShortcutsController@index');
