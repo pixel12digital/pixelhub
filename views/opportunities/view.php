@@ -1075,22 +1075,21 @@ function renderFollowupDetails(followup) {
     
     // Aplica a mensagem limpa separadamente
     if (followup.scheduled_message) {
-        const messageContainer = document.getElementById('followup-message-container');
-        if (messageContainer) {
-            // Normaliza quebras de linha Windows (\r\n) para web (\n)
-            let cleanText = followup.scheduled_message.replace(/\r\n/g, '\n');
-            
-            // Remove espaços em excesso no início
-            cleanText = cleanText.replace(/^\s+/, '');
-            
-            // Remove espaços em excesso no fim
-            cleanText = cleanText.replace(/\s+$/, '');
-            
-            // Aplica com setTimeout para garantir que o container exista
-            setTimeout(() => {
+        setTimeout(() => {
+            const messageContainer = document.getElementById('followup-message-container');
+            if (messageContainer) {
+                // Normaliza quebras de linha Windows (\r\n) para web (\n)
+                let cleanText = followup.scheduled_message.replace(/\r\n/g, '\n');
+                
+                // Remove espaços em excesso no início
+                cleanText = cleanText.replace(/^\s+/, '');
+                
+                // Remove espaços em excesso no fim
+                cleanText = cleanText.replace(/\s+$/, '');
+                
                 messageContainer.textContent = cleanText;
-            }, 50);
-        }
+            }
+        }, 100);
     }
     
     if (followup.status) {
