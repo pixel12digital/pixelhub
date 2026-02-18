@@ -1007,7 +1007,7 @@ async function viewFollowupDetails(itemId) {
     content.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">Carregando...</div>';
     
     try {
-        const res = await fetch('/painel.pixel12digital/opportunities/followup-details?id=' + itemId);
+        const res = await fetch('<?= pixelhub_url('/opportunities/followup-details') ?>?id=' + itemId);
         const data = await res.json();
         
         if (data.success) {
@@ -1155,7 +1155,7 @@ async function editFollowup(itemId) {
     const actions = document.getElementById('followup-details-actions');
     
     try {
-        const res = await fetch('/painel.pixel12digital/opportunities/followup-details?id=' + itemId);
+        const res = await fetch('<?= pixelhub_url('/opportunities/followup-details') ?>?id=' + itemId);
         const data = await res.json();
         
         if (data.success) {
