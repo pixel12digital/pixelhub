@@ -69,6 +69,20 @@ class ScheduledMessageService
     {
         $db = DB::getConnection();
         
+        // Verifica se mensagem já foi processada (enviada ou falha) - evita duplicidade
+        $stmt = $db->prepare("
+            SELECT id, status, sent_at 
+            FROM scheduled_messages 
+            WHERE id = ? AND status IN ('sent', 'failed')
+        ");
+        $stmt->execute([$messageId]);
+        $alreadyProcessed = $stmt->fetch();
+        
+        if ($alreadyProcessed) {
+            error_log("[ScheduledMessage] Mensagem ID {$messageId} já processada em " . $alreadyProcessed['sent_at'] . " (status: " . $alreadyProcessed['status'] . ")");
+            return true; // Considera sucesso pois já foi processada
+        }
+        
         // Busca a mensagem
         $stmt = $db->prepare("
             SELECT sm.*, 
@@ -146,12 +160,28 @@ class ScheduledMessageService
     }
     
     /**
-     * Marca mensagem como enviada
+     * Marca mensagem como enviada e atualiza tarefa relacionada
      */
     public static function markAsSent(int $messageId, ?int $conversationId = null): void
     {
         $db = DB::getConnection();
         
+        // Busca dados da mensagem antes de atualizar
+        $stmt = $db->prepare("
+            SELECT sm.*, ami.id as agenda_item_id
+            FROM scheduled_messages sm
+            LEFT JOIN agenda_manual_items ami ON sm.agenda_item_id = ami.id
+            WHERE sm.id = ?
+        ");
+        $stmt->execute([$messageId]);
+        $message = $stmt->fetch();
+        
+        if (!$message) {
+            error_log("[ScheduledMessage] Mensagem ID {$messageId} não encontrada");
+            return;
+        }
+        
+        // Atualiza scheduled_messages
         $stmt = $db->prepare("
             UPDATE scheduled_messages 
             SET status = 'sent', 
@@ -160,6 +190,122 @@ class ScheduledMessageService
             WHERE id = ?
         ");
         $stmt->execute([$conversationId, $messageId]);
+        
+        // Se há agenda_item_id relacionado, atualiza a tarefa
+        if ($message['agenda_item_id']) {
+            self::updateRelatedTask($message['agenda_item_id'], 'completed', $messageId);
+        }
+        
+        error_log("[ScheduledMessage] Mensagem ID {$messageId} marcada como enviada e tarefa atualizada");
+    }
+    
+    /**
+     * Atualiza tarefa relacionada (agenda_manual_items)
+     */
+    private static function updateRelatedTask(int $agendaItemId, string $status, int $scheduledMessageId): void
+    {
+        $db = DB::getConnection();
+        
+        // Atualiza status da tarefa
+        $stmt = $db->prepare("
+            UPDATE agenda_manual_items 
+            SET status = ?, 
+                updated_at = NOW()
+            WHERE id = ?
+        ");
+        $stmt->execute([$status, $agendaItemId]);
+        
+        // Registra atividade no pipeline (se houver opportunity_id)
+        $stmt = $db->prepare("
+            SELECT opportunity_id, lead_id, title 
+            FROM agenda_manual_items 
+            WHERE id = ?
+        ");
+        $stmt->execute([$agendaItemId]);
+        $task = $stmt->fetch();
+        
+        if ($task && $task['opportunity_id']) {
+            self::createPipelineActivity($task['opportunity_id'], $task['lead_id'], $task['title'], $status, $scheduledMessageId);
+        }
+    }
+    
+    /**
+     * Cria atividade no pipeline
+     */
+    private static function createPipelineActivity(?int $opportunityId, ?int $leadId, string $taskTitle, string $status, int $scheduledMessageId): void
+    {
+        $db = DB::getConnection();
+        
+        // Busca conversation para registrar atividade
+        $conversationId = null;
+        if ($leadId) {
+            $stmt = $db->prepare("
+                SELECT id FROM conversations 
+                WHERE lead_id = ? 
+                ORDER BY created_at DESC 
+                LIMIT 1
+            ");
+            $stmt->execute([$leadId]);
+            $conversationId = $stmt->fetchColumn();
+        }
+        
+        // Cria registro de atividade na estrutura correta
+        $stmt = $db->prepare("
+            INSERT INTO communication_events (
+                event_id,
+                event_type, 
+                source_system,
+                tenant_id,
+                conversation_id,
+                payload,
+                metadata,
+                status,
+                created_at
+            ) VALUES (
+                ?,
+                'followup_completed',
+                'scheduled_messages_worker',
+                ?,
+                ?,
+                ?,
+                ?,
+                'processed',
+                NOW()
+            )
+        ");
+        
+        $eventId = uniqid('followup_', true);
+        $payload = json_encode([
+            'task_title' => $taskTitle,
+            'status' => $status,
+            'scheduled_message_id' => $scheduledMessageId,
+            'opportunity_id' => $opportunityId,
+            'lead_id' => $leadId,
+            'conversation_id' => $conversationId
+        ]);
+        
+        $metadata = json_encode([
+            'source' => 'scheduled_messages_worker',
+            'followup_completed' => true
+        ]);
+        
+        // Busca tenant_id da opportunity
+        $tenantId = null;
+        if ($opportunityId) {
+            $stmt2 = $db->prepare("SELECT tenant_id FROM opportunities WHERE id = ?");
+            $stmt2->execute([$opportunityId]);
+            $tenantId = $stmt2->fetchColumn();
+        }
+        
+        $stmt->execute([
+            $eventId,
+            $tenantId,
+            $conversationId,
+            $payload,
+            $metadata
+        ]);
+        
+        error_log("[ScheduledMessage] Atividade registrada no pipeline para opportunity_id: {$opportunityId}");
     }
     
     /**
