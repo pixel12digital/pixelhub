@@ -1084,23 +1084,18 @@ function renderFollowupDetails(followup) {
     if (followup.scheduled_message) {
         const messageContainer = document.getElementById('followup-message-container');
         if (messageContainer) {
-            // Remove apenas espaços/quebras EXCESSIVAS no início (mais de 2 espaços ou mais de 1 quebra)
-            // Mas preserva formatação intencional como quebras de linha e espaços normais
-            let cleanText = followup.scheduled_message;
+            // Normaliza quebras de linha Windows (\r\n) para web (\n)
+            let cleanText = followup.scheduled_message.replace(/\r\n/g, '\n');
             
-            // Remove quebras de linha no início (máximo 2)
-            cleanText = cleanText.replace(/^\n{3,}/, '\n\n');
+            // Remove espaços em excesso no início
+            cleanText = cleanText.replace(/^\s+/, '');
             
-            // Remove espaços excessivos no início da primeira linha (mais de 2)
-            cleanText = cleanText.replace(/^\n\s{3,}/, '\n  ');
+            // Remove espaços em excesso no fim
+            cleanText = cleanText.replace(/\s+$/, '');
             
-            // Se ainda tiver espaços no início da primeira linha, remove todos (caso do problema atual)
-            const firstLine = cleanText.split('\n')[0];
-            if (firstLine && firstLine.match(/^\s{2,}/)) {
-                cleanText = cleanText.replace(/^\s+/, '');
-            }
-            
+            console.log('DEBUG - Aplicando mensagem:', JSON.stringify(cleanText));
             messageContainer.textContent = cleanText;
+            console.log('DEBUG - Mensagem aplicada com sucesso!');
         }
     }
     
