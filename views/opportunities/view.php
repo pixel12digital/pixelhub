@@ -1022,6 +1022,7 @@ async function viewFollowupDetails(itemId) {
 
 function renderFollowupDetails(followup) {
     const content = document.getElementById('followup-details-content');
+    const actions = document.getElementById('followup-details-actions');
     
     let html = `
         <div style="margin-bottom: 16px;">
@@ -1100,10 +1101,192 @@ function renderFollowupDetails(followup) {
     }
     
     content.innerHTML = html;
+    
+    // Adiciona botões de ação (só se não foi enviado ainda)
+    const canEdit = followup.status !== 'sent' && followup.status !== 'cancelled';
+    actions.innerHTML = `
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            ${canEdit ? `
+                <button onclick="editFollowup(${followup.id})" 
+                        style="padding: 10px 20px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Editar
+                </button>
+                <button onclick="deleteFollowup(${followup.id})" 
+                        style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;"
+                        onmouseover="this.style.background='#c82333'" 
+                        onmouseout="this.style.background='#dc3545'">
+                    Excluir
+                </button>
+            ` : ''}
+            <button onclick="closeFollowupDetailsModal()" 
+                    style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                Fechar
+            </button>
+        </div>
+    `;
 }
 
 function closeFollowupDetailsModal() {
     document.getElementById('followup-details-modal').style.display = 'none';
+}
+
+async function editFollowup(itemId) {
+    const content = document.getElementById('followup-details-content');
+    const editDiv = document.getElementById('followup-details-edit');
+    const actions = document.getElementById('followup-details-actions');
+    
+    try {
+        const res = await fetch('<?= pixelhub_url('/opportunities/followup-details') ?>?id=' + itemId);
+        const data = await res.json();
+        
+        if (data.success) {
+            const followup = data.followup;
+            
+            // Mostra formulário de edição
+            content.style.display = 'none';
+            editDiv.style.display = 'block';
+            
+            editDiv.innerHTML = `
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Título *</label>
+                    <input type="text" id="edit-followup-title" value="${followup.title || ''}" 
+                           style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                </div>
+                
+                <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <div style="flex: 1;">
+                        <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Data *</label>
+                        <input type="date" id="edit-followup-date" value="${followup.item_date || ''}" 
+                               style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Horário</label>
+                        <input type="time" id="edit-followup-time" value="${followup.time_start || ''}" 
+                               style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Observações</label>
+                    <textarea id="edit-followup-notes" rows="3" 
+                              style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; min-height: 60px; resize: vertical; box-sizing: border-box;">${followup.notes || ''}</textarea>
+                </div>
+                
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Mensagem para enviar automaticamente</label>
+                    <textarea id="edit-followup-message" rows="4" 
+                              style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; min-height: 100px; resize: vertical; box-sizing: border-box;">${followup.scheduled_message || ''}</textarea>
+                    <div style="font-size: 11px; color: #888; margin-top: 4px;">
+                        Deixe vazio para apenas agendar sem envio automático
+                    </div>
+                </div>
+            `;
+            
+            // Atualiza botões
+            actions.innerHTML = `
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button onclick="cancelEditFollowup()" 
+                            style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                        Cancelar
+                    </button>
+                    <button onclick="saveFollowup(${itemId})" 
+                            style="padding: 10px 20px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                        Salvar
+                    </button>
+                </div>
+            `;
+        } else {
+            alert('Erro: ' + (data.error || 'Não foi possível carregar os dados'));
+        }
+    } catch (e) {
+        alert('Erro: ' + e.message);
+    }
+}
+
+function cancelEditFollowup() {
+    const content = document.getElementById('followup-details-content');
+    const editDiv = document.getElementById('followup-details-edit');
+    
+    content.style.display = 'block';
+    editDiv.style.display = 'none';
+    
+    // Recarrega os detalhes para restaurar os botões originais
+    const currentId = document.querySelector('#followup-details-content').getAttribute('data-current-id');
+    if (currentId) {
+        viewFollowupDetails(parseInt(currentId));
+    }
+}
+
+async function saveFollowup(itemId) {
+    const title = document.getElementById('edit-followup-title').value.trim();
+    const date = document.getElementById('edit-followup-date').value;
+    const time = document.getElementById('edit-followup-time').value;
+    const notes = document.getElementById('edit-followup-notes').value.trim();
+    const message = document.getElementById('edit-followup-message').value.trim();
+    
+    if (!title) {
+        alert('Título é obrigatório');
+        return;
+    }
+    if (!date) {
+        alert('Data é obrigatória');
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('id', itemId);
+        formData.append('title', title);
+        formData.append('item_date', date);
+        formData.append('time_start', time);
+        formData.append('notes', notes);
+        formData.append('scheduled_message', message);
+        
+        const res = await fetch('<?= pixelhub_url('/opportunities/update-followup') ?>', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            alert('Follow-up atualizado com sucesso!');
+            closeFollowupDetailsModal();
+            location.reload(); // Recarrega a página para mostrar as alterações
+        } else {
+            alert('Erro: ' + (data.error || 'Não foi possível atualizar'));
+        }
+    } catch (e) {
+        alert('Erro: ' + e.message);
+    }
+}
+
+async function deleteFollowup(itemId) {
+    if (!confirm('Tem certeza que deseja excluir este follow-up? Esta ação não pode ser desfeita.')) {
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('id', itemId);
+        
+        const res = await fetch('<?= pixelhub_url('/opportunities/delete-followup') ?>', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            alert('Follow-up excluído com sucesso!');
+            closeFollowupDetailsModal();
+            location.reload(); // Recarrega a página para remover o item
+        } else {
+            alert('Erro: ' + (data.error || 'Não foi possível excluir'));
+        }
+    } catch (e) {
+        alert('Erro: ' + e.message);
+    }
 }
 
 async function submitFollowup() {
@@ -1192,11 +1375,12 @@ async function submitFollowup() {
             <!-- Conteúdo será carregado via AJAX -->
         </div>
         
-        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
-            <button onclick="closeFollowupDetailsModal()" 
-                    style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
-                Fechar
-            </button>
+        <div id="followup-details-edit" style="display: none;">
+            <!-- Formulário de edição será carregado via AJAX -->
+        </div>
+        
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;" id="followup-details-actions">
+            <!-- Botões serão inseridos dinamicamente -->
         </div>
     </div>
 </div>

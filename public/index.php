@@ -732,6 +732,8 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/opportunities/find-conversation', 'OpportunitiesController@findConversation');
     $router->get('/api/opportunities/conversation-history', 'OpportunitiesController@conversationHistory');
     $router->get('/opportunities/followup-details', 'OpportunitiesController@followupDetails');
+    $router->post('/opportunities/update-followup', 'OpportunitiesController@updateFollowup');
+    $router->post('/opportunities/delete-followup', 'OpportunitiesController@deleteFollowup');
     
     // Rotas de Contatos Unificados (Leads e Clientes)
     $router->post('/contacts/convert-to-client', 'ContactsController@convertToClient');

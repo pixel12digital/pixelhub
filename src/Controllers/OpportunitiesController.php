@@ -807,4 +807,135 @@ class OpportunitiesController extends Controller
             $this->json(['success' => false, 'error' => 'Erro interno: ' . $e->getMessage()]);
         }
     }
+
+    /**
+     * Atualiza um follow-up agendado
+     * POST /opportunities/update-followup
+     */
+    public function updateFollowup(): void
+    {
+        try {
+            Auth::requireInternal();
+            
+            $itemId = (int) ($_POST['id'] ?? 0);
+            if (!$itemId) {
+                $this->json(['success' => false, 'error' => 'ID não informado']);
+                return;
+            }
+            
+            $title = trim($_POST['title'] ?? '');
+            $date = $_POST['item_date'] ?? '';
+            $time = $_POST['time_start'] ?? '';
+            $notes = trim($_POST['notes'] ?? '');
+            $message = trim($_POST['scheduled_message'] ?? '');
+            
+            if (!$title) {
+                $this->json(['success' => false, 'error' => 'Título é obrigatório']);
+                return;
+            }
+            if (!$date) {
+                $this->json(['success' => false, 'error' => 'Data é obrigatória']);
+                return;
+            }
+            
+            $db = DB::getConnection();
+            
+            // Inicia transação
+            $db->beginTransaction();
+            
+            try {
+                // Atualiza o agenda item
+                $stmt = $db->prepare("
+                    UPDATE agenda_manual_items
+                    SET title = ?, item_date = ?, time_start = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ");
+                $stmt->execute([$title, $date, $time, $notes, $itemId]);
+                
+                // Verifica se há mensagem agendada para atualizar
+                $msgStmt = $db->prepare("
+                    SELECT id FROM scheduled_messages WHERE agenda_item_id = ? ORDER BY created_at DESC LIMIT 1
+                ");
+                $msgStmt->execute([$itemId]);
+                $existingMsg = $msgStmt->fetch();
+                
+                if (!empty($message)) {
+                    // Tem mensagem para salvar
+                    if ($existingMsg) {
+                        // Atualiza mensagem existente
+                        $updateMsg = $db->prepare("
+                            UPDATE scheduled_messages
+                            SET message_text = ?, scheduled_at = CONCAT(?, ' ', COALESCE(?, '00:00:00')), status = 'pending'
+                            WHERE id = ?
+                        ");
+                        $updateMsg->execute([$message, $date, $time, $existingMsg['id']]);
+                    } else {
+                        // Cria nova mensagem
+                        $insertMsg = $db->prepare("
+                            INSERT INTO scheduled_messages
+                            (agenda_item_id, message_text, scheduled_at, status, created_at)
+                            VALUES (?, ?, CONCAT(?, ' ', COALESCE(?, '00:00:00')), 'pending', CURRENT_TIMESTAMP)
+                        ");
+                        $insertMsg->execute([$itemId, $message, $date, $time]);
+                    }
+                } elseif ($existingMsg) {
+                    // Remove mensagem se foi limpa
+                    $deleteMsg = $db->prepare("DELETE FROM scheduled_messages WHERE id = ?");
+                    $deleteMsg->execute([$existingMsg['id']]);
+                }
+                
+                $db->commit();
+                
+                $this->json(['success' => true]);
+            } catch (\Exception $e) {
+                $db->rollBack();
+                throw $e;
+            }
+        } catch (\Exception $e) {
+            error_log('[Opportunities] Erro em updateFollowup: ' . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro interno: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Exclui um follow-up agendado
+     * POST /opportunities/delete-followup
+     */
+    public function deleteFollowup(): void
+    {
+        try {
+            Auth::requireInternal();
+            
+            $itemId = (int) ($_POST['id'] ?? 0);
+            if (!$itemId) {
+                $this->json(['success' => false, 'error' => 'ID não informado']);
+                return;
+            }
+            
+            $db = DB::getConnection();
+            
+            // Inicia transação
+            $db->beginTransaction();
+            
+            try {
+                // Remove mensagens agendadas relacionadas
+                $deleteMsg = $db->prepare("DELETE FROM scheduled_messages WHERE agenda_item_id = ?");
+                $deleteMsg->execute([$itemId]);
+                
+                // Remove o agenda item
+                $deleteItem = $db->prepare("DELETE FROM agenda_manual_items WHERE id = ?");
+                $deleteItem->execute([$itemId]);
+                
+                $db->commit();
+                
+                $this->json(['success' => true]);
+            } catch (\Exception $e) {
+                $db->rollBack();
+                throw $e;
+            }
+        } catch (\Exception $e) {
+            error_log('[Opportunities] Erro em deleteFollowup: ' . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro interno: ' . $e->getMessage()]);
+        }
+    }
 }
