@@ -1086,7 +1086,10 @@ function renderFollowupDetails(followup) {
             // Remove espaços em excesso no fim
             cleanText = cleanText.replace(/\s+$/, '');
             
-            messageContainer.textContent = cleanText;
+            // Aplica com setTimeout para garantir que o container exista
+            setTimeout(() => {
+                messageContainer.textContent = cleanText;
+            }, 50);
         }
     }
     
