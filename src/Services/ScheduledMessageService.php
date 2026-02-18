@@ -74,12 +74,14 @@ class ScheduledMessageService
             SELECT sm.*, 
                    l.phone as lead_phone,
                    t.phone as tenant_phone,
-                   c.id as conversation_id, c.channel_id, c.contact_external_id
+                   c.id as conversation_id, c.channel_id, c.contact_external_id,
+                   o.lead_id as opportunity_lead_id
             FROM scheduled_messages sm
-            LEFT JOIN leads l ON sm.lead_id = l.id
+            LEFT JOIN opportunities o ON sm.opportunity_id = o.id
+            LEFT JOIN leads l ON (sm.lead_id = l.id OR (sm.lead_id IS NULL AND o.lead_id = l.id))
             LEFT JOIN tenants t ON sm.tenant_id = t.id
             LEFT JOIN conversations c ON (
-                (sm.lead_id IS NOT NULL AND c.lead_id = sm.lead_id) OR
+                (l.id IS NOT NULL AND c.lead_id = l.id) OR
                 (sm.tenant_id IS NOT NULL AND c.tenant_id = sm.tenant_id)
             )
             WHERE sm.id = ? AND sm.status = 'pending'
