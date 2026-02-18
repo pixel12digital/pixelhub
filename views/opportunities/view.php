@@ -179,9 +179,15 @@ $isLost = $opp['status'] === 'lost';
             <?php if (!empty($upcomingSchedules) && count($upcomingSchedules) > 0): ?>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
                     <?php foreach ($upcomingSchedules as $schedule): ?>
-                        <div style="padding: 10px; background: #f8f9fa; border-left: 3px solid #023A8D; border-radius: 4px;">
-                            <div style="font-weight: 600; font-size: 13px; color: #333;">
-                                <?= htmlspecialchars($schedule['title']) ?>
+                        <div style="padding: 10px; background: #f8f9fa; border-left: 3px solid #023A8D; border-radius: 4px; cursor: pointer; transition: background 0.2s;" 
+                             onclick="viewFollowupDetails(<?= $schedule['id'] ?>)"
+                             onmouseover="this.style.background='#e9ecef'"
+                             onmouseout="this.style.background='#f8f9fa'">
+                            <div style="font-weight: 600; font-size: 13px; color: #333; display: flex; justify-content: space-between; align-items: center;">
+                                <span><?= htmlspecialchars($schedule['title']) ?></span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2">
+                                    <path d="M9 18l6-6-6-6"/>
+                                </svg>
                             </div>
                             <div style="font-size: 12px; color: #666; margin-top: 4px;">
                                 <?= date('d/m/Y', strtotime($schedule['item_date'])) ?>
@@ -992,6 +998,114 @@ function levenshteinDistance(str1, str2) {
     return matrix[str2.length][str1.length];
 }
 
+async function viewFollowupDetails(itemId) {
+    const modal = document.getElementById('followup-details-modal');
+    const content = document.getElementById('followup-details-content');
+    
+    // Mostra modal com loading
+    modal.style.display = 'flex';
+    content.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">Carregando...</div>';
+    
+    try {
+        const res = await fetch('<?= pixelhub_url('/opportunities/followup-details') ?>?id=' + itemId);
+        const data = await res.json();
+        
+        if (data.success) {
+            renderFollowupDetails(data.followup);
+        } else {
+            content.innerHTML = '<div style="color: #dc3545; padding: 20px;">Erro: ' + (data.error || 'Não foi possível carregar os detalhes') + '</div>';
+        }
+    } catch (e) {
+        content.innerHTML = '<div style="color: #dc3545; padding: 20px;">Erro: ' + e.message + '</div>';
+    }
+}
+
+function renderFollowupDetails(followup) {
+    const content = document.getElementById('followup-details-content');
+    
+    let html = `
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Título</label>
+            <div style="padding: 10px; background: #f8f9fa; border-radius: 4px; font-size: 14px; color: #333;">
+                ${followup.title || '-'}
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Data</label>
+                <div style="padding: 10px; background: #f8f9fa; border-radius: 4px; font-size: 14px; color: #333;">
+                    ${followup.item_date ? new Date(followup.item_date).toLocaleDateString('pt-BR') : '-'}
+                </div>
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Horário</label>
+                <div style="padding: 10px; background: #f8f9fa; border-radius: 4px; font-size: 14px; color: #333;">
+                    ${followup.time_start || '-'}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    if (followup.notes) {
+        html += `
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Observações</label>
+                <div style="padding: 10px; background: #f8f9fa; border-radius: 4px; font-size: 14px; color: #333; white-space: pre-wrap;">
+                    ${followup.notes}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (followup.scheduled_message) {
+        html += `
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Mensagem Agendada</label>
+                <div style="padding: 10px; background: #e8f5e9; border-left: 3px solid #28a745; border-radius: 4px; font-size: 14px; color: #333; white-space: pre-wrap;">
+                    ${followup.scheduled_message}
+                </div>
+                <div style="font-size: 11px; color: #28a745; margin-top: 4px;">
+                    ✓ Esta mensagem será enviada automaticamente
+                </div>
+            </div>
+        `;
+    }
+    
+    if (followup.status) {
+        const statusColors = {
+            'pending': '#ffc107',
+            'sent': '#28a745',
+            'failed': '#dc3545',
+            'cancelled': '#6c757d'
+        };
+        const statusLabels = {
+            'pending': 'Pendente',
+            'sent': 'Enviada',
+            'failed': 'Falha',
+            'cancelled': 'Cancelada'
+        };
+        
+        html += `
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Status da Mensagem</label>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="background: ${statusColors[followup.status] || '#6c757d'}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600;">
+                        ${statusLabels[followup.status] || followup.status}
+                    </span>
+                    ${followup.sent_at ? `<span style="font-size: 12px; color: #666;">Enviada em ${new Date(followup.sent_at).toLocaleString('pt-BR')}</span>` : ''}
+                </div>
+            </div>
+        `;
+    }
+    
+    content.innerHTML = html;
+}
+
+function closeFollowupDetailsModal() {
+    document.getElementById('followup-details-modal').style.display = 'none';
+}
+
 async function submitFollowup() {
     const title = document.getElementById('followup-title').value.trim();
     const date = document.getElementById('followup-date').value;
@@ -1065,6 +1179,27 @@ async function submitFollowup() {
     }
 }
 </script>
+
+<!-- Modal: Detalhes do Follow-up -->
+<div id="followup-details-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 8px; padding: 24px; max-width: 600px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; font-size: 18px; color: #333;">Detalhes do Follow-up</h3>
+            <button onclick="closeFollowupDetailsModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+        </div>
+        
+        <div id="followup-details-content">
+            <!-- Conteúdo será carregado via AJAX -->
+        </div>
+        
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+            <button onclick="closeFollowupDetailsModal()" 
+                    style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                Fechar
+            </button>
+        </div>
+    </div>
+</div>
 
 <!-- Modal: Agendar Follow-up -->
 <div id="schedule-followup-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">

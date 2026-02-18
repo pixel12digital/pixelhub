@@ -722,4 +722,80 @@ class OpportunitiesController extends Controller
             'messages' => $messages,
         ]);
     }
+
+    /**
+     * Retorna detalhes de um follow-up agendado
+     * GET /opportunities/followup-details?id=X
+     */
+    public function followupDetails(): void
+    {
+        Auth::requireInternal();
+        
+        $itemId = (int) ($_GET['id'] ?? 0);
+        if (!$itemId) {
+            $this->json(['success' => false, 'error' => 'ID não informado']);
+            return;
+        }
+        
+        $db = Database::getConnection();
+        
+        // Busca dados do agenda item
+        $stmt = $db->prepare("
+            SELECT id, title, item_date, time_start, time_end, notes, opportunity_id, lead_id, related_type
+            FROM agenda_manual_items
+            WHERE id = ?
+        ");
+        $stmt->execute([$itemId]);
+        $item = $stmt->fetch();
+        
+        if (!$item) {
+            $this->json(['success' => false, 'error' => 'Follow-up não encontrado']);
+            return;
+        }
+        
+        // Verifica se há mensagem agendada
+        $scheduledMessage = null;
+        $messageStatus = null;
+        $sentAt = null;
+        
+        try {
+            $msgStmt = $db->prepare("
+                SELECT message_text, status, sent_at
+                FROM scheduled_messages
+                WHERE agenda_item_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            ");
+            $msgStmt->execute([$itemId]);
+            $msg = $msgStmt->fetch();
+            
+            if ($msg) {
+                $scheduledMessage = $msg['message_text'];
+                $messageStatus = $msg['status'];
+                $sentAt = $msg['sent_at'];
+            }
+        } catch (\Exception $e) {
+            // Tabela pode não existir
+        }
+        
+        $followup = [
+            'id' => $item['id'],
+            'title' => $item['title'],
+            'item_date' => $item['item_date'],
+            'time_start' => $item['time_start'],
+            'time_end' => $item['time_end'],
+            'notes' => $item['notes'],
+            'opportunity_id' => $item['opportunity_id'],
+            'lead_id' => $item['lead_id'],
+            'related_type' => $item['related_type'],
+            'scheduled_message' => $scheduledMessage,
+            'status' => $messageStatus,
+            'sent_at' => $sentAt,
+        ];
+        
+        $this->json([
+            'success' => true,
+            'followup' => $followup,
+        ]);
+    }
 }
