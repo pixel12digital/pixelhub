@@ -1024,6 +1024,13 @@ function renderFollowupDetails(followup) {
     const content = document.getElementById('followup-details-content');
     const actions = document.getElementById('followup-details-actions');
     
+    // Debug: mostra os dados que chegam
+    console.log('DEBUG - Dados recebidos em renderFollowupDetails:', followup);
+    console.log('DEBUG - scheduled_message:', followup.scheduled_message);
+    
+    // Armazena global para debug
+    window.currentFollowupData = followup;
+    
     let html = `
         <div style="margin-bottom: 16px;">
             <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Título</label>
