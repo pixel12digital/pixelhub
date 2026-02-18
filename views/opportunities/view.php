@@ -1024,6 +1024,11 @@ function renderFollowupDetails(followup) {
     const content = document.getElementById('followup-details-content');
     const actions = document.getElementById('followup-details-actions');
     
+    // Debug: mostra o valor bruto da mensagem no console
+    console.log('DEBUG - Mensagem bruta:', JSON.stringify(followup.scheduled_message));
+    console.log('DEBUG - Length:', followup.scheduled_message ? followup.scheduled_message.length : 0);
+    console.log('DEBUG - Char codes:', followup.scheduled_message ? followup.scheduled_message.split('').map(c => c.charCodeAt(0)) : []);
+    
     let html = `
         <div style="margin-bottom: 16px;">
             <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Título</label>
