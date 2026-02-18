@@ -738,7 +738,7 @@ class OpportunitiesController extends Controller
                 return;
             }
             
-            $db = Database::getConnection();
+            $db = DB::getConnection();
             
             // Busca dados do agenda item
             $stmt = $db->prepare("
