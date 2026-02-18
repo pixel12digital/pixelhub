@@ -108,27 +108,36 @@ class ScheduledMessageService
         }
         
         try {
-            // Envia via CommunicationHubController
-            require_once __DIR__ . '/../Controllers/CommunicationHubController.php';
-            $controller = new \PixelHub\Controllers\CommunicationHubController();
+            // Envia via WhatsAppGatewayClient (funciona em CLI)
+            require_once __DIR__ . '/../Integrations/WhatsAppGateway/WhatsAppGatewayClient.php';
+            require_once __DIR__ . '/../Services/GatewaySecret.php';
             
-            // Simula POST para enviar mensagem
-            $_POST = [
-                'channel_id' => $message['channel_id'] ?? 'pixel12digital',
-                'to' => $phone,
-                'message' => $message['message_text'],
-                'conversation_id' => $message['conversation_id'] ?? null,
-            ];
+            $client = new \PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient();
             
-            // Chama método de envio
-            ob_start();
-            $controller->send();
-            ob_end_clean();
+            // Define request ID para rastreamento
+            $client->setRequestId('scheduled_msg_' . $messageId . '_' . time());
             
-            // Marca como enviada
-            self::markAsSent($messageId, $message['conversation_id']);
+            // Envia mensagem
+            $result = $client->sendText(
+                $message['channel_id'] ?? 'pixel12digital',
+                $phone,
+                $message['message_text'],
+                ['source' => 'scheduled_message', 'message_id' => $messageId]
+            );
             
-            return true;
+            if ($result['success']) {
+                // Marca como enviada
+                self::markAsSent($messageId, $message['conversation_id']);
+                error_log("[ScheduledMessage] Mensagem ID {$messageId} enviada com sucesso. Message ID: " . ($result['message_id'] ?? 'N/A'));
+                return true;
+            } else {
+                // Marca como falha
+                $errorMsg = $result['error'] ?? 'Erro desconhecido no gateway';
+                self::markAsFailed($messageId, $errorMsg);
+                error_log("[ScheduledMessage] Erro ao enviar mensagem ID {$messageId}: {$errorMsg}");
+                return false;
+            }
+            
         } catch (\Exception $e) {
             error_log("[ScheduledMessage] Erro ao enviar mensagem ID {$messageId}: " . $e->getMessage());
             self::markAsFailed($messageId, $e->getMessage());
