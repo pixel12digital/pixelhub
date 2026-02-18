@@ -829,6 +829,9 @@ class OpportunitiesController extends Controller
             $notes = trim($_POST['notes'] ?? '');
             $message = trim($_POST['scheduled_message'] ?? '');
             
+            // Remove espaços em excesso do início e fim da mensagem
+            $message = preg_replace('/^\s+|\s+$/', '', $message);
+            
             if (!$title) {
                 $this->json(['success' => false, 'error' => 'Título é obrigatório']);
                 return;

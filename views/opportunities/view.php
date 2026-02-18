@@ -1064,7 +1064,7 @@ function renderFollowupDetails(followup) {
             <div style="margin-bottom: 16px;">
                 <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Mensagem Agendada</label>
                 <div style="padding: 10px; background: #e8f5e9; border-left: 3px solid #28a745; border-radius: 4px; font-size: 14px; color: #333; white-space: pre-wrap;">
-                    ${followup.scheduled_message ? followup.scheduled_message.trim() : ''}
+                    ${followup.scheduled_message ? followup.scheduled_message.replace(/^\s+/, '').replace(/\s+$/, '') : ''}
                 </div>
                 <div style="font-size: 11px; color: #28a745; margin-top: 4px;">
                     ✓ Esta mensagem será enviada automaticamente
