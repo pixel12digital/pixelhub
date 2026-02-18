@@ -1007,7 +1007,7 @@ async function viewFollowupDetails(itemId) {
     content.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">Carregando...</div>';
     
     try {
-        const res = await fetch('<?= pixelhub_url('/opportunities/followup-details') ?>?id=' + itemId);
+        const res = await fetch('/painel.pixel12digital/opportunities/followup-details?id=' + itemId);
         const data = await res.json();
         
         if (data.success) {
@@ -1036,7 +1036,7 @@ function renderFollowupDetails(followup) {
             <div style="flex: 1;">
                 <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Data</label>
                 <div style="padding: 10px; background: #f8f9fa; border-radius: 4px; font-size: 14px; color: #333;">
-                    ${followup.item_date ? new Date(followup.item_date).toLocaleDateString('pt-BR') : '-'}
+                    ${followup.item_date ? followup.item_date.split('-')[2] + '/' + followup.item_date.split('-')[1] + '/' + followup.item_date.split('-')[0] : '-'}
                 </div>
             </div>
             <div style="flex: 1;">
@@ -1155,7 +1155,7 @@ async function editFollowup(itemId) {
     const actions = document.getElementById('followup-details-actions');
     
     try {
-        const res = await fetch('<?= pixelhub_url('/opportunities/followup-details') ?>?id=' + itemId);
+        const res = await fetch('/painel.pixel12digital/opportunities/followup-details?id=' + itemId);
         const data = await res.json();
         
         if (data.success) {
