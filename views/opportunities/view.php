@@ -1024,11 +1024,6 @@ function renderFollowupDetails(followup) {
     const content = document.getElementById('followup-details-content');
     const actions = document.getElementById('followup-details-actions');
     
-    // Debug: mostra o valor bruto da mensagem no console
-    console.log('DEBUG - Mensagem bruta:', JSON.stringify(followup.scheduled_message));
-    console.log('DEBUG - Length:', followup.scheduled_message ? followup.scheduled_message.length : 0);
-    console.log('DEBUG - Char codes:', followup.scheduled_message ? followup.scheduled_message.split('').map(c => c.charCodeAt(0)) : []);
-    
     let html = `
         <div style="margin-bottom: 16px;">
             <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Título</label>
@@ -1069,7 +1064,7 @@ function renderFollowupDetails(followup) {
             <div style="margin-bottom: 16px;">
                 <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Mensagem Agendada</label>
                 <div style="padding: 10px; background: #e8f5e9; border-left: 3px solid #28a745; border-radius: 4px; font-size: 14px; color: #333; white-space: pre-wrap;">
-                    ${followup.scheduled_message ? followup.scheduled_message.replace(/^\s+/, '').replace(/\s+$/, '') : ''}
+                    ${followup.scheduled_message ? followup.scheduled_message.replace(/^\s+|\s+$/gm, '').replace(/^\n+/, '') : ''}
                 </div>
                 <div style="font-size: 11px; color: #28a745; margin-top: 4px;">
                     ✓ Esta mensagem será enviada automaticamente
