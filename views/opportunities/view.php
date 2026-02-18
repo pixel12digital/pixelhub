@@ -1063,14 +1063,38 @@ function renderFollowupDetails(followup) {
         html += `
             <div style="margin-bottom: 16px;">
                 <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Mensagem Agendada</label>
-                <div style="padding: 10px; background: #e8f5e9; border-left: 3px solid #28a745; border-radius: 4px; font-size: 14px; color: #333; white-space: pre-wrap;">
-                    ${followup.scheduled_message ? followup.scheduled_message.replace(/^\s+|\s+$/gm, '').replace(/^\n+/, '') : ''}
-                </div>
+                <div id="followup-message-container" style="padding: 10px; background: #e8f5e9; border-left: 3px solid #28a745; border-radius: 4px; font-size: 14px; color: #333; white-space: pre-wrap;"></div>
                 <div style="font-size: 11px; color: #28a745; margin-top: 4px;">
                     ✓ Esta mensagem será enviada automaticamente
                 </div>
             </div>
         `;
+    }
+    
+    content.innerHTML = html;
+    
+    // Aplica a mensagem limpa separadamente
+    if (followup.scheduled_message) {
+        const messageContainer = document.getElementById('followup-message-container');
+        if (messageContainer) {
+            // Remove apenas espaços/quebras EXCESSIVAS no início (mais de 2 espaços ou mais de 1 quebra)
+            // Mas preserva formatação intencional como quebras de linha e espaços normais
+            let cleanText = followup.scheduled_message;
+            
+            // Remove quebras de linha no início (máximo 2)
+            cleanText = cleanText.replace(/^\n{3,}/, '\n\n');
+            
+            // Remove espaços excessivos no início da primeira linha (mais de 2)
+            cleanText = cleanText.replace(/^\n\s{3,}/, '\n  ');
+            
+            // Se ainda tiver espaços no início da primeira linha, remove todos (caso do problema atual)
+            const firstLine = cleanText.split('\n')[0];
+            if (firstLine && firstLine.match(/^\s{2,}/)) {
+                cleanText = cleanText.replace(/^\s+/, '');
+            }
+            
+            messageContainer.textContent = cleanText;
+        }
     }
     
     if (followup.status) {
