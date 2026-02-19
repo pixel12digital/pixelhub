@@ -240,8 +240,11 @@ class AISuggestReplyService
 
         $learnedExamples = self::getLearnedExamples($contextSlug, $objective, 5);
 
+        // Transcreve áudios automaticamente nos bastidores para contexto completo
+        $enhancedHistory = self::transcribeAudiosForContext($conversationHistory);
+
         $systemPrompt = self::buildChatSystemPrompt($aiContext, $objective, $hasHistory, $learnedExamples);
-        $userContext = self::buildUserPrompt($conversationHistory, $contactName, $contactPhone, $attendantNote, $objective, $hasHistory);
+        $userContext = self::buildUserPrompt($enhancedHistory, $contactName, $contactPhone, $attendantNote, $objective, $hasHistory);
         
         // Se há refinamento, adiciona ao contexto
         if (!empty($userPrompt)) {
@@ -655,5 +658,70 @@ PROMPT;
         }
 
         return $apiKeyRaw;
+    }
+
+    /**
+     * Transcreve áudios automaticamente nos bastidores para contexto da IA
+     * 
+     * @param array $conversationHistory Histórico da conversa
+     * @return array Histórico com transcrições incluídas
+     */
+    private static function transcribeAudiosForContext(array $conversationHistory): array
+    {
+        $enhancedHistory = [];
+        
+        foreach ($conversationHistory as $message) {
+            $enhancedMessage = $message;
+            
+            // Verifica se há mídia/áudio na mensagem
+            if (isset($message['media']) && is_array($message['media'])) {
+                $transcribedTexts = [];
+                
+                foreach ($message['media'] as $media) {
+                    // Se é áudio e não tem transcrição
+                    if (in_array($media['media_type'] ?? '', ['audio', 'ptt', 'voice']) && 
+                        (!isset($media['transcription']) || empty($media['transcription'])) &&
+                        isset($media['event_id'])) {
+                        
+                        try {
+                            // Transcreve nos bastidores
+                            $result = \PixelHub\Services\AudioTranscriptionService::transcribeByEventId($media['event_id']);
+                            
+                            if ($result['success'] && !empty($result['transcription'])) {
+                                $transcribedTexts[] = $result['transcription'];
+                                
+                                // Atualiza a mídia com a transcrição
+                                $media['transcription'] = $result['transcription'];
+                                $media['transcription_status'] = 'completed';
+                            }
+                        } catch (\Exception $e) {
+                            error_log('[AI Context] Erro na transcrição automática: ' . $e->getMessage());
+                        }
+                    } elseif (isset($media['transcription']) && !empty($media['transcription'])) {
+                        // Já tem transcrição
+                        $transcribedTexts[] = $media['transcription'];
+                    }
+                }
+                
+                // Adiciona transcrições ao conteúdo da mensagem
+                if (!empty($transcribedTexts)) {
+                    $originalContent = $message['message'] ?? '';
+                    $transcriptionText = implode(' | ', $transcribedTexts);
+                    
+                    if (!empty($originalContent)) {
+                        $enhancedMessage['message'] = $originalContent . ' [Áudio: ' . $transcriptionText . ']';
+                    } else {
+                        $enhancedMessage['message'] = '[Áudio: ' . $transcriptionText . ']';
+                    }
+                    
+                    // Atualiza a mídia na mensagem
+                    $enhancedMessage['media'] = $message['media'];
+                }
+            }
+            
+            $enhancedHistory[] = $enhancedMessage;
+        }
+        
+        return $enhancedHistory;
     }
 }
