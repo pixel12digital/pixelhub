@@ -2950,6 +2950,93 @@
             lastGeneratedAt: null 
         };
 
+        // Renderiza 3 sugestões da IA com botões para todas
+        window.renderInboxAISuggestions = function(suggestions) {
+            var chatArea = document.getElementById('inboxAIChatArea');
+            var preview = document.getElementById('inboxAIDraftPreview');
+            
+            if (!chatArea) return;
+            
+            // Esconde preview de rascunho único
+            if (preview) preview.style.display = 'none';
+            
+            // Esconde mensagem de boas-vindas
+            var welcome = document.getElementById('inboxAIWelcomeMessage');
+            if (welcome) welcome.parentElement.style.display = 'none';
+            
+            // Limpa área e renderiza sugestões
+            var html = '';
+            suggestions.forEach(function(suggestion, index) {
+                var suggestionText = suggestion.text || suggestion;
+                
+                html += '<div style="margin-bottom: 15px; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; background: #f9f9f9;">';
+                html += '<div style="font-weight: bold; color: #6f42c1; margin-bottom: 8px; font-size: 13px;">' + (index + 1) + ')</div>';
+                html += '<div style="margin-bottom: 10px; line-height: 1.5; color: #333; white-space: pre-wrap; font-size: 12px;">' + escapeInboxHtml(suggestionText) + '</div>';
+                html += '<div style="display: flex; gap: 6px; flex-wrap: wrap;">';
+                html += '<button type="button" onclick="useInboxAISuggestion(this)" data-text="' + escapeInboxHtml(suggestionText).replace(/"/g, '&quot;') + '" data-index="' + index + '" style="padding: 6px 12px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600;">Usar esta resposta</button>';
+                html += '<button type="button" onclick="copyInboxAISuggestion(this)" data-text="' + escapeInboxHtml(suggestionText).replace(/"/g, '&quot;') + '" style="padding: 6px 12px; background: #e0e0e0; color: #555; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">Copiar</button>';
+                html += '</div>';
+                html += '</div>';
+            });
+            
+            chatArea.innerHTML = html;
+            chatArea.scrollTop = chatArea.scrollHeight;
+        };
+
+        // Usa sugestão específica da IA
+        window.useInboxAISuggestion = function(btn) {
+            var text = btn.getAttribute('data-text') || '';
+            var index = btn.getAttribute('data-index') || '0';
+            if (!text) return;
+            
+            var textarea = document.getElementById('inboxMessageInput');
+            if (textarea) {
+                textarea.value = text;
+                textarea.focus();
+                textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+                if (typeof autoResizeInboxTextarea === 'function') autoResizeInboxTextarea(textarea);
+                if (typeof updateInboxSendMicVisibility === 'function') updateInboxSendMicVisibility();
+            }
+            
+            // Salva para aprendizado com observações detalhadas
+            var contextSlug = (document.getElementById('inboxAIContext') || {}).value || 'geral';
+            var objective = (document.getElementById('inboxAIObjective') || {}).value || 'first_contact';
+            var note = (document.getElementById('inboxAINote') || {}).value || '';
+            
+            // Monta situation_summary detalhado
+            var detailedSummary = 'IA Assistente - Sugestão ' + (parseInt(index) + 1);
+            if (note) {
+                detailedSummary += ' | Observações: ' + note;
+            }
+            if (window._currentInboxConversationId) {
+                detailedSummary += ' | Conversa: ' + window._currentInboxConversationId;
+            }
+            
+            window._aiPendingLearn = {
+                context_slug: contextSlug,
+                objective: objective,
+                ai_suggestion: text,
+                situation_summary: detailedSummary,
+                conversation_id: window._currentInboxConversationId || null,
+                refinement_note: note, // Campo adicional para observações
+                suggestion_index: parseInt(index) + 1
+            };
+            
+            closeInboxAIPanel();
+        };
+
+        // Copia sugestão específica da IA
+        window.copyInboxAISuggestion = function(btn) {
+            var text = btn.getAttribute('data-text') || '';
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(function() {
+                    var orig = btn.textContent;
+                    btn.textContent = 'Copiado!';
+                    setTimeout(function() { btn.textContent = orig; }, 1500);
+                });
+            }
+        };
+
         // Gera rascunho automático baseado em contexto + objetivo + histórico
         window.generateInboxAIDraft = function() {
             if (InboxAIDraftState.isGenerating) return;
@@ -3020,8 +3107,8 @@
                 })
             };
             
-            // Chamada API
-            fetch(_aiBaseUrl + '/api/ai/chat', {
+            // Chamada API - usa suggest-chat para obter 3 sugestões
+            fetch(_aiBaseUrl + '/api/ai/suggest-chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
@@ -3040,12 +3127,18 @@
                     alert('Erro ao gerar rascunho: ' + (data.error || 'Erro desconhecido'));
                     console.error('[IA] Erro:', data);
                 } else {
-                    // Sucesso - mostra rascunho
-                    InboxAIDraftState.currentDraft = data.message;
-                    InboxAIDraftState.lastGeneratedAt = new Date();
-                    
-                    if (draftText) draftText.textContent = data.message;
-                    if (preview) preview.style.display = 'block';
+                    // Sucesso - verifica se veio 3 sugestões ou 1 mensagem
+                    if (data.mode === '3_suggestions' && data.suggestions && data.suggestions.length > 0) {
+                        // Renderiza 3 sugestões com botões para todas
+                        renderInboxAISuggestions(data.suggestions);
+                    } else {
+                        // Modo chat - mostra rascunho único
+                        InboxAIDraftState.currentDraft = data.message;
+                        InboxAIDraftState.lastGeneratedAt = new Date();
+                        
+                        if (draftText) draftText.textContent = data.message;
+                        if (preview) preview.style.display = 'block';
+                    }
                     
                     // Esconde mensagem de boas-vindas
                     var welcome = document.getElementById('inboxAIWelcomeMessage');
@@ -3086,13 +3179,28 @@
             if (typeof autoResizeInboxTextarea === 'function') autoResizeInboxTextarea(ta);
             if (typeof updateInboxSendMicVisibility === 'function') updateInboxSendMicVisibility();
             
-            // Marca para aprendizado
+            // Marca para aprendizado com observações detalhadas
+            var contextSlug = (document.getElementById('inboxAIContext') || {}).value || 'geral';
+            var objective = (document.getElementById('inboxAIObjective') || {}).value || 'first_contact';
+            var note = (document.getElementById('inboxAINote') || {}).value || '';
+            
+            // Monta situation_summary detalhado
+            var detailedSummary = 'Rascunho IA - Inbox';
+            if (note) {
+                detailedSummary += ' | Observações: ' + note;
+            }
+            if (window._currentInboxConversationId) {
+                detailedSummary += ' | Conversa: ' + window._currentInboxConversationId;
+            }
+            
             window._aiPendingLearn = {
-                context_slug: (document.getElementById('inboxAIContext') || {}).value || 'geral',
-                objective: (document.getElementById('inboxAIObjective') || {}).value || 'first_contact',
+                context_slug: contextSlug,
+                objective: objective,
                 ai_suggestion: text,
-                situation_summary: 'Rascunho IA - Inbox',
-                conversation_id: window._currentInboxConversationId || null
+                situation_summary: detailedSummary,
+                conversation_id: window._currentInboxConversationId || null,
+                refinement_note: note, // Campo adicional para observações
+                is_draft: true
             };
             
             closeInboxAIPanel();
@@ -3247,6 +3355,48 @@
                     var preview = document.getElementById('inboxAIDraftPreview');
                     if (draftText) draftText.textContent = data.message;
                     if (preview) preview.style.display = 'block';
+                    
+                    // SE HOUVE REFINAMENTO, atualiza _aiPendingLearn com instruções detalhadas
+                    if (userPrompt && userPrompt.includes('Refine esta resposta:')) {
+                        var contextSlug = (document.getElementById('inboxAIContext') || {}).value || 'geral';
+                        var objective = (document.getElementById('inboxAIObjective') || {}).value || 'first_contact';
+                        var note = (document.getElementById('inboxAINote') || {}).value || '';
+                        
+                        // Extrai instruções de refinamento do userPrompt
+                        var refinementInstructions = text; // O texto digitado pelo usuário
+                        
+                        // Monta situation_summary detalhado para refinamento
+                        var detailedSummary = 'Refinamento IA - Inbox';
+                        if (refinementInstructions) {
+                            detailedSummary += ' | Instruções: ' + refinementInstructions;
+                        }
+                        if (note) {
+                            detailedSummary += ' | Observações: ' + note;
+                        }
+                        if (window._currentInboxConversationId) {
+                            detailedSummary += ' | Conversa: ' + window._currentInboxConversationId;
+                        }
+                        
+                        // Salva a resposta original ANTES do refinamento
+                        var originalResponse = '';
+                        if (userPrompt.includes('Refine esta resposta: "')) {
+                            var match = userPrompt.match(/Refine esta resposta: "([^"]+)"/);
+                            if (match) {
+                                originalResponse = match[1];
+                            }
+                        }
+                        
+                        window._aiPendingLearn = {
+                            context_slug: contextSlug,
+                            objective: objective,
+                            ai_suggestion: originalResponse || 'Resposta anterior',
+                            situation_summary: detailedSummary,
+                            conversation_id: window._currentInboxConversationId || null,
+                            refinement_note: refinementInstructions, // Suas instruções específicas
+                            refined_response: data.message, // Resposta após refinamento
+                            is_refinement: true
+                        };
+                    }
                 }
                 renderInboxAIChat();
                 if (input) input.focus();
@@ -3302,18 +3452,32 @@
                     var ta = document.getElementById('inboxMessageInput');
                     var finalText = ta ? ta.value.trim() : '';
                     if (finalText && pending.ai_suggestion) {
+                        // Prepara payload com todos os campos de refinamento
+                        var learnPayload = {
+                            context_slug: pending.context_slug,
+                            objective: pending.objective,
+                            situation_summary: pending.situation_summary,
+                            ai_suggestion: pending.ai_suggestion,
+                            human_response: finalText,
+                            conversation_id: pending.conversation_id
+                        };
+                        
+                        // Adiciona campos específicos de refinamento se existirem
+                        if (pending.is_refinement) {
+                            learnPayload.is_refinement = true;
+                        }
+                        if (pending.refinement_note) {
+                            learnPayload.refinement_note = pending.refinement_note;
+                        }
+                        if (pending.refined_response) {
+                            learnPayload.refined_response = pending.refined_response;
+                        }
+                        
                         fetch(_aiBaseUrl + '/api/ai/learn', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                             credentials: 'same-origin',
-                            body: JSON.stringify({
-                                context_slug: pending.context_slug,
-                                objective: pending.objective,
-                                situation_summary: pending.situation_summary,
-                                ai_suggestion: pending.ai_suggestion,
-                                human_response: finalText,
-                                conversation_id: pending.conversation_id
-                            })
+                            body: JSON.stringify(learnPayload)
                         }).catch(function() {});
                     }
                     window._aiPendingLearn = null;

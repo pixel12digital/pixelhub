@@ -111,10 +111,13 @@ class AISuggestReplyService
             return ['success' => false, 'error' => 'Sugestão da IA e resposta humana são obrigatórias'];
         }
 
-        // Só salva se houve diferença significativa (>10% de mudança)
+        // Para refinamentos, sempre salva (mesmo que similar) porque contém instruções valiosas
+        $isRefinement = !empty($params['is_refinement']) && $params['is_refinement'] === true;
+        
+        // Só salva se houve diferença significativa (>10% de mudança) OU for refinamento
         $similarity = 0;
         similar_text($aiSuggestion, $humanResponse, $similarity);
-        if ($similarity > 90) {
+        if (!$isRefinement && $similarity > 90) {
             return ['success' => true, 'saved' => false, 'reason' => 'Resposta muito similar à sugestão, não necessita aprendizado'];
         }
 
@@ -138,6 +141,71 @@ class AISuggestReplyService
     }
 
     /**
+     * Gera 3 sugestões com contexto completo (modo híbrido)
+     * Usa o suggest() mas mantém contexto para refinamentos
+     */
+    public static function suggestChat(array $params): array
+    {
+        $contextSlug = $params['context_slug'] ?? 'geral';
+        $objective = $params['objective'] ?? 'first_contact';
+        $tone = $params['tone'] ?? 'normal';
+        $attendantNote = $params['attendant_note'] ?? '';
+        $conversationHistory = $params['conversation_history'] ?? [];
+        $contactName = $params['contact_name'] ?? '';
+        $contactPhone = $params['contact_phone'] ?? '';
+        $aiChatMessages = $params['ai_chat_messages'] ?? [];
+        $hasHistory = !empty($conversationHistory);
+
+        // Busca contexto de atendimento do banco
+        $aiContext = self::getContext($contextSlug);
+        if (!$aiContext) {
+            $aiContext = self::getContext('geral');
+        }
+
+        // Busca exemplos de aprendizado anteriores
+        $learnedExamples = self::getLearnedExamples($contextSlug, $objective, 3);
+
+        // Se há histórico de chat IA OU refinamento, usa o método chat
+        if (!empty($aiChatMessages) || !empty($params['user_prompt'] ?? '')) {
+            // Para refinamentos, usa o método chat com contexto mantido
+            return self::chat($params);
+        }
+
+        // Primeira geração: usa suggest() para obter 3 sugestões
+        $systemPrompt = self::buildSystemPrompt($aiContext, $objective, $tone, $hasHistory, $learnedExamples);
+        $userPrompt = self::buildUserPrompt($conversationHistory, $contactName, $contactPhone, $attendantNote, $objective, $hasHistory);
+
+        // Chama OpenAI
+        $apiKey = self::getApiKey();
+        if (empty($apiKey)) {
+            return [
+                'success' => false,
+                'error' => 'Chave de API OpenAI não configurada. Acesse Configurações > Configurações IA.',
+            ];
+        }
+
+        try {
+            $response = self::callOpenAI($apiKey, $systemPrompt, $userPrompt);
+            return [
+                'success' => true,
+                'suggestions' => $response['suggestions'] ?? [],
+                'qualification_questions' => $response['qualification_questions'] ?? [],
+                'lead_summary' => $response['lead_summary'] ?? '',
+                'has_history' => $hasHistory,
+                'context_used' => $aiContext['name'] ?? $contextSlug,
+                'learned_examples_count' => count($learnedExamples),
+                'mode' => '3_suggestions' // Indica que são 3 sugestões
+            ];
+        } catch (\Exception $e) {
+            error_log('[AISuggestReply] Erro: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => 'Erro ao gerar sugestões: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Chat conversacional com a IA — gera 1 resposta e permite refinamento
      * Recebe o histórico de mensagens do chat IA (não da conversa WhatsApp)
      */
@@ -150,7 +218,13 @@ class AISuggestReplyService
         $contactName = $params['contact_name'] ?? '';
         $contactPhone = $params['contact_phone'] ?? '';
         $aiChatMessages = $params['ai_chat_messages'] ?? []; // histórico do chat com a IA
+        $userPrompt = $params['user_prompt'] ?? ''; // REFINAMENTO DO USUÁRIO
         $hasHistory = !empty($conversationHistory);
+        
+        // Log do refinamento para debug
+        if (!empty($userPrompt)) {
+            error_log('[AI CHAT] REFINAMENTO DETECTADO: "' . substr($userPrompt, 0, 200) . '..."');
+        }
 
         // Log obrigatório para debug
         error_log('[AI CHAT] conversation_history count: ' . count($conversationHistory));
@@ -168,6 +242,11 @@ class AISuggestReplyService
 
         $systemPrompt = self::buildChatSystemPrompt($aiContext, $objective, $hasHistory, $learnedExamples);
         $userContext = self::buildUserPrompt($conversationHistory, $contactName, $contactPhone, $attendantNote, $objective, $hasHistory);
+        
+        // Se há refinamento, adiciona ao contexto
+        if (!empty($userPrompt)) {
+            $userContext .= "\n\n## REFINAMENTO SOLICITADO\n" . $userPrompt;
+        }
         
         // Log do contexto gerado para debug
         error_log('[AI CHAT] userContext length: ' . strlen($userContext));
@@ -187,8 +266,11 @@ class AISuggestReplyService
                 $fullContext = $userContext . "\n\nGere UMA resposta pronta para enviar via WhatsApp.";
                 $messages[] = ['role' => 'user', 'content' => $fullContext];
             } else {
-                // Conversa em andamento: envia contexto inicial + histórico do chat IA
-                $messages[] = ['role' => 'user', 'content' => $userContext];
+                // Conversa em andamento: MANTÉM o contexto original + adiciona histórico do chat IA
+                // Importante: o contexto completo (histórico WhatsApp) sempre vai como primeira mensagem user
+                $messages[] = ['role' => 'user', 'content' => $userContext . "\n\nGere UMA resposta pronta para enviar via WhatsApp."];
+                
+                // Adiciona o histórico do chat IA como mensagens subsequentes
                 foreach ($aiChatMessages as $msg) {
                     $role = ($msg['role'] ?? 'user') === 'assistant' ? 'assistant' : 'user';
                     $messages[] = ['role' => $role, 'content' => $msg['content'] ?? ''];
@@ -370,15 +452,23 @@ PROMPT;
 Você está em modo CHAT com o atendente. Seu trabalho:
 1. Gere UMA resposta pronta para enviar ao cliente via WhatsApp
 2. O atendente pode pedir ajustes: "mude o tom", "mais curto", "mencione X", "mais informal"
-3. Você ajusta e gera uma nova versão
-4. Quando o atendente aprovar, ele usa a resposta
+3. O atendente PODE CORRIGIR PREMISSAS: "Eu ainda não enviei o projeto", "Não tem link na conversa", "Mude para primeiro contato"
+4. Você ajusta e gera uma nova versão COMPLETAMENTE corrigida
+5. Quando o atendente aprovar, ele usa a resposta
 
 Objetivo atual: {$objectiveLabel}
 {$historyInstruction}
 
+## ATENÇÃO ÀS CORREÇÕES DO ATENDENTE
+- Se o atendente disser "não enviei", "ainda não", "não tem link": IGNORE a premissa anterior
+- Se o atendente corrigir informações: APLIQUE a correção na nova mensagem
+- Se o atendente mudar o contexto: ADAPTE totalmente a mensagem
+- NUNCA repita um erro que o atendente corrigiu
+
 Regras:
 - Responda SEMPRE com a mensagem pronta para enviar (texto plano, sem markdown)
 - Se o atendente pedir ajuste, gere a versão corrigida completa (não apenas o trecho alterado)
+- Se o atendente corrigir uma premissa, REESCREVA a mensagem sem o erro
 - Seja conciso nas explicações — o foco é a mensagem para o cliente
 - Se o atendente perguntar algo, responda brevemente e inclua a mensagem atualizada
 - Não use **, ##, ``` ou qualquer formatação markdown — apenas texto plano com quebras de linha
