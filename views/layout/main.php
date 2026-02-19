@@ -2865,12 +2865,35 @@
         // IA Assistente - Chat Conversacional no Inbox
         // ============================================================================
         var InboxAIState = { isOpen: false, contextsLoaded: false, chatHistory: [], lastResponse: '', lastContext: '', lastObjective: '' };
+        var InboxAILastConversationId = null; // NOVO: Rastrear última conversa
         var _aiBaseUrl = '<?= rtrim(pixelhub_url(""), "/") ?>';
 
         window.toggleInboxAIPanel = function() {
             var panel = document.getElementById('inboxAIPanel');
             var btn = document.getElementById('inboxBtnAI');
             if (!panel) return;
+            
+            // DETECÇÃO DE MUDANÇA DE CONVERSA
+            var currentConversationId = window._currentInboxConversationId;
+            if (InboxAILastConversationId !== currentConversationId) {
+                // CONVERSA MUDOU - LIMPA HISTÓRICO DA IA
+                console.log('[IA] Conversa mudou de ' + InboxAILastConversationId + ' para ' + currentConversationId + ' - Limpando histórico');
+                InboxAIState.chatHistory = [];
+                InboxAIState.lastResponse = '';
+                InboxAIState.lastContext = '';
+                InboxAIState.lastObjective = '';
+                InboxAIDraftState.currentDraft = '';
+                InboxAIDraftState.lastGeneratedAt = null;
+                InboxAILastConversationId = currentConversationId;
+                
+                // Limpa visualmente o chat
+                renderInboxAIChat();
+                
+                // Mostra mensagem de boas-vindas
+                var welcome = document.getElementById('inboxAIWelcomeMessage');
+                if (welcome && welcome.parentElement) welcome.parentElement.style.display = 'block';
+            }
+            
             InboxAIState.isOpen = !InboxAIState.isOpen;
             if (InboxAIState.isOpen) {
                 if (btn) {
@@ -3484,7 +3507,35 @@
                 }
                 return _origSendInboxMessage.apply(this, arguments);
             };
-        }
+        };
+
+        // NOVO: Função para limpar histórico manualmente (se necessário)
+        window.clearInboxAIChatHistory = function() {
+            console.log('[IA] Limpando histórico do chat manualmente');
+            InboxAIState.chatHistory = [];
+            InboxAIState.lastResponse = '';
+            InboxAIState.lastContext = '';
+            InboxAIState.lastObjective = '';
+            InboxAIDraftState.currentDraft = '';
+            InboxAIDraftState.lastGeneratedAt = null;
+            renderInboxAIChat();
+            
+            // Mostra mensagem de boas-vindas
+            var welcome = document.getElementById('inboxAIWelcomeMessage');
+            if (welcome && welcome.parentElement) {
+                welcome.parentElement.style.display = 'block';
+            }
+        };
+
+        // NOVO: Hook para detectar mudança de conversa no Inbox
+        // (chamado quando uma nova conversa é carregada)
+        window.onInboxConversationChanged = function(conversationId) {
+            console.log('[IA] Conversa alterada para: ' + conversationId);
+            if (InboxAILastConversationId !== conversationId) {
+                clearInboxAIChatHistory();
+                InboxAILastConversationId = conversationId;
+            }
+        };
 
         // Fecha painel IA ao clicar fora
         document.addEventListener('click', function(e) {
