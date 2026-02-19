@@ -3130,7 +3130,7 @@
                 })
             };
             
-            // Chamada API - usa suggest-chat para obter 3 sugestões
+            // Chamada API - usa suggest-chat para obter resposta única (modo chat)
             fetch(_aiBaseUrl + '/api/ai/suggest-chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -3150,18 +3150,12 @@
                     alert('Erro ao gerar rascunho: ' + (data.error || 'Erro desconhecido'));
                     console.error('[IA] Erro:', data);
                 } else {
-                    // Sucesso - verifica se veio 3 sugestões ou 1 mensagem
-                    if (data.mode === '3_suggestions' && data.suggestions && data.suggestions.length > 0) {
-                        // Renderiza 3 sugestões com botões para todas
-                        renderInboxAISuggestions(data.suggestions);
-                    } else {
-                        // Modo chat - mostra rascunho único
-                        InboxAIDraftState.currentDraft = data.message;
-                        InboxAIDraftState.lastGeneratedAt = new Date();
-                        
-                        if (draftText) draftText.textContent = data.message;
-                        if (preview) preview.style.display = 'block';
-                    }
+                    // Sucesso - modo chat sempre retorna message única
+                    InboxAIDraftState.currentDraft = data.message;
+                    InboxAIDraftState.lastGeneratedAt = new Date();
+                    
+                    if (draftText) draftText.textContent = data.message;
+                    if (preview) preview.style.display = 'block';
                     
                     // Esconde mensagem de boas-vindas
                     var welcome = document.getElementById('inboxAIWelcomeMessage');
