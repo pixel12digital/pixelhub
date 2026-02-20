@@ -6,9 +6,11 @@ use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
 use PixelHub\Services\OpportunityService;
+use PixelHub\Services\OpportunityProductService;
 use PixelHub\Services\ContactService;
 use PixelHub\Services\LeadService;
 use PixelHub\Services\PhoneNormalizer;
+use PixelHub\Services\TrackingCodesService;
 
 /**
  * Controller para o módulo CRM / Comercial — Oportunidades
@@ -26,22 +28,32 @@ class OpportunitiesController extends Controller
         $filters = [
             'status' => $_GET['status'] ?? null,
             'stage' => $_GET['stage'] ?? null,
+            'product_id' => !empty($_GET['product']) ? (int) $_GET['product'] : null,
             'responsible_user_id' => !empty($_GET['responsible']) ? (int) $_GET['responsible'] : null,
             'search' => $_GET['search'] ?? null,
+            'source' => $_GET['source'] ?? null,
         ];
 
         $opportunities = OpportunityService::list($filters);
         $counts = OpportunityService::countByStatus();
 
         // Busca usuários para filtro de responsável
-        $db = DB::getConnection();
+        $db = \PixelHub\Core\DB::getConnection();
         $users = $db->query("SELECT id, name FROM users WHERE is_internal = 1 ORDER BY name ASC")->fetchAll() ?: [];
+
+        // Busca produtos para filtro
+        $products = OpportunityProductService::listActive();
+
+        // Busca origens únicas para filtro
+        $sources = $db->query("SELECT DISTINCT l.source FROM opportunities o LEFT JOIN leads l ON o.lead_id = l.id WHERE l.source IS NOT NULL AND l.source != '' ORDER BY l.source")->fetchAll() ?: [];
 
         $this->view('opportunities.index', [
             'opportunities' => $opportunities,
             'counts' => $counts,
             'filters' => $filters,
             'users' => $users,
+            'products' => $products,
+            'sources' => $sources,
             'stages' => OpportunityService::STAGES,
         ]);
     }
@@ -279,13 +291,48 @@ class OpportunitiesController extends Controller
             return;
         }
 
+        // Detecta tracking code se tiver conversation_id
+        $trackingData = null;
+        $conversationId = !empty($input['conversation_id']) ? (int) $input['conversation_id'] : null;
+        
+        if ($conversationId) {
+            try {
+                $db = DB::getConnection();
+                $msgStmt = $db->prepare("
+                    SELECT payload 
+                    FROM communication_events 
+                    WHERE conversation_id = ? 
+                    AND event_type = 'whatsapp.inbound.message'
+                    AND status = 'processed'
+                    ORDER BY created_at ASC 
+                    LIMIT 1
+                ");
+                $msgStmt->execute([$conversationId]);
+                $firstEvent = $msgStmt->fetch();
+                
+                if ($firstEvent) {
+                    $payload = json_decode($firstEvent['payload'], true);
+                    $messageText = $payload['message']['text'] ?? '';
+                    if ($messageText) {
+                        $trackingData = TrackingCodesService::detectFromMessage($messageText);
+                    }
+                }
+            } catch (\Exception $e) {
+                error_log("[Opportunities] Erro ao detectar tracking: " . $e->getMessage());
+            }
+        }
+
         try {
-            $id = OpportunityService::create($input, $user['id'] ?? null);
+            $id = OpportunityService::create($input, $user['id'] ?? null, $trackingData);
             $opp = OpportunityService::findById($id);
             $this->json([
                 'success' => true,
                 'opportunity_id' => $id,
                 'opportunity' => $opp,
+                'tracking_detected' => $trackingData ? [
+                    'code' => $trackingData['tracking_code'],
+                    'source' => $trackingData['tracking_source']
+                ] : null
             ]);
         } catch (\InvalidArgumentException $e) {
             $this->json(['success' => false, 'error' => $e->getMessage()], 400);
@@ -939,6 +986,56 @@ class OpportunitiesController extends Controller
         } catch (\Exception $e) {
             error_log('[Opportunities] Erro em deleteFollowup: ' . $e->getMessage());
             $this->json(['success' => false, 'error' => 'Erro interno: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Busca produtos via AJAX (autocomplete)
+     * GET /opportunities/search-products?q=termo
+     */
+    public function searchProducts(): void
+    {
+        Auth::requireInternal();
+
+        $query = trim($_GET['q'] ?? '');
+        if (strlen($query) < 2) {
+            $this->json(['success' => true, 'products' => []]);
+            return;
+        }
+
+        $products = OpportunityProductService::search($query, 20);
+        $this->json(['success' => true, 'products' => $products]);
+    }
+
+    /**
+     * Cria ou encontra produto via AJAX (do form)
+     * POST /opportunities/create-product
+     */
+    public function createProduct(): void
+    {
+        Auth::requireInternal();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!$input) {
+            $this->json(['success' => false, 'error' => 'Dados inválidos'], 400);
+            return;
+        }
+
+        $label = trim($input['label'] ?? '');
+        if (empty($label)) {
+            $this->json(['success' => false, 'error' => 'Nome do produto é obrigatório'], 400);
+            return;
+        }
+
+        try {
+            $product = OpportunityProductService::findOrCreate($label);
+            $this->json([
+                'success' => true,
+                'product' => $product
+            ]);
+        } catch (\Exception $e) {
+            error_log("[Opportunities] Erro ao criar produto: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
 }

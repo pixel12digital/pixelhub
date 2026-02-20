@@ -3,6 +3,8 @@
 namespace PixelHub\Services;
 
 use PixelHub\Core\DB;
+use PixelHub\Services\TrackingCodesService;
+use PixelHub\Services\OpportunityProductService;
 
 /**
  * Service para gerenciar Oportunidades (pipeline comercial)
@@ -27,7 +29,7 @@ class OpportunityService
     /**
      * Cria uma nova oportunidade
      */
-    public static function create(array $data, ?int $userId = null): int
+    public static function create(array $data, ?int $userId = null, ?array $trackingData = null): int
     {
         $db = DB::getConnection();
 
@@ -43,6 +45,15 @@ class OpportunityService
             throw new \InvalidArgumentException('A oportunidade deve estar vinculada a um Lead ou Cliente');
         }
 
+        // Validação de tracking code
+        if ($trackingData && empty($data['tracking_code'])) {
+            // Detectou código mas não informou manualmente - exige confirmação
+            throw new \InvalidArgumentException(
+                "Código de rastreamento '{$trackingData['tracking_code']}' detectado na mensagem. " .
+                "Por favor, confirme o código no campo 'Código Rastreamento'."
+            );
+        }
+
         $stage = $data['stage'] ?? 'new';
         if (!array_key_exists($stage, self::STAGES)) {
             $stage = 'new';
@@ -54,28 +65,58 @@ class OpportunityService
 
         $responsibleUserId = !empty($data['responsible_user_id']) ? (int) $data['responsible_user_id'] : $userId;
         $serviceId = !empty($data['service_id']) ? (int) $data['service_id'] : null;
+        $productId = !empty($data['product_id']) ? (int) $data['product_id'] : null;
         $expectedCloseDate = !empty($data['expected_close_date']) ? $data['expected_close_date'] : null;
         $conversationId = !empty($data['conversation_id']) ? (int) $data['conversation_id'] : null;
         $notes = !empty($data['notes']) ? trim($data['notes']) : null;
 
+        // Campos de tracking
+        $trackingCode = !empty($data['tracking_code']) ? trim($data['tracking_code']) : null;
+        $trackingSource = !empty($data['tracking_source']) ? trim($data['tracking_source']) : null;
+        $trackingAutoDetected = !empty($data['tracking_auto_detected']) ? (bool) $data['tracking_auto_detected'] : false;
+        $trackingMetadata = !empty($data['tracking_metadata']) ? $data['tracking_metadata'] : null;
+
         $stmt = $db->prepare("
             INSERT INTO opportunities 
             (name, stage, estimated_value, status, lead_id, tenant_id, responsible_user_id, 
-             service_id, expected_close_date, conversation_id, notes, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+             service_id, product_id, expected_close_date, conversation_id, notes, tracking_code, tracking_source, 
+             tracking_auto_detected, tracking_metadata, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
 
         $stmt->execute([
             $name, $stage, $estimatedValue,
             $leadId, $tenantId, $responsibleUserId,
-            $serviceId, $expectedCloseDate, $conversationId,
-            $notes, $userId
+            $serviceId, $productId, $expectedCloseDate, $conversationId,
+            $notes, $trackingCode, $trackingSource, 
+            $trackingAutoDetected, $trackingMetadata, $userId
         ]);
 
         $id = (int) $db->lastInsertId();
 
+        // Se detectou tracking automaticamente e não foi informado manualmente, aplica
+        if ($trackingData && empty($trackingCode)) {
+            $trackingCode = $trackingData['tracking_code'];
+            $trackingSource = $trackingData['tracking_source'];
+            $trackingAutoDetected = $trackingData['tracking_auto_detected'];
+            $trackingMetadata = $trackingData['tracking_metadata'];
+            
+            // Atualiza com os dados detectados
+            $updateStmt = $db->prepare("
+                UPDATE opportunities 
+                SET tracking_code = ?, tracking_source = ?, tracking_auto_detected = ?, tracking_metadata = ?
+                WHERE id = ?
+            ");
+            $updateStmt->execute([$trackingCode, $trackingSource, $trackingAutoDetected, $trackingMetadata, $id]);
+        }
+
         // Registra histórico
-        self::addHistory($id, 'created', null, $stage, 'Oportunidade criada', $userId);
+        $historyDesc = 'Oportunidade criada';
+        if ($trackingCode || ($trackingData && $trackingData['tracking_code'])) {
+            $code = $trackingCode ?? $trackingData['tracking_code'];
+            $historyDesc .= " (código: {$code})";
+        }
+        self::addHistory($id, 'created', null, $stage, $historyDesc, $userId);
 
         return $id;
     }
@@ -91,12 +132,15 @@ class OpportunityService
                    t.name as tenant_name, t.phone as tenant_phone, t.email as tenant_email,
                    l.name as lead_name, l.phone as lead_phone, l.email as lead_email,
                    u.name as responsible_name,
-                   cb.name as created_by_name
+                   cb.name as created_by_name,
+                   p.label as product_label,
+                   p.slug as product_slug
             FROM opportunities o
             LEFT JOIN tenants t ON o.tenant_id = t.id
             LEFT JOIN leads l ON o.lead_id = l.id
             LEFT JOIN users u ON o.responsible_user_id = u.id
             LEFT JOIN users cb ON o.created_by = cb.id
+            LEFT JOIN opportunity_products p ON o.product_id = p.id
             WHERE o.id = ?
         ");
         $stmt->execute([$id]);
@@ -127,9 +171,19 @@ class OpportunityService
             $params[] = $filters['stage'];
         }
 
+        if (!empty($filters['product_id'])) {
+            $where[] = 'o.product_id = ?';
+            $params[] = (int) $filters['product_id'];
+        }
+
         if (!empty($filters['responsible_user_id'])) {
             $where[] = 'o.responsible_user_id = ?';
             $params[] = (int) $filters['responsible_user_id'];
+        }
+
+        if (!empty($filters['source'])) {
+            $where[] = 'l.source = ?';
+            $params[] = $filters['source'];
         }
 
         if (!empty($filters['search'])) {
@@ -167,11 +221,17 @@ class OpportunityService
         $stmt = $db->prepare("
             SELECT o.*,
                    COALESCE(t.name, l.name, l.phone, l.email) as contact_name,
-                   CASE WHEN o.tenant_id IS NOT NULL THEN 'cliente' ELSE 'lead' END as contact_type,
+                   CASE 
+        WHEN o.tenant_id IS NOT NULL THEN 
+            CASE WHEN t.contact_type = 'client' THEN 'cliente' ELSE 'lead' END
+        ELSE 'lead' 
+        END as contact_type,
                    t.name as tenant_name,
                    l.name as lead_name,
                    l.phone as lead_phone,
                    u.name as responsible_name,
+                   p.label as product_label,
+                   p.slug as product_slug,
                    -- Dias sem interação (simplificado)
                    DATEDIFF(CURRENT_DATE, o.updated_at) as days_inactive,
                    -- Tem tarefa agendada (simplificado)
@@ -183,6 +243,7 @@ class OpportunityService
             LEFT JOIN tenants t ON o.tenant_id = t.id
             LEFT JOIN leads l ON o.lead_id = l.id
             LEFT JOIN users u ON o.responsible_user_id = u.id
+            LEFT JOIN opportunity_products p ON o.product_id = p.id
             WHERE {$whereClause}
             ORDER BY 
                 CASE o.stage 
@@ -237,6 +298,11 @@ class OpportunityService
             if ($data['responsible_user_id'] != $current['responsible_user_id']) {
                 self::addHistory($id, 'assigned', null, null, 'Responsável alterado', $userId);
             }
+        }
+
+        if (isset($data['product_id'])) {
+            $fields[] = 'product_id = ?';
+            $params[] = !empty($data['product_id']) ? (int) $data['product_id'] : null;
         }
 
         if (isset($data['service_id'])) {

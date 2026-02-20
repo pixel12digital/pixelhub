@@ -103,6 +103,14 @@ $stageColors = [
             <?php endforeach; ?>
         </select>
         
+        <select id="sourceFilter" onchange="applyFilters()" 
+                style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+            <option value="">Todas as origens</option>
+            <?php foreach ($sources as $s): ?>
+                <option value="<?= $s['source'] ?>" <?= ($filters['source'] ?? '') === $s['source'] ? 'selected' : '' ?>><?= htmlspecialchars($s['source']) ?></option>
+            <?php endforeach; ?>
+        </select>
+        
         <select id="statusFilter" onchange="applyFilters()" 
                 style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
             <option value="">Ativas</option>
@@ -940,12 +948,14 @@ function applyFilters() {
     const stage = document.getElementById('stageFilter').value;
     const product = document.getElementById('productFilter').value;
     const responsible = document.getElementById('responsibleFilter').value;
+    const source = document.getElementById('sourceFilter').value;
     const status = document.getElementById('statusFilter').value;
     let url = '<?= pixelhub_url('/opportunities') ?>?';
     if (search) url += 'search=' + encodeURIComponent(search) + '&';
     if (stage) url += 'stage=' + stage + '&';
     if (product) url += 'product=' + product + '&';
     if (responsible) url += 'responsible=' + responsible + '&';
+    if (source) url += 'source=' + encodeURIComponent(source) + '&';
     if (status) url += 'status=' + status + '&';
     window.location.href = url;
 }
