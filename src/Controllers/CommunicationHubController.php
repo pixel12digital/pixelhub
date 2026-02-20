@@ -5748,6 +5748,9 @@ class CommunicationHubController extends Controller
             // Vincula conversa ao lead
             self::linkConversationToLeadInternal($conversationId, $leadId);
 
+            // Aplica tracking na oportunidade vinculada ao lead recém-criado
+            self::applyTrackingToOpportunity($conversationId, $leadId);
+
             $this->json([
                 'success' => true,
                 'lead_id' => $leadId,
@@ -5952,6 +5955,96 @@ class CommunicationHubController extends Controller
     }
 
     /**
+     * Lê toda a conversa e aplica tracking na oportunidade vinculada ao lead.
+     * Chamado apenas no momento da criação ou vinculação do lead — nunca periodicamente.
+     * Não sobrescreve tracking já existente na oportunidade.
+     */
+    private static function applyTrackingToOpportunity(int $conversationId, int $leadId): void
+    {
+        try {
+            $db = DB::getConnection();
+
+            // Busca oportunidade vinculada ao lead (mais recente)
+            $oppStmt = $db->prepare("
+                SELECT id, tracking_code, origin FROM opportunities
+                WHERE lead_id = ? AND status = 'active'
+                ORDER BY created_at DESC LIMIT 1
+            ");
+            $oppStmt->execute([$leadId]);
+            $opp = $oppStmt->fetch();
+
+            if (!$opp || !empty($opp['tracking_code'])) {
+                return; // Sem oportunidade ou tracking já preenchido
+            }
+
+            // Lê todas as mensagens inbound da conversa
+            $msgsStmt = $db->prepare("
+                SELECT payload FROM communication_events
+                WHERE conversation_id = ?
+                AND event_type = 'whatsapp.inbound.message'
+                ORDER BY created_at ASC
+            ");
+            $msgsStmt->execute([$conversationId]);
+            $msgs = $msgsStmt->fetchAll();
+
+            $fullText = '';
+            foreach ($msgs as $msg) {
+                $data = json_decode($msg['payload'], true);
+                $text = $data['message']['text']
+                    ?? $data['message']['body']
+                    ?? $data['text']
+                    ?? $data['body']
+                    ?? '';
+                if ($text) {
+                    $fullText .= ' ' . $text;
+                }
+            }
+
+            if (empty(trim($fullText))) {
+                return;
+            }
+
+            $detected = \PixelHub\Services\TrackingCodesService::detectFromMessage(trim($fullText));
+            if (!$detected || empty($detected['tracking_code'])) {
+                return;
+            }
+
+            // Usa channel como origin (valor do OriginCatalog), fallback para source legado
+            $originFromTracking = $detected['tracking_channel'] ?? $detected['tracking_source'] ?? null;
+            $currentOrigin = $opp['origin'] ?? 'unknown';
+            $newOrigin = ($currentOrigin === 'unknown' || empty($currentOrigin))
+                ? ($originFromTracking ?? $currentOrigin)
+                : $currentOrigin;
+
+            $updStmt = $db->prepare("
+                UPDATE opportunities
+                SET tracking_code = ?,
+                    tracking_metadata = ?,
+                    tracking_auto_detected = 1,
+                    origin = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $updStmt->execute([
+                $detected['tracking_code'],
+                $detected['tracking_metadata'] ?? null,
+                $newOrigin,
+                (int) $opp['id']
+            ]);
+
+            error_log(sprintf(
+                '[TrackingAutoDetect] Aplicado na oportunidade: opp_id=%d, code=%s, origin=%s',
+                (int) $opp['id'],
+                $detected['tracking_code'],
+                $newOrigin
+            ));
+
+        } catch (\Throwable $e) {
+            error_log('[TrackingAutoDetect] Erro (não crítico): ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Vincula conversa a um lead existente
      * 
      * POST /communication-hub/incoming-lead/link-lead
@@ -5994,6 +6087,9 @@ class CommunicationHubController extends Controller
 
             // Vincula (inclui criação automática de opportunity se necessário)
             self::linkConversationToLeadInternal($conversationId, $leadId);
+
+            // Aplica tracking na oportunidade vinculada ao lead
+            self::applyTrackingToOpportunity($conversationId, $leadId);
 
             // Verifica se opportunity foi criada automaticamente para dar feedback
             $db = DB::getConnection();

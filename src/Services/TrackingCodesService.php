@@ -303,6 +303,7 @@ class TrackingCodesService
                 return [
                     'tracking_code' => $codeRow['code'],
                     'tracking_source' => $codeRow['source'],
+                    'tracking_channel' => $codeRow['channel'],
                     'tracking_auto_detected' => true,
                     'tracking_metadata' => json_encode([
                         'detected_at' => date('Y-m-d H:i:s'),

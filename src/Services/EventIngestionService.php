@@ -367,11 +367,7 @@ class EventIngestionService
                         }
 
                         if ($oppId) {
-                            // REMOVIDO: Não registra mais WhatsApp no histórico de negócio
-                            // \PixelHub\Services\OpportunityService::addInteractionHistory((int) $oppId, 'WhatsApp: Recebido', null);
-                            
-                            // REMOVIDO: Sistema de interações desativado
-                            // \PixelHub\Services\OpportunityInteractionService::logWhatsApp(...)
+                            // Tracking é detectado no momento da criação/vinculação do lead (não aqui)
                         }
                     } catch (\Throwable $hx) {
                         // Não quebra ingestão se falhar histórico
