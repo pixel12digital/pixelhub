@@ -393,7 +393,8 @@ class AISuggestReplyService
             'send_proposal' => "REGRAS PARA PROPOSTA: Apresente valores, condições e detalhes comerciais com clareza. Inclua um CTA claro.",
             'first_contact' => "REGRAS PARA PRIMEIRO CONTATO: Apresente-se brevemente. Faça UMA pergunta de qualificação. Não mencione valores ainda.",
             'qualify' => "REGRAS PARA QUALIFICAÇÃO: Faça perguntas abertas. Máximo 1-2 perguntas por mensagem. Não mencione valores ainda.",
-            'close_deal' => "REGRAS PARA FECHAR NEGÓCIO: O cliente já conhece a proposta. Foque em remover objeções e propor o próximo passo concreto.",
+            'close_deal' => "REGRAS OBRIGATÓRIAS PARA FECHAR NEGÓCIO: LEIA O HISTÓRICO — identifique o que JÁ foi enviado (proposta, valores, condições). NUNCA repita o que já foi enviado. Sonde o fechamento: pergunte se o valor está dentro do esperado, se ficou alguma dúvida, o que falta para decidir. Mensagem CURTA (2-4 linhas). A observação do atendente é a instrução principal — siga-a à risca.",
+            'answer_question' => "REGRAS PARA RESPONDER DÚVIDA: Leia o histórico e identifique a pergunta específica. Responda de forma direta. Após responder, faça UMA pergunta para manter o engajamento.",
             default => '',
         };
 
@@ -497,9 +498,21 @@ OBJ,
 - Não mencione valores ainda
 OBJ,
             'close_deal' => <<<OBJ
-## Regras para Fechar Negócio
-- O cliente já conhece a proposta — foque em remover objeções e facilitar a decisão
-- Seja direto e objetivo. Proponha o próximo passo concreto
+## Regras OBRIGATÓRIAS para Fechar Negócio
+- LEIA O HISTÓRICO COMPLETO antes de escrever qualquer coisa. Identifique o que JÁ foi enviado (proposta, valores, condições, links) e o que o cliente respondeu
+- NUNCA repita informações que já foram enviadas na conversa (valores, condições, detalhes do produto) — o cliente já as recebeu
+- Seu papel agora é SONDAR e QUALIFICAR o fechamento: perguntar se o valor está dentro do esperado, se ficou alguma dúvida, o que falta para decidir
+- Se o atendente deixou uma observação, essa é sua INSTRUÇÃO PRINCIPAL — siga-a à risca
+- Mensagem CURTA e DIRETA: 2-4 linhas. Uma pergunta de qualificação de fechamento por vez
+- Exemplos de perguntas de fechamento: "O valor ficou dentro do que você pretendia investir?", "Ficou alguma dúvida sobre o que está incluído?", "O que falta para você tomar a decisão?"
+- Nunca reapresente a proposta inteira — ela já foi enviada
+OBJ,
+            'answer_question' => <<<OBJ
+## Regras para Responder Dúvida
+- Leia o histórico e identifique a pergunta específica do cliente
+- Responda de forma direta e objetiva, sem rodeios
+- Se a resposta envolver valores, seja preciso
+- Após responder, faça UMA pergunta para manter o engajamento
 OBJ,
             default => "Objetivo atual: {$objectiveLabel}. Adapte a mensagem ao contexto da conversa.",
         };
@@ -522,10 +535,11 @@ Objetivo atual: {$objectiveLabel}
 
 {$objectiveInstructions}
 
-## ATENÇÃO ÀS CORREÇÕES DO ATENDENTE
+## OBSERVAÇÃO DO ATENDENTE = PRIORIDADE MÁXIMA
+- A observação do atendente é sua instrução principal. Ela sobrepõe qualquer inferência que você faria sozinho
+- Se o atendente disse "perguntar se ficou dúvida e se o valor está dentro do esperado": faça EXATAMENTE isso, nada mais
 - Se o atendente disser "não enviei", "ainda não", "não tem link": IGNORE a premissa anterior
 - Se o atendente corrigir informações: APLIQUE a correção na nova mensagem
-- Se o atendente mudar o contexto: ADAPTE totalmente a mensagem
 - NUNCA repita um erro que o atendente corrigiu
 
 Regras gerais:
@@ -601,10 +615,15 @@ PROMPT;
             $parts[] = "Telefone: {$contactPhone}";
         }
 
+        // Observação do atendente vem ANTES do histórico para ter peso máximo
+        if (!empty($attendantNote)) {
+            $parts[] = "\n⚠️ INSTRUÇÃO PRIORITÁRIA DO ATENDENTE (siga à risca, sobrepõe qualquer inferência): {$attendantNote}";
+        }
+
         if ($hasHistory && !empty($history)) {
-            $parts[] = "\n--- HISTÓRICO DA CONVERSA (últimas mensagens) ---";
-            // Limita a últimas 10 mensagens para economizar tokens
-            $recentHistory = array_slice($history, -10);
+            $parts[] = "\n--- HISTÓRICO DA CONVERSA (leia com atenção — não repita o que já foi dito) ---";
+            // Limita a últimas 15 mensagens para ter contexto suficiente
+            $recentHistory = array_slice($history, -15);
             foreach ($recentHistory as $msg) {
                 $direction = ($msg['direction'] ?? 'in') === 'out' ? 'Atendente' : 'Contato';
                 $text = $msg['text'] ?? $msg['message'] ?? $msg['content'] ?? '';
@@ -613,12 +632,9 @@ PROMPT;
                 }
             }
             $parts[] = "--- FIM DO HISTÓRICO ---";
+            $parts[] = "ATENÇÃO: Tudo que o Atendente enviou acima JÁ foi recebido pelo cliente. Não repita essas informações.";
         } else {
             $parts[] = "\n[Sem histórico de conversa — primeiro contato ou conversa nova]";
-        }
-
-        if (!empty($attendantNote)) {
-            $parts[] = "\nObservação do atendente: {$attendantNote}";
         }
 
         $parts[] = "\nGere as 3 sugestões de resposta agora.";
