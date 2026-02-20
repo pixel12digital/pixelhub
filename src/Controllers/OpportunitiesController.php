@@ -375,7 +375,10 @@ class OpportunitiesController extends Controller
         $opportunityId = (int) ($input['opportunity_id'] ?? 0);
         $origin = trim($input['origin'] ?? '');
 
+        error_log("[UPDATE_ORIGIN] Início: opportunity_id={$opportunityId}, origin={$origin}, user_id=" . ($user['id'] ?? 'null'));
+
         if (!$opportunityId || !$origin) {
+            error_log("[UPDATE_ORIGIN] Erro validação: opportunity_id={$opportunityId}, origin={$origin}");
             $this->json(['success' => false, 'error' => 'ID da oportunidade e origem são obrigatórios'], 400);
             return;
         }
@@ -383,26 +386,32 @@ class OpportunitiesController extends Controller
         // Validar origem contra lista permitida
         try {
             $validOrigins = \PixelHub\Services\OriginCatalog::getKeys();
+            error_log("[UPDATE_ORIGIN] Origens válidas: " . implode(', ', array_slice($validOrigins, 0, 10)) . "...");
         } catch (\Exception $e) {
             // Fallback hardcoded
             $validOrigins = ['unknown', 'whatsapp', 'site', 'instagram', 'facebook', 'google', 'email', 'indicacao', 'outro'];
+            error_log("[UPDATE_ORIGIN] Erro ao carregar catálogo: " . $e->getMessage() . " - usando fallback");
         }
 
         if (!in_array($origin, $validOrigins)) {
+            error_log("[UPDATE_ORIGIN] Origem inválida: {$origin} não está na lista permitida");
             $this->json(['success' => false, 'error' => 'Origem inválida'], 400);
             return;
         }
 
-        $db = DB::getConnection();
-
         try {
+            $db = DB::getConnection();
+            error_log("[UPDATE_ORIGIN] DB conectado com sucesso");
+
             // Verificar se oportunidade existe
             $stmt = $db->prepare("SELECT id FROM opportunities WHERE id = ?");
             $stmt->execute([$opportunityId]);
             if (!$stmt->fetch()) {
+                error_log("[UPDATE_ORIGIN] Oportunidade não encontrada: {$opportunityId}");
                 $this->json(['success' => false, 'error' => 'Oportunidade não encontrada'], 404);
                 return;
             }
+            error_log("[UPDATE_ORIGIN] Oportunidade encontrada: {$opportunityId}");
 
             // Atualizar origem e marcar como edição manual
             $stmt = $db->prepare("
@@ -414,6 +423,7 @@ class OpportunitiesController extends Controller
                 WHERE id = ?
             ");
             $stmt->execute([$origin, $user['id'] ?? null, $opportunityId]);
+            error_log("[UPDATE_ORIGIN] UPDATE executado: origin={$origin}, user_id=" . ($user['id'] ?? 'null'));
 
             // Registrar no histórico
             $historyStmt = $db->prepare("
@@ -431,6 +441,7 @@ class OpportunitiesController extends Controller
             $description = "Origem alterada para: {$displayOrigin}";
             
             $historyStmt->execute([$opportunityId, $oldOrigin, $origin, $description, $user['id'] ?? null]);
+            error_log("[UPDATE_ORIGIN] Histórico registrado: old={$oldOrigin}, new={$origin}");
 
             $this->json([
                 'success' => true,
@@ -438,7 +449,8 @@ class OpportunitiesController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            error_log("[Opportunities] Erro ao atualizar origem: " . $e->getMessage());
+            error_log("[UPDATE_ORIGIN] ERRO FATAL: " . $e->getMessage() . " - Linha: " . $e->getLine() . " - Arquivo: " . $e->getFile());
+            error_log("[UPDATE_ORIGIN] Stack trace: " . $e->getTraceAsString());
             $this->json(['success' => false, 'error' => 'Erro interno'], 500);
         }
     }
