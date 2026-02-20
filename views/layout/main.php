@@ -1982,6 +1982,9 @@
                             <a href="<?= pixelhub_url('/settings/whatsapp-templates') ?>" class="sub-item <?= (strpos($currentUri, '/settings/whatsapp-templates') !== false) ? 'active' : '' ?>">
                                 <span class="sidebar-text">Mensagens WhatsApp</span>
                             </a>
+                            <a href="<?= pixelhub_url('/settings/tracking-codes') ?>" class="sub-item <?= (strpos($currentUri, '/settings/tracking-codes') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Códigos de Rastreamento</span>
+                            </a>
                             <a href="<?= pixelhub_url('/settings/communication-events') ?>" class="sub-item <?= (strpos($currentUri, '/settings/communication-events') !== false) ? 'active' : '' ?>">
                                 <span class="sidebar-text">Central de Eventos</span>
                             </a>
@@ -2912,9 +2915,64 @@
                 var preview = document.getElementById('inboxAIDraftPreview');
                 if (preview) preview.style.display = 'none';
                 
-                // Mostra mensagem de boas-vindas
+                // Restaura rascunho se existir na variável global
+                if (window._lastInboxAIDraft) {
+                    setTimeout(function() {
+                        var chatArea = document.getElementById('inboxAIChatArea');
+                        if (chatArea) {
+                            // Verificar se os elementos já existem
+                            var draftText = document.getElementById('inboxAIDraftText');
+                            var preview = document.getElementById('inboxAIDraftPreview');
+                            
+                            if (!draftText || !preview) {
+                                // Criar elementos se não existirem
+                                var draftHTML = '<div id="inboxAIDraftPreview" style="display: block; padding: 12px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; margin: 8px 0;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span style="font-size: 11px; font-weight: 600; color: #495057;">📝 Rascunho Pronto</span><button type="button" onclick="regenerateInboxAIDraft()" style="font-size: 10px; padding: 2px 8px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Gerar novamente</button></div><div id="inboxAIDraftText" style="font-size: 12px; line-height: 1.4; color: #333; white-space: pre-wrap; word-wrap: break-word; min-height: 40px;">' + window._lastInboxAIDraft + '</div><div style="margin-top: 8px; display: flex; gap: 6px;"><button type="button" onclick="useInboxAIDraft()" style="font-size: 10px; padding: 4px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Usar esta resposta</button><button type="button" onclick="refineInboxAIDraft()" style="font-size: 10px; padding: 4px 8px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer;">Refinar</button><button type="button" onclick="copyInboxAIDraft()" style="font-size: 10px; padding: 4px 8px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Copiar</button></div></div>';
+                                chatArea.insertAdjacentHTML('beforeend', draftHTML);
+                                draftText = document.getElementById('inboxAIDraftText');
+                                preview = document.getElementById('inboxAIDraftPreview');
+                            }
+                            
+                            if (draftText && preview) {
+                                draftText.textContent = window._lastInboxAIDraft;
+                                preview.style.display = 'block';
+                                // Restaura também o estado
+                                InboxAIDraftState.currentDraft = window._lastInboxAIDraft;
+                                InboxAIDraftState.lastGeneratedAt = window._lastInboxAIDraftGeneratedAt;
+                                
+                                // Esconder mensagem de boas-vindas (forma robusta)
+                                var welcome = document.getElementById('inboxAIWelcomeMessage');
+                                if (welcome) {
+                                    var welcomeContainer = welcome.parentElement;
+                                    if (welcomeContainer) {
+                                        welcomeContainer.style.display = 'none';
+                                        welcomeContainer.style.visibility = 'hidden';
+                                        welcomeContainer.style.height = '0';
+                                        welcomeContainer.style.overflow = 'hidden';
+                                        welcomeContainer.style.margin = '0';
+                                        welcomeContainer.style.padding = '0';
+                                    }
+                                }
+                                
+                                // Esconder placeholder específico (baseado no teste bem-sucedido)
+                                var placeholderElement = document.querySelector('div[style*="text-align: center"][style*="color: #999"]');
+                                if (placeholderElement) {
+                                    placeholderElement.style.display = 'none';
+                                    placeholderElement.style.visibility = 'hidden';
+                                    placeholderElement.style.height = '0';
+                                    placeholderElement.style.overflow = 'hidden';
+                                }
+                                
+                                console.log('[IA] Rascunho restaurado após recarregamento');
+                            }
+                        }
+                    }, 1000); // Aumentado para garantir que elementos existam
+                }
+                
+                // Mostra mensagem de boas-vindas (apenas se não houver rascunho)
                 var welcome = document.getElementById('inboxAIWelcomeMessage');
-                if (welcome && welcome.parentElement) welcome.parentElement.style.display = 'block';
+                if (welcome && welcome.parentElement && !window._lastInboxAIDraft) {
+                    welcome.parentElement.style.display = 'block';
+                }
                 
                 // Foco automático no input após abrir
                 setTimeout(function() {
@@ -3154,12 +3212,45 @@
                     InboxAIDraftState.currentDraft = data.message;
                     InboxAIDraftState.lastGeneratedAt = new Date();
                     
+                    // Salvar rascunho em variável global separada (proteção contra reset)
+                    window._lastInboxAIDraft = data.message;
+                    window._lastInboxAIDraftGeneratedAt = new Date();
+                    
+                    // Garantir que elementos existam (criar se necessário)
+                    var chatArea = document.getElementById('inboxAIChatArea');
+                    if (chatArea && (!draftText || !preview)) {
+                        // Criar elementos se não existirem
+                        var draftHTML = '<div id="inboxAIDraftPreview" style="display: block; padding: 12px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; margin: 8px 0;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span style="font-size: 11px; font-weight: 600; color: #495057;">📝 Rascunho Pronto</span><button type="button" onclick="regenerateInboxAIDraft()" style="font-size: 10px; padding: 2px 8px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Gerar novamente</button></div><div id="inboxAIDraftText" style="font-size: 12px; line-height: 1.4; color: #333; white-space: pre-wrap; word-wrap: break-word; min-height: 40px;">' + data.message + '</div><div style="margin-top: 8px; display: flex; gap: 6px;"><button type="button" onclick="useInboxAIDraft()" style="font-size: 10px; padding: 4px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Usar esta resposta</button><button type="button" onclick="refineInboxAIDraft()" style="font-size: 10px; padding: 4px 8px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer;">Refinar</button><button type="button" onclick="copyInboxAIDraft()" style="font-size: 10px; padding: 4px 8px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Copiar</button></div></div>';
+                        chatArea.insertAdjacentHTML('beforeend', draftHTML);
+                        draftText = document.getElementById('inboxAIDraftText');
+                        preview = document.getElementById('inboxAIDraftPreview');
+                    }
+                    
                     if (draftText) draftText.textContent = data.message;
                     if (preview) preview.style.display = 'block';
                     
-                    // Esconde mensagem de boas-vindas
+                    // Esconde mensagem de boas-vindas (forma robusta)
                     var welcome = document.getElementById('inboxAIWelcomeMessage');
-                    if (welcome) welcome.parentElement.style.display = 'none';
+                    if (welcome) {
+                        var container = welcome.parentElement;
+                        if (container) {
+                            container.style.display = 'none';
+                            container.style.visibility = 'hidden';
+                            container.style.height = '0';
+                            container.style.overflow = 'hidden';
+                            container.style.margin = '0';
+                            container.style.padding = '0';
+                        }
+                    }
+                    
+                    // Esconder placeholder específico (baseado no teste bem-sucedido)
+                    var placeholderElement = document.querySelector('div[style*="text-align: center"][style*="color: #999"]');
+                    if (placeholderElement) {
+                        placeholderElement.style.display = 'none';
+                        placeholderElement.style.visibility = 'hidden';
+                        placeholderElement.style.height = '0';
+                        placeholderElement.style.overflow = 'hidden';
+                    }
                     
                     console.log('[IA] Rascunho gerado com sucesso');
                 }
@@ -3184,7 +3275,8 @@
 
         // Usa rascunho no chat
         window.useInboxAIDraft = function() {
-            var text = InboxAIDraftState.currentDraft;
+            // Tenta pegar da variável global primeiro (proteção contra reset)
+            var text = window._lastInboxAIDraft || InboxAIDraftState.currentDraft;
             if (!text) return;
             
             var ta = document.getElementById('inboxMessageInput');
@@ -3234,7 +3326,8 @@
 
         // Copia rascunho
         window.copyInboxAIDraft = function() {
-            var text = InboxAIDraftState.currentDraft;
+            // Tenta pegar da variável global primeiro (proteção contra reset)
+            var text = window._lastInboxAIDraft || InboxAIDraftState.currentDraft;
             if (!text) return;
             
             navigator.clipboard.writeText(text).then(function() {
@@ -3337,8 +3430,9 @@
 
             // Se há rascunho atual, inclui como contexto no refinamento
             var userPrompt = text;
-            if (InboxAIDraftState.currentDraft) {
-                userPrompt = 'Refine esta resposta: "' + InboxAIDraftState.currentDraft + '"\n\nInstruções: ' + text;
+            var currentDraft = window._lastInboxAIDraft || InboxAIDraftState.currentDraft;
+            if (currentDraft) {
+                userPrompt = 'Refine esta resposta: "' + currentDraft + '"\n\nInstruções: ' + text;
             }
 
             fetch(_aiBaseUrl + '/api/ai/chat', {
@@ -3368,6 +3462,10 @@
                     
                     // Atualiza o rascunho com a resposta refinada
                     InboxAIDraftState.currentDraft = data.message;
+                    // Salvar também na variável global separada
+                    window._lastInboxAIDraft = data.message;
+                    window._lastInboxAIDraftGeneratedAt = new Date();
+                    
                     var draftText = document.getElementById('inboxAIDraftText');
                     var preview = document.getElementById('inboxAIDraftPreview');
                     if (draftText) draftText.textContent = data.message;
@@ -4912,7 +5010,7 @@
                 const tenantLink = (tenantId && conv.tenant_name && conv.tenant_name !== 'Sem tenant')
                     ? ` <a href="${INBOX_BASE_URL}/tenants/view?id=${tenantId}" onclick="event.stopPropagation();" style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para ver detalhes do cliente">• ${tenantName}</a>`
                     : (leadId
-                        ? ` <a href="${INBOX_BASE_URL}/opportunities/view-by-lead?lead_id=${encodeURIComponent(leadId)}" onclick="event.stopPropagation();" style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para abrir a oportunidade do lead">• ${escapeInboxHtml(leadName ? ('Lead: ' + leadName) : ('Lead #' + leadId))}${leadPhone ? ' (' + escapeInboxHtml(leadPhone) + ')' : ''}</a>`
+                        ? ` <a href="${INBOX_BASE_URL}/opportunities/view-by-lead?lead_id=${encodeURIComponent(leadId)}" onclick="event.stopPropagation();" style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para abrir a oportunidade do lead">• ${escapeInboxHtml(leadName ? ('Lead: ' + leadName) : ('Lead: ' + (leadPhone || '#' + leadId)))}${leadPhone ? ' (' + escapeInboxHtml(leadPhone) + ')' : ''}</a>`
                         : ' <span style="opacity: 0.7; font-size: 10px;">• Novo contato</span>'
                     );
                 const line2 = channel === 'whatsapp' 
@@ -5137,7 +5235,7 @@
             const name = thread.contact_name
                 || (thread.tenant_id ? thread.tenant_name : null)
                 || thread.lead_name
-                || (thread.lead_id ? ('Lead #' + thread.lead_id) : null)
+                || (thread.lead_id ? ('Lead: ' + (thread.lead_name || thread.lead_phone || '#' + thread.lead_id)) : null)
                 || thread.phone
                 || 'Sem nome';
             const initial = name.charAt(0).toUpperCase();

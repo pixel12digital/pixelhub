@@ -95,6 +95,14 @@ $stageColors = [
             <?php endforeach; ?>
         </select>
         
+        <select id="productFilter" onchange="applyFilters()" 
+                style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+            <option value="">Todos os produtos</option>
+            <?php foreach ($products as $p): ?>
+                <option value="<?= $p['id'] ?>" <?= ($filters['product_id'] ?? '') == $p['id'] ? 'selected' : '' ?>><?= htmlspecialchars($p['label']) ?></option>
+            <?php endforeach; ?>
+        </select>
+        
         <select id="statusFilter" onchange="applyFilters()" 
                 style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
             <option value="">Ativas</option>
@@ -117,12 +125,13 @@ $stageColors = [
         <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
             <thead>
                 <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
-                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 20%;">Nome</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 20%;">Cliente / Lead</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 14%;">Etapa</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 14%;">Valor</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 16%;">Responsável</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 12%;">Criada em</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 18%;">Nome</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 18%;">Cliente / Lead</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 12%;">Produto</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 12%;">Etapa</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 12%;">Valor</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 14%;">Responsável</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057; width: 14%;">Criada em</th>
                 </tr>
             </thead>
             <tbody>
@@ -148,6 +157,15 @@ $stageColors = [
                             <?php endif; ?>
                             <span style="color: #333;"><?= htmlspecialchars($contactName) ?></span>
                         </div>
+                    </td>
+                    <td style="padding: 12px;">
+                        <?php if (!empty($opp['product_label'])): ?>
+                            <span style="background: #f0f0f0; color: #333; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; white-space: nowrap;">
+                                <?= htmlspecialchars($opp['product_label']) ?>
+                            </span>
+                        <?php else: ?>
+                            <span style="color: #999; font-style: italic;">—</span>
+                        <?php endif; ?>
                     </td>
                     <td style="padding: 12px; text-align: left;">
                         <span style="background: <?= $stageColor ?>; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap;">
@@ -379,6 +397,39 @@ $stageColors = [
 
             <div id="contact-validation-msg" style="display: none; color: #dc3545; font-size: 12px; margin-bottom: 12px; font-weight: 600;"></div>
             
+            <!-- Produto -->
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 600;">Produto (opcional)</label>
+                <div style="position: relative;">
+                    <select name="product_id" id="product-select" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                        <option value="">Nenhum</option>
+                        <?php foreach ($products as $p): ?>
+                            <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['label']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="button" onclick="toggleNewProductForm()" 
+                            style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #0d6efd; cursor: pointer; font-size: 18px; padding: 0; line-height: 1;"
+                            title="Criar novo produto">+</button>
+                </div>
+            </div>
+            
+            <!-- Mini-form: Criar Produto inline -->
+            <div id="create-product-form" style="display: none; margin-bottom: 16px; padding: 14px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <span style="font-weight: 600; font-size: 13px; color: #333;">Criar novo Produto</span>
+                    <button type="button" onclick="toggleNewProductForm()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: #666;">&times;</button>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <input type="text" id="new-product-name" placeholder="Nome do produto (ex: E-commerce, PixelHub CRM...)" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px;">
+                </div>
+                <div id="new-product-error" style="display: none; color: #dc3545; font-size: 12px; margin-bottom: 8px; font-weight: 600;"></div>
+                <button type="button" onclick="submitCreateProduct()" id="btn-submit-product" 
+                        style="width: 100%; padding: 8px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px;">
+                    Criar Produto
+                </button>
+            </div>
+            
             <div style="display: flex; gap: 12px; margin-bottom: 16px;">
                 <div style="flex: 1;">
                     <label style="display: block; margin-bottom: 6px; font-weight: 600;">Valor estimado</label>
@@ -418,6 +469,7 @@ $stageColors = [
 const LEADS_SEARCH_URL = '<?= pixelhub_url('/leads/search-ajax') ?>';
 const TENANTS_SEARCH_URL = '<?= pixelhub_url('/tenants/search-opp') ?>';
 const LEADS_STORE_URL = '<?= pixelhub_url('/leads/store-ajax') ?>';
+const PRODUCT_CREATE_URL = '<?= pixelhub_url('/opportunities/create-product') ?>';
 let leadSearchTimeout = null;
 let tenantSearchTimeout = null;
 
@@ -886,11 +938,13 @@ function resetToDefaultState() {
 function applyFilters() {
     const search = document.getElementById('searchFilter').value;
     const stage = document.getElementById('stageFilter').value;
+    const product = document.getElementById('productFilter').value;
     const responsible = document.getElementById('responsibleFilter').value;
     const status = document.getElementById('statusFilter').value;
     let url = '<?= pixelhub_url('/opportunities') ?>?';
     if (search) url += 'search=' + encodeURIComponent(search) + '&';
     if (stage) url += 'stage=' + stage + '&';
+    if (product) url += 'product=' + product + '&';
     if (responsible) url += 'responsible=' + responsible + '&';
     if (status) url += 'status=' + status + '&';
     window.location.href = url;
@@ -1184,6 +1238,75 @@ function escHtml(str) {
     const d = document.createElement('div');
     d.textContent = str || '';
     return d.innerHTML;
+}
+
+// ===== Gerenciar Produtos =====
+function toggleNewProductForm() {
+    const form = document.getElementById('create-product-form');
+    const select = document.getElementById('product-select');
+    
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+        select.disabled = true;
+        document.getElementById('new-product-name').focus();
+    } else {
+        form.style.display = 'none';
+        select.disabled = false;
+        // Limpa form
+        document.getElementById('new-product-name').value = '';
+        document.getElementById('new-product-error').style.display = 'none';
+    }
+}
+
+async function submitCreateProduct() {
+    const nameInput = document.getElementById('new-product-name');
+    const errorEl = document.getElementById('new-product-error');
+    const btn = document.getElementById('btn-submit-product');
+    
+    const name = nameInput.value.trim();
+    if (!name) {
+        errorEl.textContent = 'Nome do produto é obrigatório.';
+        errorEl.style.display = 'block';
+        return;
+    }
+    
+    errorEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Criando...';
+    
+    try {
+        const response = await fetch(PRODUCT_CREATE_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ label: name })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Erro ao criar produto');
+        }
+        
+        // Adiciona nova opção ao select
+        const select = document.getElementById('product-select');
+        const option = document.createElement('option');
+        option.value = data.product.id;
+        option.textContent = data.product.label;
+        option.selected = true;
+        select.appendChild(option);
+        
+        // Fecha form e limpa
+        toggleNewProductForm();
+        
+    } catch(e) {
+        errorEl.textContent = e.message || 'Erro de conexão.';
+        errorEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Criar Produto';
+    }
 }
 </script>
 

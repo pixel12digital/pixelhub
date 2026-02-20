@@ -228,7 +228,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         if (tenantIdInput) tenantIdInput.value = '';
 
         if (leadIdInput) leadIdInput.value = leadId;
-        if (leadDisplay) leadDisplay.textContent = (leadName && String(leadName).trim() !== '') ? leadName : ('Lead #' + leadId);
+        if (leadDisplay) leadDisplay.textContent = (leadName && String(leadName).trim() !== '') ? leadName : ('Lead: ' + (leadPhone || '#' + leadId));
         if (leadPhoneEl) leadPhoneEl.textContent = leadPhone ? leadPhone : '';
         if (leadContainer) leadContainer.style.display = 'block';
     };

@@ -344,7 +344,7 @@ $isHoje = ($viewMode === 'hoje');
                         $statusClass = $statusMap[$status] ?? 'backlog';
                         $checklist = $t['checklist'] ?? [];
                     ?>
-                        <a href="<?= pixelhub_url('/projects/board?project_id=' . (int)$t['project_id']) ?>#task-<?= (int)$t['id'] ?>" class="agenda-item bar-<?= $statusClass ?>">
+                        <a href="<?= pixelhub_url('/projects/board?project_id=' . $projetoId) ?>#task-<?= (int)$t['id'] ?>" class="agenda-item bar-<?= $statusClass ?>">
                             <span class="agenda-item-icon task status-<?= $statusClass ?>">✓</span>
                             <div class="agenda-item-content">
                                 <div class="agenda-item-title"><?= htmlspecialchars($t['title']) ?></div>

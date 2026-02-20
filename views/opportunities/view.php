@@ -281,7 +281,7 @@ $isLost = $opp['status'] === 'lost';
                                    style="color: #1565c0; text-decoration: none; hover: text-decoration: underline;"
                                    onmouseover="this.style.textDecoration='underline'" 
                                    onmouseout="this.style.textDecoration='none'">
-                                <?= htmlspecialchars(!empty($opp['lead_name']) ? $opp['lead_name'] : ('Lead #' . ($opp['lead_id'] ?? ''))) ?>
+                                <?= htmlspecialchars(!empty($opp['lead_name']) ? ('Lead: ' . $opp['lead_name']) : ('Lead: ' . ($opp['lead_phone'] ?? ('#' . ($opp['lead_id'] ?? ''))))) ?>
                             </a></strong>
                             <?php if ($hasPhone): ?>
                                 <div style="font-size: 12px; color: #666;"><?= htmlspecialchars($contactPhone) ?></div>

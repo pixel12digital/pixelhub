@@ -14,7 +14,7 @@ $baseUrl = pixelhub_url('');
                 $displayName = $thread['contact_name'] ?? null;
                 if (empty($displayName) && !empty($thread['tenant_id'])) $displayName = $thread['tenant_name'] ?? null;
                 if (empty($displayName) && !empty($thread['lead_name'])) $displayName = $thread['lead_name'];
-                if (empty($displayName) && !empty($thread['lead_id'])) $displayName = 'Lead #' . $thread['lead_id'];
+                if (empty($displayName) && !empty($thread['lead_id'])) $displayName = 'Lead: ' . ($thread['lead_name'] ?? ($thread['lead_phone'] ?? ('#' . $thread['lead_id'])));
                 if (empty($displayName)) $displayName = 'Cliente';
                 echo htmlspecialchars($displayName);
             ?>
@@ -45,7 +45,7 @@ $baseUrl = pixelhub_url('');
                         $displayName = $thread['contact_name'] ?? null;
                         if (empty($displayName) && !empty($thread['tenant_id'])) $displayName = $thread['tenant_name'] ?? null;
                         if (empty($displayName) && !empty($thread['lead_name'])) $displayName = $thread['lead_name'];
-                        if (empty($displayName) && !empty($thread['lead_id'])) $displayName = 'Lead #' . $thread['lead_id'];
+                        if (empty($displayName) && !empty($thread['lead_id'])) $displayName = 'Lead: ' . ($thread['lead_name'] ?? ($thread['lead_phone'] ?? ('#' . $thread['lead_id'])));
                         if (empty($displayName)) $displayName = 'Cliente';
                         echo htmlspecialchars($displayName);
                     ?></strong>
