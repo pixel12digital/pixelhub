@@ -15,6 +15,16 @@ $currentStageColor = $stageColors[$currentStage] ?? '#6c757d';
 $isActive = $opp['status'] === 'active';
 $isWon = $opp['status'] === 'won';
 $isLost = $opp['status'] === 'lost';
+
+/**
+ * Helper para exibir origem de forma amigável
+ */
+function getOriginDisplay($origin) {
+    if (!$origin || trim($origin) === '' || strtolower($origin) === 'unknown') {
+        return 'Origem não informada';
+    }
+    return ucfirst($origin);
+}
 ?>
 
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
@@ -227,7 +237,7 @@ $isLost = $opp['status'] === 'lost';
                         </div>
                         
                         <div style="font-weight: 600; color: #666;">Canal:</div>
-                        <div><?= htmlspecialchars(ucfirst($trackingInfo['origin'])) ?></div>
+                        <div><?= htmlspecialchars($this->getOriginDisplay($trackingInfo['origin'])) ?></div>
                         
                         <?php if ($trackingInfo['tracking_metadata']): ?>
                             <?php if (!empty($trackingInfo['tracking_metadata']['tracking_description'])): ?>
@@ -261,16 +271,15 @@ $isLost = $opp['status'] === 'lost';
                             <span style="background: #ffc107; color: #856404; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600;">
                                 PENDENTE
                             </span>
-                            <span style="font-weight: 600; color: #856404;">Origem não identificada</span>
+                            <span style="font-weight: 600; color: #856404;">Origem não informada</span>
                         </div>
                     </div>
                     <div style="font-size: 12px; color: #856404; margin-bottom: 10px;">
-                        Origem atual: <strong><?= htmlspecialchars(ucfirst($opp['origin'] ?? 'unknown')) ?></strong>
+                        Não foi possível identificar a origem automaticamente. Se souber, selecione a origem abaixo.
                     </div>
                     <div style="font-size: 11px; color: #856404;">
-                        Sem código de tracking detectado. 
-                        <a href="#" onclick="alert('Funcionalidade de edição manual em desenvolvimento.')" style="color: #856404; text-decoration: underline;">
-                            Preencher origem/Tracking manualmente
+                        <a href="#" onclick="openEditOriginModal()" style="color: #856404; text-decoration: underline;">
+                            Definir origem
                         </a>
                     </div>
                 </div>
@@ -1555,6 +1564,66 @@ async function submitFollowup() {
     </div>
 </div>
 
+<!-- Modal: Editar Origem -->
+<div id="edit-origin-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 8px; padding: 0; max-width: 400px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <div style="padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 16px; color: #333;">Definir Origem</h3>
+            <button onclick="closeEditOriginModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+        </div>
+        
+        <div style="padding: 20px;">
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555;">Origem/Canal *</label>
+                <select id="edit-origin-select" style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    <option value="">Selecione uma origem...</option>
+                    <?php
+                    // Buscar origens disponíveis
+                    try {
+                        $trackingService = new \PixelHub\Services\TrackingDetectionService();
+                        $availableOrigins = $trackingService->getAvailableOrigins();
+                        foreach ($availableOrigins as $origin):
+                            $displayOrigin = ($origin === 'unknown') ? 'Origem não informada' : ucfirst($origin);
+                    ?>
+                        <option value="<?= htmlspecialchars($origin) ?>" <?= ($origin === ($opp['origin'] ?? '')) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($displayOrigin) ?>
+                        </option>
+                    <?php
+                        endforeach;
+                    } catch (\Exception $e) {
+                        // Fallback hardcoded
+                        $fallbackOrigins = ['unknown', 'whatsapp', 'site', 'instagram', 'facebook', 'google', 'email', 'indicacao', 'outro'];
+                        foreach ($fallbackOrigins as $origin):
+                            $displayOrigin = ($origin === 'unknown') ? 'Origem não informada' : ucfirst($origin);
+                    ?>
+                        <option value="<?= htmlspecialchars($origin) ?>" <?= ($origin === ($opp['origin'] ?? '')) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($displayOrigin) ?>
+                        </option>
+                    <?php
+                        endforeach;
+                    }
+                    ?>
+                </select>
+            </div>
+            
+            <div style="font-size: 12px; color: #666; margin-bottom: 16px;">
+                Selecione a origem correta para manter o histórico e relatórios atualizados.
+            </div>
+        </div>
+        
+        <div style="padding: 16px 20px; border-top: 1px solid #eee; display: flex; gap: 10px; justify-content: flex-end;">
+            <button onclick="closeEditOriginModal()" 
+                    style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                Cancelar
+            </button>
+            <button onclick="saveOrigin()" 
+                    style="padding: 10px 20px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                Salvar
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
 // Timeline de Negócio
 function showTimelineTab(tab) {
@@ -1563,6 +1632,68 @@ function showTimelineTab(tab) {
     document.getElementById('tab-business').style.borderBottom = '2px solid #023A8D';
     document.getElementById('tab-business').style.color = '#023A8D';
 }
+
+// Modal de Edição de Origem
+function openEditOriginModal() {
+    document.getElementById('edit-origin-modal').style.display = 'flex';
+}
+
+function closeEditOriginModal() {
+    document.getElementById('edit-origin-modal').style.display = 'none';
+}
+
+function saveOrigin() {
+    const select = document.getElementById('edit-origin-select');
+    const origin = select.value;
+    
+    if (!origin) {
+        alert('Por favor, selecione uma origem.');
+        return;
+    }
+    
+    // Mostrar loading
+    const saveBtn = event.target;
+    const originalText = saveBtn.textContent;
+    saveBtn.textContent = 'Salvando...';
+    saveBtn.disabled = true;
+    
+    // Enviar requisição
+    fetch('/opportunities/update-origin', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            opportunity_id: <?= (int) ($opp['id'] ?? 0) ?>,
+            origin: origin
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Recarregar a página para mostrar as alterações
+            window.location.reload();
+        } else {
+            alert('Erro ao salvar: ' + (data.error || 'Erro desconhecido'));
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao salvar a origem.');
+    })
+    .finally(() => {
+        // Restaurar botão
+        saveBtn.textContent = originalText;
+        saveBtn.disabled = false;
+    });
+}
+
+// Fechar modal ao clicar fora
+document.getElementById('edit-origin-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeEditOriginModal();
+    }
+});
 
 </script>
 

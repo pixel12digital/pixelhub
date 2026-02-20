@@ -363,6 +363,88 @@ class OpportunitiesController extends Controller
     }
 
     /**
+     * Atualizar origem da oportunidade (AJAX)
+     * POST /opportunities/update-origin
+     */
+    public function updateOrigin(): void
+    {
+        Auth::requireInternal();
+        $user = Auth::user();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $opportunityId = (int) ($input['opportunity_id'] ?? 0);
+        $origin = trim($input['origin'] ?? '');
+
+        if (!$opportunityId || !$origin) {
+            $this->json(['success' => false, 'error' => 'ID da oportunidade e origem são obrigatórios'], 400);
+            return;
+        }
+
+        // Validar origem contra lista permitida
+        try {
+            $trackingService = new \PixelHub\Services\TrackingDetectionService();
+            $validOrigins = $trackingService->getAvailableOrigins();
+        } catch (\Exception $e) {
+            // Fallback hardcoded
+            $validOrigins = ['unknown', 'whatsapp', 'site', 'instagram', 'facebook', 'google', 'email', 'indicacao', 'outro'];
+        }
+
+        if (!in_array($origin, $validOrigins)) {
+            $this->json(['success' => false, 'error' => 'Origem inválida'], 400);
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        try {
+            // Verificar se oportunidade existe
+            $stmt = $db->prepare("SELECT id FROM opportunities WHERE id = ?");
+            $stmt->execute([$opportunityId]);
+            if (!$stmt->fetch()) {
+                $this->json(['success' => false, 'error' => 'Oportunidade não encontrada'], 404);
+                return;
+            }
+
+            // Atualizar origem e marcar como edição manual
+            $stmt = $db->prepare("
+                UPDATE opportunities 
+                SET origin = ?, 
+                    tracking_auto_detected = 0,
+                    updated_at = NOW(),
+                    updated_by = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$origin, $user['id'] ?? null, $opportunityId]);
+
+            // Registrar no histórico
+            $historyStmt = $db->prepare("
+                INSERT INTO opportunity_history 
+                (opportunity_id, action, old_value, new_value, description, user_id, created_at)
+                VALUES (?, 'origin_changed', ?, ?, ?, ?, NOW())
+            ");
+            
+            // Buscar valor antigo para o histórico
+            $oldValueStmt = $db->prepare("SELECT origin FROM opportunities WHERE id = ?");
+            $oldValueStmt->execute([$opportunityId]);
+            $oldOrigin = $oldValueStmt->fetchColumn();
+            
+            $displayOrigin = ($origin === 'unknown') ? 'Origem não informada' : ucfirst($origin);
+            $description = "Origem alterada para: {$displayOrigin}";
+            
+            $historyStmt->execute([$opportunityId, $oldOrigin, $origin, $description, $user['id'] ?? null]);
+
+            $this->json([
+                'success' => true,
+                'message' => 'Origem atualizada com sucesso'
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("[Opportunities] Erro ao atualizar origem: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro interno'], 500);
+        }
+    }
+
+    /**
      * Adiciona nota/anotação (AJAX)
      * POST /opportunities/add-note
      */
