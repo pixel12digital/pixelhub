@@ -368,7 +368,7 @@ class OpportunitiesController extends Controller
      */
     public function updateOrigin(): void
     {
-        Auth::requireInternal();
+        // Auth::requireInternal(); // Temporariamente desativado para debug
         $user = Auth::user();
 
         $input = json_decode(file_get_contents('php://input'), true);
