@@ -134,7 +134,13 @@ class OpportunityService
                    u.name as responsible_name,
                    cb.name as created_by_name,
                    p.label as product_label,
-                   p.slug as product_slug
+                   p.slug as product_slug,
+                   CASE
+                       WHEN o.lead_id IS NOT NULL THEN 'lead'
+                       WHEN o.tenant_id IS NOT NULL THEN
+                           CASE WHEN t.contact_type = 'client' THEN 'cliente' ELSE 'lead' END
+                       ELSE 'lead'
+                   END as contact_type
             FROM opportunities o
             LEFT JOIN tenants t ON o.tenant_id = t.id
             LEFT JOIN leads l ON o.lead_id = l.id

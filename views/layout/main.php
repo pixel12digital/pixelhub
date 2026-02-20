@@ -5007,10 +5007,11 @@
                 const tenantName = escapeInboxHtml(conv.tenant_name || '');
                 const convId = conv.conversation_id || 0;
                 const channelId = conv.channel_id ? ` <span style="opacity: 0.6; font-size: 11px;">• ${escapeInboxHtml(conv.channel_id)}</span>` : (conv.channel_type ? ` <span style="opacity: 0.7; font-size: 11px;">• ${(conv.channel_type || '').toUpperCase()}</span>` : '');
-                const tenantLink = (tenantId && conv.tenant_name && conv.tenant_name !== 'Sem tenant')
-                    ? ` <a href="${INBOX_BASE_URL}/tenants/view?id=${tenantId}" onclick="event.stopPropagation();" style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para ver detalhes do cliente">• ${tenantName}</a>`
-                    : (leadId
-                        ? ` <a href="${INBOX_BASE_URL}/opportunities/view-by-lead?lead_id=${encodeURIComponent(leadId)}" onclick="event.stopPropagation();" style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para abrir a oportunidade do lead">• ${escapeInboxHtml(leadName ? ('Lead: ' + leadName) : ('Lead: ' + (leadPhone || '#' + leadId)))}${leadPhone ? ' (' + escapeInboxHtml(leadPhone) + ')' : ''}</a>`
+                // lead_id tem prioridade sobre tenant_id (lead ainda não é cliente)
+                const tenantLink = leadId
+                    ? ` <a href="${INBOX_BASE_URL}/opportunities/view-by-lead?lead_id=${encodeURIComponent(leadId)}" onclick="event.stopPropagation();" style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para abrir a oportunidade do lead">• ${escapeInboxHtml(leadName ? ('Lead: ' + leadName) : ('Lead: ' + (leadPhone || '#' + leadId)))}${leadPhone ? ' (' + escapeInboxHtml(leadPhone) + ')' : ''}</a>`
+                    : (tenantId && conv.tenant_name && conv.tenant_name !== 'Sem tenant'
+                        ? ` <a href="${INBOX_BASE_URL}/tenants/view?id=${tenantId}" onclick="event.stopPropagation();" style="opacity: 0.7; font-weight: 500; color: #023A8D; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para ver detalhes do cliente">• ${tenantName}</a>`
                         : ' <span style="opacity: 0.7; font-size: 10px;">• Novo contato</span>'
                     );
                 const line2 = channel === 'whatsapp' 

@@ -309,14 +309,19 @@ function getOriginDisplay($origin) {
         
         <!-- Vínculo -->
         <?php
-            $contactPhone = $opp['tenant_phone'] ?? $opp['lead_phone'] ?? '';
-            $contactEmail = $opp['tenant_email'] ?? $opp['lead_email'] ?? '';
+            $isLead = ($opp['contact_type'] ?? 'lead') !== 'cliente';
+            $contactPhone = $isLead
+                ? ($opp['lead_phone'] ?? $opp['tenant_phone'] ?? '')
+                : ($opp['tenant_phone'] ?? $opp['lead_phone'] ?? '');
+            $contactEmail = $isLead
+                ? ($opp['lead_email'] ?? $opp['tenant_email'] ?? '')
+                : ($opp['tenant_email'] ?? $opp['lead_email'] ?? '');
             $hasPhone = !empty($contactPhone);
             $hasEmail = !empty($contactEmail);
         ?>
         <div class="card" style="margin-bottom: 20px;">
             <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #333;">Vínculo</h3>
-            <?php if (!empty($opp['tenant_id'])): ?>
+            <?php if (!empty($opp['tenant_id']) && ($opp['contact_type'] ?? 'lead') === 'cliente'): ?>
                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #e8f5e9; border-radius: 6px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="background: #2e7d32; color: white; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600;">Cliente</span>
