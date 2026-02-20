@@ -61,6 +61,9 @@ class AISuggestReplyService
         // Busca exemplos de aprendizado anteriores (reduzido para economizar tokens)
         $learnedExamples = self::getLearnedExamples($contextSlug, $objective, 3);
 
+        // Transcreve áudios nos bastidores para contexto completo
+        $conversationHistory = self::transcribeAudiosForContext($conversationHistory);
+
         // Monta os prompts
         $systemPrompt = self::buildSystemPrompt($aiContext, $objective, $tone, $hasHistory, $learnedExamples);
         $userPrompt = self::buildUserPrompt($conversationHistory, $contactName, $contactPhone, $attendantNote, $objective, $hasHistory);
@@ -164,6 +167,11 @@ class AISuggestReplyService
 
         // Busca exemplos de aprendizado anteriores
         $learnedExamples = self::getLearnedExamples($contextSlug, $objective, 3);
+
+        // Transcreve áudios nos bastidores para contexto completo
+        $conversationHistory = self::transcribeAudiosForContext($conversationHistory);
+        // Propaga histórico transcrito para o chat() se for refinamento
+        $params['conversation_history'] = $conversationHistory;
 
         // Se há histórico de chat IA OU refinamento, usa o método chat
         if (!empty($aiChatMessages) || !empty($params['user_prompt'] ?? '')) {
@@ -379,6 +387,16 @@ class AISuggestReplyService
             $knowledgeSection = "\n\n## Base de Conhecimento (informações do produto/serviço)\nUse estas informações para responder com precisão sobre o que oferecemos:\n\n{$kb}";
         }
 
+        // Instruções específicas por objetivo
+        $objectiveInstructions = match ($objective) {
+            'follow_up' => "REGRAS OBRIGATÓRIAS PARA FOLLOW-UP: Não mencione valores, preços ou condições de pagamento — isso é exclusivo de 'Enviar proposta'. Não envie proposta comercial. Leia o histórico: qual pergunta ficou sem resposta? qual conteúdo foi enviado sem retorno? Foque nisso. Mensagens CURTAS (máx 3-4 linhas). Sem redundância — não repita a mesma ideia duas vezes.",
+            'send_proposal' => "REGRAS PARA PROPOSTA: Apresente valores, condições e detalhes comerciais com clareza. Inclua um CTA claro.",
+            'first_contact' => "REGRAS PARA PRIMEIRO CONTATO: Apresente-se brevemente. Faça UMA pergunta de qualificação. Não mencione valores ainda.",
+            'qualify' => "REGRAS PARA QUALIFICAÇÃO: Faça perguntas abertas. Máximo 1-2 perguntas por mensagem. Não mencione valores ainda.",
+            'close_deal' => "REGRAS PARA FECHAR NEGÓCIO: O cliente já conhece a proposta. Foque em remover objeções e propor o próximo passo concreto.",
+            default => '',
+        };
+
         $prompt = <<<PROMPT
 {$aiContext['system_prompt']}
 {$knowledgeSection}
@@ -391,6 +409,8 @@ Tom desejado: {$toneLabel}
 {$toneInstructions}
 
 {$historyInstruction}
+
+{$objectiveInstructions}
 
 ## Formato de resposta (OBRIGATÓRIO: retorne APENAS JSON válido)
 {
@@ -443,8 +463,46 @@ PROMPT;
         }
 
         $historyInstruction = $hasHistory
-            ? "Há histórico de conversa com o contato. Leia e continue naturalmente."
+            ? "Há histórico de conversa com o contato. Leia com atenção e continue de forma natural e contextualizada — não repita o que já foi dito."
             : "Primeiro contato — gere uma mensagem de abertura.";
+
+        // Instruções específicas por objetivo
+        $objectiveInstructions = match ($objective) {
+            'follow_up' => <<<OBJ
+## Regras OBRIGATÓRIAS para Follow-up
+- O objetivo é APENAS dar continuidade à conversa — verificar se o cliente viu algo, retomar uma pergunta sem resposta, manter o relacionamento
+- NUNCA mencione valores, preços, condições de pagamento ou parcelas — isso é exclusivo do objetivo "Enviar proposta"
+- NUNCA envie proposta ou oferta comercial no follow-up
+- Leia o histórico e identifique: qual foi a última pergunta sem resposta? qual link/conteúdo foi enviado sem retorno?
+- Foque nisso: pergunte se o cliente viu, se tem dúvidas, retome o ponto em aberto
+- Mensagens CURTAS: máximo 3-4 linhas. Sem redundância — não repita a mesma ideia duas vezes
+- Se o atendente fez uma pergunta que ficou sem resposta, retome essa pergunta de forma natural
+OBJ,
+            'send_proposal' => <<<OBJ
+## Regras para Enviar Proposta
+- Aqui SIM é o momento de apresentar valores, condições e detalhes comerciais
+- Seja claro sobre o que está sendo oferecido, o valor e as condições
+- Inclua um CTA claro (próximo passo)
+OBJ,
+            'first_contact' => <<<OBJ
+## Regras para Primeiro Contato
+- Apresente-se brevemente e demonstre interesse genuíno no negócio do cliente
+- Faça UMA pergunta de qualificação — não sobrecarregue com muitas perguntas
+- Não mencione valores ou condições ainda
+OBJ,
+            'qualify' => <<<OBJ
+## Regras para Qualificação
+- Faça perguntas abertas para entender a necessidade real do cliente
+- Máximo 1-2 perguntas por mensagem — não sobrecarregue
+- Não mencione valores ainda
+OBJ,
+            'close_deal' => <<<OBJ
+## Regras para Fechar Negócio
+- O cliente já conhece a proposta — foque em remover objeções e facilitar a decisão
+- Seja direto e objetivo. Proponha o próximo passo concreto
+OBJ,
+            default => "Objetivo atual: {$objectiveLabel}. Adapte a mensagem ao contexto da conversa.",
+        };
 
         return <<<PROMPT
 {$aiContext['system_prompt']}
@@ -462,13 +520,15 @@ Você está em modo CHAT com o atendente. Seu trabalho:
 Objetivo atual: {$objectiveLabel}
 {$historyInstruction}
 
+{$objectiveInstructions}
+
 ## ATENÇÃO ÀS CORREÇÕES DO ATENDENTE
 - Se o atendente disser "não enviei", "ainda não", "não tem link": IGNORE a premissa anterior
 - Se o atendente corrigir informações: APLIQUE a correção na nova mensagem
 - Se o atendente mudar o contexto: ADAPTE totalmente a mensagem
 - NUNCA repita um erro que o atendente corrigiu
 
-Regras:
+Regras gerais:
 - Responda SEMPRE com a mensagem pronta para enviar (texto plano, sem markdown)
 - Se o atendente pedir ajuste, gere a versão corrigida completa (não apenas o trecho alterado)
 - Se o atendente corrigir uma premissa, REESCREVA a mensagem sem o erro
