@@ -375,7 +375,7 @@ class OpportunityService
     }
 
     /**
-     * Marca oportunidade como ganha e cria service_order automaticamente
+     * Marca oportunidade como ganha, converte lead em cliente e cria service_order automaticamente
      */
     public static function markAsWon(int $id, ?int $userId = null): bool
     {
@@ -386,39 +386,86 @@ class OpportunityService
         $db->beginTransaction();
         try {
             $oldStage = $opp['stage'];
+            $tenantId = $opp['tenant_id'] ?? null;
+            $leadId   = $opp['lead_id']   ?? null;
+            $convertedMsg = '';
 
-            // Atualiza oportunidade
-            $stmt = $db->prepare("
-                UPDATE opportunities 
-                SET stage = 'won', status = 'won', won_at = NOW(), updated_at = NOW() 
-                WHERE id = ?
-            ");
-            $stmt->execute([$id]);
+            // ── Converte lead em cliente se a oportunidade estava vinculada a um lead ──
+            if ($leadId && !$tenantId) {
+                $lead = $db->prepare("SELECT * FROM leads WHERE id = ?");
+                $lead->execute([$leadId]);
+                $leadData = $lead->fetch();
 
-            // Cria service_order automaticamente se tiver service_id
-            $serviceOrderId = null;
-            if (!empty($opp['service_id'])) {
-                try {
-                    $serviceOrderId = ServiceOrderService::createOrder([
-                        'service_id' => $opp['service_id'],
-                        'tenant_id' => $opp['tenant_id'],
-                        'contract_value' => $opp['estimated_value'],
-                        'notes' => "Gerado automaticamente da oportunidade #{$id}: " . ($opp['name'] ?? ''),
-                        'created_by' => $userId,
+                if ($leadData) {
+                    // Cria o tenant reaproveitando todos os dados do lead
+                    $stmtTenant = $db->prepare("
+                        INSERT INTO tenants (name, phone, email, person_type, status, notes, source, created_by, created_at, updated_at)
+                        VALUES (?, ?, ?, 'pf', 'active', ?, ?, ?, NOW(), NOW())
+                    ");
+                    $stmtTenant->execute([
+                        $leadData['name'],
+                        $leadData['phone'],
+                        $leadData['email'],
+                        $leadData['notes'],
+                        $leadData['source'] ?? 'crm_manual',
+                        $userId,
                     ]);
+                    $tenantId = (int) $db->lastInsertId();
 
-                    // Vincula service_order à oportunidade
-                    $stmt2 = $db->prepare("UPDATE opportunities SET service_order_id = ? WHERE id = ?");
-                    $stmt2->execute([$serviceOrderId, $id]);
-                } catch (\Exception $e) {
-                    error_log("[Opportunity] Erro ao criar service_order para opp #{$id}: " . $e->getMessage());
-                    // Não bloqueia — oportunidade é marcada como ganha mesmo sem service_order
+                    // Marca lead como convertido
+                    $db->prepare("
+                        UPDATE leads 
+                        SET status = 'converted', converted_tenant_id = ?, converted_at = NOW(), updated_at = NOW()
+                        WHERE id = ?
+                    ")->execute([$tenantId, $leadId]);
+
+                    // Migra conversas do lead para o novo tenant
+                    $db->prepare("
+                        UPDATE conversations 
+                        SET tenant_id = ?, lead_id = NULL, updated_at = NOW()
+                        WHERE lead_id = ?
+                    ")->execute([$tenantId, $leadId]);
+
+                    // Atualiza a oportunidade: troca lead_id por tenant_id
+                    $db->prepare("
+                        UPDATE opportunities 
+                        SET tenant_id = ?, lead_id = NULL, updated_at = NOW()
+                        WHERE id = ?
+                    ")->execute([$tenantId, $id]);
+
+                    $convertedMsg = " — Lead convertido em Cliente #{$tenantId}";
+                    error_log("[Opportunity] Lead #{$leadId} convertido em Tenant #{$tenantId} ao ganhar opp #{$id}");
                 }
             }
 
-            self::addHistory($id, 'status_changed', 
+            // Atualiza oportunidade como ganha
+            $db->prepare("
+                UPDATE opportunities 
+                SET stage = 'won', status = 'won', won_at = NOW(), updated_at = NOW() 
+                WHERE id = ?
+            ")->execute([$id]);
+
+            // Cria service_order automaticamente se tiver service_id
+            $serviceOrderId = null;
+            if (!empty($opp['service_id']) && $tenantId) {
+                try {
+                    $serviceOrderId = ServiceOrderService::createOrder([
+                        'service_id'      => $opp['service_id'],
+                        'tenant_id'       => $tenantId,
+                        'contract_value'  => $opp['estimated_value'],
+                        'notes'           => "Gerado automaticamente da oportunidade #{$id}: " . ($opp['name'] ?? ''),
+                        'created_by'      => $userId,
+                    ]);
+
+                    $db->prepare("UPDATE opportunities SET service_order_id = ? WHERE id = ?")->execute([$serviceOrderId, $id]);
+                } catch (\Exception $e) {
+                    error_log("[Opportunity] Erro ao criar service_order para opp #{$id}: " . $e->getMessage());
+                }
+            }
+
+            self::addHistory($id, 'status_changed',
                 self::STAGES[$oldStage] ?? $oldStage, 'Fechado (Ganho)',
-                'Oportunidade marcada como GANHA' . ($serviceOrderId ? " — Pedido #{$serviceOrderId} criado" : ''),
+                'Oportunidade marcada como GANHA' . $convertedMsg . ($serviceOrderId ? " — Pedido #{$serviceOrderId} criado" : ''),
                 $userId);
 
             $db->commit();

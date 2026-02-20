@@ -51,14 +51,6 @@ class ContactService
         $phone = !empty($data['phone']) ? trim($data['phone']) : null;
         $email = !empty($data['email']) ? trim($data['email']) : null;
         $company = !empty($data['company']) ? trim($data['company']) : null;
-        
-        // Verifica duplicados
-        if ($phone) {
-            $duplicates = self::findDuplicatesByPhone($phone);
-            if (!empty($duplicates)) {
-                throw new \RuntimeException('Já existe um contato com este telefone');
-            }
-        }
 
         // Prepara campos específicos por tipo
         $fields = [
@@ -101,7 +93,7 @@ class ContactService
         $stmt->execute(array_values($fields));
 
         $contactId = (int) $db->lastInsertId();
-        
+
         error_log("[ContactService] Contato {$contactId} criado como {$contactType}");
         
         return $contactId;

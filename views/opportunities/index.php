@@ -1204,6 +1204,19 @@ async function submitCreateLead(forceCreate) {
         selectLead(lead.id, label, detail);
         document.getElementById('create-lead-form').style.display = 'none';
         btn.disabled = false; btn.textContent = 'Salvar Lead';
+
+        // Auto-preenche o nome da oportunidade se estiver vazio e foca nele
+        const oppNameInput = document.querySelector('#create-opp-modal input[name="name"]');
+        if (oppNameInput && !oppNameInput.value.trim()) {
+            oppNameInput.value = label;
+        }
+        if (oppNameInput) {
+            oppNameInput.style.transition = 'box-shadow 0.3s';
+            oppNameInput.style.boxShadow = '0 0 0 3px rgba(25, 135, 84, 0.4)';
+            oppNameInput.focus();
+            oppNameInput.select();
+            setTimeout(() => { oppNameInput.style.boxShadow = ''; }, 2500);
+        }
     } catch(e) {
         errorEl.textContent = 'Erro de conexão.';
         errorEl.style.display = 'block';

@@ -27,6 +27,10 @@ class LeadService
         $email = !empty($data['email']) ? trim($data['email']) : null;
         $company = !empty($data['company']) ? trim($data['company']) : null;
 
+        if (empty($phone) && empty($email)) {
+            throw new \InvalidArgumentException('Informe pelo menos um telefone ou e-mail');
+        }
+
         $stmt = $db->prepare("
             INSERT INTO leads (name, company, phone, email, source, status, notes, created_by, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, 'new', ?, ?, NOW(), NOW())
@@ -37,12 +41,19 @@ class LeadService
             $company,
             $phone,
             $email,
-            $data['source'] ?? 'whatsapp',
+            $data['source'] ?? 'crm_manual',
             $data['notes'] ?? null,
             $data['created_by'] ?? null,
         ]);
 
-        return (int) $db->lastInsertId();
+        $id = (int) $db->lastInsertId();
+
+        // Fallback automático: se nome vazio, salva Lead #<id>
+        if (empty($name)) {
+            $db->prepare("UPDATE leads SET name = ? WHERE id = ?")->execute(['Lead #' . $id, $id]);
+        }
+
+        return $id;
     }
 
     /**

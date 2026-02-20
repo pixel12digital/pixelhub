@@ -607,8 +607,8 @@ class OpportunitiesController extends Controller
 
         // Verifica duplicidade por telefone
         if (!empty($phone)) {
-            $duplicates = ContactService::findDuplicatesByPhone($phone);
-            $hasDuplicates = !empty($duplicates);
+            $duplicates = LeadService::findDuplicatesByPhone($phone);
+            $hasDuplicates = !empty($duplicates['leads']) || !empty($duplicates['tenants']);
 
             if ($hasDuplicates && empty($input['force_create'])) {
                 $this->json([
@@ -622,16 +622,16 @@ class OpportunitiesController extends Controller
         }
 
         try {
-            $id = ContactService::create([
+            $id = LeadService::create([
                 'name' => $name ?: null,
                 'company' => $company ?: null,
                 'phone' => $phone,
                 'email' => $email,
                 'notes' => $notes ?: null,
                 'source' => 'crm_manual',
-            ], ContactService::TYPE_LEAD);
+            ]);
 
-            $lead = ContactService::findById($id);
+            $lead = LeadService::findById($id);
             $this->json([
                 'success' => true,
                 'lead' => $lead,
