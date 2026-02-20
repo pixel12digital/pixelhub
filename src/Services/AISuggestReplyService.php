@@ -227,6 +227,8 @@ class AISuggestReplyService
         $contactPhone = $params['contact_phone'] ?? '';
         $aiChatMessages = $params['ai_chat_messages'] ?? []; // histórico do chat com a IA
         $userPrompt = $params['user_prompt'] ?? ''; // REFINAMENTO DO USUÁRIO
+        $currentDatetime = $params['current_datetime'] ?? null;
+        $lastContactMessageAt = $params['last_contact_message_at'] ?? null;
         $hasHistory = !empty($conversationHistory);
         
         // Log do refinamento para debug
@@ -252,7 +254,7 @@ class AISuggestReplyService
         $enhancedHistory = self::transcribeAudiosForContext($conversationHistory);
 
         $systemPrompt = self::buildChatSystemPrompt($aiContext, $objective, $hasHistory, $learnedExamples);
-        $userContext = self::buildUserPrompt($enhancedHistory, $contactName, $contactPhone, $attendantNote, $objective, $hasHistory);
+        $userContext = self::buildUserPrompt($enhancedHistory, $contactName, $contactPhone, $attendantNote, $objective, $hasHistory, $currentDatetime, $lastContactMessageAt);
         
         // Se há refinamento, adiciona ao contexto
         if (!empty($userPrompt)) {
@@ -605,7 +607,7 @@ PROMPT;
     /**
      * Monta o user prompt com histórico e observações
      */
-    private static function buildUserPrompt(array $history, string $contactName, string $contactPhone, string $attendantNote, string $objective, bool $hasHistory): string
+    private static function buildUserPrompt(array $history, string $contactName, string $contactPhone, string $attendantNote, string $objective, bool $hasHistory, ?string $currentDatetime = null, ?string $lastContactMessageAt = null): string
     {
         $parts = [];
 
@@ -614,6 +616,46 @@ PROMPT;
         }
         if (!empty($contactPhone)) {
             $parts[] = "Telefone: {$contactPhone}";
+        }
+
+        // Contexto temporal — quanto tempo passou desde a última mensagem do contato
+        if (!empty($lastContactMessageAt)) {
+            try {
+                $now = !empty($currentDatetime) ? new \DateTime($currentDatetime) : new \DateTime();
+                $lastMsg = new \DateTime($lastContactMessageAt);
+                $diff = $now->getTimestamp() - $lastMsg->getTimestamp();
+
+                if ($diff < 0) $diff = 0;
+
+                if ($diff < 3600) {
+                    // Menos de 1 hora
+                    $minutes = (int) round($diff / 60);
+                    $minutes = max($minutes, 1);
+                    $elapsedLabel = "há {$minutes} minuto" . ($minutes > 1 ? 's' : '');
+                    $temporalNote = "⏱️ CONTEXTO TEMPORAL: A última mensagem do contato foi enviada {$elapsedLabel} (conversa em andamento no mesmo dia, minutos atrás). NÃO faça follow-up genérico — o contato acabou de responder. Dê continuidade direta ao que ele disse, sem perguntar 'se ainda tem interesse' ou 'se viu algo'.";
+                } elseif ($diff < 86400) {
+                    // Menos de 24 horas
+                    $hours = (int) round($diff / 3600);
+                    $hours = max($hours, 1);
+                    $elapsedLabel = "há {$hours} hora" . ($hours > 1 ? 's' : '');
+                    $temporalNote = "⏱️ CONTEXTO TEMPORAL: A última mensagem do contato foi enviada {$elapsedLabel} (mesmo dia). Retome a conversa de forma natural, sem ser invasivo. Dê continuidade ao que foi discutido.";
+                } elseif ($diff < 172800) {
+                    // Entre 1 e 2 dias
+                    $temporalNote = "⏱️ CONTEXTO TEMPORAL: A última mensagem do contato foi enviada ontem. Retome a conversa de forma amigável, lembrando brevemente o contexto se necessário.";
+                } elseif ($diff < 604800) {
+                    // Entre 2 e 7 dias
+                    $days = (int) round($diff / 86400);
+                    $temporalNote = "⏱️ CONTEXTO TEMPORAL: A última mensagem do contato foi enviada há {$days} dias. É um follow-up legítimo — retome com leveza, sem pressão.";
+                } else {
+                    // Mais de 7 dias
+                    $days = (int) round($diff / 86400);
+                    $temporalNote = "⏱️ CONTEXTO TEMPORAL: A última mensagem do contato foi enviada há {$days} dias. Reative a conversa com contexto — relembre brevemente o que foi discutido antes de perguntar sobre o andamento.";
+                }
+
+                $parts[] = "\n{$temporalNote}";
+            } catch (\Exception $e) {
+                // Ignora erro de parsing de data
+            }
         }
 
         // Observação do atendente vem ANTES do histórico para ter peso máximo

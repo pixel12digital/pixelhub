@@ -3164,6 +3164,17 @@
                 console.warn('[IA] AVISO: Nenhuma mensagem encontrada no thread atual');
             }
             
+            // Calcula contexto temporal: última mensagem do contato e tempo decorrido
+            var lastContactMsg = null;
+            for (var i = threadMessages.length - 1; i >= 0; i--) {
+                if (threadMessages[i].direction !== 'outbound') {
+                    lastContactMsg = threadMessages[i];
+                    break;
+                }
+            }
+            var lastContactMsgAt = lastContactMsg ? (lastContactMsg.timestamp || lastContactMsg.created_at || null) : null;
+            var nowIso = new Date().toISOString();
+
             // Prepara payload completo
             var payload = {
                 context_slug: contextSlug,
@@ -3172,6 +3183,9 @@
                 conversation_id: convId,
                 ai_chat_messages: [], // Sem histórico de chat IA para rascunho inicial
                 user_prompt: 'gere uma resposta inicial baseada no contexto e histórico da conversa',
+                // Contexto temporal
+                current_datetime: nowIso,
+                last_contact_message_at: lastContactMsgAt,
                 // Dados completos do thread
                 thread_id: thread.id,
                 lead_id: thread.lead_id,

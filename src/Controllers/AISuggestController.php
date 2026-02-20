@@ -168,6 +168,10 @@ class AISuggestController extends Controller
             $contactId = $input['contact_id'] ?? null;
             $threadMessages = $input['thread_messages'] ?? [];
 
+            // Contexto temporal
+            $currentDatetime = $input['current_datetime'] ?? null;
+            $lastContactMessageAt = $input['last_contact_message_at'] ?? null;
+
             // Log obrigatório para debug
             error_log('[AI SUGGEST-CHAT] thread_id: ' . ($threadId ?: 'null') . 
                      ' | messages_count: ' . count($threadMessages) . 
@@ -264,7 +268,9 @@ class AISuggestController extends Controller
                 'contact_name' => $contactName,
                 'contact_phone' => $contactPhone,
                 'ai_chat_messages' => $aiChatMessages,
-                'user_prompt' => $userPrompt, // REFINAMENTO DO USUÁRIO
+                'user_prompt' => $userPrompt,
+                'current_datetime' => $currentDatetime,
+                'last_contact_message_at' => $lastContactMessageAt,
             ]);
 
             $this->json($result, $result['success'] ? 200 : 400);
@@ -311,6 +317,10 @@ class AISuggestController extends Controller
             $leadId = $input['lead_id'] ?? null;
             $contactId = $input['contact_id'] ?? null;
             $threadMessages = $input['thread_messages'] ?? [];
+
+            // Contexto temporal
+            $currentDatetime = $input['current_datetime'] ?? null;
+            $lastContactMessageAt = $input['last_contact_message_at'] ?? null;
 
             // Log obrigatório para debug
             error_log('[AI DRAFT REQUEST] thread_id: ' . ($threadId ?: 'null') . 
@@ -408,7 +418,9 @@ class AISuggestController extends Controller
                 'contact_name' => $contactName,
                 'contact_phone' => $contactPhone,
                 'ai_chat_messages' => $aiChatMessages,
-                'user_prompt' => $userPrompt, // REFINAMENTO DO USUÁRIO
+                'user_prompt' => $userPrompt,
+                'current_datetime' => $currentDatetime,
+                'last_contact_message_at' => $lastContactMessageAt,
             ]);
 
             $this->json($result, $result['success'] ? 200 : 400);
