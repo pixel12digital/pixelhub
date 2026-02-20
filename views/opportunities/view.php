@@ -237,7 +237,7 @@ function getOriginDisplay($origin) {
                         </div>
                         
                         <div style="font-weight: 600; color: #666;">Canal:</div>
-                        <div><?= htmlspecialchars($this->getOriginDisplay($trackingInfo['origin'])) ?></div>
+                        <div><?= htmlspecialchars(getOriginDisplay($trackingInfo['origin'])) ?></div>
                         
                         <?php if ($trackingInfo['tracking_metadata']): ?>
                             <?php if (!empty($trackingInfo['tracking_metadata']['tracking_description'])): ?>
