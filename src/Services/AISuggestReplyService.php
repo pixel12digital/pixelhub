@@ -464,20 +464,21 @@ PROMPT;
         }
 
         $historyInstruction = $hasHistory
-            ? "Há histórico de conversa com o contato. Leia com atenção e continue de forma natural e contextualizada — não repita o que já foi dito."
+            ? "Há histórico de conversa com o contato. LEIA O HISTÓRICO COMPLETO antes de escrever qualquer coisa — especialmente a ÚLTIMA mensagem do contato, pois é o ponto de partida obrigatório da sua resposta."
             : "Primeiro contato — gere uma mensagem de abertura.";
 
         // Instruções específicas por objetivo
         $objectiveInstructions = match ($objective) {
             'follow_up' => <<<OBJ
 ## Regras OBRIGATÓRIAS para Follow-up
-- O objetivo é APENAS dar continuidade à conversa — verificar se o cliente viu algo, retomar uma pergunta sem resposta, manter o relacionamento
-- NUNCA mencione valores, preços, condições de pagamento ou parcelas — isso é exclusivo do objetivo "Enviar proposta"
-- NUNCA envie proposta ou oferta comercial no follow-up
-- Leia o histórico e identifique: qual foi a última pergunta sem resposta? qual link/conteúdo foi enviado sem retorno?
-- Foque nisso: pergunte se o cliente viu, se tem dúvidas, retome o ponto em aberto
-- Mensagens CURTAS: máximo 3-4 linhas. Sem redundância — não repita a mesma ideia duas vezes
-- Se o atendente fez uma pergunta que ficou sem resposta, retome essa pergunta de forma natural
+- PASSO 1 OBRIGATÓRIO: Leia o histórico do início ao fim. Identifique a ÚLTIMA mensagem do contato — é ela que define o que você deve responder.
+- PASSO 2: Identifique o estado atual da conversa: o cliente disse que vai verificar algo? Pediu um prazo? Disse que vai retornar? Ficou com dúvida?
+- PASSO 3: Gere uma mensagem que dê continuidade EXATA a esse estado — não ignore o que o cliente disse por último.
+- Se o cliente disse "vou verificar e te chamo": pergunte se já conseguiu verificar, se precisa de mais informações para decidir.
+- Se o cliente fez uma pergunta que ficou sem resposta: retome essa pergunta.
+- Se o cliente demonstrou interesse mas não avançou: pergunte o que falta para avançar.
+- NUNCA gere uma mensagem genérica de "só queria saber se ainda tem interesse" se o histórico mostra uma conversa em andamento com contexto claro.
+- Mensagens CURTAS: máximo 3-4 linhas. Sem redundância.
 OBJ,
             'send_proposal' => <<<OBJ
 ## Regras para Enviar Proposta
@@ -627,6 +628,22 @@ PROMPT;
             foreach ($recentHistory as $msg) {
                 $direction = ($msg['direction'] ?? 'in') === 'out' ? 'Atendente' : 'Contato';
                 $text = $msg['text'] ?? $msg['message'] ?? $msg['content'] ?? '';
+
+                // Se não há texto, tenta extrair transcrição do campo media
+                if (empty($text) && !empty($msg['media']) && is_array($msg['media'])) {
+                    foreach ($msg['media'] as $media) {
+                        $mediaType = $media['media_type'] ?? $media['type'] ?? '';
+                        $transcription = $media['transcription'] ?? '';
+                        if (!empty($transcription)) {
+                            $text = "[Áudio: {$transcription}]";
+                            break;
+                        } elseif (in_array($mediaType, ['audio', 'ptt', 'voice'])) {
+                            $text = "[Áudio sem transcrição disponível]";
+                            break;
+                        }
+                    }
+                }
+
                 if (!empty($text)) {
                     $parts[] = "{$direction}: {$text}";
                 }

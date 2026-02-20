@@ -203,14 +203,36 @@ class AISuggestController extends Controller
             // Prioriza thread_messages sobre conversation_history do banco
             $conversationHistory = [];
             if (!empty($threadMessages)) {
-                // Converte thread_messages para formato conversation_history
+                // Converte thread_messages para formato conversation_history, preservando mídia e transcrições
                 $conversationHistory = array_map(function($msg) {
+                    $text = $msg['message_text'] ?? '';
+                    $transcription = $msg['transcription'] ?? null;
+                    $mediaType = $msg['media_type'] ?? null;
+                    $eventId = $msg['event_id'] ?? null;
+
+                    // Monta campo media para que transcribeAudiosForContext possa processar
+                    $mediaField = null;
+                    if ($mediaType || $transcription || $eventId) {
+                        $mediaField = [[
+                            'media_type' => $mediaType,
+                            'transcription' => $transcription,
+                            'event_id' => $eventId,
+                        ]];
+                    }
+
                     return [
-                        'direction' => $msg['sender_type'] === 'agent' ? 'out' : 'in',
-                        'text' => $msg['message_text'] ?? '',
+                        'direction' => ($msg['sender_type'] ?? '') === 'agent' ? 'out' : 'in',
+                        'text' => $text,
+                        'message' => $text,
+                        'media' => $mediaField,
                         'created_at' => $msg['created_at'] ?? ''
                     ];
                 }, $threadMessages);
+                // Remove mensagens completamente vazias (sem texto e sem mídia)
+                $conversationHistory = array_filter($conversationHistory, function($msg) {
+                    return !empty($msg['text']) || !empty($msg['media']);
+                });
+                $conversationHistory = array_values($conversationHistory);
             } elseif (!empty($conversationId)) {
                 // Fallback: busca do banco como antes
                 $conversationHistory = $this->getConversationHistory((int) $conversationId);
@@ -325,14 +347,36 @@ class AISuggestController extends Controller
             // Prioriza thread_messages sobre conversation_history do banco
             $conversationHistory = [];
             if (!empty($threadMessages)) {
-                // Converte thread_messages para formato conversation_history
+                // Converte thread_messages para formato conversation_history, preservando mídia e transcrições
                 $conversationHistory = array_map(function($msg) {
+                    $text = $msg['message_text'] ?? '';
+                    $transcription = $msg['transcription'] ?? null;
+                    $mediaType = $msg['media_type'] ?? null;
+                    $eventId = $msg['event_id'] ?? null;
+
+                    // Monta campo media para que transcribeAudiosForContext possa processar
+                    $mediaField = null;
+                    if ($mediaType || $transcription || $eventId) {
+                        $mediaField = [[
+                            'media_type' => $mediaType,
+                            'transcription' => $transcription,
+                            'event_id' => $eventId,
+                        ]];
+                    }
+
                     return [
-                        'direction' => $msg['sender_type'] === 'agent' ? 'out' : 'in',
-                        'text' => $msg['message_text'] ?? '',
+                        'direction' => ($msg['sender_type'] ?? '') === 'agent' ? 'out' : 'in',
+                        'text' => $text,
+                        'message' => $text,
+                        'media' => $mediaField,
                         'created_at' => $msg['created_at'] ?? ''
                     ];
                 }, $threadMessages);
+                // Remove mensagens completamente vazias (sem texto e sem mídia)
+                $conversationHistory = array_filter($conversationHistory, function($msg) {
+                    return !empty($msg['text']) || !empty($msg['media']);
+                });
+                $conversationHistory = array_values($conversationHistory);
             } elseif (!empty($conversationId)) {
                 // Fallback: busca do banco como antes
                 $conversationHistory = $this->getConversationHistory((int) $conversationId);
@@ -465,36 +509,64 @@ class AISuggestController extends Controller
     {
         $db = DB::getConnection();
 
-        // Busca últimas 20 mensagens da conversa via communication_events
+        // Busca últimas 20 mensagens com transcrições de áudio via JOIN
         $stmt = $db->prepare("
             SELECT 
+                ce.event_id,
                 CASE 
-                    WHEN event_type LIKE '%outbound%' THEN 'out'
-                    WHEN event_type LIKE '%inbound%' THEN 'in'
+                    WHEN ce.event_type LIKE '%outbound%' THEN 'out'
+                    WHEN ce.event_type LIKE '%inbound%' THEN 'in'
                     ELSE 'in'
                 END as direction,
                 COALESCE(
-                    JSON_UNQUOTE(JSON_EXTRACT(payload, '$.content')),
-                    JSON_UNQUOTE(JSON_EXTRACT(payload, '$.message.content')),
-                    JSON_UNQUOTE(JSON_EXTRACT(payload, '$.data.content')),
+                    JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.content')),
+                    JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.content')),
+                    JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.data.content')),
                     ''
                 ) as text,
-                created_at
-            FROM communication_events
-            WHERE conversation_id = ?
-            AND event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
-            ORDER BY created_at DESC
+                cm.media_type,
+                cm.transcription,
+                cm.transcription_status,
+                ce.created_at
+            FROM communication_events ce
+            LEFT JOIN communication_media cm ON cm.event_id = ce.event_id
+            WHERE ce.conversation_id = ?
+            AND ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+            ORDER BY ce.created_at DESC
             LIMIT 20
         ");
         $stmt->execute([$conversationId]);
-        $messages = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
-        // Filtra mensagens vazias e inverte para ordem cronológica
-        $messages = array_filter($messages, function($msg) {
-            $text = $msg['text'] ?? '';
-            return !empty($text) && !preg_match('/^\[(?:Á|A)udio\]$/i', trim($text));
-        });
-        
+        $messages = [];
+        foreach ($rows as $row) {
+            $text = $row['text'] ?? '';
+            $mediaType = $row['media_type'] ?? null;
+            $transcription = $row['transcription'] ?? null;
+
+            // Monta campo media se houver mídia associada
+            $mediaField = null;
+            if ($mediaType || $transcription) {
+                $mediaField = [[
+                    'media_type' => $mediaType,
+                    'transcription' => $transcription,
+                    'transcription_status' => $row['transcription_status'] ?? null,
+                    'event_id' => $row['event_id'],
+                ]];
+            }
+
+            // Inclui mensagem se tem texto OU tem mídia (áudio, imagem, etc.)
+            if (!empty($text) || $mediaField) {
+                $messages[] = [
+                    'direction' => $row['direction'],
+                    'text' => $text,
+                    'message' => $text,
+                    'media' => $mediaField,
+                    'created_at' => $row['created_at'],
+                ];
+            }
+        }
+
         return array_reverse($messages);
     }
 

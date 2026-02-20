@@ -3177,12 +3177,26 @@
                 lead_id: thread.lead_id,
                 contact_id: thread.contact_id,
                 thread_messages: threadMessages.map(function(msg) {
+                    var mediaObj = msg.media || null;
+                    var transcription = mediaObj ? (mediaObj.transcription || null) : null;
+                    var mediaType = mediaObj ? (mediaObj.media_type || mediaObj.type || null) : null;
+                    var eventId = mediaObj ? (mediaObj.event_id || msg.id || null) : null;
+                    // Para áudios: usa transcrição como texto se não houver conteúdo
+                    var messageText = msg.content || '';
+                    if (!messageText && transcription) {
+                        messageText = '[Áudio transcrito: ' + transcription + ']';
+                    } else if (!messageText && mediaType && ['audio', 'ptt', 'voice'].indexOf(mediaType) !== -1) {
+                        messageText = '[Áudio sem transcrição]';
+                    }
                     return {
                         id: msg.id,
                         sender_type: msg.direction === 'outbound' ? 'agent' : 'contact',
                         sender_name: msg.sent_by_name || (msg.direction === 'outbound' ? 'Atendente' : thread.contact_name || 'Cliente'),
-                        message_text: msg.content || '',
-                        message_type: msg.media ? 'media' : 'text',
+                        message_text: messageText,
+                        message_type: mediaObj ? 'media' : 'text',
+                        media_type: mediaType,
+                        transcription: transcription,
+                        event_id: eventId,
                         created_at: msg.timestamp || msg.created_at
                     };
                 })
