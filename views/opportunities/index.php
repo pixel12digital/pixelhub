@@ -377,7 +377,7 @@ $stageColors = [
                 <div id="new-lead-error" style="display: none; color: #dc3545; font-size: 12px; margin-bottom: 8px; font-weight: 600;"></div>
                 <!-- Aviso de duplicidade -->
                 <div id="new-lead-duplicate-warn" style="display: none; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; margin-bottom: 8px; font-size: 12px;">
-                    <div style="font-weight: 600; margin-bottom: 6px; color: #856404;">Cadastro existente encontrado:</div>
+                    <div id="new-lead-duplicate-title" style="font-weight: 600; margin-bottom: 6px; color: #856404;">Cadastro existente encontrado:</div>
                     <div id="new-lead-duplicate-list"></div>
                     <div style="display: flex; gap: 8px; margin-top: 8px;">
                         <button type="button" onclick="forceCreateLead()" style="padding: 5px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">Criar mesmo assim</button>
@@ -1170,20 +1170,29 @@ async function submitCreateLead(forceCreate) {
         const data = await res.json();
 
         if (data.duplicate) {
-            // Mostra aviso de duplicidade
+            // Atualiza título conforme tipo de match
+            const titleEl = document.getElementById('new-lead-duplicate-title');
+            if (titleEl) {
+                if (data.match_type === 'email') {
+                    titleEl.textContent = 'Já existe cadastro com este e-mail:';
+                } else {
+                    titleEl.textContent = 'Já existe cadastro com este telefone:';
+                }
+            }
+            // Monta lista de duplicatas
             const listEl = document.getElementById('new-lead-duplicate-list');
             let html = '';
-            if (data.duplicates.leads) {
-                Object.values(data.duplicates.leads).forEach(d => {
-                    html += '<div style="padding:4px 0;"><strong>Lead:</strong> ' + escHtml(d.name) + ' (' + escHtml(d.phone || '') + ')</div>';
-                });
-            }
-            if (data.duplicates.tenants) {
-                Object.values(data.duplicates.tenants).forEach(d => {
-                    html += '<div style="padding:4px 0;"><strong>Cliente:</strong> ' + escHtml(d.name) + ' (' + escHtml(d.phone || '') + ')</div>';
-                });
-            }
-            listEl.innerHTML = html;
+            const leads = Array.isArray(data.duplicates.leads) ? data.duplicates.leads : Object.values(data.duplicates.leads || {});
+            const tenants = Array.isArray(data.duplicates.tenants) ? data.duplicates.tenants : Object.values(data.duplicates.tenants || {});
+            leads.forEach(d => {
+                const detail = [d.phone, d.email].filter(Boolean).join(' · ');
+                html += '<div style="padding:4px 0;"><strong>Lead:</strong> ' + escHtml(d.name) + (detail ? ' <span style="color:#667781;font-size:11px;">(' + escHtml(detail) + ')</span>' : '') + '</div>';
+            });
+            tenants.forEach(d => {
+                const detail = [d.phone, d.email].filter(Boolean).join(' · ');
+                html += '<div style="padding:4px 0;"><strong>Cliente:</strong> ' + escHtml(d.name) + (detail ? ' <span style="color:#667781;font-size:11px;">(' + escHtml(detail) + ')</span>' : '') + '</div>';
+            });
+            listEl.innerHTML = html || '<div style="color:#888;">Registro encontrado.</div>';
             dupWarn.style.display = 'block';
             btn.disabled = false; btn.textContent = 'Salvar Lead';
             return;

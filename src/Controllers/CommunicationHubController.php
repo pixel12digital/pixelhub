@@ -5616,8 +5616,26 @@ class CommunicationHubController extends Controller
                     $this->json([
                         'success' => false,
                         'code' => 'DUPLICATE_PHONE',
+                        'match_type' => 'phone',
                         'message' => 'Já existe(m) registro(s) com este telefone. Deseja vincular a um existente ou criar mesmo assim?',
                         'duplicates' => $formattedDuplicates,
+                        'conversation_id' => $conversationId,
+                    ]);
+                    return;
+                }
+            }
+
+            // Proteção contra duplicidade por e-mail
+            if (!$forceCreate && !empty($email)) {
+                $emailDuplicates = \PixelHub\Services\LeadService::findDuplicatesByEmail($email);
+                $totalEmailDuplicates = count($emailDuplicates['leads']) + count($emailDuplicates['tenants']);
+                if ($totalEmailDuplicates > 0) {
+                    $this->json([
+                        'success' => false,
+                        'code' => 'DUPLICATE_PHONE',
+                        'match_type' => 'email',
+                        'message' => 'Já existe(m) registro(s) com este e-mail. Deseja vincular a um existente ou criar mesmo assim?',
+                        'duplicates' => self::convertDuplicatesToContactFormat($emailDuplicates),
                         'conversation_id' => $conversationId,
                     ]);
                     return;
@@ -5722,8 +5740,26 @@ class CommunicationHubController extends Controller
                     $this->json([
                         'success' => false,
                         'code' => 'DUPLICATE_PHONE',
+                        'match_type' => 'phone',
                         'message' => 'Já existe(m) registro(s) com este telefone. Deseja vincular a um existente ou criar mesmo assim?',
                         'duplicates' => $formattedDuplicates,
+                        'conversation_id' => $conversationId,
+                    ]);
+                    return;
+                }
+            }
+
+            // Proteção contra duplicidade por e-mail
+            if (!$forceCreate && !empty($email)) {
+                $emailDuplicates = \PixelHub\Services\LeadService::findDuplicatesByEmail($email);
+                $totalEmailDuplicates = count($emailDuplicates['leads']) + count($emailDuplicates['tenants']);
+                if ($totalEmailDuplicates > 0) {
+                    $this->json([
+                        'success' => false,
+                        'code' => 'DUPLICATE_PHONE',
+                        'match_type' => 'email',
+                        'message' => 'Já existe(m) registro(s) com este e-mail. Deseja vincular a um existente ou criar mesmo assim?',
+                        'duplicates' => self::convertDuplicatesToContactFormat($emailDuplicates),
                         'conversation_id' => $conversationId,
                     ]);
                     return;

@@ -614,8 +614,26 @@ class OpportunitiesController extends Controller
                 $this->json([
                     'success' => false,
                     'duplicate' => true,
+                    'match_type' => 'phone',
                     'duplicates' => $duplicates,
                     'message' => 'Já existe um cadastro com este telefone. Deseja usar o existente ou criar mesmo assim?',
+                ]);
+                return;
+            }
+        }
+
+        // Verifica duplicidade por e-mail
+        if (!empty($email) && empty($input['force_create'])) {
+            $emailDuplicates = LeadService::findDuplicatesByEmail($email);
+            $hasEmailDuplicates = !empty($emailDuplicates['leads']) || !empty($emailDuplicates['tenants']);
+
+            if ($hasEmailDuplicates) {
+                $this->json([
+                    'success' => false,
+                    'duplicate' => true,
+                    'match_type' => 'email',
+                    'duplicates' => $emailDuplicates,
+                    'message' => 'Já existe um cadastro com este e-mail. Deseja usar o existente ou criar mesmo assim?',
                 ]);
                 return;
             }

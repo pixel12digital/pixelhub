@@ -1767,8 +1767,11 @@ function loadBlockContent(blockId, container) {
                         const sel = document.getElementById('block-add-task-select-' + blockId);
 
                         if (addBtnWrap) {
+                            // Calcula tarefas disponíveis (não vinculadas a ESTE bloco) para controlar o botão +
+                            const linkedIdsForBtn = new Set(linkedTasks.map(function(t) { return t.id; }));
+                            const hasAvailable = allTasks.some(function(t) { return !linkedIdsForBtn.has(t.id); });
                             addBtnWrap.innerHTML = '';
-                            if (allTasks.length > 0) {
+                            if (hasAvailable) {
                                 const plusBtn = document.createElement('button');
                                 plusBtn.type = 'button';
                                 plusBtn.className = 'block-add-task-btn';
@@ -1802,16 +1805,19 @@ function loadBlockContent(blockId, container) {
                         });
 
                         if (sel) {
-                            allTasks.forEach(t => {
+                            // Exclui tarefas já vinculadas a ESTE bloco (pode estar em outros blocos)
+                            const linkedIds = new Set(linkedTasks.map(function(t) { return t.id; }));
+                            const availableTasks = allTasks.filter(function(t) { return !linkedIds.has(t.id); });
+                            availableTasks.forEach(t => {
                                 const opt = document.createElement('option');
                                 opt.value = t.id;
                                 opt.textContent = (t.title || '').substring(0, 60) + ((t.title || '').length > 60 ? '…' : '');
                                 sel.appendChild(opt);
                             });
-                            if (allTasks.length === 0 && sel.options.length === 1) {
+                            if (availableTasks.length === 0 && sel.options.length === 1) {
                                 const opt = document.createElement('option');
                                 opt.value = '';
-                                opt.textContent = 'Nenhuma tarefa disponível (todas já vinculadas)';
+                                opt.textContent = 'Nenhuma tarefa disponível (todas já vinculadas a este bloco)';
                                 opt.disabled = true;
                                 sel.appendChild(opt);
                             }

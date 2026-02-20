@@ -1620,15 +1620,12 @@ class AgendaController extends Controller
         $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
         
         try {
-            // Verifica se a tarefa já está vinculada a outro bloco
             $db = \PixelHub\Core\DB::getConnection();
-            $stmt = $db->prepare("SELECT bloco_id FROM agenda_block_tasks WHERE task_id = ? AND bloco_id != ?");
-            $stmt->execute([$taskId, $blockId]);
-            $existingLinks = $stmt->fetchAll();
-            
-            // Se removeOld é true OU se a tarefa já está vinculada a outro bloco, remove vínculos antigos
-            // Isso garante que ao reagendar, o vínculo antigo seja removido automaticamente
-            if ($removeOld || !empty($existingLinks)) {
+
+            // Só remove vínculos anteriores quando explicitamente solicitado (remove_old=1)
+            // Caso contrário, permite que a tarefa fique vinculada a múltiplos blocos
+            // (ex.: tarefa iniciada num bloco, pausada, continuada em outro bloco do mesmo dia)
+            if ($removeOld) {
                 AgendaService::moveTaskToBlock($blockId, $taskId);
             } else {
                 AgendaService::attachTaskToBlock($blockId, $taskId);

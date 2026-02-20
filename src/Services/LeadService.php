@@ -197,6 +197,109 @@ class LeadService
     }
 
     /**
+     * Busca duplicados por e-mail (leads E tenants)
+     *
+     * @param string $email E-mail para buscar
+     * @return array ['leads' => [...], 'tenants' => [...]]
+     */
+    public static function findDuplicatesByEmail(string $email): array
+    {
+        $db = DB::getConnection();
+        $result = ['leads' => [], 'tenants' => []];
+
+        $email = strtolower(trim($email));
+        if (strlen($email) < 5 || strpos($email, '@') === false) {
+            return $result;
+        }
+
+        $stmt = $db->prepare("
+            SELECT id, name, company, phone, email, status, 'lead' as type
+            FROM leads
+            WHERE LOWER(email) = ?
+            AND status != 'converted'
+        ");
+        $stmt->execute([$email]);
+        $result['leads'] = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $stmt = $db->prepare("
+            SELECT id, name, phone, email, status, 'tenant' as type
+            FROM tenants
+            WHERE LOWER(email) = ?
+            AND (is_archived IS NULL OR is_archived = 0)
+        ");
+        $stmt->execute([$email]);
+        $result['tenants'] = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        return $result;
+    }
+
+    /**
+     * Busca duplicados por domínio de site/e-mail (leads E tenants)
+     *
+     * Extrai o domínio do valor informado (URL ou e-mail) e busca outros
+     * registros com o mesmo domínio, sugerindo que podem ser a mesma empresa.
+     *
+     * @param string $value URL de site ou e-mail
+     * @return array ['leads' => [...], 'tenants' => [...], 'domain' => string]
+     */
+    public static function findDuplicatesByDomain(string $value): array
+    {
+        $result = ['leads' => [], 'tenants' => [], 'domain' => ''];
+
+        $value = strtolower(trim($value));
+        if (empty($value)) {
+            return $result;
+        }
+
+        // Extrai domínio de URL ou e-mail
+        $domain = '';
+        if (strpos($value, '@') !== false) {
+            // É um e-mail — pega a parte após @
+            $parts = explode('@', $value);
+            $domain = end($parts);
+        } else {
+            // É uma URL — remove protocolo, www e path
+            $domain = preg_replace('#^https?://#', '', $value);
+            $domain = preg_replace('#^www\.#', '', $domain);
+            $domain = explode('/', $domain)[0];
+            $domain = explode('?', $domain)[0];
+        }
+
+        $domain = trim($domain, '.');
+        // Domínios genéricos não servem como identificador de empresa
+        $genericDomains = ['gmail.com', 'hotmail.com', 'yahoo.com', 'outlook.com', 'icloud.com', 'live.com', 'bol.com.br', 'uol.com.br', 'terra.com.br'];
+        if (empty($domain) || strlen($domain) < 4 || in_array($domain, $genericDomains)) {
+            return $result;
+        }
+
+        $result['domain'] = $domain;
+        $db = DB::getConnection();
+        $pattern = '%@' . $domain;
+
+        // Busca em leads por e-mail com mesmo domínio
+        $stmt = $db->prepare("
+            SELECT id, name, phone, email, status, 'lead' as type
+            FROM leads
+            WHERE LOWER(email) LIKE ?
+            AND status != 'converted'
+        ");
+        $stmt->execute([$pattern]);
+        $result['leads'] = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        // Busca em tenants por e-mail com mesmo domínio
+        $stmt = $db->prepare("
+            SELECT id, name, phone, email, status, 'tenant' as type
+            FROM tenants
+            WHERE LOWER(email) LIKE ?
+            AND (is_archived IS NULL OR is_archived = 0)
+        ");
+        $stmt->execute([$pattern]);
+        $result['tenants'] = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        return $result;
+    }
+
+    /**
      * Vincula uma conversa a um lead
      * 
      * Remove vínculo com tenant se existir (lead e tenant são mutuamente exclusivos)

@@ -6016,7 +6016,7 @@ async function createTenantFromIncomingLead(event, forceCreate) {
         } else if (result.code === 'DUPLICATE_PHONE') {
             // Mostra modal de duplicidade
             window._duplicateContext = { type: 'tenant', conversationId: conversationId };
-            showDuplicatePhoneModal(result.duplicates, conversationId);
+            showDuplicatePhoneModal(result.duplicates, conversationId, result.match_type);
         } else {
             alert('Erro: ' + (result.error || result.message || 'Erro desconhecido'));
         }
@@ -6086,7 +6086,7 @@ async function createLeadFromConversation(event, forceCreate) {
             else window.location.reload();
         } else if (result.code === 'DUPLICATE_PHONE') {
             window._duplicateContext = { type: 'lead', conversationId: conversationId };
-            showDuplicatePhoneModal(result.duplicates, conversationId);
+            showDuplicatePhoneModal(result.duplicates, conversationId, result.match_type);
         } else {
             alert('Erro: ' + (result.error || result.message || 'Erro desconhecido'));
         }
@@ -6275,17 +6275,52 @@ async function linkConversationToLead(event) {
 
 /**
  * Mostra modal de duplicidade com lista de registros existentes
+ * @param {object} duplicates  { leads: [], tenants: [] }
+ * @param {number} conversationId
+ * @param {string} matchType  'phone' | 'email' | 'domain'
  */
-function showDuplicatePhoneModal(duplicates, conversationId) {
+function showDuplicatePhoneModal(duplicates, conversationId, matchType) {
     const modal = document.getElementById('duplicate-phone-modal');
     if (!modal) return;
-    
+
+    // Atualiza título e descrição conforme o tipo de match
+    const titleEl = document.getElementById('duplicate-modal-title');
+    const descEl  = document.getElementById('duplicate-modal-desc');
+    if (titleEl) {
+        if (matchType === 'email') {
+            titleEl.textContent = '⚠ Mesmo e-mail encontrado';
+        } else if (matchType === 'domain') {
+            titleEl.textContent = '⚠ Mesmo domínio encontrado';
+        } else {
+            titleEl.textContent = '⚠ Mesmo telefone encontrado';
+        }
+    }
+    if (descEl) {
+        if (matchType === 'email') {
+            descEl.textContent = 'Já existe(m) registro(s) com este e-mail. Vincule a um existente ou crie mesmo assim.';
+        } else if (matchType === 'domain') {
+            descEl.textContent = 'Já existe(m) registro(s) com o mesmo domínio. Pode ser a mesma empresa. Vincule a um existente ou crie mesmo assim.';
+        } else {
+            descEl.textContent = 'Já existe(m) registro(s) com este telefone. Vincule a um existente ou crie mesmo assim.';
+        }
+    }
+
     const listDiv = document.getElementById('duplicate-phone-list');
     let html = '';
-    
-    if (duplicates.tenants && duplicates.tenants.length > 0) {
+
+    // Normaliza: aceita tanto array flat [{type:'tenant',...}] quanto {leads:[],tenants:[]}
+    let tenants = [], leads = [];
+    if (Array.isArray(duplicates)) {
+        tenants = duplicates.filter(function(d) { return d.type === 'tenant'; });
+        leads   = duplicates.filter(function(d) { return d.type === 'lead'; });
+    } else {
+        tenants = duplicates.tenants || [];
+        leads   = duplicates.leads   || [];
+    }
+
+    if (tenants.length > 0) {
         html += '<div style="margin-bottom: 12px;"><strong style="color: #023A8D;">Clientes existentes:</strong></div>';
-        duplicates.tenants.forEach(function(t) {
+        tenants.forEach(function(t) {
             html += '<div style="padding: 10px; background: #f0f7ff; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #023A8D; display: flex; justify-content: space-between; align-items: center;">';
             html += '<div><strong>' + escapeHtml(t.name) + '</strong>';
             if (t.phone) html += '<br><span style="font-size: 12px; color: #667781;">' + escapeHtml(t.phone) + '</span>';
@@ -6295,10 +6330,10 @@ function showDuplicatePhoneModal(duplicates, conversationId) {
             html += '</div>';
         });
     }
-    
-    if (duplicates.leads && duplicates.leads.length > 0) {
+
+    if (leads.length > 0) {
         html += '<div style="margin-bottom: 12px; margin-top: 16px;"><strong style="color: #0d6efd;">Leads existentes:</strong></div>';
-        duplicates.leads.forEach(function(l) {
+        leads.forEach(function(l) {
             html += '<div style="padding: 10px; background: #e8f4fd; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #0d6efd; display: flex; justify-content: space-between; align-items: center;">';
             html += '<div><strong>' + escapeHtml(l.name) + '</strong>';
             if (l.phone) html += '<br><span style="font-size: 12px; color: #667781;">' + escapeHtml(l.phone) + '</span>';
@@ -6308,8 +6343,8 @@ function showDuplicatePhoneModal(duplicates, conversationId) {
             html += '</div>';
         });
     }
-    
-    listDiv.innerHTML = html;
+
+    listDiv.innerHTML = html || '<div style="color:#888;font-size:13px;">Nenhum registro encontrado.</div>';
     modal.style.display = 'flex';
 }
 
@@ -7659,12 +7694,12 @@ window.deleteMessage = deleteMessage;
 <div id="duplicate-phone-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2100; align-items: center; justify-content: center;">
     <div style="background: white; border-radius: 12px; padding: 30px; max-width: 550px; width: 90%; max-height: 90vh; overflow-y: auto;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2 style="margin: 0; color: #dc3545;">⚠ Duplicidade Detectada</h2>
+            <h2 id="duplicate-modal-title" style="margin: 0; color: #dc3545;">⚠ Mesmo telefone encontrado</h2>
             <button onclick="closeDuplicatePhoneModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
         </div>
         
         <div style="margin-bottom: 16px; padding: 12px; background: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107; font-size: 13px; color: #856404;">
-            Já existe(m) registro(s) com este telefone. Você pode vincular a um existente ou criar mesmo assim.
+            <span id="duplicate-modal-desc">Já existe(m) registro(s) com este telefone. Vincule a um existente ou crie mesmo assim.</span>
         </div>
         
         <div id="duplicate-phone-list" style="margin-bottom: 20px;"></div>
