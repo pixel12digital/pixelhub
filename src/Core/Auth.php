@@ -141,7 +141,11 @@ class Auth
                 ? pixelhub_url('/login')
                 : '/login';
 
+            if (!headers_sent()) {
             header("Location: {$url}");
+        } else {
+            echo "<script>window.location.href='{$url}';</script>";
+        }
             exit;
         }
     }
