@@ -5730,6 +5730,9 @@ class CommunicationHubController extends Controller
                 }
             }
 
+            // Busca última mensagem da conversa para detecção de tracking
+            $lastMessage = self::getLastConversationMessage($conversationId);
+
             // Cria o lead na tabela leads (legada)
             $leadId = self::createLeadInLegacyTable([
                 'name' => $name,
@@ -5738,6 +5741,7 @@ class CommunicationHubController extends Controller
                 'email' => $email ?: null,
                 'source' => 'whatsapp',
                 'notes' => $notes ?: null,
+                'message' => $lastMessage, // Para detecção de tracking
                 'created_by' => $_SESSION['user_id'] ?? null,
             ]);
 
@@ -5772,15 +5776,21 @@ class CommunicationHubController extends Controller
             throw new \InvalidArgumentException('Nome é obrigatório');
         }
 
+        // Detecção automática de tracking (se houver mensagem)
+        $trackingData = self::detectTrackingInMessage($data['message'] ?? '');
+
         // Prepara campos para tabela leads
         $fields = [
             'name' => trim($data['name']),
             'company' => !empty($data['company']) ? trim($data['company']) : null,
             'phone' => !empty($data['phone']) ? trim($data['phone']) : null,
             'email' => !empty($data['email']) ? trim($data['email']) : null,
-            'source' => $data['source'] ?? 'crm_manual',
+            'source' => $trackingData['origin'] ?? $data['source'] ?? 'unknown',
             'status' => 'new',
             'notes' => $data['notes'] ?? null,
+            'tracking_code' => $trackingData['tracking_code'] ?? null,
+            'tracking_metadata' => !empty($trackingData['tracking_metadata']) ? json_encode($trackingData['tracking_metadata']) : null,
+            'tracking_auto_detected' => $trackingData['tracking_auto_detected'] ?? false,
             'created_by' => $data['created_by'] ?? null,
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s')
@@ -5802,6 +5812,70 @@ class CommunicationHubController extends Controller
         error_log("[CommunicationHub] Lead {$leadId} criado na tabela leads (legada)");
         
         return $leadId;
+    }
+
+    /**
+     * Detecta tracking code em uma mensagem
+     * 
+     * @param string $message Mensagem para analisar
+     * @return array Dados do tracking detectado ou fallback
+     */
+    private static function detectTrackingInMessage(string $message): array
+    {
+        try {
+            $trackingService = new \PixelHub\Services\TrackingDetectionService();
+            $detected = $trackingService->detectInMessage($message);
+            
+            if ($detected) {
+                error_log("[CommunicationHub] Tracking detectado: {$detected['tracking_code']} (origem: {$detected['origin']})");
+                return $detected;
+            }
+            
+            return $trackingService->getUnknownFallback();
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro na detecção de tracking: " . $e->getMessage());
+            return [
+                'tracking_code' => null,
+                'origin' => 'unknown',
+                'tracking_metadata' => null,
+                'tracking_auto_detected' => false
+            ];
+        }
+    }
+
+    /**
+     * Busca última mensagem de uma conversa para detecção de tracking
+     * 
+     * @param int $conversationId ID da conversa
+     * @return string|null Texto da última mensagem ou null
+     */
+    private static function getLastConversationMessage(int $conversationId): ?string
+    {
+        try {
+            $db = DB::getConnection();
+            
+            $stmt = $db->prepare("
+                SELECT event_data 
+                FROM communication_events 
+                WHERE conversation_id = ? 
+                AND event_type = 'message'
+                AND direction = 'inbound'
+                ORDER BY created_at DESC 
+                LIMIT 1
+            ");
+            $stmt->execute([$conversationId]);
+            $event = $stmt->fetch();
+            
+            if ($event && !empty($event['event_data'])) {
+                $data = json_decode($event['event_data'], true);
+                return $data['text']['body'] ?? null;
+            }
+            
+            return null;
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao buscar última mensagem: " . $e->getMessage());
+            return null;
+        }
     }
 
     /**

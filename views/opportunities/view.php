@@ -215,6 +215,68 @@ $isLost = $opp['status'] === 'lost';
             <?php endif; ?>
         </div>
         
+        <!-- Tracking -->
+        <div class="card" style="margin-bottom: 20px;">
+            <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #333;">Tracking</h3>
+            <?php if ($trackingInfo && !empty($trackingInfo['tracking_code'])): ?>
+                <div style="padding: 12px; background: #f0f7ff; border-radius: 6px; border-left: 4px solid #023A8D;">
+                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; font-size: 13px;">
+                        <div style="font-weight: 600; color: #666;">Código:</div>
+                        <div style="font-family: monospace; background: white; padding: 2px 6px; border-radius: 3px; border: 1px solid #ddd;">
+                            <?= htmlspecialchars($trackingInfo['tracking_code']) ?>
+                        </div>
+                        
+                        <div style="font-weight: 600; color: #666;">Canal:</div>
+                        <div><?= htmlspecialchars(ucfirst($trackingInfo['origin'])) ?></div>
+                        
+                        <?php if ($trackingInfo['tracking_metadata']): ?>
+                            <?php if (!empty($trackingInfo['tracking_metadata']['tracking_description'])): ?>
+                                <div style="font-weight: 600; color: #666;">Descrição:</div>
+                                <div><?= htmlspecialchars($trackingInfo['tracking_metadata']['tracking_description']) ?></div>
+                            <?php endif; ?>
+                            
+                            <?php if (!empty($trackingInfo['tracking_metadata']['detected_at'])): ?>
+                                <div style="font-weight: 600; color: #666;">Detectado em:</div>
+                                <div><?= date('d/m/Y H:i', strtotime($trackingInfo['tracking_metadata']['detected_at'])) ?></div>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                        
+                        <div style="font-weight: 600; color: #666;">Origem:</div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="background: <?= $trackingInfo['tracking_auto_detected'] ? '#28a745' : '#6c757d' ?>; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600;">
+                                <?= $trackingInfo['tracking_auto_detected'] ? 'AUTOMÁTICO' : 'MANUAL' ?>
+                            </span>
+                            <?php if ($trackingInfo['tracking_auto_detected']): ?>
+                                <span style="color: #28a745; font-size: 11px;">Detectado automaticamente</span>
+                            <?php else: ?>
+                                <span style="color: #6c757d; font-size: 11px;">Preenchido manualmente</span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            <?php else: ?>
+                <div style="padding: 12px; background: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="background: #ffc107; color: #856404; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600;">
+                                PENDENTE
+                            </span>
+                            <span style="font-weight: 600; color: #856404;">Origem não identificada</span>
+                        </div>
+                    </div>
+                    <div style="font-size: 12px; color: #856404; margin-bottom: 10px;">
+                        Origem atual: <strong><?= htmlspecialchars(ucfirst($opp['origin'] ?? 'unknown')) ?></strong>
+                    </div>
+                    <div style="font-size: 11px; color: #856404;">
+                        Sem código de tracking detectado. 
+                        <a href="#" onclick="alert('Funcionalidade de edição manual em desenvolvimento.')" style="color: #856404; text-decoration: underline;">
+                            Preencher origem/Tracking manualmente
+                        </a>
+                    </div>
+                </div>
+            <?php endif; ?>
+        </div>
+        
         <!-- Vínculo -->
         <?php
             $contactPhone = $opp['tenant_phone'] ?? $opp['lead_phone'] ?? '';

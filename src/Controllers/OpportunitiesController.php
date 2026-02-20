@@ -28,10 +28,9 @@ class OpportunitiesController extends Controller
         $filters = [
             'status' => $_GET['status'] ?? null,
             'stage' => $_GET['stage'] ?? null,
-            'product_id' => !empty($_GET['product']) ? (int) $_GET['product'] : null,
             'responsible_user_id' => !empty($_GET['responsible']) ? (int) $_GET['responsible'] : null,
             'search' => $_GET['search'] ?? null,
-            'source' => $_GET['source'] ?? null,
+            'origin' => $_GET['origin'] ?? null, // Campo canônico de origem
         ];
 
         $opportunities = OpportunityService::list($filters);
@@ -44,8 +43,13 @@ class OpportunitiesController extends Controller
         // Busca produtos para filtro
         $products = OpportunityProductService::listActive();
 
-        // Busca origens únicas para filtro
-        $sources = $db->query("SELECT DISTINCT l.source FROM opportunities o LEFT JOIN leads l ON o.lead_id = l.id WHERE l.source IS NOT NULL AND l.source != '' ORDER BY l.source")->fetchAll() ?: [];
+        // Busca origens/canais disponíveis (simplificado)
+        try {
+            $trackingService = new \PixelHub\Services\TrackingDetectionService();
+            $origins = $trackingService->getAvailableOrigins();
+        } catch (\Exception $e) {
+            $origins = ['unknown', 'whatsapp', 'site', 'instagram', 'facebook', 'google', 'email', 'indicacao', 'outro'];
+        }
 
         $this->view('opportunities.index', [
             'opportunities' => $opportunities,
@@ -53,7 +57,7 @@ class OpportunitiesController extends Controller
             'filters' => $filters,
             'users' => $users,
             'products' => $products,
-            'sources' => $sources,
+            'origins' => $origins, // Lista simplificada de origens/canais
             'stages' => OpportunityService::STAGES,
         ]);
     }
@@ -109,6 +113,21 @@ class OpportunitiesController extends Controller
             error_log('[Opportunities] Erro ao buscar compromissos agendados: ' . $e->getMessage());
         }
 
+        // Busca informações de tracking detalhado
+        $trackingInfo = null;
+        if (!empty($opportunity['tracking_code'])) {
+            try {
+                $trackingInfo = [
+                    'tracking_code' => $opportunity['tracking_code'],
+                    'origin' => $opportunity['origin'],
+                    'tracking_metadata' => !empty($opportunity['tracking_metadata']) ? json_decode($opportunity['tracking_metadata'], true) : null,
+                    'tracking_auto_detected' => (bool) $opportunity['tracking_auto_detected']
+                ];
+            } catch (\Exception $e) {
+                error_log('[Opportunities] Erro ao decodificar tracking_metadata: ' . $e->getMessage());
+            }
+        }
+
         $this->view('opportunities.view', [
             'opportunity' => $opportunity,
             'history' => $history,
@@ -116,6 +135,7 @@ class OpportunitiesController extends Controller
             'services' => $services,
             'stages' => OpportunityService::STAGES,
             'upcomingSchedules' => $upcomingSchedules,
+            'trackingInfo' => $trackingInfo, // Informações de tracking para exibição
         ]);
     }
 

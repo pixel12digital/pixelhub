@@ -181,9 +181,9 @@ class OpportunityService
             $params[] = (int) $filters['responsible_user_id'];
         }
 
-        if (!empty($filters['source'])) {
-            $where[] = 'l.source = ?';
-            $params[] = $filters['source'];
+        if (!empty($filters['origin'])) {
+            $where[] = 'o.origin = ?';
+            $params[] = $filters['origin'];
         }
 
         if (!empty($filters['search'])) {
