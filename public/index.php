@@ -576,6 +576,24 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/settings/whatsapp-templates/categories/ajax', 'WhatsAppTemplatesController@getCategoriesAjax');
     $router->post('/settings/whatsapp-templates/categories/reorder', 'WhatsAppTemplatesController@reorderCategories');
 
+    // Configurações — Códigos de Rastreamento
+    $router->get('/settings/tracking-codes', 'TrackingCodesController@index');
+    $router->get('/settings/tracking-codes/options', 'TrackingCodesController@options');
+    $router->get('/settings/tracking-codes/edit', 'TrackingCodesController@edit');
+    $router->post('/settings/tracking-codes/store', 'TrackingCodesController@store');
+    $router->post('/settings/tracking-codes/update', 'TrackingCodesController@update');
+    $router->post('/settings/tracking-codes/delete', 'TrackingCodesController@delete');
+    $router->post('/settings/tracking-codes/toggle', 'TrackingCodesController@toggle');
+
+    // Configurações — Campanhas de Rastreamento
+    $router->get('/settings/tracking-campaigns', 'TrackingCampaignsController@index');
+    $router->get('/settings/tracking-campaigns/edit', 'TrackingCampaignsController@edit');
+    $router->get('/settings/tracking-campaigns/options', 'TrackingCampaignsController@options');
+    $router->post('/settings/tracking-campaigns/store', 'TrackingCampaignsController@store');
+    $router->post('/settings/tracking-campaigns/update', 'TrackingCampaignsController@update');
+    $router->post('/settings/tracking-campaigns/delete', 'TrackingCampaignsController@delete');
+    $router->post('/settings/tracking-campaigns/toggle', 'TrackingCampaignsController@toggle');
+
     // Rotas de Configurações - Cláusulas de Contrato
     $router->get('/settings/contract-clauses', 'ContractClausesController@index');
     $router->get('/settings/contract-clauses/create', 'ContractClausesController@create');
