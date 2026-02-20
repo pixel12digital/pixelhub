@@ -377,6 +377,7 @@ class OpportunitiesController extends Controller
         $input = json_decode(file_get_contents('php://input'), true);
         $opportunityId = (int) ($input['opportunity_id'] ?? 0);
         $origin = trim($input['origin'] ?? '');
+        $trackingCode = !empty($input['tracking_code']) ? trim($input['tracking_code']) : null;
 
         error_log("[UPDATE_ORIGIN] Início: opportunity_id={$opportunityId}, origin={$origin}, user_id=" . ($user['id'] ?? 'null'));
 
@@ -417,15 +418,28 @@ class OpportunitiesController extends Controller
             error_log("[UPDATE_ORIGIN] Oportunidade encontrada: {$opportunityId}");
 
             // Atualizar origem e marcar como edição manual
-            $stmt = $db->prepare("
-                UPDATE opportunities 
-                SET origin = ?, 
-                    tracking_auto_detected = 0,
-                    updated_at = NOW(),
-                    updated_by = ?
-                WHERE id = ?
-            ");
-            $stmt->execute([$origin, $user['id'] ?? null, $opportunityId]);
+            if ($trackingCode) {
+                $stmt = $db->prepare("
+                    UPDATE opportunities 
+                    SET origin = ?,
+                        tracking_code = ?,
+                        tracking_auto_detected = 0,
+                        updated_at = NOW(),
+                        updated_by = ?
+                    WHERE id = ?
+                ");
+                $stmt->execute([$origin, $trackingCode, $user['id'] ?? null, $opportunityId]);
+            } else {
+                $stmt = $db->prepare("
+                    UPDATE opportunities 
+                    SET origin = ?, 
+                        tracking_auto_detected = 0,
+                        updated_at = NOW(),
+                        updated_by = ?
+                    WHERE id = ?
+                ");
+                $stmt->execute([$origin, $user['id'] ?? null, $opportunityId]);
+            }
             error_log("[UPDATE_ORIGIN] UPDATE executado: origin={$origin}, user_id=" . ($user['id'] ?? 'null'));
 
             // Registrar no histórico

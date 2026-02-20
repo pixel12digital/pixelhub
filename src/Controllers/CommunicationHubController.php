@@ -5855,20 +5855,19 @@ class CommunicationHubController extends Controller
             $db = DB::getConnection();
             
             $stmt = $db->prepare("
-                SELECT event_data 
+                SELECT payload 
                 FROM communication_events 
                 WHERE conversation_id = ? 
-                AND event_type = 'message'
-                AND direction = 'inbound'
-                ORDER BY created_at DESC 
+                AND event_type = 'whatsapp.inbound.message'
+                ORDER BY created_at ASC 
                 LIMIT 1
             ");
             $stmt->execute([$conversationId]);
             $event = $stmt->fetch();
             
-            if ($event && !empty($event['event_data'])) {
-                $data = json_decode($event['event_data'], true);
-                return $data['text']['body'] ?? null;
+            if ($event && !empty($event['payload'])) {
+                $data = json_decode($event['payload'], true);
+                return $data['message']['text'] ?? $data['text']['body'] ?? null;
             }
             
             return null;

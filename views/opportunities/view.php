@@ -1617,14 +1617,16 @@ async function submitFollowup() {
                 <div onclick="toggleTrackingCodes()" 
                      style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 6px; cursor: pointer; margin-bottom: 0; user-select: none;">
                     <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #023A8D;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                         Códigos de rastreamento cadastrados
                         <span id="tracking-codes-count" style="background: #023A8D; color: white; border-radius: 10px; padding: 1px 7px; font-size: 11px;"></span>
                     </div>
                     <span id="tracking-codes-arrow" style="font-size: 12px; color: #023A8D; transition: transform 0.2s;">▼</span>
                 </div>
                 <div id="tracking-codes-list" style="display: none; border: 1px solid #c7d2fe; border-top: none; border-radius: 0 0 6px 6px; max-height: 220px; overflow-y: auto;">
-                    <div id="tracking-codes-loading" style="padding: 12px; text-align: center; color: #888; font-size: 12px;">Carregando...</div>
+                </div>
+                <div id="tracking-code-selected-info" style="display: none; margin-top: 6px; padding: 6px 10px; background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 4px; font-size: 12px; color: #2e7d32;">
+                    Código selecionado: <strong id="tracking-code-selected-label"></strong>
+                    <a href="#" onclick="clearSelectedTrackingCode(); return false;" style="margin-left: 8px; color: #555; font-size: 11px;">Remover</a>
                 </div>
             </div>
         </div>
@@ -1671,6 +1673,7 @@ function closeEditOriginModal() {
 // Tracking codes colapsável
 let _trackingCodesLoaded = null;
 let _trackingCodesOpen = false;
+let _selectedTrackingCode = null;
 
 document.getElementById('edit-origin-select').addEventListener('change', function() {
     const channel = this.value;
@@ -1678,21 +1681,22 @@ document.getElementById('edit-origin-select').addEventListener('change', functio
     const list = document.getElementById('tracking-codes-list');
     const arrow = document.getElementById('tracking-codes-arrow');
 
+    // Limpar seleção anterior ao trocar canal
+    clearSelectedTrackingCode();
+
     if (!channel) {
         section.style.display = 'none';
         _trackingCodesLoaded = null;
         return;
     }
 
-    // Resetar estado colapsado
+    // Resetar estado
     list.style.display = 'none';
+    list.innerHTML = '';
     arrow.style.transform = '';
     _trackingCodesOpen = false;
     _trackingCodesLoaded = null;
-
-    // Buscar códigos do canal
-    document.getElementById('tracking-codes-loading').innerHTML = 'Carregando...';
-    section.style.display = 'block';
+    section.style.display = 'none'; // oculto até ter resultado
 
     fetch('/settings/tracking-codes/by-channel?channel=' + encodeURIComponent(channel))
         .then(r => r.json())
@@ -1707,19 +1711,48 @@ document.getElementById('edit-origin-select').addEventListener('change', functio
 
             let html = '';
             data.codes.forEach(function(c) {
-                html += '<div style="padding: 8px 12px; border-bottom: 1px solid #eef0ff; font-size: 12px;">'
-                    + '<span style="font-family: monospace; font-weight: 700; color: #023A8D; background: #eef0ff; padding: 1px 6px; border-radius: 3px;">' + escHtml(c.code) + '</span>'
+                const codeJson = escHtml(JSON.stringify(c));
+                html += '<div onclick="selectTrackingCode(' + escHtml(JSON.stringify(c.code)) + ', ' + escHtml(JSON.stringify(c.description || c.code)) + ', this)"'
+                    + ' data-code="' + escHtml(c.code) + '"'
+                    + ' style="padding: 8px 12px; border-bottom: 1px solid #eef0ff; font-size: 12px; cursor: pointer; transition: background 0.15s;"'
+                    + ' onmouseover="this.style.background=\'#f0f4ff\'" onmouseout="if(!this.classList.contains(\'tc-selected\')) this.style.background=\'\'">'
+                    + '<span style="font-family: monospace; font-weight: 700; color: #023A8D;">' + escHtml(c.code) + '</span>'
                     + (c.description ? ' <span style="color: #555;">' + escHtml(c.description) + '</span>' : '')
-                    + (c.origin_page ? '<div style="color: #888; margin-top: 2px; font-size: 11px;">📄 ' + escHtml(c.origin_page) + '</div>' : '')
-                    + (c.campaign_name ? '<div style="color: #888; font-size: 11px;">📢 ' + escHtml(c.campaign_name) + '</div>' : '')
+                    + (c.origin_page ? '<div style="color: #888; margin-top: 2px; font-size: 11px;">' + escHtml(c.origin_page) + '</div>' : '')
+                    + (c.campaign_name ? '<div style="color: #888; font-size: 11px;">' + escHtml(c.campaign_name) + '</div>' : '')
                     + '</div>';
             });
             list.innerHTML = html;
+            section.style.display = 'block';
         })
         .catch(function() {
             section.style.display = 'none';
         });
 });
+
+function selectTrackingCode(code, label, el) {
+    _selectedTrackingCode = code;
+    // Destacar item selecionado
+    document.querySelectorAll('#tracking-codes-list > div').forEach(function(d) {
+        d.classList.remove('tc-selected');
+        d.style.background = '';
+    });
+    el.classList.add('tc-selected');
+    el.style.background = '#dbeafe';
+    // Mostrar info
+    document.getElementById('tracking-code-selected-label').textContent = code + (label !== code ? ' — ' + label : '');
+    document.getElementById('tracking-code-selected-info').style.display = 'block';
+}
+
+function clearSelectedTrackingCode() {
+    _selectedTrackingCode = null;
+    document.getElementById('tracking-code-selected-info').style.display = 'none';
+    document.getElementById('tracking-code-selected-label').textContent = '';
+    document.querySelectorAll('#tracking-codes-list > div').forEach(function(d) {
+        d.classList.remove('tc-selected');
+        d.style.background = '';
+    });
+}
 
 function toggleTrackingCodes() {
     const list = document.getElementById('tracking-codes-list');
@@ -1756,7 +1789,8 @@ function saveOrigin() {
         },
         body: JSON.stringify({
             opportunity_id: <?= (int) ($opp['id'] ?? 0) ?>,
-            origin: origin
+            origin: origin,
+            tracking_code: _selectedTrackingCode || null
         })
     })
     .then(response => response.json())
