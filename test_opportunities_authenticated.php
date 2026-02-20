@@ -9,8 +9,8 @@ echo "<h1>Teste Opportunities Autenticado</h1>";
 ob_start();
 session_start();
 
-// Simula usuário autenticado COMPLETO
-$_SESSION['user'] = [
+// Simula usuário autenticado COMPLETO na chave correta
+$_SESSION['pixelhub_user'] = [
     'id' => 1,
     'name' => 'Test User',
     'email' => 'test@example.com',
@@ -23,11 +23,11 @@ $_SESSION['user'] = [
 ob_end_clean();
 
 echo "<h2>1. Verificando sessão</h2>";
-if (isset($_SESSION['user'])) {
+if (isset($_SESSION['pixelhub_user'])) {
     echo "<p style='color: green;'>✓ Usuário autenticado</p>";
-    echo "<p>ID: " . $_SESSION['user']['id'] . "</p>";
-    echo "<p>Nome: " . $_SESSION['user']['name'] . "</p>";
-    echo "<p>is_internal: " . ($_SESSION['user']['is_internal'] ? 'SIM' : 'NÃO') . "</p>";
+    echo "<p>ID: " . $_SESSION['pixelhub_user']['id'] . "</p>";
+    echo "<p>Nome: " . $_SESSION['pixelhub_user']['name'] . "</p>";
+    echo "<p>is_internal: " . ($_SESSION['pixelhub_user']['is_internal'] ? 'SIM' : 'NÃO') . "</p>";
 } else {
     echo "<p style='color: red;'>✗ Usuário não autenticado</p>";
 }
