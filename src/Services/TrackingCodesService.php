@@ -87,6 +87,22 @@ class TrackingCodesService
     }
 
     /**
+     * Lista códigos ativos por canal
+     */
+    public static function listByChannel(string $channel): array
+    {
+        $db = DB::getConnection();
+        $stmt = $db->prepare("
+            SELECT id, code, description, origin_page, cta_position, campaign_name, is_active
+            FROM tracking_codes
+            WHERE channel = ? AND is_active = 1
+            ORDER BY code ASC
+        ");
+        $stmt->execute([$channel]);
+        return $stmt->fetchAll() ?: [];
+    }
+
+    /**
      * Lista todos os códigos com contexto
      */
     public static function listAll(): array

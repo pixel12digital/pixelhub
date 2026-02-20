@@ -579,6 +579,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Configurações — Códigos de Rastreamento
     $router->get('/settings/tracking-codes', 'TrackingCodesController@index');
     $router->get('/settings/tracking-codes/options', 'TrackingCodesController@options');
+    $router->get('/settings/tracking-codes/by-channel', 'TrackingCodesController@byChannel');
     $router->get('/settings/tracking-codes/edit', 'TrackingCodesController@edit');
     $router->post('/settings/tracking-codes/store', 'TrackingCodesController@store');
     $router->post('/settings/tracking-codes/update', 'TrackingCodesController@update');

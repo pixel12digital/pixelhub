@@ -1611,6 +1611,22 @@ async function submitFollowup() {
             <div style="font-size: 12px; color: #666; margin-bottom: 16px;">
                 Selecione a origem correta para manter o histórico e relatórios atualizados.
             </div>
+
+            <!-- Seção colapsável de tracking codes -->
+            <div id="tracking-codes-section" style="display: none;">
+                <div onclick="toggleTrackingCodes()" 
+                     style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 6px; cursor: pointer; margin-bottom: 0; user-select: none;">
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #023A8D;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                        Códigos de rastreamento cadastrados
+                        <span id="tracking-codes-count" style="background: #023A8D; color: white; border-radius: 10px; padding: 1px 7px; font-size: 11px;"></span>
+                    </div>
+                    <span id="tracking-codes-arrow" style="font-size: 12px; color: #023A8D; transition: transform 0.2s;">▼</span>
+                </div>
+                <div id="tracking-codes-list" style="display: none; border: 1px solid #c7d2fe; border-top: none; border-radius: 0 0 6px 6px; max-height: 220px; overflow-y: auto;">
+                    <div id="tracking-codes-loading" style="padding: 12px; text-align: center; color: #888; font-size: 12px;">Carregando...</div>
+                </div>
+            </div>
         </div>
         
         <div style="padding: 16px 20px; border-top: 1px solid #eee; display: flex; gap: 10px; justify-content: flex-end;">
@@ -1638,10 +1654,83 @@ function showTimelineTab(tab) {
 // Modal de Edição de Origem
 function openEditOriginModal() {
     document.getElementById('edit-origin-modal').style.display = 'flex';
+    // Disparar evento de change para carregar códigos se já houver seleção
+    const sel = document.getElementById('edit-origin-select');
+    if (sel.value) sel.dispatchEvent(new Event('change'));
 }
 
 function closeEditOriginModal() {
     document.getElementById('edit-origin-modal').style.display = 'none';
+    // Resetar seção de tracking codes
+    document.getElementById('tracking-codes-section').style.display = 'none';
+    document.getElementById('tracking-codes-list').style.display = 'none';
+    document.getElementById('tracking-codes-arrow').style.transform = '';
+    _trackingCodesLoaded = null;
+}
+
+// Tracking codes colapsável
+let _trackingCodesLoaded = null;
+let _trackingCodesOpen = false;
+
+document.getElementById('edit-origin-select').addEventListener('change', function() {
+    const channel = this.value;
+    const section = document.getElementById('tracking-codes-section');
+    const list = document.getElementById('tracking-codes-list');
+    const arrow = document.getElementById('tracking-codes-arrow');
+
+    if (!channel) {
+        section.style.display = 'none';
+        _trackingCodesLoaded = null;
+        return;
+    }
+
+    // Resetar estado colapsado
+    list.style.display = 'none';
+    arrow.style.transform = '';
+    _trackingCodesOpen = false;
+    _trackingCodesLoaded = null;
+
+    // Buscar códigos do canal
+    document.getElementById('tracking-codes-loading').innerHTML = 'Carregando...';
+    section.style.display = 'block';
+
+    fetch('/settings/tracking-codes/by-channel?channel=' + encodeURIComponent(channel))
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success || !data.codes || data.codes.length === 0) {
+                section.style.display = 'none';
+                _trackingCodesLoaded = [];
+                return;
+            }
+            _trackingCodesLoaded = data.codes;
+            document.getElementById('tracking-codes-count').textContent = data.codes.length;
+
+            let html = '';
+            data.codes.forEach(function(c) {
+                html += '<div style="padding: 8px 12px; border-bottom: 1px solid #eef0ff; font-size: 12px;">'
+                    + '<span style="font-family: monospace; font-weight: 700; color: #023A8D; background: #eef0ff; padding: 1px 6px; border-radius: 3px;">' + escHtml(c.code) + '</span>'
+                    + (c.description ? ' <span style="color: #555;">' + escHtml(c.description) + '</span>' : '')
+                    + (c.origin_page ? '<div style="color: #888; margin-top: 2px; font-size: 11px;">📄 ' + escHtml(c.origin_page) + '</div>' : '')
+                    + (c.campaign_name ? '<div style="color: #888; font-size: 11px;">📢 ' + escHtml(c.campaign_name) + '</div>' : '')
+                    + '</div>';
+            });
+            list.innerHTML = html;
+        })
+        .catch(function() {
+            section.style.display = 'none';
+        });
+});
+
+function toggleTrackingCodes() {
+    const list = document.getElementById('tracking-codes-list');
+    const arrow = document.getElementById('tracking-codes-arrow');
+    _trackingCodesOpen = !_trackingCodesOpen;
+    list.style.display = _trackingCodesOpen ? 'block' : 'none';
+    arrow.style.transform = _trackingCodesOpen ? 'rotate(180deg)' : '';
+}
+
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function saveOrigin() {

@@ -126,6 +126,29 @@ class TrackingCodesController extends Controller
     }
 
     /**
+     * Lista códigos por canal (AJAX)
+     * GET /settings/tracking-codes/by-channel?channel=google_ads
+     */
+    public function byChannel(): void
+    {
+        Auth::requireInternal();
+
+        $channel = trim($_GET['channel'] ?? '');
+
+        if (!$channel) {
+            $this->json(['success' => true, 'codes' => []]);
+            return;
+        }
+
+        try {
+            $codes = TrackingCodesService::listByChannel($channel);
+            $this->json(['success' => true, 'codes' => $codes]);
+        } catch (\Exception $e) {
+            $this->json(['success' => false, 'error' => 'Erro interno'], 500);
+        }
+    }
+
+    /**
      * Atualiza código (AJAX)
      * POST /settings/tracking-codes/update
      */
