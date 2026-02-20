@@ -18,7 +18,12 @@ class TrackingDetectionService
 
     public function __construct()
     {
-        $this->db = DB::getConnection();
+        try {
+            $this->db = DB::getConnection();
+        } catch (Exception $e) {
+            // Fallback se DB falhar
+            $this->db = null;
+        }
     }
 
     /**
@@ -29,7 +34,7 @@ class TrackingDetectionService
      */
     public function detectInMessage(string $message): ?array
     {
-        if (empty($message)) {
+        if (empty($message) || !$this->db) {
             return null;
         }
 
@@ -62,6 +67,10 @@ class TrackingDetectionService
      */
     private function findTrackingByCode(string $code): ?array
     {
+        if (!$this->db) {
+            return null;
+        }
+        
         $stmt = $this->db->prepare("
             SELECT * FROM tracking_codes 
             WHERE code = ? AND is_active = 1
@@ -110,6 +119,11 @@ class TrackingDetectionService
      */
     public function getAvailableOrigins(): array
     {
+        if (!$this->db) {
+            // Fallback hardcoded se DB não estiver disponível
+            return ['unknown', 'whatsapp', 'site', 'instagram', 'facebook', 'google', 'email', 'indicacao', 'outro'];
+        }
+        
         $stmt = $this->db->query("
             SELECT DISTINCT source as origin 
             FROM tracking_codes 
@@ -117,10 +131,13 @@ class TrackingDetectionService
             ORDER BY source
         ");
         
-        $origins = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $origins = [];
+        while ($row = $stmt->fetch()) {
+            $origins[] = $row['origin'];
+        }
         
-        // Adiciona unknown no início
-        array_unshift($origins, 'unknown');
+        // Sempre incluir 'unknown' como fallback
+        $origins[] = 'unknown';
         
         return $origins;
     }
