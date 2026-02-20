@@ -4,6 +4,7 @@ namespace PixelHub\Services;
 
 use PDO;
 use Exception;
+use PixelHub\Core\DB;
 
 /**
  * Serviço de detecção e gerenciamento de tracking codes
