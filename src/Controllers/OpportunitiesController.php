@@ -115,13 +115,14 @@ class OpportunitiesController extends Controller
 
         // Busca informações de tracking detalhado
         $trackingInfo = null;
-        if (!empty($opportunity['tracking_code'])) {
+        $hasOrigin = !empty($opportunity['origin']) && $opportunity['origin'] !== 'unknown';
+        if (!empty($opportunity['tracking_code']) || $hasOrigin) {
             try {
                 $trackingInfo = [
-                    'tracking_code' => $opportunity['tracking_code'],
-                    'origin' => $opportunity['origin'],
+                    'tracking_code' => $opportunity['tracking_code'] ?? null,
+                    'origin' => $opportunity['origin'] ?? null,
                     'tracking_metadata' => !empty($opportunity['tracking_metadata']) ? json_decode($opportunity['tracking_metadata'], true) : null,
-                    'tracking_auto_detected' => (bool) $opportunity['tracking_auto_detected']
+                    'tracking_auto_detected' => (bool) ($opportunity['tracking_auto_detected'] ?? false)
                 ];
             } catch (\Exception $e) {
                 error_log('[Opportunities] Erro ao decodificar tracking_metadata: ' . $e->getMessage());

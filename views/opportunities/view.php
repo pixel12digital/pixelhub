@@ -233,6 +233,7 @@ function getOriginDisplay($origin) {
         <div class="card" style="margin-bottom: 20px;">
             <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #333;">Tracking</h3>
             <?php if ($trackingInfo && !empty($trackingInfo['tracking_code'])): ?>
+                <!-- Tracking com código detectado -->
                 <div style="padding: 12px; background: #f0f7ff; border-radius: 6px; border-left: 4px solid #023A8D;">
                     <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; font-size: 13px;">
                         <div style="font-weight: 600; color: #666;">Código:</div>
@@ -268,7 +269,20 @@ function getOriginDisplay($origin) {
                         </div>
                     </div>
                 </div>
+            <?php elseif ($trackingInfo && !empty($trackingInfo['origin'])): ?>
+                <!-- Origem definida manualmente (sem código de rastreamento) -->
+                <div style="padding: 12px; background: #e8f5e9; border-radius: 6px; border-left: 4px solid #28a745;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="background: #6c757d; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600;">MANUAL</span>
+                            <span style="font-weight: 600; color: #1b5e20;"><?= htmlspecialchars(getOriginDisplay($trackingInfo['origin'])) ?></span>
+                        </div>
+                        <a href="#" onclick="openEditOriginModal(); return false;" style="font-size: 11px; color: #555; text-decoration: underline;">Alterar</a>
+                    </div>
+                    <div style="font-size: 12px; color: #388e3c;">Origem definida manualmente</div>
+                </div>
             <?php else: ?>
+                <!-- Sem origem definida -->
                 <div style="padding: 12px; background: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
