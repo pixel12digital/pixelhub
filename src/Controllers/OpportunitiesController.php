@@ -798,7 +798,7 @@ class OpportunitiesController extends Controller
                 'found' => true,
                 'conversation_id' => (int) $thread['id'],
                 'thread_id' => 'whatsapp_' . (int) $thread['id'],
-                'channel' => $thread['channel_id'] ?? 'whatsapp',
+                'channel' => 'whatsapp',
                 'contact_name' => $thread['contact_name'],
             ]);
         } else {

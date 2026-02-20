@@ -532,11 +532,15 @@ async function openWhatsApp(phone) {
         console.log('[Opp WhatsApp] Resposta find-conversation:', data);
 
         if (data.success && data.found && data.thread_id) {
-            // Conversa encontrada: abre direto nela (aguarda drawer carregar)
+            // Conversa encontrada: pré-grava no sessionStorage ANTES da restauração automática do drawer
             console.log('[Opp WhatsApp] Conversa encontrada, abrindo thread:', data.thread_id);
+            const targetThread = data.thread_id;
+            const targetChannel = data.channel || 'whatsapp';
+            sessionStorage.setItem('inbox_selected_thread_id', targetThread);
+            sessionStorage.setItem('inbox_selected_channel', targetChannel);
             setTimeout(() => {
                 if (typeof loadInboxConversation === 'function') {
-                    loadInboxConversation(data.thread_id, data.channel || 'whatsapp');
+                    loadInboxConversation(targetThread, targetChannel);
                 }
             }, 500);
         } else {
