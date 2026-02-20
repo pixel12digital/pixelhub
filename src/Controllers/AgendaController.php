@@ -272,15 +272,15 @@ class AgendaController extends Controller
                 try {
                     $stmt = $db->prepare("
                         SELECT t.* FROM tasks t
-                        WHERE t.project_id = ? AND t.status != 'concluida' AND t.deleted_at IS NULL
-                        ORDER BY t.title ASC
+                        WHERE t.project_id = ? AND t.deleted_at IS NULL
+                        ORDER BY FIELD(t.status,'em_andamento','backlog','aguardando_cliente','concluida'), t.title ASC
                     ");
                     $stmt->execute([$projetoRefId]);
                 } catch (\PDOException $e) {
                     $stmt = $db->prepare("
                         SELECT t.* FROM tasks t
-                        WHERE t.project_id = ? AND t.status != 'concluida'
-                        ORDER BY t.title ASC
+                        WHERE t.project_id = ?
+                        ORDER BY FIELD(t.status,'em_andamento','backlog','aguardando_cliente','concluida'), t.title ASC
                     ");
                     $stmt->execute([$projetoRefId]);
                 }
@@ -1827,9 +1827,10 @@ class AgendaController extends Controller
         try {
             $grouped = TaskService::getTasksByProject($projectId);
             $tasks = array_merge(
-                $grouped['backlog'] ?? [],
                 $grouped['em_andamento'] ?? [],
-                $grouped['aguardando_cliente'] ?? []
+                $grouped['backlog'] ?? [],
+                $grouped['aguardando_cliente'] ?? [],
+                $grouped['concluida'] ?? []
             );
             $this->json(['success' => true, 'tasks' => $tasks]);
         } catch (\Exception $e) {
