@@ -1208,7 +1208,7 @@ function atdRenderChecklistItem(item) {
 
 function atdToggleChecklistItem(itemId, isDone) {
     var fd = new FormData();
-    fd.append('checklist_id', itemId);
+    fd.append('id', itemId);
     fd.append('is_done', isDone ? '1' : '0');
     fetch('<?= pixelhub_url('/tasks/checklist/toggle') ?>', {
         method: 'POST',
