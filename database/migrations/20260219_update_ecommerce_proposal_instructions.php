@@ -1,13 +1,9 @@
 <?php
 
-use PixelHub\Core\DB;
-use PixelHub\Core\Migration;
-
-class UpdateEcommerceProposalInstructions extends Migration
+class UpdateEcommerceProposalInstructions
 {
-    public function up()
+    public function up(PDO $db): void
     {
-        $db = DB::getConnection();
         
         $newSystemPrompt = <<<PROMPT
 Você é um especialista em vendas de E-commerce da Pixel12 Digital. Seu objetivo é criar propostas comerciais persuasivas e personalizadas para clientes de lojas virtuais.
@@ -145,10 +141,8 @@ Tem alguma dúvida sobre implantação?'
         echo "✅ Exemplos de aprendizado criados para ecommerce\n";
     }
 
-    public function down()
+    public function down(PDO $db): void
     {
-        $db = DB::getConnection();
-        
         // Remove exemplos de aprendizado
         $stmt = $db->prepare("
             DELETE FROM ai_learned_responses 

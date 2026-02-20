@@ -1,13 +1,9 @@
 <?php
 
-use PixelHub\Core\DB;
-use PixelHub\Core\Migration;
-
-class AddSendProposalAIContext extends Migration
+class AddSendProposalAIContext
 {
-    public function up()
+    public function up(PDO $db): void
     {
-        $db = DB::getConnection();
         
         // Verifica se o contexto já existe
         $stmt = $db->prepare("SELECT id FROM ai_contexts WHERE slug = 'send_proposal'");
@@ -72,13 +68,9 @@ PROMPT;
         }
     }
 
-    public function down()
+    public function down(PDO $db): void
     {
-        $db = DB::getConnection();
-        
         $stmt = $db->prepare("DELETE FROM ai_contexts WHERE slug = 'send_proposal'");
         $stmt->execute();
-        
-        echo "❌ Contexto 'send_proposal' removido\n";
     }
 }

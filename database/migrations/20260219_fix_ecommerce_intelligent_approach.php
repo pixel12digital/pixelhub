@@ -1,13 +1,9 @@
 <?php
 
-use PixelHub\Core\DB;
-use PixelHub\Core\Migration;
-
-class FixEcommerceIntelligentApproach extends Migration
+class FixEcommerceIntelligentApproach
 {
-    public function up()
+    public function up(PDO $db): void
     {
-        $db = DB::getConnection();
         
         $intelligentPrompt = <<<PROMPT
 Você é um especialista em vendas de E-commerce da Pixel12 Digital. Seu objetivo é criar propostas comerciais persuasivas e inteligentes para clientes de lojas virtuais.
@@ -200,10 +196,8 @@ Quer testar o agendamento automático?'
         echo "✅ Exemplos inteligentes criados para ecommerce\n";
     }
 
-    public function down()
+    public function down(PDO $db): void
     {
-        $db = DB::getConnection();
-        
         // Restaura versão anterior simplificada
         $originalPrompt = "Você é um assistente da Pixel12 Digital, especialista em e-commerce. Ajude a criar respostas personalizadas para clientes de lojas virtuais.";
         

@@ -25,11 +25,11 @@ class CreateOpportunityProductsTable
         ");
 
         // Adicionar campo product_id em opportunities
-        $db->exec("
-            ALTER TABLE opportunities 
-            ADD COLUMN product_id INT UNSIGNED NULL COMMENT 'FK para opportunity_products',
-            ADD INDEX idx_product (product_id)
-        ");
+        $columns = $db->query("SHOW COLUMNS FROM opportunities")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('product_id', $columns)) {
+            $db->exec("ALTER TABLE opportunities ADD COLUMN product_id INT UNSIGNED NULL COMMENT 'FK para opportunity_products'");
+        }
+        try { $db->exec("ALTER TABLE opportunities ADD INDEX idx_product (product_id)"); } catch (\Exception $e) {}
 
         // Adicionar foreign key (se não houver conflito)
         try {

@@ -16,32 +16,42 @@ class AlterTenantsAddLeadFields
 {
     public function up(PDO $db): void
     {
-        // 1. Adiciona campos específicos de leads
-        $db->exec("
-            ALTER TABLE tenants 
-            ADD COLUMN contact_type ENUM('lead', 'client') NOT NULL DEFAULT 'client' 
-                COMMENT 'lead=prospecto em negociação, client=cliente convertido',
-            ADD COLUMN source VARCHAR(50) NULL 
-                COMMENT 'Origem do contato: whatsapp, site, indicacao, outro',
-            ADD COLUMN notes TEXT NULL 
-                COMMENT 'Observações livres sobre o contato',
-            ADD COLUMN created_by INT UNSIGNED NULL 
-                COMMENT 'FK para users (quem criou o registro)',
-            ADD COLUMN lead_converted_at DATETIME NULL 
-                COMMENT 'Data de conversão de lead para cliente',
-            ADD COLUMN original_lead_id INT UNSIGNED NULL 
-                COMMENT 'ID original do lead se convertido (para rastreabilidade)'
-        ");
+        // 1. Adiciona campos específicos de leads (com verificação de existência)
+        $columns = $db->query("SHOW COLUMNS FROM tenants")->fetchAll(PDO::FETCH_COLUMN);
 
-        // 2. Adiciona índices para performance
-        $db->exec("
-            ALTER TABLE tenants 
-            ADD INDEX idx_contact_type (contact_type),
-            ADD INDEX idx_source (source),
-            ADD INDEX idx_created_by (created_by),
-            ADD INDEX idx_lead_converted_at (lead_converted_at),
-            ADD INDEX idx_original_lead_id (original_lead_id)
-        ");
+        $toAdd = [];
+        if (!in_array('contact_type', $columns)) {
+            $toAdd[] = "ADD COLUMN contact_type ENUM('lead', 'client') NOT NULL DEFAULT 'client' COMMENT 'lead=prospecto em negociação, client=cliente convertido'";
+        }
+        if (!in_array('source', $columns)) {
+            $toAdd[] = "ADD COLUMN source VARCHAR(50) NULL COMMENT 'Origem do contato: whatsapp, site, indicacao, outro'";
+        }
+        if (!in_array('notes', $columns)) {
+            $toAdd[] = "ADD COLUMN notes TEXT NULL COMMENT 'Observações livres sobre o contato'";
+        }
+        if (!in_array('created_by', $columns)) {
+            $toAdd[] = "ADD COLUMN created_by INT UNSIGNED NULL COMMENT 'FK para users (quem criou o registro)'";
+        }
+        if (!in_array('lead_converted_at', $columns)) {
+            $toAdd[] = "ADD COLUMN lead_converted_at DATETIME NULL COMMENT 'Data de conversão de lead para cliente'";
+        }
+        if (!in_array('original_lead_id', $columns)) {
+            $toAdd[] = "ADD COLUMN original_lead_id INT UNSIGNED NULL COMMENT 'ID original do lead se convertido (para rastreabilidade)'";
+        }
+
+        if (!empty($toAdd)) {
+            $db->exec("ALTER TABLE tenants " . implode(', ', $toAdd));
+        }
+
+        // 2. Adiciona índices para performance (ignorando se já existem)
+        $indexes = ['idx_contact_type' => 'contact_type', 'idx_source' => 'source', 'idx_created_by' => 'created_by', 'idx_lead_converted_at' => 'lead_converted_at', 'idx_original_lead_id' => 'original_lead_id'];
+        foreach ($indexes as $idxName => $col) {
+            try {
+                $db->exec("ALTER TABLE tenants ADD INDEX {$idxName} ({$col})");
+            } catch (Exception $e) {
+                // Índice já existe, ignora
+            }
+        }
 
         // 3. Adiciona chaves estrangeiras se não existirem
         try {

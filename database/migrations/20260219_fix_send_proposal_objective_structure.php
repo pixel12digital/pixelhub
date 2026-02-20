@@ -1,13 +1,9 @@
 <?php
 
-use PixelHub\Core\DB;
-use PixelHub\Core\Migration;
-
-class FixSendProposalObjectiveStructure extends Migration
+class FixSendProposalObjectiveStructure
 {
-    public function up()
+    public function up(PDO $db): void
     {
-        $db = DB::getConnection();
         
         // Remove o contexto incorreto "send_proposal" se existir
         $stmt = $db->prepare("SELECT id FROM ai_contexts WHERE slug = 'send_proposal'");
@@ -154,10 +150,8 @@ PROMPT;
         echo "✅ Contexto ecommerce atualizado com instruções de proposta\n";
     }
 
-    public function down()
+    public function down(PDO $db): void
     {
-        $db = DB::getConnection();
-        
         // Restaura o contexto incorreto (para rollback)
         $stmt = $db->prepare("
             INSERT INTO ai_contexts 
