@@ -368,6 +368,7 @@ class OpportunitiesController extends Controller
      */
     public function updateOrigin(): void
     {
+        file_put_contents('logs/update_origin_debug.log', "[UPDATE_ORIGIN] METHOD CALLED - " . date('Y-m-d H:i:s') . "\n", FILE_APPEND);
         error_log("[UPDATE_ORIGIN] METHOD CALLED");
         // Auth::requireInternal(); // Temporariamente desativado para debug
         $user = Auth::user();
