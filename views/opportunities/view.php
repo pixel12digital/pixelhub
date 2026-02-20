@@ -235,6 +235,9 @@ function getOriginDisplay($origin) {
             <?php if ($trackingInfo && !empty($trackingInfo['tracking_code'])): ?>
                 <!-- Tracking com código detectado -->
                 <div style="padding: 12px; background: #f0f7ff; border-radius: 6px; border-left: 4px solid #023A8D;">
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
+                        <a href="#" onclick="openEditOriginModal(); return false;" style="font-size: 11px; color: #555; text-decoration: underline;">Alterar</a>
+                    </div>
                     <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; font-size: 13px;">
                         <div style="font-weight: 600; color: #666;">Código:</div>
                         <div style="font-family: monospace; background: white; padding: 2px 6px; border-radius: 3px; border: 1px solid #ddd;">
