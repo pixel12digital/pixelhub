@@ -80,15 +80,22 @@ $opportunities = $opportunities ?? [];
                     </div>
                 </div>
                 
+                <?php
+use PixelHub\Services\OriginCatalog;
+?>
                 <div style="margin-bottom: 14px;">
                     <label style="display: block; margin-bottom: 4px; font-weight: 600; font-size: 13px; color: #555;">Origem</label>
                     <select name="source" style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
                         <option value="">Selecione...</option>
-                        <option value="whatsapp" <?= ($lead['source'] ?? '') === 'whatsapp' ? 'selected' : '' ?>>WhatsApp</option>
-                        <option value="site" <?= ($lead['source'] ?? '') === 'site' ? 'selected' : '' ?>>Site</option>
-                        <option value="indicacao" <?= ($lead['source'] ?? '') === 'indicacao' ? 'selected' : '' ?>>Indicação</option>
-                        <option value="crm_manual" <?= ($lead['source'] ?? '') === 'crm_manual' ? 'selected' : '' ?>>CRM Manual</option>
-                        <option value="outro" <?= ($lead['source'] ?? '') === 'outro' ? 'selected' : '' ?>>Outro</option>
+                        <?php
+                        $origins = OriginCatalog::getForSelect($lead['source'] ?? '');
+                        foreach ($origins as $key => $label):
+                            if ($key === '') continue; // Pular opção vazia
+                        ?>
+                            <option value="<?= htmlspecialchars($key) ?>" <?= ($key === ($lead['source'] ?? '')) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($label) ?>
+                            </option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 

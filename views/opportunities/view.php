@@ -1,4 +1,11 @@
 <?php
+/**
+ * View de detalhes da oportunidade
+ */
+
+// Carregar catálogo de origens
+use PixelHub\Services\OriginCatalog;
+
 ob_start();
 $baseUrl = pixelhub_url('');
 $opp = $opportunity;
@@ -20,10 +27,7 @@ $isLost = $opp['status'] === 'lost';
  * Helper para exibir origem de forma amigável
  */
 function getOriginDisplay($origin) {
-    if (!$origin || trim($origin) === '' || strtolower($origin) === 'unknown') {
-        return 'Origem não informada';
-    }
-    return ucfirst($origin);
+    return OriginCatalog::getDisplay($origin);
 }
 ?>
 
@@ -1578,31 +1582,15 @@ async function submitFollowup() {
                 <select id="edit-origin-select" style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
                     <option value="">Selecione uma origem...</option>
                     <?php
-                    // Buscar origens disponíveis
-                    try {
-                        $trackingService = new \PixelHub\Services\TrackingDetectionService();
-                        $availableOrigins = $trackingService->getAvailableOrigins();
-                        foreach ($availableOrigins as $origin):
-                            $displayOrigin = ($origin === 'unknown') ? 'Origem não informada' : ucfirst($origin);
+                    // Usar catálogo unificado
+                    $origins = OriginCatalog::getForSelect($opp['origin'] ?? '');
+                    foreach ($origins as $key => $label):
+                        if ($key === '') continue; // Pular opção vazia
                     ?>
-                        <option value="<?= htmlspecialchars($origin) ?>" <?= ($origin === ($opp['origin'] ?? '')) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($displayOrigin) ?>
+                        <option value="<?= htmlspecialchars($key) ?>" <?= ($key === ($opp['origin'] ?? '')) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($label) ?>
                         </option>
-                    <?php
-                        endforeach;
-                    } catch (\Exception $e) {
-                        // Fallback hardcoded
-                        $fallbackOrigins = ['unknown', 'whatsapp', 'site', 'instagram', 'facebook', 'google', 'email', 'indicacao', 'outro'];
-                        foreach ($fallbackOrigins as $origin):
-                            $displayOrigin = ($origin === 'unknown') ? 'Origem não informada' : ucfirst($origin);
-                    ?>
-                        <option value="<?= htmlspecialchars($origin) ?>" <?= ($origin === ($opp['origin'] ?? '')) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($displayOrigin) ?>
-                        </option>
-                    <?php
-                        endforeach;
-                    }
-                    ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
             

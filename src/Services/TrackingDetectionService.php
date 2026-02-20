@@ -119,27 +119,8 @@ class TrackingDetectionService
      */
     public function getAvailableOrigins(): array
     {
-        if (!$this->db) {
-            // Fallback hardcoded se DB não estiver disponível
-            return ['unknown', 'whatsapp', 'site', 'instagram', 'facebook', 'google', 'email', 'indicacao', 'outro'];
-        }
-        
-        $stmt = $this->db->query("
-            SELECT DISTINCT source as origin 
-            FROM tracking_codes 
-            WHERE is_active = 1
-            ORDER BY source
-        ");
-        
-        $origins = [];
-        while ($row = $stmt->fetch()) {
-            $origins[] = $row['origin'];
-        }
-        
-        // Sempre incluir 'unknown' como fallback
-        $origins[] = 'unknown';
-        
-        return $origins;
+        // Usar catálogo unificado como fonte única
+        return OriginCatalog::getKeys();
     }
 
     /**
@@ -150,15 +131,6 @@ class TrackingDetectionService
      */
     public function isValidOrigin(string $origin): bool
     {
-        if ($origin === 'unknown') {
-            return true;
-        }
-
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*) FROM tracking_codes 
-            WHERE source = ? AND is_active = 1
-        ");
-        $stmt->execute([$origin]);
-        return $stmt->fetchColumn() > 0;
+        return OriginCatalog::isValid($origin);
     }
 }

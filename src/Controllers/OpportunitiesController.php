@@ -382,8 +382,7 @@ class OpportunitiesController extends Controller
 
         // Validar origem contra lista permitida
         try {
-            $trackingService = new \PixelHub\Services\TrackingDetectionService();
-            $validOrigins = $trackingService->getAvailableOrigins();
+            $validOrigins = \PixelHub\Services\OriginCatalog::getKeys();
         } catch (\Exception $e) {
             // Fallback hardcoded
             $validOrigins = ['unknown', 'whatsapp', 'site', 'instagram', 'facebook', 'google', 'email', 'indicacao', 'outro'];
@@ -428,7 +427,7 @@ class OpportunitiesController extends Controller
             $oldValueStmt->execute([$opportunityId]);
             $oldOrigin = $oldValueStmt->fetchColumn();
             
-            $displayOrigin = ($origin === 'unknown') ? 'Origem não informada' : ucfirst($origin);
+            $displayOrigin = \PixelHub\Services\OriginCatalog::getDisplay($origin);
             $description = "Origem alterada para: {$displayOrigin}";
             
             $historyStmt->execute([$opportunityId, $oldOrigin, $origin, $description, $user['id'] ?? null]);
