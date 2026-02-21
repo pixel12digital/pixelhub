@@ -368,7 +368,155 @@ document.addEventListener('click', e => {
         document.getElementById('cnaeDropdown').style.display = 'none';
 });
 
-// CNAE autocomplete — busca dinâmica na API pública CNPJ.ws
+// CNAE autocomplete — lista local curada com aliases em português coloquial
+// Formato: [code, desc, aliases_extras]
+const CNAE_DATA = [
+    // Varejo / Lojas
+    ['4755-5/01','Tecidos, cama, mesa e banho','cama mesa banho lençol toalha edredom colcha roupa de cama loja tecidos'],
+    ['4755-5/02','Artigos de armarinho','armarinho aviamentos botão linha agulha costura'],
+    ['4756-3/00','Móveis e artigos de decoração','moveis decoracao casa loja moveis sofa cadeira mesa'],
+    ['4757-1/00','Eletrodomésticos e equipamentos de áudio e vídeo','eletrodomesticos geladeira fogao televisao tv som'],
+    ['4759-8/01','Artigos de iluminação','iluminacao luminaria lampada lustre'],
+    ['4759-8/99','Artigos para o lar não especificados','utilidades domesticas casa loja utilidades'],
+    ['4761-0/01','Livros','livraria livros editora'],
+    ['4762-8/00','Discos, CDs, DVDs e fitas','musica cd dvd midia'],
+    ['4763-6/01','Brinquedos e artigos recreativos','brinquedos brinquedo infantil jogos'],
+    ['4763-6/02','Artigos esportivos','esportes artigos esportivos academia fitness'],
+    ['4771-7/01','Farmácias e drogarias','farmacia drogaria remedio medicamento'],
+    ['4771-7/02','Manipulação de fórmulas','farmacia manipulacao homeopatia'],
+    ['4772-5/00','Cosméticos, perfumaria e higiene pessoal','cosmeticos perfumaria beleza higiene maquiagem perfume'],
+    ['4781-4/00','Vestuário e acessórios','roupas vestuario moda loja roupa boutique confeccao'],
+    ['4782-2/01','Calçados','calcados sapatos tenis sapataria'],
+    ['4782-2/02','Artigos de viagem e acessórios de couro','bolsas malas viagem couro acessorios'],
+    ['4783-1/01','Artigos de joalheria e relojoaria','joias relogios joalheria ourivesaria'],
+    ['4784-9/00','Gás liquefeito de petróleo (GLP)','gas botijao glp distribuidora gas'],
+    ['4785-7/01','Antiguidades','antiguidades brechó usados segunda mao'],
+    ['4789-0/99','Outros artigos de uso pessoal e doméstico','presentes lembranças artigos diversos'],
+    ['4711-3/01','Hipermercados','hipermercado supermercado grande varejo'],
+    ['4711-3/02','Supermercados','supermercado mercado mercearia'],
+    ['4712-1/00','Minimercados e mercearias','minimercado mercearia armazem emporio'],
+    ['4721-1/01','Hortifruti','hortifruti verduras frutas legumes feira'],
+    ['4721-1/02','Padaria e confeitaria','padaria confeitaria pao bolo doce'],
+    ['4722-9/01','Açougues','acougue carniceria carne bovina'],
+    ['4729-6/99','Outros alimentos','alimentos comida loja alimentos'],
+    ['4741-5/00','Tintas e materiais para pintura','tintas pintura tinta loja tintas'],
+    ['4742-3/00','Material elétrico','material eletrico eletrica loja eletrica'],
+    ['4743-1/00','Vidros','vidros vidracaria espelhos'],
+    ['4744-0/01','Ferragens e ferramentas','ferragens ferramentas parafuso prego'],
+    ['4744-0/02','Madeira e artefatos','madeira marcenaria carpintaria'],
+    ['4744-0/03','Materiais hidráulicos','hidraulica encanamento tubos conexoes'],
+    ['4744-0/04','Cal, areia, pedra e argamassa','construcao material construcao areia pedra cimento'],
+    ['4744-0/05','Materiais de construção','material construcao construcao reforma'],
+    ['4744-0/06','Pedras e mármores','marmore granito pedras revestimento'],
+    ['4744-0/99','Outros materiais de construção','construcao reforma material obra'],
+    ['4751-2/01','Equipamentos de informática','informatica computador notebook hardware loja informatica'],
+    ['4751-2/02','Suprimentos de informática','suprimentos informatica cartucho toner impressora'],
+    ['4752-1/00','Eletrodomésticos e eletrônicos','eletronicos celular smartphone eletrônico'],
+    // Serviços
+    ['4120-4/00','Construção de edifícios','construcao civil obra construtora edificio'],
+    ['4321-5/00','Instalação e manutenção elétrica','eletricista instalacao eletrica manutencao'],
+    ['4322-3/01','Instalações hidráulicas','encanador hidraulica instalacao agua'],
+    ['4330-4/02','Instalação de portas, janelas e esquadrias','marceneiro portas janelas esquadrias'],
+    ['4391-6/00','Obras de fundações','fundacao terraplenagem escavacao'],
+    ['4399-1/03','Obras de alvenaria','pedreiro alvenaria reboco massa'],
+    ['4520-0/01','Serviços de manutenção e reparação de automóveis','mecanico auto mecanica carro oficina'],
+    ['4520-0/07','Serviços de borracharia','borracharia pneu borracha'],
+    ['4530-7/01','Comércio de peças para veículos','autopecas pecas veiculos autopeças'],
+    ['4541-2/01','Comércio de motocicletas','moto motocicleta concessionaria'],
+    ['4711-3/01','Hipermercados e supermercados','grande varejo atacarejo atacado'],
+    ['5611-2/01','Restaurantes e similares','restaurante lanchonete comida almoco jantar'],
+    ['5611-2/03','Lanchonetes e casas de suco','lanchonete fast food suco'],
+    ['5611-2/04','Bares e estabelecimentos de bebidas','bar boteco bebidas cervejaria'],
+    ['5620-1/01','Fornecimento de alimentos para empresas','catering marmita refeicao empresa'],
+    ['5620-1/02','Serviços de alimentação para eventos','buffet eventos festas catering'],
+    ['5510-8/01','Hotéis','hotel pousada hospedagem'],
+    ['5590-6/01','Albergues','albergue hostel hospedagem economica'],
+    ['6201-5/00','Desenvolvimento de software','software desenvolvimento sistema ti tecnologia'],
+    ['6202-3/00','Desenvolvimento de software customizável','software erp crm sistema customizado'],
+    ['6203-1/00','Software não-customizável','software saas aplicativo app'],
+    ['6204-0/00','Consultoria em TI','consultoria ti tecnologia informatica'],
+    ['6209-1/00','Suporte técnico em TI','suporte tecnico informatica manutencao computador'],
+    ['6311-9/00','Hospedagem na internet','hosting hospedagem servidor cloud'],
+    ['6319-4/00','Portais e provedores de conteúdo','portal site internet conteudo'],
+    ['6421-2/00','Bancos comerciais','banco financeiro credito'],
+    ['6550-2/00','Planos de saúde','plano saude convenio medico'],
+    ['6810-2/01','Compra e venda de imóveis','imobiliaria imovel compra venda'],
+    ['6821-8/01','Corretagem imobiliária','corretor imovel imobiliaria aluguel'],
+    ['6822-6/00','Administração de imóveis','administradora imoveis condominio'],
+    ['7111-1/00','Serviços de arquitetura','arquitetura arquiteto projeto'],
+    ['7112-0/00','Serviços de engenharia','engenharia engenheiro projeto estrutural'],
+    ['7311-4/00','Agências de publicidade','publicidade propaganda agencia marketing'],
+    ['7319-0/02','Promoção de vendas','promocao vendas marketing trade'],
+    ['7319-0/03','Marketing direto','marketing digital email mkt'],
+    ['7320-3/00','Pesquisas de mercado','pesquisa mercado opiniao'],
+    ['7410-2/02','Design de interiores','design interiores decoracao projeto'],
+    ['7490-1/04','Intermediação e agenciamento','agenciamento intermediacao representante'],
+    ['7711-0/00','Locação de automóveis','locadora carro aluguel veiculo'],
+    ['7810-8/00','Seleção de mão-de-obra','rh recursos humanos selecao emprego'],
+    ['7820-5/00','Locação de mão-de-obra temporária','temporario terceirizacao mao de obra'],
+    ['8011-1/01','Vigilância e segurança privada','seguranca vigilancia portaria'],
+    ['8020-0/01','Monitoramento eletrônico','monitoramento alarme camera cftv'],
+    ['8111-7/00','Serviços para edifícios','condominio limpeza portaria predial'],
+    ['8121-4/00','Limpeza em prédios','limpeza faxina higienizacao'],
+    ['8122-2/00','Controle de pragas','dedetizacao pragas fumigacao'],
+    ['8531-7/00','Educação superior','faculdade universidade ensino superior'],
+    ['8541-4/00','Educação técnica','curso tecnico profissionalizante'],
+    ['8599-6/04','Treinamento profissional','treinamento capacitacao curso empresa'],
+    ['8630-5/01','Clínica médica cirúrgica','clinica medica cirurgia medico'],
+    ['8630-5/02','Clínica médica ambulatorial','consultorio medico clinica'],
+    ['8630-5/04','Clínica odontológica','dentista odontologia clinica dental'],
+    ['8640-2/02','Laboratórios clínicos','laboratorio exame analise clinica'],
+    ['8650-0/01','Enfermagem','enfermagem home care cuidador'],
+    ['9311-5/00','Academias e esportes','academia ginastica fitness esporte'],
+    ['9602-5/01','Cabeleireiros e salões','cabeleireiro salao beleza cabelo'],
+    ['9602-5/02','Estética e cuidados pessoais','estetica spa massagem depilacao'],
+    ['4623-1/01','Comércio atacadista de café','cafe atacado distribuidor'],
+    ['4631-1/00','Comércio atacadista de leite','laticinio leite derivados atacado'],
+    ['4632-0/01','Comércio atacadista de cereais','cereais graos atacado distribuidor'],
+    ['4649-4/08','Comércio atacadista de produtos de higiene','higiene limpeza atacado distribuidor'],
+    ['4661-3/00','Comércio atacadista de máquinas','maquinas equipamentos atacado industrial'],
+    ['4679-6/99','Comércio atacadista de materiais de construção','material construcao atacado distribuidor'],
+    ['1011-2/01','Frigorífico bovino','frigorifico abatedouro boi carne bovina'],
+    ['1031-7/00','Fabricação de sucos','suco bebida fruta industria'],
+    ['1041-4/00','Fabricação de óleos vegetais','oleo vegetal soja girassol industria'],
+    ['1066-0/00','Fabricação de alimentos para animais','racao animal pet industria'],
+    ['1091-1/01','Fabricação de produtos de panificação','padaria industrial panificacao biscoito'],
+    ['1321-9/00','Tecelagem de fios de algodão','tecelagem tecido algodao industria textil'],
+    ['1411-8/01','Confecção de roupas','confeccao roupa vestuario industria'],
+    ['1531-9/01','Fabricação de calçados','calcado sapato industria calçadista'],
+    ['2330-3/01','Fabricação de cimento','cimento industria construcao'],
+    ['2512-8/00','Fabricação de esquadrias','esquadria aluminio janela porta industria'],
+    ['2751-1/00','Fabricação de fogões e refrigeradores','fogao geladeira eletrodomestico industria'],
+    ['2759-7/01','Fabricação de aparelhos eletrodomésticos','eletrodomestico industria fabricacao'],
+    ['2930-1/01','Fabricação de peças para veículos','autopeca industria veiculo fabricacao'],
+    ['3250-7/06','Serviços de prótese dentária','protese dentaria laboratorio dental'],
+    ['4912-4/01','Transporte ferroviário','ferrovia trem transporte carga'],
+    ['4921-3/01','Transporte urbano coletivo','onibus transporte publico urbano'],
+    ['4930-2/01','Transporte rodoviário de carga municipal','transportadora frete carga caminhao'],
+    ['4930-2/02','Transporte rodoviário de carga intermunicipal','transportadora frete carga longa distancia'],
+    ['5011-4/01','Transporte marítimo','maritimo navio transporte carga'],
+    ['5250-8/01','Comissária de despachos','despachante aduaneiro importacao exportacao'],
+    ['5310-5/01','Atividades de Correios','correio entrega postal'],
+    ['5320-2/01','Serviços de entrega rápida','motoboy entrega rapida courier'],
+    ['6110-8/01','Serviços de telefonia fixa','telefonia fixa telecom operadora'],
+    ['6120-5/01','Telefonia móvel','celular telefonia movel operadora'],
+    ['6190-6/01','Provedores de acesso à internet','internet provedor banda larga'],
+    ['6911-7/01','Serviços advocatícios','advogado advocacia juridico'],
+    ['6920-6/01','Atividades de contabilidade','contabilidade contador escritorio contabil'],
+    ['7020-4/00','Consultoria em gestão empresarial','consultoria gestao empresarial negocios'],
+    ['7210-0/00','Pesquisa e desenvolvimento','pesquisa desenvolvimento inovacao p&d'],
+    ['7490-1/99','Atividades profissionais diversas','consultoria servicos profissionais'],
+    ['8230-0/01','Organização de feiras e eventos','eventos feiras congressos organizacao'],
+    ['8230-0/02','Casas de festas e eventos','buffet festa evento salao'],
+    ['8291-1/00','Atividades de cobranças','cobranca credito financeiro'],
+    ['8299-7/01','Serviços de datilografia','digitacao documentos administrativo'],
+    ['9001-9/01','Produção teatral','teatro espetaculo producao cultural'],
+    ['9321-2/00','Parques de diversão','parque diversao entretenimento'],
+    ['9609-2/99','Outros serviços pessoais','servicos pessoais diversos'],
+];
+
+function normStr(s){ return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,' '); }
+
 function setCnae(code, desc){
     const codeEl = document.getElementById('recipeCnaeCode');
     const descEl = document.getElementById('recipeCnaeDescription');
@@ -379,41 +527,40 @@ function setCnae(code, desc){
     if(searchEl) searchEl.value = code + ' — ' + desc;
     if(dd) dd.style.display = 'none';
 }
-let _cnaeDebounce = null;
+
 const _cnaeSearchEl = document.getElementById('recipeCnaeSearch');
 if(_cnaeSearchEl){
     _cnaeSearchEl.addEventListener('input', function(){
-        const q = this.value.trim();
+        const raw = this.value.trim();
         const dd = document.getElementById('cnaeDropdown');
-        clearTimeout(_cnaeDebounce);
-        if(q.length < 2){ dd.style.display='none'; return; }
-        dd.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#64748b;">Buscando...</div>';
+        if(raw.length < 2){ dd.style.display='none'; return; }
+        const q = normStr(raw);
+        const words = q.split(/\s+/).filter(w => w.length > 1);
+        const scored = CNAE_DATA.map(([code, desc, aliases='']) => {
+            const haystack = normStr(code + ' ' + desc + ' ' + aliases);
+            let score = 0;
+            for(const w of words){
+                if(haystack.includes(w)) score++;
+            }
+            return {code, desc, score};
+        }).filter(r => r.score > 0)
+          .sort((a,b) => b.score - a.score)
+          .slice(0, 12);
+        if(!scored.length){
+            dd.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8;">Nenhum CNAE encontrado. Tente termos como: imobiliária, restaurante, farmácia...</div>';
+            dd.style.display = 'block';
+            return;
+        }
+        dd.innerHTML = scored.map(c => {
+            const safeCode = c.code.replace(/'/g,"\\'");
+            const safeDesc = c.desc.replace(/'/g,"\\'");
+            return `<div onclick="setCnae('${safeCode}','${safeDesc}')"
+                style="padding:9px 14px;cursor:pointer;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;"
+                onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''">
+                <strong style="color:#023A8D;">${c.code}</strong> &mdash; ${c.desc}
+            </div>`;
+        }).join('');
         dd.style.display = 'block';
-        _cnaeDebounce = setTimeout(() => {
-            fetch('<?= pixelhub_url('/prospecting/search-cnae') ?>?q=' + encodeURIComponent(q))
-            .then(r => r.json())
-            .then(data => {
-                if(!data.length){
-                    dd.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8;">Nenhum CNAE encontrado para "' + q.replace(/</g,'&lt;') + '"</div>';
-                    dd.style.display = 'block';
-                    return;
-                }
-                dd.innerHTML = data.map(c => {
-                    const safeCode = c.code.replace(/'/g,"\\'");
-                    const safeDesc = c.desc.replace(/'/g,"\\'");
-                    return `<div onclick="setCnae('${safeCode}','${safeDesc}')"
-                        style="padding:9px 14px;cursor:pointer;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;"
-                        onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''">
-                        <strong style="color:#023A8D;">${c.code}</strong> &mdash; ${c.desc}
-                    </div>`;
-                }).join('');
-                dd.style.display = 'block';
-            })
-            .catch(() => {
-                dd.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#dc2626;">Erro ao buscar CNAEs. Tente novamente.</div>';
-                dd.style.display = 'block';
-            });
-        }, 350);
     });
 }
 modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});
