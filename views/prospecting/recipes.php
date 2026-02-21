@@ -1,5 +1,16 @@
 <?php
 ob_start();
+
+// Label do filtro atual
+if ($tenantFilter === 0) {
+    $filterLabel = 'Todas as contas';
+} elseif ($tenantFilter === null) {
+    $filterLabel = 'Pixel12 Digital (agência)';
+} else {
+    $found = array_filter($tenants, fn($t) => (int)$t['id'] === $tenantFilter);
+    $t = reset($found);
+    $filterLabel = $t ? ($t['company'] ?: $t['name']) : 'Conta #' . $tenantFilter;
+}
 ?>
 
 <div class="content-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
@@ -16,6 +27,31 @@ ob_start();
         <button onclick="openCreateModal()" style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
             + Nova Receita de Busca
         </button>
+    </div>
+</div>
+
+<!-- Seletor de Conta -->
+<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Visualizando:</span>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="<?= pixelhub_url('/prospecting') ?>"
+           style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;text-decoration:none;<?= $tenantFilter === 0 ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
+            Todas as contas
+        </a>
+        <a href="<?= pixelhub_url('/prospecting?tenant_id=own') ?>"
+           style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;text-decoration:none;<?= $tenantFilter === null ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
+            🏢 Pixel12 Digital (agência)
+        </a>
+        <?php foreach ($tenants as $t):
+            $tid = (int)$t['id'];
+            $tlabel = $t['company'] ?: $t['name'];
+            $isActive = $tenantFilter === $tid;
+        ?>
+        <a href="<?= pixelhub_url('/prospecting?tenant_id=' . $tid) ?>"
+           style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;text-decoration:none;<?= $isActive ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
+            <?= htmlspecialchars($tlabel) ?>
+        </a>
+        <?php endforeach; ?>
     </div>
 </div>
 
@@ -58,6 +94,16 @@ ob_start();
                     <span style="padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;<?= $isActive ? 'background:#dcfce7;color:#15803d;' : 'background:#f1f5f9;color:#64748b;' ?>">
                         <?= $isActive ? 'Ativa' : 'Pausada' ?>
                     </span>
+                    <?php if (!empty($recipe['tenant_id'])): ?>
+                    <a href="<?= pixelhub_url('/prospecting?tenant_id=' . $recipe['tenant_id']) ?>"
+                       style="padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;text-decoration:none;">
+                        📁 <?= htmlspecialchars($recipe['tenant_company'] ?: $recipe['tenant_name'] ?? 'Cliente') ?>
+                    </a>
+                    <?php else: ?>
+                    <span style="padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:#f0fdf4;color:#15803d;">
+                        🏢 Pixel12 Digital
+                    </span>
+                    <?php endif; ?>
                 </div>
                 <div style="font-size:12px;color:#64748b;display:flex;gap:16px;flex-wrap:wrap;">
                     <span>📍 <?= htmlspecialchars($recipe['city']) ?><?= !empty($recipe['state']) ? ' - ' . $recipe['state'] : '' ?></span>
@@ -112,6 +158,16 @@ ob_start();
         <form id="recipeForm" method="POST" action="<?= pixelhub_url('/prospecting/store') ?>" style="padding:24px;">
             <input type="hidden" name="id" id="recipeId">
             <div style="display:grid;gap:14px;">
+                <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 14px;">
+                    <label style="display:block;font-size:12px;font-weight:600;color:#0369a1;margin-bottom:6px;">📁 Conta (cliente da agência)</label>
+                    <select name="tenant_id" id="recipeTenant" style="width:100%;padding:9px 12px;border:1px solid #7dd3fc;border-radius:6px;font-size:13px;box-sizing:border-box;background:#fff;">
+                        <option value="">🏢 Pixel12 Digital (agência própria)</option>
+                        <?php foreach ($tenants as $ten): ?>
+                        <option value="<?= $ten['id'] ?>"><?= htmlspecialchars($ten['company'] ?: $ten['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p style="margin:5px 0 0;font-size:11px;color:#0369a1;">Selecione o cliente para quem você está prospectando. Os leads ficam separados por conta.</p>
+                </div>
                 <div>
                     <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Nome da receita *</label>
                     <input type="text" name="name" id="recipeName" required placeholder="Ex: Imobiliárias em Curitiba" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
@@ -169,6 +225,9 @@ function openCreateModal(){
     ['recipeId','recipeName','recipeCity','recipeState','recipeKeywords','recipeNotes'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('recipeProduct').value='';
     document.getElementById('recipePlaceType').value='';
+    // Pré-seleciona a conta do filtro atual
+    const tf = '<?= $tenantFilter === null ? 'own' : ($tenantFilter > 0 ? $tenantFilter : '') ?>';
+    document.getElementById('recipeTenant').value = (tf === 'own' || tf === '') ? '' : tf;
     modal.style.display='flex';
 }
 function openEditModal(r){
@@ -183,6 +242,7 @@ function openEditModal(r){
     document.getElementById('recipeProduct').value=r.product_id||'';
     document.getElementById('recipePlaceType').value=r.google_place_type||'';
     document.getElementById('recipeNotes').value=r.notes||'';
+    document.getElementById('recipeTenant').value=r.tenant_id||'';
     modal.style.display='flex';
     closeAllDropdowns();
 }

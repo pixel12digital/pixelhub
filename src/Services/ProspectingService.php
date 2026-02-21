@@ -66,20 +66,51 @@ class ProspectingService
     // =========================================================================
 
     /**
-     * Lista todas as receitas
+     * Lista tenants (clientes da agência) para o seletor de conta
      */
-    public static function listRecipes(): array
+    public static function listTenants(): array
     {
         $db = DB::getConnection();
         $stmt = $db->query("
+            SELECT id, name, company
+            FROM tenants
+            WHERE (is_archived IS NULL OR is_archived = 0)
+            ORDER BY name ASC
+        ");
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * Lista receitas, opcionalmente filtradas por tenant
+     * tenant_id = null → agência própria (sem tenant)
+     * tenant_id = 0    → todas as receitas (sem filtro)
+     */
+    public static function listRecipes(?int $tenantId = 0): array
+    {
+        $db = DB::getConnection();
+
+        $where = '';
+        $params = [];
+        if ($tenantId === null) {
+            $where = 'WHERE r.tenant_id IS NULL';
+        } elseif ($tenantId > 0) {
+            $where = 'WHERE r.tenant_id = ?';
+            $params[] = $tenantId;
+        }
+
+        $stmt = $db->prepare("
             SELECT r.*, p.label as product_label,
+                   t.name as tenant_name, t.company as tenant_company,
                    (SELECT COUNT(*) FROM prospecting_results pr WHERE pr.recipe_id = r.id) as results_count,
                    (SELECT COUNT(*) FROM prospecting_results pr WHERE pr.recipe_id = r.id AND pr.status = 'new') as new_count,
                    (SELECT COUNT(*) FROM prospecting_results pr WHERE pr.recipe_id = r.id AND pr.lead_id IS NOT NULL) as converted_count
             FROM prospecting_recipes r
             LEFT JOIN opportunity_products p ON p.id = r.product_id
+            LEFT JOIN tenants t ON t.id = r.tenant_id
+            {$where}
             ORDER BY r.created_at DESC
         ");
+        $stmt->execute($params);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 
@@ -126,12 +157,15 @@ class ProspectingService
             throw new \InvalidArgumentException('Nome e cidade são obrigatórios');
         }
 
+        $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
+
         $stmt = $db->prepare("
             INSERT INTO prospecting_recipes
-                (name, product_id, city, state, keywords, google_place_type, radius_meters, status, notes, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NOW(), NOW())
+                (tenant_id, name, product_id, city, state, keywords, google_place_type, radius_meters, status, notes, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NOW(), NOW())
         ");
         $stmt->execute([
+            $tenantId,
             $name,
             $productId,
             $city,
@@ -156,8 +190,11 @@ class ProspectingService
         $keywords = self::normalizeKeywords($data['keywords'] ?? []);
         $state    = strtoupper(trim($data['state'] ?? ''));
 
+        $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
+
         $stmt = $db->prepare("
             UPDATE prospecting_recipes SET
+                tenant_id = ?,
                 name = ?,
                 product_id = ?,
                 city = ?,
@@ -170,6 +207,7 @@ class ProspectingService
             WHERE id = ?
         ");
         $stmt->execute([
+            $tenantId,
             trim($data['name'] ?? ''),
             !empty($data['product_id']) ? (int) $data['product_id'] : null,
             trim($data['city'] ?? ''),
@@ -256,12 +294,13 @@ class ProspectingService
 
                 $stmt = $db->prepare("
                     INSERT INTO prospecting_results
-                        (recipe_id, google_place_id, name, address, city, state, phone, website,
+                        (recipe_id, tenant_id, google_place_id, name, address, city, state, phone, website,
                          rating, user_ratings_total, lat, lng, google_types, status, found_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', NOW(), NOW())
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', NOW(), NOW())
                 ");
                 $stmt->execute([
                     $recipeId,
+                    $recipe['tenant_id'] ?? null,
                     $place['google_place_id'],
                     $place['name'],
                     $place['address'],

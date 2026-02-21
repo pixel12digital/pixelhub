@@ -101,14 +101,22 @@ class ProspectingController extends Controller
     {
         Auth::requireInternal();
 
-        $recipes  = ProspectingService::listRecipes();
+        // Filtro de conta: null = agência própria, 0 = todas, N = tenant específico
+        $tenantFilter = isset($_GET['tenant_id'])
+            ? ($_GET['tenant_id'] === 'own' ? null : (int) $_GET['tenant_id'])
+            : 0;
+
+        $recipes  = ProspectingService::listRecipes($tenantFilter);
         $hasKey   = ProspectingService::hasApiKey();
         $products = OpportunityProductService::listActive();
+        $tenants  = ProspectingService::listTenants();
 
         $this->view('prospecting.recipes', [
-            'recipes'  => $recipes,
-            'hasKey'   => $hasKey,
-            'products' => $products,
+            'recipes'      => $recipes,
+            'hasKey'       => $hasKey,
+            'products'     => $products,
+            'tenants'      => $tenants,
+            'tenantFilter' => $tenantFilter,
         ]);
     }
 
@@ -127,6 +135,7 @@ class ProspectingController extends Controller
             $keywords    = array_values(array_filter(array_map('trim', explode(',', $keywordsRaw))));
 
             $data = [
+                'tenant_id'         => $_POST['tenant_id'] ?? null,
                 'name'              => $_POST['name'] ?? '',
                 'product_id'        => $_POST['product_id'] ?? null,
                 'city'              => $_POST['city'] ?? '',
@@ -138,7 +147,9 @@ class ProspectingController extends Controller
             ];
 
             $id = ProspectingService::createRecipe($data, $userId);
-            $this->redirect('/prospecting?success=created&message=' . urlencode('Receita criada com sucesso!'));
+            // Redireciona mantendo o filtro de tenant
+            $tenantParam = !empty($_POST['tenant_id']) ? '&tenant_id=' . (int)$_POST['tenant_id'] : '&tenant_id=own';
+            $this->redirect('/prospecting?success=created&message=' . urlencode('Receita criada com sucesso!') . $tenantParam);
         } catch (\Exception $e) {
             error_log('[ProspectingController] Erro ao criar receita: ' . $e->getMessage());
             $this->redirect('/prospecting?error=create_failed&message=' . urlencode($e->getMessage()));
@@ -163,6 +174,7 @@ class ProspectingController extends Controller
             $keywords    = array_values(array_filter(array_map('trim', explode(',', $keywordsRaw))));
 
             $data = [
+                'tenant_id'         => $_POST['tenant_id'] ?? null,
                 'name'              => $_POST['name'] ?? '',
                 'product_id'        => $_POST['product_id'] ?? null,
                 'city'              => $_POST['city'] ?? '',
@@ -174,7 +186,8 @@ class ProspectingController extends Controller
             ];
 
             ProspectingService::updateRecipe($id, $data);
-            $this->redirect('/prospecting?success=updated&message=' . urlencode('Receita atualizada com sucesso!'));
+            $tenantParam = !empty($_POST['tenant_id']) ? '&tenant_id=' . (int)$_POST['tenant_id'] : '&tenant_id=own';
+            $this->redirect('/prospecting?success=updated&message=' . urlencode('Receita atualizada com sucesso!') . $tenantParam);
         } catch (\Exception $e) {
             error_log('[ProspectingController] Erro ao atualizar receita: ' . $e->getMessage());
             $this->redirect('/prospecting?error=update_failed&message=' . urlencode($e->getMessage()));
