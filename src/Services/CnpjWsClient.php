@@ -3,12 +3,11 @@
 namespace PixelHub\Services;
 
 /**
- * Cliente para a API pública CNPJ.ws
+ * Cliente para busca de empresas por CNAE + município
  *
- * Documentação: https://www.cnpj.ws/docs/api-publica/consultar-cnpj
- * Endpoint de busca por CNAE + município: GET https://publica.cnpj.ws/cnpj?municipio={ibge}&cnae={cnae}&situacao=A
- *
- * Rate limit da API pública: ~3 req/s — sleep entre chamadas está implementado.
+ * Busca: Casa dos Dados (POST /v2/public/cnpj/search) — gratuita, sem chave
+ * Consulta individual: CNPJ.ws (GET /cnpj/{cnpj}) — gratuita, sem chave
+ * IBGE: resolução de código de município
  */
 class CnpjWsClient
 {
@@ -21,71 +20,69 @@ class CnpjWsClient
     // =========================================================================
 
     /**
-     * Busca empresas por CNAE e município (código IBGE)
+     * Busca empresas por CNAE + cidade via Casa dos Dados (POST)
      *
-     * @param string $cnaeCode   Código CNAE sem formatação (ex: "6822600" ou "6822-6/00")
-     * @param string $ibgeCode   Código IBGE do município (7 dígitos, ex: "4106902" para Curitiba)
-     * @param string $situacao   Situação cadastral: A=Ativa, B=Baixada, I=Inapta, S=Suspensa, N=Nula
-     * @param int    $maxResults Máximo de resultados a retornar
+     * @param string $cnaeCode   Código CNAE (ex: "4755-5/01" ou "4755501")
+     * @param string $cityName   Nome da cidade (ex: "Curitiba")
+     * @param string $uf         UF (ex: "PR")
+     * @param string $situacao   Ignorado (Casa dos Dados filtra apenas ativas por padrão)
+     * @param int    $maxResults Máximo de resultados
      * @return array Lista de empresas normalizadas
      */
-    public function searchByCnae(string $cnaeCode, string $ibgeCode, string $situacao = 'A', int $maxResults = 20): array
+    public function searchByCnaeAndCity(string $cnaeCode, string $cityName, string $uf, string $situacao = 'A', int $maxResults = 20): array
     {
         $cnaeClean = preg_replace('/\D/', '', $cnaeCode);
-        $ibgeClean = preg_replace('/\D/', '', $ibgeCode);
-
-        if (empty($cnaeClean) || empty($ibgeClean)) {
-            throw new \InvalidArgumentException('CNAE e código IBGE são obrigatórios');
+        if (empty($cnaeClean)) {
+            throw new \InvalidArgumentException('Código CNAE inválido');
         }
 
-        $url = self::BASE_URL . '/cnpj?' . http_build_query([
-            'municipio' => $ibgeClean,
-            'cnae'      => $cnaeClean,
-            'situacao'  => $situacao,
-        ]);
+        // Casa dos Dados: POST /v2/public/cnpj/search
+        $payload = [
+            'query' => [
+                'termo'              => [],
+                'cnae_fiscal'        => [$cnaeClean],
+                'municipio'          => [mb_strtoupper(trim($cityName))],
+                'uf'                 => [strtoupper(trim($uf))],
+                'situacao_cadastral' => ['ATIVA'],
+            ],
+            'extras' => [
+                'somente_mei'                        => false,
+                'excluir_mei'                        => false,
+                'com_email'                          => false,
+                'incluir_ativo_baixado'              => false,
+                'ip_migracao_regime_tributario'      => false,
+                'opcao_simples'                      => false,
+                'opcao_mei'                          => false,
+            ],
+            'range_query' => [
+                'data_abertura'  => ['lte' => null, 'gte' => null],
+                'capital_social' => ['lte' => null, 'gte' => null],
+            ],
+            'page' => 1,
+        ];
 
-        $raw = $this->get($url);
+        $raw = $this->post('https://api.casadosdados.com.br/v2/public/cnpj/search', $payload);
 
-        if (!is_array($raw)) {
+        if (empty($raw['data']['cnpj'])) {
             return [];
         }
 
         $results = [];
-        $count   = 0;
-
-        foreach ($raw as $item) {
-            if ($count >= $maxResults) {
-                break;
-            }
-            $normalized = $this->normalizeCompany($item);
-            if ($normalized) {
-                $results[] = $normalized;
-                $count++;
-            }
+        foreach ($raw['data']['cnpj'] as $item) {
+            if (count($results) >= $maxResults) break;
+            $normalized = $this->normalizeCasaDados($item);
+            if ($normalized) $results[] = $normalized;
         }
 
         return $results;
     }
 
     /**
-     * Busca empresas por CNAE + UF + nome de cidade (resolve IBGE internamente)
-     *
-     * @param string $cnaeCode  Código CNAE
-     * @param string $cityName  Nome da cidade (ex: "Curitiba")
-     * @param string $uf        UF (ex: "PR")
-     * @param string $situacao  Situação cadastral
-     * @param int    $maxResults
-     * @return array
+     * @deprecated Use searchByCnaeAndCity diretamente
      */
-    public function searchByCnaeAndCity(string $cnaeCode, string $cityName, string $uf, string $situacao = 'A', int $maxResults = 20): array
+    public function searchByCnae(string $cnaeCode, string $ibgeCode, string $situacao = 'A', int $maxResults = 20): array
     {
-        $ibgeCode = $this->resolveIbgeCode($cityName, $uf);
-
-        if (!$ibgeCode) {
-            throw new \RuntimeException("Município não encontrado: {$cityName}/{$uf}. Verifique o nome da cidade.");
-        }
-
-        return $this->searchByCnae($cnaeCode, $ibgeCode, $situacao, $maxResults);
+        return [];
     }
 
     // =========================================================================
@@ -316,9 +313,102 @@ class CnpjWsClient
         ];
     }
 
+    /**
+     * Normaliza empresa retornada pela Casa dos Dados para o formato padrão
+     */
+    private function normalizeCasaDados(array $item): ?array
+    {
+        $cnpj = preg_replace('/\D/', '', $item['cnpj'] ?? '');
+        if (empty($cnpj) || strlen($cnpj) !== 14) {
+            return null;
+        }
+
+        $razao    = trim($item['razao_social'] ?? '');
+        $fantasia = trim($item['nome_fantasia'] ?? '');
+        $name     = $fantasia ?: $razao;
+        if (empty($name)) return null;
+
+        $logradouro = trim($item['logradouro'] ?? '');
+        $numero     = trim($item['numero'] ?? '');
+        $bairro     = trim($item['bairro'] ?? '');
+        $municipio  = trim($item['municipio'] ?? '');
+        $uf         = strtoupper(trim($item['uf'] ?? ''));
+        $cep        = preg_replace('/\D/', '', $item['cep'] ?? '');
+
+        $parts   = array_filter([$logradouro . ($numero ? ', ' . $numero : ''), $bairro, $municipio . ($uf ? '/' . $uf : ''), $cep ? 'CEP ' . $cep : '']);
+        $address = implode(' — ', $parts);
+
+        $ddd      = preg_replace('/\D/', '', $item['ddd_telefone_1'] ?? '');
+        $tel      = preg_replace('/\D/', '', $item['telefone_1'] ?? '');
+        $phone    = null;
+        if ($ddd && $tel) {
+            $phone = '+55' . $ddd . $tel;
+        } elseif (strlen($ddd) >= 10) {
+            $phone = '+55' . $ddd;
+        }
+
+        return [
+            'cnpj'             => $cnpj,
+            'name'             => $name,
+            'razao_social'     => $razao,
+            'address'          => $address ?: null,
+            'city'             => $municipio ?: null,
+            'state'            => $uf ?: null,
+            'phone'            => $phone,
+            'email'            => trim($item['email'] ?? '') ?: null,
+            'website'          => null,
+            'cnae_code'        => isset($item['cnae_fiscal']) ? (string) $item['cnae_fiscal'] : null,
+            'cnae_description' => $item['cnae_fiscal_descricao'] ?? null,
+            'situacao'         => 'ATIVA',
+            'source'           => 'cnpjws',
+        ];
+    }
+
     // =========================================================================
     // HTTP
     // =========================================================================
+
+    /**
+     * Executa POST JSON com cURL e retorna array decodificado
+     */
+    private function post(string $url, array $payload): array
+    {
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        $ch   = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => self::TIMEOUT,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $json,
+            CURLOPT_HTTPHEADER     => [
+                'Accept: application/json',
+                'Content-Type: application/json',
+                'User-Agent: Mozilla/5.0 (compatible; PixelHub/1.0)',
+            ],
+        ]);
+
+        $body = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+
+        if ($err) {
+            throw new \RuntimeException('Erro cURL: ' . $err);
+        }
+        if ($code === 429) {
+            throw new \RuntimeException('Rate limit atingido. Aguarde alguns segundos e tente novamente.');
+        }
+        if ($code !== 200) {
+            throw new \RuntimeException("API Casa dos Dados retornou HTTP {$code}");
+        }
+
+        $decoded = json_decode($body, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new \RuntimeException('Resposta inválida da API: ' . json_last_error_msg());
+        }
+
+        return $decoded;
+    }
 
     /**
      * Executa GET com cURL e retorna array decodificado
