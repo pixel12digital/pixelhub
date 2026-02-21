@@ -66,16 +66,17 @@ class ProspectingService
     // =========================================================================
 
     /**
-     * Lista tenants (clientes da agência) para o seletor de conta
+     * Lista apenas tenants que têm pelo menos 1 receita de prospecção criada
      */
     public static function listTenants(): array
     {
         $db = DB::getConnection();
         $stmt = $db->query("
-            SELECT id, name, company
-            FROM tenants
-            WHERE (is_archived IS NULL OR is_archived = 0)
-            ORDER BY name ASC
+            SELECT DISTINCT t.id, t.name, t.company
+            FROM tenants t
+            INNER JOIN prospecting_recipes r ON r.tenant_id = t.id
+            WHERE (t.is_archived IS NULL OR t.is_archived = 0)
+            ORDER BY t.name ASC
         ");
         return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
