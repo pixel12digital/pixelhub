@@ -176,21 +176,8 @@ if (($sourceFilter ?? null) === 'cnpjws') {
         </div>
         <form id="recipeForm" method="POST" action="<?= pixelhub_url('/prospecting/store') ?>" style="padding:24px;">
             <input type="hidden" name="id" id="recipeId">
+            <input type="hidden" name="source" id="recipeSource" value="<?= ($sourceFilter ?? null) === 'cnpjws' ? 'cnpjws' : 'google_maps' ?>">
             <div style="display:grid;gap:14px;">
-                <!-- FONTE DA PROSPECÇÃO -->
-                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;">
-                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:8px;">Fonte da prospecção *</label>
-                    <div style="display:flex;gap:10px;">
-                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 14px;border:2px solid #bae6fd;border-radius:6px;flex:1;background:#eff6ff;" id="srcLabelGoogleMaps">
-                            <input type="radio" name="source" value="google_maps" id="srcGoogleMaps" onchange="onSourceChange()" checked style="accent-color:#023A8D;">
-                            <span style="font-size:13px;font-weight:600;color:#1d4ed8;">🗺 Google Maps</span>
-                        </label>
-                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 14px;border:2px solid #e2e8f0;border-radius:6px;flex:1;background:#fff;" id="srcLabelCnpjws">
-                            <input type="radio" name="source" value="cnpjws" id="srcCnpjws" onchange="onSourceChange()" style="accent-color:#92400e;">
-                            <span style="font-size:13px;font-weight:600;color:#92400e;">🏭 CNAE (CNPJ.ws)</span>
-                        </label>
-                    </div>
-                </div>
                 <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 14px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#0369a1;margin-bottom:6px;">📁 Conta (cliente da agência)</label>
                     <input type="hidden" name="tenant_id" id="recipeTenantId">
@@ -217,44 +204,38 @@ if (($sourceFilter ?? null) === 'cnpjws') {
                     </div>
                 </div>
 
-                <!-- CAMPOS GOOGLE MAPS -->
-                <div id="fieldsGoogleMaps">
-                    <div style="display:grid;gap:14px;">
-                        <div>
-                            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Palavras-chave <span style="font-weight:400;color:#9ca3af;">(separadas por vírgula)</span></label>
-                            <input type="text" name="keywords_raw" id="recipeKeywords" placeholder="imobiliária, corretor, apartamento" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
-                        </div>
-                        <div>
-                            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Tipo de lugar (Google Places)</label>
-                            <select name="google_place_type" id="recipePlaceType" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
-                                <?php foreach (\PixelHub\Services\ProspectingService::getCommonPlaceTypes() as $tk => $tl): ?>
-                                <option value="<?= htmlspecialchars($tk) ?>"><?= htmlspecialchars($tl) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
+                <?php if (($sourceFilter ?? null) === 'cnpjws'): ?>
                 <!-- CAMPOS CNAE (CNPJ.ws) -->
-                <div id="fieldsCnpjws" style="display:none;">
-                    <div style="display:grid;gap:14px;">
-                        <div>
-                            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">CNAE *</label>
-                            <div style="position:relative;">
-                                <input type="text" id="recipeCnaeSearch" autocomplete="off"
-                                       placeholder="Digite o código ou descrição (ex: 6822, imobiliária...)"
-                                       style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
-                                <div id="cnaeDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300;max-height:220px;overflow-y:auto;"></div>
-                            </div>
-                            <input type="hidden" name="cnae_code" id="recipeCnaeCode">
-                            <input type="hidden" name="cnae_description" id="recipeCnaeDescription">
-                            <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Selecione o CNAE da atividade econômica alvo.</p>
-                        </div>
-                        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px 12px;font-size:12px;color:#78350f;">
-                            ℹ️ API pública do CNPJ.ws (gratuita, sem chave). Resultados baseados nos dados da Receita Federal.
-                        </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">CNAE *</label>
+                    <div style="position:relative;">
+                        <input type="text" id="recipeCnaeSearch" autocomplete="off"
+                               placeholder="Digite o código ou descrição (ex: 6822, imobiliária...)"
+                               style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                        <div id="cnaeDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300;max-height:220px;overflow-y:auto;"></div>
                     </div>
+                    <input type="hidden" name="cnae_code" id="recipeCnaeCode">
+                    <input type="hidden" name="cnae_description" id="recipeCnaeDescription">
+                    <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Selecione o CNAE da atividade econômica alvo.</p>
                 </div>
+                <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px 12px;font-size:12px;color:#78350f;">
+                    API pública do CNPJ.ws (gratuita, sem chave). Resultados baseados nos dados da Receita Federal.
+                </div>
+                <?php else: ?>
+                <!-- CAMPOS GOOGLE MAPS -->
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Palavras-chave <span style="font-weight:400;color:#9ca3af;">(separadas por vírgula)</span></label>
+                    <input type="text" name="keywords_raw" id="recipeKeywords" placeholder="imobiliária, corretor, apartamento" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Tipo de lugar (Google Places)</label>
+                    <select name="google_place_type" id="recipePlaceType" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                        <?php foreach (\PixelHub\Services\ProspectingService::getCommonPlaceTypes() as $tk => $tl): ?>
+                        <option value="<?= htmlspecialchars($tk) ?>"><?= htmlspecialchars($tl) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php endif; ?>
 
                 <div>
                     <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">
@@ -282,28 +263,15 @@ if (($sourceFilter ?? null) === 'cnpjws') {
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 <script>
 const modal = document.getElementById('recipeModal');
-function onSourceChange(){
-    const src = document.querySelector('input[name="source"]:checked')?.value || 'google_maps';
-    const isGm = src === 'google_maps';
-    document.getElementById('fieldsGoogleMaps').style.display = isGm ? '' : 'none';
-    document.getElementById('fieldsCnpjws').style.display    = isGm ? 'none' : '';
-    document.getElementById('srcLabelGoogleMaps').style.borderColor = isGm ? '#bae6fd' : '#e2e8f0';
-    document.getElementById('srcLabelGoogleMaps').style.background  = isGm ? '#eff6ff' : '#fff';
-    document.getElementById('srcLabelCnpjws').style.borderColor = isGm ? '#e2e8f0' : '#fde68a';
-    document.getElementById('srcLabelCnpjws').style.background  = isGm ? '#fff' : '#fffbeb';
-}
 function openCreateModal(){
     document.getElementById('modalTitle').textContent='Nova Receita de Busca';
     document.getElementById('recipeForm').action='<?= pixelhub_url('/prospecting/store') ?>';
     ['recipeId','recipeName','recipeCity','recipeState','recipeKeywords','recipeNotes'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('recipeProduct').value='';
-    document.getElementById('recipePlaceType').value='';
-    const defaultSrc = '<?= ($sourceFilter ?? null) === 'cnpjws' ? 'cnpjws' : 'google_maps' ?>';
-    document.getElementById(defaultSrc==='cnpjws'?'srcCnpjws':'srcGoogleMaps').checked=true;
-    document.getElementById('recipeCnaeSearch').value='';
-    document.getElementById('recipeCnaeCode').value='';
-    document.getElementById('recipeCnaeDescription').value='';
-    onSourceChange();
+    if(document.getElementById('recipePlaceType')) document.getElementById('recipePlaceType').value='';
+    if(document.getElementById('recipeCnaeSearch')) document.getElementById('recipeCnaeSearch').value='';
+    if(document.getElementById('recipeCnaeCode')) document.getElementById('recipeCnaeCode').value='';
+    if(document.getElementById('recipeCnaeDescription')) document.getElementById('recipeCnaeDescription').value='';
     setTenant('', '');
     loadProducts('own');
     modal.style.display='flex';
@@ -318,15 +286,11 @@ function openEditModal(r){
     const kw=Array.isArray(r.keywords)?r.keywords:(typeof r.keywords==='string'?JSON.parse(r.keywords||'[]'):[]);
     document.getElementById('recipeKeywords').value=kw.join(', ');
     document.getElementById('recipeProduct').value=r.product_id||'';
-    document.getElementById('recipePlaceType').value=r.google_place_type||'';
     document.getElementById('recipeNotes').value=r.notes||'';
-    const src = r.source||'google_maps';
-    document.getElementById(src==='cnpjws'?'srcCnpjws':'srcGoogleMaps').checked=true;
-    document.getElementById('recipeCnaeCode').value=r.cnae_code||'';
-    document.getElementById('recipeCnaeDescription').value=r.cnae_description||'';
-    document.getElementById('recipeCnaeSearch').value=r.cnae_code?(r.cnae_code+(r.cnae_description?' — '+r.cnae_description:'')):
-'';
-    onSourceChange();
+    if(document.getElementById('recipePlaceType')) document.getElementById('recipePlaceType').value=r.google_place_type||'';
+    if(document.getElementById('recipeCnaeCode')) document.getElementById('recipeCnaeCode').value=r.cnae_code||'';
+    if(document.getElementById('recipeCnaeDescription')) document.getElementById('recipeCnaeDescription').value=r.cnae_description||'';
+    if(document.getElementById('recipeCnaeSearch')) document.getElementById('recipeCnaeSearch').value=r.cnae_code?(r.cnae_code+(r.cnae_description?' — '+r.cnae_description:'')):'';
     const tid = r.tenant_id || 'own';
     setTenant(r.tenant_id||'', r.tenant_company||r.tenant_name||'');
     loadProducts(tid, r.product_id);
