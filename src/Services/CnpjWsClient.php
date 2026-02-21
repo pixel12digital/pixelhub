@@ -135,12 +135,14 @@ class CnpjWsClient
     }
 
     /**
-     * Busca CNAEs por código ou descrição na API pública CNPJ.ws
+     * Busca CNAEs por código ou palavra-chave livre (ex: "loja", "cama mesa banho", "imobiliária")
      *
-     * Endpoint: GET https://publica.cnpj.ws/cnae?descricao={termo}
-     *           GET https://publica.cnpj.ws/cnae/{codigo}
+     * Usa a API do IBGE/CONCLA que indexa as atividades de cada subclasse,
+     * permitindo busca por termos informais que não aparecem na descrição principal.
      *
-     * @param string $query Código (ex: "6822") ou descrição (ex: "imobiliária")
+     * Endpoint: GET https://servicodados.ibge.gov.br/api/v2/cnae/subclasses?busca={termo}
+     *
+     * @param string $query Código (ex: "4755") ou palavra-chave livre (ex: "cama mesa banho")
      * @param int    $limit Máximo de resultados
      * @return array Lista de ['code' => '...', 'desc' => '...']
      */
@@ -151,15 +153,25 @@ class CnpjWsClient
             return [];
         }
 
-        // Se parece ser código numérico, busca por código
-        $isCode = preg_match('/^\d/', $query);
-
-        if ($isCode) {
+        // Se for código numérico, busca direta pelo código
+        if (preg_match('/^\d{4,}/', $query)) {
             $code = preg_replace('/\D/', '', $query);
-            $url  = self::BASE_URL . '/cnae/' . urlencode($code);
-        } else {
-            $url = self::BASE_URL . '/cnae?' . http_build_query(['descricao' => $query]);
+            $url  = 'https://servicodados.ibge.gov.br/api/v2/cnae/subclasses/' . urlencode($code);
+            try {
+                $item = $this->get($url);
+                if (!empty($item['id'])) {
+                    return [[
+                        'code' => $this->formatCnaeCode((string) $item['id']),
+                        'desc' => $item['descricao'] ?? '',
+                    ]];
+                }
+            } catch (\Exception $e) {
+                // fallthrough para busca por texto
+            }
         }
+
+        // Busca por palavra-chave — indexa descrição + atividades de cada subclasse
+        $url = 'https://servicodados.ibge.gov.br/api/v2/cnae/subclasses?' . http_build_query(['busca' => $query]);
 
         try {
             $data = $this->get($url);
@@ -171,18 +183,13 @@ class CnpjWsClient
             return [];
         }
 
-        // Resposta de /cnae/{codigo} retorna objeto único, normaliza para array
-        if (isset($data['codigo'])) {
-            $data = [$data];
-        }
-
         $results = [];
         foreach ($data as $item) {
-            if (empty($item['codigo'])) {
+            if (empty($item['id'])) {
                 continue;
             }
             $results[] = [
-                'code' => (string) $item['codigo'],
+                'code' => $this->formatCnaeCode((string) $item['id']),
                 'desc' => $item['descricao'] ?? '',
             ];
             if (count($results) >= $limit) {
@@ -191,6 +198,18 @@ class CnpjWsClient
         }
 
         return $results;
+    }
+
+    /**
+     * Formata código CNAE de 7 dígitos para o padrão XXXX-X/XX (ex: 4755501 → 4755-5/01)
+     */
+    private function formatCnaeCode(string $code): string
+    {
+        $d = preg_replace('/\D/', '', $code);
+        if (strlen($d) === 7) {
+            return substr($d, 0, 4) . '-' . $d[4] . '/' . substr($d, 5, 2);
+        }
+        return $code;
     }
 
     /**
