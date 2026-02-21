@@ -139,9 +139,10 @@ class ProspectingController extends Controller
             ? ($_GET['tenant_id'] === 'own' ? null : (int) $_GET['tenant_id'])
             : 0;
 
-        $sourceFilter = isset($_GET['source']) && in_array($_GET['source'], ['google_maps', 'cnpjws'])
+        // Sem ?source= → default google_maps (cada fonte tem sua própria listagem)
+        $sourceFilter = (isset($_GET['source']) && in_array($_GET['source'], ['google_maps', 'cnpjws']))
             ? $_GET['source']
-            : null;
+            : 'google_maps';
 
         $recipes  = ProspectingService::listRecipes($tenantFilter, $sourceFilter);
         $hasKey   = ProspectingService::hasApiKey();

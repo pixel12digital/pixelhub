@@ -309,8 +309,9 @@ function openEditModal(r){
 }
 function closeModal(){
     modal.style.display='none';
-    document.getElementById('tenantDropdown').style.display='none';
-    document.getElementById('cnaeDropdown').style.display='none';
+    const _td=document.getElementById('tenantDropdown'); if(_td) _td.style.display='none';
+    const _cd=document.getElementById('cnaeDropdown');  if(_cd) _cd.style.display='none';
+    const _cyd=document.getElementById('cityDropdown'); if(_cyd) _cyd.style.display='none';
 }
 
 function setTenant(id, label) {
