@@ -89,7 +89,7 @@ ob_start();
                     $st = $result['status'];
                     $stStyle = $statusLabels[$st] ?? $statusLabels['new'];
                 ?>
-                <tr style="border-bottom:1px solid #f1f5f9;" id="row-<?= $result['id'] ?>">
+                <tr style="border-bottom:1px solid #f1f5f9;<?= $st === 'discarded' ? 'opacity:.4;background:#f8fafc;filter:grayscale(.5);' : '' ?>" id="row-<?= $result['id'] ?>">
                     <td style="padding:14px 16px;">
                         <div style="font-weight:600;color:#1e293b;margin-bottom:3px;"><?= htmlspecialchars($result['name']) ?></div>
                         <?php if (!empty($result['address'])): ?>
