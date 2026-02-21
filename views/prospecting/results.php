@@ -251,6 +251,44 @@ function runSearch(recipeId, btn) {
 </script>
 
 <?php
+// Paginação
+$totalPages = $limit > 0 ? (int) ceil($total / $limit) : 1;
+if ($totalPages > 1):
+    $baseUrl = pixelhub_url('/prospecting/results?recipe_id=' . $recipe['id']
+        . (!empty($filters['status']) ? '&status=' . urlencode($filters['status']) : '')
+        . (!empty($filters['search']) ? '&search=' . urlencode($filters['search']) : ''));
+?>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;flex-wrap:wrap;gap:12px;">
+    <span style="font-size:13px;color:#64748b;">
+        Exibindo <?= ($page * $limit) + 1 ?>–<?= min(($page + 1) * $limit, $total) ?> de <strong><?= $total ?></strong> empresas
+    </span>
+    <div style="display:flex;gap:6px;align-items:center;">
+        <?php if ($page > 0): ?>
+        <a href="<?= $baseUrl ?>&page=<?= $page - 1 ?>"
+           style="padding:6px 14px;background:#fff;border:1px solid #d1d5db;border-radius:6px;font-size:13px;color:#374151;text-decoration:none;font-weight:500;">← Anterior</a>
+        <?php endif; ?>
+
+        <?php
+        $start = max(0, $page - 2);
+        $end   = min($totalPages - 1, $page + 2);
+        for ($i = $start; $i <= $end; $i++):
+        ?>
+        <a href="<?= $baseUrl ?>&page=<?= $i ?>"
+           style="padding:6px 12px;border-radius:6px;font-size:13px;text-decoration:none;font-weight:600;
+                  <?= $i === $page ? 'background:#023A8D;color:#fff;border:1px solid #023A8D;' : 'background:#fff;color:#374151;border:1px solid #d1d5db;' ?>">
+            <?= $i + 1 ?>
+        </a>
+        <?php endfor; ?>
+
+        <?php if ($page < $totalPages - 1): ?>
+        <a href="<?= $baseUrl ?>&page=<?= $page + 1 ?>"
+           style="padding:6px 14px;background:#fff;border:1px solid #d1d5db;border-radius:6px;font-size:13px;color:#374151;text-decoration:none;font-weight:500;">Próxima →</a>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php
 $content = ob_get_clean();
 include __DIR__ . '/../layout/main.php';
 ?>
