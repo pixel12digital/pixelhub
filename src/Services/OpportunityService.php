@@ -164,6 +164,16 @@ class OpportunityService
         $where = ['1=1'];
         $params = [];
 
+        // Filtro por conta (tenant)
+        if (array_key_exists('tenant_id', $filters)) {
+            if ($filters['tenant_id'] === null || $filters['tenant_id'] === '') {
+                $where[] = 'o.tenant_id IS NULL';
+            } else {
+                $where[] = 'o.tenant_id = ?';
+                $params[] = (int) $filters['tenant_id'];
+            }
+        }
+
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $where[] = 'o.status = ?';
             $params[] = $filters['status'];
@@ -563,14 +573,30 @@ class OpportunityService
     /**
      * Conta oportunidades por status
      */
-    public static function countByStatus(): array
+    public static function countByStatus(array $filters = []): array
     {
         $db = DB::getConnection();
-        $stmt = $db->query("
+
+        $where  = ['1=1'];
+        $params = [];
+
+        if (array_key_exists('tenant_id', $filters)) {
+            if ($filters['tenant_id'] === null || $filters['tenant_id'] === '') {
+                $where[] = 'tenant_id IS NULL';
+            } else {
+                $where[] = 'tenant_id = ?';
+                $params[] = (int) $filters['tenant_id'];
+            }
+        }
+
+        $whereClause = implode(' AND ', $where);
+        $stmt = $db->prepare("
             SELECT status, COUNT(*) as total, COALESCE(SUM(estimated_value), 0) as total_value
             FROM opportunities
+            WHERE {$whereClause}
             GROUP BY status
         ");
+        $stmt->execute($params);
         $rows = $stmt->fetchAll() ?: [];
         $result = ['active' => 0, 'won' => 0, 'lost' => 0, 'active_value' => 0, 'won_value' => 0];
         foreach ($rows as $row) {

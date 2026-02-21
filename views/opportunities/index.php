@@ -18,6 +18,28 @@ $stageColors = [
     </p>
 </div>
 
+<!-- Seletor de conta -->
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+    <span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">VISUALIZANDO:</span>
+    <a href="<?= pixelhub_url('/opportunities') ?>"
+       style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;
+              <?= $selectedTenant === null ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
+        Todas as contas
+    </a>
+    <a href="<?= pixelhub_url('/opportunities?tenant_id=') ?>"
+       style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;
+              <?= $selectedTenant === '' ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
+        🏢 Pixel12 Digital (agência)
+    </a>
+    <?php foreach ($tenants as $t): ?>
+    <a href="<?= pixelhub_url('/opportunities?tenant_id=' . $t['id']) ?>"
+       style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;
+              <?= (string)$selectedTenant === (string)$t['id'] ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
+        <?= htmlspecialchars($t['label']) ?>
+    </a>
+    <?php endforeach; ?>
+</div>
+
 <?php if (isset($_GET['success'])): ?>
     <div class="card" style="background: #d4edda; border-left: 4px solid #28a745; margin-bottom: 20px;">
         <p style="color: #155724; margin: 0;">
@@ -950,6 +972,7 @@ function applyFilters() {
     const responsible = document.getElementById('responsibleFilter').value;
     const source = document.getElementById('sourceFilter').value;
     const status = document.getElementById('statusFilter').value;
+    const tenantId = '<?= htmlspecialchars($selectedTenant ?? '') ?>';
     let url = '<?= pixelhub_url('/opportunities') ?>?';
     if (search) url += 'search=' + encodeURIComponent(search) + '&';
     if (stage) url += 'stage=' + stage + '&';
@@ -957,6 +980,8 @@ function applyFilters() {
     if (responsible) url += 'responsible=' + responsible + '&';
     if (source) url += 'source=' + encodeURIComponent(source) + '&';
     if (status) url += 'status=' + status + '&';
+    if (tenantId !== 'null' && tenantId !== '') url += 'tenant_id=' + encodeURIComponent(tenantId) + '&';
+    else if (tenantId === '') url += 'tenant_id=&';
     window.location.href = url;
 }
 

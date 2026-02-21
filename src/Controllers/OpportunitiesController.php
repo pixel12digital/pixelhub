@@ -25,20 +25,40 @@ class OpportunitiesController extends Controller
     {
         Auth::requireInternal();
 
+        // Filtro de conta (tenant): null = agência, int = cliente específico
+        $tenantFilter = null; // padrão: agência (NULL)
+        if (isset($_GET['tenant_id']) && $_GET['tenant_id'] !== '') {
+            $tenantFilter = (int) $_GET['tenant_id'];
+        }
+        $tenantFilterRaw = isset($_GET['tenant_id']) ? $_GET['tenant_id'] : null;
+
         $filters = [
             'status' => $_GET['status'] ?? null,
             'stage' => $_GET['stage'] ?? null,
             'responsible_user_id' => !empty($_GET['responsible']) ? (int) $_GET['responsible'] : null,
             'search' => $_GET['search'] ?? null,
-            'origin' => $_GET['origin'] ?? null, // Campo canônico de origem
+            'origin' => $_GET['origin'] ?? null,
         ];
 
+        // Aplica filtro de tenant apenas se o parâmetro foi passado
+        if (isset($_GET['tenant_id'])) {
+            $filters['tenant_id'] = $tenantFilter;
+        }
+
         $opportunities = OpportunityService::list($filters);
-        $counts = OpportunityService::countByStatus();
+        $counts = OpportunityService::countByStatus(isset($_GET['tenant_id']) ? ['tenant_id' => $tenantFilter] : []);
 
         // Busca usuários para filtro de responsável
         $db = \PixelHub\Core\DB::getConnection();
         $users = $db->query("SELECT id, name FROM users WHERE is_internal = 1 ORDER BY name ASC")->fetchAll() ?: [];
+
+        // Busca tenants (clientes da agência) para o seletor de conta
+        $tenants = $db->query("
+            SELECT id, COALESCE(NULLIF(company,''), name) as label
+            FROM tenants
+            WHERE status = 'active'
+            ORDER BY label ASC
+        ")->fetchAll() ?: [];
 
         // Busca produtos para filtro
         $products = OpportunityProductService::listActive();
@@ -52,13 +72,15 @@ class OpportunitiesController extends Controller
         }
 
         $this->view('opportunities.index', [
-            'opportunities' => $opportunities,
-            'counts' => $counts,
-            'filters' => $filters,
-            'users' => $users,
-            'products' => $products,
-            'origins' => $origins, // Lista simplificada de origens/canais
-            'stages' => OpportunityService::STAGES,
+            'opportunities'   => $opportunities,
+            'counts'          => $counts,
+            'filters'         => $filters,
+            'users'           => $users,
+            'products'        => $products,
+            'origins'         => $origins,
+            'stages'          => OpportunityService::STAGES,
+            'tenants'         => $tenants,
+            'selectedTenant'  => $tenantFilterRaw,
         ]);
     }
 
