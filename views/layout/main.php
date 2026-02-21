@@ -1687,10 +1687,10 @@
                         </div>
                         <div class="sidebar-subgroup-content <?= $prospExpanded ? 'is-open' : '' ?>">
                             <a href="<?= pixelhub_url('/prospecting') ?>" class="sub-item <?= ($prospActive && strpos($currentUri, 'source=cnpjws') === false) ? 'active' : '' ?>">
-                                <span class="sidebar-text">🗺 Google Maps</span>
+                                <span class="sidebar-text">Google Maps</span>
                             </a>
                             <a href="<?= pixelhub_url('/prospecting?source=cnpjws') ?>" class="sub-item <?= (strpos($currentUri, 'source=cnpjws') !== false) ? 'active' : '' ?>">
-                                <span class="sidebar-text">🏭 CNAE (CNPJ.ws)</span>
+                                <span class="sidebar-text">CNAE (CNPJ.ws)</span>
                             </a>
                         </div>
                     </div>
