@@ -311,7 +311,7 @@ document.addEventListener('click', function(e) {
                        style="padding:5px 12px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:5px;font-size:11px;font-weight:600;text-decoration:none;margin-right:4px;">
                         Ver Lead
                     </a>
-                    <button onclick="openCreateModalForLead(<?= $pl['lead_id'] ?>, <?= htmlspecialchars(json_encode($pl['lead_name'] ?? $pl['name'])) ?>)"
+                    <button onclick="openCreateModalForLead(<?= $pl['lead_id'] ?>, <?= htmlspecialchars(json_encode($pl['lead_name'] ?? $pl['name'])) ?>, <?= (int)($tenantFilter ?? 0) ?>)"
                             style="padding:5px 12px;background:#023A8D;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;">
                         + Oportunidade
                     </button>
@@ -591,6 +591,7 @@ const LEADS_SEARCH_URL = '<?= pixelhub_url('/leads/search-ajax') ?>';
 const TENANTS_SEARCH_URL = '<?= pixelhub_url('/tenants/search-opp') ?>';
 const LEADS_STORE_URL = '<?= pixelhub_url('/leads/store-ajax') ?>';
 const PRODUCT_CREATE_URL = '<?= pixelhub_url('/opportunities/create-product') ?>';
+const TENANT_PRODUCTS_URL = '<?= pixelhub_url('/settings/tenant-products/by-tenant') ?>';
 let leadSearchTimeout = null;
 let tenantSearchTimeout = null;
 
@@ -1087,7 +1088,7 @@ function openCreateModal() {
     resetModal();
 }
 
-function openCreateModalForLead(leadId, leadName) {
+function openCreateModalForLead(leadId, leadName, tenantId) {
     openCreateModal();
     // Pre-seleciona o lead no modal
     setTimeout(function() {
@@ -1096,7 +1097,30 @@ function openCreateModalForLead(leadId, leadName) {
         document.getElementById('lead-selected-name').textContent = leadName;
         document.getElementById('lead-selected-badge').style.display = 'block';
         document.getElementById('contact-validation-msg').style.display = 'none';
+        // Carrega produtos do tenant pai se disponível
+        if (tenantId) {
+            loadTenantProducts(tenantId);
+        }
     }, 50);
+}
+
+function loadTenantProducts(tenantId) {
+    const sel = document.getElementById('product-select');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Carregando...</option>';
+    fetch(TENANT_PRODUCTS_URL + '?tenant_id=' + tenantId)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.length) {
+                sel.innerHTML = '<option value="">Nenhum produto cadastrado para esta conta</option>';
+                return;
+            }
+            sel.innerHTML = '<option value="">Nenhum</option>' +
+                data.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+        })
+        .catch(() => {
+            sel.innerHTML = '<option value="">Nenhum</option>';
+        });
 }
 
 function closeCreateModal() {
@@ -1404,10 +1428,11 @@ function escHtml(str) {
 document.addEventListener('DOMContentLoaded', function() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('new') === '1' && params.get('lead_id')) {
-        const leadId = parseInt(params.get('lead_id'), 10);
+        const leadId   = parseInt(params.get('lead_id'), 10);
         if (!leadId) return;
-        const name = params.get('lead_name') ? decodeURIComponent(params.get('lead_name')) : 'Lead #' + leadId;
-        openCreateModalForLead(leadId, name);
+        const name     = params.get('lead_name') ? decodeURIComponent(params.get('lead_name')) : 'Lead #' + leadId;
+        const tenantId = params.get('tenant_id') ? parseInt(params.get('tenant_id'), 10) : null;
+        openCreateModalForLead(leadId, name, tenantId);
     }
 });
 

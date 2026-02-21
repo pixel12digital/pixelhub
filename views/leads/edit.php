@@ -4,6 +4,7 @@ $baseUrl = pixelhub_url('');
 $lead = $lead ?? [];
 $opportunities = $opportunities ?? [];
 $backUrl = $backUrl ?? pixelhub_url('/opportunities');
+$tenantId = $tenantId ?? null;
 ?>
 
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
@@ -25,7 +26,14 @@ $backUrl = $backUrl ?? pixelhub_url('/opportunities');
         <p style="color: #856404; margin: 0; font-size:13px;">
             Este lead ainda não possui uma oportunidade vinculada.
         </p>
-        <a href="<?= pixelhub_url('/opportunities?new=1&lead_id=' . $lead['id'] . '&lead_name=' . urlencode($lead['name'] ?? $lead['company'] ?? 'Lead #' . $lead['id'])) ?>"
+<?php
+$_newOppUrl = '/opportunities?new=1&lead_id=' . $lead['id']
+    . '&lead_name=' . urlencode($lead['name'] ?? $lead['company'] ?? 'Lead #' . $lead['id']);
+if ($tenantId) {
+    $_newOppUrl .= '&tenant_id=' . $tenantId;
+}
+?>
+        <a href="<?= pixelhub_url($_newOppUrl) ?>"
            style="padding:8px 16px;background:#023A8D;color:#fff;border-radius:5px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;">
             + Criar Oportunidade
         </a>
