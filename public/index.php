@@ -746,6 +746,14 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/prospecting/update-result-status', 'ProspectingController@updateResultStatus');
     $router->post('/prospecting/convert-to-lead', 'ProspectingController@convertToLead');
 
+    // Configurações — Catálogo de Produtos por Conta
+    $router->get('/settings/tenant-products', 'TenantProductsController@index');
+    $router->post('/settings/tenant-products/store', 'TenantProductsController@store');
+    $router->post('/settings/tenant-products/update', 'TenantProductsController@update');
+    $router->post('/settings/tenant-products/toggle-status', 'TenantProductsController@toggleStatus');
+    $router->post('/settings/tenant-products/delete', 'TenantProductsController@delete');
+    $router->get('/settings/tenant-products/by-tenant', 'TenantProductsController@byTenant');
+
     // Configurações — Google Maps API
     $router->get('/settings/google-maps', 'ProspectingController@settingsIndex');
     $router->post('/settings/google-maps/save', 'ProspectingController@settingsSave');

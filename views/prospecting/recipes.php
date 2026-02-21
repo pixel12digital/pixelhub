@@ -188,13 +188,14 @@ if ($tenantFilter === 0) {
                     <input type="text" name="keywords_raw" id="recipeKeywords" placeholder="imobiliária, corretor, apartamento" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
                 </div>
                 <div>
-                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Produto / Serviço a oferecer</label>
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">
+                        Produto / Serviço a oferecer
+                        <a href="<?= pixelhub_url('/settings/tenant-products') ?>" target="_blank" style="font-size:11px;font-weight:400;color:#0369a1;margin-left:6px;">+ Gerenciar catálogo</a>
+                    </label>
                     <select name="product_id" id="recipeProduct" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
-                        <option value="">Nenhum</option>
-                        <?php foreach ($products as $p): ?>
-                        <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['label']) ?></option>
-                        <?php endforeach; ?>
+                        <option value="">— Nenhum —</option>
                     </select>
+                    <p id="productHint" style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Selecione uma conta para ver os produtos disponíveis.</p>
                 </div>
                 <div>
                     <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Tipo de lugar (Google Places)</label>
@@ -227,6 +228,7 @@ function openCreateModal(){
     document.getElementById('recipeProduct').value='';
     document.getElementById('recipePlaceType').value='';
     setTenant('', '');
+    loadProducts('own');
     modal.style.display='flex';
 }
 function openEditModal(r){
@@ -241,7 +243,9 @@ function openEditModal(r){
     document.getElementById('recipeProduct').value=r.product_id||'';
     document.getElementById('recipePlaceType').value=r.google_place_type||'';
     document.getElementById('recipeNotes').value=r.notes||'';
+    const tid = r.tenant_id || 'own';
     setTenant(r.tenant_id||'', r.tenant_company||r.tenant_name||'');
+    loadProducts(tid, r.product_id);
     modal.style.display='flex';
     closeAllDropdowns();
 }
@@ -254,6 +258,29 @@ function setTenant(id, label) {
     document.getElementById('recipeTenantId').value = id;
     document.getElementById('recipeTenantSearch').value = label;
     document.getElementById('tenantDropdown').style.display = 'none';
+    loadProducts(id || 'own');
+}
+
+function loadProducts(tenantId, selectedId) {
+    const sel = document.getElementById('recipeProduct');
+    const hint = document.getElementById('productHint');
+    sel.innerHTML = '<option value="">Carregando...</option>';
+    const param = (!tenantId || tenantId === 'own') ? 'own' : tenantId;
+    fetch('<?= pixelhub_url('/settings/tenant-products/by-tenant') ?>?tenant_id=' + param)
+    .then(r => r.json())
+    .then(data => {
+        if (!data.length) {
+            sel.innerHTML = '<option value="">— Nenhum produto cadastrado —</option>';
+            hint.innerHTML = 'Cadastre produtos em <a href="<?= pixelhub_url('/settings/tenant-products') ?>" target="_blank" style="color:#0369a1;">Configurações → Catálogo de Produtos</a>.';
+            return;
+        }
+        sel.innerHTML = '<option value="">— Nenhum —</option>' +
+            data.map(p => `<option value="${p.id}" ${String(p.id) === String(selectedId) ? 'selected' : ''}>${p.name}</option>`).join('');
+        hint.textContent = data.length + ' produto(s) disponível(is) para esta conta.';
+    })
+    .catch(() => {
+        sel.innerHTML = '<option value="">— Erro ao carregar —</option>';
+    });
 }
 
 let _tenantTimer = null;
