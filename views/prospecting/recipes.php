@@ -368,13 +368,15 @@ document.getElementById('recipeTenantSearch').addEventListener('input', function
     }, 280);
 });
 document.addEventListener('click', e => {
-    if (!e.target.closest('#tenantDropdown') && e.target.id !== 'recipeTenantSearch')
-        document.getElementById('tenantDropdown').style.display = 'none';
-    if (!e.target.closest('#cnaeDropdown') && e.target.id !== 'recipeCnaeSearch')
-        document.getElementById('cnaeDropdown').style.display = 'none';
-    const cd = document.getElementById('cityDropdown');
-    if(cd && !e.target.closest('#cityDropdown') && e.target.id !== 'recipeCity')
-        cd.style.display = 'none';
+    const _t = document.getElementById('tenantDropdown');
+    if(_t && !e.target.closest('#tenantDropdown') && e.target.id !== 'recipeTenantSearch')
+        _t.style.display = 'none';
+    const _cn = document.getElementById('cnaeDropdown');
+    if(_cn && !e.target.closest('#cnaeDropdown') && e.target.id !== 'recipeCnaeSearch')
+        _cn.style.display = 'none';
+    const _cy = document.getElementById('cityDropdown');
+    if(_cy && !e.target.closest('#cityDropdown') && e.target.id !== 'recipeCity')
+        _cy.style.display = 'none';
 });
 
 // Cidade autocomplete — API IBGE (pública, sem CORS)
