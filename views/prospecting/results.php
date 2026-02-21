@@ -1,4 +1,6 @@
-<?php ob_start(); ?>
+<?php
+ob_start();
+?>
 
 <div class="content-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
     <div>
@@ -247,3 +249,8 @@ function runSearch(recipeId, btn) {
     .finally(() => { btn.disabled = false; btn.innerHTML = orig; });
 }
 </script>
+
+<?php
+$content = ob_get_clean();
+include __DIR__ . '/../layout/main.php';
+?>

@@ -1,7 +1,4 @@
 <?php
-/**
- * Configurações da Google Maps API
- */
 ob_start();
 ?>
 
@@ -181,3 +178,8 @@ function testApiKey() {
     });
 }
 </script>
+
+<?php
+$content = ob_get_clean();
+include __DIR__ . '/../layout/main.php';
+?>
