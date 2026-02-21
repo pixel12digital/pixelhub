@@ -18,27 +18,75 @@ $stageColors = [
     </p>
 </div>
 
-<!-- Seletor de conta -->
-<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
-    <span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">VISUALIZANDO:</span>
-    <a href="<?= pixelhub_url('/opportunities') ?>"
-       style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;
-              <?= $selectedTenant === null ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
-        Todas as contas
-    </a>
-    <a href="<?= pixelhub_url('/opportunities?tenant_id=') ?>"
-       style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;
-              <?= $selectedTenant === '' ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
-        🏢 Pixel12 Digital (agência)
-    </a>
-    <?php foreach ($tenants as $t): ?>
-    <a href="<?= pixelhub_url('/opportunities?tenant_id=' . $t['id']) ?>"
-       style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;
-              <?= (string)$selectedTenant === (string)$t['id'] ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
-        <?= htmlspecialchars($t['label']) ?>
-    </a>
-    <?php endforeach; ?>
+<!-- Seletor de conta (dropdown com busca) -->
+<?php
+$selectedTenantLabel = 'Todas as contas';
+if ($selectedTenant === '') {
+    $selectedTenantLabel = '🏢 Pixel12 Digital (agência)';
+} elseif ($selectedTenant !== null) {
+    foreach ($tenants as $t) {
+        if ((string)$t['id'] === (string)$selectedTenant) {
+            $selectedTenantLabel = $t['label'];
+            break;
+        }
+    }
+}
+?>
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+    <span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;">VISUALIZANDO:</span>
+    <div style="position:relative;" id="tenantDropdownWrap">
+        <button onclick="toggleTenantDropdown()" id="tenantDropdownBtn"
+                style="display:inline-flex;align-items:center;gap:8px;padding:7px 14px;background:#fff;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;min-width:220px;justify-content:space-between;">
+            <span id="tenantDropdownLabel"><?= htmlspecialchars($selectedTenantLabel) ?></span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="tenantDropdownMenu"
+             style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:999;background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:280px;max-height:360px;overflow:hidden;flex-direction:column;">
+            <div style="padding:8px;">
+                <input type="text" id="tenantSearch" placeholder="Buscar conta..." oninput="filterTenants(this.value)"
+                       style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:5px;font-size:13px;box-sizing:border-box;outline:none;">
+            </div>
+            <div id="tenantList" style="overflow-y:auto;max-height:280px;">
+                <a href="<?= pixelhub_url('/opportunities') ?>" class="tenant-opt"
+                   style="display:block;padding:8px 14px;font-size:13px;color:#374151;text-decoration:none;font-weight:<?= $selectedTenant === null ? '700' : '400' ?>;">
+                    Todas as contas
+                </a>
+                <a href="<?= pixelhub_url('/opportunities?tenant_id=') ?>" class="tenant-opt"
+                   style="display:block;padding:8px 14px;font-size:13px;color:#374151;text-decoration:none;font-weight:<?= $selectedTenant === '' ? '700' : '400' ?>;">
+                    🏢 Pixel12 Digital (agência)
+                </a>
+                <?php foreach ($tenants as $t): ?>
+                <a href="<?= pixelhub_url('/opportunities?tenant_id=' . $t['id']) ?>" class="tenant-opt"
+                   data-label="<?= htmlspecialchars(strtolower($t['label'])) ?>"
+                   style="display:block;padding:8px 14px;font-size:13px;color:#374151;text-decoration:none;font-weight:<?= (string)$selectedTenant === (string)$t['id'] ? '700' : '400' ?>;">
+                    <?= htmlspecialchars($t['label']) ?>
+                </a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
 </div>
+<script>
+function toggleTenantDropdown() {
+    const menu = document.getElementById('tenantDropdownMenu');
+    const isOpen = menu.style.display === 'flex';
+    menu.style.display = isOpen ? 'none' : 'flex';
+    if (!isOpen) document.getElementById('tenantSearch').focus();
+}
+function filterTenants(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('#tenantList .tenant-opt').forEach(function(el) {
+        const label = el.dataset.label || el.textContent.toLowerCase();
+        el.style.display = label.includes(q) ? 'block' : 'none';
+    });
+}
+document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('tenantDropdownWrap');
+    if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('tenantDropdownMenu').style.display = 'none';
+    }
+});
+</script>
 
 <?php if (isset($_GET['success'])): ?>
     <div class="card" style="background: #d4edda; border-left: 4px solid #28a745; margin-bottom: 20px;">

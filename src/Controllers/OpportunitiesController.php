@@ -52,11 +52,13 @@ class OpportunitiesController extends Controller
         $db = \PixelHub\Core\DB::getConnection();
         $users = $db->query("SELECT id, name FROM users WHERE is_internal = 1 ORDER BY name ASC")->fetchAll() ?: [];
 
-        // Busca tenants (clientes da agência) para o seletor de conta
+        // Busca tenants com oportunidades ativas para o seletor de conta
         $tenants = $db->query("
-            SELECT id, COALESCE(NULLIF(company,''), name) as label
-            FROM tenants
-            WHERE status = 'active'
+            SELECT t.id, COALESCE(NULLIF(t.company,''), t.name) as label
+            FROM tenants t
+            INNER JOIN opportunities o ON o.tenant_id = t.id
+            WHERE t.status = 'active'
+            GROUP BY t.id, t.company, t.name
             ORDER BY label ASC
         ")->fetchAll() ?: [];
 
