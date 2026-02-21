@@ -1679,20 +1679,16 @@
                     $prospActive   = strpos($currentUri, '/prospecting') !== false && strpos($currentUri, '/settings/') === false;
                     $prospExpanded = $prospActive;
                     ?>
-                    <div class="sidebar-subgroup">
-                        <div class="sidebar-subgroup-header <?= $prospExpanded ? 'is-open' : '' ?>"
-                             onclick="this.classList.toggle('is-open');this.nextElementSibling.classList.toggle('is-open');">
-                            Prospecção Ativa
-                            <svg class="sidebar-subgroup-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
-                        </div>
-                        <div class="sidebar-subgroup-content <?= $prospExpanded ? 'is-open' : '' ?>">
-                            <a href="<?= pixelhub_url('/prospecting') ?>" class="sub-item <?= ($prospActive && strpos($currentUri, 'source=cnpjws') === false) ? 'active' : '' ?>">
-                                <span class="sidebar-text">Google Maps</span>
-                            </a>
-                            <a href="<?= pixelhub_url('/prospecting?source=cnpjws') ?>" class="sub-item <?= (strpos($currentUri, 'source=cnpjws') !== false) ? 'active' : '' ?>">
-                                <span class="sidebar-text">CNAE (CNPJ.ws)</span>
-                            </a>
-                        </div>
+                    <div class="sidebar-subgroup-header is-open" style="cursor:default;pointer-events:none;">
+                        Prospecção Ativa
+                    </div>
+                    <div class="sidebar-subgroup-content is-open">
+                        <a href="<?= pixelhub_url('/prospecting') ?>" class="sub-item <?= ($prospActive && strpos($currentUri, 'source=cnpjws') === false) ? 'active' : '' ?>">
+                            <span class="sidebar-text">Google Maps</span>
+                        </a>
+                        <a href="<?= pixelhub_url('/prospecting?source=cnpjws') ?>" class="sub-item <?= (strpos($currentUri, 'source=cnpjws') !== false) ? 'active' : '' ?>">
+                            <span class="sidebar-text">CNAE (CNPJ.ws)</span>
+                        </a>
                     </div>
                 </div>
             </div>
