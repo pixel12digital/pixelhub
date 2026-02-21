@@ -336,6 +336,15 @@ class OpportunityService
             $params[] = !empty($data['notes']) ? trim($data['notes']) : null;
         }
 
+        if (array_key_exists('tenant_id', $data)) {
+            $newTenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
+            $fields[] = 'tenant_id = ?';
+            $params[] = $newTenantId;
+            if ($newTenantId != $current['tenant_id']) {
+                self::addHistory($id, 'updated', null, null, 'Conta vinculada alterada', $userId);
+            }
+        }
+
         if (empty($fields)) return true;
 
         $fields[] = 'updated_at = NOW()';

@@ -428,6 +428,49 @@ function getOriginDisplay($origin) {
                     </div>
                 </div>
             <?php endif; ?>
+
+            <!-- Seção: Conta Vinculada (sempre visível, editável) -->
+            <div style="margin-top: 14px; border-top: 1px solid #e9ecef; padding-top: 12px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="font-size: 12px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Conta vinculada</span>
+                    <button onclick="toggleLinkTenantForm()" id="btn-link-tenant-toggle"
+                            style="font-size: 12px; color: #023A8D; background: none; border: none; cursor: pointer; padding: 0; font-weight: 600;">
+                        <?= !empty($opp['tenant_id']) ? '✏️ Alterar' : '+ Vincular conta' ?>
+                    </button>
+                </div>
+
+                <?php if (!empty($opp['tenant_id'])): ?>
+                <div id="link-tenant-current" style="font-size: 13px; color: #333; padding: 6px 10px; background: #f0fdf4; border-radius: 6px; border: 1px solid #bbf7d0;">
+                    <strong><?= htmlspecialchars($opp['tenant_name'] ?? 'Conta #' . $opp['tenant_id']) ?></strong>
+                    <button onclick="unlinkTenant()" style="float:right; background:none; border:none; color:#dc3545; cursor:pointer; font-size:13px; padding:0;" title="Desvincular conta">&times; Remover</button>
+                </div>
+                <?php else: ?>
+                <div id="link-tenant-current" style="font-size: 12px; color: #94a3b8; font-style: italic;">Nenhuma conta vinculada</div>
+                <?php endif; ?>
+
+                <!-- Formulário de busca (oculto por padrão) -->
+                <div id="link-tenant-form" style="display: none; margin-top: 10px; position: relative;">
+                    <input type="text" id="lt-search-input" placeholder="Digite 3+ caracteres para buscar conta..."
+                           autocomplete="off"
+                           style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px;">
+                    <div id="lt-autocomplete" style="display:none; position:absolute; left:0; right:0; top:100%; background:white; border:1px solid #ddd; border-radius:0 0 6px 6px; max-height:180px; overflow-y:auto; z-index:200; box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>
+                    <div id="lt-selected-badge" style="display:none; margin-top:6px; padding:8px 10px; background:#e8f5e9; border:1px solid #198754; border-radius:6px; font-size:13px;">
+                        <span id="lt-selected-name" style="font-weight:600; color:#198754;"></span>
+                        <button type="button" onclick="clearLtSelection()" style="float:right; background:none; border:none; color:#dc3545; cursor:pointer; font-size:16px; line-height:1;">&times;</button>
+                    </div>
+                    <div style="display:flex; gap:8px; margin-top:8px;">
+                        <button onclick="saveLinkTenant()" id="btn-lt-save"
+                                style="flex:1; padding:7px; background:#023A8D; color:white; border:none; border-radius:4px; cursor:pointer; font-size:13px; font-weight:600;">
+                            Salvar vínculo
+                        </button>
+                        <button onclick="toggleLinkTenantForm()"
+                                style="padding:7px 14px; background:#f1f5f9; color:#333; border:1px solid #ddd; border-radius:4px; cursor:pointer; font-size:13px;">
+                            Cancelar
+                        </button>
+                    </div>
+                    <div id="lt-msg" style="display:none; margin-top:6px; font-size:12px; font-weight:600;"></div>
+                </div>
+            </div>
         </div>
         
         <!-- Anotações -->
@@ -1835,6 +1878,116 @@ document.getElementById('edit-origin-modal').addEventListener('click', function(
         closeEditOriginModal();
     }
 });
+
+// ── Vincular Conta (tenant) ──────────────────────────────────────────────────
+let _ltSelectedId = null;
+
+function toggleLinkTenantForm() {
+    const form = document.getElementById('link-tenant-form');
+    const visible = form.style.display !== 'none';
+    form.style.display = visible ? 'none' : 'block';
+    if (!visible) {
+        document.getElementById('lt-search-input').focus();
+        clearLtSelection();
+    }
+}
+
+function clearLtSelection() {
+    _ltSelectedId = null;
+    document.getElementById('lt-search-input').value = '';
+    document.getElementById('lt-search-input').style.display = 'block';
+    document.getElementById('lt-selected-badge').style.display = 'none';
+    document.getElementById('lt-autocomplete').style.display = 'none';
+    document.getElementById('lt-msg').style.display = 'none';
+}
+
+function selectLtTenant(id, name, detail) {
+    _ltSelectedId = id;
+    document.getElementById('lt-search-input').style.display = 'none';
+    document.getElementById('lt-autocomplete').style.display = 'none';
+    document.getElementById('lt-selected-name').textContent = name + (detail ? ' — ' + detail : '');
+    document.getElementById('lt-selected-badge').style.display = 'block';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const inp = document.getElementById('lt-search-input');
+    if (!inp) return;
+    let _ltTimer = null;
+    inp.addEventListener('input', function() {
+        clearTimeout(_ltTimer);
+        const q = inp.value.trim();
+        const ac = document.getElementById('lt-autocomplete');
+        if (q.length < 3) { ac.style.display = 'none'; return; }
+        _ltTimer = setTimeout(async function() {
+            try {
+                const r = await fetch('<?= pixelhub_url('/tenants/search-opp') ?>?q=' + encodeURIComponent(q));
+                const data = await r.json();
+                if (!data.success || !data.tenants.length) { ac.style.display = 'none'; return; }
+                ac.innerHTML = '';
+                data.tenants.forEach(function(t) {
+                    const detail = t.phone || t.email || '';
+                    const item = document.createElement('div');
+                    item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;';
+                    item.onmouseover = function() { this.style.background='#f0f4ff'; };
+                    item.onmouseout  = function() { this.style.background=''; };
+                    item.innerHTML = '<strong>' + escHtml(t.name) + '</strong>' + (detail ? ' <span style="color:#888;font-size:12px;">' + escHtml(detail) + '</span>' : '');
+                    item.onclick = function() { selectLtTenant(t.id, t.name, detail); };
+                    ac.appendChild(item);
+                });
+                ac.style.display = 'block';
+            } catch(e) { console.warn('Erro busca tenant:', e); }
+        }, 300);
+    });
+});
+
+function saveLinkTenant() {
+    if (!_ltSelectedId) {
+        const msg = document.getElementById('lt-msg');
+        msg.textContent = 'Selecione uma conta antes de salvar.';
+        msg.style.color = '#dc3545';
+        msg.style.display = 'block';
+        return;
+    }
+    const btn = document.getElementById('btn-lt-save');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+    fetch('<?= pixelhub_url('/opportunities/link-tenant') ?>', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: <?= (int)($opp['id'] ?? 0) ?>, tenant_id: _ltSelectedId})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            const msg = document.getElementById('lt-msg');
+            msg.textContent = data.error || 'Erro ao salvar.';
+            msg.style.color = '#dc3545';
+            msg.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = 'Salvar vínculo';
+        }
+    })
+    .catch(function() {
+        document.getElementById('lt-msg').textContent = 'Erro de comunicação.';
+        document.getElementById('lt-msg').style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Salvar vínculo';
+    });
+}
+
+function unlinkTenant() {
+    if (!confirm('Remover o vínculo com esta conta?')) return;
+    fetch('<?= pixelhub_url('/opportunities/link-tenant') ?>', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: <?= (int)($opp['id'] ?? 0) ?>, tenant_id: ''})
+    })
+    .then(r => r.json())
+    .then(data => { if (data.success) window.location.reload(); else alert(data.error || 'Erro ao desvincular.'); })
+    .catch(function() { alert('Erro de comunicação.'); });
+}
 
 </script>
 

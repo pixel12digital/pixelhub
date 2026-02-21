@@ -349,6 +349,52 @@ class OpportunitiesController extends Controller
     }
 
     /**
+     * Vincula/desvincula conta (tenant) a uma oportunidade existente (AJAX)
+     * POST /opportunities/link-tenant
+     */
+    public function linkTenant(): void
+    {
+        Auth::requireInternal();
+        $user = Auth::user();
+
+        $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+        $id       = (int) ($input['id'] ?? 0);
+        $tenantId = isset($input['tenant_id']) && $input['tenant_id'] !== '' ? (int) $input['tenant_id'] : null;
+
+        if (!$id) {
+            $this->json(['success' => false, 'error' => 'ID da oportunidade é obrigatório'], 400);
+            return;
+        }
+
+        $opp = OpportunityService::findById($id);
+        if (!$opp) {
+            $this->json(['success' => false, 'error' => 'Oportunidade não encontrada'], 404);
+            return;
+        }
+
+        try {
+            OpportunityService::update($id, ['tenant_id' => $tenantId], $user['id'] ?? null);
+
+            $tenantName = null;
+            if ($tenantId) {
+                $db = DB::getConnection();
+                $row = $db->prepare("SELECT COALESCE(NULLIF(company,''), name) as label FROM tenants WHERE id = ?");
+                $row->execute([$tenantId]);
+                $tenantName = $row->fetchColumn() ?: null;
+            }
+
+            $this->json([
+                'success'     => true,
+                'tenant_id'   => $tenantId,
+                'tenant_name' => $tenantName,
+            ]);
+        } catch (\Exception $e) {
+            error_log("[Opportunities] Erro ao vincular tenant: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Criar oportunidade via AJAX (do Inbox)
      * POST /opportunities/create-ajax
      */

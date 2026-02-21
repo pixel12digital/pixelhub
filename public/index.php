@@ -771,6 +771,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/opportunities/create-ajax', 'OpportunitiesController@createAjax');
     $router->post('/opportunities/add-note', 'OpportunitiesController@addNote');
     $router->post('/opportunities/update-origin', 'OpportunitiesController@updateOrigin');
+    $router->post('/opportunities/link-tenant', 'OpportunitiesController@linkTenant');
     $router->get('/opportunities/search-ajax', 'OpportunitiesController@searchAjax');
     $router->get('/leads/search-ajax', 'OpportunitiesController@searchLeads');
     $router->get('/tenants/search-opp', 'OpportunitiesController@searchTenants');
