@@ -25,7 +25,7 @@ $backUrl = $backUrl ?? pixelhub_url('/opportunities');
         <p style="color: #856404; margin: 0; font-size:13px;">
             Este lead ainda não possui uma oportunidade vinculada.
         </p>
-        <a href="<?= pixelhub_url('/opportunities?new=1&lead_id=' . $lead['id']) ?>"
+        <a href="<?= pixelhub_url('/opportunities?new=1&lead_id=' . $lead['id'] . '&lead_name=' . urlencode($lead['name'] ?? $lead['company'] ?? 'Lead #' . $lead['id'])) ?>"
            style="padding:8px 16px;background:#023A8D;color:#fff;border-radius:5px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;">
             + Criar Oportunidade
         </a>

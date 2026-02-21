@@ -1400,6 +1400,17 @@ function escHtml(str) {
     return d.innerHTML;
 }
 
+// ===== Auto-abrir modal se ?new=1&lead_id=X =====
+document.addEventListener('DOMContentLoaded', function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('new') === '1' && params.get('lead_id')) {
+        const leadId = parseInt(params.get('lead_id'), 10);
+        if (!leadId) return;
+        const name = params.get('lead_name') ? decodeURIComponent(params.get('lead_name')) : 'Lead #' + leadId;
+        openCreateModalForLead(leadId, name);
+    }
+});
+
 // ===== Gerenciar Produtos =====
 function toggleNewProductForm() {
     const form = document.getElementById('create-product-form');
