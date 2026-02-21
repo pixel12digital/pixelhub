@@ -272,8 +272,13 @@ function openCreateModal(){
     if(document.getElementById('recipeCnaeSearch')) document.getElementById('recipeCnaeSearch').value='';
     if(document.getElementById('recipeCnaeCode')) document.getElementById('recipeCnaeCode').value='';
     if(document.getElementById('recipeCnaeDescription')) document.getElementById('recipeCnaeDescription').value='';
+    <?php if ($tenantFilter > 0): ?>
+    setTenant('<?= (int)$tenantFilter ?>', '<?= addslashes($filterLabel) ?>');
+    loadProducts('<?= (int)$tenantFilter ?>');
+    <?php else: ?>
     setTenant('', '');
     loadProducts('own');
+    <?php endif; ?>
     modal.style.display='flex';
 }
 function openEditModal(r){
