@@ -417,14 +417,27 @@ class ProspectingController extends Controller
             $oppName   = trim($empresa . ($localStr ? ' — ' . $localStr : '') . ($objetivo ? ' — ' . $objetivo : ''));
             $productId = !empty($result['recipe_product_id']) ? (int) $result['recipe_product_id'] : null;
 
+            // Busca código de rastreamento ativo para prospecção ativa (canal prospecting_google_maps)
+            $tcStmt = $db->prepare("
+                SELECT code FROM tracking_codes
+                WHERE channel = 'prospecting_google_maps' AND is_active = 1
+                ORDER BY created_at DESC
+                LIMIT 1
+            ");
+            $tcStmt->execute();
+            $prospectingTrackingCode = $tcStmt->fetchColumn() ?: null;
+
             // Cria oportunidade automaticamente no estágio "novo"
             $oppId = \PixelHub\Services\OpportunityService::create([
-                'name'      => $oppName,
-                'lead_id'   => $leadId,
-                'tenant_id' => $result['tenant_id'] ?? null,
-                'product_id'=> $productId,
-                'stage'     => 'new',
-                'origin'    => 'prospecting_google_maps',
+                'name'           => $oppName,
+                'lead_id'        => $leadId,
+                'tenant_id'      => $result['tenant_id'] ?? null,
+                'product_id'     => $productId,
+                'stage'          => 'new',
+                'origin'         => 'prospecting_google_maps',
+                'tracking_code'  => $prospectingTrackingCode,
+                'tracking_source'=> $prospectingTrackingCode ? 'prospecting' : null,
+                'tracking_auto_detected' => $prospectingTrackingCode ? true : false,
             ], $userId);
 
             // Atualiza opportunity_id no resultado de prospecção
