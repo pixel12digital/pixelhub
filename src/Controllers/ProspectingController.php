@@ -388,35 +388,55 @@ class ProspectingController extends Controller
             $userId = Auth::user()['id'] ?? 0;
             $leadId = ProspectingService::convertToLead($resultId, $userId);
 
-            // Cria oportunidade vinculada se dados do modal foram enviados
-            $oppName    = trim($_POST['opp_name'] ?? '');
-            $productId  = !empty($_POST['product_id']) ? (int) $_POST['product_id'] : null;
-            $value      = !empty($_POST['estimated_value']) ? (float) str_replace(['.', ','], ['', '.'], $_POST['estimated_value']) : null;
-            $responsible = !empty($_POST['responsible_user_id']) ? (int) $_POST['responsible_user_id'] : null;
-            $notes      = trim($_POST['notes'] ?? '');
+            // Busca dados completos do resultado + receita para montar nome da oportunidade
+            $db     = \PixelHub\Core\DB::getConnection();
+            $stmt   = $db->prepare("
+                SELECT pr.*, rec.keywords, rec.product_id AS recipe_product_id,
+                       rec.city AS recipe_city, rec.state AS recipe_state, rec.name AS recipe_name
+                FROM prospecting_results pr
+                LEFT JOIN prospecting_recipes rec ON rec.id = pr.recipe_id
+                WHERE pr.id = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$resultId]);
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-            $oppId = null;
-            if ($oppName) {
-                $result = ProspectingService::findResultById($resultId);
-                $oppId = \PixelHub\Services\OpportunityService::create([
-                    'name'                => $oppName,
-                    'lead_id'             => $leadId,
-                    'tenant_id'           => $result['tenant_id'] ?? null,
-                    'product_id'          => $productId,
-                    'estimated_value'     => $value,
-                    'responsible_user_id' => $responsible,
-                    'notes'               => $notes,
-                    'stage'               => 'new',
-                    'origin'              => 'prospecting_google_maps',
-                ], $userId);
+            // Monta nome: [Empresa] — [Cidade/UF] — [Objetivo/Canal]
+            $empresa  = trim($result['name'] ?? '');
+            $cidade   = trim($result['city'] ?? $result['recipe_city'] ?? '');
+            $uf       = trim($result['state'] ?? $result['recipe_state'] ?? '');
+            $localStr = $cidade . ($uf ? '/' . strtoupper($uf) : '');
+
+            // Objetivo/Canal: primeira keyword da receita ou nome da receita
+            $keywords = $result['keywords'] ?? '[]';
+            if (is_string($keywords)) {
+                $keywords = json_decode($keywords, true) ?: [];
             }
+            $objetivo = !empty($keywords) ? $keywords[0] : ($result['recipe_name'] ?? 'Prospecção');
+
+            $oppName   = trim($empresa . ($localStr ? ' — ' . $localStr : '') . ($objetivo ? ' — ' . $objetivo : ''));
+            $productId = !empty($result['recipe_product_id']) ? (int) $result['recipe_product_id'] : null;
+
+            // Cria oportunidade automaticamente no estágio "novo"
+            $oppId = \PixelHub\Services\OpportunityService::create([
+                'name'      => $oppName,
+                'lead_id'   => $leadId,
+                'tenant_id' => $result['tenant_id'] ?? null,
+                'product_id'=> $productId,
+                'stage'     => 'new',
+                'origin'    => 'prospecting_google_maps',
+            ], $userId);
+
+            // Atualiza opportunity_id no resultado de prospecção
+            $db->prepare("UPDATE prospecting_results SET opportunity_id = ? WHERE id = ?")
+               ->execute([$oppId, $resultId]);
 
             $this->json([
                 'success'    => true,
                 'lead_id'    => $leadId,
                 'opp_id'     => $oppId,
                 'lead_url'   => pixelhub_url('/leads/edit?id=' . $leadId),
-                'opp_url'    => $oppId ? pixelhub_url('/opportunities/view?id=' . $oppId) : null,
+                'opp_url'    => pixelhub_url('/opportunities/view?id=' . $oppId),
                 'message'    => 'Lead e oportunidade criados com sucesso!',
             ]);
         } catch (\Exception $e) {

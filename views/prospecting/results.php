@@ -131,10 +131,14 @@ ob_start();
                     <td style="padding:14px 16px;text-align:center;">
                         <div style="display:flex;gap:6px;justify-content:center;align-items:center;">
                             <?php if (empty($result['lead_id'])): ?>
-                            <button onclick="openLeadModal(<?= $result['id'] ?>, <?= htmlspecialchars(json_encode($result['name'])) ?>, <?= htmlspecialchars(json_encode($result['phone'] ?? '')) ?>)"
+                            <button onclick="criarLead(<?= $result['id'] ?>, this)"
                                     style="padding:5px 10px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
                                 + Criar Lead
                             </button>
+                            <?php elseif (!empty($result['opportunity_id'])): ?>
+                            <a href="<?= pixelhub_url('/opportunities/view?id=' . $result['opportunity_id']) ?>" style="padding:5px 10px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:5px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;">
+                                Ver Oportunidade →
+                            </a>
                             <?php else: ?>
                             <a href="<?= pixelhub_url('/opportunities/view-by-lead?lead_id=' . $result['lead_id']) ?>" style="padding:5px 10px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:5px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;">
                                 Ver Lead
@@ -173,68 +177,8 @@ ob_start();
 
 <?php endif; ?>
 
-<!-- Modal: Criar Lead + Oportunidade -->
-<div id="lead-opp-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:10px;padding:28px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-            <h3 style="margin:0;font-size:16px;color:#1e293b;">Criar Lead + Oportunidade</h3>
-            <button onclick="closeLeadModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;line-height:1;">&times;</button>
-        </div>
-
-        <div id="lead-modal-company" style="margin-bottom:16px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:13px;font-weight:600;color:#15803d;"></div>
-
-        <input type="hidden" id="lead-modal-result-id">
-
-        <div style="margin-bottom:14px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Nome da Oportunidade *</label>
-            <input type="text" id="lead-modal-opp-name" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
-        </div>
-
-        <div style="margin-bottom:14px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Produto / Serviço</label>
-            <select id="lead-modal-product" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
-                <option value="">Nenhum</option>
-                <?php foreach ($products as $p): ?>
-                <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['label']) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-
-        <div style="display:flex;gap:12px;margin-bottom:14px;">
-            <div style="flex:1;">
-                <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Valor estimado</label>
-                <input type="text" id="lead-modal-value" placeholder="0,00" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
-            </div>
-            <div style="flex:1;">
-                <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Responsável</label>
-                <select id="lead-modal-responsible" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
-                    <option value="">Selecione...</option>
-                    <?php foreach ($users as $u): ?>
-                    <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-        </div>
-
-        <div style="margin-bottom:20px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Observações</label>
-            <textarea id="lead-modal-notes" rows="3" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;resize:vertical;"></textarea>
-        </div>
-
-        <div id="lead-modal-error" style="display:none;margin-bottom:12px;padding:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;font-size:13px;color:#dc2626;"></div>
-
-        <div style="display:flex;gap:10px;">
-            <button onclick="submitLeadModal()" id="lead-modal-submit"
-                    style="flex:1;padding:11px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">
-                Criar Lead
-            </button>
-            <button onclick="closeLeadModal()"
-                    style="padding:11px 18px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:14px;cursor:pointer;">
-                Cancelar
-            </button>
-        </div>
-    </div>
-</div>
+<!-- Toast de feedback -->
+<div id="prospecting-toast" style="display:none;position:fixed;bottom:24px;right:24px;z-index:9999;padding:14px 20px;background:#1e293b;color:#fff;border-radius:8px;font-size:13px;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.25);max-width:360px;"></div>
 
 <script>
 function updateStatus(id, status) {
@@ -260,80 +204,46 @@ function updateStatus(id, status) {
     });
 }
 
-let _leadModalBtn = null;
-
-function openLeadModal(resultId, companyName, phone) {
-    document.getElementById('lead-modal-result-id').value = resultId;
-    document.getElementById('lead-modal-company').textContent = '🏢 ' + companyName + (phone ? ' · ' + phone : '');
-    document.getElementById('lead-modal-opp-name').value = companyName;
-    document.getElementById('lead-modal-value').value = '';
-    document.getElementById('lead-modal-notes').value = '';
-    document.getElementById('lead-modal-error').style.display = 'none';
-    document.getElementById('lead-modal-product').value = '';
-    document.getElementById('lead-modal-responsible').value = '';
-    document.getElementById('lead-opp-modal').style.display = 'flex';
-    _leadModalBtn = event.target;
+function showToast(msg, ok) {
+    const t = document.getElementById('prospecting-toast');
+    t.textContent = msg;
+    t.style.background = ok ? '#15803d' : '#dc2626';
+    t.style.display = 'block';
+    setTimeout(() => { t.style.display = 'none'; }, 4000);
 }
 
-function closeLeadModal() {
-    document.getElementById('lead-opp-modal').style.display = 'none';
-}
-
-function submitLeadModal() {
-    const resultId   = document.getElementById('lead-modal-result-id').value;
-    const oppName    = document.getElementById('lead-modal-opp-name').value.trim();
-    const productId  = document.getElementById('lead-modal-product').value;
-    const value      = document.getElementById('lead-modal-value').value;
-    const responsible= document.getElementById('lead-modal-responsible').value;
-    const notes      = document.getElementById('lead-modal-notes').value;
-    const errDiv     = document.getElementById('lead-modal-error');
-    const submitBtn  = document.getElementById('lead-modal-submit');
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = '⏳ Criando...';
-    errDiv.style.display = 'none';
+function criarLead(resultId, btn) {
+    btn.disabled = true;
+    const orig = btn.textContent;
+    btn.textContent = '⏳ Criando...';
 
     fetch('<?= pixelhub_url('/prospecting/convert-to-lead') ?>', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: 'result_id=' + resultId
-            + '&opp_name=' + encodeURIComponent(oppName)
-            + '&product_id=' + encodeURIComponent(productId)
-            + '&estimated_value=' + encodeURIComponent(value)
-            + '&responsible_user_id=' + encodeURIComponent(responsible)
-            + '&notes=' + encodeURIComponent(notes)
     })
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            closeLeadModal();
-            const targetUrl = data.opp_url || data.lead_url;
+            showToast('✓ Lead e oportunidade criados!', true);
             const row = document.getElementById('row-' + resultId);
             if (row) {
                 const actionsCell = row.querySelector('td:last-child > div');
                 if (actionsCell) {
-                    const btn = actionsCell.querySelector('button');
-                    if (btn) {
-                        const link = document.createElement('a');
-                        link.href = targetUrl;
-                        link.style.cssText = 'padding:5px 10px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:5px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;';
-                        link.textContent = 'Ver Lead';
-                        btn.replaceWith(link);
-                    }
+                    actionsCell.innerHTML =
+                        '<a href="' + data.opp_url + '" style="padding:5px 10px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:5px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;">Ver Oportunidade →</a>';
                 }
             }
         } else {
-            errDiv.textContent = data.error || 'Erro ao criar lead.';
-            errDiv.style.display = 'block';
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Criar Lead';
+            showToast('✗ ' + (data.error || 'Erro ao criar lead.'), false);
+            btn.disabled = false;
+            btn.textContent = orig;
         }
     })
     .catch(() => {
-        errDiv.textContent = 'Erro de comunicação.';
-        errDiv.style.display = 'block';
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Criar Lead';
+        showToast('✗ Erro de comunicação.', false);
+        btn.disabled = false;
+        btn.textContent = orig;
     });
 }
 
