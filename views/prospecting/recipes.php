@@ -209,16 +209,18 @@ if (($sourceFilter ?? null) === 'cnpjws') {
                 <?php if (($sourceFilter ?? null) === 'cnpjws'): ?>
                 <!-- CAMPOS CNAE (CNPJ.ws) -->
                 <div>
-                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">CNAE *</label>
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">CNAE(s) * <span style="font-weight:400;color:#94a3b8;font-size:11px;">— adicione um ou mais</span></label>
+                    <!-- Tags dos CNAEs selecionados -->
+                    <div id="cnaeTags" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
+                    <input type="hidden" name="cnae_code" id="recipeCnaeCode">
+                    <input type="hidden" name="cnae_description" id="recipeCnaeDescription">
                     <div style="position:relative;">
                         <input type="text" id="recipeCnaeSearch" autocomplete="off"
-                               placeholder="Digite o código ou descrição (ex: 6822, imobiliária...)"
+                               placeholder="Digite segmento ou código (ex: imobiliária, 6822...)"
                                style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
                         <div id="cnaeDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300;max-height:220px;overflow-y:auto;"></div>
                     </div>
-                    <input type="hidden" name="cnae_code" id="recipeCnaeCode">
-                    <input type="hidden" name="cnae_description" id="recipeCnaeDescription">
-                    <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Selecione o CNAE da atividade econômica alvo.</p>
+                    <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Selecione um ou mais CNAEs. O primeiro será o principal.</p>
                 </div>
                 <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px 12px;font-size:12px;color:#78350f;">
                     API pública do CNPJ.ws (gratuita, sem chave). Resultados baseados nos dados da Receita Federal.
@@ -271,9 +273,9 @@ function openCreateModal(){
     ['recipeId','recipeName','recipeCity','recipeState','recipeKeywords','recipeNotes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     document.getElementById('recipeProduct').value='';
     if(document.getElementById('recipePlaceType')) document.getElementById('recipePlaceType').value='';
+    _cnaeList = []; renderCnaeTags();
     if(document.getElementById('recipeCnaeSearch')) document.getElementById('recipeCnaeSearch').value='';
-    if(document.getElementById('recipeCnaeCode')) document.getElementById('recipeCnaeCode').value='';
-    if(document.getElementById('recipeCnaeDescription')) document.getElementById('recipeCnaeDescription').value='';
+    if(document.getElementById('recipeIbgeCode')) document.getElementById('recipeIbgeCode').value='';
     <?php if ($tenantFilter > 0): ?>
     setTenant('<?= (int)$tenantFilter ?>', '<?= addslashes($filterLabel) ?>');
     loadProducts('<?= (int)$tenantFilter ?>');
@@ -295,9 +297,10 @@ function openEditModal(r){
     document.getElementById('recipeProduct').value=r.product_id||'';
     document.getElementById('recipeNotes').value=r.notes||'';
     if(document.getElementById('recipePlaceType')) document.getElementById('recipePlaceType').value=r.google_place_type||'';
-    if(document.getElementById('recipeCnaeCode')) document.getElementById('recipeCnaeCode').value=r.cnae_code||'';
-    if(document.getElementById('recipeCnaeDescription')) document.getElementById('recipeCnaeDescription').value=r.cnae_description||'';
-    if(document.getElementById('recipeCnaeSearch')) document.getElementById('recipeCnaeSearch').value=r.cnae_code?(r.cnae_code+(r.cnae_description?' — '+r.cnae_description:'')):'';
+    _cnaeList = r.cnae_code ? [{code: r.cnae_code, desc: r.cnae_description||''}] : [];
+    renderCnaeTags();
+    if(document.getElementById('recipeCnaeSearch')) document.getElementById('recipeCnaeSearch').value='';
+    if(document.getElementById('recipeIbgeCode')) document.getElementById('recipeIbgeCode').value='';
     const tid = r.tenant_id || 'own';
     setTenant(r.tenant_id||'', r.tenant_company||r.tenant_name||'');
     loadProducts(tid, r.product_id);
@@ -403,12 +406,15 @@ if(_cityEl){
                 }
                 dd.innerHTML = matches.map(m => {
                     const ufSigla = m.microrregiao?.mesorregiao?.UF?.sigla || m['regiao-imediata']?.['regiao-intermediaria']?.UF?.sigla || '';
-                    return `<div onclick="setCity('${m.nome.replace(/'/g,"\\'")}',${'"'+m.id+'"'},'${ufSigla}')"
+                    return `<div class="city-option" data-nome="${m.nome.replace(/"/g,'&quot;')}" data-ibge="${m.id}" data-uf="${ufSigla}"
                         style="padding:8px 12px;cursor:pointer;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;"
                         onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
                         <strong>${m.nome}</strong>${ufSigla ? ' <span style="color:#64748b;font-size:11px;">— '+ufSigla+'</span>' : ''}
                     </div>`;
                 }).join('');
+                dd.querySelectorAll('.city-option').forEach(el => el.addEventListener('click', function(){
+                    setCity(this.dataset.nome, this.dataset.ibge, this.dataset.uf);
+                }));
                 dd.style.display = 'block';
             })
             .catch(() => { dd.style.display='none'; });
@@ -422,7 +428,7 @@ function setCity(name, ibge, uf){
     const dd = document.getElementById('cityDropdown');
     if(el) el.value = name;
     if(ibgeEl) ibgeEl.value = ibge;
-    if(ufEl && uf) ufEl.value = uf;
+    if(ufEl && uf) ufEl.value = uf.toUpperCase();
     if(dd) dd.style.display = 'none';
 }
 
@@ -575,14 +581,42 @@ const CNAE_DATA = [
 
 function normStr(s){ return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,' '); }
 
-function setCnae(code, desc){
+// Múltiplos CNAEs — lista de objetos {code, desc}
+let _cnaeList = [];
+
+function renderCnaeTags(){
+    const tagsEl = document.getElementById('cnaeTags');
     const codeEl = document.getElementById('recipeCnaeCode');
     const descEl = document.getElementById('recipeCnaeDescription');
+    if(!tagsEl) return;
+    tagsEl.innerHTML = _cnaeList.map((c,i) =>
+        `<span style="display:inline-flex;align-items:center;gap:4px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:3px 10px;font-size:12px;color:#1e40af;">
+            <strong>${c.code}</strong> — ${c.desc}
+            <button type="button" onclick="removeCnae(${i})" style="background:none;border:none;cursor:pointer;color:#64748b;font-size:14px;line-height:1;padding:0 0 0 4px;">&times;</button>
+        </span>`
+    ).join('');
+    // Primeiro CNAE vai para os hidden inputs (compatibilidade com backend)
+    if(codeEl) codeEl.value = _cnaeList.length ? _cnaeList[0].code : '';
+    if(descEl) descEl.value = _cnaeList.length ? _cnaeList[0].desc : '';
+}
+
+function removeCnae(i){
+    _cnaeList.splice(i, 1);
+    renderCnaeTags();
+}
+
+function setCnae(code, desc){
+    // Evita duplicata
+    if(_cnaeList.some(c => c.code === code)) {
+        document.getElementById('recipeCnaeSearch').value = '';
+        document.getElementById('cnaeDropdown').style.display = 'none';
+        return;
+    }
+    _cnaeList.push({code, desc});
+    renderCnaeTags();
     const searchEl = document.getElementById('recipeCnaeSearch');
     const dd = document.getElementById('cnaeDropdown');
-    if(codeEl) codeEl.value = code;
-    if(descEl) descEl.value = desc;
-    if(searchEl) searchEl.value = code + ' — ' + desc;
+    if(searchEl) searchEl.value = '';
     if(dd) dd.style.display = 'none';
 }
 
@@ -597,27 +631,26 @@ if(_cnaeSearchEl){
         const scored = CNAE_DATA.map(([code, desc, aliases='']) => {
             const haystack = normStr(code + ' ' + desc + ' ' + aliases);
             let score = 0;
-            for(const w of words){
-                if(haystack.includes(w)) score++;
-            }
+            for(const w of words){ if(haystack.includes(w)) score++; }
             return {code, desc, score};
         }).filter(r => r.score > 0)
           .sort((a,b) => b.score - a.score)
           .slice(0, 12);
         if(!scored.length){
-            dd.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8;">Nenhum CNAE encontrado. Tente termos como: imobiliária, restaurante, farmácia...</div>';
+            dd.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8;">Nenhum CNAE encontrado. Tente: imobiliária, restaurante, farmácia...</div>';
             dd.style.display = 'block';
             return;
         }
-        dd.innerHTML = scored.map(c => {
-            const safeCode = c.code.replace(/'/g,"\\'");
-            const safeDesc = c.desc.replace(/'/g,"\\'");
-            return `<div onclick="setCnae('${safeCode}','${safeDesc}')"
+        dd.innerHTML = scored.map(c =>
+            `<div class="cnae-opt" data-code="${c.code.replace(/"/g,'&quot;')}" data-desc="${c.desc.replace(/"/g,'&quot;')}"
                 style="padding:9px 14px;cursor:pointer;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;"
                 onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''">
                 <strong style="color:#023A8D;">${c.code}</strong> &mdash; ${c.desc}
-            </div>`;
-        }).join('');
+            </div>`
+        ).join('');
+        dd.querySelectorAll('.cnae-opt').forEach(el => el.addEventListener('click', function(){
+            setCnae(this.dataset.code, this.dataset.desc);
+        }));
         dd.style.display = 'block';
     });
 }
