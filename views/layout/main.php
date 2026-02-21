@@ -1867,7 +1867,8 @@
             $diagnosticoOpen = $shouldExpand(['/diagnostic/financial', '/diagnostic/communication']);
             $empresaOpen = $shouldExpand(['/settings/company', '/settings/users']);
             $financeiroConfigOpen = $shouldExpand(['/billing/service-types', '/billing/templates', '/settings/asaas']);
-            $integracoesOpen = $shouldExpand(['/settings/whatsapp-gateway', '/settings/smtp', '/settings/ai', '/settings/ai-contexts', '/settings/google-maps', '/settings/tenant-products']);
+            $integracoesOpen = $shouldExpand(['/settings/whatsapp-gateway', '/settings/smtp', '/settings/ai', '/settings/ai-contexts', '/settings/google-maps']);
+            $produtosOpen = $shouldExpand(['/settings/tenant-products']);
             $mensagensOpen = $shouldExpand(['/settings/whatsapp-templates', '/settings/communication-events']);
             $contratosOpen = $shouldExpand(['/settings/contract-clauses']);
             $agendaOpen = $shouldExpand(['/settings/agenda-block-templates', '/settings/agenda-block-types']);
@@ -1973,9 +1974,6 @@
                             <a href="<?= pixelhub_url('/settings/google-maps') ?>" class="sub-item <?= (strpos($currentUri, '/settings/google-maps') !== false) ? 'active' : '' ?>">
                                 <span class="sidebar-text">Google Maps API</span>
                             </a>
-                            <a href="<?= pixelhub_url('/settings/tenant-products') ?>" class="sub-item <?= (strpos($currentUri, '/settings/tenant-products') !== false) ? 'active' : '' ?>">
-                                <span class="sidebar-text">Catálogo de Produtos</span>
-                            </a>
                         </div>
                     </div>
                     
@@ -2000,6 +1998,21 @@
                         </div>
                     </div>
                     
+                    <!-- Subgrupo: Produtos -->
+                    <div class="sidebar-subgroup" data-subgroup="produtos">
+                        <div class="sidebar-subgroup-header <?= $produtosOpen ? 'is-open' : '' ?>">
+                            <span>Produtos</span>
+                            <svg class="sidebar-subgroup-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M6 9l6 6 6-6"></path>
+                            </svg>
+                        </div>
+                        <div class="sidebar-subgroup-content <?= $produtosOpen ? 'is-open' : '' ?>">
+                            <a href="<?= pixelhub_url('/settings/tenant-products') ?>" class="sub-item <?= (strpos($currentUri, '/settings/tenant-products') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Catálogo de Produtos</span>
+                            </a>
+                        </div>
+                    </div>
+
                     <!-- Subgrupo: Contratos -->
                     <div class="sidebar-subgroup" data-subgroup="contratos">
                         <div class="sidebar-subgroup-header <?= $contratosOpen ? 'is-open' : '' ?>">
