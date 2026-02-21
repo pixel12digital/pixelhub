@@ -33,7 +33,7 @@ ob_start();
         <select name="status" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
             <option value="">Todos os status</option>
             <option value="new" <?= ($filters['status'] ?? '') === 'new' ? 'selected' : '' ?>>Novas</option>
-            <option value="contacted" <?= ($filters['status'] ?? '') === 'contacted' ? 'selected' : '' ?>>Contatadas</option>
+            <option value="contacted" <?= ($filters['status'] ?? '') === 'contacted' ? 'selected' : '' ?>>Cadastradas</option>
             <option value="qualified" <?= ($filters['status'] ?? '') === 'qualified' ? 'selected' : '' ?>>Qualificadas</option>
             <option value="discarded" <?= ($filters['status'] ?? '') === 'discarded' ? 'selected' : '' ?>>Descartadas</option>
         </select>
@@ -47,7 +47,7 @@ ob_start();
 <!-- Legenda de status -->
 <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
     <?php
-    $statusLabels = ['new'=>['label'=>'Nova','bg'=>'#eff6ff','color'=>'#1d4ed8'],'contacted'=>['label'=>'Contatada','bg'=>'#fef3c7','color'=>'#92400e'],'qualified'=>['label'=>'Qualificada','bg'=>'#f0fdf4','color'=>'#15803d'],'discarded'=>['label'=>'Descartada','bg'=>'#f1f5f9','color'=>'#64748b']];
+    $statusLabels = ['new'=>['label'=>'Nova','bg'=>'#eff6ff','color'=>'#1d4ed8'],'contacted'=>['label'=>'Cadastrada','bg'=>'#fef3c7','color'=>'#92400e'],'qualified'=>['label'=>'Qualificada','bg'=>'#f0fdf4','color'=>'#15803d'],'discarded'=>['label'=>'Descartada','bg'=>'#f1f5f9','color'=>'#64748b']];
     foreach ($statusLabels as $sk => $sv):
     ?>
     <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:<?= $sv['bg'] ?>;color:<?= $sv['color'] ?>;"><?= $sv['label'] ?></span>
@@ -123,7 +123,7 @@ ob_start();
                         <select onchange="updateStatus(<?= $result['id'] ?>, this.value)"
                                 style="padding:4px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;font-weight:600;background:<?= $stStyle['bg'] ?>;color:<?= $stStyle['color'] ?>;cursor:pointer;">
                             <option value="new" <?= $st==='new'?'selected':'' ?> style="background:#fff;color:#374151;">Nova</option>
-                            <option value="contacted" <?= $st==='contacted'?'selected':'' ?> style="background:#fff;color:#374151;">Contatada</option>
+                            <option value="contacted" <?= $st==='contacted'?'selected':'' ?> style="background:#fff;color:#374151;">Cadastrada</option>
                             <option value="qualified" <?= $st==='qualified'?'selected':'' ?> style="background:#fff;color:#374151;">Qualificada</option>
                             <option value="discarded" <?= $st==='discarded'?'selected':'' ?> style="background:#fff;color:#374151;">Descartada</option>
                         </select>
