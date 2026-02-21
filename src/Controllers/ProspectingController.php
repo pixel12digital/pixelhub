@@ -5,8 +5,8 @@ namespace PixelHub\Controllers;
 use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Services\ProspectingService;
-use PixelHub\Services\GooglePlacesClient;
 use PixelHub\Services\OpportunityProductService;
+use PixelHub\Services\GooglePlacesClient;
 use PixelHub\Core\CryptoHelper;
 
 /**
@@ -325,14 +325,20 @@ class ProspectingController extends Controller
         $total   = ProspectingService::countResults($recipeId, $filters);
         $hasKey  = ProspectingService::hasApiKey();
 
+        $db = DB::getConnection();
+        $users    = $db->query("SELECT id, name FROM users WHERE is_internal = 1 ORDER BY name ASC")->fetchAll() ?: [];
+        $products = OpportunityProductService::listActive();
+
         $this->view('prospecting.results', [
-            'recipe'  => $recipe,
-            'results' => $results,
-            'total'   => $total,
-            'filters' => $filters,
-            'hasKey'  => $hasKey,
-            'page'    => (int) ($_GET['page'] ?? 0),
-            'limit'   => $limit,
+            'recipe'   => $recipe,
+            'results'  => $results,
+            'total'    => $total,
+            'filters'  => $filters,
+            'hasKey'   => $hasKey,
+            'page'     => (int) ($_GET['page'] ?? 0),
+            'limit'    => $limit,
+            'users'    => $users,
+            'products' => $products,
         ]);
     }
 
@@ -380,12 +386,37 @@ class ProspectingController extends Controller
         try {
             $userId = Auth::user()['id'] ?? 0;
             $leadId = ProspectingService::convertToLead($resultId, $userId);
+
+            // Cria oportunidade vinculada se dados do modal foram enviados
+            $oppName    = trim($_POST['opp_name'] ?? '');
+            $productId  = !empty($_POST['product_id']) ? (int) $_POST['product_id'] : null;
+            $value      = !empty($_POST['estimated_value']) ? (float) str_replace(['.', ','], ['', '.'], $_POST['estimated_value']) : null;
+            $responsible = !empty($_POST['responsible_user_id']) ? (int) $_POST['responsible_user_id'] : null;
+            $notes      = trim($_POST['notes'] ?? '');
+
+            $oppId = null;
+            if ($oppName) {
+                $result = ProspectingService::findResultById($resultId);
+                $oppId = \PixelHub\Services\OpportunityService::create([
+                    'name'                => $oppName,
+                    'lead_id'             => $leadId,
+                    'tenant_id'           => $result['tenant_id'] ?? null,
+                    'product_id'          => $productId,
+                    'estimated_value'     => $value,
+                    'responsible_user_id' => $responsible,
+                    'notes'               => $notes,
+                    'stage'               => 'new',
+                    'origin'              => 'prospecting_google_maps',
+                ], $userId);
+            }
+
             $this->json([
                 'success'    => true,
                 'lead_id'    => $leadId,
+                'opp_id'     => $oppId,
                 'lead_url'   => pixelhub_url('/leads/edit?id=' . $leadId),
-                'opp_url'    => pixelhub_url('/opportunities?lead_id=' . $leadId),
-                'message'    => 'Lead criado com sucesso!',
+                'opp_url'    => $oppId ? pixelhub_url('/opportunities/view?id=' . $oppId) : null,
+                'message'    => 'Lead e oportunidade criados com sucesso!',
             ]);
         } catch (\Exception $e) {
             error_log('[ProspectingController] Erro ao converter para lead: ' . $e->getMessage());
