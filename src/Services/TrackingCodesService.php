@@ -142,10 +142,15 @@ class TrackingCodesService
 
         $stmt = $db->prepare("
             SELECT tc.*, u.name as created_by_name,
-                   COALESCE(NULLIF(t.company,''), t.name) as tenant_name
+                   CASE
+                       WHEN tc.tenant_id = 0 THEN COALESCE(NULLIF(cs.company_name_fantasy,''), cs.company_name)
+                       ELSE COALESCE(NULLIF(t.company,''), t.name)
+                   END as tenant_name,
+                   CASE WHEN tc.tenant_id = 0 THEN 1 ELSE 0 END as is_own_agency
             FROM tracking_codes tc
             LEFT JOIN users u ON tc.created_by = u.id
-            LEFT JOIN tenants t ON t.id = tc.tenant_id
+            LEFT JOIN tenants t ON t.id = tc.tenant_id AND tc.tenant_id != 0
+            LEFT JOIN company_settings cs ON tc.tenant_id = 0
             WHERE {$whereStr}
             ORDER BY tc.created_at DESC
         ");
@@ -154,17 +159,33 @@ class TrackingCodesService
     }
 
     /**
-     * Lista tenants ativos para o select de vínculo
+     * Lista tenants ativos para o select de vínculo.
+     * Inclui a própria empresa (company_settings) no topo com id=0.
      */
     public static function listTenants(): array
     {
         $db = DB::getConnection();
-        return $db->query("
+
+        // Própria empresa (company_settings) — id=0 é valor especial
+        $ownCompany = [];
+        try {
+            $cs = $db->query("SELECT company_name, company_name_fantasy FROM company_settings LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
+            if ($cs) {
+                $label = $cs['company_name_fantasy'] ?: $cs['company_name'];
+                $ownCompany = [['id' => 0, 'label' => $label . ' (Agência)', 'is_own' => true]];
+            }
+        } catch (\Exception $e) {
+            // ignora se tabela não existir
+        }
+
+        $tenants = $db->query("
             SELECT id, COALESCE(NULLIF(company,''), name) as label
             FROM tenants
             WHERE status = 'active'
             ORDER BY label ASC
         ")->fetchAll() ?: [];
+
+        return array_merge($ownCompany, $tenants);
     }
 
     /**

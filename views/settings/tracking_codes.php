@@ -160,7 +160,11 @@ $filters = $filters ?? [];
                             </td>
                             <td style="padding: 12px; color: #374151; font-size: 13px;">
                                 <?php if (!empty($code['tenant_name'])): ?>
+                                    <?php if (!empty($code['is_own_agency'])): ?>
+                                    <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">&#9733; <?= htmlspecialchars($code['tenant_name']) ?></span>
+                                    <?php else: ?>
                                     <span style="background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;"><?= htmlspecialchars($code['tenant_name']) ?></span>
+                                    <?php endif; ?>
                                 <?php else: ?>
                                     <span style="color:#94a3b8;font-size:12px;">Global</span>
                                 <?php endif; ?>
