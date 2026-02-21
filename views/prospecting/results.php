@@ -99,7 +99,7 @@ ob_start();
                         <a href="<?= htmlspecialchars($result['website']) ?>" target="_blank" style="font-size:11px;color:#023A8D;text-decoration:none;">🌐 <?= htmlspecialchars(parse_url($result['website'], PHP_URL_HOST) ?: $result['website']) ?></a>
                         <?php endif; ?>
                         <?php if (!empty($result['lead_name'])): ?>
-                        <div style="margin-top:4px;"><a href="<?= pixelhub_url('/leads/edit?id=' . $result['lead_id']) ?>" style="font-size:11px;color:#16a34a;font-weight:600;text-decoration:none;">✓ Lead: <?= htmlspecialchars($result['lead_name']) ?></a></div>
+                        <div style="margin-top:4px;"><a href="<?= pixelhub_url('/opportunities/view-by-lead?lead_id=' . $result['lead_id']) ?>" style="font-size:11px;color:#16a34a;font-weight:600;text-decoration:none;">✓ Lead: <?= htmlspecialchars($result['lead_name']) ?></a></div>
                         <?php endif; ?>
                     </td>
                     <td style="padding:14px 16px;">
@@ -136,7 +136,7 @@ ob_start();
                                 + Criar Lead
                             </button>
                             <?php else: ?>
-                            <a href="<?= pixelhub_url('/leads/edit?id=' . $result['lead_id']) ?>" style="padding:5px 10px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:5px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;">
+                            <a href="<?= pixelhub_url('/opportunities/view-by-lead?lead_id=' . $result['lead_id']) ?>" style="padding:5px 10px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:5px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;">
                                 Ver Lead
                             </a>
                             <?php endif; ?>
@@ -226,7 +226,7 @@ ob_start();
         <div style="display:flex;gap:10px;">
             <button onclick="submitLeadModal()" id="lead-modal-submit"
                     style="flex:1;padding:11px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">
-                Criar Lead + Oportunidade
+                Criar Lead
             </button>
             <button onclick="closeLeadModal()"
                     style="padding:11px 18px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:14px;cursor:pointer;">
@@ -289,12 +289,6 @@ function submitLeadModal() {
     const errDiv     = document.getElementById('lead-modal-error');
     const submitBtn  = document.getElementById('lead-modal-submit');
 
-    if (!oppName) {
-        errDiv.textContent = 'Informe o nome da oportunidade.';
-        errDiv.style.display = 'block';
-        return;
-    }
-
     submitBtn.disabled = true;
     submitBtn.textContent = '⏳ Criando...';
     errDiv.style.display = 'none';
@@ -313,29 +307,33 @@ function submitLeadModal() {
     .then(data => {
         if (data.success) {
             closeLeadModal();
+            const targetUrl = data.opp_url || data.lead_url;
             const row = document.getElementById('row-' + resultId);
             if (row) {
-                const btn = row.querySelector('button');
-                if (btn) {
-                    btn.style.background = '#f0fdf4';
-                    btn.style.color = '#15803d';
-                    btn.style.border = '1px solid #bbf7d0';
-                    btn.textContent = '✓ Lead criado';
-                    btn.onclick = () => window.open(data.lead_url, '_blank');
+                const actionsCell = row.querySelector('td:last-child > div');
+                if (actionsCell) {
+                    const btn = actionsCell.querySelector('button');
+                    if (btn) {
+                        const link = document.createElement('a');
+                        link.href = targetUrl;
+                        link.style.cssText = 'padding:5px 10px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:5px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;';
+                        link.textContent = 'Ver Lead';
+                        btn.replaceWith(link);
+                    }
                 }
             }
         } else {
             errDiv.textContent = data.error || 'Erro ao criar lead.';
             errDiv.style.display = 'block';
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Criar Lead + Oportunidade';
+            submitBtn.textContent = 'Criar Lead';
         }
     })
     .catch(() => {
         errDiv.textContent = 'Erro de comunicação.';
         errDiv.style.display = 'block';
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Criar Lead + Oportunidade';
+        submitBtn.textContent = 'Criar Lead';
     });
 }
 

@@ -50,18 +50,39 @@ class OpportunitiesController extends Controller
 
         // Busca usuários para filtro de responsável
         $db = \PixelHub\Core\DB::getConnection();
+
+        // Leads de prospecção vinculados ao tenant selecionado (sem oportunidade)
+        $prospectingLeads = [];
+        if ($tenantFilter !== null && $tenantFilter > 0) {
+            try {
+                $stmt = $db->prepare("
+                    SELECT pr.id as result_id, pr.name, pr.phone, pr.lead_id, pr.status as prospect_status,
+                           l.id as lead_id, l.name as lead_name, l.created_at,
+                           rec.name as recipe_name
+                    FROM prospecting_results pr
+                    LEFT JOIN leads l ON l.id = pr.lead_id
+                    LEFT JOIN prospecting_recipes rec ON rec.id = pr.recipe_id
+                    WHERE pr.tenant_id = ? AND pr.lead_id IS NOT NULL
+                      AND NOT EXISTS (SELECT 1 FROM opportunities o WHERE o.lead_id = pr.lead_id)
+                    ORDER BY l.created_at DESC
+                ");
+                $stmt->execute([$tenantFilter]);
+                $prospectingLeads = $stmt->fetchAll() ?: [];
+            } catch (\Exception $e) {
+                error_log('[Opportunities] Erro ao buscar leads de prospecção: ' . $e->getMessage());
+            }
+        }
         $users = $db->query("SELECT id, name FROM users WHERE is_internal = 1 ORDER BY name ASC")->fetchAll() ?: [];
 
-        // Busca apenas contas (contact_type = 'client') com oportunidades vinculadas
-        // Exclui leads/contatos individuais — só clientes/empresas reais
+        // Busca contas com oportunidades OU leads vinculados
         $tenants = $db->query("
             SELECT t.id, COALESCE(NULLIF(t.company,''), t.name) as label
             FROM tenants t
             WHERE t.status = 'active'
               AND (t.contact_type = 'client' OR t.contact_type IS NULL)
-              AND EXISTS (
-                  SELECT 1 FROM opportunities o
-                  WHERE o.tenant_id = t.id
+              AND (
+                  EXISTS (SELECT 1 FROM opportunities o WHERE o.tenant_id = t.id)
+                  OR EXISTS (SELECT 1 FROM prospecting_results pr WHERE pr.tenant_id = t.id AND pr.lead_id IS NOT NULL)
               )
             ORDER BY label ASC
         ")->fetchAll() ?: [];
@@ -78,15 +99,16 @@ class OpportunitiesController extends Controller
         }
 
         $this->view('opportunities.index', [
-            'opportunities'   => $opportunities,
-            'counts'          => $counts,
-            'filters'         => $filters,
-            'users'           => $users,
-            'products'        => $products,
-            'origins'         => $origins,
-            'stages'          => OpportunityService::STAGES,
-            'tenants'         => $tenants,
-            'selectedTenant'  => $tenantFilterRaw,
+            'opportunities'    => $opportunities,
+            'counts'           => $counts,
+            'filters'          => $filters,
+            'users'            => $users,
+            'products'         => $products,
+            'origins'          => $origins,
+            'stages'           => OpportunityService::STAGES,
+            'tenants'          => $tenants,
+            'selectedTenant'   => $tenantFilterRaw,
+            'prospectingLeads' => $prospectingLeads,
         ]);
     }
 
@@ -195,7 +217,8 @@ class OpportunitiesController extends Controller
         }
 
         if (empty($row['id'])) {
-            $this->redirect('/opportunities?error=no_opportunity_for_lead&lead_id=' . $leadId);
+            // Lead existe mas sem oportunidade — abre a ficha do lead
+            $this->redirect('/leads/edit?id=' . $leadId . '&notice=no_opportunity');
             return;
         }
 

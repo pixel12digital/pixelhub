@@ -19,6 +19,18 @@ $opportunities = $opportunities ?? [];
     </div>
 </div>
 
+<?php if (isset($_GET['notice']) && $_GET['notice'] === 'no_opportunity'): ?>
+    <div class="card" style="background: #fff3cd; border-left: 4px solid #ffc107; margin-bottom: 20px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+        <p style="color: #856404; margin: 0; font-size:13px;">
+            Este lead ainda não possui uma oportunidade vinculada.
+        </p>
+        <a href="<?= pixelhub_url('/opportunities?new=1&lead_id=' . $lead['id']) ?>"
+           style="padding:8px 16px;background:#023A8D;color:#fff;border-radius:5px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;">
+            + Criar Oportunidade
+        </a>
+    </div>
+<?php endif; ?>
+
 <?php if (isset($_GET['success'])): ?>
     <div class="card" style="background: #d4edda; border-left: 4px solid #28a745; margin-bottom: 20px;">
         <p style="color: #155724; margin: 0;">

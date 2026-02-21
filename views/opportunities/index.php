@@ -1,6 +1,7 @@
 <?php
 ob_start();
 $baseUrl = pixelhub_url('');
+$prospectingLeads = $prospectingLeads ?? [];
 $stageColors = [
     'new' => '#6c757d',
     'contact' => '#0d6efd',
@@ -279,6 +280,48 @@ document.addEventListener('click', function(e) {
     <?php endif; ?>
 </div>
 </div>
+
+<?php if (!empty($prospectingLeads)): ?>
+<div class="card" style="margin-top: 20px; border-left: 4px solid #16a34a;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <h3 style="margin:0;font-size:15px;color:#15803d;">
+            🔍 Leads da Prospecção Ativa <span style="font-size:12px;font-weight:400;color:#64748b;">(sem oportunidade vinculada)</span>
+        </h3>
+        <a href="<?= pixelhub_url('/prospecting') ?>" style="font-size:12px;color:#023A8D;text-decoration:none;font-weight:600;">Ver Prospecção Ativa →</a>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+            <tr style="background:#f0fdf4;border-bottom:1px solid #bbf7d0;">
+                <th style="padding:10px 12px;text-align:left;font-weight:600;color:#15803d;">Nome</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:600;color:#15803d;">Telefone</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:600;color:#15803d;">Receita</th>
+                <th style="padding:10px 12px;text-align:left;font-weight:600;color:#15803d;">Criado em</th>
+                <th style="padding:10px 12px;text-align:center;font-weight:600;color:#15803d;">Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($prospectingLeads as $pl): ?>
+            <tr style="border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='white'">
+                <td style="padding:10px 12px;font-weight:600;color:#1e293b;"><?= htmlspecialchars($pl['lead_name'] ?? $pl['name']) ?></td>
+                <td style="padding:10px 12px;color:#374151;"><?= htmlspecialchars($pl['phone'] ?? '—') ?></td>
+                <td style="padding:10px 12px;color:#64748b;font-size:12px;"><?= htmlspecialchars($pl['recipe_name'] ?? '—') ?></td>
+                <td style="padding:10px 12px;color:#64748b;font-size:12px;"><?= !empty($pl['created_at']) ? date('d/m/Y', strtotime($pl['created_at'])) : '—' ?></td>
+                <td style="padding:10px 12px;text-align:center;">
+                    <a href="<?= pixelhub_url('/leads/edit?id=' . $pl['lead_id'] . '&notice=no_opportunity') ?>"
+                       style="padding:5px 12px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:5px;font-size:11px;font-weight:600;text-decoration:none;margin-right:4px;">
+                        Ver Lead
+                    </a>
+                    <button onclick="openCreateModalForLead(<?= $pl['lead_id'] ?>, <?= htmlspecialchars(json_encode($pl['lead_name'] ?? $pl['name'])) ?>)"
+                            style="padding:5px 12px;background:#023A8D;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;">
+                        + Oportunidade
+                    </button>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+<?php endif; ?>
 
 <!-- Kanban -->
 <div id="view-kanban" style="display: none;">
@@ -1042,6 +1085,18 @@ function filterByStatus(status) {
 function openCreateModal() {
     document.getElementById('create-opp-modal').style.display = 'flex';
     resetModal();
+}
+
+function openCreateModalForLead(leadId, leadName) {
+    openCreateModal();
+    // Pre-seleciona o lead no modal
+    setTimeout(function() {
+        document.getElementById('lead-id-hidden').value = leadId;
+        document.getElementById('lead-search-input').style.display = 'none';
+        document.getElementById('lead-selected-name').textContent = leadName;
+        document.getElementById('lead-selected-badge').style.display = 'block';
+        document.getElementById('contact-validation-msg').style.display = 'none';
+    }, 50);
 }
 
 function closeCreateModal() {
