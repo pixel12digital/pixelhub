@@ -734,6 +734,22 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/communication-hub/transcribe', 'CommunicationHubController@transcribe');
     $router->get('/communication-hub/transcription-status', 'CommunicationHubController@getTranscriptionStatus');
 
+    // Rotas de Prospecção Ativa (CRM / Comercial)
+    $router->get('/prospecting', 'ProspectingController@index');
+    $router->post('/prospecting/store', 'ProspectingController@store');
+    $router->post('/prospecting/update', 'ProspectingController@update');
+    $router->post('/prospecting/toggle-status', 'ProspectingController@toggleStatus');
+    $router->post('/prospecting/delete', 'ProspectingController@delete');
+    $router->post('/prospecting/run', 'ProspectingController@run');
+    $router->get('/prospecting/results', 'ProspectingController@results');
+    $router->post('/prospecting/update-result-status', 'ProspectingController@updateResultStatus');
+    $router->post('/prospecting/convert-to-lead', 'ProspectingController@convertToLead');
+
+    // Configurações — Google Maps API
+    $router->get('/settings/google-maps', 'ProspectingController@settingsIndex');
+    $router->post('/settings/google-maps/save', 'ProspectingController@settingsSave');
+    $router->post('/settings/google-maps/test', 'ProspectingController@settingsTest');
+
     // Rotas de Oportunidades / CRM (apenas internos)
     $router->get('/opportunities', 'OpportunitiesController@index');
     $router->get('/opportunities/view', 'OpportunitiesController@show');

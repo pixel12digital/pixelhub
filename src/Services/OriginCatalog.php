@@ -144,6 +144,11 @@ class OriginCatalog
                 'label' => 'Importação',
                 'group' => 'CRM'
             ],
+            [
+                'key' => 'prospecting_google_maps',
+                'label' => 'Prospecção Ativa (Google Maps)',
+                'group' => 'CRM'
+            ],
             
             // Outros
             [
