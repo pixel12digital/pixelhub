@@ -4,6 +4,7 @@ namespace PixelHub\Controllers;
 
 use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
+use PixelHub\Core\DB;
 use PixelHub\Services\ProspectingService;
 use PixelHub\Services\OpportunityProductService;
 use PixelHub\Services\GooglePlacesClient;
