@@ -182,7 +182,18 @@ function updateStatus(id, status) {
     })
     .then(r => r.json())
     .then(data => {
-        if (!data.success) alert('Erro ao atualizar status: ' + data.error);
+        if (!data.success) { alert('Erro ao atualizar status: ' + data.error); return; }
+        const row = document.getElementById('row-' + id);
+        if (!row) return;
+        if (status === 'discarded') {
+            row.style.opacity = '.4';
+            row.style.background = '#f8fafc';
+            row.style.filter = 'grayscale(.5)';
+        } else {
+            row.style.opacity = '';
+            row.style.background = '';
+            row.style.filter = '';
+        }
     });
 }
 
