@@ -2,6 +2,7 @@
 
 namespace PixelHub\Controllers;
 
+use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
 
