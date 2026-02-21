@@ -160,13 +160,14 @@ if ($tenantFilter === 0) {
             <div style="display:grid;gap:14px;">
                 <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 14px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#0369a1;margin-bottom:6px;">📁 Conta (cliente da agência)</label>
-                    <select name="tenant_id" id="recipeTenant" style="width:100%;padding:9px 12px;border:1px solid #7dd3fc;border-radius:6px;font-size:13px;box-sizing:border-box;background:#fff;">
-                        <option value="">🏢 Pixel12 Digital (agência própria)</option>
-                        <?php foreach ($tenants as $ten): ?>
-                        <option value="<?= $ten['id'] ?>"><?= htmlspecialchars($ten['company'] ?: $ten['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <p style="margin:5px 0 0;font-size:11px;color:#0369a1;">Selecione o cliente para quem você está prospectando. Os leads ficam separados por conta.</p>
+                    <input type="hidden" name="tenant_id" id="recipeTenantId">
+                    <div style="position:relative;">
+                        <input type="text" id="recipeTenantSearch" autocomplete="off"
+                               placeholder="🏢 Pixel12 Digital (agência própria) — ou digite para buscar..."
+                               style="width:100%;padding:9px 12px;border:1px solid #7dd3fc;border-radius:6px;font-size:13px;box-sizing:border-box;background:#fff;">
+                        <div id="tenantDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #bae6fd;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:200;max-height:200px;overflow-y:auto;"></div>
+                    </div>
+                    <p style="margin:5px 0 0;font-size:11px;color:#0369a1;">Deixe em branco para a agência. Digite 2+ letras para buscar um cliente.</p>
                 </div>
                 <div>
                     <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Nome da receita *</label>
@@ -225,9 +226,7 @@ function openCreateModal(){
     ['recipeId','recipeName','recipeCity','recipeState','recipeKeywords','recipeNotes'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('recipeProduct').value='';
     document.getElementById('recipePlaceType').value='';
-    // Pré-seleciona a conta do filtro atual
-    const tf = '<?= $tenantFilter === null ? 'own' : ($tenantFilter > 0 ? $tenantFilter : '') ?>';
-    document.getElementById('recipeTenant').value = (tf === 'own' || tf === '') ? '' : tf;
+    setTenant('', '');
     modal.style.display='flex';
 }
 function openEditModal(r){
@@ -242,11 +241,49 @@ function openEditModal(r){
     document.getElementById('recipeProduct').value=r.product_id||'';
     document.getElementById('recipePlaceType').value=r.google_place_type||'';
     document.getElementById('recipeNotes').value=r.notes||'';
-    document.getElementById('recipeTenant').value=r.tenant_id||'';
+    setTenant(r.tenant_id||'', r.tenant_company||r.tenant_name||'');
     modal.style.display='flex';
     closeAllDropdowns();
 }
-function closeModal(){modal.style.display='none';}
+function closeModal(){
+    modal.style.display='none';
+    document.getElementById('tenantDropdown').style.display='none';
+}
+
+function setTenant(id, label) {
+    document.getElementById('recipeTenantId').value = id;
+    document.getElementById('recipeTenantSearch').value = label;
+    document.getElementById('tenantDropdown').style.display = 'none';
+}
+
+let _tenantTimer = null;
+document.getElementById('recipeTenantSearch').addEventListener('input', function() {
+    const q = this.value.trim();
+    if (!q) { document.getElementById('recipeTenantId').value = ''; document.getElementById('tenantDropdown').style.display='none'; return; }
+    if (q.length < 2) return;
+    clearTimeout(_tenantTimer);
+    _tenantTimer = setTimeout(() => {
+        fetch('<?= pixelhub_url('/prospecting/search-tenants') ?>?q=' + encodeURIComponent(q))
+        .then(r => r.json())
+        .then(data => {
+            const dd = document.getElementById('tenantDropdown');
+            if (!data.length) { dd.style.display='none'; return; }
+            dd.innerHTML = data.map(t => {
+                const lbl = (t.label||t.company||t.name||'').replace(/</g,'&lt;');
+                return `<div onclick="setTenant('${t.id}','${lbl.replace(/'/g,"\\'")}')"
+                    style="padding:9px 14px;cursor:pointer;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9;"
+                    onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''">
+                    ${lbl}
+                </div>`;
+            }).join('');
+            dd.style.display = 'block';
+        });
+    }, 280);
+});
+document.addEventListener('click', e => {
+    if (!e.target.closest('#tenantDropdown') && e.target.id !== 'recipeTenantSearch')
+        document.getElementById('tenantDropdown').style.display = 'none';
+});
 modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});
 function toggleDropdown(btn){const m=btn.nextElementSibling;const o=m.style.display==='block';closeAllDropdowns();if(!o)m.style.display='block';}
 function closeAllDropdowns(){document.querySelectorAll('.dropdown-menu').forEach(m=>m.style.display='none');}

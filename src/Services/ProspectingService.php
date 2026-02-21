@@ -66,7 +66,7 @@ class ProspectingService
     // =========================================================================
 
     /**
-     * Lista apenas tenants que têm pelo menos 1 receita de prospecção criada
+     * Lista apenas tenants que têm pelo menos 1 receita (para as abas de filtro)
      */
     public static function listTenants(): array
     {
@@ -78,6 +78,27 @@ class ProspectingService
             WHERE (t.is_archived IS NULL OR t.is_archived = 0)
             ORDER BY t.name ASC
         ");
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * Busca tenants por nome/empresa para autocomplete no modal (mínimo 2 chars)
+     */
+    public static function searchTenants(string $q, int $limit = 10): array
+    {
+        $db = DB::getConnection();
+        $stmt = $db->prepare("
+            SELECT id,
+                   COALESCE(NULLIF(company,''), name) AS label,
+                   name, company
+            FROM tenants
+            WHERE (is_archived IS NULL OR is_archived = 0)
+              AND (name LIKE ? OR company LIKE ?)
+            ORDER BY COALESCE(NULLIF(company,''), name) ASC
+            LIMIT ?
+        ");
+        $like = '%' . $q . '%';
+        $stmt->execute([$like, $like, $limit]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 

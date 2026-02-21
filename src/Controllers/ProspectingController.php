@@ -95,6 +95,21 @@ class ProspectingController extends Controller
     // =========================================================================
 
     /**
+     * GET /prospecting/search-tenants?q=xxx
+     * Busca tenants por nome/empresa para autocomplete (mínimo 2 chars)
+     */
+    public function searchTenants(): void
+    {
+        Auth::requireInternal();
+        $q = trim($_GET['q'] ?? '');
+        if (strlen($q) < 2) {
+            $this->json([]);
+            return;
+        }
+        $this->json(ProspectingService::searchTenants($q));
+    }
+
+    /**
      * GET /prospecting
      */
     public function index(): void
