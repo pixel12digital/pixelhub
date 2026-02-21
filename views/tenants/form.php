@@ -398,6 +398,31 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Inicializa na carga da página
     toggleGroups();
+
+    // Validação antes de enviar
+    form.addEventListener('submit', function(e) {
+        const personType = personTypeSelect.value;
+        
+        if (personType === 'pf') {
+            const nomePf = document.getElementById('nome_pf').value.trim();
+            const cpfPf = document.getElementById('cpf_pf').value.trim();
+            
+            if (!nomePf || !cpfPf) {
+                e.preventDefault();
+                alert('Por favor, preencha o nome completo e CPF para Pessoa Física.');
+                return false;
+            }
+        } else {
+            const razaoSocial = document.getElementById('razao_social').value.trim();
+            const cnpj = document.getElementById('cnpj').value.trim();
+            
+            if (!razaoSocial || !cnpj) {
+                e.preventDefault();
+                alert('Por favor, preencha a razão social e CNPJ para Pessoa Jurídica.');
+                return false;
+            }
+        }
+    });
 });
 
 // Busca automática no Asaas
@@ -570,34 +595,6 @@ function importFromAsaas() {
     resultDiv.innerHTML = '<strong><span style="display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 100%; height: 100%;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span> Dados importados do Asaas!</strong><br><small>Revise os dados e clique em "Salvar" para continuar.</small>';
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
-    
-    // Validação antes de enviar
-    form.addEventListener('submit', function(e) {
-        const personType = personTypeSelect.value;
-        
-        if (personType === 'pf') {
-            const nomePf = document.getElementById('nome_pf').value.trim();
-            const cpfPf = document.getElementById('cpf_pf').value.trim();
-            
-            if (!nomePf || !cpfPf) {
-                e.preventDefault();
-                alert('Por favor, preencha o nome completo e CPF para Pessoa Física.');
-                return false;
-            }
-        } else {
-            const razaoSocial = document.getElementById('razao_social').value.trim();
-            const cnpj = document.getElementById('cnpj').value.trim();
-            
-            if (!razaoSocial || !cnpj) {
-                e.preventDefault();
-                alert('Por favor, preencha a razão social e CNPJ para Pessoa Jurídica.');
-                return false;
-            }
-        }
-    });
-});
 
 // Integração ViaCEP
 function formatarCEP(cep) {
