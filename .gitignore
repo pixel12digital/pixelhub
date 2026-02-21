@@ -5,7 +5,9 @@
 .env.production
 
 # Dependências
-/vendor/
+/vendor/*
+!/vendor/autoload.php
+!/vendor/composer/
 /node_modules/
 /composer.lock
 
