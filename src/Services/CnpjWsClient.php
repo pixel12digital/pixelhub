@@ -135,6 +135,65 @@ class CnpjWsClient
     }
 
     /**
+     * Busca CNAEs por código ou descrição na API pública CNPJ.ws
+     *
+     * Endpoint: GET https://publica.cnpj.ws/cnae?descricao={termo}
+     *           GET https://publica.cnpj.ws/cnae/{codigo}
+     *
+     * @param string $query Código (ex: "6822") ou descrição (ex: "imobiliária")
+     * @param int    $limit Máximo de resultados
+     * @return array Lista de ['code' => '...', 'desc' => '...']
+     */
+    public function searchCnae(string $query, int $limit = 15): array
+    {
+        $query = trim($query);
+        if (strlen($query) < 2) {
+            return [];
+        }
+
+        // Se parece ser código numérico, busca por código
+        $isCode = preg_match('/^\d/', $query);
+
+        if ($isCode) {
+            $code = preg_replace('/\D/', '', $query);
+            $url  = self::BASE_URL . '/cnae/' . urlencode($code);
+        } else {
+            $url = self::BASE_URL . '/cnae?' . http_build_query(['descricao' => $query]);
+        }
+
+        try {
+            $data = $this->get($url);
+        } catch (\Exception $e) {
+            return [];
+        }
+
+        if (!is_array($data)) {
+            return [];
+        }
+
+        // Resposta de /cnae/{codigo} retorna objeto único, normaliza para array
+        if (isset($data['codigo'])) {
+            $data = [$data];
+        }
+
+        $results = [];
+        foreach ($data as $item) {
+            if (empty($item['codigo'])) {
+                continue;
+            }
+            $results[] = [
+                'code' => (string) $item['codigo'],
+                'desc' => $item['descricao'] ?? '',
+            ];
+            if (count($results) >= $limit) {
+                break;
+            }
+        }
+
+        return $results;
+    }
+
+    /**
      * Busca municípios por UF para autocomplete no frontend
      *
      * @param string $uf UF (ex: PR)

@@ -111,6 +111,23 @@ class ProspectingController extends Controller
     }
 
     /**
+     * GET /prospecting/search-cnae?q=xxx
+     * Busca CNAEs por código ou descrição via API pública CNPJ.ws
+     */
+    public function searchCnae(): void
+    {
+        Auth::requireInternal();
+        $q = trim($_GET['q'] ?? '');
+        if (strlen($q) < 2) {
+            $this->json([]);
+            return;
+        }
+        $client  = new \PixelHub\Services\CnpjWsClient();
+        $results = $client->searchCnae($q, 15);
+        $this->json($results);
+    }
+
+    /**
      * GET /prospecting
      */
     public function index(): void

@@ -368,112 +368,54 @@ document.addEventListener('click', e => {
         document.getElementById('cnaeDropdown').style.display = 'none';
 });
 
-// CNAE autocomplete
-const CNAE_LIST = [
-    {code:'4711-3/01',desc:'Comércio varejista - hipermercados'},
-    {code:'4711-3/02',desc:'Comércio varejista - supermercados'},
-    {code:'4712-1/00',desc:'Comércio varejista - minimercados e mercearias'},
-    {code:'4721-1/02',desc:'Padaria e confeitaria'},
-    {code:'4722-9/01',desc:'Açougues'},
-    {code:'4741-5/00',desc:'Tintas e materiais para pintura'},
-    {code:'4744-0/01',desc:'Ferragens e ferramentas'},
-    {code:'4744-0/05',desc:'Materiais de construção'},
-    {code:'4751-2/01',desc:'Equipamentos e suprimentos de informática'},
-    {code:'4753-9/00',desc:'Eletrodomésticos e equipamentos de áudio e vídeo'},
-    {code:'4771-7/01',desc:'Farmácias e drogarias'},
-    {code:'4772-5/00',desc:'Cosméticos, perfumaria e higiene pessoal'},
-    {code:'4781-4/00',desc:'Vestuário e acessórios'},
-    {code:'4782-2/01',desc:'Calçados'},
-    {code:'4930-2/01',desc:'Transporte rodoviário de carga - municipal'},
-    {code:'4930-2/02',desc:'Transporte rodoviário de carga - intermunicipal/interestadual'},
-    {code:'5611-2/01',desc:'Restaurantes e similares'},
-    {code:'5611-2/03',desc:'Lanchonetes e casas de suco'},
-    {code:'5620-1/01',desc:'Fornecimento de alimentos para empresas (catering)'},
-    {code:'6201-5/01',desc:'Desenvolvimento de software sob encomenda'},
-    {code:'6201-5/02',desc:'Web design'},
-    {code:'6202-3/00',desc:'Desenvolvimento e licenciamento de software customizável'},
-    {code:'6203-1/00',desc:'Desenvolvimento e licenciamento de software não-customizável'},
-    {code:'6204-0/00',desc:'Consultoria em tecnologia da informação'},
-    {code:'6209-1/00',desc:'Suporte técnico e manutenção em TI'},
-    {code:'6311-9/00',desc:'Hospedagem na internet e provedores'},
-    {code:'6319-4/00',desc:'Portais e provedores de conteúdo na internet'},
-    {code:'6421-2/00',desc:'Bancos comerciais'},
-    {code:'6431-0/00',desc:'Bancos múltiplos com carteira comercial'},
-    {code:'6499-3/99',desc:'Outras atividades de serviços financeiros'},
-    {code:'6511-1/01',desc:'Seguros de vida'},
-    {code:'6550-2/00',desc:'Planos de saúde'},
-    {code:'6612-6/02',desc:'Distribuidoras de títulos e valores mobiliários'},
-    {code:'6719-9/99',desc:'Outras atividades auxiliares dos serviços financeiros'},
-    {code:'6810-2/01',desc:'Compra e venda de imóveis próprios'},
-    {code:'6810-2/02',desc:'Aluguel de imóveis próprios'},
-    {code:'6821-8/01',desc:'Corretagem na compra e venda de imóveis'},
-    {code:'6821-8/02',desc:'Corretagem no aluguel de imóveis'},
-    {code:'6822-6/00',desc:'Gestão e administração da propriedade imobiliária'},
-    {code:'7111-1/00',desc:'Serviços de arquitetura'},
-    {code:'7112-0/00',desc:'Serviços de engenharia'},
-    {code:'7119-7/01',desc:'Serviços de cartografia, topografia e geodésia'},
-    {code:'7210-0/00',desc:'Pesquisa e desenvolvimento experimental em ciências físicas e naturais'},
-    {code:'7311-4/00',desc:'Agências de publicidade'},
-    {code:'7312-2/00',desc:'Agenciamento de espaços para publicidade'},
-    {code:'7319-0/02',desc:'Promoção de vendas'},
-    {code:'7319-0/03',desc:'Marketing direto'},
-    {code:'7319-0/99',desc:'Outras atividades de publicidade não especificadas'},
-    {code:'7320-3/00',desc:'Pesquisas de mercado e de opinião pública'},
-    {code:'7410-2/02',desc:'Design de interiores'},
-    {code:'7490-1/04',desc:'Atividades de intermediação e agenciamento de serviços'},
-    {code:'7490-1/99',desc:'Outras atividades profissionais, científicas e técnicas'},
-    {code:'7711-0/00',desc:'Locação de automóveis sem condutor'},
-    {code:'7719-5/99',desc:'Locação de outros meios de transporte'},
-    {code:'7810-8/00',desc:'Seleção e agenciamento de mão-de-obra'},
-    {code:'7820-5/00',desc:'Locação de mão-de-obra temporária'},
-    {code:'8011-1/01',desc:'Atividades de vigilância e segurança privada'},
-    {code:'8020-0/01',desc:'Atividades de monitoramento de sistemas de segurança eletrônico'},
-    {code:'8111-7/00',desc:'Serviços combinados para apoio a edifícios (condomínios)'},
-    {code:'8121-4/00',desc:'Limpeza em prédios e em domícilios'},
-    {code:'8122-2/00',desc:'Imunização e controle de pragas urbanas'},
-    {code:'8129-0/00',desc:'Atividades de limpeza não especificadas anteriormente'},
-    {code:'8511-2/00',desc:'Educação infantil - creche'},
-    {code:'8512-1/00',desc:'Educação infantil - pré-escola'},
-    {code:'8513-9/00',desc:'Ensino fundamental'},
-    {code:'8520-1/00',desc:'Ensino médio'},
-    {code:'8531-7/00',desc:'Educação superior - graduação'},
-    {code:'8541-4/00',desc:'Educação profissional de nível técnico'},
-    {code:'8599-6/04',desc:'Treinamento em desenvolvimento profissional e gerencial'},
-    {code:'8630-5/01',desc:'Atividade médica ambulatorial com recursos para realização de procedimentos cirúrgicos'},
-    {code:'8630-5/02',desc:'Atividade médica ambulatorial sem recursos para realização de procedimentos cirúrgicos'},
-    {code:'8630-5/04',desc:'Atividade odontológica'},
-    {code:'8640-2/02',desc:'Laboratórios clínicos'},
-    {code:'8650-0/01',desc:'Atividades de enfermagem'},
-    {code:'8660-7/00',desc:'Atividades de apoio à gestão de saúde'},
-    {code:'8711-5/01',desc:'Clínicas e residências geriátricas'},
-    {code:'9001-9/01',desc:'Produção teatral'},
-    {code:'9311-5/00',desc:'Gestão de instalações de esportes'},
-    {code:'9312-3/00',desc:'Clubes sociais, esportivos e similares'},
-    {code:'9321-2/00',desc:'Parques de diversão e parques temáticos'},
-    {code:'9602-5/01',desc:'Cabeleireiros, manicure e pedicure'},
-    {code:'9602-5/02',desc:'Atividades de estética e outros serviços de cuidados com a beleza'},
-    {code:'9609-2/99',desc:'Outras atividades de serviços pessoais não especificadas anteriormente'},
-];
+// CNAE autocomplete — busca dinâmica na API pública CNPJ.ws
 function setCnae(code, desc){
-    document.getElementById('recipeCnaeCode').value=code;
-    document.getElementById('recipeCnaeDescription').value=desc;
-    document.getElementById('recipeCnaeSearch').value=code+' — '+desc;
-    document.getElementById('cnaeDropdown').style.display='none';
+    const codeEl = document.getElementById('recipeCnaeCode');
+    const descEl = document.getElementById('recipeCnaeDescription');
+    const searchEl = document.getElementById('recipeCnaeSearch');
+    const dd = document.getElementById('cnaeDropdown');
+    if(codeEl) codeEl.value = code;
+    if(descEl) descEl.value = desc;
+    if(searchEl) searchEl.value = code + ' — ' + desc;
+    if(dd) dd.style.display = 'none';
 }
-document.getElementById('recipeCnaeSearch').addEventListener('input',function(){
-    const q=this.value.trim().toLowerCase();
-    const dd=document.getElementById('cnaeDropdown');
-    if(!q){dd.style.display='none';return;}
-    const matches=CNAE_LIST.filter(c=>c.code.toLowerCase().includes(q)||c.desc.toLowerCase().includes(q)).slice(0,12);
-    if(!matches.length){dd.style.display='none';return;}
-    dd.innerHTML=matches.map(c=>{
-        const lbl=(c.code+' — '+c.desc).replace(/</g,'&lt;');
-        return `<div onclick="setCnae('${c.code.replace(/'/g,"\\'")}',' ${c.desc.replace(/'/g,"\\'")}')"
-            style="padding:9px 14px;cursor:pointer;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;"
-            onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''"><strong>${c.code}</strong> — ${c.desc}</div>`;
-    }).join('');
-    dd.style.display='block';
-});
+let _cnaeDebounce = null;
+const _cnaeSearchEl = document.getElementById('recipeCnaeSearch');
+if(_cnaeSearchEl){
+    _cnaeSearchEl.addEventListener('input', function(){
+        const q = this.value.trim();
+        const dd = document.getElementById('cnaeDropdown');
+        clearTimeout(_cnaeDebounce);
+        if(q.length < 2){ dd.style.display='none'; return; }
+        dd.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#64748b;">Buscando...</div>';
+        dd.style.display = 'block';
+        _cnaeDebounce = setTimeout(() => {
+            fetch('<?= pixelhub_url('/prospecting/search-cnae') ?>?q=' + encodeURIComponent(q))
+            .then(r => r.json())
+            .then(data => {
+                if(!data.length){
+                    dd.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8;">Nenhum CNAE encontrado para "' + q.replace(/</g,'&lt;') + '"</div>';
+                    dd.style.display = 'block';
+                    return;
+                }
+                dd.innerHTML = data.map(c => {
+                    const safeCode = c.code.replace(/'/g,"\\'");
+                    const safeDesc = c.desc.replace(/'/g,"\\'");
+                    return `<div onclick="setCnae('${safeCode}','${safeDesc}')"
+                        style="padding:9px 14px;cursor:pointer;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;"
+                        onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''">
+                        <strong style="color:#023A8D;">${c.code}</strong> &mdash; ${c.desc}
+                    </div>`;
+                }).join('');
+                dd.style.display = 'block';
+            })
+            .catch(() => {
+                dd.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#dc2626;">Erro ao buscar CNAEs. Tente novamente.</div>';
+                dd.style.display = 'block';
+            });
+        }, 350);
+    });
+}
 modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});
 function toggleDropdown(btn){const m=btn.nextElementSibling;const o=m.style.display==='block';closeAllDropdowns();if(!o)m.style.display='block';}
 function closeAllDropdowns(){document.querySelectorAll('.dropdown-menu').forEach(m=>m.style.display='none');}

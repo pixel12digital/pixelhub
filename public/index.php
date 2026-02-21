@@ -737,6 +737,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Rotas de Prospecção Ativa (CRM / Comercial)
     $router->get('/prospecting', 'ProspectingController@index');
     $router->get('/prospecting/search-tenants', 'ProspectingController@searchTenants');
+    $router->get('/prospecting/search-cnae', 'ProspectingController@searchCnae');
     $router->post('/prospecting/store', 'ProspectingController@store');
     $router->post('/prospecting/update', 'ProspectingController@update');
     $router->post('/prospecting/toggle-status', 'ProspectingController@toggleStatus');
