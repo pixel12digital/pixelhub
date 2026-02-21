@@ -266,7 +266,7 @@ const modal = document.getElementById('recipeModal');
 function openCreateModal(){
     document.getElementById('modalTitle').textContent='Nova Receita de Busca';
     document.getElementById('recipeForm').action='<?= pixelhub_url('/prospecting/store') ?>';
-    ['recipeId','recipeName','recipeCity','recipeState','recipeKeywords','recipeNotes'].forEach(id=>document.getElementById(id).value='');
+    ['recipeId','recipeName','recipeCity','recipeState','recipeKeywords','recipeNotes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     document.getElementById('recipeProduct').value='';
     if(document.getElementById('recipePlaceType')) document.getElementById('recipePlaceType').value='';
     if(document.getElementById('recipeCnaeSearch')) document.getElementById('recipeCnaeSearch').value='';
@@ -284,7 +284,7 @@ function openEditModal(r){
     document.getElementById('recipeCity').value=r.city||'';
     document.getElementById('recipeState').value=r.state||'';
     const kw=Array.isArray(r.keywords)?r.keywords:(typeof r.keywords==='string'?JSON.parse(r.keywords||'[]'):[]);
-    document.getElementById('recipeKeywords').value=kw.join(', ');
+    const kwEl=document.getElementById('recipeKeywords');if(kwEl)kwEl.value=kw.join(', ');
     document.getElementById('recipeProduct').value=r.product_id||'';
     document.getElementById('recipeNotes').value=r.notes||'';
     if(document.getElementById('recipePlaceType')) document.getElementById('recipePlaceType').value=r.google_place_type||'';
