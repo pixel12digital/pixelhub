@@ -52,9 +52,23 @@ class LeadsController extends Controller
             error_log('[Leads] Erro ao buscar oportunidades do lead #' . $id . ': ' . $e->getMessage());
         }
 
+        // Determina URL de voltar: se lead veio de prospecção, volta para a conta pai
+        $backUrl = pixelhub_url('/opportunities');
+        try {
+            $stmt = $db->prepare("SELECT tenant_id FROM prospecting_results WHERE lead_id = ? AND tenant_id IS NOT NULL LIMIT 1");
+            $stmt->execute([$id]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (!empty($row['tenant_id'])) {
+                $backUrl = pixelhub_url('/opportunities?tenant_id=' . (int) $row['tenant_id']);
+            }
+        } catch (\Exception $e) {
+            // ignora — usa backUrl padrão
+        }
+
         $this->view('leads.edit', [
-            'lead' => $lead,
+            'lead'          => $lead,
             'opportunities' => $opportunities,
+            'backUrl'       => $backUrl,
         ]);
     }
 

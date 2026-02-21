@@ -3,11 +3,12 @@ ob_start();
 $baseUrl = pixelhub_url('');
 $lead = $lead ?? [];
 $opportunities = $opportunities ?? [];
+$backUrl = $backUrl ?? pixelhub_url('/opportunities');
 ?>
 
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div>
-        <a href="<?= $_POST['redirect_url'] ?? pixelhub_url('/opportunities') ?>" style="color: #023A8D; text-decoration: none; font-size: 13px;">&larr; Voltar</a>
+        <a href="<?= htmlspecialchars($backUrl) ?>" style="color: #023A8D; text-decoration: none; font-size: 13px;">&larr; Voltar</a>
         <h2 style="margin-top: 6px;">
             <?= !empty($lead['name']) ? htmlspecialchars($lead['name']) : 'Lead #' . $lead['id'] ?>
         </h2>
@@ -61,7 +62,7 @@ $opportunities = $opportunities ?? [];
             
             <form method="POST" action="<?= pixelhub_url('/leads/update') ?>">
                 <input type="hidden" name="id" value="<?= $lead['id'] ?>">
-                <input type="hidden" name="redirect_url" value="<?= $_POST['redirect_url'] ?? pixelhub_url('/opportunities') ?>">
+                <input type="hidden" name="redirect_url" value="<?= htmlspecialchars($backUrl) ?>">
                 
                 <div style="margin-bottom: 14px;">
                     <label style="display: block; margin-bottom: 4px; font-weight: 600; font-size: 13px; color: #555;">Nome</label>
@@ -121,7 +122,7 @@ use PixelHub\Services\OriginCatalog;
                     <button type="submit" style="padding: 10px 24px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
                         Salvar Alterações
                     </button>
-                    <a href="<?= $_POST['redirect_url'] ?? pixelhub_url('/opportunities') ?>" 
+                    <a href="<?= htmlspecialchars($backUrl) ?>" 
                        style="margin-left: 12px; padding: 10px 24px; background: #6c757d; color: white; text-decoration: none; border-radius: 4px; display: inline-block;">
                         Cancelar
                     </a>
