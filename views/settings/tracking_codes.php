@@ -1,4 +1,7 @@
-<?php ob_start(); ?>
+<?php ob_start();
+$tenants = $tenants ?? [];
+$filters = $filters ?? [];
+?>
 <div class="content-header">
     <h2>Códigos de Rastreamento</h2>
     <p style="color: #666; font-size: 14px; margin-top: 5px;">
@@ -63,10 +66,23 @@
             </div>
         </div>
         
-        <div style="margin-top: 15px;">
-            <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555; font-size: 13px;">Descrição</label>
-            <input type="text" name="description" placeholder="Descrição opcional do código" readonly
-                   style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; width: 100%; box-sizing: border-box; background: #f8f9fa;">
+        <!-- Conta vinculada (opcional) -->
+        <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+                <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555; font-size: 13px;">Conta Vinculada <span style="color:#94a3b8;font-weight:400;">(opcional)</span></label>
+                <input type="hidden" name="tenant_id" id="formTenantId">
+                <div style="position:relative;">
+                    <input type="text" id="formTenantSearch" placeholder="Buscar conta..." autocomplete="off" readonly
+                           style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; width: 100%; box-sizing: border-box; background: #f8f9fa;">
+                    <div id="formTenantDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:4px;z-index:100;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.1);"></div>
+                </div>
+                <button type="button" id="formTenantClear" onclick="clearFormTenant()" style="display:none;margin-top:4px;background:none;border:none;color:#dc3545;font-size:12px;cursor:pointer;padding:0;">✕ Remover vínculo</button>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555; font-size: 13px;">Descrição</label>
+                <input type="text" name="description" placeholder="Descrição opcional do código" readonly
+                       style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; width: 100%; box-sizing: border-box; background: #f8f9fa;">
+            </div>
         </div>
         
         <div style="margin-top: 20px;">
@@ -81,11 +97,41 @@
 </div>
 
 <div class="card">
-    <h3 style="margin-bottom: 16px;">Códigos Cadastrados</h3>
-    
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <h3 style="margin:0;">Códigos Cadastrados</h3>
+        <form method="GET" action="<?= pixelhub_url('/settings/tracking-codes') ?>" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input type="text" name="search" value="<?= htmlspecialchars($filters['search'] ?? '') ?>" placeholder="Buscar código..." style="padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px;width:160px;">
+            <select name="tenant_id" style="padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px;">
+                <option value="">Todas as contas</option>
+                <?php foreach ($tenants as $t): ?>
+                <option value="<?= $t['id'] ?>" <?= ($filters['tenant_id'] ?? '') == $t['id'] ? 'selected' : '' ?>><?= htmlspecialchars($t['label']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <select name="channel" style="padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px;">
+                <option value="">Todos os canais</option>
+                <?php foreach (\PixelHub\Services\TrackingCodesService::getChannels() as $grp => $chList): ?>
+                    <optgroup label="<?= htmlspecialchars(ucfirst($grp)) ?>">
+                    <?php foreach ($chList as $val => $lbl): ?>
+                        <option value="<?= $val ?>" <?= ($filters['channel'] ?? '') === $val ? 'selected' : '' ?>><?= htmlspecialchars($lbl) ?></option>
+                    <?php endforeach; ?>
+                    </optgroup>
+                <?php endforeach; ?>
+            </select>
+            <select name="is_active" style="padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px;">
+                <option value="">Todos os status</option>
+                <option value="1" <?= ($filters['is_active'] ?? '') === '1' ? 'selected' : '' ?>>Ativo</option>
+                <option value="0" <?= ($filters['is_active'] ?? '') === '0' ? 'selected' : '' ?>>Inativo</option>
+            </select>
+            <button type="submit" style="padding:6px 14px;background:#023A8D;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer;">Filtrar</button>
+            <?php if (array_filter($filters ?? [])): ?>
+            <a href="<?= pixelhub_url('/settings/tracking-codes') ?>" style="padding:6px 10px;color:#64748b;font-size:13px;text-decoration:none;">Limpar</a>
+            <?php endif; ?>
+        </form>
+    </div>
+
     <?php if (empty($codes)): ?>
         <p style="color: #666; text-align: center; padding: 30px;">
-            Nenhum código cadastrado ainda.
+            Nenhum código encontrado<?= array_filter($filters ?? []) ? ' para os filtros selecionados' : '' ?>.
         </p>
     <?php else: ?>
         <div style="overflow-x: auto;">
@@ -93,6 +139,7 @@
                 <thead>
                     <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
                         <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Código</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Conta</th>
                         <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Canal</th>
                         <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Página</th>
                         <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">CTA</th>
@@ -109,6 +156,13 @@
                                 <strong style="color: #023A8D;"><?= htmlspecialchars($code['code']) ?></strong>
                                 <?php if ($code['description']): ?>
                                     <br><small style="color: #666;"><?= htmlspecialchars($code['description']) ?></small>
+                                <?php endif; ?>
+                            </td>
+                            <td style="padding: 12px; color: #374151; font-size: 13px;">
+                                <?php if (!empty($code['tenant_name'])): ?>
+                                    <span style="background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;"><?= htmlspecialchars($code['tenant_name']) ?></span>
+                                <?php else: ?>
+                                    <span style="color:#94a3b8;font-size:12px;">Global</span>
                                 <?php endif; ?>
                             </td>
                             <td style="padding: 12px;">
@@ -395,8 +449,16 @@ async function editTrackingCode(id) {
             originPageInput.value = code.origin_page ?? '';
             ctaSelect.value = code.cta_position ?? '';
             descriptionInput.value = code.description ?? '';
-            
-            console.log('[editTrackingCode] Formulário básico preenchido');
+
+            // Preenche tenant vinculado se existir
+            if (code.tenant_id) {
+                const tenant = _tenants.find(t => t.id == code.tenant_id);
+                if (tenant) {
+                    selectFormTenant(tenant.id, tenant.label);
+                }
+            } else {
+                clearFormTenant();
+            }
             
             // Preenche campos de campanha se existirem
             const campaignNameInput = form.querySelector('[name="campaign_name"]');
@@ -538,24 +600,32 @@ function enableFormFields(enable) {
     
     fields.forEach((selector, index) => {
         const element = form.querySelector(selector);
-        console.log(`[enableFormFields] Campo ${index + 1}/${fields.length}: ${selector} - Encontrado: ${!!element}`);
-        
         if (element) {
             if (enable) {
                 element.removeAttribute('readonly');
                 element.removeAttribute('disabled');
                 element.style.background = 'white';
                 element.style.cursor = 'text';
-                console.log(`[enableFormFields] Campo ${selector} HABILITADO`);
             } else {
                 element.setAttribute('readonly', 'readonly');
                 element.setAttribute('disabled', 'disabled');
                 element.style.background = '#f8f9fa';
                 element.style.cursor = 'not-allowed';
-                console.log(`[enableFormFields] Campo ${selector} DESABILITADO`);
             }
         }
     });
+
+    // Habilita/desabilita campo de busca de tenant
+    const tenantSearch = document.getElementById('formTenantSearch');
+    if (tenantSearch) {
+        if (enable) {
+            tenantSearch.removeAttribute('readonly');
+            tenantSearch.style.background = 'white';
+        } else {
+            tenantSearch.setAttribute('readonly', 'readonly');
+            tenantSearch.style.background = '#f8f9fa';
+        }
+    }
     
     // Habilita/desabilita selects específicos
     const channelSelect = document.getElementById('channelSelect');
@@ -641,6 +711,9 @@ function cancelEdit() {
         ctaSelect.value = '';
     }
     
+    // Limpa campo de tenant
+    clearFormTenant();
+
     console.log('[cancelEdit] Edição cancelada e formulário resetado para novas inserções');
 }
 
@@ -680,7 +753,50 @@ document.getElementById('trackingCodeForm').addEventListener('submit', submitTra
 document.addEventListener('DOMContentLoaded', function() {
     console.log('[DOMContentLoaded] Inicializando formulário para novas inserções');
     enableFormFields(true);
+    initTenantSearch();
 });
+
+// ===== Busca de Conta no formulário =====
+const _tenants = <?= json_encode(array_values($tenants)) ?>;
+
+function initTenantSearch() {
+    const input = document.getElementById('formTenantSearch');
+    const dropdown = document.getElementById('formTenantDropdown');
+    if (!input) return;
+
+    input.addEventListener('input', function() {
+        const q = this.value.toLowerCase().trim();
+        if (!q) { dropdown.style.display = 'none'; return; }
+        const matches = _tenants.filter(t => t.label.toLowerCase().includes(q)).slice(0, 10);
+        if (!matches.length) { dropdown.style.display = 'none'; return; }
+        dropdown.innerHTML = matches.map(t =>
+            `<div onclick="selectFormTenant(${t.id}, '${t.label.replace(/'/g, "\\'")}')"
+                  style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9;"
+                  onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background=''"
+            >${t.label}</div>`
+        ).join('');
+        dropdown.style.display = 'block';
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#formTenantSearch') && !e.target.closest('#formTenantDropdown')) {
+            dropdown.style.display = 'none';
+        }
+    });
+}
+
+function selectFormTenant(id, label) {
+    document.getElementById('formTenantId').value = id;
+    document.getElementById('formTenantSearch').value = label;
+    document.getElementById('formTenantDropdown').style.display = 'none';
+    document.getElementById('formTenantClear').style.display = 'inline';
+}
+
+function clearFormTenant() {
+    document.getElementById('formTenantId').value = '';
+    document.getElementById('formTenantSearch').value = '';
+    document.getElementById('formTenantClear').style.display = 'none';
+}
 
 // Funções para gerenciar campanhas
 let currentCodeId = null;

@@ -49,6 +49,9 @@ class TrackingCodesService
                 'other' => 'Outro',
                 'offline' => 'Offline',
                 'unknown' => 'Não identificado'
+            ],
+            'prospecting' => [
+                'prospecting_google_maps' => 'Prospecção Ativa (Google Maps)',
             ]
         ];
     }
@@ -103,19 +106,65 @@ class TrackingCodesService
     }
 
     /**
-     * Lista todos os códigos com contexto
+     * Lista todos os códigos com contexto e filtros opcionais
      */
-    public static function listAll(): array
+    public static function listAll(array $filters = []): array
     {
         $db = DB::getConnection();
+
+        $where  = ['1=1'];
+        $params = [];
+
+        if (!empty($filters['tenant_id'])) {
+            $where[]  = 'tc.tenant_id = ?';
+            $params[] = (int) $filters['tenant_id'];
+        }
+
+        if (!empty($filters['channel'])) {
+            $where[]  = 'tc.channel = ?';
+            $params[] = $filters['channel'];
+        }
+
+        if (isset($filters['is_active']) && $filters['is_active'] !== '') {
+            $where[]  = 'tc.is_active = ?';
+            $params[] = (int) $filters['is_active'];
+        }
+
+        if (!empty($filters['search'])) {
+            $where[]  = '(tc.code LIKE ? OR tc.description LIKE ? OR tc.campaign_name LIKE ?)';
+            $s        = '%' . $filters['search'] . '%';
+            $params[] = $s;
+            $params[] = $s;
+            $params[] = $s;
+        }
+
+        $whereStr = implode(' AND ', $where);
+
         $stmt = $db->prepare("
-            SELECT tc.*, u.name as created_by_name
+            SELECT tc.*, u.name as created_by_name,
+                   COALESCE(NULLIF(t.company,''), t.name) as tenant_name
             FROM tracking_codes tc
             LEFT JOIN users u ON tc.created_by = u.id
+            LEFT JOIN tenants t ON t.id = tc.tenant_id
+            WHERE {$whereStr}
             ORDER BY tc.created_at DESC
         ");
-        $stmt->execute();
+        $stmt->execute($params);
         return $stmt->fetchAll() ?: [];
+    }
+
+    /**
+     * Lista tenants ativos para o select de vínculo
+     */
+    public static function listTenants(): array
+    {
+        $db = DB::getConnection();
+        return $db->query("
+            SELECT id, COALESCE(NULLIF(company,''), name) as label
+            FROM tenants
+            WHERE status = 'active'
+            ORDER BY label ASC
+        ")->fetchAll() ?: [];
     }
 
     /**
@@ -170,19 +219,22 @@ class TrackingCodesService
             ]
         ];
 
+        $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
+
         $stmt = $db->prepare("
             INSERT INTO tracking_codes 
-            (code, source, description, is_active, created_by, created_at, updated_at,
+            (code, source, description, is_active, created_by, tenant_id, created_at, updated_at,
              channel, origin_page, cta_position, campaign_name, campaign_id, ad_group, ad_name, context_metadata)
-            VALUES (?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         $stmt->execute([
-            $code, 
-            self::getSourceFromChannel($channel), 
-            $description, 
-            1, // is_active como integer
+            $code,
+            self::getSourceFromChannel($channel),
+            $description,
+            1,
             $userId,
+            $tenantId,
             $channel,
             $originPage,
             $ctaPosition,
@@ -215,7 +267,7 @@ class TrackingCodesService
         }
 
         // Campos de contexto
-        foreach (['channel', 'origin_page', 'cta_position', 'campaign_name', 'campaign_id', 'ad_group', 'ad_name'] as $field) {
+        foreach (['channel', 'origin_page', 'cta_position', 'campaign_name', 'campaign_id', 'ad_group', 'ad_name', 'tenant_id'] as $field) {
             if (array_key_exists($field, $data)) {
                 $fields[] = "{$field} = ?";
                 $params[] = trim($data[$field] ?? '');

@@ -19,10 +19,20 @@ class TrackingCodesController extends Controller
     {
         Auth::requireInternal();
 
-        $codes = TrackingCodesService::listAll();
-        
+        $filters = [
+            'tenant_id' => $_GET['tenant_id'] ?? '',
+            'channel'   => $_GET['channel']   ?? '',
+            'is_active' => $_GET['is_active']  ?? '',
+            'search'    => $_GET['search']     ?? '',
+        ];
+
+        $codes   = TrackingCodesService::listAll(array_filter($filters, fn($v) => $v !== ''));
+        $tenants = TrackingCodesService::listTenants();
+
         $this->view('settings.tracking_codes', [
-            'codes' => $codes
+            'codes'   => $codes,
+            'tenants' => $tenants,
+            'filters' => $filters,
         ]);
     }
 
