@@ -33,7 +33,11 @@ function getOriginDisplay($origin) {
 
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div>
-        <a href="<?= pixelhub_url('/opportunities') ?>" style="color: #023A8D; text-decoration: none; font-size: 13px;">&larr; Voltar para Oportunidades</a>
+        <?php
+        $backTenantId = $opp['tenant_id'] ?? null;
+        $backUrl = pixelhub_url('/opportunities') . ($backTenantId ? '?tenant_id=' . (int)$backTenantId : '');
+        ?>
+        <a href="<?= $backUrl ?>" style="color: #023A8D; text-decoration: none; font-size: 13px;">&larr; Voltar para Oportunidades</a>
         <h2 style="margin-top: 6px;"><?= htmlspecialchars($opp['name']) ?></h2>
     </div>
     <div style="display: flex; gap: 8px; align-items: center;">
