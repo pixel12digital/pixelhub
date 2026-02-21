@@ -284,15 +284,34 @@ class ProspectingService
 
         $client = new GooglePlacesClient();
 
-        // Monta a query de busca
-        $query = self::buildSearchQuery($recipe);
+        // Busca por cada keyword individualmente para maximizar resultados
+        // A API retorna até 20 por query — variar a query multiplica o alcance
+        $queries = self::buildSearchQueries($recipe);
 
-        $places = $client->textSearch($query, $maxResults);
+        $seenPlaceIds = [];
+        $allPlaces    = [];
 
-        $found      = count($places);
+        foreach ($queries as $query) {
+            try {
+                $batch = $client->textSearch($query, 20);
+                foreach ($batch as $place) {
+                    $pid = $place['google_place_id'] ?? '';
+                    if ($pid && !isset($seenPlaceIds[$pid])) {
+                        $seenPlaceIds[$pid] = true;
+                        $allPlaces[] = $place;
+                    }
+                }
+            } catch (\Exception $e) {
+                // Continua com as demais queries mesmo se uma falhar
+            }
+        }
+
+        $found      = count($allPlaces);
         $new        = 0;
         $duplicates = 0;
         $errors     = [];
+
+        $places = $allPlaces;
 
         $db = DB::getConnection();
 
@@ -360,26 +379,43 @@ class ProspectingService
     }
 
     /**
-     * Monta a query de busca a partir da receita
+     * Monta múltiplas queries — uma por keyword — para maximizar resultados
+     * Cada query retorna até 20 resultados únicos da API
      */
-    private static function buildSearchQuery(array $recipe): string
+    private static function buildSearchQueries(array $recipe): array
     {
-        $parts = [];
-
-        // Palavras-chave (usa a primeira como termo principal)
         $keywords = $recipe['keywords'] ?? [];
-        if (!empty($keywords)) {
-            $parts[] = implode(' ', array_slice($keywords, 0, 3));
-        }
-
-        // Cidade + Estado
         $location = trim($recipe['city']);
         if (!empty($recipe['state'])) {
             $location .= ' ' . $recipe['state'];
         }
-        $parts[] = $location;
 
-        return implode(' ', $parts);
+        $queries = [];
+
+        if (!empty($keywords)) {
+            foreach ($keywords as $kw) {
+                $kw = trim($kw);
+                if ($kw !== '') {
+                    $queries[] = $kw . ' ' . $location;
+                }
+            }
+        }
+
+        // Fallback: query genérica só com localização se não houver keywords
+        if (empty($queries)) {
+            $queries[] = $location;
+        }
+
+        return $queries;
+    }
+
+    /**
+     * @deprecated Use buildSearchQueries()
+     */
+    private static function buildSearchQuery(array $recipe): string
+    {
+        $queries = self::buildSearchQueries($recipe);
+        return $queries[0] ?? '';
     }
 
     // =========================================================================
