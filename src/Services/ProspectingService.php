@@ -108,18 +108,26 @@ class ProspectingService
      * tenant_id = null → agência própria (sem tenant)
      * tenant_id = 0    → todas as receitas (sem filtro)
      */
-    public static function listRecipes(?int $tenantId = 0): array
+    public static function listRecipes(?int $tenantId = 0, ?string $sourceFilter = null): array
     {
         $db = DB::getConnection();
 
-        $where = '';
+        $conditions = [];
         $params = [];
+
         if ($tenantId === null) {
-            $where = 'WHERE r.tenant_id IS NULL';
+            $conditions[] = 'r.tenant_id IS NULL';
         } elseif ($tenantId > 0) {
-            $where = 'WHERE r.tenant_id = ?';
+            $conditions[] = 'r.tenant_id = ?';
             $params[] = $tenantId;
         }
+
+        if ($sourceFilter !== null) {
+            $conditions[] = 'r.source = ?';
+            $params[] = $sourceFilter;
+        }
+
+        $where = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
 
         $stmt = $db->prepare("
             SELECT r.*, p.label as product_label,

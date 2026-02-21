@@ -122,7 +122,11 @@ class ProspectingController extends Controller
             ? ($_GET['tenant_id'] === 'own' ? null : (int) $_GET['tenant_id'])
             : 0;
 
-        $recipes  = ProspectingService::listRecipes($tenantFilter);
+        $sourceFilter = isset($_GET['source']) && in_array($_GET['source'], ['google_maps', 'cnpjws'])
+            ? $_GET['source']
+            : null;
+
+        $recipes  = ProspectingService::listRecipes($tenantFilter, $sourceFilter);
         $hasKey   = ProspectingService::hasApiKey();
         $products = OpportunityProductService::listActive();
         $tenants  = ProspectingService::listTenants();
@@ -133,6 +137,7 @@ class ProspectingController extends Controller
             'products'     => $products,
             'tenants'      => $tenants,
             'tenantFilter' => $tenantFilter,
+            'sourceFilter' => $sourceFilter,
         ]);
     }
 

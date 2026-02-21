@@ -13,13 +13,23 @@ if ($tenantFilter === 0) {
 }
 ?>
 
+<?php
+$sourceParam = isset($sourceFilter) && $sourceFilter ? '&source=' . $sourceFilter : '';
+if (($sourceFilter ?? null) === 'cnpjws') {
+    $pageTitle    = 'Prospecção Ativa — CNAE (CNPJ.ws)';
+    $pageSubtitle = 'Busque empresas por CNAE e município via dados da Receita Federal (CNPJ.ws).';
+} else {
+    $pageTitle    = 'Prospecção Ativa — Google Maps';
+    $pageSubtitle = 'Busque empresas no Google Maps por segmento e cidade, e converta em leads.';
+}
+?>
 <div class="content-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
     <div>
-        <h2 style="margin:0 0 4px;">Prospecção Ativa</h2>
-        <p style="margin:0;font-size:13px;color:#64748b;">Busque empresas no Google Maps por segmento e cidade, e converta em leads.</p>
+        <h2 style="margin:0 0 4px;"><?= $pageTitle ?></h2>
+        <p style="margin:0;font-size:13px;color:#64748b;"><?= $pageSubtitle ?></p>
     </div>
     <div style="display:flex;gap:10px;align-items:center;">
-        <?php if (!$hasKey): ?>
+        <?php if (($sourceFilter ?? null) !== 'cnpjws' && !$hasKey): ?>
         <a href="<?= pixelhub_url('/settings/google-maps') ?>" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">
             ⚠ Configurar API Google Maps
         </a>
@@ -34,11 +44,11 @@ if ($tenantFilter === 0) {
 <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
     <span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Visualizando:</span>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <a href="<?= pixelhub_url('/prospecting') ?>"
+        <a href="<?= pixelhub_url('/prospecting?' . ltrim($sourceParam, '&')) ?>"
            style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;text-decoration:none;<?= $tenantFilter === 0 ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
             Todas as contas
         </a>
-        <a href="<?= pixelhub_url('/prospecting?tenant_id=own') ?>"
+        <a href="<?= pixelhub_url('/prospecting?tenant_id=own' . $sourceParam) ?>"
            style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;text-decoration:none;<?= $tenantFilter === null ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
             🏢 Pixel12 Digital (agência)
         </a>
@@ -47,7 +57,7 @@ if ($tenantFilter === 0) {
             $tlabel = $t['company'] ?: $t['name'];
             $isActive = $tenantFilter === $tid;
         ?>
-        <a href="<?= pixelhub_url('/prospecting?tenant_id=' . $tid) ?>"
+        <a href="<?= pixelhub_url('/prospecting?tenant_id=' . $tid . $sourceParam) ?>"
            style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;text-decoration:none;<?= $isActive ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
             <?= htmlspecialchars($tlabel) ?>
         </a>
@@ -288,7 +298,8 @@ function openCreateModal(){
     ['recipeId','recipeName','recipeCity','recipeState','recipeKeywords','recipeNotes'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('recipeProduct').value='';
     document.getElementById('recipePlaceType').value='';
-    document.getElementById('srcGoogleMaps').checked=true;
+    const defaultSrc = '<?= ($sourceFilter ?? null) === 'cnpjws' ? 'cnpjws' : 'google_maps' ?>';
+    document.getElementById(defaultSrc==='cnpjws'?'srcCnpjws':'srcGoogleMaps').checked=true;
     document.getElementById('recipeCnaeSearch').value='';
     document.getElementById('recipeCnaeCode').value='';
     document.getElementById('recipeCnaeDescription').value='';
