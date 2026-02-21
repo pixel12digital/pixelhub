@@ -4,6 +4,7 @@ namespace PixelHub\Services;
 
 use PixelHub\Core\DB;
 use PixelHub\Core\CryptoHelper;
+use PixelHub\Services\CnpjWsClient;
 
 /**
  * Service para Prospecção Ativa
@@ -165,36 +166,51 @@ class ProspectingService
         $db = DB::getConnection();
 
         $name        = trim($data['name'] ?? '');
+        $source      = in_array($data['source'] ?? '', ['google_maps', 'cnpjws']) ? $data['source'] : 'google_maps';
         $city        = trim($data['city'] ?? '');
         $state       = strtoupper(trim($data['state'] ?? ''));
         $productId   = !empty($data['product_id']) ? (int) $data['product_id'] : null;
         $placeType   = trim($data['google_place_type'] ?? '') ?: null;
         $radius      = !empty($data['radius_meters']) ? (int) $data['radius_meters'] : 5000;
         $notes       = trim($data['notes'] ?? '') ?: null;
+        $cnaeCode    = trim($data['cnae_code'] ?? '') ?: null;
+        $cnaeDesc    = trim($data['cnae_description'] ?? '') ?: null;
 
         // Normaliza keywords
         $keywords = self::normalizeKeywords($data['keywords'] ?? []);
 
-        if (empty($name) || empty($city)) {
-            throw new \InvalidArgumentException('Nome e cidade são obrigatórios');
+        if (empty($name)) {
+            throw new \InvalidArgumentException('Nome da receita é obrigatório');
+        }
+        if ($source === 'google_maps' && empty($city)) {
+            throw new \InvalidArgumentException('Cidade é obrigatória para Google Maps');
+        }
+        if ($source === 'cnpjws' && empty($cnaeCode)) {
+            throw new \InvalidArgumentException('CNAE é obrigatório para a fonte CNPJ.ws');
+        }
+        if ($source === 'cnpjws' && empty($city)) {
+            throw new \InvalidArgumentException('Cidade é obrigatória para CNPJ.ws');
         }
 
         $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
 
         $stmt = $db->prepare("
             INSERT INTO prospecting_recipes
-                (tenant_id, name, product_id, city, state, keywords, google_place_type, radius_meters, status, notes, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NOW(), NOW())
+                (tenant_id, name, source, product_id, city, state, keywords, google_place_type, radius_meters, cnae_code, cnae_description, status, notes, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NOW(), NOW())
         ");
         $stmt->execute([
             $tenantId,
             $name,
+            $source,
             $productId,
             $city,
             $state ?: null,
             json_encode($keywords, JSON_UNESCAPED_UNICODE),
             $placeType,
             $radius,
+            $cnaeCode,
+            $cnaeDesc,
             $notes,
             $userId,
         ]);
@@ -211,6 +227,7 @@ class ProspectingService
 
         $keywords = self::normalizeKeywords($data['keywords'] ?? []);
         $state    = strtoupper(trim($data['state'] ?? ''));
+        $source   = in_array($data['source'] ?? '', ['google_maps', 'cnpjws']) ? $data['source'] : 'google_maps';
 
         $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
 
@@ -218,12 +235,15 @@ class ProspectingService
             UPDATE prospecting_recipes SET
                 tenant_id = ?,
                 name = ?,
+                source = ?,
                 product_id = ?,
                 city = ?,
                 state = ?,
                 keywords = ?,
                 google_place_type = ?,
                 radius_meters = ?,
+                cnae_code = ?,
+                cnae_description = ?,
                 notes = ?,
                 updated_at = NOW()
             WHERE id = ?
@@ -231,12 +251,15 @@ class ProspectingService
         $stmt->execute([
             $tenantId,
             trim($data['name'] ?? ''),
+            $source,
             !empty($data['product_id']) ? (int) $data['product_id'] : null,
             trim($data['city'] ?? ''),
             $state ?: null,
             json_encode($keywords, JSON_UNESCAPED_UNICODE),
             trim($data['google_place_type'] ?? '') ?: null,
             !empty($data['radius_meters']) ? (int) $data['radius_meters'] : 5000,
+            trim($data['cnae_code'] ?? '') ?: null,
+            trim($data['cnae_description'] ?? '') ?: null,
             trim($data['notes'] ?? '') ?: null,
             $id,
         ]);
@@ -272,7 +295,8 @@ class ProspectingService
 
     /**
      * Executa a busca para uma receita e persiste os resultados
-     * 
+     * Bifurca entre Google Maps e CNPJ.ws conforme recipe['source']
+     *
      * @return array ['found' => int, 'new' => int, 'duplicates' => int, 'errors' => string[]]
      */
     public static function runSearch(int $recipeId, int $maxResults = 60): array
@@ -282,10 +306,22 @@ class ProspectingService
             throw new \InvalidArgumentException('Receita não encontrada');
         }
 
+        $source = $recipe['source'] ?? 'google_maps';
+
+        if ($source === 'cnpjws') {
+            return self::runSearchCnpjws($recipe, $recipeId, $maxResults);
+        }
+
+        return self::runSearchGoogleMaps($recipe, $recipeId, $maxResults);
+    }
+
+    /**
+     * Executa busca via Google Places API
+     */
+    private static function runSearchGoogleMaps(array $recipe, int $recipeId, int $maxResults): array
+    {
         $client = new GooglePlacesClient();
 
-        // Busca por cada keyword individualmente para maximizar resultados
-        // A API retorna até 20 por query — variar a query multiplica o alcance
         $queries = self::buildSearchQueries($recipe);
 
         $seenPlaceIds = [];
@@ -311,33 +347,26 @@ class ProspectingService
         $duplicates = 0;
         $errors     = [];
 
-        $places = $allPlaces;
-
         $db = DB::getConnection();
 
-        foreach ($places as $place) {
+        foreach ($allPlaces as $place) {
             if (empty($place['google_place_id'])) {
                 continue;
             }
 
             try {
-                // Verifica se já existe (deduplicação global por google_place_id)
-                $check = $db->prepare("SELECT id, recipe_id FROM prospecting_results WHERE google_place_id = ?");
+                $check = $db->prepare("SELECT id FROM prospecting_results WHERE google_place_id = ?");
                 $check->execute([$place['google_place_id']]);
-                $existing = $check->fetch(\PDO::FETCH_ASSOC);
-
-                if ($existing) {
+                if ($check->fetch()) {
                     $duplicates++;
-                    // Se é de outra receita, não faz nada (deduplicação global)
-                    // Se é da mesma receita, também não duplica
                     continue;
                 }
 
                 $stmt = $db->prepare("
                     INSERT INTO prospecting_results
                         (recipe_id, tenant_id, google_place_id, name, address, city, state, phone, website,
-                         rating, user_ratings_total, lat, lng, google_types, status, found_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', NOW(), NOW())
+                         rating, user_ratings_total, lat, lng, google_types, source, status, found_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'google_maps', 'new', NOW(), NOW())
                 ");
                 $stmt->execute([
                     $recipeId,
@@ -361,14 +390,7 @@ class ProspectingService
             }
         }
 
-        // Atualiza last_run_at e total_found
-        $db->prepare("
-            UPDATE prospecting_recipes
-            SET last_run_at = NOW(),
-                total_found = (SELECT COUNT(*) FROM prospecting_results WHERE recipe_id = ?),
-                updated_at = NOW()
-            WHERE id = ?
-        ")->execute([$recipeId, $recipeId]);
+        self::updateRecipeStats($recipeId);
 
         return [
             'found'      => $found,
@@ -376,6 +398,91 @@ class ProspectingService
             'duplicates' => $duplicates,
             'errors'     => $errors,
         ];
+    }
+
+    /**
+     * Executa busca via CNPJ.ws
+     */
+    private static function runSearchCnpjws(array $recipe, int $recipeId, int $maxResults): array
+    {
+        $cnaeCode = $recipe['cnae_code'] ?? '';
+        $city     = $recipe['city'] ?? '';
+        $uf       = $recipe['state'] ?? '';
+
+        if (empty($cnaeCode) || empty($city)) {
+            throw new \InvalidArgumentException('CNAE e cidade são obrigatórios para busca CNPJ.ws');
+        }
+
+        $client  = new CnpjWsClient();
+        $places  = $client->searchByCnaeAndCity($cnaeCode, $city, $uf, 'A', $maxResults);
+
+        $found      = count($places);
+        $new        = 0;
+        $duplicates = 0;
+        $errors     = [];
+
+        $db = DB::getConnection();
+
+        foreach ($places as $place) {
+            $cnpj = $place['cnpj'] ?? '';
+            if (empty($cnpj)) {
+                continue;
+            }
+
+            try {
+                // Deduplicação por CNPJ (global)
+                $check = $db->prepare("SELECT id FROM prospecting_results WHERE cnpj = ?");
+                $check->execute([$cnpj]);
+                if ($check->fetch()) {
+                    $duplicates++;
+                    continue;
+                }
+
+                $stmt = $db->prepare("
+                    INSERT INTO prospecting_results
+                        (recipe_id, tenant_id, name, address, city, state, phone, website,
+                         source, cnpj, status, found_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'cnpjws', ?, 'new', NOW(), NOW())
+                ");
+                $stmt->execute([
+                    $recipeId,
+                    $recipe['tenant_id'] ?? null,
+                    $place['name'],
+                    $place['address'],
+                    $place['city'],
+                    $place['state'],
+                    $place['phone'],
+                    $place['website'],
+                    $cnpj,
+                ]);
+                $new++;
+            } catch (\Exception $e) {
+                $errors[] = 'Erro ao salvar "' . $place['name'] . '": ' . $e->getMessage();
+            }
+        }
+
+        self::updateRecipeStats($recipeId);
+
+        return [
+            'found'      => $found,
+            'new'        => $new,
+            'duplicates' => $duplicates,
+            'errors'     => $errors,
+        ];
+    }
+
+    /**
+     * Atualiza last_run_at e total_found da receita
+     */
+    private static function updateRecipeStats(int $recipeId): void
+    {
+        DB::getConnection()->prepare("
+            UPDATE prospecting_recipes
+            SET last_run_at = NOW(),
+                total_found = (SELECT COUNT(*) FROM prospecting_results WHERE recipe_id = ?),
+                updated_at = NOW()
+            WHERE id = ?
+        ")->execute([$recipeId, $recipeId]);
     }
 
     /**
@@ -526,19 +633,38 @@ class ProspectingService
             return $result['lead_id'];
         }
 
-        // Cria o lead
-        $leadId = LeadService::create([
-            'name'       => $result['name'],
-            'company'    => $result['name'],
-            'phone'      => $result['phone'],
-            'email'      => null,
-            'source'     => 'prospecting_google_maps',
-            'notes'      => trim(
+        // Determina source com base na receita
+        $recipeStmt = DB::getConnection()->prepare("SELECT source FROM prospecting_recipes WHERE id = ? LIMIT 1");
+        $recipeStmt->execute([$result['recipe_id']]);
+        $recipeSource = $recipeStmt->fetchColumn() ?: 'google_maps';
+
+        $leadSource = $recipeSource === 'cnpjws' ? 'prospecting_cnpjws' : 'prospecting_google_maps';
+
+        if ($recipeSource === 'cnpjws') {
+            $cnpjFormatted = !empty($result['cnpj']) ? CnpjWsClient::formatCnpj($result['cnpj']) : '';
+            $leadNotes = trim(
+                'Empresa encontrada via Prospecção Ativa (CNPJ.ws).' .
+                (!empty($cnpjFormatted) ? "\nCNPJ: " . $cnpjFormatted : '') .
+                (!empty($result['address']) ? "\nEndereço: " . $result['address'] : '')
+            );
+        } else {
+            $leadNotes = trim(
                 'Empresa encontrada via Prospecção Ativa (Google Maps).' .
                 (!empty($result['address']) ? "\nEndereço: " . $result['address'] : '') .
                 (!empty($result['website']) ? "\nSite: " . $result['website'] : '') .
                 (!empty($result['rating']) ? "\nAvaliação Google: " . $result['rating'] . '/5' : '')
-            ),
+            );
+        }
+
+        // Cria o lead
+        $phone = $result['phone'] ?? null;
+        $leadId = LeadService::create([
+            'name'       => $result['name'],
+            'company'    => $result['name'],
+            'phone'      => $phone,
+            'email'      => null,
+            'source'     => $leadSource,
+            'notes'      => $leadNotes,
             'created_by' => $userId,
         ]);
 

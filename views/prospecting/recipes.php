@@ -106,7 +106,15 @@ if ($tenantFilter === 0) {
                     <?php endif; ?>
                 </div>
                 <div style="font-size:12px;color:#64748b;display:flex;gap:16px;flex-wrap:wrap;">
-                    <span>📍 <?= htmlspecialchars($recipe['city']) ?><?= !empty($recipe['state']) ? ' - ' . $recipe['state'] : '' ?></span>
+                    <?php if (($recipe['source'] ?? 'google_maps') === 'cnpjws'): ?>
+                    <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e;">🏭 CNAE/CNPJ.ws</span>
+                    <?php else: ?>
+                    <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;">� Google Maps</span>
+                    <?php endif; ?>
+                    <span>�📍 <?= htmlspecialchars($recipe['city']) ?><?= !empty($recipe['state']) ? ' - ' . $recipe['state'] : '' ?></span>
+                    <?php if (($recipe['source'] ?? 'google_maps') === 'cnpjws' && !empty($recipe['cnae_code'])): ?>
+                    <span>🏭 CNAE <?= htmlspecialchars($recipe['cnae_code']) ?><?= !empty($recipe['cnae_description']) ? ' — ' . htmlspecialchars($recipe['cnae_description']) : '' ?></span>
+                    <?php endif; ?>
                     <?php if (!empty($recipe['product_label'])): ?><span>🏷 <?= htmlspecialchars($recipe['product_label']) ?></span><?php endif; ?>
                     <?php if (!empty($recipe['last_run_at'])): ?><span>Última busca: <?= date('d/m/Y H:i', strtotime($recipe['last_run_at'])) ?></span><?php endif; ?>
                 </div>
@@ -127,8 +135,9 @@ if ($tenantFilter === 0) {
                 <?php if ((int)($recipe['results_count'] ?? 0) > 0): ?>
                 <a href="<?= pixelhub_url('/prospecting/results?recipe_id=' . $recipe['id']) ?>" style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">Ver Resultados</a>
                 <?php endif; ?>
-                <button onclick="runSearch(<?= $recipe['id'] ?>, this)" <?= !$hasKey ? 'disabled title="Configure a API primeiro"' : '' ?>
-                        style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;background:<?= $hasKey ? '#023A8D' : '#94a3b8' ?>;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:<?= $hasKey ? 'pointer' : 'not-allowed' ?>;">
+                <?php $isCnpjws = ($recipe['source'] ?? 'google_maps') === 'cnpjws'; $canRun = $isCnpjws || $hasKey; ?>
+                <button onclick="runSearch(<?= $recipe['id'] ?>, this)" <?= !$canRun ? 'disabled title="Configure a API Google Maps primeiro"' : '' ?>
+                        style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;background:<?= $canRun ? '#023A8D' : '#94a3b8' ?>;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:<?= $canRun ? 'pointer' : 'not-allowed' ?>;">
                     🔍 Buscar Agora
                 </button>
                 <div style="position:relative;" class="dropdown-wrap">
@@ -158,6 +167,20 @@ if ($tenantFilter === 0) {
         <form id="recipeForm" method="POST" action="<?= pixelhub_url('/prospecting/store') ?>" style="padding:24px;">
             <input type="hidden" name="id" id="recipeId">
             <div style="display:grid;gap:14px;">
+                <!-- FONTE DA PROSPECÇÃO -->
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;">
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:8px;">Fonte da prospecção *</label>
+                    <div style="display:flex;gap:10px;">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 14px;border:2px solid #bae6fd;border-radius:6px;flex:1;background:#eff6ff;" id="srcLabelGoogleMaps">
+                            <input type="radio" name="source" value="google_maps" id="srcGoogleMaps" onchange="onSourceChange()" checked style="accent-color:#023A8D;">
+                            <span style="font-size:13px;font-weight:600;color:#1d4ed8;">🗺 Google Maps</span>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 14px;border:2px solid #e2e8f0;border-radius:6px;flex:1;background:#fff;" id="srcLabelCnpjws">
+                            <input type="radio" name="source" value="cnpjws" id="srcCnpjws" onchange="onSourceChange()" style="accent-color:#92400e;">
+                            <span style="font-size:13px;font-weight:600;color:#92400e;">🏭 CNAE (CNPJ.ws)</span>
+                        </label>
+                    </div>
+                </div>
                 <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 14px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#0369a1;margin-bottom:6px;">📁 Conta (cliente da agência)</label>
                     <input type="hidden" name="tenant_id" id="recipeTenantId">
@@ -183,10 +206,46 @@ if ($tenantFilter === 0) {
                         <input type="text" name="state" id="recipeState" placeholder="PR" maxlength="2" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;text-transform:uppercase;">
                     </div>
                 </div>
-                <div>
-                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Palavras-chave <span style="font-weight:400;color:#9ca3af;">(separadas por vírgula)</span></label>
-                    <input type="text" name="keywords_raw" id="recipeKeywords" placeholder="imobiliária, corretor, apartamento" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+
+                <!-- CAMPOS GOOGLE MAPS -->
+                <div id="fieldsGoogleMaps">
+                    <div style="display:grid;gap:14px;">
+                        <div>
+                            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Palavras-chave <span style="font-weight:400;color:#9ca3af;">(separadas por vírgula)</span></label>
+                            <input type="text" name="keywords_raw" id="recipeKeywords" placeholder="imobiliária, corretor, apartamento" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Tipo de lugar (Google Places)</label>
+                            <select name="google_place_type" id="recipePlaceType" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                                <?php foreach (\PixelHub\Services\ProspectingService::getCommonPlaceTypes() as $tk => $tl): ?>
+                                <option value="<?= htmlspecialchars($tk) ?>"><?= htmlspecialchars($tl) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- CAMPOS CNAE (CNPJ.ws) -->
+                <div id="fieldsCnpjws" style="display:none;">
+                    <div style="display:grid;gap:14px;">
+                        <div>
+                            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">CNAE *</label>
+                            <div style="position:relative;">
+                                <input type="text" id="recipeCnaeSearch" autocomplete="off"
+                                       placeholder="Digite o código ou descrição (ex: 6822, imobiliária...)"
+                                       style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                                <div id="cnaeDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300;max-height:220px;overflow-y:auto;"></div>
+                            </div>
+                            <input type="hidden" name="cnae_code" id="recipeCnaeCode">
+                            <input type="hidden" name="cnae_description" id="recipeCnaeDescription">
+                            <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Selecione o CNAE da atividade econômica alvo.</p>
+                        </div>
+                        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px 12px;font-size:12px;color:#78350f;">
+                            ℹ️ API pública do CNPJ.ws (gratuita, sem chave). Resultados baseados nos dados da Receita Federal.
+                        </div>
+                    </div>
+                </div>
+
                 <div>
                     <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">
                         Produto / Serviço a oferecer
@@ -196,14 +255,6 @@ if ($tenantFilter === 0) {
                         <option value="">— Nenhum —</option>
                     </select>
                     <p id="productHint" style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Selecione uma conta para ver os produtos disponíveis.</p>
-                </div>
-                <div>
-                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Tipo de lugar (Google Places)</label>
-                    <select name="google_place_type" id="recipePlaceType" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
-                        <?php foreach (\PixelHub\Services\ProspectingService::getCommonPlaceTypes() as $tk => $tl): ?>
-                        <option value="<?= htmlspecialchars($tk) ?>"><?= htmlspecialchars($tl) ?></option>
-                        <?php endforeach; ?>
-                    </select>
                 </div>
                 <div>
                     <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Observações</label>
@@ -221,12 +272,27 @@ if ($tenantFilter === 0) {
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 <script>
 const modal = document.getElementById('recipeModal');
+function onSourceChange(){
+    const src = document.querySelector('input[name="source"]:checked')?.value || 'google_maps';
+    const isGm = src === 'google_maps';
+    document.getElementById('fieldsGoogleMaps').style.display = isGm ? '' : 'none';
+    document.getElementById('fieldsCnpjws').style.display    = isGm ? 'none' : '';
+    document.getElementById('srcLabelGoogleMaps').style.borderColor = isGm ? '#bae6fd' : '#e2e8f0';
+    document.getElementById('srcLabelGoogleMaps').style.background  = isGm ? '#eff6ff' : '#fff';
+    document.getElementById('srcLabelCnpjws').style.borderColor = isGm ? '#e2e8f0' : '#fde68a';
+    document.getElementById('srcLabelCnpjws').style.background  = isGm ? '#fff' : '#fffbeb';
+}
 function openCreateModal(){
     document.getElementById('modalTitle').textContent='Nova Receita de Busca';
     document.getElementById('recipeForm').action='<?= pixelhub_url('/prospecting/store') ?>';
     ['recipeId','recipeName','recipeCity','recipeState','recipeKeywords','recipeNotes'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('recipeProduct').value='';
     document.getElementById('recipePlaceType').value='';
+    document.getElementById('srcGoogleMaps').checked=true;
+    document.getElementById('recipeCnaeSearch').value='';
+    document.getElementById('recipeCnaeCode').value='';
+    document.getElementById('recipeCnaeDescription').value='';
+    onSourceChange();
     setTenant('', '');
     loadProducts('own');
     modal.style.display='flex';
@@ -243,6 +309,13 @@ function openEditModal(r){
     document.getElementById('recipeProduct').value=r.product_id||'';
     document.getElementById('recipePlaceType').value=r.google_place_type||'';
     document.getElementById('recipeNotes').value=r.notes||'';
+    const src = r.source||'google_maps';
+    document.getElementById(src==='cnpjws'?'srcCnpjws':'srcGoogleMaps').checked=true;
+    document.getElementById('recipeCnaeCode').value=r.cnae_code||'';
+    document.getElementById('recipeCnaeDescription').value=r.cnae_description||'';
+    document.getElementById('recipeCnaeSearch').value=r.cnae_code?(r.cnae_code+(r.cnae_description?' — '+r.cnae_description:'')):
+'';
+    onSourceChange();
     const tid = r.tenant_id || 'own';
     setTenant(r.tenant_id||'', r.tenant_company||r.tenant_name||'');
     loadProducts(tid, r.product_id);
@@ -252,6 +325,7 @@ function openEditModal(r){
 function closeModal(){
     modal.style.display='none';
     document.getElementById('tenantDropdown').style.display='none';
+    document.getElementById('cnaeDropdown').style.display='none';
 }
 
 function setTenant(id, label) {
@@ -310,6 +384,115 @@ document.getElementById('recipeTenantSearch').addEventListener('input', function
 document.addEventListener('click', e => {
     if (!e.target.closest('#tenantDropdown') && e.target.id !== 'recipeTenantSearch')
         document.getElementById('tenantDropdown').style.display = 'none';
+    if (!e.target.closest('#cnaeDropdown') && e.target.id !== 'recipeCnaeSearch')
+        document.getElementById('cnaeDropdown').style.display = 'none';
+});
+
+// CNAE autocomplete
+const CNAE_LIST = [
+    {code:'4711-3/01',desc:'Comércio varejista - hipermercados'},
+    {code:'4711-3/02',desc:'Comércio varejista - supermercados'},
+    {code:'4712-1/00',desc:'Comércio varejista - minimercados e mercearias'},
+    {code:'4721-1/02',desc:'Padaria e confeitaria'},
+    {code:'4722-9/01',desc:'Açougues'},
+    {code:'4741-5/00',desc:'Tintas e materiais para pintura'},
+    {code:'4744-0/01',desc:'Ferragens e ferramentas'},
+    {code:'4744-0/05',desc:'Materiais de construção'},
+    {code:'4751-2/01',desc:'Equipamentos e suprimentos de informática'},
+    {code:'4753-9/00',desc:'Eletrodomésticos e equipamentos de áudio e vídeo'},
+    {code:'4771-7/01',desc:'Farmácias e drogarias'},
+    {code:'4772-5/00',desc:'Cosméticos, perfumaria e higiene pessoal'},
+    {code:'4781-4/00',desc:'Vestuário e acessórios'},
+    {code:'4782-2/01',desc:'Calçados'},
+    {code:'4930-2/01',desc:'Transporte rodoviário de carga - municipal'},
+    {code:'4930-2/02',desc:'Transporte rodoviário de carga - intermunicipal/interestadual'},
+    {code:'5611-2/01',desc:'Restaurantes e similares'},
+    {code:'5611-2/03',desc:'Lanchonetes e casas de suco'},
+    {code:'5620-1/01',desc:'Fornecimento de alimentos para empresas (catering)'},
+    {code:'6201-5/01',desc:'Desenvolvimento de software sob encomenda'},
+    {code:'6201-5/02',desc:'Web design'},
+    {code:'6202-3/00',desc:'Desenvolvimento e licenciamento de software customizável'},
+    {code:'6203-1/00',desc:'Desenvolvimento e licenciamento de software não-customizável'},
+    {code:'6204-0/00',desc:'Consultoria em tecnologia da informação'},
+    {code:'6209-1/00',desc:'Suporte técnico e manutenção em TI'},
+    {code:'6311-9/00',desc:'Hospedagem na internet e provedores'},
+    {code:'6319-4/00',desc:'Portais e provedores de conteúdo na internet'},
+    {code:'6421-2/00',desc:'Bancos comerciais'},
+    {code:'6431-0/00',desc:'Bancos múltiplos com carteira comercial'},
+    {code:'6499-3/99',desc:'Outras atividades de serviços financeiros'},
+    {code:'6511-1/01',desc:'Seguros de vida'},
+    {code:'6550-2/00',desc:'Planos de saúde'},
+    {code:'6612-6/02',desc:'Distribuidoras de títulos e valores mobiliários'},
+    {code:'6719-9/99',desc:'Outras atividades auxiliares dos serviços financeiros'},
+    {code:'6810-2/01',desc:'Compra e venda de imóveis próprios'},
+    {code:'6810-2/02',desc:'Aluguel de imóveis próprios'},
+    {code:'6821-8/01',desc:'Corretagem na compra e venda de imóveis'},
+    {code:'6821-8/02',desc:'Corretagem no aluguel de imóveis'},
+    {code:'6822-6/00',desc:'Gestão e administração da propriedade imobiliária'},
+    {code:'7111-1/00',desc:'Serviços de arquitetura'},
+    {code:'7112-0/00',desc:'Serviços de engenharia'},
+    {code:'7119-7/01',desc:'Serviços de cartografia, topografia e geodésia'},
+    {code:'7210-0/00',desc:'Pesquisa e desenvolvimento experimental em ciências físicas e naturais'},
+    {code:'7311-4/00',desc:'Agências de publicidade'},
+    {code:'7312-2/00',desc:'Agenciamento de espaços para publicidade'},
+    {code:'7319-0/02',desc:'Promoção de vendas'},
+    {code:'7319-0/03',desc:'Marketing direto'},
+    {code:'7319-0/99',desc:'Outras atividades de publicidade não especificadas'},
+    {code:'7320-3/00',desc:'Pesquisas de mercado e de opinião pública'},
+    {code:'7410-2/02',desc:'Design de interiores'},
+    {code:'7490-1/04',desc:'Atividades de intermediação e agenciamento de serviços'},
+    {code:'7490-1/99',desc:'Outras atividades profissionais, científicas e técnicas'},
+    {code:'7711-0/00',desc:'Locação de automóveis sem condutor'},
+    {code:'7719-5/99',desc:'Locação de outros meios de transporte'},
+    {code:'7810-8/00',desc:'Seleção e agenciamento de mão-de-obra'},
+    {code:'7820-5/00',desc:'Locação de mão-de-obra temporária'},
+    {code:'8011-1/01',desc:'Atividades de vigilância e segurança privada'},
+    {code:'8020-0/01',desc:'Atividades de monitoramento de sistemas de segurança eletrônico'},
+    {code:'8111-7/00',desc:'Serviços combinados para apoio a edifícios (condomínios)'},
+    {code:'8121-4/00',desc:'Limpeza em prédios e em domícilios'},
+    {code:'8122-2/00',desc:'Imunização e controle de pragas urbanas'},
+    {code:'8129-0/00',desc:'Atividades de limpeza não especificadas anteriormente'},
+    {code:'8511-2/00',desc:'Educação infantil - creche'},
+    {code:'8512-1/00',desc:'Educação infantil - pré-escola'},
+    {code:'8513-9/00',desc:'Ensino fundamental'},
+    {code:'8520-1/00',desc:'Ensino médio'},
+    {code:'8531-7/00',desc:'Educação superior - graduação'},
+    {code:'8541-4/00',desc:'Educação profissional de nível técnico'},
+    {code:'8599-6/04',desc:'Treinamento em desenvolvimento profissional e gerencial'},
+    {code:'8630-5/01',desc:'Atividade médica ambulatorial com recursos para realização de procedimentos cirúrgicos'},
+    {code:'8630-5/02',desc:'Atividade médica ambulatorial sem recursos para realização de procedimentos cirúrgicos'},
+    {code:'8630-5/04',desc:'Atividade odontológica'},
+    {code:'8640-2/02',desc:'Laboratórios clínicos'},
+    {code:'8650-0/01',desc:'Atividades de enfermagem'},
+    {code:'8660-7/00',desc:'Atividades de apoio à gestão de saúde'},
+    {code:'8711-5/01',desc:'Clínicas e residências geriátricas'},
+    {code:'9001-9/01',desc:'Produção teatral'},
+    {code:'9311-5/00',desc:'Gestão de instalações de esportes'},
+    {code:'9312-3/00',desc:'Clubes sociais, esportivos e similares'},
+    {code:'9321-2/00',desc:'Parques de diversão e parques temáticos'},
+    {code:'9602-5/01',desc:'Cabeleireiros, manicure e pedicure'},
+    {code:'9602-5/02',desc:'Atividades de estética e outros serviços de cuidados com a beleza'},
+    {code:'9609-2/99',desc:'Outras atividades de serviços pessoais não especificadas anteriormente'},
+];
+function setCnae(code, desc){
+    document.getElementById('recipeCnaeCode').value=code;
+    document.getElementById('recipeCnaeDescription').value=desc;
+    document.getElementById('recipeCnaeSearch').value=code+' — '+desc;
+    document.getElementById('cnaeDropdown').style.display='none';
+}
+document.getElementById('recipeCnaeSearch').addEventListener('input',function(){
+    const q=this.value.trim().toLowerCase();
+    const dd=document.getElementById('cnaeDropdown');
+    if(!q){dd.style.display='none';return;}
+    const matches=CNAE_LIST.filter(c=>c.code.toLowerCase().includes(q)||c.desc.toLowerCase().includes(q)).slice(0,12);
+    if(!matches.length){dd.style.display='none';return;}
+    dd.innerHTML=matches.map(c=>{
+        const lbl=(c.code+' — '+c.desc).replace(/</g,'&lt;');
+        return `<div onclick="setCnae('${c.code.replace(/'/g,"\\'")}',' ${c.desc.replace(/'/g,"\\'")}')"
+            style="padding:9px 14px;cursor:pointer;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;"
+            onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''"><strong>${c.code}</strong> — ${c.desc}</div>`;
+    }).join('');
+    dd.style.display='block';
 });
 modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});
 function toggleDropdown(btn){const m=btn.nextElementSibling;const o=m.style.display==='block';closeAllDropdowns();if(!o)m.style.display='block';}

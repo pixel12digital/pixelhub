@@ -153,12 +153,15 @@ class ProspectingController extends Controller
             $data = [
                 'tenant_id'         => $_POST['tenant_id'] ?? null,
                 'name'              => $_POST['name'] ?? '',
+                'source'            => $_POST['source'] ?? 'google_maps',
                 'product_id'        => $_POST['product_id'] ?? null,
                 'city'              => $_POST['city'] ?? '',
                 'state'             => $_POST['state'] ?? '',
                 'keywords'          => $keywords,
                 'google_place_type' => $_POST['google_place_type'] ?? '',
                 'radius_meters'     => $_POST['radius_meters'] ?? 5000,
+                'cnae_code'         => $_POST['cnae_code'] ?? '',
+                'cnae_description'  => $_POST['cnae_description'] ?? '',
                 'notes'             => $_POST['notes'] ?? '',
             ];
 
@@ -192,12 +195,15 @@ class ProspectingController extends Controller
             $data = [
                 'tenant_id'         => $_POST['tenant_id'] ?? null,
                 'name'              => $_POST['name'] ?? '',
+                'source'            => $_POST['source'] ?? 'google_maps',
                 'product_id'        => $_POST['product_id'] ?? null,
                 'city'              => $_POST['city'] ?? '',
                 'state'             => $_POST['state'] ?? '',
                 'keywords'          => $keywords,
                 'google_place_type' => $_POST['google_place_type'] ?? '',
                 'radius_meters'     => $_POST['radius_meters'] ?? 5000,
+                'cnae_code'         => $_POST['cnae_code'] ?? '',
+                'cnae_description'  => $_POST['cnae_description'] ?? '',
                 'notes'             => $_POST['notes'] ?? '',
             ];
 
@@ -275,7 +281,9 @@ class ProspectingController extends Controller
             return;
         }
 
-        if (!ProspectingService::hasApiKey()) {
+        // Verifica API key apenas para receitas Google Maps
+        $recipe = ProspectingService::findRecipeById($recipeId);
+        if ($recipe && ($recipe['source'] ?? 'google_maps') === 'google_maps' && !ProspectingService::hasApiKey()) {
             $this->json([
                 'success' => false,
                 'error'   => 'Chave da Google Maps API não configurada. Acesse Configurações > Integrações > Google Maps.',
@@ -417,14 +425,20 @@ class ProspectingController extends Controller
             $oppName   = trim($empresa . ($localStr ? ' — ' . $localStr : '') . ($objetivo ? ' — ' . $objetivo : ''));
             $productId = !empty($result['recipe_product_id']) ? (int) $result['recipe_product_id'] : null;
 
-            // Busca código de rastreamento ativo para prospecção ativa (canal prospecting_google_maps)
+            // Determina origin com base na fonte da receita
+            $recipeSourceStmt = $db->prepare("SELECT source FROM prospecting_recipes WHERE id = ? LIMIT 1");
+            $recipeSourceStmt->execute([$result['recipe_id'] ?? 0]);
+            $recipeSource = $recipeSourceStmt->fetchColumn() ?: 'google_maps';
+            $oppOrigin = $recipeSource === 'cnpjws' ? 'prospecting_cnpjws' : 'prospecting_google_maps';
+
+            // Busca código de rastreamento ativo para prospecção ativa
             $tcStmt = $db->prepare("
                 SELECT code FROM tracking_codes
-                WHERE channel = 'prospecting_google_maps' AND is_active = 1
+                WHERE channel = ? AND is_active = 1
                 ORDER BY created_at DESC
                 LIMIT 1
             ");
-            $tcStmt->execute();
+            $tcStmt->execute([$oppOrigin]);
             $prospectingTrackingCode = $tcStmt->fetchColumn() ?: null;
 
             // Cria oportunidade automaticamente no estágio "novo"
@@ -434,7 +448,7 @@ class ProspectingController extends Controller
                 'tenant_id'      => $result['tenant_id'] ?? null,
                 'product_id'     => $productId,
                 'stage'          => 'new',
-                'origin'         => 'prospecting_google_maps',
+                'origin'         => $oppOrigin,
                 'tracking_code'  => $prospectingTrackingCode,
                 'tracking_source'=> $prospectingTrackingCode ? 'prospecting' : null,
                 'tracking_auto_detected' => $prospectingTrackingCode ? true : false,

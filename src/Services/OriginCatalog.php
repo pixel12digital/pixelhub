@@ -149,6 +149,11 @@ class OriginCatalog
                 'label' => 'Prospecção Ativa (Google Maps)',
                 'group' => 'CRM'
             ],
+            [
+                'key' => 'prospecting_cnpjws',
+                'label' => 'Prospecção Ativa (CNAE/CNPJ.ws)',
+                'group' => 'CRM'
+            ],
             
             // Outros
             [
