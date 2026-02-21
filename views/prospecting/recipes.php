@@ -194,9 +194,11 @@ if (($sourceFilter ?? null) === 'cnpjws') {
                     <input type="text" name="name" id="recipeName" required placeholder="Ex: Imobiliárias em Curitiba" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 80px;gap:12px;">
-                    <div>
+                    <div style="position:relative;">
                         <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Cidade *</label>
-                        <input type="text" name="city" id="recipeCity" required placeholder="Ex: Curitiba" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                        <input type="text" name="city" id="recipeCity" required autocomplete="off" placeholder="Ex: Curitiba" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                        <input type="hidden" name="ibge_code" id="recipeIbgeCode">
+                        <div id="cityDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300;max-height:200px;overflow-y:auto;"></div>
                     </div>
                     <div>
                         <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">UF</label>
@@ -366,7 +368,63 @@ document.addEventListener('click', e => {
         document.getElementById('tenantDropdown').style.display = 'none';
     if (!e.target.closest('#cnaeDropdown') && e.target.id !== 'recipeCnaeSearch')
         document.getElementById('cnaeDropdown').style.display = 'none';
+    const cd = document.getElementById('cityDropdown');
+    if(cd && !e.target.closest('#cityDropdown') && e.target.id !== 'recipeCity')
+        cd.style.display = 'none';
 });
+
+// Cidade autocomplete — API IBGE (pública, sem CORS)
+let _cityDebounce = null;
+const _cityEl = document.getElementById('recipeCity');
+if(_cityEl){
+    _cityEl.addEventListener('input', function(){
+        const q = this.value.trim();
+        const dd = document.getElementById('cityDropdown');
+        clearTimeout(_cityDebounce);
+        if(q.length < 2){ dd.style.display='none'; return; }
+        dd.innerHTML = '<div style="padding:8px 12px;font-size:12px;color:#64748b;">Buscando...</div>';
+        dd.style.display = 'block';
+        _cityDebounce = setTimeout(() => {
+            const uf = (document.getElementById('recipeState').value||'').trim().toUpperCase();
+            const url = uf.length === 2
+                ? 'https://servicodados.ibge.gov.br/api/v1/localidades/estados/'+uf+'/municipios'
+                : 'https://servicodados.ibge.gov.br/api/v1/localidades/municipios';
+            fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+                const qn = norm(q);
+                const matches = data.filter(m => norm(m.nome).includes(qn))
+                                    .sort((a,b) => norm(a.nome).indexOf(qn) - norm(b.nome).indexOf(qn))
+                                    .slice(0,10);
+                if(!matches.length){
+                    dd.innerHTML = '<div style="padding:8px 12px;font-size:12px;color:#94a3b8;">Nenhuma cidade encontrada</div>';
+                    dd.style.display = 'block'; return;
+                }
+                dd.innerHTML = matches.map(m => {
+                    const ufSigla = m.microrregiao?.mesorregiao?.UF?.sigla || m['regiao-imediata']?.['regiao-intermediaria']?.UF?.sigla || '';
+                    return `<div onclick="setCity('${m.nome.replace(/'/g,"\\'")}',${'"'+m.id+'"'},'${ufSigla}')"
+                        style="padding:8px 12px;cursor:pointer;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;"
+                        onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                        <strong>${m.nome}</strong>${ufSigla ? ' <span style="color:#64748b;font-size:11px;">— '+ufSigla+'</span>' : ''}
+                    </div>`;
+                }).join('');
+                dd.style.display = 'block';
+            })
+            .catch(() => { dd.style.display='none'; });
+        }, 300);
+    });
+}
+function setCity(name, ibge, uf){
+    const el = document.getElementById('recipeCity');
+    const ibgeEl = document.getElementById('recipeIbgeCode');
+    const ufEl = document.getElementById('recipeState');
+    const dd = document.getElementById('cityDropdown');
+    if(el) el.value = name;
+    if(ibgeEl) ibgeEl.value = ibge;
+    if(ufEl && uf) ufEl.value = uf;
+    if(dd) dd.style.display = 'none';
+}
 
 // CNAE autocomplete — lista local curada com aliases em português coloquial
 // Formato: [code, desc, aliases_extras]
