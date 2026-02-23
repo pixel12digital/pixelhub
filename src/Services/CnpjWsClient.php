@@ -5,13 +5,14 @@ namespace PixelHub\Services;
 /**
  * Cliente para a API CNPJ.ws (plano comercial)
  *
- * Documentação: https://www.cnpj.ws/docs/api-publica/consultar-cnpj
- * Endpoint de busca: GET https://api.cnpj.ws/v1/estabelecimentos?cnae_fiscal_principal={cnae}&municipio_id={ibge}&situacao_cadastral=ATIVA
- * Autenticação: Bearer token no header Authorization
+ * Documentação: https://docs.cnpj.ws/referencia-de-api/api-comercial
+ * Pesquisa: GET https://comercial.cnpj.ws/v2/pesquisa?atividade_principal_id={cnae}&cidade_id={id}&situacao_cadastral=Ativa
+ * Consulta: GET https://comercial.cnpj.ws/cnpj/{cnpj}
+ * Autenticação: header x_api_token
  */
 class CnpjWsClient
 {
-    private const BASE_URL     = 'https://publica.cnpj.ws';
+    private const BASE_URL     = 'https://comercial.cnpj.ws';
     private const BASE_URL_PUB = 'https://publica.cnpj.ws';
     private const TIMEOUT      = 20;
     private const SLEEP_MS     = 350;
@@ -37,7 +38,7 @@ class CnpjWsClient
                 'limite'                 => 1,
             ]);
             $raw = $this->get($url, $apiKey);
-            if (isset($raw['cnpjs']) || isset($raw['data']) || is_array($raw)) {
+            if (isset($raw['data']) || isset($raw['paginacao']) || is_array($raw)) {
                 return ['success' => true, 'message' => 'Conexão com CNPJ.ws estabelecida com sucesso!'];
             }
             return ['success' => false, 'message' => 'Resposta inesperada da API.'];
@@ -65,27 +66,29 @@ class CnpjWsClient
 
         $apiKey = $this->resolveApiKey();
 
-        // Resolve código IBGE do município
-        $ibgeCode = $this->resolveIbgeCode($cityName, $uf);
-        if (!$ibgeCode) {
-            throw new \RuntimeException("Município não encontrado: {$cityName}/{$uf}.");
+        // Resolve estado_id interno do CNPJ.ws a partir da UF
+        $estadoId = $this->resolveEstadoId(strtoupper(trim($uf)));
+        if (!$estadoId) {
+            throw new \RuntimeException("UF inválida: {$uf}.");
         }
 
         // API comercial: situacao_cadastral usa formato capitalizado ("Ativa", "Baixada"...)
         $situacaoParam = $situacao === 'A' ? 'Ativa' : ucfirst(strtolower($situacao));
 
-        // GET /v2/pesquisa — endpoint de pesquisa com filtros
-        $url = self::BASE_URL . '/v2/pesquisa?' . http_build_query([
+        // GET /v2/pesquisa — filtra por CNAE + estado (cidade_id usa ID interno, estado_id é estável)
+        $params = [
             'atividade_principal_id' => $cnaeClean,
-            'cidade_id'              => $ibgeCode,
+            'estado_id'              => $estadoId,
             'situacao_cadastral'     => $situacaoParam,
             'limite'                 => min($maxResults, 100),
-        ]);
+        ];
+
+        $url = self::BASE_URL . '/v2/pesquisa?' . http_build_query($params);
 
         $raw = $this->get($url, $apiKey);
 
-        // Resposta: { cnpjs: [...], tem_proxima_pagina: bool, proximo_cursor: string }
-        $cnpjList = $raw['cnpjs'] ?? [];
+        // Resposta: { data: [...CNPJs...], paginacao: { total, tem_proxima_pagina, ... } }
+        $cnpjList = $raw['data'] ?? [];
 
         if (empty($cnpjList)) {
             return [];
@@ -122,6 +125,23 @@ class CnpjWsClient
             throw new \RuntimeException('Chave API CNPJ.ws não configurada. Acesse Configurações > Integrações > CNPJ.ws para configurar.');
         }
         return $key;
+    }
+
+    /**
+     * Resolve o estado_id interno do CNPJ.ws a partir da sigla UF
+     * IDs extraídos do campo estado.id retornado pela API
+     */
+    private function resolveEstadoId(string $uf): ?int
+    {
+        $map = [
+            'AC' =>  1, 'AL' =>  2, 'AM' =>  3, 'AP' =>  4, 'BA' =>  5,
+            'CE' =>  6, 'DF' =>  7, 'ES' =>  8, 'GO' =>  9, 'MA' => 10,
+            'MG' => 11, 'MS' => 12, 'MT' => 13, 'PA' => 14, 'PB' => 15,
+            'PE' => 16, 'PI' => 17, 'PR' => 18, 'RJ' => 19, 'RN' => 20,
+            'RO' => 21, 'RR' => 22, 'RS' => 23, 'SC' => 24, 'SE' => 25,
+            'SP' => 26, 'TO' => 27,
+        ];
+        return $map[$uf] ?? null;
     }
 
     /**
@@ -470,7 +490,7 @@ class CnpjWsClient
             'User-Agent: PixelHub/1.0 (hub.pixel12digital.com.br)',
         ];
         if (!empty($apiKey)) {
-            $headers[] = 'Authorization: Bearer ' . $apiKey;
+            $headers[] = 'x_api_token: ' . $apiKey;
         }
 
         $ch = curl_init($url);
