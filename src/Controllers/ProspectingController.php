@@ -478,10 +478,17 @@ class ProspectingController extends Controller
         header('Content-Type: application/json');
 
         $resultId = (int) ($_POST['result_id'] ?? 0);
-        $googleData = $_POST['google_data'] ?? null;
+        $googleDataJson = $_POST['google_data'] ?? null;
 
-        if (!$resultId || !$googleData) {
+        if (!$resultId || !$googleDataJson) {
             $this->json(['success' => false, 'error' => 'Dados inválidos'], 400);
+            return;
+        }
+
+        // Decodifica JSON
+        $googleData = json_decode($googleDataJson, true);
+        if (!$googleData) {
+            $this->json(['success' => false, 'error' => 'Formato de dados inválido'], 400);
             return;
         }
 
