@@ -502,6 +502,31 @@ class ProspectingController extends Controller
     }
 
     /**
+     * POST /prospecting/enrich-cnpjws  (AJAX)
+     * Enriquece dados de contato via CNPJ.ws
+     */
+    public function enrichWithCnpjWs(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $resultId = (int) ($_POST['result_id'] ?? 0);
+        
+        if (!$resultId) {
+            $this->json(['success' => false, 'error' => 'ID inválido'], 400);
+            return;
+        }
+
+        try {
+            $result = ProspectingService::enrichWithCnpjWs($resultId);
+            $this->json($result);
+        } catch (\Exception $e) {
+            error_log('[ProspectingController] Erro ao enriquecer com CNPJ.ws: ' . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * POST /prospecting/update-result-status  (AJAX)
      */
     public function updateResultStatus(): void

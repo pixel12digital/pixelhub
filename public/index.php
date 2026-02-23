@@ -748,6 +748,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/prospecting/update-result-status', 'ProspectingController@updateResultStatus');
     $router->post('/prospecting/enrich-google-maps', 'ProspectingController@enrichWithGoogleMaps');
     $router->post('/prospecting/apply-google-enrichment', 'ProspectingController@applyGoogleEnrichment');
+    $router->post('/prospecting/enrich-cnpjws', 'ProspectingController@enrichWithCnpjWs');
     $router->post('/prospecting/convert-to-lead', 'ProspectingController@convertToLead');
 
     // Configurações — Catálogo de Produtos por Conta

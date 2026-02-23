@@ -1197,6 +1197,89 @@ class ProspectingService
     }
 
     /**
+     * Enriquece dados de contato via CNPJ.ws
+     * 
+     * IMPORTANTE: CNPJ.ws é a FONTE DA VERDADE - SUBSTITUI dados existentes
+     * (diferente do Google Maps que apenas adiciona em campos separados)
+     * 
+     * Atualiza:
+     * - Email (sempre substitui se disponível)
+     * - Telefone principal (sempre substitui se disponível)
+     * - Telefone secundário (sempre substitui se disponível)
+     * - Website (sempre substitui se disponível)
+     * 
+     * Rate limit: 3 requisições/minuto (API pública gratuita)
+     */
+    public static function enrichWithCnpjWs(int $resultId): array
+    {
+        $db = DB::getConnection();
+        
+        // Busca o resultado
+        $stmt = $db->prepare("SELECT * FROM prospecting_results WHERE id = ?");
+        $stmt->execute([$resultId]);
+        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+        
+        if (!$result) {
+            throw new \Exception('Resultado não encontrado');
+        }
+        
+        if (empty($result['cnpj'])) {
+            throw new \Exception('CNPJ não disponível para esta empresa');
+        }
+        
+        // Busca dados no CNPJ.ws
+        $client = new CnpjWsEnrichmentClient();
+        $contactData = $client->getContactData($result['cnpj']);
+        
+        if (!$contactData) {
+            throw new \Exception('Dados não encontrados no CNPJ.ws');
+        }
+        
+        // CNPJ.ws é a FONTE DA VERDADE - SUBSTITUI dados existentes
+        $updates = [];
+        $params = [];
+        
+        // Email - sempre atualiza se disponível
+        if (!empty($contactData['email'])) {
+            $updates[] = 'email = ?';
+            $params[] = $contactData['email'];
+        }
+        
+        // Telefone principal - sempre atualiza se disponível
+        if (!empty($contactData['phone'])) {
+            $updates[] = 'phone_minhareceita = ?';
+            $params[] = $contactData['phone'];
+        }
+        
+        // Telefone secundário - sempre atualiza se disponível
+        if (!empty($contactData['phone_secondary'])) {
+            $updates[] = 'telefone_secundario = ?';
+            $params[] = $contactData['phone_secondary'];
+        }
+        
+        // Website - sempre atualiza se disponível
+        if (!empty($contactData['website'])) {
+            $updates[] = 'website_minhareceita = ?';
+            $params[] = $contactData['website'];
+        }
+        
+        if (!empty($updates)) {
+            $updates[] = 'updated_at = NOW()';
+            $params[] = $resultId;
+            
+            $sql = "UPDATE prospecting_results SET " . implode(', ', $updates) . " WHERE id = ?";
+            $stmt = $db->prepare($sql);
+            $stmt->execute($params);
+        }
+        
+        return [
+            'success' => true,
+            'updated_fields' => count($updates) - 1, // -1 para não contar updated_at
+            'data' => $contactData,
+        ];
+    }
+    
+    /**
      * Tipos de lugares do Google Places mais comuns para prospecção
      */
     public static function getCommonPlaceTypes(): array
