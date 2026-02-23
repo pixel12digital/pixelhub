@@ -942,12 +942,15 @@ class ProspectingService
         }
 
         // Cria o lead
-        $phone = $result['phone'] ?? null;
+        // Prioriza phone_minhareceita (atualizado via CNPJ.ws ou Minha Receita), fallback para phone (Google Maps)
+        $phone = $result['phone_minhareceita'] ?? $result['phone'] ?? null;
+        $email = $result['email'] ?? null;
+        
         $leadId = LeadService::create([
             'name'       => $result['name'],
             'company'    => $result['name'],
             'phone'      => $phone,
-            'email'      => null,
+            'email'      => $email,
             'source'     => $leadSource,
             'notes'      => $leadNotes,
             'created_by' => $userId,
