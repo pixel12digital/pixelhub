@@ -1683,8 +1683,11 @@
                         Prospecção Ativa
                     </div>
                     <div class="sidebar-subgroup-content is-open">
-                        <a href="<?= pixelhub_url('/prospecting') ?>" class="sub-item <?= ($prospActive && strpos($currentUri, 'source=cnpjws') === false) ? 'active' : '' ?>">
+                        <a href="<?= pixelhub_url('/prospecting') ?>" class="sub-item <?= ($prospActive && strpos($currentUri, 'source=cnpjws') === false && strpos($currentUri, 'source=minhareceita') === false) ? 'active' : '' ?>">
                             <span class="sidebar-text">Google Maps</span>
+                        </a>
+                        <a href="<?= pixelhub_url('/prospecting?source=minhareceita') ?>" class="sub-item <?= (strpos($currentUri, 'source=minhareceita') !== false) ? 'active' : '' ?>">
+                            <span class="sidebar-text">Minha Receita (CNAE)</span>
                         </a>
                         <a href="<?= pixelhub_url('/prospecting?source=cnpjws') ?>" class="sub-item <?= (strpos($currentUri, 'source=cnpjws') !== false) ? 'active' : '' ?>">
                             <span class="sidebar-text">CNAE (CNPJ.ws)</span>

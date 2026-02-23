@@ -5,6 +5,7 @@ namespace PixelHub\Services;
 use PixelHub\Core\DB;
 use PixelHub\Core\CryptoHelper;
 use PixelHub\Services\CnpjWsClient;
+use PixelHub\Services\MinhaReceitaClient;
 
 /**
  * Service para Prospecção Ativa
@@ -226,7 +227,7 @@ class ProspectingService
         $db = DB::getConnection();
 
         $name        = trim($data['name'] ?? '');
-        $source      = in_array($data['source'] ?? '', ['google_maps', 'cnpjws']) ? $data['source'] : 'google_maps';
+        $source      = in_array($data['source'] ?? '', ['google_maps', 'cnpjws', 'minhareceita']) ? $data['source'] : 'google_maps';
         $city        = trim($data['city'] ?? '');
         $state       = strtoupper(trim($data['state'] ?? ''));
         $productId   = !empty($data['product_id']) ? (int) $data['product_id'] : null;
@@ -250,6 +251,12 @@ class ProspectingService
         }
         if ($source === 'cnpjws' && empty($city)) {
             throw new \InvalidArgumentException('Cidade é obrigatória para CNPJ.ws');
+        }
+        if ($source === 'minhareceita' && empty($cnaeCode)) {
+            throw new \InvalidArgumentException('CNAE é obrigatório para a fonte Minha Receita');
+        }
+        if ($source === 'minhareceita' && empty($state)) {
+            throw new \InvalidArgumentException('Estado (UF) é obrigatório para a fonte Minha Receita');
         }
 
         $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
@@ -287,7 +294,7 @@ class ProspectingService
 
         $keywords = self::normalizeKeywords($data['keywords'] ?? []);
         $state    = strtoupper(trim($data['state'] ?? ''));
-        $source   = in_array($data['source'] ?? '', ['google_maps', 'cnpjws']) ? $data['source'] : 'google_maps';
+        $source   = in_array($data['source'] ?? '', ['google_maps', 'cnpjws', 'minhareceita']) ? $data['source'] : 'google_maps';
 
         $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
 
@@ -372,7 +379,91 @@ class ProspectingService
             return self::runSearchCnpjws($recipe, $recipeId, $maxResults);
         }
 
+        if ($source === 'minhareceita') {
+            return self::runSearchMinhaReceita($recipe, $recipeId, $maxResults);
+        }
+
         return self::runSearchGoogleMaps($recipe, $recipeId, $maxResults);
+    }
+
+    /**
+     * Executa busca via Minha Receita (dados abertos Receita Federal)
+     */
+    private static function runSearchMinhaReceita(array $recipe, int $recipeId, int $maxResults): array
+    {
+        $cnaeCode = $recipe['cnae_code'] ?? '';
+        $uf       = $recipe['state'] ?? '';
+        $city     = $recipe['city'] ?? '';
+
+        if (empty($cnaeCode) || empty($uf)) {
+            throw new \InvalidArgumentException('CNAE e UF são obrigatórios para busca Minha Receita');
+        }
+
+        $client = new MinhaReceitaClient();
+
+        // Resolve código IBGE da cidade se informada
+        $ibgeCode = null;
+        if (!empty($city)) {
+            $ibgeCode = $client->resolveIbgeCode($city, $uf);
+        }
+
+        $places = $client->searchByCnaeAndRegion($cnaeCode, $uf, $ibgeCode, $maxResults);
+
+        $found      = count($places);
+        $new        = 0;
+        $duplicates = 0;
+        $errors     = [];
+
+        $db = DB::getConnection();
+
+        foreach ($places as $place) {
+            $cnpj = $place['cnpj'] ?? '';
+            if (empty($cnpj)) {
+                continue;
+            }
+
+            try {
+                $check = $db->prepare("SELECT id FROM prospecting_results WHERE cnpj = ?");
+                $check->execute([$cnpj]);
+                if ($check->fetch()) {
+                    $duplicates++;
+                    continue;
+                }
+
+                $stmt = $db->prepare("
+                    INSERT INTO prospecting_results
+                        (recipe_id, tenant_id, name, address, city, state, phone, email, website,
+                         source, cnpj, cnae_code, cnae_description, status, found_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'minhareceita', ?, ?, ?, 'new', NOW(), NOW())
+                ");
+                $stmt->execute([
+                    $recipeId,
+                    $recipe['tenant_id'] ?? null,
+                    $place['name'],
+                    $place['address'],
+                    $place['city'],
+                    $place['state'],
+                    $place['phone'],
+                    $place['email'],
+                    $place['website'],
+                    $cnpj,
+                    $place['cnae_code'],
+                    $place['cnae_description'],
+                ]);
+                $new++;
+            } catch (\Exception $e) {
+                $errors[] = 'Erro ao salvar "' . $place['name'] . '": ' . $e->getMessage();
+            }
+        }
+
+        self::updateRecipeStats($recipeId);
+
+        return [
+            'found'      => $found,
+            'new'        => $new,
+            'duplicates' => $duplicates,
+            'errors'     => $errors,
+        ];
     }
 
     /**

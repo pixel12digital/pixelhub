@@ -18,6 +18,9 @@ $sourceParam = isset($sourceFilter) && $sourceFilter ? '&source=' . $sourceFilte
 if (($sourceFilter ?? null) === 'cnpjws') {
     $pageTitle    = 'Prospecção Ativa — CNAE (CNPJ.ws)';
     $pageSubtitle = 'Busque empresas por CNAE e município via dados da Receita Federal (CNPJ.ws).';
+} elseif (($sourceFilter ?? null) === 'minhareceita') {
+    $pageTitle    = 'Prospecção Ativa — Minha Receita';
+    $pageSubtitle = 'Busque empresas por CNAE e região via dados abertos da Receita Federal (gratuito, sem chave).';
 } else {
     $pageTitle    = 'Prospecção Ativa — Google Maps';
     $pageSubtitle = 'Busque empresas no Google Maps por segmento e cidade, e converta em leads.';
@@ -88,6 +91,12 @@ if (($sourceFilter ?? null) === 'cnpjws') {
     <span style="color:#78350f;font-size:13px;"> Configure em <a href="<?= pixelhub_url('/settings/cnpjws') ?>" style="color:#023A8D;font-weight:600;">Configurações → Integrações → CNPJ.ws API</a>.</span>
 </div>
 <?php endif; ?>
+<?php if (($sourceFilter ?? 'google_maps') === 'minhareceita'): ?>
+<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 20px;margin-bottom:24px;">
+    <strong style="color:#15803d;">✓ Minha Receita — sem chave necessária.</strong>
+    <span style="color:#166534;font-size:13px;"> Dados abertos da Receita Federal. Busca por CNAE + UF (+ cidade opcional).</span>
+</div>
+<?php endif; ?>
 
 <?php if (empty($recipes)): ?>
 <div style="text-align:center;padding:60px 20px;background:#f8fafc;border-radius:12px;border:2px dashed #e2e8f0;">
@@ -124,11 +133,13 @@ if (($sourceFilter ?? null) === 'cnpjws') {
                 <div style="font-size:12px;color:#64748b;display:flex;gap:16px;flex-wrap:wrap;">
                     <?php if (($recipe['source'] ?? 'google_maps') === 'cnpjws'): ?>
                     <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e;">🏭 CNAE/CNPJ.ws</span>
+                    <?php elseif (($recipe['source'] ?? 'google_maps') === 'minhareceita'): ?>
+                    <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#f0fdf4;color:#15803d;">🏛 Minha Receita</span>
                     <?php else: ?>
-                    <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;">� Google Maps</span>
+                    <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;">📍 Google Maps</span>
                     <?php endif; ?>
                     <span>�📍 <?= htmlspecialchars($recipe['city']) ?><?= !empty($recipe['state']) ? ' - ' . $recipe['state'] : '' ?></span>
-                    <?php if (($recipe['source'] ?? 'google_maps') === 'cnpjws' && !empty($recipe['cnae_code'])): ?>
+                    <?php if (in_array($recipe['source'] ?? 'google_maps', ['cnpjws','minhareceita']) && !empty($recipe['cnae_code'])): ?>
                     <span>🏭 CNAE <?= htmlspecialchars($recipe['cnae_code']) ?><?= !empty($recipe['cnae_description']) ? ' — ' . htmlspecialchars($recipe['cnae_description']) : '' ?></span>
                     <?php endif; ?>
                     <?php if (!empty($recipe['product_label'])): ?><span>🏷 <?= htmlspecialchars($recipe['product_label']) ?></span><?php endif; ?>
@@ -151,7 +162,7 @@ if (($sourceFilter ?? null) === 'cnpjws') {
                 <?php if ((int)($recipe['results_count'] ?? 0) > 0): ?>
                 <a href="<?= pixelhub_url('/prospecting/results?recipe_id=' . $recipe['id']) ?>" style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">Ver Resultados</a>
                 <?php endif; ?>
-                <?php $isCnpjws = ($recipe['source'] ?? 'google_maps') === 'cnpjws'; $canRun = $isCnpjws || $hasKey; ?>
+                <?php $recSrc = $recipe['source'] ?? 'google_maps'; $canRun = ($recSrc === 'minhareceita') || ($recSrc === 'cnpjws') || $hasKey; ?>
                 <button onclick="runSearch(<?= $recipe['id'] ?>, this)" <?= !$canRun ? 'disabled title="Configure a API Google Maps primeiro"' : '' ?>
                         style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;background:<?= $canRun ? '#023A8D' : '#94a3b8' ?>;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:<?= $canRun ? 'pointer' : 'not-allowed' ?>;">
                     🔍 Buscar Agora
@@ -182,7 +193,7 @@ if (($sourceFilter ?? null) === 'cnpjws') {
         </div>
         <form id="recipeForm" method="POST" action="<?= pixelhub_url('/prospecting/store') ?>" style="padding:24px;">
             <input type="hidden" name="id" id="recipeId">
-            <input type="hidden" name="source" id="recipeSource" value="<?= ($sourceFilter ?? null) === 'cnpjws' ? 'cnpjws' : 'google_maps' ?>">
+            <input type="hidden" name="source" id="recipeSource" value="<?= in_array($sourceFilter ?? '', ['cnpjws','minhareceita']) ? $sourceFilter : 'google_maps' ?>">
             <div style="display:grid;gap:14px;">
                 <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 14px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#0369a1;margin-bottom:6px;">📁 Conta (cliente da agência)</label>
@@ -212,11 +223,10 @@ if (($sourceFilter ?? null) === 'cnpjws') {
                     </div>
                 </div>
 
-                <?php if (($sourceFilter ?? null) === 'cnpjws'): ?>
-                <!-- CAMPOS CNAE (CNPJ.ws) -->
+                <?php if (in_array($sourceFilter ?? '', ['cnpjws','minhareceita'])): ?>
+                <!-- CAMPOS CNAE (CNPJ.ws / Minha Receita) -->
                 <div>
-                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">CNAE(s) * <span style="font-weight:400;color:#94a3b8;font-size:11px;">— adicione um ou mais</span></label>
-                    <!-- Tags dos CNAEs selecionados -->
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">CNAE * <span style="font-weight:400;color:#94a3b8;font-size:11px;">— código da atividade econômica</span></label>
                     <div id="cnaeTags" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
                     <input type="hidden" name="cnae_code" id="recipeCnaeCode">
                     <input type="hidden" name="cnae_description" id="recipeCnaeDescription">
@@ -226,11 +236,17 @@ if (($sourceFilter ?? null) === 'cnpjws') {
                                style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
                         <div id="cnaeDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300;max-height:220px;overflow-y:auto;"></div>
                     </div>
-                    <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Selecione um ou mais CNAEs. O primeiro será o principal.</p>
+                    <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Selecione o CNAE principal. A cidade é opcional (filtra por município IBGE).</p>
                 </div>
+                <?php if (($sourceFilter ?? '') === 'minhareceita'): ?>
+                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 12px;font-size:12px;color:#166534;">
+                    Minha Receita — gratuito, sem chave. Busca por CNAE + UF (+ cidade opcional via IBGE).
+                </div>
+                <?php else: ?>
                 <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px 12px;font-size:12px;color:#78350f;">
                     API pública do CNPJ.ws (gratuita, sem chave). Resultados baseados nos dados da Receita Federal.
                 </div>
+                <?php endif; ?>
                 <?php else: ?>
                 <!-- CAMPOS GOOGLE MAPS -->
                 <div>

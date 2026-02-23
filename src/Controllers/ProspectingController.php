@@ -212,7 +212,7 @@ class ProspectingController extends Controller
             : 0;
 
         // Sem ?source= → default google_maps (cada fonte tem sua própria listagem)
-        $sourceFilter = (isset($_GET['source']) && in_array($_GET['source'], ['google_maps', 'cnpjws']))
+        $sourceFilter = (isset($_GET['source']) && in_array($_GET['source'], ['google_maps', 'cnpjws', 'minhareceita']))
             ? $_GET['source']
             : 'google_maps';
 
@@ -265,7 +265,7 @@ class ProspectingController extends Controller
             $id = ProspectingService::createRecipe($data, $userId);
             $tenantParam = !empty($_POST['tenant_id']) ? '&tenant_id=' . (int)$_POST['tenant_id'] : '&tenant_id=own';
             $source      = $_POST['source'] ?? 'google_maps';
-            $sourceParam = in_array($source, ['google_maps','cnpjws']) ? '&source=' . $source : '';
+            $sourceParam = in_array($source, ['google_maps','cnpjws','minhareceita']) ? '&source=' . $source : '';
             $this->redirect('/prospecting?success=created&message=' . urlencode('Receita criada com sucesso!') . $tenantParam . $sourceParam);
         } catch (\Exception $e) {
             error_log('[ProspectingController] Erro ao criar receita: ' . $e->getMessage());
@@ -308,7 +308,7 @@ class ProspectingController extends Controller
             ProspectingService::updateRecipe($id, $data);
             $tenantParam = !empty($_POST['tenant_id']) ? '&tenant_id=' . (int)$_POST['tenant_id'] : '&tenant_id=own';
             $source      = $_POST['source'] ?? 'google_maps';
-            $sourceParam = in_array($source, ['google_maps','cnpjws']) ? '&source=' . $source : '';
+            $sourceParam = in_array($source, ['google_maps','cnpjws','minhareceita']) ? '&source=' . $source : '';
             $this->redirect('/prospecting?success=updated&message=' . urlencode('Receita atualizada com sucesso!') . $tenantParam . $sourceParam);
         } catch (\Exception $e) {
             error_log('[ProspectingController] Erro ao atualizar receita: ' . $e->getMessage());
@@ -383,7 +383,8 @@ class ProspectingController extends Controller
 
         // Verifica API key apenas para receitas Google Maps
         $recipe = ProspectingService::findRecipeById($recipeId);
-        if ($recipe && ($recipe['source'] ?? 'google_maps') === 'google_maps' && !ProspectingService::hasApiKey()) {
+        $recipeSource = $recipe['source'] ?? 'google_maps';
+        if ($recipe && $recipeSource === 'google_maps' && !ProspectingService::hasApiKey()) {
             $this->json([
                 'success' => false,
                 'error'   => 'Chave da Google Maps API não configurada. Acesse Configurações > Integrações > Google Maps.',
@@ -529,7 +530,13 @@ class ProspectingController extends Controller
             $recipeSourceStmt = $db->prepare("SELECT source FROM prospecting_recipes WHERE id = ? LIMIT 1");
             $recipeSourceStmt->execute([$result['recipe_id'] ?? 0]);
             $recipeSource = $recipeSourceStmt->fetchColumn() ?: 'google_maps';
-            $oppOrigin = $recipeSource === 'cnpjws' ? 'prospecting_cnpjws' : 'prospecting_google_maps';
+            if ($recipeSource === 'cnpjws') {
+                $oppOrigin = 'prospecting_cnpjws';
+            } elseif ($recipeSource === 'minhareceita') {
+                $oppOrigin = 'prospecting_minhareceita';
+            } else {
+                $oppOrigin = 'prospecting_google_maps';
+            }
 
             // Busca código de rastreamento ativo para prospecção ativa
             $tcStmt = $db->prepare("
