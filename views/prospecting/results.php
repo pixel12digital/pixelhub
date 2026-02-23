@@ -9,8 +9,8 @@ ob_start();
         </a>
         <h2 style="margin:0 0 4px;"><?= htmlspecialchars($recipe['name']) ?></h2>
         <p style="margin:0;font-size:13px;color:#64748b;">
-            📍 <?= htmlspecialchars($recipe['city']) ?><?= !empty($recipe['state']) ? ' - ' . $recipe['state'] : '' ?>
-            <?php if (!empty($recipe['product_label'])): ?> · 🏷 <?= htmlspecialchars($recipe['product_label']) ?><?php endif; ?>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><?= htmlspecialchars($recipe['city']) ?><?= !empty($recipe['state']) ? ' - ' . $recipe['state'] : '' ?>
+            <?php if (!empty($recipe['product_label'])): ?> · <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg><?= htmlspecialchars($recipe['product_label']) ?><?php endif; ?>
             · <strong><?= $total ?></strong> empresa(s) encontrada(s)
         </p>
     </div>
@@ -97,7 +97,9 @@ ob_start();
 
 <?php if (empty($results)): ?>
 <div style="text-align:center;padding:50px 20px;background:#f8fafc;border-radius:12px;border:2px dashed #e2e8f0;">
-    <div style="font-size:36px;margin-bottom:12px;">🏢</div>
+    <div style="margin-bottom:12px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M9 8h1"></path><path d="M9 12h1"></path><path d="M9 16h1"></path><path d="M14 8h1"></path><path d="M14 12h1"></path><path d="M14 16h1"></path><path d="M6 21V3h12v18"></path></svg>
+    </div>
     <h3 style="margin:0 0 8px;color:#475569;">Nenhuma empresa encontrada</h3>
     <p style="margin:0 0 20px;color:#94a3b8;font-size:13px;">
         <?php if (!empty($filters['status']) || !empty($filters['search'])): ?>
@@ -170,10 +172,14 @@ ob_start();
                             $dataInicio = new DateTime($result['data_inicio_atividade']);
                             $anos = (new DateTime())->diff($dataInicio)->y;
                         ?>
-                        <div style="font-size:11px;color:#64748b;margin-top:2px;">📅 Fundada em <?= $dataInicio->format('Y') ?> (<?= $anos ?> anos)</div>
+                        <div style="font-size:11px;color:#64748b;margin-top:2px;">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>Fundada em <?= $dataInicio->format('Y') ?> (<?= $anos ?> anos)
+                        </div>
                         <?php endif; ?>
                         <?php if (!empty($result['website'])): ?>
-                        <a href="<?= htmlspecialchars($result['website']) ?>" target="_blank" style="font-size:11px;color:#023A8D;text-decoration:none;display:inline-block;margin-top:2px;">🌐 <?= htmlspecialchars(parse_url($result['website'], PHP_URL_HOST) ?: $result['website']) ?></a>
+                        <a href="<?= htmlspecialchars($result['website']) ?>" target="_blank" style="font-size:11px;color:#023A8D;text-decoration:none;display:inline-block;margin-top:2px;">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg><?= htmlspecialchars(parse_url($result['website'], PHP_URL_HOST) ?: $result['website']) ?>
+                        </a>
                         <?php endif; ?>
                         <?php if (!empty($result['lead_name'])): ?>
                         <div style="margin-top:4px;"><a href="<?= pixelhub_url('/opportunities/view-by-lead?lead_id=' . $result['lead_id']) ?>" style="font-size:11px;color:#16a34a;font-weight:600;text-decoration:none;">✓ Lead: <?= htmlspecialchars($result['lead_name']) ?></a></div>
@@ -331,7 +337,9 @@ ob_start();
                                     if (is_array($cnaesSecundarios) && count($cnaesSecundarios) > 0):
                                 ?>
                                 <div style="grid-column:1/-1;">
-                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">🏢 CNAEs Secundários</div>
+                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px;"><path d="M3 21h18"></path><path d="M9 8h1"></path><path d="M9 12h1"></path><path d="M9 16h1"></path><path d="M14 8h1"></path><path d="M14 12h1"></path><path d="M14 16h1"></path><path d="M6 21V3h12v18"></path></svg>CNAEs Secundários
+                                    </div>
                                     <div style="display:flex;flex-wrap:wrap;gap:8px;">
                                         <?php foreach ($cnaesSecundarios as $cnae): ?>
                                         <div style="padding:6px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;">
