@@ -119,9 +119,10 @@ ob_start();
             <thead>
                 <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
                     <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Empresa</th>
-                    <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Contato</th>
+                    <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Email</th>
+                    <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Telefone</th>
                     <th style="padding:12px 16px;text-align:center;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Status</th>
-                    <th style="padding:12px 16px;text-align:center;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Ações</th>
+                    <th style="padding:12px 16px;text-align:center;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;width:120px;">Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -178,18 +179,24 @@ ob_start();
                         <div style="margin-top:4px;"><a href="<?= pixelhub_url('/opportunities/view-by-lead?lead_id=' . $result['lead_id']) ?>" style="font-size:11px;color:#16a34a;font-weight:600;text-decoration:none;">✓ Lead: <?= htmlspecialchars($result['lead_name']) ?></a></div>
                         <?php endif; ?>
                     </td>
+                    <!-- Coluna Email -->
                     <td style="padding:14px 16px;">
-                        <?php if (!empty($result['phone'])): ?>
-                        <div style="font-size:13px;color:#374151;font-weight:500;"><?= htmlspecialchars($result['phone']) ?></div>
+                        <?php if (!empty($result['email'])): ?>
+                        <div style="font-size:12px;color:#374151;"><?= htmlspecialchars($result['email']) ?></div>
+                        <?php else: ?>
+                        <span style="font-size:11px;color:#cbd5e1;">—</span>
+                        <?php endif; ?>
+                    </td>
+                    <!-- Coluna Telefone -->
+                    <td style="padding:14px 16px;">
+                        <?php if (!empty($result['phone_minhareceita'])): ?>
+                        <div style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($result['phone_minhareceita']) ?></div>
                         <?php endif; ?>
                         <?php if (!empty($result['telefone_secundario'])): ?>
-                        <div style="font-size:12px;color:#64748b;margin-top:2px;"><?= htmlspecialchars($result['telefone_secundario']) ?></div>
+                        <div style="font-size:11px;color:#64748b;margin-top:2px;"><?= htmlspecialchars($result['telefone_secundario']) ?></div>
                         <?php endif; ?>
-                        <?php if (!empty($result['email'])): ?>
-                        <div style="font-size:12px;color:#64748b;margin-top:2px;">✉ <?= htmlspecialchars($result['email']) ?></div>
-                        <?php endif; ?>
-                        <?php if (empty($result['phone']) && empty($result['telefone_secundario']) && empty($result['email'])): ?>
-                        <span style="font-size:12px;color:#94a3b8;">Não informado</span>
+                        <?php if (empty($result['phone_minhareceita']) && empty($result['telefone_secundario'])): ?>
+                        <span style="font-size:11px;color:#cbd5e1;">—</span>
                         <?php endif; ?>
                     </td>
                     <td style="padding:14px 16px;text-align:center;">
@@ -202,47 +209,37 @@ ob_start();
                         </select>
                     </td>
                     <td style="padding:14px 16px;text-align:center;">
-                        <div style="display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;">
-                            <?php if ($result['source'] === 'minhareceita'): ?>
-                                <?php if (!empty($result['google_enriched_at'])): ?>
-                                    <!-- Enriquecido com sucesso -->
-                                    <span style="padding:5px 10px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:5px;font-size:10px;font-weight:600;white-space:nowrap;" title="Enriquecido em <?= date('d/m/Y H:i', strtotime($result['google_enriched_at'])) ?>">
-                                        ✓ Enriquecido (<?= $result['enrichment_confidence'] ?>%)
-                                    </span>
-                                <?php elseif (!empty($result['google_enrichment_attempted'])): ?>
-                                    <!-- Tentou mas não encontrou -->
-                                    <button onclick="enrichWithGoogleMaps(<?= $result['id'] ?>)"
-                                            style="padding:5px 10px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;"
-                                            title="Não encontrado - Tentar novamente">
-                                        ✗ Não encontrado
-                                    </button>
-                                <?php else: ?>
-                                    <!-- Nunca verificou -->
-                                    <button onclick="enrichWithGoogleMaps(<?= $result['id'] ?>)"
-                                            style="padding:5px 10px;background:#0369a1;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;"
-                                            title="Enriquecer com dados do Google Maps">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>Google Maps
-                                    </button>
-                                <?php endif; ?>
-                            <?php endif; ?>
-                            <?php if (empty($result['lead_id'])): ?>
-                            <button onclick="criarLead(<?= $result['id'] ?>, this)"
-                                    style="padding:5px 10px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
-                                + Criar Lead
+                        <div style="display:flex;gap:4px;justify-content:center;align-items:center;">
+                            <?php if ($result['source'] === 'minhareceita' && !empty($result['cnpj'])): ?>
+                            <!-- Atualizar Dados CNPJ.ws -->
+                            <button onclick="updateWithCnpjWs(<?= $result['id'] ?>)" 
+                                    style="padding:6px;background:#f59e0b;color:#fff;border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;" 
+                                    title="Atualizar dados via CNPJ.ws (email, telefones)">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
                             </button>
-                            <?php elseif (!empty($result['opportunity_id'])): ?>
-                            <a href="<?= pixelhub_url('/opportunities/view?id=' . $result['opportunity_id']) ?>" style="padding:5px 10px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:5px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;">
-                                Ver Oportunidade →
-                            </a>
-                            <?php else: ?>
-                            <a href="<?= pixelhub_url('/opportunities/view-by-lead?lead_id=' . $result['lead_id']) ?>" style="padding:5px 10px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:5px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;">
-                                Ver Lead
-                            </a>
                             <?php endif; ?>
-                            <?php if (!empty($result['lat']) && !empty($result['lng'])): ?>
-                            <a href="https://www.google.com/maps/search/?api=1&query=<?= urlencode($result['name']) ?>&query_place_id=<?= urlencode($result['google_place_id']) ?>" target="_blank"
-                               style="padding:5px 8px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:5px;font-size:11px;text-decoration:none;" title="Ver no Google Maps">
-                                🗺
+                            
+                            <?php if ($result['source'] === 'minhareceita'): ?>
+                            <!-- Google Maps -->
+                            <button onclick="enrichWithGoogleMaps(<?= $result['id'] ?>)" 
+                                    style="padding:6px;background:<?= !empty($result['google_enriched_at']) ? '#16a34a' : '#0369a1' ?>;color:#fff;border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;" 
+                                    title="<?= !empty($result['google_enriched_at']) ? 'Enriquecido (' . $result['enrichment_confidence'] . '%)' : 'Enriquecer com Google Maps' ?>">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                            </button>
+                            <?php endif; ?>
+                            
+                            <!-- Criar Lead / Ver Lead -->
+                            <?php if (empty($result['lead_id'])): ?>
+                            <button onclick="criarLead(<?= $result['id'] ?>, this)" 
+                                    style="padding:6px;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;" 
+                                    title="Criar Lead">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
+                            </button>
+                            <?php else: ?>
+                            <a href="<?= pixelhub_url('/opportunities/view-by-lead?lead_id=' . $result['lead_id']) ?>" 
+                               style="padding:6px;background:#10b981;color:#fff;border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;" 
+                               title="Ver Lead">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                             </a>
                             <?php endif; ?>
                         </div>
@@ -619,6 +616,38 @@ function applyEnrichment(resultId, googleData, confidence) {
 
 function closeEnrichModal() {
     document.getElementById('enrichModal').style.display = 'none';
+}
+
+// Atualizar dados via CNPJ.ws (fonte da verdade)
+function updateWithCnpjWs(resultId) {
+    const btn = event.target.closest('button');
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 0.6s linear infinite;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>';
+    
+    fetch('<?= pixelhub_url('/prospecting/enrich-cnpjws') ?>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'result_id=' + resultId
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.error || 'Erro ao atualizar dados');
+        }
+        
+        const msg = data.updated_fields > 0 
+            ? `${data.updated_fields} campo(s) atualizado(s) com sucesso!`
+            : 'Dados já estão atualizados';
+        
+        showToast(msg, 'success');
+        setTimeout(() => location.reload(), 1000);
+    })
+    .catch(err => {
+        showToast(err.message, 'error');
+        btn.disabled = false;
+        btn.innerHTML = orig;
+    });
 }
 </script>
 
