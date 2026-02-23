@@ -11,7 +11,7 @@ namespace PixelHub\Services;
  */
 class CnpjWsClient
 {
-    private const BASE_URL     = 'https://api.cnpj.ws';
+    private const BASE_URL     = 'https://publica.cnpj.ws';
     private const BASE_URL_PUB = 'https://publica.cnpj.ws';
     private const TIMEOUT      = 20;
     private const SLEEP_MS     = 350;
@@ -29,9 +29,15 @@ class CnpjWsClient
     public function testApiKey(string $apiKey): array
     {
         try {
-            $url = self::BASE_URL . '/v1/estabelecimentos?cnae_fiscal_principal=4755501&municipio_id=4205407&situacao_cadastral=ATIVA&quantidade=1&pagina=1';
+            // GET /v2/pesquisa — endpoint de pesquisa da API comercial
+            $url = self::BASE_URL . '/v2/pesquisa?' . http_build_query([
+                'atividade_principal_id' => '4755501',
+                'cidade_id'              => '4205407',
+                'situacao_cadastral'     => 'Ativa',
+                'limite'                 => 1,
+            ]);
             $raw = $this->get($url, $apiKey);
-            if (isset($raw['data']) || isset($raw['estabelecimentos']) || is_array($raw)) {
+            if (isset($raw['cnpjs']) || isset($raw['data']) || is_array($raw)) {
                 return ['success' => true, 'message' => 'Conexão com CNPJ.ws estabelecida com sucesso!'];
             }
             return ['success' => false, 'message' => 'Resposta inesperada da API.'];
@@ -65,29 +71,38 @@ class CnpjWsClient
             throw new \RuntimeException("Município não encontrado: {$cityName}/{$uf}.");
         }
 
-        $situacaoParam = $situacao === 'A' ? 'ATIVA' : strtoupper($situacao);
+        // API comercial: situacao_cadastral usa formato capitalizado ("Ativa", "Baixada"...)
+        $situacaoParam = $situacao === 'A' ? 'Ativa' : ucfirst(strtolower($situacao));
 
-        $url = self::BASE_URL . '/v1/estabelecimentos?' . http_build_query([
-            'cnae_fiscal_principal' => $cnaeClean,
-            'municipio_id'          => $ibgeCode,
-            'situacao_cadastral'    => $situacaoParam,
-            'quantidade'            => min($maxResults, 100),
-            'pagina'                => 1,
+        // GET /v2/pesquisa — endpoint de pesquisa com filtros
+        $url = self::BASE_URL . '/v2/pesquisa?' . http_build_query([
+            'atividade_principal_id' => $cnaeClean,
+            'cidade_id'              => $ibgeCode,
+            'situacao_cadastral'     => $situacaoParam,
+            'limite'                 => min($maxResults, 100),
         ]);
 
         $raw = $this->get($url, $apiKey);
 
-        $items = $raw['data'] ?? $raw['estabelecimentos'] ?? (is_array($raw) && isset($raw[0]) ? $raw : []);
+        // Resposta: { cnpjs: [...], tem_proxima_pagina: bool, proximo_cursor: string }
+        $cnpjList = $raw['cnpjs'] ?? [];
 
-        if (empty($items)) {
+        if (empty($cnpjList)) {
             return [];
         }
 
+        // A pesquisa retorna apenas CNPJs — precisamos consultar cada um individualmente
         $results = [];
-        foreach ($items as $item) {
+        foreach ($cnpjList as $cnpj) {
             if (count($results) >= $maxResults) break;
-            $normalized = $this->normalizeCompany($item);
-            if ($normalized) $results[] = $normalized;
+            usleep(self::SLEEP_MS * 1000);
+            try {
+                $detail = $this->get(self::BASE_URL . '/cnpj/' . $cnpj, $apiKey);
+                $normalized = $this->normalizeCompany($detail);
+                if ($normalized) $results[] = $normalized;
+            } catch (\Exception $e) {
+                error_log('[CnpjWsClient] Erro ao consultar CNPJ ' . $cnpj . ': ' . $e->getMessage());
+            }
         }
 
         return $results;
