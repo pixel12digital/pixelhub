@@ -1013,13 +1013,29 @@ class ProspectingService
         $client = new GooglePlacesClient();
         $query = trim($result['name']) . ' ' . trim($result['city']) . ' ' . trim($result['state']);
         
-        $places = $client->textSearch($query, 1);
+        $places = $client->textSearch($query, 5); // Busca até 5 resultados para filtrar
         
         if (empty($places)) {
             throw new \Exception('Nenhum resultado encontrado no Google Maps');
         }
         
-        $googlePlace = $places[0];
+        // Filtra resultados pela cidade correta
+        $expectedCity = self::normalizeString($result['city']);
+        $filteredPlaces = array_filter($places, function($place) use ($expectedCity) {
+            if (empty($place['city'])) {
+                return false;
+            }
+            $placeCity = self::normalizeString($place['city']);
+            // Aceita se cidade é exatamente igual ou se contém a cidade esperada
+            return $placeCity === $expectedCity || strpos($placeCity, $expectedCity) !== false;
+        });
+        
+        if (empty($filteredPlaces)) {
+            throw new \Exception('Nenhum resultado encontrado no Google Maps na cidade de ' . $result['city']);
+        }
+        
+        // Pega o primeiro resultado filtrado
+        $googlePlace = reset($filteredPlaces);
         
         // Calcula score de confiança
         $confidence = self::calculateMatchingConfidence($result, $googlePlace);
@@ -1086,10 +1102,18 @@ class ProspectingService
             $checks++;
         }
         
-        // Cidade (peso 10)
+        // Cidade (peso 30 - CRÍTICO)
         if (!empty($minhaReceita['city']) && !empty($googlePlace['city'])) {
-            if (self::normalizeString($minhaReceita['city']) === self::normalizeString($googlePlace['city'])) {
-                $score += 10;
+            $city1 = self::normalizeString($minhaReceita['city']);
+            $city2 = self::normalizeString($googlePlace['city']);
+            
+            if ($city1 === $city2) {
+                $score += 30; // Cidade exata
+            } elseif (strpos($city2, $city1) !== false || strpos($city1, $city2) !== false) {
+                $score += 15; // Cidade contém ou está contida
+            } else {
+                // Cidade diferente = penaliza fortemente
+                $score -= 50;
             }
             $checks++;
         }
