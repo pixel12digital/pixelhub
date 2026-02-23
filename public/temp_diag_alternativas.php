@@ -34,12 +34,12 @@ if (!$token) { echo "Falhou ao obter token!\n"; exit; }
 echo "Token obtido: " . substr($token, 0, 20) . "...\n\n";
 
 // Passo 2: busca por CNAE + municipio
-echo "=== Passo 2: Busca por CNAE + municipio_id ===\n";
+echo "=== Passo 2: Busca por CNAE + municipio (IBGE Florianópolis=4205407) ===\n";
 $url = 'https://api.nuvemfiscal.com.br/cnpj?' . http_build_query([
-    'cnae_fiscal'  => '4755501',
-    'municipio_id' => '4205407', // Florianópolis IBGE
-    'situacao'     => 'ATIVA',
-    '$top'         => 5,
+    'cnae_principal'    => '4755501',
+    'municipio'         => '4205407',
+    'natureza_juridica' => '2062',   // Sociedade Empresária Limitada
+    '$top'              => 5,
 ]);
 $ch = curl_init($url);
 curl_setopt_array($ch, [
