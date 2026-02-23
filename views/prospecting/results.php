@@ -563,17 +563,31 @@ function enrichWithGoogleMaps(resultId) {
         `;
     })
     .catch(err => {
+        const isNotFound = err.message && err.message.includes('Nenhum resultado');
         content.innerHTML = `
-            <div style="padding:24px;text-align:center;">
-                <div style="font-size:48px;margin-bottom:12px;">❌</div>
-                <h3 style="margin:0 0 8px;font-size:18px;color:#dc2626;">Erro ao buscar dados</h3>
-                <p style="margin:0 0 20px;color:#64748b;">${err.message}</p>
-                <button onclick="closeEnrichModal()" style="padding:10px 20px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">
-                    Fechar
-                </button>
+            <div style="padding:32px;text-align:center;max-width:500px;margin:0 auto;">
+                <div style="width:64px;height:64px;margin:0 auto 16px;background:#f1f5f9;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        ${isNotFound 
+                            ? '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle>' 
+                            : '<circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line>'}
+                    </svg>
+                </div>
+                <h3 style="margin:0 0 12px;font-size:20px;color:#1e293b;">${isNotFound ? 'Empresa não encontrada no Google Maps' : 'Erro ao buscar dados'}</h3>
+                <p style="margin:0 0 20px;color:#64748b;font-size:14px;line-height:1.6;">
+                    ${isNotFound 
+                        ? 'A busca foi realizada com sucesso, porém esta empresa não possui perfil no Google Maps.<br><br>Isso é comum para microempresas, MEI ou empresas sem presença digital. Você ainda pode prospectar usando os dados da Receita Federal.' 
+                        : err.message}
+                </p>
+                <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                    <button onclick="closeEnrichModal()" style="padding:10px 20px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">
+                        Entendi
+                    </button>
+                    ${isNotFound ? '<button onclick="closeEnrichModal();window.open(\'https://www.google.com/maps/search/\'+encodeURIComponent(document.querySelector(\'#enrichModal h3\').textContent),\'_blank\')" style="padding:10px 20px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>Buscar Manualmente</button>' : ''}
+                </div>
             </div>
         `;
-    });
+    });}
 }
 
 function applyEnrichment(resultId, googleData, confidence) {
