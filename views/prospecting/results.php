@@ -203,7 +203,18 @@ ob_start();
                         </select>
                     </td>
                     <td style="padding:14px 16px;text-align:center;">
-                        <div style="display:flex;gap:6px;justify-content:center;align-items:center;">
+                        <div style="display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;">
+                            <?php if ($result['source'] === 'minhareceita' && empty($result['google_enriched_at'])): ?>
+                            <button onclick="enrichWithGoogleMaps(<?= $result['id'] ?>)"
+                                    style="padding:5px 10px;background:#0369a1;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;"
+                                    title="Enriquecer com dados do Google Maps">
+                                🔍 Google Maps
+                            </button>
+                            <?php elseif ($result['source'] === 'minhareceita' && !empty($result['google_enriched_at'])): ?>
+                            <span style="padding:5px 10px;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:5px;font-size:10px;font-weight:600;white-space:nowrap;" title="Enriquecido em <?= date('d/m/Y H:i', strtotime($result['google_enriched_at'])) ?>">
+                                ✓ Enriquecido (<?= $result['enrichment_confidence'] ?>%)
+                            </span>
+                            <?php endif; ?>
                             <?php if (empty($result['lead_id'])): ?>
                             <button onclick="criarLead(<?= $result['id'] ?>, this)"
                                     style="padding:5px 10px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
@@ -469,7 +480,137 @@ function runSearch(recipeId, btn) {
     })
     .finally(() => { btn.disabled = false; btn.innerHTML = orig; });
 }
+
+// Enriquecimento Google Maps
+function enrichWithGoogleMaps(resultId) {
+    const modal = document.getElementById('enrichModal');
+    const content = document.getElementById('enrichContent');
+    
+    modal.style.display = 'flex';
+    content.innerHTML = '<div style="text-align:center;padding:40px;"><div style="display:inline-block;width:40px;height:40px;border:4px solid #f3f4f6;border-top-color:#0369a1;border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;color:#64748b;">Buscando no Google Maps...</p></div>';
+    
+    fetch('<?= pixelhub_url('/prospecting/enrich-google-maps') ?>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'result_id=' + resultId
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.error || 'Erro ao buscar dados');
+        }
+        
+        const d = data.data;
+        const confColor = d.confidence >= 80 ? '#16a34a' : (d.confidence >= 60 ? '#f59e0b' : '#dc2626');
+        const confBg = d.confidence >= 80 ? '#f0fdf4' : (d.confidence >= 60 ? '#fffbeb' : '#fef2f2');
+        
+        content.innerHTML = `
+            <div style="padding:24px;">
+                <h3 style="margin:0 0 8px;font-size:18px;color:#1e293b;">🔍 Enriquecimento Google Maps</h3>
+                <div style="padding:8px 12px;background:${confBg};border-left:4px solid ${confColor};border-radius:4px;margin-bottom:20px;">
+                    <strong style="color:${confColor};">Confiança: ${d.confidence_label} (${d.confidence}%)</strong>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
+                    <div>
+                        <h4 style="margin:0 0 12px;font-size:14px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">📋 Minha Receita</h4>
+                        <div style="background:#f8fafc;padding:12px;border-radius:6px;font-size:13px;">
+                            <div style="margin-bottom:8px;"><strong>Nome:</strong><br>${d.minha_receita.name || '-'}</div>
+                            ${d.minha_receita.razao_social ? `<div style="margin-bottom:8px;"><strong>Razão Social:</strong><br>${d.minha_receita.razao_social}</div>` : ''}
+                            <div style="margin-bottom:8px;"><strong>Endereço:</strong><br>${d.minha_receita.address || '-'}</div>
+                            <div style="margin-bottom:8px;"><strong>Telefone:</strong><br>${d.minha_receita.phone || '-'}</div>
+                            <div style="margin-bottom:8px;"><strong>Email:</strong><br>${d.minha_receita.email || '-'}</div>
+                            <div><strong>Website:</strong><br>${d.minha_receita.website || '-'}</div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 style="margin:0 0 12px;font-size:14px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">🗺️ Google Maps</h4>
+                        <div style="background:#f0f9ff;padding:12px;border-radius:6px;font-size:13px;">
+                            <div style="margin-bottom:8px;"><strong>Nome:</strong><br>${d.google_maps.name || '-'}</div>
+                            <div style="margin-bottom:8px;"><strong>Endereço:</strong><br>${d.google_maps.address || '-'}</div>
+                            <div style="margin-bottom:8px;"><strong>Telefone:</strong><br>${d.google_maps.phone || '-'}</div>
+                            <div style="margin-bottom:8px;"><strong>Website:</strong><br>${d.google_maps.website ? `<a href="${d.google_maps.website}" target="_blank" style="color:#0369a1;">${d.google_maps.website}</a>` : '-'}</div>
+                            <div style="margin-bottom:8px;"><strong>Avaliação:</strong><br>${d.google_maps.rating ? `⭐ ${d.google_maps.rating} (${d.google_maps.user_ratings_total} avaliações)` : '-'}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:12px;margin-bottom:20px;font-size:12px;color:#92400e;">
+                    <strong>⚠️ Atenção:</strong> Revise os dados antes de confirmar. Apenas website, avaliação e Google Place ID serão atualizados.
+                </div>
+                
+                <div style="display:flex;gap:10px;justify-content:flex-end;">
+                    <button onclick="closeEnrichModal()" style="padding:10px 20px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">
+                        ❌ Cancelar
+                    </button>
+                    <button onclick="applyEnrichment(${resultId}, ${JSON.stringify(d.google_maps).replace(/"/g, '&quot;')}, ${d.confidence})" 
+                            style="padding:10px 20px;background:#0369a1;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">
+                        ✅ Aplicar Enriquecimento
+                    </button>
+                </div>
+            </div>
+        `;
+    })
+    .catch(err => {
+        content.innerHTML = `
+            <div style="padding:24px;text-align:center;">
+                <div style="font-size:48px;margin-bottom:12px;">❌</div>
+                <h3 style="margin:0 0 8px;font-size:18px;color:#dc2626;">Erro ao buscar dados</h3>
+                <p style="margin:0 0 20px;color:#64748b;">${err.message}</p>
+                <button onclick="closeEnrichModal()" style="padding:10px 20px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">
+                    Fechar
+                </button>
+            </div>
+        `;
+    });
+}
+
+function applyEnrichment(resultId, googleData, confidence) {
+    const btn = event.target;
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;"></span> Aplicando...';
+    
+    fetch('<?= pixelhub_url('/prospecting/apply-google-enrichment') ?>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'result_id=' + resultId + '&google_data=' + encodeURIComponent(JSON.stringify({...googleData, confidence}))
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.error || 'Erro ao aplicar enriquecimento');
+        }
+        showToast('✅ Dados atualizados com sucesso!', 'success');
+        closeEnrichModal();
+        setTimeout(() => location.reload(), 1000);
+    })
+    .catch(err => {
+        showToast('❌ ' + err.message, 'error');
+        btn.disabled = false;
+        btn.innerHTML = orig;
+    });
+}
+
+function closeEnrichModal() {
+    document.getElementById('enrichModal').style.display = 'none';
+}
 </script>
+
+<!-- Modal de Enriquecimento -->
+<div id="enrichModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:8px;max-width:900px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
+        <div id="enrichContent"></div>
+    </div>
+</div>
+
+<style>
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+</style>
+
 
 <?php
 // Paginação

@@ -402,6 +402,56 @@ class ProspectingController extends Controller
     }
 
     /**
+     * POST /prospecting/enrich-google-maps  (AJAX)
+     * Busca dados do Google Maps para enriquecer um resultado da Minha Receita
+     */
+    public function enrichWithGoogleMaps(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $resultId = (int) ($_POST['result_id'] ?? 0);
+        if (!$resultId) {
+            $this->json(['success' => false, 'error' => 'ID inválido'], 400);
+            return;
+        }
+
+        try {
+            $enrichmentData = ProspectingService::searchGoogleMapsForEnrichment($resultId);
+            $this->json(['success' => true, 'data' => $enrichmentData]);
+        } catch (\Exception $e) {
+            error_log('[ProspectingController] Erro ao enriquecer com Google Maps: ' . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * POST /prospecting/apply-google-enrichment  (AJAX)
+     * Aplica enriquecimento aprovado pelo usuário
+     */
+    public function applyGoogleEnrichment(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $resultId = (int) ($_POST['result_id'] ?? 0);
+        $googleData = $_POST['google_data'] ?? null;
+
+        if (!$resultId || !$googleData) {
+            $this->json(['success' => false, 'error' => 'Dados inválidos'], 400);
+            return;
+        }
+
+        try {
+            ProspectingService::applyGoogleEnrichment($resultId, $googleData);
+            $this->json(['success' => true, 'message' => 'Dados atualizados com sucesso!']);
+        } catch (\Exception $e) {
+            error_log('[ProspectingController] Erro ao aplicar enriquecimento: ' . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * POST /prospecting/update-result-status  (AJAX)
      */
     public function updateResultStatus(): void

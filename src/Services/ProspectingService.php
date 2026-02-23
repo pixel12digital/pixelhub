@@ -867,6 +867,173 @@ class ProspectingService
     }
 
     /**
+     * Busca dados do Google Maps para enriquecer um resultado da Minha Receita
+     */
+    public static function searchGoogleMapsForEnrichment(int $resultId): array
+    {
+        $db = DB::getConnection();
+        
+        // Busca o resultado
+        $stmt = $db->prepare("SELECT * FROM prospecting_results WHERE id = ?");
+        $stmt->execute([$resultId]);
+        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+        
+        if (!$result) {
+            throw new \Exception('Resultado não encontrado');
+        }
+        
+        // Busca no Google Maps usando nome + cidade
+        $client = new GooglePlacesClient();
+        $query = trim($result['name']) . ' ' . trim($result['city']) . ' ' . trim($result['state']);
+        
+        $places = $client->textSearch($query, 1);
+        
+        if (empty($places)) {
+            throw new \Exception('Nenhum resultado encontrado no Google Maps');
+        }
+        
+        $googlePlace = $places[0];
+        
+        // Calcula score de confiança
+        $confidence = self::calculateMatchingConfidence($result, $googlePlace);
+        
+        return [
+            'minha_receita' => [
+                'name' => $result['name'],
+                'razao_social' => $result['razao_social'],
+                'address' => $result['address'],
+                'phone' => $result['phone'],
+                'email' => $result['email'],
+                'website' => $result['website'],
+            ],
+            'google_maps' => [
+                'name' => $googlePlace['name'],
+                'address' => $googlePlace['address'],
+                'phone' => $googlePlace['phone'],
+                'website' => $googlePlace['website'],
+                'rating' => $googlePlace['rating'],
+                'user_ratings_total' => $googlePlace['user_ratings_total'],
+                'google_place_id' => $googlePlace['google_place_id'],
+            ],
+            'confidence' => $confidence,
+            'confidence_label' => self::getConfidenceLabel($confidence),
+        ];
+    }
+    
+    /**
+     * Calcula score de confiança do matching (0-100)
+     */
+    private static function calculateMatchingConfidence(array $minhaReceita, array $googlePlace): int
+    {
+        $score = 0;
+        $checks = 0;
+        
+        // Similaridade de nome (peso 40)
+        $nameSimilarity = self::calculateStringSimilarity(
+            self::normalizeString($minhaReceita['name']),
+            self::normalizeString($googlePlace['name'])
+        );
+        $score += $nameSimilarity * 40;
+        $checks++;
+        
+        // Endereço (peso 30)
+        if (!empty($minhaReceita['address']) && !empty($googlePlace['address'])) {
+            $addressSimilarity = self::calculateStringSimilarity(
+                self::normalizeString($minhaReceita['address']),
+                self::normalizeString($googlePlace['address'])
+            );
+            $score += $addressSimilarity * 30;
+            $checks++;
+        }
+        
+        // Telefone (peso 20)
+        if (!empty($minhaReceita['phone']) && !empty($googlePlace['phone'])) {
+            $phone1 = preg_replace('/\D/', '', $minhaReceita['phone']);
+            $phone2 = preg_replace('/\D/', '', $googlePlace['phone']);
+            
+            if ($phone1 === $phone2) {
+                $score += 20;
+            } elseif (substr($phone1, -8) === substr($phone2, -8)) {
+                $score += 15; // Últimos 8 dígitos iguais
+            }
+            $checks++;
+        }
+        
+        // Cidade (peso 10)
+        if (!empty($minhaReceita['city']) && !empty($googlePlace['city'])) {
+            if (self::normalizeString($minhaReceita['city']) === self::normalizeString($googlePlace['city'])) {
+                $score += 10;
+            }
+            $checks++;
+        }
+        
+        return min(100, (int) round($score));
+    }
+    
+    /**
+     * Calcula similaridade entre duas strings (0.0 a 1.0)
+     */
+    private static function calculateStringSimilarity(string $str1, string $str2): float
+    {
+        if (empty($str1) || empty($str2)) {
+            return 0.0;
+        }
+        
+        similar_text($str1, $str2, $percent);
+        return $percent / 100;
+    }
+    
+    /**
+     * Normaliza string para comparação
+     */
+    private static function normalizeString(string $str): string
+    {
+        $str = mb_strtolower($str, 'UTF-8');
+        $str = preg_replace('/[^a-z0-9\s]/', '', iconv('UTF-8', 'ASCII//TRANSLIT', $str));
+        $str = preg_replace('/\s+/', ' ', $str);
+        return trim($str);
+    }
+    
+    /**
+     * Retorna label de confiança baseado no score
+     */
+    private static function getConfidenceLabel(int $score): string
+    {
+        if ($score >= 80) return 'ALTA';
+        if ($score >= 60) return 'MÉDIA';
+        return 'BAIXA';
+    }
+    
+    /**
+     * Aplica enriquecimento aprovado pelo usuário
+     */
+    public static function applyGoogleEnrichment(int $resultId, array $googleData): void
+    {
+        $db = DB::getConnection();
+        
+        $stmt = $db->prepare("
+            UPDATE prospecting_results SET
+                google_place_id = ?,
+                website = ?,
+                rating = ?,
+                user_ratings_total = ?,
+                google_enriched_at = NOW(),
+                enrichment_confidence = ?,
+                updated_at = NOW()
+            WHERE id = ?
+        ");
+        
+        $stmt->execute([
+            $googleData['google_place_id'] ?? null,
+            $googleData['website'] ?? null,
+            $googleData['rating'] ?? null,
+            $googleData['user_ratings_total'] ?? null,
+            $googleData['confidence'] ?? null,
+            $resultId,
+        ]);
+    }
+
+    /**
      * Tipos de lugares do Google Places mais comuns para prospecção
      */
     public static function getCommonPlaceTypes(): array
