@@ -45,13 +45,6 @@ ob_start();
         <!-- Linha 2: Filtros Avançados (Minha Receita) -->
         <?php if (($recipe['source'] ?? 'google_maps') === 'minhareceita'): ?>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:12px;border-top:1px solid #f1f5f9;">
-            <select name="situacao" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:140px;">
-                <option value="">Situação</option>
-                <option value="ATIVA" <?= ($filters['situacao'] ?? '') === 'ATIVA' ? 'selected' : '' ?>>✓ Ativa</option>
-                <option value="BAIXADA" <?= ($filters['situacao'] ?? '') === 'BAIXADA' ? 'selected' : '' ?>>✗ Baixada</option>
-                <option value="SUSPENSA" <?= ($filters['situacao'] ?? '') === 'SUSPENSA' ? 'selected' : '' ?>>⏸ Suspensa</option>
-                <option value="INAPTA" <?= ($filters['situacao'] ?? '') === 'INAPTA' ? 'selected' : '' ?>>⚠ Inapta</option>
-            </select>
             <select name="porte" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:140px;">
                 <option value="">Porte</option>
                 <option value="MICRO EMPRESA" <?= ($filters['porte'] ?? '') === 'MICRO EMPRESA' ? 'selected' : '' ?>>Micro Empresa</option>
@@ -59,9 +52,9 @@ ob_start();
                 <option value="DEMAIS" <?= ($filters['porte'] ?? '') === 'DEMAIS' ? 'selected' : '' ?>>Demais</option>
             </select>
             <select name="mei" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:140px;">
-                <option value="">MEI</option>
+                <option value="">MEI: Todos</option>
                 <option value="1" <?= ($filters['mei'] ?? '') === '1' ? 'selected' : '' ?>>Apenas MEI</option>
-                <option value="0" <?= ($filters['mei'] ?? '') === '0' ? 'selected' : '' ?>>Não MEI</option>
+                <option value="0" <?= ($filters['mei'] ?? '') === '0' ? 'selected' : '' ?>>Excluir MEI</option>
             </select>
             <select name="simples" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:140px;">
                 <option value="">Simples Nacional</option>
