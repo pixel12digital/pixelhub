@@ -578,11 +578,39 @@ class ProspectingService
         }
 
         if (!empty($filters['search'])) {
-            $where[]  = '(pr.name LIKE ? OR pr.address LIKE ? OR pr.phone LIKE ?)';
+            $where[]  = '(pr.name LIKE ? OR pr.address LIKE ? OR pr.phone LIKE ? OR pr.cnpj LIKE ? OR pr.email LIKE ?)';
             $s        = '%' . $filters['search'] . '%';
             $params[] = $s;
             $params[] = $s;
             $params[] = $s;
+            $params[] = $s;
+            $params[] = $s;
+        }
+
+        // Filtros avançados (Minha Receita)
+        if (!empty($filters['situacao'])) {
+            $where[]  = 'pr.situacao_cadastral = ?';
+            $params[] = $filters['situacao'];
+        }
+
+        if (!empty($filters['porte'])) {
+            $where[]  = 'pr.porte = ?';
+            $params[] = $filters['porte'];
+        }
+
+        if (isset($filters['mei']) && $filters['mei'] !== '') {
+            $where[]  = 'pr.opcao_pelo_mei = ?';
+            $params[] = (int) $filters['mei'];
+        }
+
+        if (isset($filters['simples']) && $filters['simples'] !== '') {
+            $where[]  = 'pr.opcao_pelo_simples = ?';
+            $params[] = (int) $filters['simples'];
+        }
+
+        if (!empty($filters['matriz_filial'])) {
+            $where[]  = 'pr.identificador_matriz_filial = ?';
+            $params[] = (int) $filters['matriz_filial'];
         }
 
         $whereStr = implode(' AND ', $where);
@@ -617,6 +645,42 @@ class ProspectingService
         if (!empty($filters['status'])) {
             $where[]  = 'status = ?';
             $params[] = $filters['status'];
+        }
+
+        if (!empty($filters['search'])) {
+            $where[]  = '(name LIKE ? OR address LIKE ? OR phone LIKE ? OR cnpj LIKE ? OR email LIKE ?)';
+            $s        = '%' . $filters['search'] . '%';
+            $params[] = $s;
+            $params[] = $s;
+            $params[] = $s;
+            $params[] = $s;
+            $params[] = $s;
+        }
+
+        // Filtros avançados (Minha Receita)
+        if (!empty($filters['situacao'])) {
+            $where[]  = 'situacao_cadastral = ?';
+            $params[] = $filters['situacao'];
+        }
+
+        if (!empty($filters['porte'])) {
+            $where[]  = 'porte = ?';
+            $params[] = $filters['porte'];
+        }
+
+        if (isset($filters['mei']) && $filters['mei'] !== '') {
+            $where[]  = 'opcao_pelo_mei = ?';
+            $params[] = (int) $filters['mei'];
+        }
+
+        if (isset($filters['simples']) && $filters['simples'] !== '') {
+            $where[]  = 'opcao_pelo_simples = ?';
+            $params[] = (int) $filters['simples'];
+        }
+
+        if (!empty($filters['matriz_filial'])) {
+            $where[]  = 'identificador_matriz_filial = ?';
+            $params[] = (int) $filters['matriz_filial'];
         }
 
         $whereStr = implode(' AND ', $where);

@@ -25,22 +25,64 @@ ob_start();
 <div id="search-result-global" style="display:none;margin-bottom:16px;padding:12px 16px;border-radius:6px;font-size:13px;"></div>
 
 <!-- Filtros -->
-<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;margin-bottom:20px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
-    <form method="GET" action="<?= pixelhub_url('/prospecting/results') ?>" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;width:100%;">
+<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;margin-bottom:20px;">
+    <form method="GET" action="<?= pixelhub_url('/prospecting/results') ?>" id="filterForm">
         <input type="hidden" name="recipe_id" value="<?= $recipe['id'] ?>">
-        <input type="text" name="search" value="<?= htmlspecialchars($filters['search'] ?? '') ?>" placeholder="Buscar por nome, endereço, telefone..."
-               style="flex:1;min-width:200px;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
-        <select name="status" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
-            <option value="">Todos os status</option>
-            <option value="new" <?= ($filters['status'] ?? '') === 'new' ? 'selected' : '' ?>>Novas</option>
-            <option value="contacted" <?= ($filters['status'] ?? '') === 'contacted' ? 'selected' : '' ?>>Cadastradas</option>
-            <option value="qualified" <?= ($filters['status'] ?? '') === 'qualified' ? 'selected' : '' ?>>Qualificadas</option>
-            <option value="discarded" <?= ($filters['status'] ?? '') === 'discarded' ? 'selected' : '' ?>>Descartadas</option>
-        </select>
-        <button type="submit" style="padding:8px 16px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Filtrar</button>
-        <?php if (!empty($filters['search']) || !empty($filters['status'])): ?>
-        <a href="<?= pixelhub_url('/prospecting/results?recipe_id=' . $recipe['id']) ?>" style="padding:8px 12px;color:#64748b;font-size:13px;text-decoration:none;">Limpar</a>
+        
+        <!-- Linha 1: Busca e Status -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+            <input type="text" name="search" value="<?= htmlspecialchars($filters['search'] ?? '') ?>" placeholder="Buscar por nome, CNPJ, endereço, telefone..."
+                   style="flex:1;min-width:250px;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+            <select name="status" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:140px;">
+                <option value="">Todos os status</option>
+                <option value="new" <?= ($filters['status'] ?? '') === 'new' ? 'selected' : '' ?>>Novas</option>
+                <option value="contacted" <?= ($filters['status'] ?? '') === 'contacted' ? 'selected' : '' ?>>Cadastradas</option>
+                <option value="qualified" <?= ($filters['status'] ?? '') === 'qualified' ? 'selected' : '' ?>>Qualificadas</option>
+                <option value="discarded" <?= ($filters['status'] ?? '') === 'discarded' ? 'selected' : '' ?>>Descartadas</option>
+            </select>
+        </div>
+        
+        <!-- Linha 2: Filtros Avançados (Minha Receita) -->
+        <?php if (($recipe['source'] ?? 'google_maps') === 'minhareceita'): ?>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:12px;border-top:1px solid #f1f5f9;">
+            <select name="situacao" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:140px;">
+                <option value="">Situação</option>
+                <option value="ATIVA" <?= ($filters['situacao'] ?? '') === 'ATIVA' ? 'selected' : '' ?>>✓ Ativa</option>
+                <option value="BAIXADA" <?= ($filters['situacao'] ?? '') === 'BAIXADA' ? 'selected' : '' ?>>✗ Baixada</option>
+                <option value="SUSPENSA" <?= ($filters['situacao'] ?? '') === 'SUSPENSA' ? 'selected' : '' ?>>⏸ Suspensa</option>
+                <option value="INAPTA" <?= ($filters['situacao'] ?? '') === 'INAPTA' ? 'selected' : '' ?>>⚠ Inapta</option>
+            </select>
+            <select name="porte" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:140px;">
+                <option value="">Porte</option>
+                <option value="MICRO EMPRESA" <?= ($filters['porte'] ?? '') === 'MICRO EMPRESA' ? 'selected' : '' ?>>Micro Empresa</option>
+                <option value="EMPRESA DE PEQUENO PORTE" <?= ($filters['porte'] ?? '') === 'EMPRESA DE PEQUENO PORTE' ? 'selected' : '' ?>>Pequeno Porte</option>
+                <option value="DEMAIS" <?= ($filters['porte'] ?? '') === 'DEMAIS' ? 'selected' : '' ?>>Demais</option>
+            </select>
+            <select name="mei" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:140px;">
+                <option value="">MEI</option>
+                <option value="1" <?= ($filters['mei'] ?? '') === '1' ? 'selected' : '' ?>>Apenas MEI</option>
+                <option value="0" <?= ($filters['mei'] ?? '') === '0' ? 'selected' : '' ?>>Não MEI</option>
+            </select>
+            <select name="simples" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:140px;">
+                <option value="">Simples Nacional</option>
+                <option value="1" <?= ($filters['simples'] ?? '') === '1' ? 'selected' : '' ?>>Optante</option>
+                <option value="0" <?= ($filters['simples'] ?? '') === '0' ? 'selected' : '' ?>>Não optante</option>
+            </select>
+            <select name="matriz_filial" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:140px;">
+                <option value="">Matriz/Filial</option>
+                <option value="1" <?= ($filters['matriz_filial'] ?? '') === '1' ? 'selected' : '' ?>>Apenas Matriz</option>
+                <option value="2" <?= ($filters['matriz_filial'] ?? '') === '2' ? 'selected' : '' ?>>Apenas Filial</option>
+            </select>
+        </div>
         <?php endif; ?>
+        
+        <!-- Botões -->
+        <div style="display:flex;gap:8px;margin-top:12px;">
+            <button type="submit" style="padding:8px 16px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Aplicar Filtros</button>
+            <?php if (!empty(array_filter($filters ?? []))): ?>
+            <a href="<?= pixelhub_url('/prospecting/results?recipe_id=' . $recipe['id']) ?>" style="padding:8px 16px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;display:inline-block;">Limpar Filtros</a>
+            <?php endif; ?>
+        </div>
     </form>
 </div>
 
@@ -79,7 +121,6 @@ ob_start();
                 <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
                     <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Empresa</th>
                     <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Contato</th>
-                    <th style="padding:12px 16px;text-align:center;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Avaliação</th>
                     <th style="padding:12px 16px;text-align:center;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Status</th>
                     <th style="padding:12px 16px;text-align:center;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Ações</th>
                 </tr>
@@ -145,16 +186,6 @@ ob_start();
                         <?php endif; ?>
                         <?php if (empty($result['phone']) && empty($result['telefone_secundario']) && empty($result['email'])): ?>
                         <span style="font-size:12px;color:#94a3b8;">Não informado</span>
-                        <?php endif; ?>
-                    </td>
-                    <td style="padding:14px 16px;text-align:center;">
-                        <?php if (!empty($result['rating'])): ?>
-                        <div style="font-size:13px;font-weight:600;color:#374151;">⭐ <?= number_format((float)$result['rating'], 1) ?></div>
-                        <?php if (!empty($result['user_ratings_total'])): ?>
-                        <div style="font-size:11px;color:#94a3b8;"><?= number_format((int)$result['user_ratings_total']) ?> avaliações</div>
-                        <?php endif; ?>
-                        <?php else: ?>
-                        <span style="font-size:12px;color:#94a3b8;">—</span>
                         <?php endif; ?>
                     </td>
                     <td style="padding:14px 16px;text-align:center;">
