@@ -373,7 +373,7 @@ class ProspectingService
                     INSERT INTO prospecting_results
                         (recipe_id, tenant_id, name, razao_social, address, complemento, bairro, cep,
                          city, state, phone, telefone_secundario, email, website, source, cnpj, 
-                         cnae_code, cnae_description, cnaes_secundarios,
+                         cnae_code, cnae_description, cnaes_secundarios, qsa,
                          situacao_cadastral, data_situacao_cadastral, motivo_situacao_cadastral, 
                          descricao_motivo_situacao, situacao_especial, data_situacao_especial,
                          data_inicio_atividade, porte, codigo_porte, natureza_juridica, 
@@ -381,7 +381,7 @@ class ProspectingService
                          opcao_pelo_mei, data_opcao_mei, data_exclusao_mei,
                          opcao_pelo_simples, data_opcao_simples, data_exclusao_simples,
                          capital_social, identificador_matriz_filial, status, found_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'minhareceita', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', NOW(), NOW())
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'minhareceita', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', NOW(), NOW())
                 ");
                 $stmt->execute([
                     $recipeId,
@@ -402,6 +402,7 @@ class ProspectingService
                     $place['cnae_code'],
                     $place['cnae_description'],
                     !empty($place['cnaes_secundarios']) ? json_encode($place['cnaes_secundarios'], JSON_UNESCAPED_UNICODE) : null,
+                    !empty($place['qsa']) ? json_encode($place['qsa'], JSON_UNESCAPED_UNICODE) : null,
                     $place['situacao_cadastral'] ?? null,
                     $place['data_situacao_cadastral'] ?? null,
                     $place['motivo_situacao_cadastral'] ?? null,

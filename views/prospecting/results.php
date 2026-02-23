@@ -235,34 +235,18 @@ ob_start();
                         <div style="padding:16px 20px;border-top:1px solid #e2e8f0;">
                             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
                                 
-                                <!-- Identificação -->
+                                <!-- Razão Social (se diferente do nome fantasia) -->
+                                <?php if (!empty($result['razao_social']) && $result['razao_social'] !== $result['name']): ?>
                                 <div>
-                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">📋 Identificação</div>
-                                    <?php if (!empty($result['razao_social'])): ?>
-                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Razão Social:</span> <span style="font-size:12px;color:#1e293b;font-weight:500;"><?= htmlspecialchars($result['razao_social']) ?></span></div>
-                                    <?php endif; ?>
-                                    <?php if (!empty($result['cnpj'])): ?>
-                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">CNPJ:</span> <span style="font-size:12px;color:#1e293b;font-weight:500;"><?= htmlspecialchars($result['cnpj']) ?></span></div>
-                                    <?php endif; ?>
+                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">� Razão Social</div>
+                                    <div style="font-size:13px;color:#1e293b;font-weight:500;"><?= htmlspecialchars($result['razao_social']) ?></div>
                                 </div>
+                                <?php endif; ?>
                                 
-                                <!-- Endereço Completo -->
+                                <!-- Situação Cadastral Detalhada -->
+                                <?php if (!empty($result['data_situacao_cadastral']) || !empty($result['descricao_motivo_situacao']) || !empty($result['situacao_especial'])): ?>
                                 <div>
-                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">📍 Endereço Completo</div>
-                                    <?php if (!empty($result['bairro'])): ?>
-                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Bairro:</span> <span style="font-size:12px;color:#1e293b;"><?= htmlspecialchars($result['bairro']) ?></span></div>
-                                    <?php endif; ?>
-                                    <?php if (!empty($result['complemento'])): ?>
-                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Complemento:</span> <span style="font-size:12px;color:#1e293b;"><?= htmlspecialchars($result['complemento']) ?></span></div>
-                                    <?php endif; ?>
-                                    <?php if (!empty($result['cep'])): ?>
-                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">CEP:</span> <span style="font-size:12px;color:#1e293b;"><?= htmlspecialchars($result['cep']) ?></span></div>
-                                    <?php endif; ?>
-                                </div>
-                                
-                                <!-- Situação Cadastral -->
-                                <div>
-                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">⚖️ Situação Cadastral</div>
+                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">⚖️ Situação Cadastral Detalhada</div>
                                     <?php if (!empty($result['data_situacao_cadastral'])): ?>
                                     <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Data da Situação:</span> <span style="font-size:12px;color:#1e293b;"><?= date('d/m/Y', strtotime($result['data_situacao_cadastral'])) ?></span></div>
                                     <?php endif; ?>
@@ -273,6 +257,7 @@ ob_start();
                                     <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Situação Especial:</span> <span style="font-size:12px;color:#1e293b;"><?= htmlspecialchars($result['situacao_especial']) ?></span></div>
                                     <?php endif; ?>
                                 </div>
+                                <?php endif; ?>
                                 
                                 <!-- Regime Tributário -->
                                 <div>
@@ -298,6 +283,29 @@ ob_start();
                                     <div style="font-size:14px;color:#1e293b;font-weight:600;">R$ <?= number_format($result['capital_social'] / 100, 2, ',', '.') ?></div>
                                 </div>
                                 <?php endif; ?>
+                                
+                                <!-- Sócios e Administradores (QSA) -->
+                                <?php if (!empty($result['qsa'])): 
+                                    $qsa = json_decode($result['qsa'], true);
+                                    if (is_array($qsa) && count($qsa) > 0):
+                                ?>
+                                <div style="grid-column:1/-1;">
+                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">👥 Sócios e Administradores</div>
+                                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;">
+                                        <?php foreach ($qsa as $socio): ?>
+                                        <div style="padding:10px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;">
+                                            <div style="font-weight:600;color:#1e293b;font-size:13px;margin-bottom:4px;"><?= htmlspecialchars($socio['nome']) ?></div>
+                                            <?php if (!empty($socio['qualificacao'])): ?>
+                                            <div style="font-size:11px;color:#64748b;margin-bottom:2px;"><?= htmlspecialchars($socio['qualificacao']) ?></div>
+                                            <?php endif; ?>
+                                            <?php if (!empty($socio['data_entrada'])): ?>
+                                            <div style="font-size:11px;color:#64748b;">Entrada: <?= date('d/m/Y', strtotime($socio['data_entrada'])) ?></div>
+                                            <?php endif; ?>
+                                        </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                <?php endif; endif; ?>
                                 
                                 <!-- CNAEs Secundários -->
                                 <?php if (!empty($result['cnaes_secundarios'])): 

@@ -248,6 +248,19 @@ class MinhaReceitaClient
         // Identificador matriz/filial
         $matrizFilial = isset($item['identificador_matriz_filial']) ? (int) $item['identificador_matriz_filial'] : null;
 
+        // QSA - Quadro de Sócios e Administradores
+        $qsa = null;
+        if (!empty($item['qsa']) && is_array($item['qsa'])) {
+            $qsa = array_map(function($socio) {
+                return [
+                    'nome' => $socio['nome_socio'] ?? $socio['nome'] ?? '',
+                    'qualificacao' => $socio['qualificacao_socio'] ?? $socio['qualificacao'] ?? '',
+                    'cpf_cnpj' => $socio['cpf_cnpj_socio'] ?? $socio['cpf_cnpj'] ?? null,
+                    'data_entrada' => $socio['data_entrada_sociedade'] ?? null,
+                ];
+            }, $item['qsa']);
+        }
+
         return [
             'cnpj'                           => $cnpj,
             'name'                           => $name,
@@ -285,6 +298,7 @@ class MinhaReceitaClient
             'data_exclusao_simples'          => $dataExclusaoSimples,
             'capital_social'                 => $capitalSocial,
             'identificador_matriz_filial'    => $matrizFilial,
+            'qsa'                            => $qsa,
             'source'                         => 'minhareceita',
         ];
     }
