@@ -336,11 +336,24 @@ class ProspectingService
      */
     private static function runSearchMinhaReceita(array $recipe, int $recipeId, int $maxResults): array
     {
-        $cnaeCode = $recipe['cnae_code'] ?? '';
-        $uf       = $recipe['state'] ?? '';
-        $city     = $recipe['city'] ?? '';
+        $uf   = $recipe['state'] ?? '';
+        $city = $recipe['city'] ?? '';
 
-        if (empty($cnaeCode) || empty($uf)) {
+        // Busca por múltiplos CNAEs se cadastrados
+        $cnaes = [];
+        if (!empty($recipe['cnaes'])) {
+            $cnaesDecoded = is_string($recipe['cnaes']) ? json_decode($recipe['cnaes'], true) : $recipe['cnaes'];
+            if (is_array($cnaesDecoded) && count($cnaesDecoded) > 0) {
+                $cnaes = $cnaesDecoded;
+            }
+        }
+        
+        // Fallback para CNAE único (compatibilidade)
+        if (empty($cnaes) && !empty($recipe['cnae_code'])) {
+            $cnaes = [['code' => $recipe['cnae_code'], 'desc' => $recipe['cnae_description'] ?? '']];
+        }
+
+        if (empty($cnaes) || empty($uf)) {
             throw new \InvalidArgumentException('CNAE e UF são obrigatórios para busca Minha Receita');
         }
 
@@ -352,7 +365,32 @@ class ProspectingService
             $ibgeCode = $client->resolveIbgeCode($city, $uf);
         }
 
-        $places = $client->searchByCnaeAndRegion($cnaeCode, $uf, $ibgeCode, $maxResults);
+        // Busca por cada CNAE e consolida resultados (remove duplicados por CNPJ)
+        $allPlaces = [];
+        $seenCnpjs = [];
+        $resultsPerCnae = (int) ceil($maxResults / count($cnaes));
+
+        foreach ($cnaes as $cnae) {
+            $cnaeCode = $cnae['code'] ?? '';
+            if (empty($cnaeCode)) continue;
+
+            $places = $client->searchByCnaeAndRegion($cnaeCode, $uf, $ibgeCode, $resultsPerCnae);
+            
+            foreach ($places as $place) {
+                $cnpj = $place['cnpj'] ?? '';
+                if (empty($cnpj) || isset($seenCnpjs[$cnpj])) {
+                    continue;
+                }
+                $seenCnpjs[$cnpj] = true;
+                $allPlaces[] = $place;
+                
+                if (count($allPlaces) >= $maxResults) {
+                    break 2;
+                }
+            }
+        }
+
+        $places = $allPlaces;
 
         $found      = count($places);
         $new        = 0;
