@@ -82,12 +82,6 @@ if (($sourceFilter ?? null) === 'minhareceita') {
     <span style="color:#78350f;font-size:13px;"> Configure em <a href="<?= pixelhub_url('/settings/google-maps') ?>" style="color:#023A8D;font-weight:600;">Configurações → Integrações → Google Maps</a>.</span>
 </div>
 <?php endif; ?>
-<?php if (($sourceFilter ?? 'google_maps') === 'minhareceita'): ?>
-<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 20px;margin-bottom:24px;">
-    <strong style="color:#15803d;">✓ Minha Receita — sem chave necessária.</strong>
-    <span style="color:#166534;font-size:13px;"> Dados abertos da Receita Federal. Busca por CNAE + UF (+ cidade opcional).</span>
-</div>
-<?php endif; ?>
 
 <?php if (empty($recipes)): ?>
 <div style="text-align:center;padding:60px 20px;background:#f8fafc;border-radius:12px;border:2px dashed #e2e8f0;">

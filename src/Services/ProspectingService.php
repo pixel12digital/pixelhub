@@ -69,14 +69,16 @@ class ProspectingService
     /**
      * Lista apenas tenants que têm pelo menos 1 receita (para as abas de filtro)
      */
-    public static function listTenants(): array
+    public static function listTenants(?string $sourceFilter = null): array
     {
         $db = DB::getConnection();
+        $sourceCondition = $sourceFilter ? "AND r.source = " . $db->quote($sourceFilter) : '';
         $stmt = $db->query("
             SELECT DISTINCT t.id, t.name, t.company
             FROM tenants t
             INNER JOIN prospecting_recipes r ON r.tenant_id = t.id
             WHERE (t.is_archived IS NULL OR t.is_archived = 0)
+            $sourceCondition
             ORDER BY t.name ASC
         ");
         return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];

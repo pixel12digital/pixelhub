@@ -147,7 +147,7 @@ class ProspectingController extends Controller
         $recipes         = ProspectingService::listRecipes($tenantFilter, $sourceFilter);
         $hasKey          = ProspectingService::hasApiKey();
         $products        = OpportunityProductService::listActive();
-        $tenants         = ProspectingService::listTenants();
+        $tenants         = ProspectingService::listTenants($sourceFilter);
 
         $this->view('prospecting.recipes', [
             'recipes'      => $recipes,
@@ -189,10 +189,9 @@ class ProspectingController extends Controller
             ];
 
             $id = ProspectingService::createRecipe($data, $userId);
-            $tenantParam = !empty($_POST['tenant_id']) ? '&tenant_id=' . (int)$_POST['tenant_id'] : '&tenant_id=own';
             $source      = $_POST['source'] ?? 'google_maps';
             $sourceParam = in_array($source, ['google_maps','minhareceita']) ? '&source=' . $source : '';
-            $this->redirect('/prospecting?success=created&message=' . urlencode('Receita criada com sucesso!') . $tenantParam . $sourceParam);
+            $this->redirect('/prospecting?success=created&message=' . urlencode('Receita criada com sucesso!') . $sourceParam);
         } catch (\Exception $e) {
             error_log('[ProspectingController] Erro ao criar receita: ' . $e->getMessage());
             $this->redirect('/prospecting?error=create_failed&message=' . urlencode($e->getMessage()));
@@ -232,10 +231,9 @@ class ProspectingController extends Controller
             ];
 
             ProspectingService::updateRecipe($id, $data);
-            $tenantParam = !empty($_POST['tenant_id']) ? '&tenant_id=' . (int)$_POST['tenant_id'] : '&tenant_id=own';
             $source      = $_POST['source'] ?? 'google_maps';
             $sourceParam = in_array($source, ['google_maps','minhareceita']) ? '&source=' . $source : '';
-            $this->redirect('/prospecting?success=updated&message=' . urlencode('Receita atualizada com sucesso!') . $tenantParam . $sourceParam);
+            $this->redirect('/prospecting?success=updated&message=' . urlencode('Receita atualizada com sucesso!') . $sourceParam);
         } catch (\Exception $e) {
             error_log('[ProspectingController] Erro ao atualizar receita: ' . $e->getMessage());
             $this->redirect('/prospecting?error=update_failed&message=' . urlencode($e->getMessage()));
