@@ -91,12 +91,43 @@ ob_start();
                 ?>
                 <tr style="border-bottom:1px solid #f1f5f9;<?= $st === 'discarded' ? 'opacity:.4;background:#f8fafc;filter:grayscale(.5);' : '' ?>" id="row-<?= $result['id'] ?>">
                     <td style="padding:14px 16px;">
-                        <div style="font-weight:600;color:#1e293b;margin-bottom:3px;"><?= htmlspecialchars($result['name']) ?></div>
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;">
+                            <div style="font-weight:600;color:#1e293b;"><?= htmlspecialchars($result['name']) ?></div>
+                            <?php if (!empty($result['opcao_pelo_mei'])): ?>
+                            <span style="padding:2px 6px;background:#dbeafe;color:#1e40af;border-radius:3px;font-size:10px;font-weight:700;">MEI</span>
+                            <?php endif; ?>
+                            <?php if (!empty($result['identificador_matriz_filial'])): ?>
+                            <span style="padding:2px 6px;background:#f3e8ff;color:#7c3aed;border-radius:3px;font-size:10px;font-weight:600;"><?= $result['identificador_matriz_filial'] == 1 ? 'MATRIZ' : 'FILIAL' ?></span>
+                            <?php endif; ?>
+                            <?php if (!empty($result['situacao_cadastral'])): 
+                                $sitColors = ['ATIVA'=>'#dcfce7;#15803d','BAIXADA'=>'#fee2e2;#991b1b','SUSPENSA'=>'#fef3c7;#92400e','INAPTA'=>'#fed7aa;#9a3412'];
+                                $sitColor = $sitColors[$result['situacao_cadastral']] ?? '#f1f5f9;#64748b';
+                                [$bg, $color] = explode(';', $sitColor);
+                            ?>
+                            <span style="padding:2px 6px;background:<?= $bg ?>;color:<?= $color ?>;border-radius:3px;font-size:10px;font-weight:600;"><?= htmlspecialchars($result['situacao_cadastral']) ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <?php if (!empty($result['cnpj'])): ?>
+                        <div style="font-size:11px;color:#64748b;margin-bottom:2px;">CNPJ: <?= htmlspecialchars($result['cnpj']) ?></div>
+                        <?php endif; ?>
                         <?php if (!empty($result['address'])): ?>
                         <div style="font-size:12px;color:#64748b;"><?= htmlspecialchars($result['address']) ?></div>
                         <?php endif; ?>
+                        <?php if (!empty($result['porte']) || !empty($result['natureza_juridica'])): ?>
+                        <div style="font-size:11px;color:#64748b;margin-top:2px;">
+                            <?php if (!empty($result['porte'])): ?><?= htmlspecialchars($result['porte']) ?><?php endif; ?>
+                            <?php if (!empty($result['porte']) && !empty($result['natureza_juridica'])): ?> • <?php endif; ?>
+                            <?php if (!empty($result['natureza_juridica'])): ?><?= htmlspecialchars($result['natureza_juridica']) ?><?php endif; ?>
+                        </div>
+                        <?php endif; ?>
+                        <?php if (!empty($result['data_inicio_atividade'])): 
+                            $dataInicio = new DateTime($result['data_inicio_atividade']);
+                            $anos = (new DateTime())->diff($dataInicio)->y;
+                        ?>
+                        <div style="font-size:11px;color:#64748b;margin-top:2px;">📅 Fundada em <?= $dataInicio->format('Y') ?> (<?= $anos ?> anos)</div>
+                        <?php endif; ?>
                         <?php if (!empty($result['website'])): ?>
-                        <a href="<?= htmlspecialchars($result['website']) ?>" target="_blank" style="font-size:11px;color:#023A8D;text-decoration:none;">🌐 <?= htmlspecialchars(parse_url($result['website'], PHP_URL_HOST) ?: $result['website']) ?></a>
+                        <a href="<?= htmlspecialchars($result['website']) ?>" target="_blank" style="font-size:11px;color:#023A8D;text-decoration:none;display:inline-block;margin-top:2px;">🌐 <?= htmlspecialchars(parse_url($result['website'], PHP_URL_HOST) ?: $result['website']) ?></a>
                         <?php endif; ?>
                         <?php if (!empty($result['lead_name'])): ?>
                         <div style="margin-top:4px;"><a href="<?= pixelhub_url('/opportunities/view-by-lead?lead_id=' . $result['lead_id']) ?>" style="font-size:11px;color:#16a34a;font-weight:600;text-decoration:none;">✓ Lead: <?= htmlspecialchars($result['lead_name']) ?></a></div>
@@ -105,7 +136,14 @@ ob_start();
                     <td style="padding:14px 16px;">
                         <?php if (!empty($result['phone'])): ?>
                         <div style="font-size:13px;color:#374151;font-weight:500;"><?= htmlspecialchars($result['phone']) ?></div>
-                        <?php else: ?>
+                        <?php endif; ?>
+                        <?php if (!empty($result['telefone_secundario'])): ?>
+                        <div style="font-size:12px;color:#64748b;margin-top:2px;"><?= htmlspecialchars($result['telefone_secundario']) ?></div>
+                        <?php endif; ?>
+                        <?php if (!empty($result['email'])): ?>
+                        <div style="font-size:12px;color:#64748b;margin-top:2px;">✉ <?= htmlspecialchars($result['email']) ?></div>
+                        <?php endif; ?>
+                        <?php if (empty($result['phone']) && empty($result['telefone_secundario']) && empty($result['email'])): ?>
                         <span style="font-size:12px;color:#94a3b8;">Não informado</span>
                         <?php endif; ?>
                     </td>

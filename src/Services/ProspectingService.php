@@ -371,9 +371,12 @@ class ProspectingService
 
                 $stmt = $db->prepare("
                     INSERT INTO prospecting_results
-                        (recipe_id, tenant_id, name, address, city, state, phone, email, website,
-                         source, cnpj, cnae_code, cnae_description, status, found_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'minhareceita', ?, ?, ?, 'new', NOW(), NOW())
+                        (recipe_id, tenant_id, name, address, city, state, phone, telefone_secundario, 
+                         email, website, source, cnpj, cnae_code, cnae_description, cnaes_secundarios,
+                         situacao_cadastral, data_situacao_cadastral, data_inicio_atividade, porte,
+                         natureza_juridica, opcao_pelo_mei, opcao_pelo_simples, capital_social,
+                         identificador_matriz_filial, status, found_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'minhareceita', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', NOW(), NOW())
                 ");
                 $stmt->execute([
                     $recipeId,
@@ -383,11 +386,22 @@ class ProspectingService
                     $place['city'],
                     $place['state'],
                     $place['phone'],
+                    $place['telefone_secundario'] ?? null,
                     $place['email'],
                     $place['website'],
                     $cnpj,
                     $place['cnae_code'],
                     $place['cnae_description'],
+                    !empty($place['cnaes_secundarios']) ? json_encode($place['cnaes_secundarios'], JSON_UNESCAPED_UNICODE) : null,
+                    $place['situacao_cadastral'] ?? null,
+                    $place['data_situacao_cadastral'] ?? null,
+                    $place['data_inicio_atividade'] ?? null,
+                    $place['porte'] ?? null,
+                    $place['natureza_juridica'] ?? null,
+                    isset($place['opcao_pelo_mei']) ? (int) $place['opcao_pelo_mei'] : null,
+                    isset($place['opcao_pelo_simples']) ? (int) $place['opcao_pelo_simples'] : null,
+                    $place['capital_social'] ?? null,
+                    $place['identificador_matriz_filial'] ?? null,
                 ]);
                 $new++;
             } catch (\Exception $e) {

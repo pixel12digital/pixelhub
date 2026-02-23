@@ -175,33 +175,100 @@ class MinhaReceitaClient
             $phone = '+55' . $telRaw;
         }
 
+        // Telefone secundário
+        $telRaw2 = preg_replace('/\D/', '', $item['ddd_telefone_2'] ?? '');
+        $phone2  = null;
+        if (strlen($telRaw2) >= 10) {
+            $phone2 = '+55' . $telRaw2;
+        }
+
         // Email
         $email = trim($item['email'] ?? '') ?: null;
         if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $email = null;
         }
 
-        // CNAE
+        // CNAE principal
         $cnaeCode = isset($item['cnae_fiscal']) ? (string) $item['cnae_fiscal'] : null;
         $cnaeDesc = $item['cnae_fiscal_descricao'] ?? null;
 
-        // Situação
-        $situacao = $item['descricao_situacao_cadastral'] ?? null;
+        // CNAEs secundários
+        $cnaesSecundarios = null;
+        if (!empty($item['cnaes_secundarios']) && is_array($item['cnaes_secundarios'])) {
+            $cnaesSecundarios = array_map(function($cnae) {
+                return [
+                    'codigo' => (string) ($cnae['codigo'] ?? ''),
+                    'descricao' => $cnae['descricao'] ?? '',
+                ];
+            }, $item['cnaes_secundarios']);
+        }
+
+        // Situação cadastral
+        $situacaoCadastral = $item['descricao_situacao_cadastral'] ?? null;
+        $dataSituacao = null;
+        if (!empty($item['data_situacao_cadastral'])) {
+            $dataSituacao = $item['data_situacao_cadastral'];
+        }
+
+        // Data de início de atividade
+        $dataInicio = null;
+        if (!empty($item['data_inicio_atividade'])) {
+            $dataInicio = $item['data_inicio_atividade'];
+        }
+
+        // Porte
+        $porte = $item['porte'] ?? null;
+
+        // Natureza jurídica
+        $naturezaJuridica = $item['natureza_juridica'] ?? null;
+
+        // Regime tributário
+        $opcaoMei = null;
+        if (isset($item['opcao_pelo_mei'])) {
+            $opcaoMei = (bool) $item['opcao_pelo_mei'];
+        }
+
+        $opcaoSimples = null;
+        if (isset($item['opcao_pelo_simples'])) {
+            $opcaoSimples = (bool) $item['opcao_pelo_simples'];
+        }
+
+        // Capital social (vem em centavos)
+        $capitalSocial = null;
+        if (isset($item['capital_social']) && is_numeric($item['capital_social'])) {
+            $capitalSocial = (int) $item['capital_social'];
+        }
+
+        // Identificador matriz/filial
+        $matrizFilial = null;
+        if (isset($item['identificador_matriz_filial'])) {
+            $matrizFilial = (int) $item['identificador_matriz_filial'];
+        }
 
         return [
-            'cnpj'             => $cnpj,
-            'name'             => $name,
-            'razao_social'     => $razao,
-            'address'          => $address ?: null,
-            'city'             => $municipio ?: null,
-            'state'            => $uf ?: null,
-            'phone'            => $phone,
-            'email'            => $email,
-            'website'          => null,
-            'cnae_code'        => $cnaeCode,
-            'cnae_description' => $cnaeDesc,
-            'situacao'         => $situacao,
-            'source'           => 'minhareceita',
+            'cnpj'                        => $cnpj,
+            'name'                        => $name,
+            'razao_social'                => $razao,
+            'address'                     => $address ?: null,
+            'city'                        => $municipio ?: null,
+            'state'                       => $uf ?: null,
+            'phone'                       => $phone,
+            'telefone_secundario'         => $phone2,
+            'email'                       => $email,
+            'website'                     => null,
+            'cnae_code'                   => $cnaeCode,
+            'cnae_description'            => $cnaeDesc,
+            'cnaes_secundarios'           => $cnaesSecundarios,
+            'situacao_cadastral'          => $situacaoCadastral,
+            'data_situacao_cadastral'     => $dataSituacao,
+            'data_inicio_atividade'       => $dataInicio,
+            'porte'                       => $porte,
+            'natureza_juridica'           => $naturezaJuridica,
+            'opcao_pelo_mei'              => $opcaoMei,
+            'opcao_pelo_simples'          => $opcaoSimples,
+            'capital_social'              => $capitalSocial,
+            'identificador_matriz_filial' => $matrizFilial,
+            'source'                      => 'minhareceita',
         ];
     }
 
