@@ -133,6 +133,11 @@ ob_start();
                 <tr style="border-bottom:1px solid #f1f5f9;<?= $st === 'discarded' ? 'opacity:.4;background:#f8fafc;filter:grayscale(.5);' : '' ?>" id="row-<?= $result['id'] ?>">
                     <td style="padding:14px 16px;">
                         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;">
+                            <?php if ($result['source'] === 'minhareceita'): ?>
+                            <button onclick="toggleDetails(<?= $result['id'] ?>)" style="background:none;border:none;cursor:pointer;padding:0;color:#64748b;font-size:16px;line-height:1;" title="Ver todos os dados">
+                                <span id="toggle-icon-<?= $result['id'] ?>">▶</span>
+                            </button>
+                            <?php endif; ?>
                             <div style="font-weight:600;color:#1e293b;"><?= htmlspecialchars($result['name']) ?></div>
                             <?php if (!empty($result['opcao_pelo_mei'])): ?>
                             <span style="padding:2px 6px;background:#dbeafe;color:#1e40af;border-radius:3px;font-size:10px;font-weight:700;">MEI</span>
@@ -222,6 +227,102 @@ ob_start();
                         </div>
                     </td>
                 </tr>
+                
+                <!-- Painel expansível com dados completos (apenas para Minha Receita) -->
+                <?php if ($result['source'] === 'minhareceita'): ?>
+                <tr id="details-<?= $result['id'] ?>" style="display:none;">
+                    <td colspan="4" style="padding:0;background:#f8fafc;">
+                        <div style="padding:16px 20px;border-top:1px solid #e2e8f0;">
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
+                                
+                                <!-- Identificação -->
+                                <div>
+                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">📋 Identificação</div>
+                                    <?php if (!empty($result['razao_social'])): ?>
+                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Razão Social:</span> <span style="font-size:12px;color:#1e293b;font-weight:500;"><?= htmlspecialchars($result['razao_social']) ?></span></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($result['cnpj'])): ?>
+                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">CNPJ:</span> <span style="font-size:12px;color:#1e293b;font-weight:500;"><?= htmlspecialchars($result['cnpj']) ?></span></div>
+                                    <?php endif; ?>
+                                </div>
+                                
+                                <!-- Endereço Completo -->
+                                <div>
+                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">📍 Endereço Completo</div>
+                                    <?php if (!empty($result['bairro'])): ?>
+                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Bairro:</span> <span style="font-size:12px;color:#1e293b;"><?= htmlspecialchars($result['bairro']) ?></span></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($result['complemento'])): ?>
+                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Complemento:</span> <span style="font-size:12px;color:#1e293b;"><?= htmlspecialchars($result['complemento']) ?></span></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($result['cep'])): ?>
+                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">CEP:</span> <span style="font-size:12px;color:#1e293b;"><?= htmlspecialchars($result['cep']) ?></span></div>
+                                    <?php endif; ?>
+                                </div>
+                                
+                                <!-- Situação Cadastral -->
+                                <div>
+                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">⚖️ Situação Cadastral</div>
+                                    <?php if (!empty($result['data_situacao_cadastral'])): ?>
+                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Data da Situação:</span> <span style="font-size:12px;color:#1e293b;"><?= date('d/m/Y', strtotime($result['data_situacao_cadastral'])) ?></span></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($result['descricao_motivo_situacao'])): ?>
+                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Motivo:</span> <span style="font-size:12px;color:#1e293b;"><?= htmlspecialchars($result['descricao_motivo_situacao']) ?></span></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($result['situacao_especial'])): ?>
+                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Situação Especial:</span> <span style="font-size:12px;color:#1e293b;"><?= htmlspecialchars($result['situacao_especial']) ?></span></div>
+                                    <?php endif; ?>
+                                </div>
+                                
+                                <!-- Regime Tributário -->
+                                <div>
+                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">💰 Regime Tributário</div>
+                                    <?php if (!empty($result['data_opcao_mei'])): ?>
+                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Opção MEI:</span> <span style="font-size:12px;color:#1e293b;"><?= date('d/m/Y', strtotime($result['data_opcao_mei'])) ?></span></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($result['data_exclusao_mei'])): ?>
+                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Exclusão MEI:</span> <span style="font-size:12px;color:#1e293b;"><?= date('d/m/Y', strtotime($result['data_exclusao_mei'])) ?></span></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($result['data_opcao_simples'])): ?>
+                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Opção Simples:</span> <span style="font-size:12px;color:#1e293b;"><?= date('d/m/Y', strtotime($result['data_opcao_simples'])) ?></span></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($result['data_exclusao_simples'])): ?>
+                                    <div style="margin-bottom:6px;"><span style="font-size:11px;color:#64748b;">Exclusão Simples:</span> <span style="font-size:12px;color:#1e293b;"><?= date('d/m/Y', strtotime($result['data_exclusao_simples'])) ?></span></div>
+                                    <?php endif; ?>
+                                </div>
+                                
+                                <!-- Capital Social -->
+                                <?php if (!empty($result['capital_social'])): ?>
+                                <div>
+                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">💵 Capital Social</div>
+                                    <div style="font-size:14px;color:#1e293b;font-weight:600;">R$ <?= number_format($result['capital_social'] / 100, 2, ',', '.') ?></div>
+                                </div>
+                                <?php endif; ?>
+                                
+                                <!-- CNAEs Secundários -->
+                                <?php if (!empty($result['cnaes_secundarios'])): 
+                                    $cnaesSecundarios = json_decode($result['cnaes_secundarios'], true);
+                                    if (is_array($cnaesSecundarios) && count($cnaesSecundarios) > 0):
+                                ?>
+                                <div style="grid-column:1/-1;">
+                                    <div style="font-weight:600;color:#1e293b;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">🏢 CNAEs Secundários</div>
+                                    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                                        <?php foreach ($cnaesSecundarios as $cnae): ?>
+                                        <div style="padding:6px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;">
+                                            <span style="font-weight:600;color:#1e293b;"><?= htmlspecialchars($cnae['codigo']) ?></span>
+                                            <span style="color:#64748b;"> - <?= htmlspecialchars($cnae['descricao']) ?></span>
+                                        </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                <?php endif; endif; ?>
+                                
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                <?php endif; ?>
+                
                 <?php endforeach; ?>
             </tbody>
         </table>
@@ -279,6 +380,19 @@ function showToast(msg, ok) {
     t.style.background = ok ? '#15803d' : '#dc2626';
     t.style.display = 'block';
     setTimeout(() => { t.style.display = 'none'; }, 4000);
+}
+
+function toggleDetails(id) {
+    const detailsRow = document.getElementById('details-' + id);
+    const icon = document.getElementById('toggle-icon-' + id);
+    
+    if (detailsRow.style.display === 'none') {
+        detailsRow.style.display = 'table-row';
+        icon.textContent = '▼';
+    } else {
+        detailsRow.style.display = 'none';
+        icon.textContent = '▶';
+    }
 }
 
 function criarLead(resultId, btn) {
