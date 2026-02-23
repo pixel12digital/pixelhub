@@ -15,6 +15,7 @@
 define('ROOT_PATH', __DIR__ . '/../');
 require_once ROOT_PATH . 'src/Core/Env.php';
 require_once ROOT_PATH . 'src/Core/DB.php';
+require_once ROOT_PATH . 'src/Services/PhoneNormalizer.php';
 require_once ROOT_PATH . 'src/Services/EventRouterService.php';
 require_once ROOT_PATH . 'src/Services/ConversationService.php';
 require_once ROOT_PATH . 'src/Services/MediaProcessQueueService.php';
