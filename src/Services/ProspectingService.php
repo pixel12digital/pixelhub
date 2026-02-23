@@ -4,7 +4,6 @@ namespace PixelHub\Services;
 
 use PixelHub\Core\DB;
 use PixelHub\Core\CryptoHelper;
-use PixelHub\Services\CnpjWsClient;
 use PixelHub\Services\MinhaReceitaClient;
 
 /**
@@ -57,58 +56,6 @@ class ProspectingService
             if (strlen($key) <= 8) {
                 return str_repeat('*', strlen($key));
             }
-            return substr($key, 0, 4) . str_repeat('*', strlen($key) - 8) . substr($key, -4);
-        } catch (\Exception $e) {
-            return null;
-        }
-    }
-
-    // =========================================================================
-    // INTEGRATION SETTINGS (chave CNPJ.ws)
-    // =========================================================================
-
-    public static function saveCnpjWsApiKey(string $apiKey, int $userId): void
-    {
-        $db        = DB::getConnection();
-        $encrypted = CryptoHelper::encrypt($apiKey);
-        $stmt = $db->prepare("
-            INSERT INTO integration_settings (integration_key, integration_value, is_encrypted, label, updated_by, created_at, updated_at)
-            VALUES ('cnpjws_api_key', ?, 1, 'CNPJ.ws API Key', ?, NOW(), NOW())
-            ON DUPLICATE KEY UPDATE
-                integration_value = VALUES(integration_value),
-                is_encrypted = 1,
-                updated_by = VALUES(updated_by),
-                updated_at = NOW()
-        ");
-        $stmt->execute([$encrypted, $userId]);
-    }
-
-    public static function hasCnpjWsApiKey(): bool
-    {
-        try {
-            $key = self::getCnpjWsApiKey();
-            return !empty($key);
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
-
-    public static function getCnpjWsApiKey(): ?string
-    {
-        $db   = DB::getConnection();
-        $stmt = $db->prepare("SELECT integration_value, is_encrypted FROM integration_settings WHERE integration_key = 'cnpjws_api_key' LIMIT 1");
-        $stmt->execute();
-        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-        if (!$row || empty($row['integration_value'])) return null;
-        return $row['is_encrypted'] ? CryptoHelper::decrypt($row['integration_value']) : $row['integration_value'];
-    }
-
-    public static function getMaskedCnpjWsApiKey(): ?string
-    {
-        try {
-            $key = self::getCnpjWsApiKey();
-            if (empty($key)) return null;
-            if (strlen($key) <= 8) return str_repeat('*', strlen($key));
             return substr($key, 0, 4) . str_repeat('*', strlen($key) - 8) . substr($key, -4);
         } catch (\Exception $e) {
             return null;
@@ -227,7 +174,7 @@ class ProspectingService
         $db = DB::getConnection();
 
         $name        = trim($data['name'] ?? '');
-        $source      = in_array($data['source'] ?? '', ['google_maps', 'cnpjws', 'minhareceita']) ? $data['source'] : 'google_maps';
+        $source      = in_array($data['source'] ?? '', ['google_maps', 'minhareceita']) ? $data['source'] : 'google_maps';
         $city        = trim($data['city'] ?? '');
         $state       = strtoupper(trim($data['state'] ?? ''));
         $productId   = !empty($data['product_id']) ? (int) $data['product_id'] : null;
@@ -245,12 +192,6 @@ class ProspectingService
         }
         if ($source === 'google_maps' && empty($city)) {
             throw new \InvalidArgumentException('Cidade é obrigatória para Google Maps');
-        }
-        if ($source === 'cnpjws' && empty($cnaeCode)) {
-            throw new \InvalidArgumentException('CNAE é obrigatório para a fonte CNPJ.ws');
-        }
-        if ($source === 'cnpjws' && empty($city)) {
-            throw new \InvalidArgumentException('Cidade é obrigatória para CNPJ.ws');
         }
         if ($source === 'minhareceita' && empty($cnaeCode)) {
             throw new \InvalidArgumentException('CNAE é obrigatório para a fonte Minha Receita');
@@ -294,7 +235,7 @@ class ProspectingService
 
         $keywords = self::normalizeKeywords($data['keywords'] ?? []);
         $state    = strtoupper(trim($data['state'] ?? ''));
-        $source   = in_array($data['source'] ?? '', ['google_maps', 'cnpjws', 'minhareceita']) ? $data['source'] : 'google_maps';
+        $source   = in_array($data['source'] ?? '', ['google_maps', 'minhareceita']) ? $data['source'] : 'google_maps';
 
         $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
 
@@ -374,10 +315,6 @@ class ProspectingService
         }
 
         $source = $recipe['source'] ?? 'google_maps';
-
-        if ($source === 'cnpjws') {
-            return self::runSearchCnpjws($recipe, $recipeId, $maxResults);
-        }
 
         if ($source === 'minhareceita') {
             return self::runSearchMinhaReceita($recipe, $recipeId, $maxResults);
@@ -534,77 +471,6 @@ class ProspectingService
                     $place['lat'],
                     $place['lng'],
                     json_encode($place['google_types'], JSON_UNESCAPED_UNICODE),
-                ]);
-                $new++;
-            } catch (\Exception $e) {
-                $errors[] = 'Erro ao salvar "' . $place['name'] . '": ' . $e->getMessage();
-            }
-        }
-
-        self::updateRecipeStats($recipeId);
-
-        return [
-            'found'      => $found,
-            'new'        => $new,
-            'duplicates' => $duplicates,
-            'errors'     => $errors,
-        ];
-    }
-
-    /**
-     * Executa busca via CNPJ.ws
-     */
-    private static function runSearchCnpjws(array $recipe, int $recipeId, int $maxResults): array
-    {
-        $cnaeCode = $recipe['cnae_code'] ?? '';
-        $city     = $recipe['city'] ?? '';
-        $uf       = $recipe['state'] ?? '';
-
-        if (empty($cnaeCode) || empty($city)) {
-            throw new \InvalidArgumentException('CNAE e cidade são obrigatórios para busca CNPJ.ws');
-        }
-
-        $client  = new CnpjWsClient();
-        $places  = $client->searchByCnaeAndCity($cnaeCode, $city, $uf, 'A', $maxResults);
-
-        $found      = count($places);
-        $new        = 0;
-        $duplicates = 0;
-        $errors     = [];
-
-        $db = DB::getConnection();
-
-        foreach ($places as $place) {
-            $cnpj = $place['cnpj'] ?? '';
-            if (empty($cnpj)) {
-                continue;
-            }
-
-            try {
-                // Deduplicação por CNPJ (global)
-                $check = $db->prepare("SELECT id FROM prospecting_results WHERE cnpj = ?");
-                $check->execute([$cnpj]);
-                if ($check->fetch()) {
-                    $duplicates++;
-                    continue;
-                }
-
-                $stmt = $db->prepare("
-                    INSERT INTO prospecting_results
-                        (recipe_id, tenant_id, name, address, city, state, phone, website,
-                         source, cnpj, status, found_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'cnpjws', ?, 'new', NOW(), NOW())
-                ");
-                $stmt->execute([
-                    $recipeId,
-                    $recipe['tenant_id'] ?? null,
-                    $place['name'],
-                    $place['address'],
-                    $place['city'],
-                    $place['state'],
-                    $place['phone'],
-                    $place['website'],
-                    $cnpj,
                 ]);
                 $new++;
             } catch (\Exception $e) {
@@ -789,16 +655,16 @@ class ProspectingService
         $recipeStmt->execute([$result['recipe_id']]);
         $recipeSource = $recipeStmt->fetchColumn() ?: 'google_maps';
 
-        $leadSource = $recipeSource === 'cnpjws' ? 'prospecting_cnpjws' : 'prospecting_google_maps';
-
-        if ($recipeSource === 'cnpjws') {
-            $cnpjFormatted = !empty($result['cnpj']) ? CnpjWsClient::formatCnpj($result['cnpj']) : '';
+        if ($recipeSource === 'minhareceita') {
+            $leadSource = 'prospecting_minhareceita';
+            $cnpjFormatted = !empty($result['cnpj']) ? preg_replace('/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/', '$1.$2.$3/$4-$5', $result['cnpj']) : '';
             $leadNotes = trim(
-                'Empresa encontrada via Prospecção Ativa (CNPJ.ws).' .
+                'Empresa encontrada via Prospecção Ativa (Minha Receita).' .
                 (!empty($cnpjFormatted) ? "\nCNPJ: " . $cnpjFormatted : '') .
                 (!empty($result['address']) ? "\nEndereço: " . $result['address'] : '')
             );
         } else {
+            $leadSource = 'prospecting_google_maps';
             $leadNotes = trim(
                 'Empresa encontrada via Prospecção Ativa (Google Maps).' .
                 (!empty($result['address']) ? "\nEndereço: " . $result['address'] : '') .

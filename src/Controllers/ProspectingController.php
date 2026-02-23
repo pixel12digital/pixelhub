@@ -92,78 +92,6 @@ class ProspectingController extends Controller
     }
 
     // =========================================================================
-    // CONFIGURAÇÕES CNPJ.ws (Configurações > Integrações)
-    // =========================================================================
-
-    /**
-     * GET /settings/cnpjws
-     */
-    public function settingsCnpjWsIndex(): void
-    {
-        Auth::requireInternal();
-
-        $hasKey    = ProspectingService::hasCnpjWsApiKey();
-        $maskedKey = ProspectingService::getMaskedCnpjWsApiKey();
-
-        $this->view('settings.cnpjws', [
-            'hasKey'    => $hasKey,
-            'maskedKey' => $maskedKey,
-        ]);
-    }
-
-    /**
-     * POST /settings/cnpjws/save
-     */
-    public function settingsCnpjWsSave(): void
-    {
-        Auth::requireInternal();
-
-        $apiKey = trim($_POST['api_key'] ?? '');
-
-        if (empty($apiKey)) {
-            $this->redirect('/settings/cnpjws?error=empty_key&message=' . urlencode('Informe a chave de API.'));
-            return;
-        }
-
-        if (strlen($apiKey) < 10) {
-            $this->redirect('/settings/cnpjws?error=invalid_key&message=' . urlencode('Chave de API inválida.'));
-            return;
-        }
-
-        try {
-            $userId = Auth::user()['id'] ?? 0;
-            ProspectingService::saveCnpjWsApiKey($apiKey, $userId);
-            $this->redirect('/settings/cnpjws?success=saved&message=' . urlencode('Chave salva com sucesso! Clique em "Testar Conexão" para validar.'));
-        } catch (\Exception $e) {
-            error_log('[ProspectingController] Erro ao salvar chave CNPJ.ws: ' . $e->getMessage());
-            $this->redirect('/settings/cnpjws?error=save_failed&message=' . urlencode($e->getMessage()));
-        }
-    }
-
-    /**
-     * POST /settings/cnpjws/test  (AJAX)
-     */
-    public function settingsCnpjWsTest(): void
-    {
-        Auth::requireInternal();
-        header('Content-Type: application/json');
-
-        try {
-            $apiKey = ProspectingService::getCnpjWsApiKey();
-            if (empty($apiKey)) {
-                $this->json(['success' => false, 'message' => 'Nenhuma chave configurada.']);
-                return;
-            }
-
-            $client = new \PixelHub\Services\CnpjWsClient();
-            $result = $client->testApiKey($apiKey);
-            $this->json($result);
-        } catch (\Exception $e) {
-            $this->json(['success' => false, 'message' => $e->getMessage()]);
-        }
-    }
-
-    // =========================================================================
     // RECEITAS DE BUSCA
     // =========================================================================
 
@@ -212,20 +140,18 @@ class ProspectingController extends Controller
             : 0;
 
         // Sem ?source= → default google_maps (cada fonte tem sua própria listagem)
-        $sourceFilter = (isset($_GET['source']) && in_array($_GET['source'], ['google_maps', 'cnpjws', 'minhareceita']))
+        $sourceFilter = (isset($_GET['source']) && in_array($_GET['source'], ['google_maps', 'minhareceita']))
             ? $_GET['source']
             : 'google_maps';
 
         $recipes         = ProspectingService::listRecipes($tenantFilter, $sourceFilter);
         $hasKey          = ProspectingService::hasApiKey();
-        $hasCnpjWsKey    = ProspectingService::hasCnpjWsApiKey();
         $products        = OpportunityProductService::listActive();
         $tenants         = ProspectingService::listTenants();
 
         $this->view('prospecting.recipes', [
             'recipes'      => $recipes,
             'hasKey'       => $hasKey,
-            'hasCnpjWsKey' => $hasCnpjWsKey,
             'products'     => $products,
             'tenants'      => $tenants,
             'tenantFilter' => $tenantFilter,
@@ -265,7 +191,7 @@ class ProspectingController extends Controller
             $id = ProspectingService::createRecipe($data, $userId);
             $tenantParam = !empty($_POST['tenant_id']) ? '&tenant_id=' . (int)$_POST['tenant_id'] : '&tenant_id=own';
             $source      = $_POST['source'] ?? 'google_maps';
-            $sourceParam = in_array($source, ['google_maps','cnpjws','minhareceita']) ? '&source=' . $source : '';
+            $sourceParam = in_array($source, ['google_maps','minhareceita']) ? '&source=' . $source : '';
             $this->redirect('/prospecting?success=created&message=' . urlencode('Receita criada com sucesso!') . $tenantParam . $sourceParam);
         } catch (\Exception $e) {
             error_log('[ProspectingController] Erro ao criar receita: ' . $e->getMessage());
@@ -308,7 +234,7 @@ class ProspectingController extends Controller
             ProspectingService::updateRecipe($id, $data);
             $tenantParam = !empty($_POST['tenant_id']) ? '&tenant_id=' . (int)$_POST['tenant_id'] : '&tenant_id=own';
             $source      = $_POST['source'] ?? 'google_maps';
-            $sourceParam = in_array($source, ['google_maps','cnpjws','minhareceita']) ? '&source=' . $source : '';
+            $sourceParam = in_array($source, ['google_maps','minhareceita']) ? '&source=' . $source : '';
             $this->redirect('/prospecting?success=updated&message=' . urlencode('Receita atualizada com sucesso!') . $tenantParam . $sourceParam);
         } catch (\Exception $e) {
             error_log('[ProspectingController] Erro ao atualizar receita: ' . $e->getMessage());
@@ -530,9 +456,7 @@ class ProspectingController extends Controller
             $recipeSourceStmt = $db->prepare("SELECT source FROM prospecting_recipes WHERE id = ? LIMIT 1");
             $recipeSourceStmt->execute([$result['recipe_id'] ?? 0]);
             $recipeSource = $recipeSourceStmt->fetchColumn() ?: 'google_maps';
-            if ($recipeSource === 'cnpjws') {
-                $oppOrigin = 'prospecting_cnpjws';
-            } elseif ($recipeSource === 'minhareceita') {
+            if ($recipeSource === 'minhareceita') {
                 $oppOrigin = 'prospecting_minhareceita';
             } else {
                 $oppOrigin = 'prospecting_google_maps';
