@@ -371,18 +371,27 @@ class ProspectingService
 
                 $stmt = $db->prepare("
                     INSERT INTO prospecting_results
-                        (recipe_id, tenant_id, name, address, city, state, phone, telefone_secundario, 
-                         email, website, source, cnpj, cnae_code, cnae_description, cnaes_secundarios,
-                         situacao_cadastral, data_situacao_cadastral, data_inicio_atividade, porte,
-                         natureza_juridica, opcao_pelo_mei, opcao_pelo_simples, capital_social,
-                         identificador_matriz_filial, status, found_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'minhareceita', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', NOW(), NOW())
+                        (recipe_id, tenant_id, name, razao_social, address, complemento, bairro, cep,
+                         city, state, phone, telefone_secundario, email, website, source, cnpj, 
+                         cnae_code, cnae_description, cnaes_secundarios,
+                         situacao_cadastral, data_situacao_cadastral, motivo_situacao_cadastral, 
+                         descricao_motivo_situacao, situacao_especial, data_situacao_especial,
+                         data_inicio_atividade, porte, codigo_porte, natureza_juridica, 
+                         codigo_natureza_juridica, qualificacao_responsavel,
+                         opcao_pelo_mei, data_opcao_mei, data_exclusao_mei,
+                         opcao_pelo_simples, data_opcao_simples, data_exclusao_simples,
+                         capital_social, identificador_matriz_filial, status, found_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'minhareceita', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', NOW(), NOW())
                 ");
                 $stmt->execute([
                     $recipeId,
                     $recipe['tenant_id'] ?? null,
                     $place['name'],
+                    $place['razao_social'] ?? null,
                     $place['address'],
+                    $place['complemento'] ?? null,
+                    $place['bairro'] ?? null,
+                    $place['cep'] ?? null,
                     $place['city'],
                     $place['state'],
                     $place['phone'],
@@ -395,11 +404,22 @@ class ProspectingService
                     !empty($place['cnaes_secundarios']) ? json_encode($place['cnaes_secundarios'], JSON_UNESCAPED_UNICODE) : null,
                     $place['situacao_cadastral'] ?? null,
                     $place['data_situacao_cadastral'] ?? null,
+                    $place['motivo_situacao_cadastral'] ?? null,
+                    $place['descricao_motivo_situacao'] ?? null,
+                    $place['situacao_especial'] ?? null,
+                    $place['data_situacao_especial'] ?? null,
                     $place['data_inicio_atividade'] ?? null,
                     $place['porte'] ?? null,
+                    $place['codigo_porte'] ?? null,
                     $place['natureza_juridica'] ?? null,
+                    $place['codigo_natureza_juridica'] ?? null,
+                    $place['qualificacao_responsavel'] ?? null,
                     isset($place['opcao_pelo_mei']) ? (int) $place['opcao_pelo_mei'] : null,
+                    $place['data_opcao_mei'] ?? null,
+                    $place['data_exclusao_mei'] ?? null,
                     isset($place['opcao_pelo_simples']) ? (int) $place['opcao_pelo_simples'] : null,
+                    $place['data_opcao_simples'] ?? null,
+                    $place['data_exclusao_simples'] ?? null,
                     $place['capital_social'] ?? null,
                     $place['identificador_matriz_filial'] ?? null,
                 ]);

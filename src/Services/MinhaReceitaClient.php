@@ -151,17 +151,19 @@ class MinhaReceitaClient
         }
 
         // Endereço
-        $tipoLog    = trim($item['descricao_tipo_de_logradouro'] ?? '');
-        $logradouro = trim($item['logradouro'] ?? '');
-        $numero     = trim($item['numero'] ?? '');
-        $bairro     = trim($item['bairro'] ?? '');
-        $municipio  = trim($item['municipio'] ?? '');
-        $uf         = strtoupper(trim($item['uf'] ?? ''));
-        $cep        = preg_replace('/\D/', '', $item['cep'] ?? '');
+        $tipoLog     = trim($item['descricao_tipo_de_logradouro'] ?? '');
+        $logradouro  = trim($item['logradouro'] ?? '');
+        $numero      = trim($item['numero'] ?? '');
+        $complemento = trim($item['complemento'] ?? '') ?: null;
+        $bairro      = trim($item['bairro'] ?? '') ?: null;
+        $municipio   = trim($item['municipio'] ?? '');
+        $uf          = strtoupper(trim($item['uf'] ?? ''));
+        $cep         = preg_replace('/\D/', '', $item['cep'] ?? '') ?: null;
 
         $logFull = trim(($tipoLog ? $tipoLog . ' ' : '') . $logradouro);
         $addressParts = array_filter([
             $logFull . ($numero ? ', ' . $numero : ''),
+            $complemento,
             $bairro,
             $municipio . ($uf ? '/' . $uf : ''),
             $cep ? 'CEP ' . $cep : '',
@@ -205,33 +207,37 @@ class MinhaReceitaClient
 
         // Situação cadastral
         $situacaoCadastral = $item['descricao_situacao_cadastral'] ?? null;
-        $dataSituacao = null;
-        if (!empty($item['data_situacao_cadastral'])) {
-            $dataSituacao = $item['data_situacao_cadastral'];
-        }
+        $dataSituacao = !empty($item['data_situacao_cadastral']) ? $item['data_situacao_cadastral'] : null;
+        $motivoSituacao = isset($item['motivo_situacao_cadastral']) ? (int) $item['motivo_situacao_cadastral'] : null;
+        $descricaoMotivo = $item['descricao_motivo_situacao_cadastral'] ?? null;
+
+        // Situação especial
+        $situacaoEspecial = !empty($item['situacao_especial']) ? $item['situacao_especial'] : null;
+        $dataSituacaoEspecial = !empty($item['data_situacao_especial']) ? $item['data_situacao_especial'] : null;
 
         // Data de início de atividade
-        $dataInicio = null;
-        if (!empty($item['data_inicio_atividade'])) {
-            $dataInicio = $item['data_inicio_atividade'];
-        }
+        $dataInicio = !empty($item['data_inicio_atividade']) ? $item['data_inicio_atividade'] : null;
 
         // Porte
         $porte = $item['porte'] ?? null;
+        $codigoPorte = isset($item['codigo_porte']) ? (int) $item['codigo_porte'] : null;
 
         // Natureza jurídica
         $naturezaJuridica = $item['natureza_juridica'] ?? null;
+        $codigoNatureza = isset($item['codigo_natureza_juridica']) ? (int) $item['codigo_natureza_juridica'] : null;
 
-        // Regime tributário
-        $opcaoMei = null;
-        if (isset($item['opcao_pelo_mei'])) {
-            $opcaoMei = (bool) $item['opcao_pelo_mei'];
-        }
+        // Qualificação do responsável
+        $qualificacaoResp = isset($item['qualificacao_do_responsavel']) ? (int) $item['qualificacao_do_responsavel'] : null;
 
-        $opcaoSimples = null;
-        if (isset($item['opcao_pelo_simples'])) {
-            $opcaoSimples = (bool) $item['opcao_pelo_simples'];
-        }
+        // Regime tributário - MEI
+        $opcaoMei = isset($item['opcao_pelo_mei']) ? (bool) $item['opcao_pelo_mei'] : null;
+        $dataOpcaoMei = !empty($item['data_opcao_pelo_mei']) ? $item['data_opcao_pelo_mei'] : null;
+        $dataExclusaoMei = !empty($item['data_exclusao_do_mei']) ? $item['data_exclusao_do_mei'] : null;
+
+        // Regime tributário - Simples Nacional
+        $opcaoSimples = isset($item['opcao_pelo_simples']) ? (bool) $item['opcao_pelo_simples'] : null;
+        $dataOpcaoSimples = !empty($item['data_opcao_pelo_simples']) ? $item['data_opcao_pelo_simples'] : null;
+        $dataExclusaoSimples = !empty($item['data_exclusao_do_simples']) ? $item['data_exclusao_do_simples'] : null;
 
         // Capital social (vem em centavos)
         $capitalSocial = null;
@@ -240,35 +246,46 @@ class MinhaReceitaClient
         }
 
         // Identificador matriz/filial
-        $matrizFilial = null;
-        if (isset($item['identificador_matriz_filial'])) {
-            $matrizFilial = (int) $item['identificador_matriz_filial'];
-        }
+        $matrizFilial = isset($item['identificador_matriz_filial']) ? (int) $item['identificador_matriz_filial'] : null;
 
         return [
-            'cnpj'                        => $cnpj,
-            'name'                        => $name,
-            'razao_social'                => $razao,
-            'address'                     => $address ?: null,
-            'city'                        => $municipio ?: null,
-            'state'                       => $uf ?: null,
-            'phone'                       => $phone,
-            'telefone_secundario'         => $phone2,
-            'email'                       => $email,
-            'website'                     => null,
-            'cnae_code'                   => $cnaeCode,
-            'cnae_description'            => $cnaeDesc,
-            'cnaes_secundarios'           => $cnaesSecundarios,
-            'situacao_cadastral'          => $situacaoCadastral,
-            'data_situacao_cadastral'     => $dataSituacao,
-            'data_inicio_atividade'       => $dataInicio,
-            'porte'                       => $porte,
-            'natureza_juridica'           => $naturezaJuridica,
-            'opcao_pelo_mei'              => $opcaoMei,
-            'opcao_pelo_simples'          => $opcaoSimples,
-            'capital_social'              => $capitalSocial,
-            'identificador_matriz_filial' => $matrizFilial,
-            'source'                      => 'minhareceita',
+            'cnpj'                           => $cnpj,
+            'name'                           => $name,
+            'razao_social'                   => $razao,
+            'address'                        => $address ?: null,
+            'complemento'                    => $complemento,
+            'bairro'                         => $bairro,
+            'cep'                            => $cep,
+            'city'                           => $municipio ?: null,
+            'state'                          => $uf ?: null,
+            'phone'                          => $phone,
+            'telefone_secundario'            => $phone2,
+            'email'                          => $email,
+            'website'                        => null,
+            'cnae_code'                      => $cnaeCode,
+            'cnae_description'               => $cnaeDesc,
+            'cnaes_secundarios'              => $cnaesSecundarios,
+            'situacao_cadastral'             => $situacaoCadastral,
+            'data_situacao_cadastral'        => $dataSituacao,
+            'motivo_situacao_cadastral'      => $motivoSituacao,
+            'descricao_motivo_situacao'      => $descricaoMotivo,
+            'situacao_especial'              => $situacaoEspecial,
+            'data_situacao_especial'         => $dataSituacaoEspecial,
+            'data_inicio_atividade'          => $dataInicio,
+            'porte'                          => $porte,
+            'codigo_porte'                   => $codigoPorte,
+            'natureza_juridica'              => $naturezaJuridica,
+            'codigo_natureza_juridica'       => $codigoNatureza,
+            'qualificacao_responsavel'       => $qualificacaoResp,
+            'opcao_pelo_mei'                 => $opcaoMei,
+            'data_opcao_mei'                 => $dataOpcaoMei,
+            'data_exclusao_mei'              => $dataExclusaoMei,
+            'opcao_pelo_simples'             => $opcaoSimples,
+            'data_opcao_simples'             => $dataOpcaoSimples,
+            'data_exclusao_simples'          => $dataExclusaoSimples,
+            'capital_social'                 => $capitalSocial,
+            'identificador_matriz_filial'    => $matrizFilial,
+            'source'                         => 'minhareceita',
         ];
     }
 
