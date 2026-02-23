@@ -5,7 +5,7 @@ namespace PixelHub\Services;
 /**
  * Cliente para enriquecimento de dados via CNPJ.ws
  * 
- * API Pública: https://www.cnpj.ws/docs/api-publica
+ * API Pública: https://publica.cnpj.ws/cnpj/{cnpj}
  * Rate Limit: 3 requisições/minuto (gratuito)
  * 
  * Retorna dados de contato que a Minha Receita não fornece:
@@ -15,7 +15,7 @@ namespace PixelHub\Services;
  */
 class CnpjWsEnrichmentClient
 {
-    private const BASE_URL = 'https://www.cnpj.ws';
+    private const BASE_URL = 'https://publica.cnpj.ws';
     private const RATE_LIMIT_DELAY_MS = 20000; // 20 segundos entre requisições (3/min)
     
     /**
