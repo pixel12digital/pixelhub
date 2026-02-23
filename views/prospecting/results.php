@@ -70,15 +70,21 @@ ob_start();
             </select>
             <select name="matriz_filial" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:140px;">
                 <option value="">Matriz/Filial</option>
-                <option value="1" <?= ($filters['matriz_filial'] ?? '') === '1' ? 'selected' : '' ?>>Apenas Matriz</option>
-                <option value="2" <?= ($filters['matriz_filial'] ?? '') === '2' ? 'selected' : '' ?>>Apenas Filial</option>
+                <option value="1" <?= ($filters['matriz_filial'] ?? '') === '1' ? 'selected' : '' ?>>Matriz</option>
+                <option value="2" <?= ($filters['matriz_filial'] ?? '') === '2' ? 'selected' : '' ?>>Filial</option>
             </select>
+            <select name="google_enrichment" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:180px;">
+                <option value="">Google Maps</option>
+                <option value="enriched" <?= ($filters['google_enrichment'] ?? '') === 'enriched' ? 'selected' : '' ?>>✅ Enriquecidas</option>
+                <option value="not_found" <?= ($filters['google_enrichment'] ?? '') === 'not_found' ? 'selected' : '' ?>>❌ Não encontradas</option>
+                <option value="not_verified" <?= ($filters['google_enrichment'] ?? '') === 'not_verified' ? 'selected' : '' ?>>⏳ Não verificadas</option>
+            </select>
+            <button type="submit" style="padding:8px 16px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Aplicar Filtros</button>
         </div>
         <?php endif; ?>
         
         <!-- Botões -->
         <div style="display:flex;gap:8px;margin-top:12px;">
-            <button type="submit" style="padding:8px 16px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Aplicar Filtros</button>
             <?php if (!empty(array_filter($filters ?? []))): ?>
             <a href="<?= pixelhub_url('/prospecting/results?recipe_id=' . $recipe['id']) ?>" style="padding:8px 16px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;display:inline-block;">Limpar Filtros</a>
             <?php endif; ?>
@@ -204,16 +210,27 @@ ob_start();
                     </td>
                     <td style="padding:14px 16px;text-align:center;">
                         <div style="display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;">
-                            <?php if ($result['source'] === 'minhareceita' && empty($result['google_enriched_at'])): ?>
-                            <button onclick="enrichWithGoogleMaps(<?= $result['id'] ?>)"
-                                    style="padding:5px 10px;background:#0369a1;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;"
-                                    title="Enriquecer com dados do Google Maps">
-                                🔍 Google Maps
-                            </button>
-                            <?php elseif ($result['source'] === 'minhareceita' && !empty($result['google_enriched_at'])): ?>
-                            <span style="padding:5px 10px;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:5px;font-size:10px;font-weight:600;white-space:nowrap;" title="Enriquecido em <?= date('d/m/Y H:i', strtotime($result['google_enriched_at'])) ?>">
-                                ✓ Enriquecido (<?= $result['enrichment_confidence'] ?>%)
-                            </span>
+                            <?php if ($result['source'] === 'minhareceita'): ?>
+                                <?php if (!empty($result['google_enriched_at'])): ?>
+                                    <!-- Enriquecido com sucesso -->
+                                    <span style="padding:5px 10px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:5px;font-size:10px;font-weight:600;white-space:nowrap;" title="Enriquecido em <?= date('d/m/Y H:i', strtotime($result['google_enriched_at'])) ?>">
+                                        ✅ Enriquecido (<?= $result['enrichment_confidence'] ?>%)
+                                    </span>
+                                <?php elseif (!empty($result['google_enrichment_attempted'])): ?>
+                                    <!-- Tentou mas não encontrou -->
+                                    <button onclick="enrichWithGoogleMaps(<?= $result['id'] ?>)"
+                                            style="padding:5px 10px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;"
+                                            title="Não encontrado - Tentar novamente">
+                                        ❌ Não encontrado
+                                    </button>
+                                <?php else: ?>
+                                    <!-- Nunca verificou -->
+                                    <button onclick="enrichWithGoogleMaps(<?= $result['id'] ?>)"
+                                            style="padding:5px 10px;background:#0369a1;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;"
+                                            title="Enriquecer com dados do Google Maps">
+                                        🔍 Google Maps
+                                    </button>
+                                <?php endif; ?>
                             <?php endif; ?>
                             <?php if (empty($result['lead_id'])): ?>
                             <button onclick="criarLead(<?= $result['id'] ?>, this)"

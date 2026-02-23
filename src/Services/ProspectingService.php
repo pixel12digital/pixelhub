@@ -678,6 +678,20 @@ class ProspectingService
             $params[] = (int) $filters['matriz_filial'];
         }
 
+        // Filtro de enriquecimento Google Maps
+        if (!empty($filters['google_enrichment'])) {
+            if ($filters['google_enrichment'] === 'enriched') {
+                // Enriquecidas: tentou E tem google_enriched_at
+                $where[] = 'pr.google_enrichment_attempted = 1 AND pr.google_enriched_at IS NOT NULL';
+            } elseif ($filters['google_enrichment'] === 'not_found') {
+                // Não encontradas: tentou MAS NÃO tem google_enriched_at
+                $where[] = 'pr.google_enrichment_attempted = 1 AND pr.google_enriched_at IS NULL';
+            } elseif ($filters['google_enrichment'] === 'not_verified') {
+                // Não verificadas: nunca tentou
+                $where[] = 'pr.google_enrichment_attempted = 0';
+            }
+        }
+
         $whereStr = implode(' AND ', $where);
 
         $stmt = $db->prepare("
@@ -746,6 +760,17 @@ class ProspectingService
         if (!empty($filters['matriz_filial'])) {
             $where[]  = 'identificador_matriz_filial = ?';
             $params[] = (int) $filters['matriz_filial'];
+        }
+
+        // Filtro de enriquecimento Google Maps
+        if (!empty($filters['google_enrichment'])) {
+            if ($filters['google_enrichment'] === 'enriched') {
+                $where[] = 'google_enrichment_attempted = 1 AND google_enriched_at IS NOT NULL';
+            } elseif ($filters['google_enrichment'] === 'not_found') {
+                $where[] = 'google_enrichment_attempted = 1 AND google_enriched_at IS NULL';
+            } elseif ($filters['google_enrichment'] === 'not_verified') {
+                $where[] = 'google_enrichment_attempted = 0';
+            }
         }
 
         $whereStr = implode(' AND ', $where);
@@ -881,6 +906,10 @@ class ProspectingService
         if (!$result) {
             throw new \Exception('Resultado não encontrado');
         }
+        
+        // Marca que tentou enriquecer
+        $markStmt = $db->prepare("UPDATE prospecting_results SET google_enrichment_attempted = 1 WHERE id = ?");
+        $markStmt->execute([$resultId]);
         
         // Busca no Google Maps usando nome + cidade
         $client = new GooglePlacesClient();
