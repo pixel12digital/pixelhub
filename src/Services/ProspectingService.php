@@ -513,8 +513,8 @@ class ProspectingService
 
                 $stmt = $db->prepare("
                     INSERT INTO prospecting_results
-                        (recipe_id, tenant_id, name, razao_social, address, complemento, bairro, cep,
-                         city, state, phone, telefone_secundario, email, website, source, cnpj, 
+                        (recipe_id, tenant_id, name, razao_social, address_minhareceita, complemento, bairro, cep,
+                         city, state, phone_minhareceita, telefone_secundario, email, website_minhareceita, source, cnpj, 
                          cnae_code, cnae_description, cnaes_secundarios, qsa,
                          situacao_cadastral, data_situacao_cadastral, motivo_situacao_cadastral, 
                          descricao_motivo_situacao, situacao_especial, data_situacao_especial,
@@ -1157,15 +1157,25 @@ class ProspectingService
     
     /**
      * Aplica enriquecimento aprovado pelo usuário
+     * 
+     * IMPORTANTE: Preserva dados de ambas as fontes (Minha Receita + Google Maps)
+     * em vez de sobrescrever. Usa campos separados:
+     * - phone_minhareceita / phone_google
+     * - website_minhareceita / website_google
+     * - address_minhareceita / address_google
      */
     public static function applyGoogleEnrichment(int $resultId, array $googleData): void
     {
         $db = DB::getConnection();
         
+        // Atualiza apenas campos específicos do Google Maps
+        // Preserva dados da Minha Receita em campos separados
         $stmt = $db->prepare("
             UPDATE prospecting_results SET
                 google_place_id = ?,
-                website = ?,
+                phone_google = ?,
+                website_google = ?,
+                address_google = ?,
                 rating = ?,
                 user_ratings_total = ?,
                 google_enriched_at = NOW(),
@@ -1176,7 +1186,9 @@ class ProspectingService
         
         $stmt->execute([
             $googleData['google_place_id'] ?? null,
+            $googleData['phone'] ?? null,
             $googleData['website'] ?? null,
+            $googleData['address'] ?? null,
             $googleData['rating'] ?? null,
             $googleData['user_ratings_total'] ?? null,
             $googleData['confidence'] ?? null,
