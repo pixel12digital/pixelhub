@@ -76,10 +76,16 @@ if (($sourceFilter ?? null) === 'cnpjws') {
 </div>
 <?php endif; ?>
 
-<?php if (!$hasKey): ?>
+<?php if (($sourceFilter ?? 'google_maps') !== 'cnpjws' && !$hasKey): ?>
 <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:16px 20px;margin-bottom:24px;">
     <strong style="color:#92400e;">Google Maps API não configurada.</strong>
     <span style="color:#78350f;font-size:13px;"> Configure em <a href="<?= pixelhub_url('/settings/google-maps') ?>" style="color:#023A8D;font-weight:600;">Configurações → Integrações → Google Maps</a>.</span>
+</div>
+<?php endif; ?>
+<?php if (($sourceFilter ?? 'google_maps') === 'cnpjws' && !($hasCnpjWsKey ?? false)): ?>
+<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:16px 20px;margin-bottom:24px;">
+    <strong style="color:#92400e;">CNPJ.ws API não configurada.</strong>
+    <span style="color:#78350f;font-size:13px;"> Configure em <a href="<?= pixelhub_url('/settings/cnpjws') ?>" style="color:#023A8D;font-weight:600;">Configurações → Integrações → CNPJ.ws API</a>.</span>
 </div>
 <?php endif; ?>
 

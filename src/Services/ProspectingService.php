@@ -63,6 +63,58 @@ class ProspectingService
     }
 
     // =========================================================================
+    // INTEGRATION SETTINGS (chave CNPJ.ws)
+    // =========================================================================
+
+    public static function saveCnpjWsApiKey(string $apiKey, int $userId): void
+    {
+        $db        = DB::getConnection();
+        $encrypted = CryptoHelper::encrypt($apiKey);
+        $stmt = $db->prepare("
+            INSERT INTO integration_settings (integration_key, integration_value, is_encrypted, label, updated_by, created_at, updated_at)
+            VALUES ('cnpjws_api_key', ?, 1, 'CNPJ.ws API Key', ?, NOW(), NOW())
+            ON DUPLICATE KEY UPDATE
+                integration_value = VALUES(integration_value),
+                is_encrypted = 1,
+                updated_by = VALUES(updated_by),
+                updated_at = NOW()
+        ");
+        $stmt->execute([$encrypted, $userId]);
+    }
+
+    public static function hasCnpjWsApiKey(): bool
+    {
+        try {
+            $key = self::getCnpjWsApiKey();
+            return !empty($key);
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    public static function getCnpjWsApiKey(): ?string
+    {
+        $db   = DB::getConnection();
+        $stmt = $db->prepare("SELECT integration_value, is_encrypted FROM integration_settings WHERE integration_key = 'cnpjws_api_key' LIMIT 1");
+        $stmt->execute();
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$row || empty($row['integration_value'])) return null;
+        return $row['is_encrypted'] ? CryptoHelper::decrypt($row['integration_value']) : $row['integration_value'];
+    }
+
+    public static function getMaskedCnpjWsApiKey(): ?string
+    {
+        try {
+            $key = self::getCnpjWsApiKey();
+            if (empty($key)) return null;
+            if (strlen($key) <= 8) return str_repeat('*', strlen($key));
+            return substr($key, 0, 4) . str_repeat('*', strlen($key) - 8) . substr($key, -4);
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    // =========================================================================
     // RECEITAS DE BUSCA
     // =========================================================================
 

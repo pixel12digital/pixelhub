@@ -1879,7 +1879,7 @@
             $diagnosticoOpen = $shouldExpand(['/diagnostic/financial', '/diagnostic/communication']);
             $empresaOpen = $shouldExpand(['/settings/company', '/settings/users']);
             $financeiroConfigOpen = $shouldExpand(['/billing/service-types', '/billing/templates', '/settings/asaas']);
-            $integracoesOpen = $shouldExpand(['/settings/whatsapp-gateway', '/settings/smtp', '/settings/ai', '/settings/ai-contexts', '/settings/google-maps']);
+            $integracoesOpen = $shouldExpand(['/settings/whatsapp-gateway', '/settings/smtp', '/settings/ai', '/settings/ai-contexts', '/settings/google-maps', '/settings/cnpjws']);
             $produtosOpen = $shouldExpand(['/settings/tenant-products']);
             $mensagensOpen = $shouldExpand(['/settings/whatsapp-templates', '/settings/communication-events']);
             $contratosOpen = $shouldExpand(['/settings/contract-clauses']);
@@ -1985,6 +1985,9 @@
                             </a>
                             <a href="<?= pixelhub_url('/settings/google-maps') ?>" class="sub-item <?= (strpos($currentUri, '/settings/google-maps') !== false) ? 'active' : '' ?>">
                                 <span class="sidebar-text">Google Maps API</span>
+                            </a>
+                            <a href="<?= pixelhub_url('/settings/cnpjws') ?>" class="sub-item <?= (strpos($currentUri, '/settings/cnpjws') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">CNPJ.ws API</span>
                             </a>
                         </div>
                     </div>

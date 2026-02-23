@@ -3,29 +3,50 @@
 namespace PixelHub\Services;
 
 /**
- * Cliente para busca de empresas por CNAE + município
+ * Cliente para a API CNPJ.ws (plano comercial)
  *
- * Busca: Casa dos Dados (POST /v2/public/cnpj/search) — gratuita, sem chave
- * Consulta individual: CNPJ.ws (GET /cnpj/{cnpj}) — gratuita, sem chave
- * IBGE: resolução de código de município
+ * Documentação: https://www.cnpj.ws/docs/api-publica/consultar-cnpj
+ * Endpoint de busca: GET https://api.cnpj.ws/v1/estabelecimentos?cnae_fiscal_principal={cnae}&municipio_id={ibge}&situacao_cadastral=ATIVA
+ * Autenticação: Bearer token no header Authorization
  */
 class CnpjWsClient
 {
-    private const BASE_URL = 'https://publica.cnpj.ws';
-    private const TIMEOUT  = 15;
-    private const SLEEP_MS = 400; // 400ms entre requisições (~2.5 req/s, abaixo do limite)
+    private const BASE_URL     = 'https://api.cnpj.ws';
+    private const BASE_URL_PUB = 'https://publica.cnpj.ws';
+    private const TIMEOUT      = 20;
+    private const SLEEP_MS     = 350;
 
     // =========================================================================
     // BUSCA POR CNAE + MUNICÍPIO
     // =========================================================================
 
     /**
-     * Busca empresas por CNAE + cidade via Casa dos Dados (POST)
+     * Testa a chave API fazendo uma consulta simples
+     *
+     * @param string $apiKey Chave a testar
+     * @return array ['success' => bool, 'message' => string]
+     */
+    public function testApiKey(string $apiKey): array
+    {
+        try {
+            $url = self::BASE_URL . '/v1/estabelecimentos?cnae_fiscal_principal=4755501&municipio_id=4205407&situacao_cadastral=ATIVA&quantidade=1&pagina=1';
+            $raw = $this->get($url, $apiKey);
+            if (isset($raw['data']) || isset($raw['estabelecimentos']) || is_array($raw)) {
+                return ['success' => true, 'message' => 'Conexão com CNPJ.ws estabelecida com sucesso!'];
+            }
+            return ['success' => false, 'message' => 'Resposta inesperada da API.'];
+        } catch (\Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Busca empresas por CNAE + cidade via API CNPJ.ws comercial
      *
      * @param string $cnaeCode   Código CNAE (ex: "4755-5/01" ou "4755501")
      * @param string $cityName   Nome da cidade (ex: "Curitiba")
      * @param string $uf         UF (ex: "PR")
-     * @param string $situacao   Ignorado (Casa dos Dados filtra apenas ativas por padrão)
+     * @param string $situacao   Situação cadastral: A=Ativa
      * @param int    $maxResults Máximo de resultados
      * @return array Lista de empresas normalizadas
      */
@@ -36,45 +57,56 @@ class CnpjWsClient
             throw new \InvalidArgumentException('Código CNAE inválido');
         }
 
-        // Casa dos Dados: POST /v2/public/cnpj/search
-        $payload = [
-            'query' => [
-                'termo'              => [],
-                'cnae_fiscal'        => [$cnaeClean],
-                'municipio'          => [mb_strtoupper(trim($cityName))],
-                'uf'                 => [strtoupper(trim($uf))],
-                'situacao_cadastral' => ['ATIVA'],
-            ],
-            'extras' => [
-                'somente_mei'                        => false,
-                'excluir_mei'                        => false,
-                'com_email'                          => false,
-                'incluir_ativo_baixado'              => false,
-                'ip_migracao_regime_tributario'      => false,
-                'opcao_simples'                      => false,
-                'opcao_mei'                          => false,
-            ],
-            'range_query' => [
-                'data_abertura'  => ['lte' => null, 'gte' => null],
-                'capital_social' => ['lte' => null, 'gte' => null],
-            ],
-            'page' => 1,
-        ];
+        $apiKey = $this->resolveApiKey();
 
-        $raw = $this->post('https://api.casadosdados.com.br/v2/public/cnpj/search', $payload);
+        // Resolve código IBGE do município
+        $ibgeCode = $this->resolveIbgeCode($cityName, $uf);
+        if (!$ibgeCode) {
+            throw new \RuntimeException("Município não encontrado: {$cityName}/{$uf}.");
+        }
 
-        if (empty($raw['data']['cnpj'])) {
+        $situacaoParam = $situacao === 'A' ? 'ATIVA' : strtoupper($situacao);
+
+        $url = self::BASE_URL . '/v1/estabelecimentos?' . http_build_query([
+            'cnae_fiscal_principal' => $cnaeClean,
+            'municipio_id'          => $ibgeCode,
+            'situacao_cadastral'    => $situacaoParam,
+            'quantidade'            => min($maxResults, 100),
+            'pagina'                => 1,
+        ]);
+
+        $raw = $this->get($url, $apiKey);
+
+        $items = $raw['data'] ?? $raw['estabelecimentos'] ?? (is_array($raw) && isset($raw[0]) ? $raw : []);
+
+        if (empty($items)) {
             return [];
         }
 
         $results = [];
-        foreach ($raw['data']['cnpj'] as $item) {
+        foreach ($items as $item) {
             if (count($results) >= $maxResults) break;
-            $normalized = $this->normalizeCasaDados($item);
+            $normalized = $this->normalizeCompany($item);
             if ($normalized) $results[] = $normalized;
         }
 
         return $results;
+    }
+
+    /**
+     * Resolve a chave API do banco de dados
+     */
+    private function resolveApiKey(): string
+    {
+        try {
+            $key = \PixelHub\Services\ProspectingService::getCnpjWsApiKey();
+        } catch (\Exception $e) {
+            $key = null;
+        }
+        if (empty($key)) {
+            throw new \RuntimeException('Chave API CNPJ.ws não configurada. Acesse Configurações > Integrações > CNPJ.ws para configurar.');
+        }
+        return $key;
     }
 
     /**
@@ -412,18 +444,26 @@ class CnpjWsClient
 
     /**
      * Executa GET com cURL e retorna array decodificado
+     *
+     * @param string      $url    URL completa
+     * @param string|null $apiKey Token Bearer (opcional — para endpoints públicos como IBGE)
      */
-    private function get(string $url): mixed
+    private function get(string $url, ?string $apiKey = null): mixed
     {
+        $headers = [
+            'Accept: application/json',
+            'User-Agent: PixelHub/1.0 (hub.pixel12digital.com.br)',
+        ];
+        if (!empty($apiKey)) {
+            $headers[] = 'Authorization: Bearer ' . $apiKey;
+        }
+
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => self::TIMEOUT,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTPHEADER     => [
-                'Accept: application/json',
-                'User-Agent: PixelHub/1.0 (hub.pixel12digital.com.br)',
-            ],
+            CURLOPT_HTTPHEADER     => $headers,
         ]);
 
         $body = curl_exec($ch);

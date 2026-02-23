@@ -760,6 +760,11 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/settings/google-maps/save', 'ProspectingController@settingsSave');
     $router->post('/settings/google-maps/test', 'ProspectingController@settingsTest');
 
+    // Configurações — CNPJ.ws API
+    $router->get('/settings/cnpjws', 'ProspectingController@settingsCnpjWsIndex');
+    $router->post('/settings/cnpjws/save', 'ProspectingController@settingsCnpjWsSave');
+    $router->post('/settings/cnpjws/test', 'ProspectingController@settingsCnpjWsTest');
+
     // Rotas de Oportunidades / CRM (apenas internos)
     $router->get('/opportunities', 'OpportunitiesController@index');
     $router->get('/opportunities/view', 'OpportunitiesController@show');
