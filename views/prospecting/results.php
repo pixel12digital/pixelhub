@@ -17,7 +17,7 @@ ob_start();
     <div style="display:flex;gap:10px;">
         <button onclick="runSearch(<?= $recipe['id'] ?>, this)" <?= !$hasKey ? 'disabled title="Configure a API primeiro"' : '' ?>
                 style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:<?= $hasKey ? '#023A8D' : '#94a3b8' ?>;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:<?= $hasKey ? 'pointer' : 'not-allowed' ?>;">
-            🔍 Buscar Mais
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>Buscar Mais
         </button>
     </div>
 </div>
@@ -68,9 +68,9 @@ ob_start();
             </select>
             <select name="google_enrichment" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:180px;">
                 <option value="">Google Maps</option>
-                <option value="enriched" <?= ($filters['google_enrichment'] ?? '') === 'enriched' ? 'selected' : '' ?>>✅ Enriquecidas</option>
-                <option value="not_found" <?= ($filters['google_enrichment'] ?? '') === 'not_found' ? 'selected' : '' ?>>❌ Não encontradas</option>
-                <option value="not_verified" <?= ($filters['google_enrichment'] ?? '') === 'not_verified' ? 'selected' : '' ?>>⏳ Não verificadas</option>
+                <option value="enriched" <?= ($filters['google_enrichment'] ?? '') === 'enriched' ? 'selected' : '' ?>>✓ Enriquecidas</option>
+                <option value="not_found" <?= ($filters['google_enrichment'] ?? '') === 'not_found' ? 'selected' : '' ?>>✗ Não encontradas</option>
+                <option value="not_verified" <?= ($filters['google_enrichment'] ?? '') === 'not_verified' ? 'selected' : '' ?>>○ Não verificadas</option>
             </select>
             <button type="submit" style="padding:8px 16px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Aplicar Filtros</button>
         </div>
@@ -107,7 +107,7 @@ ob_start();
         <?php endif; ?>
     </p>
     <?php if ($hasKey): ?>
-    <button onclick="runSearch(<?= $recipe['id'] ?>, this)" style="padding:10px 20px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">🔍 Buscar Agora</button>
+    <button onclick="runSearch(<?= $recipe['id'] ?>, this)" style="padding:10px 20px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>Buscar Agora</button>
     <?php endif; ?>
 </div>
 <?php else: ?>
@@ -207,21 +207,21 @@ ob_start();
                                 <?php if (!empty($result['google_enriched_at'])): ?>
                                     <!-- Enriquecido com sucesso -->
                                     <span style="padding:5px 10px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:5px;font-size:10px;font-weight:600;white-space:nowrap;" title="Enriquecido em <?= date('d/m/Y H:i', strtotime($result['google_enriched_at'])) ?>">
-                                        ✅ Enriquecido (<?= $result['enrichment_confidence'] ?>%)
+                                        ✓ Enriquecido (<?= $result['enrichment_confidence'] ?>%)
                                     </span>
                                 <?php elseif (!empty($result['google_enrichment_attempted'])): ?>
                                     <!-- Tentou mas não encontrou -->
                                     <button onclick="enrichWithGoogleMaps(<?= $result['id'] ?>)"
                                             style="padding:5px 10px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;"
                                             title="Não encontrado - Tentar novamente">
-                                        ❌ Não encontrado
+                                        ✗ Não encontrado
                                     </button>
                                 <?php else: ?>
                                     <!-- Nunca verificou -->
                                     <button onclick="enrichWithGoogleMaps(<?= $result['id'] ?>)"
                                             style="padding:5px 10px;background:#0369a1;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;"
                                             title="Enriquecer com dados do Google Maps">
-                                        🔍 Google Maps
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>Google Maps
                                     </button>
                                 <?php endif; ?>
                             <?php endif; ?>
@@ -516,14 +516,14 @@ function enrichWithGoogleMaps(resultId) {
         
         content.innerHTML = `
             <div style="padding:24px;">
-                <h3 style="margin:0 0 8px;font-size:18px;color:#1e293b;">🔍 Enriquecimento Google Maps</h3>
+                <h3 style="margin:0 0 8px;font-size:18px;color:#1e293b;display:flex;align-items:center;gap:8px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>Enriquecimento Google Maps</h3>
                 <div style="padding:8px 12px;background:${confBg};border-left:4px solid ${confColor};border-radius:4px;margin-bottom:20px;">
                     <strong style="color:${confColor};">Confiança: ${d.confidence_label} (${d.confidence}%)</strong>
                 </div>
                 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
                     <div>
-                        <h4 style="margin:0 0 12px;font-size:14px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">📋 Minha Receita</h4>
+                        <h4 style="margin:0 0 12px;font-size:14px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>Minha Receita</h4>
                         <div style="background:#f8fafc;padding:12px;border-radius:6px;font-size:13px;">
                             <div style="margin-bottom:8px;"><strong>Nome:</strong><br>${d.minha_receita.name || '-'}</div>
                             ${d.minha_receita.razao_social ? `<div style="margin-bottom:8px;"><strong>Razão Social:</strong><br>${d.minha_receita.razao_social}</div>` : ''}
@@ -535,28 +535,28 @@ function enrichWithGoogleMaps(resultId) {
                     </div>
                     
                     <div>
-                        <h4 style="margin:0 0 12px;font-size:14px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">🗺️ Google Maps</h4>
+                        <h4 style="margin:0 0 12px;font-size:14px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>Google Maps</h4>
                         <div style="background:#f0f9ff;padding:12px;border-radius:6px;font-size:13px;">
                             <div style="margin-bottom:8px;"><strong>Nome:</strong><br>${d.google_maps.name || '-'}</div>
                             <div style="margin-bottom:8px;"><strong>Endereço:</strong><br>${d.google_maps.address || '-'}</div>
                             <div style="margin-bottom:8px;"><strong>Telefone:</strong><br>${d.google_maps.phone || '-'}</div>
                             <div style="margin-bottom:8px;"><strong>Website:</strong><br>${d.google_maps.website ? `<a href="${d.google_maps.website}" target="_blank" style="color:#0369a1;">${d.google_maps.website}</a>` : '-'}</div>
-                            <div style="margin-bottom:8px;"><strong>Avaliação:</strong><br>${d.google_maps.rating ? `⭐ ${d.google_maps.rating} (${d.google_maps.user_ratings_total} avaliações)` : '-'}</div>
+                            <div style="margin-bottom:8px;"><strong>Avaliação:</strong><br>${d.google_maps.rating ? `★ ${d.google_maps.rating} (${d.google_maps.user_ratings_total} avaliações)` : '-'}</div>
                         </div>
                     </div>
                 </div>
                 
                 <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:12px;margin-bottom:20px;font-size:12px;color:#92400e;">
-                    <strong>⚠️ Atenção:</strong> Revise os dados antes de confirmar. Apenas website, avaliação e Google Place ID serão atualizados.
+                    <strong>⚠ Atenção:</strong> Revise os dados antes de confirmar. Apenas website, avaliação e Google Place ID serão atualizados.
                 </div>
                 
                 <div style="display:flex;gap:10px;justify-content:flex-end;">
                     <button onclick="closeEnrichModal()" style="padding:10px 20px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">
-                        ❌ Cancelar
+                        Cancelar
                     </button>
                     <button onclick="applyEnrichment(${resultId}, ${JSON.stringify(d.google_maps).replace(/"/g, '&quot;')}, ${d.confidence})" 
                             style="padding:10px 20px;background:#0369a1;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">
-                        ✅ Aplicar Enriquecimento
+                        Aplicar Enriquecimento
                     </button>
                 </div>
             </div>
@@ -587,7 +587,7 @@ function enrichWithGoogleMaps(resultId) {
                 </div>
             </div>
         `;
-    });}
+    });
 }
 
 function applyEnrichment(resultId, googleData, confidence) {
@@ -606,12 +606,12 @@ function applyEnrichment(resultId, googleData, confidence) {
         if (!data.success) {
             throw new Error(data.error || 'Erro ao aplicar enriquecimento');
         }
-        showToast('✅ Dados atualizados com sucesso!', 'success');
+        showToast('Dados atualizados com sucesso!', 'success');
         closeEnrichModal();
         setTimeout(() => location.reload(), 1000);
     })
     .catch(err => {
-        showToast('❌ ' + err.message, 'error');
+        showToast(err.message, 'error');
         btn.disabled = false;
         btn.innerHTML = orig;
     });
