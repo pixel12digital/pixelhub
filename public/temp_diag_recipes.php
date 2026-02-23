@@ -1,8 +1,23 @@
 <?php
 // Diagnóstico temporário — remover após uso
-require_once __DIR__ . '/../src/Core/DB.php';
-require_once __DIR__ . '/../src/Core/Config.php';
-\PixelHub\Core\Config::load();
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+} else {
+    spl_autoload_register(function ($class) {
+        $file = __DIR__ . '/../src/' . str_replace(['PixelHub\\', '\\'], ['', '/'], $class) . '.php';
+        if (file_exists($file)) require $file;
+    });
+}
+if (file_exists(__DIR__ . '/../.env')) {
+    foreach (file(__DIR__ . '/../.env') as $line) {
+        $line = trim($line);
+        if ($line && strpos($line, '=') !== false && $line[0] !== '#') {
+            [$k, $v] = explode('=', $line, 2);
+            $_ENV[trim($k)] = trim($v);
+            putenv(trim($k) . '=' . trim($v));
+        }
+    }
+}
 
 $db = \PixelHub\Core\DB::getConnection();
 
