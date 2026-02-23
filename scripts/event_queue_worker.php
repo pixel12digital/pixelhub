@@ -282,12 +282,7 @@ function processWhatsAppEvent(array $event, array $payload, array $metadata, PDO
             
             // Se houver mídia, enfileira para processamento
             if (in_array($messageType, ['image', 'video', 'audio', 'document', 'ptt'])) {
-                MediaProcessQueueService::enqueue([
-                    'event_id' => $event['event_id'],
-                    'conversation_id' => $conversation['id'],
-                    'media_type' => $messageType,
-                    'payload' => $payload
-                ]);
+                MediaProcessQueueService::enqueue($event['event_id']);
                 
                 echo "[processWhatsAppEvent] Mídia enfileirada para processamento: tipo {$messageType}\n";
             }
