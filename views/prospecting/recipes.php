@@ -146,7 +146,12 @@ if (($sourceFilter ?? null) === 'minhareceita') {
                 <a href="<?= pixelhub_url('/prospecting/results?recipe_id=' . $recipe['id']) ?>" style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">Ver Resultados</a>
                 <?php endif; ?>
                 <?php $recSrc = $recipe['source'] ?? 'google_maps'; $canRun = ($recSrc === 'minhareceita') || $hasKey; ?>
-                <button onclick="runSearch(<?= $recipe['id'] ?>, this)" <?= !$canRun ? 'disabled title="Configure a API Google Maps primeiro"' : '' ?>
+                <?php if ($recSrc === 'minhareceita'): ?>
+                <button onclick="showPreview(<?= $recipe['id'] ?>, this)" style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;background:#f8fafc;color:#023A8D;border:1px solid #023A8D;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+                    📊 Ver Prévia
+                </button>
+                <?php endif; ?>
+                <button onclick="openVolumeModal(<?= $recipe['id'] ?>, this)" <?= !$canRun ? 'disabled title="Configure a API Google Maps primeiro"' : '' ?>
                         style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;background:<?= $canRun ? '#023A8D' : '#94a3b8' ?>;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:<?= $canRun ? 'pointer' : 'not-allowed' ?>;">
                     🔍 Buscar Agora
                 </button>
@@ -687,13 +692,87 @@ function deleteRecipe(id,name){
     fetch('<?= pixelhub_url('/prospecting/delete') ?>',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+id})
     .then(r=>r.json()).then(d=>{if(d.success)document.getElementById('recipe-'+id).remove();else alert('Erro: '+d.error);});
 }
-function runSearch(recipeId,btn){
+function showPreview(recipeId,btn){
     const div=document.getElementById('search-result-'+recipeId);
     btn.disabled=true;
     const orig=btn.innerHTML;
-    btn.innerHTML='⏳ Buscando...';
-    div.style.display='none';
-    fetch('<?= pixelhub_url('/prospecting/run') ?>',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'recipe_id='+recipeId+'&max_results=20'})
+    btn.innerHTML='⏳ Carregando...';
+    div.style.display='block';
+    div.style.background='#eff6ff';div.style.border='1px solid #bfdbfe';div.style.color='#1e40af';
+    div.innerHTML='⏳ Buscando prévia...';
+    fetch('<?= pixelhub_url('/prospecting/preview') ?>',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'recipe_id='+recipeId})
+    .then(r=>r.json())
+    .then(data=>{
+        if(data.success){
+            const p=data.preview;
+            const hasMore=p.has_more?'<strong>+</strong>':'';
+            const estimateText=p.has_more?'Estimativa: <strong>'+p.estimated_total+hasMore+'</strong> empresas válidas':'Total: <strong>'+p.valid_in_sample+'</strong> empresas válidas';
+            const filterText=p.filtered_in_sample>0?' (<strong>'+p.filtered_in_sample+'</strong> inaptas/baixadas filtradas)':'';
+            const locationText=p.city!=='Todo o estado'?p.city+'/'+p.state:p.state;
+            div.style.background='#f0fdf4';div.style.border='1px solid #bbf7d0';div.style.color='#15803d';
+            div.innerHTML='📊 <strong>Prévia de Resultados</strong><br>'+
+                '<div style="margin-top:8px;font-size:13px;">'+
+                '📍 Local: <strong>'+locationText+'</strong><br>'+
+                '📈 '+estimateText+filterText+'<br>'+
+                (p.filter_rate>0?'⚠️ Taxa de filtro: <strong>'+p.filter_rate+'%</strong> (empresas inaptas/baixadas)<br>':'')+
+                (p.has_more?'<span style="color:#d97706;">⚡ Há mais resultados disponíveis além da amostra</span><br>':'')+
+                '</div>'+
+                '<button onclick="openVolumeModal('+recipeId+',this);document.getElementById(\'search-result-'+recipeId+'\').style.display=\'none\';" style="margin-top:10px;padding:6px 12px;background:#023A8D;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">🔍 Buscar Agora</button>';
+        }else{
+            div.style.background='#fef2f2';div.style.border='1px solid #fecaca';div.style.color='#dc2626';
+            div.innerHTML='✗ '+data.error;
+        }
+    })
+    .catch(()=>{div.style.display='block';div.style.background='#fef2f2';div.style.border='1px solid #fecaca';div.style.color='#dc2626';div.innerHTML='✗ Erro de comunicação.';})
+    .finally(()=>{btn.disabled=false;btn.innerHTML=orig;});
+}
+function openVolumeModal(recipeId,btn){
+    const modal=document.getElementById('volume-modal');
+    if(!modal){
+        const div=document.createElement('div');
+        div.id='volume-modal';
+        div.innerHTML=`
+            <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;" onclick="if(event.target===this)this.parentElement.remove()">
+                <div style="background:#fff;border-radius:12px;padding:24px;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+                    <h3 style="margin:0 0 8px;font-size:18px;color:#1e293b;">Selecione o Volume de Resultados</h3>
+                    <p style="margin:0 0 20px;font-size:13px;color:#64748b;">Escolha quantas empresas deseja buscar. Volumes maiores demoram mais tempo.</p>
+                    <div style="display:grid;gap:10px;margin-bottom:20px;">
+                        <button onclick="runSearch(${recipeId},null,100);this.closest('#volume-modal').remove();" style="padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;text-align:left;font-size:13px;">
+                            <div style="font-weight:600;color:#1e293b;margin-bottom:2px;">100 empresas</div>
+                            <div style="color:#64748b;font-size:12px;">Rápido (~10 segundos)</div>
+                        </button>
+                        <button onclick="runSearch(${recipeId},null,500);this.closest('#volume-modal').remove();" style="padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;text-align:left;font-size:13px;">
+                            <div style="font-weight:600;color:#1e293b;margin-bottom:2px;">500 empresas</div>
+                            <div style="color:#64748b;font-size:12px;">Médio (~1 minuto)</div>
+                        </button>
+                        <button onclick="runSearch(${recipeId},null,1000);this.closest('#volume-modal').remove();" style="padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;text-align:left;font-size:13px;">
+                            <div style="font-weight:600;color:#1e293b;margin-bottom:2px;">1.000 empresas</div>
+                            <div style="color:#64748b;font-size:12px;">Longo (~3-5 minutos)</div>
+                        </button>
+                        <button onclick="runSearch(${recipeId},null,5000);this.closest('#volume-modal').remove();" style="padding:12px 16px;background:#fff3cd;border:1px solid #ffc107;border-radius:8px;cursor:pointer;text-align:left;font-size:13px;">
+                            <div style="font-weight:600;color:#856404;margin-bottom:2px;">⚠️ 5.000 empresas</div>
+                            <div style="color:#856404;font-size:12px;">Muito longo (~10 minutos)</div>
+                        </button>
+                        <button onclick="runSearch(${recipeId},null,10000);this.closest('#volume-modal').remove();" style="padding:12px 16px;background:#f8d7da;border:1px solid #dc3545;border-radius:8px;cursor:pointer;text-align:left;font-size:13px;">
+                            <div style="font-weight:600;color:#721c24;margin-bottom:2px;">🔥 10.000 empresas</div>
+                            <div style="color:#721c24;font-size:12px;">Extremo (~15 minutos) - Use apenas se necessário</div>
+                        </button>
+                    </div>
+                    <button onclick="this.closest('#volume-modal').remove();" style="width:100%;padding:10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;color:#64748b;">Cancelar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(div);
+    }
+}
+function runSearch(recipeId,btn,maxResults){
+    maxResults=maxResults||100;
+    const div=document.getElementById('search-result-'+recipeId);
+    if(btn){btn.disabled=true;var orig=btn.innerHTML;btn.innerHTML='⏳ Buscando...';}
+    div.style.display='block';
+    div.style.background='#eff6ff';div.style.border='1px solid #bfdbfe';div.style.color='#1e40af';
+    div.innerHTML='⏳ Buscando '+maxResults+' empresas... Isso pode demorar alguns minutos.';
+    fetch('<?= pixelhub_url('/prospecting/run') ?>',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'recipe_id='+recipeId+'&max_results='+maxResults})
     .then(r=>r.json())
     .then(data=>{
         div.style.display='block';

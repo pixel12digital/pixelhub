@@ -15,7 +15,8 @@ class MinhaReceitaClient
 {
     private const BASE_URL = 'https://minhareceita.org';
     private const TIMEOUT  = 25;
-    private const MAX_PER_PAGE = 20;
+    private const MAX_PER_PAGE = 100;
+    private const SLEEP_BETWEEN_REQUESTS_MS = 500; // 500ms entre requisições para evitar rate limit
 
     // =========================================================================
     // BUSCA EM LOTE POR CNAE + REGIÃO
@@ -28,9 +29,11 @@ class MinhaReceitaClient
      * @param string      $uf         UF (ex: "SC")
      * @param string|null $ibgeCode   Código IBGE do município (ex: "4205407") — opcional
      * @param int         $maxResults Máximo de resultados (paginado automaticamente)
+     * @param callable|null $progressCallback Callback para reportar progresso: fn(int $fetched, int $filtered, int $valid)
+     * @param int         $maxRequests Máximo de requisições (0 = ilimitado)
      * @return array Lista de empresas normalizadas
      */
-    public function searchByCnaeAndRegion(string $cnaeCode, string $uf, ?string $ibgeCode = null, int $maxResults = 50): array
+    public function searchByCnaeAndRegion(string $cnaeCode, string $uf, ?string $ibgeCode = null, int $maxResults = 100, ?callable $progressCallback = null, int $maxRequests = 0): array
     {
         $cnaeClean = preg_replace('/\D/', '', $cnaeCode);
         if (empty($cnaeClean)) {
@@ -44,7 +47,10 @@ class MinhaReceitaClient
 
         $results = [];
         $cursor  = null;
-        $perPage = min(self::MAX_PER_PAGE, $maxResults);
+        $perPage = self::MAX_PER_PAGE;
+        $totalFetched = 0;
+        $totalFiltered = 0;
+        $requestCount = 0;
 
         do {
             $params = [
@@ -63,6 +69,12 @@ class MinhaReceitaClient
 
             $url = self::BASE_URL . '/?' . http_build_query($params);
 
+            // Sleep entre requisições (exceto na primeira)
+            if ($requestCount > 0) {
+                usleep(self::SLEEP_BETWEEN_REQUESTS_MS * 1000);
+            }
+            $requestCount++;
+
             $raw = $this->get($url);
 
             $batch = $raw['data'] ?? [];
@@ -70,21 +82,101 @@ class MinhaReceitaClient
                 break;
             }
 
+            $batchSize = count($batch);
+            $totalFetched += $batchSize;
+
             foreach ($batch as $item) {
                 $normalized = $this->normalizeCompany($item);
                 if ($normalized) {
                     $results[] = $normalized;
+                } else {
+                    $totalFiltered++;
                 }
+                
                 if (count($results) >= $maxResults) {
                     break 2;
                 }
             }
 
+            // Callback de progresso
+            if ($progressCallback !== null) {
+                call_user_func($progressCallback, $totalFetched, $totalFiltered, count($results));
+            }
+
             $cursor = $raw['cursor'] ?? null;
+
+            // Limite de requisições (se configurado)
+            if ($maxRequests > 0 && $requestCount >= $maxRequests) {
+                error_log('[MinhaReceitaClient] Limite de ' . $maxRequests . ' requisições atingido. Total buscado: ' . $totalFetched);
+                break;
+            }
 
         } while ($cursor !== null && count($results) < $maxResults);
 
         return $results;
+    }
+
+    /**
+     * Busca prévia para estimar quantidade de resultados
+     * Retorna apenas a primeira página para análise rápida
+     *
+     * @param string      $cnaeCode Código CNAE
+     * @param string      $uf       UF
+     * @param string|null $ibgeCode Código IBGE do município (opcional)
+     * @return array ['total_fetched' => int, 'valid_count' => int, 'filtered_count' => int, 'has_more' => bool]
+     */
+    public function previewCount(string $cnaeCode, string $uf, ?string $ibgeCode = null): array
+    {
+        $cnaeClean = preg_replace('/\D/', '', $cnaeCode);
+        if (empty($cnaeClean)) {
+            throw new \InvalidArgumentException('Código CNAE inválido');
+        }
+
+        $uf = strtoupper(trim($uf));
+        if (empty($uf) || strlen($uf) !== 2) {
+            throw new \InvalidArgumentException('UF inválida');
+        }
+
+        $params = [
+            'cnae'  => $cnaeClean,
+            'uf'    => $uf,
+            'limit' => self::MAX_PER_PAGE,
+        ];
+
+        if (!empty($ibgeCode)) {
+            $params['municipio'] = preg_replace('/\D/', '', $ibgeCode);
+        }
+
+        $url = self::BASE_URL . '/?' . http_build_query($params);
+
+        try {
+            $raw = $this->get($url);
+        } catch (\Exception $e) {
+            throw new \RuntimeException('Erro ao buscar prévia: ' . $e->getMessage());
+        }
+
+        $batch = $raw['data'] ?? [];
+        $cursor = $raw['cursor'] ?? null;
+        $totalFetched = count($batch);
+        $validCount = 0;
+        $filteredCount = 0;
+
+        foreach ($batch as $item) {
+            $normalized = $this->normalizeCompany($item);
+            if ($normalized) {
+                $validCount++;
+            } else {
+                $filteredCount++;
+            }
+        }
+
+        return [
+            'total_fetched'   => $totalFetched,
+            'valid_count'     => $validCount,
+            'filtered_count'  => $filteredCount,
+            'has_more'        => $cursor !== null,
+            'filter_rate'     => $totalFetched > 0 ? round(($filteredCount / $totalFetched) * 100, 1) : 0,
+        ];
     }
 
     /**
@@ -210,6 +302,12 @@ class MinhaReceitaClient
         $dataSituacao = !empty($item['data_situacao_cadastral']) ? $item['data_situacao_cadastral'] : null;
         $motivoSituacao = isset($item['motivo_situacao_cadastral']) ? (int) $item['motivo_situacao_cadastral'] : null;
         $descricaoMotivo = $item['descricao_motivo_situacao_cadastral'] ?? null;
+
+        // FILTRO: Ignora empresas com situação cadastral indesejada
+        $situacoesInvalidas = ['INAPTA', 'BAIXADA', 'SUSPENSA', 'NULA'];
+        if ($situacaoCadastral && in_array(strtoupper(trim($situacaoCadastral)), $situacoesInvalidas)) {
+            return null;
+        }
 
         // Situação especial
         $situacaoEspecial = !empty($item['situacao_especial']) ? $item['situacao_especial'] : null;

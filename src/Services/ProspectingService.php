@@ -332,6 +332,95 @@ class ProspectingService
     }
 
     /**
+     * Prévia de resultados para uma receita Minha Receita
+     * Busca apenas a primeira página e estima o total
+     *
+     * @param int $recipeId ID da receita
+     * @return array Estatísticas de prévia
+     */
+    public static function previewMinhaReceita(int $recipeId): array
+    {
+        $recipe = self::findRecipeById($recipeId);
+        if (!$recipe) {
+            throw new \InvalidArgumentException('Receita não encontrada');
+        }
+
+        $uf   = $recipe['state'] ?? '';
+        $city = $recipe['city'] ?? '';
+
+        // Busca por múltiplos CNAEs se cadastrados
+        $cnaes = [];
+        if (!empty($recipe['cnaes'])) {
+            $cnaesDecoded = is_string($recipe['cnaes']) ? json_decode($recipe['cnaes'], true) : $recipe['cnaes'];
+            if (is_array($cnaesDecoded) && count($cnaesDecoded) > 0) {
+                $cnaes = $cnaesDecoded;
+            }
+        }
+        
+        // Fallback para CNAE único
+        if (empty($cnaes) && !empty($recipe['cnae_code'])) {
+            $cnaes = [['code' => $recipe['cnae_code'], 'desc' => $recipe['cnae_description'] ?? '']];
+        }
+
+        if (empty($cnaes) || empty($uf)) {
+            throw new \InvalidArgumentException('CNAE e UF são obrigatórios');
+        }
+
+        $client = new MinhaReceitaClient();
+
+        // Resolve código IBGE da cidade se informada
+        $ibgeCode = null;
+        if (!empty($city)) {
+            $ibgeCode = $client->resolveIbgeCode($city, $uf);
+        }
+
+        // Busca prévia para cada CNAE
+        $totalValid = 0;
+        $totalFiltered = 0;
+        $totalFetched = 0;
+        $hasMore = false;
+        $avgFilterRate = 0;
+
+        foreach ($cnaes as $cnae) {
+            $cnaeCode = $cnae['code'] ?? '';
+            if (empty($cnaeCode)) continue;
+
+            try {
+                $preview = $client->previewCount($cnaeCode, $uf, $ibgeCode);
+                $totalFetched += $preview['total_fetched'];
+                $totalValid += $preview['valid_count'];
+                $totalFiltered += $preview['filtered_count'];
+                if ($preview['has_more']) {
+                    $hasMore = true;
+                }
+            } catch (\Exception $e) {
+                error_log('[ProspectingService] Erro na prévia CNAE ' . $cnaeCode . ': ' . $e->getMessage());
+            }
+        }
+
+        // Calcula taxa média de filtro
+        $avgFilterRate = $totalFetched > 0 ? round(($totalFiltered / $totalFetched) * 100, 1) : 0;
+
+        // Estima total baseado na primeira página
+        // Se tem cursor (has_more), estima que há pelo menos 10x mais
+        $estimatedTotal = $hasMore ? $totalValid * 10 : $totalValid;
+        $estimatedFiltered = $hasMore ? $totalFiltered * 10 : $totalFiltered;
+
+        return [
+            'sample_size'        => $totalFetched,
+            'valid_in_sample'    => $totalValid,
+            'filtered_in_sample' => $totalFiltered,
+            'filter_rate'        => $avgFilterRate,
+            'has_more'           => $hasMore,
+            'estimated_total'    => $estimatedTotal,
+            'estimated_filtered' => $estimatedFiltered,
+            'city'               => $city ?: 'Todo o estado',
+            'state'              => $uf,
+            'cnaes_count'        => count($cnaes),
+        ];
+    }
+
+    /**
      * Executa busca via Minha Receita (dados abertos Receita Federal)
      */
     private static function runSearchMinhaReceita(array $recipe, int $recipeId, int $maxResults): array
@@ -374,7 +463,16 @@ class ProspectingService
             $cnaeCode = $cnae['code'] ?? '';
             if (empty($cnaeCode)) continue;
 
-            $places = $client->searchByCnaeAndRegion($cnaeCode, $uf, $ibgeCode, $resultsPerCnae);
+            // Callback de progresso para log
+            $progressCallback = function($fetched, $filtered, $valid) use ($cnaeCode) {
+                error_log("[ProspectingService] CNAE {$cnaeCode}: {$fetched} buscados, {$filtered} filtrados, {$valid} válidos");
+            };
+
+            // Calcula maxRequests baseado no volume esperado
+            // Para volumes grandes (>1000), permite mais requisições
+            $maxRequests = $resultsPerCnae > 1000 ? 0 : 100; // 0 = ilimitado
+
+            $places = $client->searchByCnaeAndRegion($cnaeCode, $uf, $ibgeCode, $resultsPerCnae, $progressCallback, $maxRequests);
             
             foreach ($places as $place) {
                 $cnpj = $place['cnpj'] ?? '';

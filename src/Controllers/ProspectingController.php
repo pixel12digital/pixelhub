@@ -309,6 +309,39 @@ class ProspectingController extends Controller
     // =========================================================================
 
     /**
+     * POST /prospecting/preview  (AJAX)
+     * Prévia de resultados antes da busca completa (apenas Minha Receita)
+     */
+    public function preview(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $recipeId = (int) ($_POST['recipe_id'] ?? 0);
+
+        if (!$recipeId) {
+            $this->json(['success' => false, 'error' => 'ID da receita inválido'], 400);
+            return;
+        }
+
+        try {
+            $recipe = ProspectingService::findRecipeById($recipeId);
+            $recipeSource = $recipe['source'] ?? 'google_maps';
+
+            if ($recipeSource !== 'minhareceita') {
+                $this->json(['success' => false, 'error' => 'Prévia disponível apenas para Minha Receita'], 400);
+                return;
+            }
+
+            $preview = ProspectingService::previewMinhaReceita($recipeId);
+            $this->json(['success' => true, 'preview' => $preview]);
+        } catch (\Exception $e) {
+            error_log('[ProspectingController] Erro ao gerar prévia: ' . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * POST /prospecting/run  (AJAX)
      * Executa a busca no Google Places para uma receita
      */
@@ -318,7 +351,17 @@ class ProspectingController extends Controller
         header('Content-Type: application/json');
 
         $recipeId   = (int) ($_POST['recipe_id'] ?? 0);
-        $maxResults = min((int) ($_POST['max_results'] ?? 20), 60);
+        $maxResults = min((int) ($_POST['max_results'] ?? 100), 10000);
+
+        // Aumenta timeout baseado no volume
+        // Até 1000: 5 min | 1000-5000: 10 min | 5000+: 15 min
+        if ($maxResults > 5000) {
+            set_time_limit(900); // 15 minutos
+        } elseif ($maxResults > 1000) {
+            set_time_limit(600); // 10 minutos
+        } else {
+            set_time_limit(300); // 5 minutos
+        }
 
         if (!$recipeId) {
             $this->json(['success' => false, 'error' => 'ID da receita inválido'], 400);

@@ -475,7 +475,7 @@ function runSearch(recipeId, btn) {
     fetch('<?= pixelhub_url('/prospecting/run') ?>', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'recipe_id=' + recipeId + '&max_results=20'
+        body: 'recipe_id=' + recipeId + '&max_results=100'
     })
     .then(r => r.json())
     .then(data => {

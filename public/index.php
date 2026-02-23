@@ -742,6 +742,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/prospecting/update', 'ProspectingController@update');
     $router->post('/prospecting/toggle-status', 'ProspectingController@toggleStatus');
     $router->post('/prospecting/delete', 'ProspectingController@delete');
+    $router->post('/prospecting/preview', 'ProspectingController@preview');
     $router->post('/prospecting/run', 'ProspectingController@run');
     $router->get('/prospecting/results', 'ProspectingController@results');
     $router->post('/prospecting/update-result-status', 'ProspectingController@updateResultStatus');
