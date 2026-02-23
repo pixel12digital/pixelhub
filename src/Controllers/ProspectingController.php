@@ -173,6 +173,15 @@ class ProspectingController extends Controller
             $keywordsRaw = trim($_POST['keywords_raw'] ?? '');
             $keywords    = array_values(array_filter(array_map('trim', explode(',', $keywordsRaw))));
 
+            // Parse array de CNAEs se fornecido
+            $cnaes = null;
+            if (!empty($_POST['cnaes'])) {
+                $cnaesDecoded = json_decode($_POST['cnaes'], true);
+                if (is_array($cnaesDecoded) && count($cnaesDecoded) > 0) {
+                    $cnaes = $cnaesDecoded;
+                }
+            }
+
             $data = [
                 'tenant_id'         => $_POST['tenant_id'] ?? null,
                 'name'              => $_POST['name'] ?? '',
@@ -185,6 +194,7 @@ class ProspectingController extends Controller
                 'radius_meters'     => $_POST['radius_meters'] ?? 5000,
                 'cnae_code'         => $_POST['cnae_code'] ?? '',
                 'cnae_description'  => $_POST['cnae_description'] ?? '',
+                'cnaes'             => $cnaes,
                 'notes'             => $_POST['notes'] ?? '',
             ];
 
@@ -215,6 +225,15 @@ class ProspectingController extends Controller
             $keywordsRaw = trim($_POST['keywords_raw'] ?? '');
             $keywords    = array_values(array_filter(array_map('trim', explode(',', $keywordsRaw))));
 
+            // Parse array de CNAEs se fornecido
+            $cnaes = null;
+            if (!empty($_POST['cnaes'])) {
+                $cnaesDecoded = json_decode($_POST['cnaes'], true);
+                if (is_array($cnaesDecoded) && count($cnaesDecoded) > 0) {
+                    $cnaes = $cnaesDecoded;
+                }
+            }
+
             $data = [
                 'tenant_id'         => $_POST['tenant_id'] ?? null,
                 'name'              => $_POST['name'] ?? '',
@@ -227,6 +246,7 @@ class ProspectingController extends Controller
                 'radius_meters'     => $_POST['radius_meters'] ?? 5000,
                 'cnae_code'         => $_POST['cnae_code'] ?? '',
                 'cnae_description'  => $_POST['cnae_description'] ?? '',
+                'cnaes'             => $cnaes,
                 'notes'             => $_POST['notes'] ?? '',
             ];
 

@@ -185,6 +185,7 @@ class ProspectingService
         $notes       = trim($data['notes'] ?? '') ?: null;
         $cnaeCode    = trim($data['cnae_code'] ?? '') ?: null;
         $cnaeDesc    = trim($data['cnae_description'] ?? '') ?: null;
+        $cnaes       = !empty($data['cnaes']) ? $data['cnaes'] : null;
 
         // Normaliza keywords
         $keywords = self::normalizeKeywords($data['keywords'] ?? []);
@@ -206,8 +207,8 @@ class ProspectingService
 
         $stmt = $db->prepare("
             INSERT INTO prospecting_recipes
-                (tenant_id, name, source, product_id, city, state, keywords, google_place_type, radius_meters, cnae_code, cnae_description, status, notes, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NOW(), NOW())
+                (tenant_id, name, source, product_id, city, state, keywords, google_place_type, radius_meters, cnae_code, cnae_description, cnaes, status, notes, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NOW(), NOW())
         ");
         $stmt->execute([
             $tenantId,
@@ -221,6 +222,7 @@ class ProspectingService
             $radius,
             $cnaeCode,
             $cnaeDesc,
+            $cnaes ? json_encode($cnaes, JSON_UNESCAPED_UNICODE) : null,
             $notes,
             $userId,
         ]);
@@ -241,6 +243,8 @@ class ProspectingService
 
         $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
 
+        $cnaes = !empty($data['cnaes']) ? $data['cnaes'] : null;
+
         $stmt = $db->prepare("
             UPDATE prospecting_recipes SET
                 tenant_id = ?,
@@ -254,6 +258,7 @@ class ProspectingService
                 radius_meters = ?,
                 cnae_code = ?,
                 cnae_description = ?,
+                cnaes = ?,
                 notes = ?,
                 updated_at = NOW()
             WHERE id = ?
@@ -270,6 +275,7 @@ class ProspectingService
             !empty($data['radius_meters']) ? (int) $data['radius_meters'] : 5000,
             trim($data['cnae_code'] ?? '') ?: null,
             trim($data['cnae_description'] ?? '') ?: null,
+            $cnaes ? json_encode($cnaes, JSON_UNESCAPED_UNICODE) : null,
             trim($data['notes'] ?? '') ?: null,
             $id,
         ]);

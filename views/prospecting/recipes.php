@@ -209,10 +209,11 @@ if (($sourceFilter ?? null) === 'minhareceita') {
                 <?php if (($sourceFilter ?? '') === 'minhareceita'): ?>
                 <!-- CAMPOS CNAE (Minha Receita) -->
                 <div>
-                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">CNAE * <span style="font-weight:400;color:#94a3b8;font-size:11px;">— código da atividade econômica</span></label>
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">CNAE * <span style="font-weight:400;color:#94a3b8;font-size:11px;">— código da atividade econômica (pode adicionar vários)</span></label>
                     <div id="cnaeTags" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
                     <input type="hidden" name="cnae_code" id="recipeCnaeCode">
                     <input type="hidden" name="cnae_description" id="recipeCnaeDescription">
+                    <input type="hidden" name="cnaes" id="recipeCnaes">
                     <div style="position:relative;">
                         <input type="text" id="recipeCnaeSearch" autocomplete="off"
                                placeholder="Digite segmento ou código (ex: imobiliária, 6822...)"
@@ -296,7 +297,18 @@ function openEditModal(r){
     document.getElementById('recipeProduct').value=r.product_id||'';
     document.getElementById('recipeNotes').value=r.notes||'';
     if(document.getElementById('recipePlaceType')) document.getElementById('recipePlaceType').value=r.google_place_type||'';
-    _cnaeList = r.cnae_code ? [{code: r.cnae_code, desc: r.cnae_description||''}] : [];
+    // Carrega array de CNAEs se existir, senão usa o CNAE único (compatibilidade)
+    if(r.cnaes && typeof r.cnaes === 'string') {
+        try {
+            _cnaeList = JSON.parse(r.cnaes);
+        } catch(e) {
+            _cnaeList = r.cnae_code ? [{code: r.cnae_code, desc: r.cnae_description||''}] : [];
+        }
+    } else if(Array.isArray(r.cnaes)) {
+        _cnaeList = r.cnaes;
+    } else {
+        _cnaeList = r.cnae_code ? [{code: r.cnae_code, desc: r.cnae_description||''}] : [];
+    }
     renderCnaeTags();
     if(document.getElementById('recipeCnaeSearch')) document.getElementById('recipeCnaeSearch').value='';
     if(document.getElementById('recipeIbgeCode')) document.getElementById('recipeIbgeCode').value='';
@@ -590,6 +602,7 @@ function renderCnaeTags(){
     const tagsEl = document.getElementById('cnaeTags');
     const codeEl = document.getElementById('recipeCnaeCode');
     const descEl = document.getElementById('recipeCnaeDescription');
+    const cnaesEl = document.getElementById('recipeCnaes');
     if(!tagsEl) return;
     tagsEl.innerHTML = _cnaeList.map((c,i) =>
         `<span style="display:inline-flex;align-items:center;gap:4px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:3px 10px;font-size:12px;color:#1e40af;">
@@ -600,6 +613,8 @@ function renderCnaeTags(){
     // Primeiro CNAE vai para os hidden inputs (compatibilidade com backend)
     if(codeEl) codeEl.value = _cnaeList.length ? _cnaeList[0].code : '';
     if(descEl) descEl.value = _cnaeList.length ? _cnaeList[0].desc : '';
+    // Array completo de CNAEs em JSON
+    if(cnaesEl) cnaesEl.value = JSON.stringify(_cnaeList);
 }
 
 function removeCnae(i){
@@ -614,8 +629,8 @@ function setCnae(code, desc){
         document.getElementById('cnaeDropdown').style.display = 'none';
         return;
     }
-    // Substitui o CNAE existente (apenas 1 CNAE por receita)
-    _cnaeList = [{code, desc}];
+    // Adiciona o CNAE ao array (permite múltiplos CNAEs)
+    _cnaeList.push({code, desc});
     renderCnaeTags();
     const searchEl = document.getElementById('recipeCnaeSearch');
     const dd = document.getElementById('cnaeDropdown');
