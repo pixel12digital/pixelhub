@@ -614,7 +614,8 @@ function setCnae(code, desc){
         document.getElementById('cnaeDropdown').style.display = 'none';
         return;
     }
-    _cnaeList.push({code, desc});
+    // Substitui o CNAE existente (apenas 1 CNAE por receita)
+    _cnaeList = [{code, desc}];
     renderCnaeTags();
     const searchEl = document.getElementById('recipeCnaeSearch');
     const dd = document.getElementById('cnaeDropdown');
