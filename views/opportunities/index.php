@@ -23,7 +23,7 @@ $stageColors = [
 <?php
 $selectedTenantLabel = 'Todas as contas';
 if ($selectedTenant === '') {
-    $selectedTenantLabel = 'Pixel12 Digital (agência)';
+    $selectedTenantLabel = 'Oportunidades da Agência (sem conta)';
 } elseif ($selectedTenant !== null) {
     foreach ($tenants as $t) {
         if ((string)$t['id'] === (string)$selectedTenant) {
@@ -54,7 +54,7 @@ if ($selectedTenant === '') {
                 </a>
                 <a href="<?= pixelhub_url('/opportunities?tenant_id=') ?>" class="tenant-opt"
                    style="display:block;padding:8px 14px;font-size:13px;color:#374151;text-decoration:none;font-weight:<?= $selectedTenant === '' ? '700' : '400' ?>;">
-                    Pixel12 Digital (agência)
+                    Oportunidades da Agência (sem conta)
                 </a>
                 <?php foreach ($tenants as $t): ?>
                 <a href="<?= pixelhub_url('/opportunities?tenant_id=' . $t['id']) ?>" class="tenant-opt"

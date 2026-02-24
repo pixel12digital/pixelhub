@@ -35,7 +35,7 @@ function getOriginDisplay($origin) {
     <div>
         <?php
         // CORREÇÃO: Sempre passa tenant_id para manter filtro ao voltar
-        // Se tenant_id é NULL, passa tenant_id= (vazio) para filtrar por Pixel12 Digital (agência)
+        // Se tenant_id é NULL, passa tenant_id= (vazio) para filtrar por "Oportunidades da Agência (sem conta)"
         // Se tenant_id é número, passa tenant_id=X para filtrar por aquela conta
         $backTenantId = $opp['tenant_id'] ?? null;
         if ($backTenantId === null) {
