@@ -3510,7 +3510,20 @@ class CommunicationHubController extends Controller
         // Usa LIKE para pegar variações do telefone (com @c.us, @lid, etc)
         // CORREÇÃO: Também busca por conversation_id para pegar eventos outbound que têm o conversation_id correto
         $where = [
-            "ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')"
+            "ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')",
+            // FILTRO: Exclui eventos técnicos que não são mensagens reais
+            "(
+                JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.type')) NOT IN ('e2e_notification', 'notification_template', 'ciphertext')
+                OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.type')) IS NULL
+            )",
+            "(
+                JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.type')) NOT IN ('e2e_notification', 'notification_template', 'ciphertext')
+                OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.type')) IS NULL
+            )",
+            "(
+                JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.raw.payload.type')) NOT IN ('e2e_notification', 'notification_template', 'ciphertext')
+                OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.raw.payload.type')) IS NULL
+            )"
         ];
         $params = [];
         
