@@ -3954,21 +3954,38 @@ class CommunicationHubController extends Controller
             $hasMediaIndicator = $payloadType && in_array($payloadType, ['audio', 'ptt', 'image', 'video', 'document', 'sticker']);
 
             if (!$mediaInfo && $hasMediaIndicator) {
-                try {
-                    $processedMedia = \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($event);
-                    if ($processedMedia) {
-                        $mediaInfo = $processedMedia;
-                    }
-                } catch (\Exception $e) {
-                    error_log("[CommunicationHub] Erro ao processar mídia sob demanda: " . $e->getMessage());
-                }
-                // Se ainda não tem mídia após tentativa: placeholder para UI exibir "Mídia não disponível"
-                if (!$mediaInfo) {
+                // CORREÇÃO: Verifica se mediaUrl já existe no payload antes de tentar processar
+                $mediaUrl = $payload['message']['mediaUrl'] ?? null;
+                $mediaData = $payload['message']['media'] ?? [];
+                
+                if ($mediaUrl) {
+                    // Mídia já processada e URL disponível no payload
                     $mediaInfo = [
-                        'media_failed' => true,
-                        'media_type' => $payloadType === 'ptt' ? 'audio' : $payloadType,
-                        'mime_type' => $payloadType === 'ptt' || $payloadType === 'audio' ? 'audio/ogg' : ($payloadType === 'image' ? 'image/jpeg' : null),
+                        'url' => $mediaUrl,
+                        'media_type' => $payloadType === 'ptt' ? 'audio' : ($mediaData['type'] ?? $payloadType),
+                        'mime_type' => $mediaData['mimetype'] ?? ($payloadType === 'ptt' || $payloadType === 'audio' ? 'audio/ogg' : null),
+                        'file_size' => $mediaData['size'] ?? null,
                     ];
+                    error_log("[CommunicationHub] Mídia extraída do payload: event_id={$event['event_id']}, type={$mediaInfo['media_type']}, url=" . substr($mediaUrl, 0, 50));
+                } else {
+                    // Tenta processar mídia sob demanda
+                    try {
+                        $processedMedia = \PixelHub\Services\WhatsAppMediaService::processMediaFromEvent($event);
+                        if ($processedMedia) {
+                            $mediaInfo = $processedMedia;
+                        }
+                    } catch (\Exception $e) {
+                        error_log("[CommunicationHub] Erro ao processar mídia sob demanda: " . $e->getMessage());
+                    }
+                    
+                    // Se ainda não tem mídia após tentativa: placeholder para UI exibir "Mídia não disponível"
+                    if (!$mediaInfo) {
+                        $mediaInfo = [
+                            'media_failed' => true,
+                            'media_type' => $payloadType === 'ptt' ? 'audio' : $payloadType,
+                            'mime_type' => $payloadType === 'ptt' || $payloadType === 'audio' ? 'audio/ogg' : ($payloadType === 'image' ? 'image/jpeg' : null),
+                        ];
+                    }
                 }
             }
             

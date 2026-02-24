@@ -215,7 +215,7 @@ class ConversationService
                 ");
                 $likePattern = '%' . substr($numericPart, -8);
                 $checkStmt->execute([$likePattern, $channelInfo['tenant_id'] ?? null]);
-                $potentialMatches = $checkStmt->fetchAll(PDO::FETCH_ASSOC);
+                $potentialMatches = $checkStmt->fetchAll(\PDO::FETCH_ASSOC);
                 
                 if (!empty($potentialMatches)) {
                     error_log('[LID_PHONE_MAPPING] ALERTA_POTENCIAL_DUPLICIDADE: @lid ' . $channelInfo['contact_external_id'] . 
@@ -2383,6 +2383,9 @@ private static function extractMessageTimestamp(array $eventData): string
                 $contactDigits = '55' . $contactDigits;
             }
             
+            error_log(sprintf('[RESOLVE_LEAD_BY_PHONE] Buscando lead para contato: %s (normalizado: %s)', 
+                $contactExternalId, $contactDigits));
+            
             // Busca leads com telefone cadastrado
             $stmt = $db->query("SELECT id, name, phone FROM leads WHERE phone IS NOT NULL AND phone != '' ORDER BY id DESC");
             $leads = $stmt->fetchAll();
@@ -2391,17 +2394,55 @@ private static function extractMessageTimestamp(array $eventData): string
                 $leadPhone = preg_replace('/[^0-9]/', '', $lead['phone']);
                 if (empty($leadPhone)) continue;
                 
-                // Garante prefixo 55
+                // Garante prefixo 55 para números BR
                 if (substr($leadPhone, 0, 2) !== '55' && (strlen($leadPhone) === 10 || strlen($leadPhone) === 11)) {
                     $leadPhone = '55' . $leadPhone;
                 }
                 
                 // Comparação exata
                 if ($contactDigits === $leadPhone) {
+                    error_log(sprintf('[RESOLVE_LEAD_BY_PHONE] Match exato: lead_id=%d, nome=%s, telefone=%s', 
+                        $lead['id'], $lead['name'], $lead['phone']));
                     return (int) $lead['id'];
                 }
                 
-                // Tolerância de 9º dígito BR
+                // CORREÇÃO: Tolerância de 9º dígito BR - compara últimos 8 dígitos
+                // Isso resolve casos onde o lead tem "55 9923-5045" e o contato é "555599235045"
+                if (strlen($contactDigits) >= 10 && strlen($leadPhone) >= 10) {
+                    // Extrai últimos 8 dígitos de ambos (número sem DDD e sem 9º dígito)
+                    $contactLast8 = substr($contactDigits, -8);
+                    $leadLast8 = substr($leadPhone, -8);
+                    
+                    // Se os últimos 8 dígitos batem, verifica se o DDD também bate
+                    if ($contactLast8 === $leadLast8) {
+                        // Extrai DDD (2 dígitos após código do país)
+                        $contactDDD = null;
+                        $leadDDD = null;
+                        
+                        if (strlen($contactDigits) >= 12 && substr($contactDigits, 0, 2) === '55') {
+                            $contactDDD = substr($contactDigits, 2, 2);
+                        }
+                        if (strlen($leadPhone) >= 12 && substr($leadPhone, 0, 2) === '55') {
+                            $leadDDD = substr($leadPhone, 2, 2);
+                        }
+                        
+                        // Se ambos têm DDD, verifica se batem
+                        if ($contactDDD && $leadDDD && $contactDDD === $leadDDD) {
+                            error_log(sprintf('[RESOLVE_LEAD_BY_PHONE] Match por últimos 8 dígitos + DDD: lead_id=%d, nome=%s, telefone=%s (DDD=%s)', 
+                                $lead['id'], $lead['name'], $lead['phone'], $contactDDD));
+                            return (int) $lead['id'];
+                        }
+                        
+                        // Se pelo menos um não tem DDD, aceita o match pelos últimos 8 dígitos
+                        if (!$contactDDD || !$leadDDD) {
+                            error_log(sprintf('[RESOLVE_LEAD_BY_PHONE] Match por últimos 8 dígitos (sem DDD em um dos lados): lead_id=%d, nome=%s, telefone=%s', 
+                                $lead['id'], $lead['name'], $lead['phone']));
+                            return (int) $lead['id'];
+                        }
+                    }
+                }
+                
+                // Fallback: Tolerância de 9º dígito BR (lógica original para números completos)
                 if (strlen($contactDigits) >= 12 && strlen($leadPhone) >= 12 &&
                     substr($contactDigits, 0, 2) === '55' && substr($leadPhone, 0, 2) === '55') {
                     
@@ -2409,11 +2450,14 @@ private static function extractMessageTimestamp(array $eventData): string
                     $leadBase = self::stripNinthDigit($leadPhone);
                     
                     if ($contactBase === $leadBase) {
+                        error_log(sprintf('[RESOLVE_LEAD_BY_PHONE] Match por stripNinthDigit: lead_id=%d, nome=%s, telefone=%s', 
+                            $lead['id'], $lead['name'], $lead['phone']));
                         return (int) $lead['id'];
                     }
                 }
             }
             
+            error_log(sprintf('[RESOLVE_LEAD_BY_PHONE] Nenhum lead encontrado para: %s', $contactExternalId));
             return null;
         } catch (\Exception $e) {
             error_log('[RESOLVE_LEAD_BY_PHONE] Erro: ' . $e->getMessage());
