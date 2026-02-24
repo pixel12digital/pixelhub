@@ -180,10 +180,8 @@ class OpportunityService
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $where[] = 'o.status = ?';
             $params[] = $filters['status'];
-        } elseif (empty($filters['status'])) {
-            // Por padrão, mostra apenas ativas
-            $where[] = "o.status = 'active'";
         }
+        // Removido filtro padrão status='active' para mostrar todas (incluindo won/lost)
 
         if (!empty($filters['stage'])) {
             $where[] = 'o.stage = ?';
