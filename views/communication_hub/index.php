@@ -3250,6 +3250,25 @@ async function loadConversation(threadId, channel) {
     window._currentInboxMessages = [];
     window._currentInboxThread = {};
     
+    // CORREÇÃO: Limpa histórico do chat da IA ao trocar de conversa
+    // Isso evita que o contexto de uma conversa vaze para outra
+    if (typeof InboxAIState !== 'undefined') {
+        InboxAIState.chatHistory = [];
+        InboxAIState.lastResponse = '';
+        InboxAIState.lastContext = '';
+        InboxAIState.lastObjective = '';
+        console.log('[Hub] Histórico da IA limpo ao trocar conversa');
+    }
+    if (typeof InboxAILastConversationId !== 'undefined') {
+        InboxAILastConversationId = null;
+    }
+    
+    // Limpa também a área de chat da IA se estiver aberta
+    const aiChatArea = document.getElementById('inboxAIChatArea');
+    if (aiChatArea) {
+        aiChatArea.innerHTML = '';
+    }
+    
     // [LOG TEMPORARIO] Reset de estado
     console.log('[LOG TEMPORARIO] loadConversation() - ESTADO RESETADO para thread_id=' + threadId);
     

@@ -2920,20 +2920,25 @@ class CommunicationHubController extends Controller
             }
         }
 
-        // CORREÇÃO: Resolve channel_id NULL consultando eventos recentes ou tenant_message_channels
-        // Coleta conversas que precisam de resolução de channel_id
-        $conversationsNeedingChannelId = [];
-        foreach ($conversations as $idx => $conv) {
-            if (empty($conv['channel_id'])) {
-                $conversationsNeedingChannelId[$idx] = $conv;
-            }
-        }
-        
-        // Resolve channel_id em lote para otimização
+        // OTIMIZAÇÃO: Desabilitado temporariamente para melhorar performance
+        // A resolução de channel_id estava causando lentidão devido a múltiplas queries complexas
+        // TODO: Reimplementar de forma mais eficiente se necessário
         $resolvedChannelIds = [];
-        if (!empty($conversationsNeedingChannelId)) {
-            $resolvedChannelIds = $this->resolveMissingChannelIds($db, $conversationsNeedingChannelId);
-        }
+        
+        // // CORREÇÃO: Resolve channel_id NULL consultando eventos recentes ou tenant_message_channels
+        // // Coleta conversas que precisam de resolução de channel_id
+        // $conversationsNeedingChannelId = [];
+        // foreach ($conversations as $idx => $conv) {
+        //     if (empty($conv['channel_id'])) {
+        //         $conversationsNeedingChannelId[$idx] = $conv;
+        //     }
+        // }
+        // 
+        // // Resolve channel_id em lote para otimização
+        // $resolvedChannelIds = [];
+        // if (!empty($conversationsNeedingChannelId)) {
+        //     $resolvedChannelIds = $this->resolveMissingChannelIds($db, $conversationsNeedingChannelId);
+        // }
 
         // Formata para o formato esperado pela UI
         $threads = [];
