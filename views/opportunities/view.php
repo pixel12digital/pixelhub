@@ -34,8 +34,15 @@ function getOriginDisplay($origin) {
 <div class="content-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div>
         <?php
+        // CORREÇÃO: Sempre passa tenant_id para manter filtro ao voltar
+        // Se tenant_id é NULL, passa tenant_id= (vazio) para filtrar por Pixel12 Digital (agência)
+        // Se tenant_id é número, passa tenant_id=X para filtrar por aquela conta
         $backTenantId = $opp['tenant_id'] ?? null;
-        $backUrl = pixelhub_url('/opportunities') . ($backTenantId ? '?tenant_id=' . (int)$backTenantId : '');
+        if ($backTenantId === null) {
+            $backUrl = pixelhub_url('/opportunities?tenant_id=');
+        } else {
+            $backUrl = pixelhub_url('/opportunities?tenant_id=' . (int)$backTenantId);
+        }
         ?>
         <a href="<?= $backUrl ?>" style="color: #023A8D; text-decoration: none; font-size: 13px;">&larr; Voltar para Oportunidades</a>
         <h2 style="margin-top: 6px;"><?= htmlspecialchars($opp['name']) ?></h2>
