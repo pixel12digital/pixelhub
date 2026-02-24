@@ -116,8 +116,15 @@ function getOriginDisplay($origin) {
             <strong style="color: <?= $isWon ? '#155724' : '#721c24' ?>;">
                 <?= $isWon ? 'Oportunidade GANHA' : 'Oportunidade PERDIDA' ?>
             </strong>
+            <?php if ($isLost && !empty($opp['lost_reason_label'])): ?>
+                <div style="color: #721c24; font-size: 13px; margin-top: 4px;">
+                    <strong>Motivo:</strong> <?= htmlspecialchars($opp['lost_reason_label']) ?>
+                </div>
+            <?php endif; ?>
             <?php if ($isLost && !empty($opp['lost_reason'])): ?>
-                <div style="color: #721c24; font-size: 13px; margin-top: 4px;">Motivo: <?= htmlspecialchars($opp['lost_reason']) ?></div>
+                <div style="color: #721c24; font-size: 13px; margin-top: 2px; font-style: italic;">
+                    <?= htmlspecialchars($opp['lost_reason']) ?>
+                </div>
             <?php endif; ?>
             <?php if ($isWon && !empty($opp['won_at'])): ?>
                 <div style="color: #155724; font-size: 13px; margin-top: 4px;">Em <?= date('d/m/Y H:i', strtotime($opp['won_at'])) ?></div>
@@ -553,18 +560,59 @@ function getOriginDisplay($origin) {
 
 <!-- Modal: Marcar como Perdida -->
 <div id="lost-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
-    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 450px; width: 90%;">
-        <h3 style="margin: 0 0 16px 0;">Marcar como Perdida</h3>
+    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%;">
+        <h3 style="margin: 0 0 20px 0;">Marcar como Perdida</h3>
+        
         <div style="margin-bottom: 16px;">
-            <label style="display: block; margin-bottom: 6px; font-weight: 600;">Motivo da perda (opcional)</label>
-            <textarea id="lost-reason" rows="3" placeholder="Ex: Cliente escolheu concorrente, orçamento insuficiente..." 
-                      style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; resize: vertical;"></textarea>
+            <label style="display: block; margin-bottom: 6px; font-weight: 600; color: #333;">
+                Motivo da perda <span style="color: #dc3545;">*</span>
+            </label>
+            <select id="lost-reason-id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
+                <option value="">Selecione o motivo...</option>
+                <?php
+                $db = \PixelHub\Core\DB::getConnection();
+                $reasons = $db->query("
+                    SELECT id, label, category 
+                    FROM opportunity_lost_reasons 
+                    WHERE is_active = 1 
+                    ORDER BY display_order ASC
+                ")->fetchAll() ?: [];
+                
+                $currentCategory = null;
+                foreach ($reasons as $reason):
+                    if ($reason['category'] !== $currentCategory):
+                        if ($currentCategory !== null) echo '</optgroup>';
+                        $categoryLabels = [
+                            'contact' => 'Contato/Comunicação',
+                            'price' => 'Preço/Orçamento',
+                            'competition' => 'Concorrência',
+                            'timing' => 'Timing/Momento',
+                            'service' => 'Produto/Serviço',
+                            'process' => 'Processo/Experiência',
+                            'other' => 'Outros'
+                        ];
+                        $categoryLabel = $categoryLabels[$reason['category']] ?? ucfirst($reason['category']);
+                        echo '<optgroup label="' . htmlspecialchars($categoryLabel) . '">';
+                        $currentCategory = $reason['category'];
+                    endif;
+                ?>
+                    <option value="<?= $reason['id'] ?>"><?= htmlspecialchars($reason['label']) ?></option>
+                <?php endforeach; ?>
+                <?php if ($currentCategory !== null) echo '</optgroup>'; ?>
+            </select>
         </div>
+        
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 6px; font-weight: 600; color: #333;">Observações adicionais (opcional)</label>
+            <textarea id="lost-reason-notes" rows="3" placeholder="Detalhes adicionais sobre a perda..." 
+                      style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; resize: vertical; font-size: 14px;"></textarea>
+        </div>
+        
         <div style="display: flex; gap: 10px;">
-            <button onclick="confirmLost()" style="flex: 1; padding: 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+            <button onclick="confirmLost()" style="flex: 1; padding: 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px;">
                 Confirmar Perda
             </button>
-            <button onclick="closeLostModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            <button onclick="closeLostModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
                 Cancelar
             </button>
         </div>
@@ -751,12 +799,23 @@ function closeLostModal() {
 }
 
 async function confirmLost() {
-    const reason = document.getElementById('lost-reason').value.trim();
+    const reasonId = document.getElementById('lost-reason-id').value;
+    const notes = document.getElementById('lost-reason-notes').value.trim();
+    
+    if (!reasonId) {
+        alert('Por favor, selecione o motivo da perda');
+        return;
+    }
+    
     try {
         const res = await fetch('<?= pixelhub_url('/opportunities/mark-lost') ?>', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: OPP_ID, reason: reason })
+            body: JSON.stringify({ 
+                id: OPP_ID, 
+                lost_reason_id: parseInt(reasonId),
+                notes: notes 
+            })
         });
         const data = await res.json();
         if (data.success) {

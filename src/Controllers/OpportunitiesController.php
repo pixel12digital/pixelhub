@@ -316,14 +316,20 @@ class OpportunitiesController extends Controller
 
         $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
         $id = (int) ($input['id'] ?? 0);
-        $reason = $input['reason'] ?? null;
+        $lostReasonId = !empty($input['lost_reason_id']) ? (int) $input['lost_reason_id'] : null;
+        $notes = $input['notes'] ?? null;
 
         if (!$id) {
             $this->json(['success' => false, 'error' => 'ID é obrigatório'], 400);
             return;
         }
 
-        $result = OpportunityService::markAsLost($id, $reason, $user['id'] ?? null);
+        if (!$lostReasonId) {
+            $this->json(['success' => false, 'error' => 'Motivo da perda é obrigatório'], 400);
+            return;
+        }
+
+        $result = OpportunityService::markAsLost($id, $lostReasonId, $notes, $user['id'] ?? null);
         $this->json(['success' => $result]);
     }
 

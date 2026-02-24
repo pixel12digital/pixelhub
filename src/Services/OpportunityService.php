@@ -135,6 +135,8 @@ class OpportunityService
                    cb.name as created_by_name,
                    p.label as product_label,
                    p.slug as product_slug,
+                   lr.label as lost_reason_label,
+                   lr.category as lost_reason_category,
                    CASE
                        WHEN o.lead_id IS NOT NULL THEN 'lead'
                        WHEN o.tenant_id IS NOT NULL THEN
@@ -147,6 +149,7 @@ class OpportunityService
             LEFT JOIN users u ON o.responsible_user_id = u.id
             LEFT JOIN users cb ON o.created_by = cb.id
             LEFT JOIN opportunity_products p ON o.product_id = p.id
+            LEFT JOIN opportunity_lost_reasons lr ON o.lost_reason_id = lr.id
             WHERE o.id = ?
         ");
         $stmt->execute([$id]);
@@ -378,7 +381,7 @@ class OpportunityService
 
         // Se mudou para 'lost', usa markAsLost
         if ($newStage === 'lost') {
-            return self::markAsLost($id, null, $userId);
+            return self::markAsLost($id, null, null, $userId);
         }
 
         $stmt = $db->prepare("UPDATE opportunities SET stage = ?, updated_at = NOW() WHERE id = ?");
@@ -499,7 +502,7 @@ class OpportunityService
     /**
      * Marca oportunidade como perdida
      */
-    public static function markAsLost(int $id, ?string $reason = null, ?int $userId = null): bool
+    public static function markAsLost(int $id, ?int $lostReasonId = null, ?string $notes = null, ?int $userId = null): bool
     {
         $db = DB::getConnection();
         $opp = self::findById($id);
@@ -507,16 +510,34 @@ class OpportunityService
 
         $oldStage = $opp['stage'];
 
+        // Busca o label do motivo para o histórico
+        $reasonLabel = null;
+        if ($lostReasonId) {
+            $stmt = $db->prepare("SELECT label FROM opportunity_lost_reasons WHERE id = ?");
+            $stmt->execute([$lostReasonId]);
+            $reasonData = $stmt->fetch();
+            $reasonLabel = $reasonData['label'] ?? null;
+        }
+
         $stmt = $db->prepare("
             UPDATE opportunities 
-            SET stage = 'lost', status = 'lost', lost_at = NOW(), lost_reason = ?, updated_at = NOW() 
+            SET stage = 'lost', status = 'lost', lost_at = NOW(), 
+                lost_reason_id = ?, lost_reason = ?, updated_at = NOW() 
             WHERE id = ?
         ");
-        $stmt->execute([$reason, $id]);
+        $stmt->execute([$lostReasonId, $notes, $id]);
+
+        $historyDesc = 'Oportunidade marcada como PERDIDA';
+        if ($reasonLabel) {
+            $historyDesc .= ": {$reasonLabel}";
+        }
+        if ($notes) {
+            $historyDesc .= " ({$notes})";
+        }
 
         self::addHistory($id, 'status_changed', 
             self::STAGES[$oldStage] ?? $oldStage, 'Perdido',
-            'Oportunidade marcada como PERDIDA' . ($reason ? ": {$reason}" : ''),
+            $historyDesc,
             $userId);
 
         return true;
@@ -530,7 +551,7 @@ class OpportunityService
         $db = DB::getConnection();
         $stmt = $db->prepare("
             UPDATE opportunities 
-            SET stage = 'new', status = 'active', lost_at = NULL, lost_reason = NULL, 
+            SET stage = 'new', status = 'active', lost_at = NULL, lost_reason_id = NULL, lost_reason = NULL, 
                 won_at = NULL, service_order_id = NULL, updated_at = NOW() 
             WHERE id = ?
         ");
