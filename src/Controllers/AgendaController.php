@@ -2082,5 +2082,54 @@ class AgendaController extends Controller
             $this->json(['error' => 'Erro ao criar tarefa: ' . $e->getMessage()], 500);
         }
     }
+    
+    /**
+     * Agenda uma tarefa existente criando um bloco e vinculando a tarefa
+     * POST /agenda/schedule-task
+     */
+    public function scheduleTask(): void
+    {
+        Auth::requireInternal();
+        
+        $taskId = isset($_POST['task_id']) ? (int)$_POST['task_id'] : 0;
+        $projectId = isset($_POST['project_id']) ? (int)$_POST['project_id'] : 0;
+        $dataStr = isset($_POST['data']) ? $_POST['data'] : '';
+        $horaInicio = trim($_POST['hora_inicio'] ?? '');
+        $horaFim = trim($_POST['hora_fim'] ?? '');
+        $tipoId = isset($_POST['tipo_id']) ? (int)$_POST['tipo_id'] : 0;
+        
+        if ($taskId <= 0 || empty($dataStr) || empty($horaInicio) || empty($horaFim) || $tipoId <= 0) {
+            $this->json(['success' => false, 'error' => 'Dados inválidos'], 400);
+            return;
+        }
+        
+        try {
+            // Converte data
+            $data = new \DateTime($dataStr, new \DateTimeZone('America/Sao_Paulo'));
+            
+            // Cria o bloco de agenda
+            $blockId = AgendaService::createManualBlock($data, [
+                'hora_inicio' => $horaInicio,
+                'hora_fim' => $horaFim,
+                'tipo_id' => $tipoId,
+                'projeto_foco_id' => $projectId > 0 ? $projectId : null,
+            ]);
+            
+            // Vincula a tarefa ao bloco
+            AgendaService::attachTaskToBlock($blockId, $taskId, true);
+            
+            $this->json([
+                'success' => true,
+                'block_id' => $blockId,
+                'task_id' => $taskId,
+                'redirect_url' => pixelhub_url('/agenda?data=' . $dataStr),
+                'message' => 'Tarefa agendada com sucesso'
+            ]);
+            
+        } catch (\Exception $e) {
+            error_log("Erro ao agendar tarefa: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro ao agendar tarefa: ' . $e->getMessage()], 500);
+        }
+    }
 }
 

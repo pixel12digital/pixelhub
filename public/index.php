@@ -870,6 +870,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/agenda/bloco/detach-task', 'AgendaController@detachTask');
     $router->post('/agenda/bloco/set-focus-task', 'AgendaController@setFocusTask');
     $router->post('/agenda/bloco/create-quick-task', 'AgendaController@createQuickTask');
+    $router->post('/agenda/schedule-task', 'AgendaController@scheduleTask');
     $router->post('/agenda/bloco/delete', 'AgendaController@delete');
     $router->post('/agenda/bloco/finish', 'AgendaController@finishBlock');
     $router->post('/agenda/bloco/reopen', 'AgendaController@reopenBlock');

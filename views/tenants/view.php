@@ -2916,16 +2916,32 @@ function openInboxNewConversation(tenantId) {
                                 </td>
                                 <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">
                                     <a href="<?= pixelhub_url('/projects/board?tenant_id=' . $tenant['id'] . '&project_id=' . ($task['project_id'] ?? '')) ?>" 
-                                       class="btn-action btn-action-primary"
+                                       class="btn-action"
                                        data-tooltip="Ver no Kanban"
-                                       aria-label="Ver no Kanban">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                       aria-label="Ver no Kanban"
+                                       style="background: #666; color: white; margin-right: 5px;">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
                                             <rect x="3" y="3" width="7" height="7"></rect>
                                             <rect x="14" y="3" width="7" height="7"></rect>
                                             <rect x="14" y="14" width="7" height="7"></rect>
                                             <rect x="3" y="14" width="7" height="7"></rect>
                                         </svg>
                                     </a>
+                                    <?php if ($task['status'] !== 'concluida'): ?>
+                                    <button type="button"
+                                            onclick="openScheduleTaskModal(<?= (int)$task['id'] ?>, <?= (int)($task['project_id'] ?? 0) ?>, '<?= htmlspecialchars($task['title'] ?? '', ENT_QUOTES) ?>')"
+                                            class="btn-action"
+                                            data-tooltip="Agendar na Agenda"
+                                            aria-label="Agendar na Agenda"
+                                            style="background: #666; color: white;">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                                        </svg>
+                                    </button>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -3113,6 +3129,118 @@ function openInboxNewConversation(tenantId) {
             </div>
         <?php endif; ?>
     </div>
+    
+    <!-- Modal de Agendamento de Tarefa -->
+    <div id="scheduleTaskModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; max-width: 500px; border-radius: 8px; padding: 30px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <button onclick="closeScheduleTaskModal()" style="position: absolute; top: 15px; right: 15px; background: #c33; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; line-height: 1;">×</button>
+            
+            <h2 style="margin: 0 0 20px 0; color: #023A8D;">📅 Agendar Tarefa</h2>
+            
+            <form id="scheduleTaskForm" onsubmit="submitScheduleTask(event)">
+                <input type="hidden" id="schedule_task_id" name="task_id">
+                <input type="hidden" id="schedule_project_id" name="project_id">
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Tarefa:</label>
+                    <div id="schedule_task_title" style="padding: 10px; background: #f5f5f5; border-radius: 4px; color: #666;"></div>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label for="schedule_date" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Data:</label>
+                    <input type="date" id="schedule_date" name="data" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                    <div>
+                        <label for="schedule_hora_inicio" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Hora Início:</label>
+                        <input type="time" id="schedule_hora_inicio" name="hora_inicio" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div>
+                        <label for="schedule_hora_fim" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Hora Fim:</label>
+                        <input type="time" id="schedule_hora_fim" name="hora_fim" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label for="schedule_tipo_bloco" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Tipo de Bloco:</label>
+                    <select id="schedule_tipo_bloco" name="tipo_id" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">Selecione...</option>
+                        <option value="1">PRODUÇÃO</option>
+                        <option value="2">SUPORTE</option>
+                        <option value="3">COMERCIAL</option>
+                        <option value="4">FINANCEIRO</option>
+                        <option value="5">PAUSA</option>
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" onclick="closeScheduleTaskModal()" style="padding: 10px 20px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Cancelar</button>
+                    <button type="submit" style="padding: 10px 20px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Agendar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+    function openScheduleTaskModal(taskId, projectId, taskTitle) {
+        document.getElementById('schedule_task_id').value = taskId;
+        document.getElementById('schedule_project_id').value = projectId;
+        document.getElementById('schedule_task_title').textContent = taskTitle;
+        
+        // Preenche data de hoje como padrão
+        var today = new Date().toISOString().split('T')[0];
+        document.getElementById('schedule_date').value = today;
+        
+        // Preenche horário padrão (próxima hora cheia)
+        var now = new Date();
+        var nextHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0);
+        var horaInicio = nextHour.toTimeString().substring(0, 5);
+        var horaFim = new Date(nextHour.getTime() + 60 * 60 * 1000).toTimeString().substring(0, 5);
+        
+        document.getElementById('schedule_hora_inicio').value = horaInicio;
+        document.getElementById('schedule_hora_fim').value = horaFim;
+        
+        document.getElementById('scheduleTaskModal').style.display = 'flex';
+    }
+    
+    function closeScheduleTaskModal() {
+        document.getElementById('scheduleTaskModal').style.display = 'none';
+        document.getElementById('scheduleTaskForm').reset();
+    }
+    
+    function submitScheduleTask(event) {
+        event.preventDefault();
+        
+        var formData = new FormData(event.target);
+        
+        fetch('<?= pixelhub_url('/agenda/schedule-task') ?>', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ Tarefa agendada com sucesso!');
+                closeScheduleTaskModal();
+                
+                // Redireciona para a agenda do dia
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    var data = document.getElementById('schedule_date').value;
+                    window.location.href = '<?= pixelhub_url('/agenda?data=') ?>' + data;
+                }
+            } else {
+                alert('❌ Erro: ' + (data.error || 'Erro desconhecido'));
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('❌ Erro ao agendar tarefa');
+        });
+    }
+    </script>
 
 <?php endif; ?>
 
