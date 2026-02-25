@@ -1050,6 +1050,13 @@ class TicketService
                 'externalReference' => "TICKET_{$ticketId}",
             ];
             
+            // Adiciona parcelamento se informado (apenas para CREDIT_CARD e BOLETO)
+            $installmentCount = !empty($options['installment_count']) ? (int)$options['installment_count'] : 1;
+            if ($installmentCount > 1) {
+                $paymentData['installmentCount'] = $installmentCount;
+                // Asaas gerencia automaticamente os vencimentos das parcelas
+            }
+            
             // Adiciona juros se informado
             if (!empty($options['interest_value'])) {
                 $interestValue = (float)$options['interest_value'];

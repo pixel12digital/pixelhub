@@ -538,6 +538,7 @@ class TicketController extends Controller
                 'discount_value' => !empty($_POST['discount_value']) ? $_POST['discount_value'] : null,
                 'discount_type' => !empty($_POST['discount_type']) ? $_POST['discount_type'] : 'FIXED',
                 'discount_days_before_due' => !empty($_POST['discount_days_before_due']) ? $_POST['discount_days_before_due'] : null,
+                'installment_count' => !empty($_POST['installment_count']) ? (int)$_POST['installment_count'] : 1,
             ];
             
             $result = TicketService::generateBilling($ticketId, $options);

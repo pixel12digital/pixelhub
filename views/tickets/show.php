@@ -444,7 +444,9 @@ ob_start();
                                     </label>
                                     <select 
                                         name="billing_type"
+                                        id="billing_type"
                                         required
+                                        onchange="toggleInstallmentField()"
                                         style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
                                     >
                                         <option value="">Selecione a forma de pagamento</option>
@@ -452,6 +454,24 @@ ob_start();
                                         <option value="CREDIT_CARD">Cartão de Crédito</option>
                                         <option value="UNDEFINED">Pergunte ao cliente</option>
                                     </select>
+                                </div>
+                                
+                                <div id="installment_field" style="display: none;">
+                                    <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                                        Parcelas
+                                    </label>
+                                    <select 
+                                        name="installment_count"
+                                        id="installment_count"
+                                        onchange="updateInstallmentPreview()"
+                                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                                    >
+                                        <option value="1">À vista (R$ <?= number_format($ticket['billed_value'] ?? 0, 2, ',', '.') ?>)</option>
+                                        <?php for ($i = 2; $i <= 12; $i++): ?>
+                                            <option value="<?= $i ?>"><?= $i ?>x de R$ <?= number_format(($ticket['billed_value'] ?? 0) / $i, 2, ',', '.') ?></option>
+                                        <?php endfor; ?>
+                                    </select>
+                                    <small style="color: #666; display: block; margin-top: 3px;" id="installment_hint">Asaas gerencia os vencimentos</small>
                                 </div>
                                 
                                 <div>
@@ -1098,6 +1118,29 @@ function updateDiscountLabel() {
         discountValue.placeholder = 'Ex: 10.00';
         discountValue.removeAttribute('max');
     }
+}
+
+// Toggle campo de parcelas (só aparece para CREDIT_CARD e BOLETO)
+function toggleInstallmentField() {
+    const billingType = document.getElementById('billing_type');
+    const installmentField = document.getElementById('installment_field');
+    
+    if (!billingType || !installmentField) return;
+    
+    const type = billingType.value;
+    
+    // Mostra parcelas apenas para CREDIT_CARD e BOLETO
+    if (type === 'CREDIT_CARD' || type === 'BOLETO') {
+        installmentField.style.display = 'block';
+    } else {
+        installmentField.style.display = 'none';
+    }
+}
+
+// Atualiza preview das parcelas (caso o valor mude dinamicamente)
+function updateInstallmentPreview() {
+    // Função placeholder para futuras melhorias
+    // Por enquanto, os valores são calculados no PHP ao carregar a página
 }
 
 // Salva valor original ao carregar
