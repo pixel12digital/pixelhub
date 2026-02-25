@@ -1085,24 +1085,27 @@ PROMPT;
     {
         $db = DB::getConnection();
 
-        // Busca faturas pendentes e vencidas do tenant (reutiliza query existente)
+        // Busca faturas pendentes e vencidas do tenant com detalhes de serviços
         $stmt = $db->prepare("
             SELECT 
-                id,
-                invoice_number,
-                amount,
-                due_date,
-                status,
-                asaas_invoice_url,
-                asaas_bank_slip_url,
-                asaas_pix_qrcode,
-                description,
-                DATEDIFF(CURDATE(), due_date) as days_overdue
-            FROM billing_invoices
-            WHERE tenant_id = ?
-            AND status IN ('pending', 'overdue')
-            AND (is_deleted IS NULL OR is_deleted = 0)
-            ORDER BY due_date ASC
+                bi.id,
+                bi.invoice_number,
+                bi.amount,
+                bi.due_date,
+                bi.status,
+                bi.asaas_invoice_url,
+                bi.asaas_bank_slip_url,
+                bi.asaas_pix_qrcode,
+                bi.description,
+                DATEDIFF(CURDATE(), bi.due_date) as days_overdue,
+                s.name as service_name,
+                s.slug as service_slug
+            FROM billing_invoices bi
+            LEFT JOIN services s ON bi.service_id = s.id
+            WHERE bi.tenant_id = ?
+            AND bi.status IN ('pending', 'overdue')
+            AND (bi.is_deleted IS NULL OR bi.is_deleted = 0)
+            ORDER BY bi.due_date ASC
         ");
         $stmt->execute([$tenantId]);
         $invoices = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
@@ -1125,7 +1128,24 @@ PROMPT;
         // Calcula total
         $totalAmount = array_sum(array_column($invoices, 'amount'));
 
-        // Monta lista de links de pagamento
+        // Agrupa por tipo de serviço
+        $servicesSummary = [];
+        foreach ($invoices as $inv) {
+            $serviceName = $inv['service_name'] ?: 'Serviço';
+            if (!isset($servicesSummary[$serviceName])) {
+                $servicesSummary[$serviceName] = ['count' => 0, 'amount' => 0];
+            }
+            $servicesSummary[$serviceName]['count']++;
+            $servicesSummary[$serviceName]['amount'] += $inv['amount'];
+        }
+
+        // Monta resumo de serviços
+        $servicesText = [];
+        foreach ($servicesSummary as $name => $data) {
+            $servicesText[] = "• {$data['count']}x {$name} - R$ " . number_format($data['amount'], 2, ',', '.');
+        }
+
+        // Monta lista de links de pagamento (apenas para cobrança e lembrete)
         $paymentLinks = [];
         foreach ($invoices as $inv) {
             $link = $inv['asaas_invoice_url'] ?: $inv['asaas_bank_slip_url'] ?: null;
@@ -1137,25 +1157,33 @@ PROMPT;
 
         // Determina objetivo e monta contexto baseado na situação
         if ($overdueCount >= 3) {
-            // CRÍTICO: 3+ faturas vencidas
+            // CRÍTICO: 3+ faturas vencidas - RENEGOCIAÇÃO (SEM LINKS)
             $objective = 'billing_critical';
-            $context = "SITUAÇÃO CRÍTICA DE COBRANÇA\n\n";
+            $context = "SITUAÇÃO CRÍTICA DE COBRANÇA - RENEGOCIAÇÃO\n\n";
             $context .= "O cliente possui {$overdueCount} faturas vencidas";
             if ($pendingCount > 0) {
                 $context .= " e {$pendingCount} a vencer";
             }
             $context .= ".\n";
             $context .= "Total em aberto: R$ " . number_format($totalAmount, 2, ',', '.') . "\n\n";
+            
+            $context .= "Resumo dos serviços em aberto:\n";
+            $context .= implode("\n", $servicesText) . "\n\n";
+            
             $context .= "INSTRUÇÕES PARA A MENSAGEM:\n";
-            $context .= "1. Informar que há {$overdueCount} cobranças vencidas que precisam ser regularizadas URGENTEMENTE\n";
-            $context .= "2. Avisar que os serviços serão DESATIVADOS caso não haja regularização\n";
-            $context .= "3. Mencionar que além das cobranças, há custos técnicos para REINSTALAÇÃO do projeto (servidor)\n";
-            $context .= "4. Solicitar posicionamento: regularizar OU excluir o projeto definitivamente\n";
-            $context .= "5. Tom firme mas profissional\n\n";
-            $context .= "Links de pagamento:\n" . implode("\n", $paymentLinks);
+            $context .= "1. Informar que identificamos {$overdueCount} faturas vencidas\n";
+            $context .= "2. Apresentar o valor total atualizado: R$ " . number_format($totalAmount, 2, ',', '.') . "\n";
+            $context .= "3. Listar resumo dos serviços (ex: '3 mensalidades de hospedagem')\n";
+            $context .= "4. **NÃO ENVIAR LINKS DE PAGAMENTO** (é uma renegociação)\n";
+            $context .= "5. Informar prazo: 48 horas para retorno/regularização\n";
+            $context .= "6. Avisar que após 48h sem retorno, o site será REMOVIDO da hospedagem automaticamente\n";
+            $context .= "7. Mencionar que haverá custos de reinstalação caso queira reativar depois\n";
+            $context .= "8. Solicitar posicionamento: regularizar OU confirmar exclusão do projeto\n";
+            $context .= "9. Tom firme mas profissional e respeitoso\n";
+            $context .= "10. Deixar claro que estamos à disposição para discutir opções de pagamento\n";
 
         } elseif ($overdueCount > 0) {
-            // COBRANÇA: 1-2 faturas vencidas
+            // COBRANÇA: 1-2 faturas vencidas - COM LINKS
             $objective = 'billing_collection';
             $context = "COBRANÇA DE FATURAS VENCIDAS\n\n";
             $context .= "O cliente possui {$overdueCount} fatura(s) vencida(s)";
@@ -1164,23 +1192,33 @@ PROMPT;
             }
             $context .= ".\n";
             $context .= "Total em aberto: R$ " . number_format($totalAmount, 2, ',', '.') . "\n\n";
+            
+            $context .= "Resumo dos serviços:\n";
+            $context .= implode("\n", $servicesText) . "\n\n";
+            
             $context .= "INSTRUÇÕES PARA A MENSAGEM:\n";
             $context .= "1. Informar sobre as cobranças vencidas de forma clara\n";
-            $context .= "2. Solicitar regularização\n";
-            $context .= "3. Disponibilizar os links de pagamento\n";
-            $context .= "4. Tom cordial mas direto\n\n";
+            $context .= "2. Apresentar valor total atualizado: R$ " . number_format($totalAmount, 2, ',', '.') . "\n";
+            $context .= "3. Solicitar regularização\n";
+            $context .= "4. **ENVIAR os links de pagamento abaixo**\n";
+            $context .= "5. Tom cordial mas direto\n\n";
             $context .= "Links de pagamento:\n" . implode("\n", $paymentLinks);
 
         } else {
-            // LEMBRETE: apenas faturas a vencer
+            // LEMBRETE: apenas faturas a vencer - COM LINKS
             $objective = 'billing_reminder';
             $context = "LEMBRETE DE VENCIMENTO\n\n";
             $context .= "O cliente possui {$pendingCount} fatura(s) a vencer.\n";
             $context .= "Total: R$ " . number_format($totalAmount, 2, ',', '.') . "\n\n";
+            
+            $context .= "Serviços:\n";
+            $context .= implode("\n", $servicesText) . "\n\n";
+            
             $context .= "INSTRUÇÕES PARA A MENSAGEM:\n";
             $context .= "1. Lembrete amigável sobre as faturas que vencerão em breve\n";
-            $context .= "2. Disponibilizar os links de pagamento\n";
-            $context .= "3. Tom cordial e prestativo\n\n";
+            $context .= "2. Informar valor total e datas de vencimento\n";
+            $context .= "3. **ENVIAR os links de pagamento abaixo**\n";
+            $context .= "4. Tom cordial e prestativo\n\n";
             $context .= "Links de pagamento:\n" . implode("\n", $paymentLinks);
         }
 
@@ -1191,6 +1229,7 @@ PROMPT;
                 'total_amount' => $totalAmount,
                 'overdue_count' => $overdueCount,
                 'pending_count' => $pendingCount,
+                'services_summary' => $servicesSummary,
                 'invoices' => $invoices,
             ],
         ];
