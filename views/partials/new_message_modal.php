@@ -590,6 +590,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         var note = (document.getElementById('newMsgAINote') || {}).value || '';
         var contactName = (document.getElementById('modalClienteSearchInput') || {}).value || '';
         var contactPhone = (document.getElementById('new-message-to') || {}).value || '';
+        var userPrompt = text; // Mensagem do usuário para a IA
         
         // Captura tenant_id do campo hidden ou da URL
         var tenantId = (document.getElementById('modalClienteTenantId') || {}).value || null;
