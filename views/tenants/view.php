@@ -2586,6 +2586,12 @@ function openInboxNewConversation(tenantId) {
     <!-- ABA: Observações -->
     
     <div class="card">
+        <?php if (isset($_GET['success']) && $_GET['success'] === 'observations_updated'): ?>
+            <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 4px; margin-bottom: 20px; border-left: 4px solid #28a745;">
+                ✅ Observações salvas com sucesso!
+            </div>
+        <?php endif; ?>
+        
         <h3 style="margin: 0 0 20px 0;">Observações sobre o Cliente</h3>
         <p style="color: #666; margin-bottom: 20px;">
             Use este espaço para registrar observações importantes sobre o cliente, anotações de reuniões, lembretes ou qualquer informação relevante.

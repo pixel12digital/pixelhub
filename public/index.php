@@ -433,6 +433,7 @@ $router->post('/tenants/archive', 'TenantsController@archive');
     $router->post('/tenants/whatsapp-generic-log', 'TenantsController@logGenericWhatsApp');
     $router->get('/tenants/whatsapp-timeline-ajax', 'TenantsController@getWhatsAppTimelineAjax');
     $router->get('/tenants/search-ajax', 'TenantsController@searchAjax');
+    $router->post('/tenants/update-observations', 'TenantsController@updateObservations');
 
     // Rotas de documentos gerais de tenants (apenas internos)
     $router->post('/tenants/documents/upload', 'TenantDocumentsController@upload');

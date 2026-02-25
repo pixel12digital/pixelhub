@@ -1905,5 +1905,34 @@ class TenantsController extends Controller
             'whatsappTimeline' => $whatsappTimeline,
         ]);
     }
+
+    /**
+     * Atualiza observações do cliente
+     */
+    public function updateObservations(): void
+    {
+        Auth::requireInternal();
+
+        $tenantId = (int)($_POST['tenant_id'] ?? 0);
+        $observations = trim($_POST['observations'] ?? '');
+
+        if (!$tenantId) {
+            $this->redirect('/tenants?error=invalid_tenant');
+            return;
+        }
+
+        $db = DB::getConnection();
+
+        // Atualiza observações
+        $stmt = $db->prepare("
+            UPDATE tenants 
+            SET observations = ?
+            WHERE id = ?
+        ");
+        $stmt->execute([$observations, $tenantId]);
+
+        // Redireciona de volta para a aba de observações
+        $this->redirect('/tenants/view?id=' . $tenantId . '&tab=notifications&success=observations_updated');
+    }
 }
 
