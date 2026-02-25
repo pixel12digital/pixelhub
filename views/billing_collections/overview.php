@@ -156,7 +156,7 @@ $baseUrl = pixelhub_url('');
                 </th>
                 <th style="padding: 12px; text-align: right; font-weight: 600; color: #495057;">Vencendo Hoje</th>
                 <th style="padding: 12px; text-align: right; font-weight: 600; color: #495057;">Vencendo 7 dias</th>
-                <th style="padding: 12px; text-align: center; font-weight: 600; color: #495057;">Último Contato</th>
+                <th style="padding: 12px; text-align: center; font-weight: 600; color: #495057; width: 120px;">Contatado</th>
                 <th style="padding: 12px; text-align: center; font-weight: 600; color: #495057;">Ações</th>
             </tr>
         </thead>
@@ -180,16 +180,16 @@ $baseUrl = pixelhub_url('');
                     $totalDueToday = (float) ($tenant['total_due_today'] ?? 0);
                     $totalDueNext7d = (float) ($tenant['total_due_next_7d'] ?? 0);
                     
-                    // Último contato
+                    // Verifica se foi contatado hoje
+                    $contactedToday = false;
+                    $contactNote = '';
                     $lastContact = $tenant['last_notification_sent'] ?? $tenant['last_whatsapp_contact'] ?? null;
-                    $lastContactFormatted = 'Nunca';
                     if ($lastContact) {
                         try {
                             $date = new DateTime($lastContact);
-                            $lastContactFormatted = $date->format('d/m/Y H:i');
-                        } catch (Exception $e) {
-                            $lastContactFormatted = 'N/A';
-                        }
+                            $today = new DateTime('today');
+                            $contactedToday = $date >= $today;
+                        } catch (Exception $e) {}
                     }
                     ?>
                     <tr style="border-bottom: 1px solid #dee2e6;">
@@ -215,8 +215,25 @@ $baseUrl = pixelhub_url('');
                         <td style="padding: 12px; text-align: right; <?= $totalDueNext7d > 0 ? 'color: #ffc107; font-weight: 500;' : 'color: #6c757d;' ?>">
                             R$ <?= number_format($totalDueNext7d, 2, ',', '.') ?>
                         </td>
-                        <td style="padding: 12px; text-align: center; color: #6c757d; font-size: 13px;">
-                            <?= $lastContactFormatted ?>
+                        <td style="padding: 12px; text-align: center;" id="contact-cell-<?= $tenant['tenant_id'] ?>">
+                            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 0;">
+                                    <input type="checkbox" 
+                                           class="contact-checkbox"
+                                           data-tenant-id="<?= $tenant['tenant_id'] ?>"
+                                           <?= $contactedToday ? 'checked' : '' ?>
+                                           onchange="toggleContactNote(this)"
+                                           style="width: 18px; height: 18px; cursor: pointer;">
+                                    <span style="font-size: 13px; color: #6c757d;">Hoje</span>
+                                </label>
+                                <input type="text" 
+                                       class="contact-note"
+                                       data-tenant-id="<?= $tenant['tenant_id'] ?>"
+                                       placeholder="Observação..."
+                                       maxlength="100"
+                                       style="display: <?= $contactedToday ? 'block' : 'none' ?>; width: 100%; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;"
+                                       onblur="saveContactNote(<?= $tenant['tenant_id'] ?>, this.value)">
+                            </div>
                         </td>
                         <td style="padding: 12px; text-align: center;">
                             <button class="btn btn-primary btn-sm" 
@@ -517,6 +534,53 @@ document.addEventListener('DOMContentLoaded', function() {
     // Torna funções globais para uso em onclick
     window.closeModal = closeModal;
     window.copyMessage = copyMessage;
+    
+    // Funções de contato
+    window.toggleContactNote = function(checkbox) {
+        const tenantId = checkbox.dataset.tenantId;
+        const noteInput = document.querySelector(`.contact-note[data-tenant-id="${tenantId}"]`);
+        
+        if (checkbox.checked) {
+            noteInput.style.display = 'block';
+            noteInput.focus();
+            // Salva que foi contatado
+            saveContactStatus(tenantId, true, '');
+        } else {
+            noteInput.style.display = 'none';
+            noteInput.value = '';
+            // Remove status de contatado
+            saveContactStatus(tenantId, false, '');
+        }
+    };
+    
+    window.saveContactNote = function(tenantId, note) {
+        const checkbox = document.querySelector(`.contact-checkbox[data-tenant-id="${tenantId}"]`);
+        if (checkbox && checkbox.checked) {
+            saveContactStatus(tenantId, true, note);
+        }
+    };
+    
+    function saveContactStatus(tenantId, contacted, note) {
+        const formData = new FormData();
+        formData.append('tenant_id', tenantId);
+        formData.append('contacted', contacted ? '1' : '0');
+        formData.append('note', note);
+        
+        fetch('<?= pixelhub_url('/billing/save-contact-status') ?>', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                console.error('Erro ao salvar status de contato:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao salvar status de contato:', error);
+        });
+    }
 
     // Badge de falhas recentes
     fetch('<?= pixelhub_url('/billing/failure-count') ?>')

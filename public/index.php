@@ -502,6 +502,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/billing/sync-all-from-asaas', 'BillingCollectionsController@syncAllFromAsaas');
     $router->get('/billing/sync-errors', 'BillingCollectionsController@viewSyncErrors');
     $router->post('/billing/send-via-inbox', 'BillingCollectionsController@sendViaInbox');
+    $router->post('/billing/save-contact-status', 'BillingCollectionsController@saveContactStatus');
     $router->post('/billing/update-auto-settings', 'BillingCollectionsController@updateAutoSettings');
     $router->get('/billing/notifications-log', 'BillingCollectionsController@notificationsLog');
     $router->get('/billing/failure-count', 'BillingCollectionsController@failureCount');

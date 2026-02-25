@@ -890,6 +890,46 @@ class BillingCollectionsController extends Controller
         $count = (int) $stmt->fetchColumn();
         $this->json(['count' => $count]);
     }
+    
+    /**
+     * Salva status de contato do cliente (checkbox "Contatado")
+     * 
+     * POST /billing/save-contact-status
+     */
+    public function saveContactStatus(): void
+    {
+        Auth::requireInternal();
+        
+        $tenantId = isset($_POST['tenant_id']) ? (int)$_POST['tenant_id'] : 0;
+        $contacted = isset($_POST['contacted']) && $_POST['contacted'] === '1';
+        $note = trim($_POST['note'] ?? '');
+        
+        if ($tenantId <= 0) {
+            $this->json(['success' => false, 'error' => 'ID do cliente inválido']);
+            return;
+        }
+        
+        try {
+            $db = DB::getConnection();
+            
+            if ($contacted) {
+                // Registra contato em billing_notifications
+                $stmt = $db->prepare("
+                    INSERT INTO billing_notifications 
+                    (tenant_id, channel, message, status, triggered_by, created_at, sent_at)
+                    VALUES (?, 'manual', ?, 'sent', 'manual_contact', NOW(), NOW())
+                ");
+                $message = $note ?: 'Contato manual registrado';
+                $stmt->execute([$tenantId, $message]);
+            }
+            
+            $this->json(['success' => true, 'message' => 'Status salvo com sucesso']);
+            
+        } catch (\Exception $e) {
+            error_log("Erro ao salvar status de contato: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro ao salvar status de contato'], 500);
+        }
+    }
 
     /**
      * Helper: responde JSON ou redireciona dependendo do contexto
