@@ -599,13 +599,19 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             tenantId = urlParams.get('id');
         }
         
+        // Captura conversation_id se disponível (quando modal é aberto de uma conversa existente)
+        var conversationId = window._currentInboxConversationId || null;
+        
         console.log('[NewMsgAI] Enviando para API:', {
             context: contextSlug,
             objective: objective,
             tenant_id: tenantId,
-            opportunity_id: window._currentOpportunityId
+            opportunity_id: window._currentOpportunityId,
+            conversation_id: conversationId
         });
 
+        // O backend já busca o histórico automaticamente via conversation_id
+        // e chama transcribeAudiosForContext() internamente
         fetch(_newMsgAIBaseUrl + '/api/ai/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -618,31 +624,33 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 contact_phone: contactPhone,
                 ai_chat_messages: _newMsgAIChatHistory,
                 opportunity_id: window._currentOpportunityId || null,
-                tenant_id: tenantId ? parseInt(tenantId) : null
+                tenant_id: tenantId ? parseInt(tenantId) : null,
+                conversation_id: conversationId,
+                user_prompt: userPrompt
             })
         })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            var ld = document.getElementById('newMsgAILoading');
-            if (ld) ld.remove();
-            if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var ld = document.getElementById('newMsgAILoading');
+                if (ld) ld.remove();
+                if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
 
-            if (!data.success) {
-                _newMsgAIChatHistory.push({ role: 'assistant', content: 'Erro: ' + (data.error || 'Erro desconhecido') });
-            } else {
-                _newMsgAIChatHistory.push({ role: 'assistant', content: data.message });
-                _newMsgAILastResponse = data.message;
-            }
-            renderNewMsgAIChat();
-            if (input) input.focus();
-        })
-        .catch(function(err) {
-            var ld = document.getElementById('newMsgAILoading');
-            if (ld) ld.remove();
-            if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
-            _newMsgAIChatHistory.push({ role: 'assistant', content: 'Erro de conexão: ' + err.message });
-            renderNewMsgAIChat();
-        });
+                if (!data.success) {
+                    _newMsgAIChatHistory.push({ role: 'assistant', content: 'Erro: ' + (data.error || 'Erro desconhecido') });
+                } else {
+                    _newMsgAIChatHistory.push({ role: 'assistant', content: data.message });
+                    _newMsgAILastResponse = data.message;
+                }
+                renderNewMsgAIChat();
+                if (input) input.focus();
+            })
+            .catch(function(err) {
+                var ld = document.getElementById('newMsgAILoading');
+                if (ld) ld.remove();
+                if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+                _newMsgAIChatHistory.push({ role: 'assistant', content: 'Erro de conexão: ' + err.message });
+                renderNewMsgAIChat();
+            });
     };
 
     window.generateAIDraft = function() {
