@@ -1023,38 +1023,59 @@ PROMPT;
      */
     private static function transcribeAudiosForContext(array $conversationHistory): array
     {
-        $enhancedHistory = [];
+        error_log('[AI TRANSCRIBE] ========== INÍCIO TRANSCRIÇÃO DE ÁUDIOS ==========');
+        error_log('[AI TRANSCRIBE] Total de mensagens no histórico: ' . count($conversationHistory));
         
-        foreach ($conversationHistory as $message) {
+        $enhancedHistory = [];
+        $audioCount = 0;
+        $transcribedCount = 0;
+        
+        foreach ($conversationHistory as $index => $message) {
             $enhancedMessage = $message;
             
             // Verifica se há mídia/áudio na mensagem
             if (isset($message['media']) && is_array($message['media'])) {
+                error_log('[AI TRANSCRIBE] Mensagem #' . $index . ' tem mídia: ' . count($message['media']) . ' item(s)');
                 $transcribedTexts = [];
                 
-                foreach ($message['media'] as $media) {
+                foreach ($message['media'] as $mediaIndex => $media) {
+                    $mediaType = $media['media_type'] ?? 'unknown';
+                    error_log('[AI TRANSCRIBE] Mídia #' . $mediaIndex . ' - Tipo: ' . $mediaType);
+                    
                     // Se é áudio e não tem transcrição
-                    if (in_array($media['media_type'] ?? '', ['audio', 'ptt', 'voice']) && 
-                        (!isset($media['transcription']) || empty($media['transcription'])) &&
-                        isset($media['event_id'])) {
+                    if (in_array($mediaType, ['audio', 'ptt', 'voice'])) {
+                        $audioCount++;
+                        $hasTranscription = isset($media['transcription']) && !empty($media['transcription']);
+                        $hasEventId = isset($media['event_id']);
                         
-                        try {
-                            // Transcreve nos bastidores
-                            $result = \PixelHub\Services\AudioTranscriptionService::transcribeByEventId($media['event_id']);
-                            
-                            if ($result['success'] && !empty($result['transcription'])) {
-                                $transcribedTexts[] = $result['transcription'];
+                        error_log('[AI TRANSCRIBE] Áudio detectado! hasTranscription: ' . ($hasTranscription ? 'SIM' : 'NÃO') . ', hasEventId: ' . ($hasEventId ? 'SIM' : 'NÃO'));
+                        
+                        if (!$hasTranscription && $hasEventId) {
+                            error_log('[AI TRANSCRIBE] Tentando transcrever event_id: ' . $media['event_id']);
+                            try {
+                                // Transcreve nos bastidores
+                                $result = \PixelHub\Services\AudioTranscriptionService::transcribeByEventId($media['event_id']);
                                 
-                                // Atualiza a mídia com a transcrição
-                                $media['transcription'] = $result['transcription'];
-                                $media['transcription_status'] = 'completed';
+                                if ($result['success'] && !empty($result['transcription'])) {
+                                    $transcribedTexts[] = $result['transcription'];
+                                    $transcribedCount++;
+                                    
+                                    // Atualiza a mídia com a transcrição
+                                    $media['transcription'] = $result['transcription'];
+                                    $media['transcription_status'] = 'completed';
+                                    
+                                    error_log('[AI TRANSCRIBE] ✅ Transcrição OK: "' . substr($result['transcription'], 0, 100) . '..."');
+                                } else {
+                                    error_log('[AI TRANSCRIBE] ❌ Transcrição falhou: ' . ($result['error'] ?? 'Erro desconhecido'));
+                                }
+                            } catch (\Exception $e) {
+                                error_log('[AI TRANSCRIBE] ❌ Erro na transcrição: ' . $e->getMessage());
                             }
-                        } catch (\Exception $e) {
-                            error_log('[AI Context] Erro na transcrição automática: ' . $e->getMessage());
+                        } elseif ($hasTranscription) {
+                            // Já tem transcrição
+                            $transcribedTexts[] = $media['transcription'];
+                            error_log('[AI TRANSCRIBE] ✅ Usando transcrição existente: "' . substr($media['transcription'], 0, 100) . '..."');
                         }
-                    } elseif (isset($media['transcription']) && !empty($media['transcription'])) {
-                        // Já tem transcrição
-                        $transcribedTexts[] = $media['transcription'];
                     }
                 }
                 
@@ -1069,6 +1090,8 @@ PROMPT;
                         $enhancedMessage['message'] = '[Áudio: ' . $transcriptionText . ']';
                     }
                     
+                    error_log('[AI TRANSCRIBE] Mensagem enriquecida: "' . substr($enhancedMessage['message'], 0, 150) . '..."');
+                    
                     // Atualiza a mídia na mensagem
                     $enhancedMessage['media'] = $message['media'];
                 }
@@ -1076,6 +1099,10 @@ PROMPT;
             
             $enhancedHistory[] = $enhancedMessage;
         }
+        
+        error_log('[AI TRANSCRIBE] ========== FIM TRANSCRIÇÃO ==========');
+        error_log('[AI TRANSCRIBE] Áudios encontrados: ' . $audioCount);
+        error_log('[AI TRANSCRIBE] Áudios transcritos: ' . $transcribedCount);
         
         return $enhancedHistory;
     }
