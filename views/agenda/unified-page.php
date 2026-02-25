@@ -2182,9 +2182,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const originalSelectClient = selectClient;
         selectClient = function(id, label) {
             originalSelectClient(id, label);
-            if (isSupportBlockType()) {
-                loadTicketsForTenant(id);
-            }
+            console.log('DEBUG: Cliente selecionado - ID:', id, 'Label:', label);
+            // Chamar updateTicketVisibility para garantir que tenantId seja atualizado
+            updateTicketVisibility();
         };
 
         // Quando ticket é selecionado, atualizar hidden field
