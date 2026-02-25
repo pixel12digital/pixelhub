@@ -446,30 +446,91 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         _newMsgAIOpen = false;
     };
 
+    var _newMsgAIContextsData = null;
+    var _newMsgAIAllObjectives = null;
+
     function loadNewMsgAIContexts() {
+        console.log('[NewMsgAI] Carregando contextos...');
         fetch(_newMsgAIBaseUrl + '/api/ai/contexts', { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
+            console.log('[NewMsgAI] Resposta da API:', data);
             if (!data.success) return;
+            
+            // Armazena dados para uso posterior
+            _newMsgAIContextsData = data.contexts || [];
+            _newMsgAIAllObjectives = data.all_objectives || {};
+            
+            console.log('[NewMsgAI] Contextos carregados:', _newMsgAIContextsData.length);
+            console.log('[NewMsgAI] Total objetivos:', Object.keys(_newMsgAIAllObjectives).length);
+            
             var ctxSelect = document.getElementById('newMsgAIContext');
-            var objSelect = document.getElementById('newMsgAIObjective');
             if (ctxSelect && data.contexts) {
                 ctxSelect.innerHTML = data.contexts.map(function(c) {
                     return '<option value="' + c.slug + '">' + c.name + '</option>';
                 }).join('');
+                
+                // Adiciona listener para filtrar objetivos ao trocar contexto
+                ctxSelect.removeEventListener('change', updateNewMsgAIObjectives);
+                ctxSelect.addEventListener('change', updateNewMsgAIObjectives);
+                
+                console.log('[NewMsgAI] Listener adicionado ao contexto');
+                
+                // Carrega objetivos do contexto inicial
+                updateNewMsgAIObjectives();
             }
-            if (objSelect && data.objectives) {
-                objSelect.innerHTML = '';
-                for (var key in data.objectives) {
-                    var opt = document.createElement('option');
-                    opt.value = key;
-                    opt.textContent = data.objectives[key];
-                    objSelect.appendChild(opt);
-                }
-            }
+            
             _newMsgAIContextsLoaded = true;
         })
         .catch(function(err) { console.error('[IA Chat] Erro:', err); });
+    }
+
+    function updateNewMsgAIObjectives() {
+        console.log('[NewMsgAI] updateNewMsgAIObjectives() chamado');
+        console.log('[NewMsgAI] _newMsgAIContextsData:', _newMsgAIContextsData);
+        console.log('[NewMsgAI] _newMsgAIAllObjectives:', _newMsgAIAllObjectives);
+        
+        if (!_newMsgAIContextsData || !_newMsgAIAllObjectives) {
+            console.warn('[NewMsgAI] Dados não carregados ainda');
+            return;
+        }
+        
+        var ctxSelect = document.getElementById('newMsgAIContext');
+        var objSelect = document.getElementById('newMsgAIObjective');
+        if (!ctxSelect || !objSelect) {
+            console.warn('[NewMsgAI] Elementos select não encontrados');
+            return;
+        }
+        
+        var selectedSlug = ctxSelect.value;
+        console.log('[NewMsgAI] Contexto selecionado:', selectedSlug);
+        
+        var selectedContext = _newMsgAIContextsData.find(function(c) { return c.slug === selectedSlug; });
+        console.log('[NewMsgAI] Dados do contexto:', selectedContext);
+        
+        // Determina quais objetivos mostrar
+        var allowedObjectives = selectedContext && selectedContext.allowed_objectives 
+            ? selectedContext.allowed_objectives 
+            : null; // null = todos
+        
+        console.log('[NewMsgAI] Objetivos permitidos:', allowedObjectives);
+        
+        // Popula dropdown de objetivos
+        objSelect.innerHTML = '';
+        var count = 0;
+        for (var key in _newMsgAIAllObjectives) {
+            // Se contexto tem filtro, só mostra objetivos permitidos
+            if (allowedObjectives === null || allowedObjectives.indexOf(key) !== -1) {
+                var opt = document.createElement('option');
+                opt.value = key;
+                opt.textContent = _newMsgAIAllObjectives[key];
+                objSelect.appendChild(opt);
+                count++;
+                console.log('[NewMsgAI] Adicionado objetivo:', key, '-', _newMsgAIAllObjectives[key]);
+            }
+        }
+        
+        console.log('[NewMsgAI] ✅ Contexto:', selectedSlug, '| Objetivos filtrados:', count, 'de', Object.keys(_newMsgAIAllObjectives).length);
     }
 
     function escapeHtmlSafe(str) {

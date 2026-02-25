@@ -24,11 +24,30 @@ class AISuggestController extends Controller
         header('Content-Type: application/json; charset=utf-8');
 
         try {
-            $contexts = AISuggestReplyService::listContexts();
+            $db = DB::getConnection();
+            
+            // Busca contextos com allowed_objectives
+            $stmt = $db->query("
+                SELECT id, name, slug, description, allowed_objectives, is_active, sort_order
+                FROM ai_contexts
+                WHERE is_active = 1
+                ORDER BY sort_order ASC, name ASC
+            ");
+            $contexts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            
+            // Decodifica allowed_objectives JSON
+            foreach ($contexts as &$ctx) {
+                if (!empty($ctx['allowed_objectives'])) {
+                    $ctx['allowed_objectives'] = json_decode($ctx['allowed_objectives'], true) ?: null;
+                } else {
+                    $ctx['allowed_objectives'] = null; // null = todos os objetivos
+                }
+            }
+            
             $this->json([
                 'success' => true,
                 'contexts' => $contexts,
-                'objectives' => AISuggestReplyService::OBJECTIVES,
+                'all_objectives' => AISuggestReplyService::OBJECTIVES,
                 'tones' => AISuggestReplyService::TONES,
             ]);
         } catch (\Exception $e) {
@@ -401,13 +420,33 @@ class AISuggestController extends Controller
                 }
             }
 
-            // Combina observação do atendente com contexto da oportunidade
+            // Análise automática de cobranças se contexto é financeiro
+            $billingAnalysis = null;
+            if ($contextSlug === 'financeiro' && !empty($conversationHistory)) {
+                // Tenta identificar tenant_id da conversa
+                $tenantId = $this->extractTenantIdFromConversation($conversationId, $opportunityId);
+                if ($tenantId) {
+                    $billingAnalysis = AISuggestReplyService::analyzeBillingContext($tenantId);
+                    // Se análise retornou objetivo específico, sobrescreve
+                    if (!empty($billingAnalysis['objective']) && $billingAnalysis['objective'] !== 'answer_question') {
+                        $objective = $billingAnalysis['objective'];
+                    }
+                }
+            }
+
+            // Combina observação do atendente com contexto da oportunidade e análise de cobrança
             $fullAttendantNote = $attendantNote;
             if (!empty($opportunityContext)) {
                 if (!empty($fullAttendantNote)) {
                     $fullAttendantNote .= "\n\n";
                 }
                 $fullAttendantNote .= "[CONTEXTO DA OPORTUNIDADE]\n" . $opportunityContext;
+            }
+            if (!empty($billingAnalysis['context'])) {
+                if (!empty($fullAttendantNote)) {
+                    $fullAttendantNote .= "\n\n";
+                }
+                $fullAttendantNote .= $billingAnalysis['context'];
             }
 
             $result = AISuggestReplyService::chat([
@@ -611,6 +650,36 @@ class AISuggestController extends Controller
             'contact_name' => $conv['contact_name'] ?: $conv['tenant_name'] ?: '',
             'contact_phone' => $conv['contact_phone'] ?: $conv['tenant_phone'] ?: '',
         ];
+    }
+
+    /**
+     * Extrai tenant_id de uma conversa ou oportunidade
+     */
+    private function extractTenantIdFromConversation(?int $conversationId, ?int $opportunityId): ?int
+    {
+        $db = DB::getConnection();
+
+        // Tenta pela oportunidade primeiro
+        if ($opportunityId) {
+            $stmt = $db->prepare("SELECT tenant_id FROM opportunities WHERE id = ? LIMIT 1");
+            $stmt->execute([$opportunityId]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($result && !empty($result['tenant_id'])) {
+                return (int) $result['tenant_id'];
+            }
+        }
+
+        // Tenta pela conversa
+        if ($conversationId) {
+            $stmt = $db->prepare("SELECT tenant_id FROM conversations WHERE id = ? LIMIT 1");
+            $stmt->execute([$conversationId]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($result && !empty($result['tenant_id'])) {
+                return (int) $result['tenant_id'];
+            }
+        }
+
+        return null;
     }
 
     /**

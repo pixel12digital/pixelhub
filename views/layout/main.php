@@ -3027,27 +3027,33 @@
             InboxAIState.isOpen = false;
         };
 
+        var _inboxAIContextsData = null;
+        var _inboxAIAllObjectives = null;
+
         function loadAIContexts() {
             fetch(_aiBaseUrl + '/api/ai/contexts', { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (!data.success) return;
+                
+                // Armazena dados para uso posterior
+                _inboxAIContextsData = data.contexts || [];
+                _inboxAIAllObjectives = data.all_objectives || {};
+                
                 var ctxSelect = document.getElementById('inboxAIContext');
-                var objSelect = document.getElementById('inboxAIObjective');
                 if (ctxSelect && data.contexts) {
                     ctxSelect.innerHTML = data.contexts.map(function(c) {
                         return '<option value="' + c.slug + '">' + c.name + '</option>';
                     }).join('');
+                    
+                    // Adiciona listener para filtrar objetivos ao trocar contexto
+                    ctxSelect.removeEventListener('change', updateInboxAIObjectives);
+                    ctxSelect.addEventListener('change', updateInboxAIObjectives);
+                    
+                    // Carrega objetivos do contexto inicial
+                    updateInboxAIObjectives();
                 }
-                if (objSelect && data.objectives) {
-                    objSelect.innerHTML = '';
-                    for (var key in data.objectives) {
-                        var opt = document.createElement('option');
-                        opt.value = key;
-                        opt.textContent = data.objectives[key];
-                        objSelect.appendChild(opt);
-                    }
-                }
+                
                 InboxAIState.contextsLoaded = true;
                 
                 // Atualiza mensagem de boas-vindas baseado na conversa atual
@@ -3056,6 +3062,36 @@
             .catch(function(err) {
                 console.error('[InboxAI] Erro ao carregar contextos:', err);
             });
+        }
+
+        function updateInboxAIObjectives() {
+            if (!_inboxAIContextsData || !_inboxAIAllObjectives) return;
+            
+            var ctxSelect = document.getElementById('inboxAIContext');
+            var objSelect = document.getElementById('inboxAIObjective');
+            if (!ctxSelect || !objSelect) return;
+            
+            var selectedSlug = ctxSelect.value;
+            var selectedContext = _inboxAIContextsData.find(function(c) { return c.slug === selectedSlug; });
+            
+            // Determina quais objetivos mostrar
+            var allowedObjectives = selectedContext && selectedContext.allowed_objectives 
+                ? selectedContext.allowed_objectives 
+                : null; // null = todos
+            
+            // Popula dropdown de objetivos
+            objSelect.innerHTML = '';
+            for (var key in _inboxAIAllObjectives) {
+                // Se contexto tem filtro, só mostra objetivos permitidos
+                if (allowedObjectives === null || allowedObjectives.indexOf(key) !== -1) {
+                    var opt = document.createElement('option');
+                    opt.value = key;
+                    opt.textContent = _inboxAIAllObjectives[key];
+                    objSelect.appendChild(opt);
+                }
+            }
+            
+            console.log('[InboxAI] Contexto:', selectedSlug, '| Objetivos disponíveis:', objSelect.options.length);
         }
 
         // Estado do rascunho
