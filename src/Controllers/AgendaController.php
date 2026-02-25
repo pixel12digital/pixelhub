@@ -126,6 +126,14 @@ class AgendaController extends Controller
 
         $semanaAnterior = (clone $domingo)->modify('-7 days');
         $proximaSemana = (clone $domingo)->modify('+7 days');
+        
+        // Busca tarefas do dia (sem bloco vinculado)
+        $dailyTasks = [];
+        try {
+            $dailyTasks = AgendaService::getDailyTasksForDate($dataStr);
+        } catch (\Exception $e) {
+            error_log("Erro ao buscar tarefas do dia: " . $e->getMessage());
+        }
 
         $this->view('agenda.unified-page', [
             'viewMode' => $viewMode,
@@ -144,6 +152,7 @@ class AgendaController extends Controller
             'sabado' => $sabado,
             'semanaAnterior' => $semanaAnterior,
             'proximaSemana' => $proximaSemana,
+            'dailyTasks' => $dailyTasks,
         ]);
     }
 

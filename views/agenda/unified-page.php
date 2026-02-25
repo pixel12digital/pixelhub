@@ -432,6 +432,58 @@ $highlightBlockId = $expandBlockId ?? 0;
 
 </div><!-- .agenda-lista-fixed -->
 <div class="agenda-lista-scroll-area">
+
+<!-- Tarefas do Dia -->
+<?php 
+$dailyTasks = $dailyTasks ?? [];
+if (!empty($dailyTasks)): 
+?>
+<div class="daily-tasks-section" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+    <h3 style="margin: 0 0 15px 0; font-size: 14px; font-weight: 600; color: #374151; display: flex; align-items: center; gap: 8px;">
+        <span>📋 Tarefas do Dia</span>
+        <span style="background: #f3f4f6; color: #6b7280; padding: 2px 8px; border-radius: 12px; font-size: 12px;"><?= count($dailyTasks) ?></span>
+    </h3>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+        <?php foreach ($dailyTasks as $task): 
+            $taskTypeLabels = [
+                'finance_overdue' => ['label' => 'Cobrança', 'color' => '#dc2626'],
+                'lead_followup' => ['label' => 'Follow-up', 'color' => '#2563eb'],
+                'client_ticket' => ['label' => 'Suporte', 'color' => '#7c3aed'],
+                'crm_followup' => ['label' => 'CRM', 'color' => '#059669'],
+                'internal' => ['label' => 'Interno', 'color' => '#6b7280'],
+            ];
+            $taskTypeInfo = $taskTypeLabels[$task['task_type']] ?? ['label' => 'Tarefa', 'color' => '#6b7280'];
+            $taskUrl = pixelhub_url('/projects/board?project_id=' . (int)$task['project_id'] . '&task_id=' . (int)$task['id']);
+        ?>
+        <div class="daily-task-item" style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f9fafb; border-radius: 6px; border-left: 3px solid <?= $taskTypeInfo['color'] ?>;">
+            <input type="checkbox" 
+                   onchange="markDailyTaskComplete(<?= (int)$task['id'] ?>)" 
+                   style="width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;">
+            <div style="flex: 1; min-width: 0;">
+                <a href="<?= $taskUrl ?>" 
+                   style="font-weight: 500; color: #111827; text-decoration: none; font-size: 13px; display: block; margin-bottom: 4px;"
+                   onmouseover="this.style.color='#023A8D'; this.style.textDecoration='underline';"
+                   onmouseout="this.style.color='#111827'; this.style.textDecoration='none';">
+                    <?= htmlspecialchars($task['title']) ?>
+                </a>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: #6b7280;">
+                    <span style="background: <?= $taskTypeInfo['color'] ?>; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 500;">
+                        <?= $taskTypeInfo['label'] ?>
+                    </span>
+                    <?php if (!empty($task['tenant_name'])): ?>
+                    <span><?= htmlspecialchars($task['tenant_name']) ?></span>
+                    <?php endif; ?>
+                    <?php if (!empty($task['project_name']) && $task['project_name'] !== 'Atividades Gerais'): ?>
+                    <span>• <?= htmlspecialchars($task['project_name']) ?></span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Lista de blocos (tabela planilha) -->
 <div class="blocks-list">
     <?php if (empty($blocos)): ?>
@@ -2230,6 +2282,52 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 <?php endif; ?>
+
+// Marcar tarefa do dia como concluída
+function markDailyTaskComplete(taskId) {
+    if (!confirm('Marcar esta tarefa como concluída?')) {
+        event.target.checked = false;
+        return;
+    }
+    
+    fetch('<?= pixelhub_url('/tasks/update') ?>', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'id=' + taskId + '&status=concluida'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Remove a tarefa da lista com animação
+            event.target.closest('.daily-task-item').style.opacity = '0.5';
+            setTimeout(() => {
+                event.target.closest('.daily-task-item').remove();
+                
+                // Se não houver mais tarefas, remove a seção
+                const remainingTasks = document.querySelectorAll('.daily-task-item');
+                if (remainingTasks.length === 0) {
+                    document.querySelector('.daily-tasks-section').remove();
+                } else {
+                    // Atualiza contador
+                    const counter = document.querySelector('.daily-tasks-section h3 span:last-child');
+                    if (counter) {
+                        counter.textContent = remainingTasks.length;
+                    }
+                }
+            }, 300);
+        } else {
+            alert('Erro ao marcar tarefa como concluída');
+            event.target.checked = false;
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao marcar tarefa como concluída');
+        event.target.checked = false;
+    });
+}
 </script>
 
 <?php

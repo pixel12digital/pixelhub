@@ -3516,5 +3516,50 @@ class AgendaService
         });
         return array_merge(array_values($filtered), $tenantTicketsRows);
     }
+    
+    /**
+     * Busca tarefas do dia (tarefas com due_date = data e que NÃO estão vinculadas a blocos)
+     * 
+     * @param string $dateStr Data no formato Y-m-d
+     * @return array Lista de tarefas do dia
+     */
+    public static function getDailyTasksForDate(string $dateStr): array
+    {
+        $db = DB::getConnection();
+        
+        // Busca tarefas com due_date = data e que NÃO estão vinculadas a blocos
+        $stmt = $db->prepare("
+            SELECT 
+                t.id,
+                t.title,
+                t.description,
+                t.status,
+                t.task_type,
+                t.due_date,
+                p.id as project_id,
+                p.name as project_name,
+                p.tenant_id,
+                tn.name as tenant_name
+            FROM tasks t
+            INNER JOIN projects p ON t.project_id = p.id
+            LEFT JOIN tenants tn ON p.tenant_id = tn.id
+            LEFT JOIN agenda_block_tasks abt ON t.id = abt.task_id
+            WHERE t.due_date = ?
+            AND t.status != 'concluida'
+            AND abt.id IS NULL
+            ORDER BY 
+                CASE t.task_type
+                    WHEN 'finance_overdue' THEN 1
+                    WHEN 'client_ticket' THEN 2
+                    WHEN 'lead_followup' THEN 3
+                    WHEN 'crm_followup' THEN 4
+                    ELSE 5
+                END,
+                t.created_at ASC
+        ");
+        $stmt->execute([$dateStr]);
+        
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
 }
 
