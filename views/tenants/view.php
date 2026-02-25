@@ -3303,11 +3303,34 @@ function openInboxNewConversation(tenantId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert('✅ Tarefa criada com sucesso!');
                 closeCreateAndScheduleTaskModal();
                 
-                // Recarrega a aba de Projetos e Tarefas
-                window.location.reload();
+                // Mostra notificação de sucesso sem alert
+                showSuccessNotification('✅ Tarefa criada com sucesso!');
+                
+                // Se estiver na aba de Projetos e Tarefas, recarrega apenas essa seção
+                const projectsTab = document.querySelector('[data-tab="projects"]');
+                if (projectsTab && projectsTab.style.display !== 'none') {
+                    // Recarrega apenas a seção de projetos via AJAX
+                    const tenantId = <?= $tenant['id'] ?? 0 ?>;
+                    if (tenantId > 0) {
+                        fetch('<?= pixelhub_url('/tenants/view?id=') ?>' + tenantId + '&tab=projects&ajax=1')
+                            .then(r => r.text())
+                            .then(html => {
+                                const parser = new DOMParser();
+                                const doc = parser.parseFromString(html, 'text/html');
+                                const newContent = doc.querySelector('[data-tab="projects"]');
+                                if (newContent && projectsTab) {
+                                    projectsTab.innerHTML = newContent.innerHTML;
+                                }
+                            })
+                            .catch(err => {
+                                console.error('Erro ao recarregar projetos:', err);
+                                // Fallback: recarrega a página se AJAX falhar
+                                window.location.reload();
+                            });
+                    }
+                }
             } else {
                 alert('❌ Erro: ' + (data.error || 'Erro desconhecido'));
             }
@@ -3316,6 +3339,26 @@ function openInboxNewConversation(tenantId) {
             console.error('Erro:', error);
             alert('❌ Erro ao criar tarefa');
         });
+    }
+    
+    // Função para mostrar notificação de sucesso sem alert
+    function showSuccessNotification(message) {
+        const notification = document.createElement('div');
+        notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4caf50; color: white; padding: 16px 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000; font-weight: 500; animation: slideIn 0.3s ease-out;';
+        notification.textContent = message;
+        
+        // Adiciona animação
+        const style = document.createElement('style');
+        style.textContent = '@keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }';
+        document.head.appendChild(style);
+        
+        document.body.appendChild(notification);
+        
+        // Remove após 3 segundos
+        setTimeout(() => {
+            notification.style.animation = 'slideIn 0.3s ease-out reverse';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
     }
     </script>
     
