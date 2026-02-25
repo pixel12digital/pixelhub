@@ -186,6 +186,98 @@ class TaskBoardController extends Controller
             $this->json(['error' => 'Erro ao criar tarefa'], 500);
         }
     }
+    
+    /**
+     * Cria uma tarefa do dia (sem agendamento de bloco)
+     * POST /tasks/create-daily-task
+     */
+    public function createDailyTask(): void
+    {
+        Auth::requireInternal();
+
+        try {
+            $user = Auth::user();
+            $tenantId = isset($_POST['tenant_id']) ? (int)$_POST['tenant_id'] : 0;
+            $projectId = isset($_POST['project_id']) ? (int)$_POST['project_id'] : 0;
+            $title = trim($_POST['title'] ?? '');
+            $description = trim($_POST['description'] ?? '');
+            $taskType = trim($_POST['task_type'] ?? 'internal');
+            $dueDate = isset($_POST['data']) ? $_POST['data'] : null;
+            
+            if (empty($title)) {
+                $this->json(['success' => false, 'error' => 'Título é obrigatório'], 400);
+                return;
+            }
+            
+            // Se não informou projeto, cria/busca projeto padrão "Atividades Gerais"
+            if ($projectId <= 0 && $tenantId > 0) {
+                $projectId = $this->getOrCreateDefaultProject($tenantId);
+            }
+            
+            if ($projectId <= 0) {
+                $this->json(['success' => false, 'error' => 'Projeto é obrigatório'], 400);
+                return;
+            }
+            
+            $taskData = [
+                'project_id' => $projectId,
+                'title' => $title,
+                'description' => $description,
+                'task_type' => $taskType,
+                'status' => 'backlog',
+                'due_date' => $dueDate,
+            ];
+            
+            if ($user) {
+                $taskData['created_by'] = $user['id'];
+            }
+            
+            $taskId = \PixelHub\Services\TaskService::createTask($taskData);
+            
+            $this->json([
+                'success' => true,
+                'task_id' => $taskId,
+                'message' => 'Tarefa criada com sucesso'
+            ]);
+            
+        } catch (\Exception $e) {
+            error_log("Erro ao criar tarefa do dia: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro ao criar tarefa: ' . $e->getMessage()], 500);
+        }
+    }
+    
+    /**
+     * Busca ou cria projeto padrão "Atividades Gerais" para o cliente
+     */
+    private function getOrCreateDefaultProject(int $tenantId): int
+    {
+        $db = \PixelHub\Core\DB::getConnection();
+        
+        // Busca projeto padrão existente
+        $stmt = $db->prepare("
+            SELECT id 
+            FROM projects 
+            WHERE tenant_id = ? 
+            AND name = 'Atividades Gerais'
+            AND status = 'ativo'
+            LIMIT 1
+        ");
+        $stmt->execute([$tenantId]);
+        $project = $stmt->fetch();
+        
+        if ($project) {
+            return (int)$project['id'];
+        }
+        
+        // Cria projeto padrão
+        $stmt = $db->prepare("
+            INSERT INTO projects (tenant_id, name, description, status, created_at)
+            VALUES (?, 'Atividades Gerais', 'Projeto padrão para tarefas gerais do cliente', 'ativo', NOW())
+        ");
+        $stmt->execute([$tenantId]);
+        
+        return (int)$db->lastInsertId();
+    }
 
     /**
      * Atualiza uma tarefa existente

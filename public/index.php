@@ -823,6 +823,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Rotas de Quadro Kanban
     $router->get('/projects/board', 'TaskBoardController@board');
     $router->post('/tasks/store', 'TaskBoardController@store');
+    $router->post('/tasks/create-daily-task', 'TaskBoardController@createDailyTask');
     $router->post('/tasks/update', 'TaskBoardController@update');
     $router->post('/tasks/move', 'TaskBoardController@move');
     $router->post('/tasks/delete', 'TaskBoardController@delete');
