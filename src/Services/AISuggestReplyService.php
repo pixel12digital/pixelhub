@@ -466,7 +466,7 @@ PROMPT;
         }
 
         $historyInstruction = $hasHistory
-            ? "Há histórico de conversa com o contato. LEIA O HISTÓRICO COMPLETO antes de escrever qualquer coisa — especialmente a ÚLTIMA mensagem do contato, pois é o ponto de partida obrigatório da sua resposta."
+            ? "Há histórico de conversa com o contato. LEIA O HISTÓRICO COMPLETO antes de escrever qualquer coisa — especialmente a ÚLTIMA mensagem do contato, pois é o ponto de partida obrigatório da sua resposta.\n\n🔴 ATENÇÃO CRÍTICA PARA CONVERSAS FLUÍDAS:\n- Se a última mensagem do contato foi enviada há MINUTOS (não horas/dias), trata-se de uma conversa em TEMPO REAL\n- Em conversas fluídas, o contato está AGUARDANDO sua resposta AGORA\n- NÃO faça follow-up genérico ('ainda tem interesse?', 'viu minha mensagem?') — isso é INADEQUADO\n- Responda DIRETAMENTE ao que o contato disse, como se fosse uma conversa presencial\n- Se o contato fez uma pergunta, RESPONDA a pergunta\n- Se o contato deu uma informação, RECONHEÇA e avance a conversa\n- Verifique os timestamps: se há mensagens recentes do atendente (últimos minutos), o cliente JÁ recebeu essas informações — NÃO as repita"
             : "Primeiro contato — gere uma mensagem de abertura.";
 
         // Instruções específicas por objetivo
@@ -532,6 +532,21 @@ Você está em modo CHAT com o atendente. Seu trabalho:
 3. O atendente PODE CORRIGIR PREMISSAS: "Eu ainda não enviei o projeto", "Não tem link na conversa", "Mude para primeiro contato"
 4. Você ajusta e gera uma nova versão COMPLETAMENTE corrigida
 5. Quando o atendente aprovar, ele usa a resposta
+
+## ANÁLISE TEMPORAL OBRIGATÓRIA (antes de gerar qualquer resposta)
+1. Verifique os timestamps de TODAS as mensagens no histórico
+2. Identifique a ÚLTIMA mensagem do contato e quando foi enviada
+3. Identifique a ÚLTIMA mensagem do atendente (se houver) e quando foi enviada
+4. Calcule o tempo decorrido entre a última mensagem do contato e o momento atual
+5. Se a última mensagem do contato foi há MINUTOS (< 60 min):
+   - Trata-se de conversa FLUÍDA em tempo real
+   - O contato está ATIVO e aguardando resposta
+   - Responda DIRETAMENTE ao que ele disse, sem rodeios
+   - NÃO pergunte se ele viu algo ou se ainda tem interesse
+6. Se o atendente enviou mensagens APÓS a última do contato:
+   - O cliente JÁ recebeu essas informações
+   - NÃO repita valores, links, detalhes que já foram enviados
+   - Avance a conversa para o próximo passo
 
 Objetivo atual: {$objectiveLabel}
 {$historyInstruction}
@@ -665,11 +680,24 @@ PROMPT;
 
         if ($hasHistory && !empty($history)) {
             $parts[] = "\n--- HISTÓRICO DA CONVERSA (leia com atenção — não repita o que já foi dito) ---";
+            $parts[] = "⚠️ REGRA CRÍTICA: A ÚLTIMA MENSAGEM DO CONTATO é o ponto de partida OBRIGATÓRIO da sua resposta. Responda DIRETAMENTE ao que o contato disse por último.";
+            
             // Limita a últimas 15 mensagens para ter contexto suficiente
             $recentHistory = array_slice($history, -15);
-            foreach ($recentHistory as $msg) {
+            
+            // Identifica a última mensagem do contato para destacar
+            $lastContactIndex = -1;
+            for ($i = count($recentHistory) - 1; $i >= 0; $i--) {
+                if (($recentHistory[$i]['direction'] ?? 'in') !== 'out') {
+                    $lastContactIndex = $i;
+                    break;
+                }
+            }
+            
+            foreach ($recentHistory as $idx => $msg) {
                 $direction = ($msg['direction'] ?? 'in') === 'out' ? 'Atendente' : 'Contato';
                 $text = $msg['text'] ?? $msg['message'] ?? $msg['content'] ?? '';
+                $timestamp = $msg['created_at'] ?? '';
 
                 // Se não há texto, tenta extrair transcrição do campo media
                 if (empty($text) && !empty($msg['media']) && is_array($msg['media'])) {
@@ -687,11 +715,32 @@ PROMPT;
                 }
 
                 if (!empty($text)) {
-                    $parts[] = "{$direction}: {$text}";
+                    // Formata timestamp se disponível
+                    $timeStr = '';
+                    if (!empty($timestamp)) {
+                        try {
+                            $dt = new \DateTime($timestamp);
+                            $dt->setTimezone(new \DateTimeZone('America/Sao_Paulo'));
+                            $timeStr = ' [' . $dt->format('d/m H:i') . ']';
+                        } catch (\Exception $e) {
+                            // Ignora erro de parsing
+                        }
+                    }
+                    
+                    // Destaca a última mensagem do contato
+                    if ($idx === $lastContactIndex) {
+                        $parts[] = "";
+                        $parts[] = ">>> ÚLTIMA MENSAGEM DO CONTATO (RESPONDA A ESTA){$timeStr}:";
+                        $parts[] = "{$direction}: {$text}";
+                        $parts[] = ">>> Esta é a mensagem mais recente do contato. Sua resposta DEVE dar continuidade direta a ela.";
+                        $parts[] = "";
+                    } else {
+                        $parts[] = "{$direction}{$timeStr}: {$text}";
+                    }
                 }
             }
             $parts[] = "--- FIM DO HISTÓRICO ---";
-            $parts[] = "ATENÇÃO: Tudo que o Atendente enviou acima JÁ foi recebido pelo cliente. Não repita essas informações.";
+            $parts[] = "ATENÇÃO CRÍTICA: Tudo que o Atendente enviou acima JÁ foi recebido pelo cliente. NÃO repita essas informações. Responda APENAS baseado na última mensagem do contato.";
         } else {
             $parts[] = "\n[Sem histórico de conversa — primeiro contato ou conversa nova]";
         }
