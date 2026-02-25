@@ -1525,12 +1525,17 @@ function openInboxNewConversation(tenantId) {
 <?php elseif ($activeTab === 'hosting'): ?>
     <!-- ABA: Serviços Ativos -->
     <div class="card">
+        <?php 
+        $isInactive = ($tenant['status'] ?? 'active') === 'inactive' || !empty($tenant['is_archived']);
+        ?>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3 style="margin: 0;">Sites e Hospedagens</h3>
+            <?php if (!$isInactive): ?>
             <a href="<?= pixelhub_url('/hosting/create?tenant_id=' . $tenant['id'] . '&redirect_to=tenant') ?>" 
                style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
                 Nova conta de hospedagem
             </a>
+            <?php endif; ?>
         </div>
         
         <?php if (isset($_GET['success']) && $_GET['success'] === 'created'): ?>
@@ -1733,19 +1738,23 @@ function openInboxNewConversation(tenantId) {
     <div class="card" style="margin-top: 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3 style="margin: 0;">Contas de Email</h3>
+            <?php if (!$isInactive): ?>
             <a href="<?= pixelhub_url('/email-accounts/create?tenant_id=' . $tenant['id'] . '&redirect_to=tenant') ?>" 
                style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
                 Nova Conta de Email
             </a>
+            <?php endif; ?>
         </div>
         
         <?php if (empty($emailAccounts ?? [])): ?>
             <div style="text-align: center; padding: 20px;">
                 <p style="color: #666; margin-bottom: 15px;">Nenhuma conta de email cadastrada para este cliente.</p>
+                <?php if (!$isInactive): ?>
                 <a href="<?= pixelhub_url('/email-accounts/create?tenant_id=' . $tenant['id'] . '&redirect_to=tenant') ?>" 
                    style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
                     Cadastrar Primeira Conta de Email
                 </a>
+                <?php endif; ?>
             </div>
         <?php else: ?>
             <table style="width: 100%; border-collapse: collapse;">
