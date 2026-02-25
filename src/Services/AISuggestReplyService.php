@@ -1094,8 +1094,8 @@ PROMPT;
         // Sincroniza com Asaas ANTES de buscar faturas para obter valores atualizados com juros/multas
         try {
             error_log('[AI BILLING] Sincronizando com Asaas para tenant_id: ' . $tenantId);
-            \PixelHub\Services\AsaasBillingService::syncInvoicesForTenant($db, $tenantId);
-            error_log('[AI BILLING] Sincronização concluída com sucesso');
+            $syncResult = \PixelHub\Services\AsaasBillingService::syncInvoicesForTenant($tenantId);
+            error_log('[AI BILLING] Sincronização concluída: ' . ($syncResult['created'] ?? 0) . ' criadas, ' . ($syncResult['updated'] ?? 0) . ' atualizadas');
         } catch (\Exception $e) {
             error_log('[AI BILLING] AVISO: Erro na sincronização com Asaas: ' . $e->getMessage());
             // Continua mesmo se sincronização falhar - usa dados do banco
