@@ -277,10 +277,6 @@ ob_start();
     </div>
     
     <!-- Faturamento agora é processado via modal ao encerrar o ticket -->
-        <?php endif; ?>
-        </div>
-    </div>
-    <?php endif; ?>
     
     <?php if ($ticket['descricao']): ?>
         <div class="ticket-description">
