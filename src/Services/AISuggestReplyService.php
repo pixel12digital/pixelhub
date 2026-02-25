@@ -1185,16 +1185,17 @@ PROMPT;
             $context .= implode("\n", $servicesText) . "\n\n";
             
             $context .= "INSTRUÇÕES PARA A MENSAGEM:\n";
-            $context .= "1. Informar que identificamos {$overdueCount} faturas vencidas\n";
-            $context .= "2. Apresentar o valor total atualizado: R$ " . number_format($totalAmount, 2, ',', '.') . "\n";
-            $context .= "3. Listar resumo dos serviços (ex: '3 mensalidades de hospedagem')\n";
-            $context .= "4. **NÃO ENVIAR LINKS DE PAGAMENTO** (é uma renegociação)\n";
-            $context .= "5. Informar prazo: 48 horas para retorno/regularização\n";
-            $context .= "6. Avisar que após 48h sem retorno, o site será REMOVIDO da hospedagem automaticamente\n";
-            $context .= "7. Mencionar que haverá custos de reinstalação caso queira reativar depois\n";
-            $context .= "8. Solicitar posicionamento: regularizar OU confirmar exclusão do projeto\n";
-            $context .= "9. Tom firme mas profissional e respeitoso\n";
-            $context .= "10. Deixar claro que estamos à disposição para discutir opções de pagamento\n";
+            $context .= "1. Ser DIRETA e CLARA - sem formalidades excessivas\n";
+            $context .= "2. Informar: '{$overdueCount} faturas vencidas, total R$ " . number_format($totalAmount, 2, ',', '.') . "'\n";
+            $context .= "3. Listar serviços de forma simples: '{$overdueCount} mensalidades de hospedagem'\n";
+            $context .= "4. **NÃO ENVIAR LINKS DE PAGAMENTO** (é renegociação, não cobrança simples)\n";
+            $context .= "5. PRAZO CLARO: '48 horas para retorno ou regularização'\n";
+            $context .= "6. CONSEQUÊNCIA CLARA: 'Após 48h, o site será removido da hospedagem'\n";
+            $context .= "7. Mencionar: 'Haverá custos de reinstalação se quiser reativar depois'\n";
+            $context .= "8. PERGUNTA DIRETA: 'Você quer regularizar ou prefere que a gente remova o projeto?'\n";
+            $context .= "9. Tom: FIRME mas RESPEITOSO - sem ser agressivo\n";
+            $context .= "10. Oferecer: 'Podemos conversar sobre formas de pagamento'\n";
+            $context .= "11. IMPORTANTE: Mensagem CURTA e OBJETIVA - máximo 5-6 linhas\n";
 
         } elseif ($overdueCount > 0) {
             // COBRANÇA: 1-2 faturas vencidas - COM LINKS
