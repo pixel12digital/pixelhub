@@ -21,15 +21,17 @@ use PDO;
 class AISuggestReplyService
 {
     public const OBJECTIVES = [
-        'first_contact'      => 'Primeiro contato',
-        'qualify'            => 'Qualificar lead',
-        'schedule_call'      => 'Agendar call/reunião',
-        'answer_question'    => 'Responder dúvida',
-        'follow_up'          => 'Follow-up',
-        'send_proposal'      => 'Enviar proposta',
-        'close_deal'         => 'Fechar negócio',
-        'support'            => 'Suporte técnico',
-        'billing'            => 'Gerar cobrança (automático)',
+        'first_contact'           => 'Primeiro contato',
+        'qualify'                 => 'Qualificar lead',
+        'schedule_call'           => 'Agendar call/reunião',
+        'answer_question'         => 'Responder dúvida',
+        'follow_up'               => 'Follow-up',
+        'send_proposal'           => 'Enviar proposta',
+        'close_deal'              => 'Fechar negócio',
+        'support'                 => 'Suporte técnico',
+        'billing'                 => 'Gerar cobrança (automático)',
+        'atendimento_financeiro'  => 'Atendimento',
+        'cobranca'                => 'Cobrança',
     ];
 
     // Objetivos internos (não aparecem no dropdown, usados apenas pela análise automática)

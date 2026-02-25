@@ -70,10 +70,12 @@ class AlterAiContextsAddAllowedObjectives
             WHERE slug = 'suporte'
         ");
 
-        // Financeiro: apenas 2 objetivos (billing será automático baseado na API Asaas)
+        // Financeiro: apenas 2 objetivos específicos
+        // - atendimento_financeiro: modo passivo, responde dúvidas do cliente
+        // - cobranca: modo ativo, consulta API Asaas e gera mensagem formatada
         $db->exec("
             UPDATE ai_contexts 
-            SET allowed_objectives = JSON_ARRAY('answer_question', 'billing'),
+            SET allowed_objectives = JSON_ARRAY('atendimento_financeiro', 'cobranca'),
             updated_at = '{$now}'
             WHERE slug = 'financeiro'
         ");
