@@ -425,19 +425,28 @@ class AISuggestController extends Controller
             if ($contextSlug === 'financeiro' && $objective === 'cobranca') {
                 // Tenta identificar tenant_id: primeiro do payload, depois da conversa/oportunidade
                 $tenantId = $input['tenant_id'] ?? null;
+                if ($tenantId) {
+                    $tenantId = (int) $tenantId; // Garante conversão para integer
+                }
                 if (!$tenantId) {
                     $tenantId = $this->extractTenantIdFromConversation($conversationId, $opportunityId);
                 }
                 
                 if ($tenantId) {
                     error_log('[AI CHAT] Iniciando análise de cobrança para tenant_id: ' . $tenantId);
-                    $billingAnalysis = AISuggestReplyService::analyzeBillingContext($tenantId);
-                    error_log('[AI CHAT] Análise retornou objetivo: ' . ($billingAnalysis['objective'] ?? 'null'));
                     
-                    // Sobrescreve objetivo com o específico (critical/collection/reminder)
-                    if (!empty($billingAnalysis['objective']) && $billingAnalysis['objective'] !== 'answer_question') {
-                        $objective = $billingAnalysis['objective'];
-                        error_log('[AI CHAT] Objetivo sobrescrito para: ' . $objective);
+                    try {
+                        $billingAnalysis = AISuggestReplyService::analyzeBillingContext($tenantId);
+                        error_log('[AI CHAT] Análise retornou objetivo: ' . ($billingAnalysis['objective'] ?? 'null'));
+                        
+                        // Sobrescreve objetivo com o específico (critical/collection/reminder)
+                        if (!empty($billingAnalysis['objective']) && $billingAnalysis['objective'] !== 'answer_question') {
+                            $objective = $billingAnalysis['objective'];
+                            error_log('[AI CHAT] Objetivo sobrescrito para: ' . $objective);
+                        }
+                    } catch (\Exception $e) {
+                        error_log('[AI CHAT] ERRO na análise de cobrança: ' . $e->getMessage());
+                        error_log('[AI CHAT] Stack trace: ' . $e->getTraceAsString());
                     }
                 } else {
                     error_log('[AI CHAT] ERRO: Contexto financeiro + objetivo cobranca, mas tenant_id não identificado');
