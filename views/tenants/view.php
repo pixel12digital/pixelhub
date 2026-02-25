@@ -1580,7 +1580,6 @@ function openInboxNewConversation(tenantId) {
                         <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Provedor</th>
                         <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Valor</th>
                         <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Situação</th>
-                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Backup</th>
                         <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>
                     </tr>
                 </thead>
@@ -1685,16 +1684,6 @@ function openInboxNewConversation(tenantId) {
                             echo '<span style="' . $hostingStatus['style'] . '">' . htmlspecialchars($hostingStatus['text']) . '</span>';
                             echo '<span style="' . $domainStatus['style'] . '">' . htmlspecialchars($domainStatus['text']) . '</span>';
                             echo '</div>';
-                            ?>
-                        </td>
-                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                            <?php
-                            if ($hosting['backup_status'] === 'completo' && !empty($hosting['last_backup_at'])) {
-                                $backupDate = date('d/m/Y', strtotime($hosting['last_backup_at']));
-                                echo '<span style="background: #3c3; color: white; padding: 4px 8px; border-radius: 3px; font-size: 12px;">Backup em ' . $backupDate . '</span>';
-                            } else {
-                                echo '<span style="background: #c33; color: white; padding: 4px 8px; border-radius: 3px; font-size: 12px;">Sem backup</span>';
-                            }
                             ?>
                         </td>
                         <td style="padding: 12px; border-bottom: 1px solid #eee;">

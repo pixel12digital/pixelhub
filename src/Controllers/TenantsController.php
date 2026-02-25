@@ -45,13 +45,18 @@ class TenantsController extends Controller
         }
 
         // Busca hosting accounts do tenant
-        $stmt = $db->prepare("
-            SELECT * FROM hosting_accounts
-            WHERE tenant_id = ?
-            ORDER BY domain ASC
-        ");
-        $stmt->execute([$tenantId]);
-        $hostingAccounts = $stmt->fetchAll();
+        // Se o cliente estiver inativo (is_archived = 1), não mostra nenhum serviço ativo
+        if (!empty($tenant['is_archived'])) {
+            $hostingAccounts = [];
+        } else {
+            $stmt = $db->prepare("
+                SELECT * FROM hosting_accounts
+                WHERE tenant_id = ?
+                ORDER BY domain ASC
+            ");
+            $stmt->execute([$tenantId]);
+            $hostingAccounts = $stmt->fetchAll();
+        }
         
         // Garante que last_backup_at está presente (pode ser NULL)
         foreach ($hostingAccounts as &$account) {
