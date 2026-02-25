@@ -654,6 +654,70 @@ class TicketController extends Controller
             $this->json(['error' => 'Erro ao atualizar ticket'], 500);
         }
     }
+    
+    /**
+     * Processa faturamento (se aplicável) e encerra o ticket
+     * Chamado via modal ao tentar encerrar ticket
+     */
+    public function processBillingAndClose(): void
+    {
+        Auth::requireInternal();
+        
+        $ticketId = isset($_POST['ticket_id']) ? (int)$_POST['ticket_id'] : 0;
+        $isBillable = isset($_POST['is_billable']) && $_POST['is_billable'] === '1';
+        
+        if ($ticketId <= 0) {
+            header('Location: ' . pixelhub_url('/tickets?erro=' . urlencode('ID do ticket inválido')));
+            exit;
+        }
+        
+        try {
+            // Se é faturável, processa faturamento primeiro
+            if ($isBillable) {
+                // Marca como faturável e salva dados
+                $billingData = [
+                    'billed_value' => $_POST['billed_value'] ?? null,
+                    'billing_due_date' => $_POST['billing_due_date'] ?? null,
+                    'billing_notes' => $_POST['billing_notes'] ?? null,
+                ];
+                
+                TicketService::markAsBillable($ticketId, $billingData);
+                
+                // Gera cobrança no Asaas
+                $billingOptions = [
+                    'billing_type' => $_POST['billing_type'] ?? 'BOLETO',
+                    'interest_value' => $_POST['interest_value'] ?? null,
+                    'fine_value' => $_POST['fine_value'] ?? null,
+                    'discount_value' => $_POST['discount_value'] ?? null,
+                    'discount_type' => $_POST['discount_type'] ?? 'FIXED',
+                    'discount_days_before_due' => $_POST['discount_days_before_due'] ?? null,
+                    'installment_count' => !empty($_POST['installment_count']) ? (int)$_POST['installment_count'] : 1,
+                ];
+                
+                $result = TicketService::generateBilling($ticketId, $billingOptions);
+                
+                if (!$result['success']) {
+                    header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&erro=' . urlencode('Erro ao gerar cobrança: ' . ($result['message'] ?? 'Erro desconhecido'))));
+                    exit;
+                }
+            }
+            
+            // Encerra o ticket (muda status para resolvido)
+            TicketService::updateTicket($ticketId, ['status' => 'resolvido']);
+            
+            $message = $isBillable 
+                ? 'Cobrança gerada e ticket encerrado com sucesso!' 
+                : 'Ticket encerrado com sucesso!';
+            
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&sucesso=' . urlencode($message)));
+            exit;
+            
+        } catch (\Exception $e) {
+            error_log("Erro ao processar faturamento e encerrar ticket: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&erro=' . urlencode('Erro: ' . $e->getMessage())));
+            exit;
+        }
+    }
 }
 
 

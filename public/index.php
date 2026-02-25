@@ -913,6 +913,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/tickets/generate-billing', 'TicketController@generateBilling');
     $router->post('/tickets/cancel-billing', 'TicketController@cancelBilling');
     $router->post('/tickets/toggle-billable', 'TicketController@toggleBillable');
+    $router->post('/tickets/process-billing-and-close', 'TicketController@processBillingAndClose');
 
 // Handler para erros fatais (antes do try-catch)
 register_shutdown_function(function() use ($path) {
