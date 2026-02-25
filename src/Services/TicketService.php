@@ -267,10 +267,23 @@ class TicketService
     {
         $db = DB::getConnection();
         
-        // Verifica se o ticket existe
+        // Busca o ticket atual
         $ticket = self::findTicket($id);
         if (!$ticket) {
             throw new \RuntimeException('Ticket não encontrado');
+        }
+        
+        // VALIDAÇÃO: Bloqueia encerramento de ticket faturável sem pagamento
+        if (isset($data['status']) && in_array($data['status'], ['resolvido', 'cancelado'])) {
+            $isBillable = !empty($ticket['is_billable']) && $ticket['is_billable'] == 1;
+            $billingStatus = $ticket['billing_status'] ?? null;
+            
+            if ($isBillable && $billingStatus !== 'paid') {
+                throw new \InvalidArgumentException(
+                    'Este ticket é faturável e ainda não foi pago. ' .
+                    'Gere a cobrança e aguarde o pagamento antes de encerrar o ticket.'
+                );
+            }
         }
         
         // Validações
@@ -1013,8 +1026,11 @@ class TicketService
             // Garante que o tenant tem customer no Asaas
             $customerId = AsaasBillingService::ensureCustomerForTenant($ticket);
             
-            // Prepara descrição da cobrança
+            // Prepara descrição da cobrança (usa billing_notes se disponível)
             $description = $options['description'] ?? null;
+            if (empty($description) && !empty($ticket['billing_notes'])) {
+                $description = $ticket['billing_notes'];
+            }
             if (empty($description)) {
                 $description = "Ticket #{$ticketId}: " . $ticket['titulo'];
             }
@@ -1034,9 +1050,36 @@ class TicketService
                 'externalReference' => "TICKET_{$ticketId}",
             ];
             
-            // Adiciona observações se houver
-            if (!empty($ticket['billing_notes'])) {
-                $paymentData['notes'] = $ticket['billing_notes'];
+            // Adiciona juros se informado
+            if (!empty($options['interest_value'])) {
+                $interestValue = (float)$options['interest_value'];
+                if ($interestValue > 0) {
+                    $paymentData['interest'] = [
+                        'value' => $interestValue,
+                    ];
+                }
+            }
+            
+            // Adiciona multa se informado
+            if (!empty($options['fine_value'])) {
+                $fineValue = (float)$options['fine_value'];
+                if ($fineValue > 0) {
+                    $paymentData['fine'] = [
+                        'value' => $fineValue,
+                    ];
+                }
+            }
+            
+            // Adiciona desconto se informado
+            if (!empty($options['discount_value'])) {
+                $discountValue = (float)$options['discount_value'];
+                if ($discountValue > 0) {
+                    $paymentData['discount'] = [
+                        'value' => $discountValue,
+                        'dueDateLimitDays' => !empty($options['discount_days_before_due']) ? (int)$options['discount_days_before_due'] : 0,
+                        'type' => 'FIXED',
+                    ];
+                }
             }
             
             // Cria payment no Asaas

@@ -533,6 +533,10 @@ class TicketController extends Controller
             $options = [
                 'billing_type' => $_POST['billing_type'] ?? 'BOLETO',
                 'description' => !empty($_POST['description']) ? trim($_POST['description']) : null,
+                'interest_value' => !empty($_POST['interest_value']) ? $_POST['interest_value'] : null,
+                'fine_value' => !empty($_POST['fine_value']) ? $_POST['fine_value'] : null,
+                'discount_value' => !empty($_POST['discount_value']) ? $_POST['discount_value'] : null,
+                'discount_days_before_due' => !empty($_POST['discount_days_before_due']) ? $_POST['discount_days_before_due'] : null,
             ];
             
             $result = TicketService::generateBilling($ticketId, $options);
@@ -585,6 +589,67 @@ class TicketController extends Controller
             error_log("Erro ao cancelar cobrança do ticket: " . $e->getMessage());
             header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&erro=' . urlencode('Erro ao cancelar cobrança')));
             exit;
+        }
+    }
+    
+    /**
+     * Alterna status faturável do ticket (via AJAX)
+     */
+    public function toggleBillable(): void
+    {
+        Auth::requireInternal();
+        
+        $ticketId = isset($_POST['ticket_id']) ? (int)$_POST['ticket_id'] : 0;
+        $isBillable = isset($_POST['is_billable']) && $_POST['is_billable'] === '1';
+        
+        if ($ticketId <= 0) {
+            $this->json(['error' => 'ID do ticket inválido'], 400);
+            return;
+        }
+        
+        try {
+            $db = DB::getConnection();
+            
+            if ($isBillable) {
+                // Marcar como faturável com status pending
+                $stmt = $db->prepare("
+                    UPDATE tickets 
+                    SET is_billable = 1, 
+                        billing_status = 'pending',
+                        updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([$ticketId]);
+                
+                $this->json(['success' => true, 'message' => 'Ticket marcado como faturável']);
+            } else {
+                // Verifica se já tem cobrança gerada
+                $ticket = TicketService::findTicket($ticketId);
+                if (!empty($ticket['billing_invoice_id'])) {
+                    $this->json(['error' => 'Não é possível desmarcar. Cobrança já foi gerada.'], 400);
+                    return;
+                }
+                
+                // Desmarcar como faturável e limpar dados
+                $stmt = $db->prepare("
+                    UPDATE tickets 
+                    SET is_billable = 0, 
+                        billing_status = NULL,
+                        billed_value = NULL,
+                        billing_due_date = NULL,
+                        billing_notes = NULL,
+                        service_id = NULL,
+                        updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([$ticketId]);
+                
+                $this->json(['success' => true, 'message' => 'Ticket desmarcado como faturável']);
+            }
+            
+        } catch (\Exception $e) {
+            error_log("Erro ao alternar faturável: " . $e->getMessage());
+            $this->json(['error' => 'Erro ao atualizar ticket'], 500);
         }
     }
 }
