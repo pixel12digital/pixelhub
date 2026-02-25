@@ -2913,7 +2913,7 @@
             // DETECÇÃO DE MUDANÇA DE CONVERSA
             var currentConversationId = window._currentInboxConversationId;
             if (InboxAILastConversationId !== currentConversationId) {
-                // CONVERSA MUDOU - LIMPA HISTÓRICO DA IA E VARIÁVEIS GLOBAIS
+                // CONVERSA MUDOU - LIMPA HISTÓRICO DA IA
                 console.log('[IA] Conversa mudou de ' + InboxAILastConversationId + ' para ' + currentConversationId + ' - Limpando histórico');
                 InboxAIState.chatHistory = [];
                 InboxAIState.lastResponse = '';
@@ -2922,11 +2922,6 @@
                 InboxAIDraftState.currentDraft = '';
                 InboxAIDraftState.lastGeneratedAt = null;
                 InboxAILastConversationId = currentConversationId;
-                
-                // CRÍTICO: Limpa variáveis globais de histórico para evitar vazamento entre conversas
-                window._currentInboxThread = null;
-                window._currentInboxMessages = [];
-                console.log('[IA] Variáveis globais limpas - aguardando carregamento da nova conversa');
                 
                 // Limpa visualmente o chat
                 renderInboxAIChat();

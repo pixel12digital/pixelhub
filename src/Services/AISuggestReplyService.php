@@ -738,6 +738,12 @@ PROMPT;
      */
     private static function buildUserPrompt(array $history, string $contactName, string $contactPhone, string $attendantNote, string $objective, bool $hasHistory, ?string $currentDatetime = null, ?string $lastContactMessageAt = null): string
     {
+        error_log('[AI PROMPT] ========== INÍCIO MONTAGEM DE PROMPT ==========');
+        error_log('[AI PROMPT] hasHistory: ' . ($hasHistory ? 'SIM' : 'NÃO'));
+        error_log('[AI PROMPT] history count: ' . count($history));
+        error_log('[AI PROMPT] contactName: ' . ($contactName ?: 'vazio'));
+        error_log('[AI PROMPT] attendantNote: ' . ($attendantNote ? substr($attendantNote, 0, 100) . '...' : 'vazio'));
+        
         $parts = [];
 
         if (!empty($contactName)) {
@@ -869,17 +875,23 @@ PROMPT;
                 $direction = ($msg['direction'] ?? 'in') === 'out' ? 'Atendente' : 'Contato';
                 $text = $msg['text'] ?? $msg['message'] ?? $msg['content'] ?? '';
                 $timestamp = $msg['created_at'] ?? '';
+                
+                error_log('[AI PROMPT] Mensagem #' . $idx . ' - direction: ' . $direction . ', hasText: ' . (!empty($text) ? 'SIM' : 'NÃO') . ', hasMedia: ' . (!empty($msg['media']) ? 'SIM' : 'NÃO'));
 
                 // Se não há texto, tenta extrair transcrição do campo media
                 if (empty($text) && !empty($msg['media']) && is_array($msg['media'])) {
-                    foreach ($msg['media'] as $media) {
+                    error_log('[AI PROMPT] Tentando extrair transcrição da mídia...');
+                    foreach ($msg['media'] as $mediaIdx => $media) {
                         $mediaType = $media['media_type'] ?? $media['type'] ?? '';
                         $transcription = $media['transcription'] ?? '';
+                        error_log('[AI PROMPT] Mídia #' . $mediaIdx . ' - type: ' . $mediaType . ', hasTranscription: ' . (!empty($transcription) ? 'SIM' : 'NÃO'));
                         if (!empty($transcription)) {
                             $text = "[Áudio: {$transcription}]";
+                            error_log('[AI PROMPT] ✅ Transcrição incluída no prompt: "' . substr($transcription, 0, 100) . '..."');
                             break;
                         } elseif (in_array($mediaType, ['audio', 'ptt', 'voice'])) {
                             $text = "[Áudio sem transcrição disponível]";
+                            error_log('[AI PROMPT] ⚠️ Áudio sem transcrição');
                             break;
                         }
                     }
