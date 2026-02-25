@@ -467,7 +467,18 @@ $highlightBlockId = $expandBlockId ?? 0;
         <?php foreach ($blocos as $bloco):
             $isCurrent = ($bloco['id'] === $blocoAtualId);
             $corBorda = htmlspecialchars($bloco['tipo_cor'] ?? '#94a3b8');
-            $projetoNome = !empty($bloco['projeto_foco_nome']) ? $bloco['projeto_foco_nome'] : (!empty($bloco['activity_type_name']) ? $bloco['activity_type_name'] : (!empty($bloco['resumo']) ? $bloco['resumo'] : 'Atividade avulsa'));
+            // Prioridade: Projeto > Ticket > Tipo de Atividade > Resumo > "Atividade avulsa"
+            if (!empty($bloco['projeto_foco_nome'])) {
+                $projetoNome = $bloco['projeto_foco_nome'];
+            } elseif (!empty($bloco['ticket_titulo'])) {
+                $projetoNome = 'Ticket #' . $bloco['ticket_id'] . ': ' . $bloco['ticket_titulo'];
+            } elseif (!empty($bloco['activity_type_name'])) {
+                $projetoNome = $bloco['activity_type_name'];
+            } elseif (!empty($bloco['resumo'])) {
+                $projetoNome = $bloco['resumo'];
+            } else {
+                $projetoNome = 'Atividade avulsa';
+            }
             $isExpanded = ($expandBlockId && $expandBlockId === (int)$bloco['id']);
         ?>
             <?php
@@ -477,6 +488,7 @@ $highlightBlockId = $expandBlockId ?? 0;
             <?php
                 $projetoUrl = !empty($bloco['projeto_foco_id']) ? pixelhub_url('/projects/board?project_id=' . (int)$bloco['projeto_foco_id']) : pixelhub_url('/projects');
                 $taskUrl = !empty($bloco['focus_task_id']) && !empty($bloco['focus_task_project_id']) ? pixelhub_url('/projects/board?project_id=' . (int)$bloco['focus_task_project_id'] . '&task_id=' . (int)$bloco['focus_task_id']) : (!empty($bloco['focus_task_id']) && !empty($bloco['projeto_foco_id']) ? pixelhub_url('/projects/board?project_id=' . (int)$bloco['projeto_foco_id'] . '&task_id=' . (int)$bloco['focus_task_id']) : null);
+                $ticketUrl = !empty($bloco['ticket_id']) ? pixelhub_url('/tickets/show?id=' . (int)$bloco['ticket_id']) : null;
             ?>
             <?php $hasSubitems = (int)($bloco['tarefas_count'] ?? 0) > 0 || !empty($bloco['projeto_foco_id']); ?>
             <tr class="block-row <?= $isCurrent ? 'current' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" data-projeto-foco-id="<?= (int)($bloco['projeto_foco_id'] ?? 0) ?>" data-tarefas-count="<?= (int)($bloco['tarefas_count'] ?? 0) ?>" data-hora-inicio="<?= htmlspecialchars($horaInicioFmt) ?>" data-hora-fim="<?= htmlspecialchars($horaFimFmt) ?>">
@@ -486,10 +498,12 @@ $highlightBlockId = $expandBlockId ?? 0;
                             <span class="expand-icon"><?= $isExpanded ? '▾' : '▸' ?></span>
                         </button>
                         <div class="block-main">
-                            <?php if (empty($bloco['projeto_foco_id'])): ?>
-                                <span class="inline-edit-atividade block-project-link" data-block-id="<?= (int)$bloco['id'] ?>" data-activity-type-id="<?= (int)($bloco['activity_type_id'] ?? 0) ?>" onclick="event.stopPropagation()" title="Clique para alterar a atividade" style="cursor:pointer;"><?= htmlspecialchars($projetoNome) ?></span>
-                            <?php else: ?>
+                            <?php if (!empty($bloco['projeto_foco_id'])): ?>
                                 <a href="<?= $projetoUrl ?>" class="block-project-link" onclick="event.stopPropagation()"><?= htmlspecialchars($projetoNome) ?></a>
+                            <?php elseif (!empty($bloco['ticket_id'])): ?>
+                                <a href="<?= $ticketUrl ?>" class="block-project-link" onclick="event.stopPropagation()" style="color:#9C27B0;"><?= htmlspecialchars($projetoNome) ?></a>
+                            <?php else: ?>
+                                <span class="inline-edit-atividade block-project-link" data-block-id="<?= (int)$bloco['id'] ?>" data-activity-type-id="<?= (int)($bloco['activity_type_id'] ?? 0) ?>" onclick="event.stopPropagation()" title="Clique para alterar a atividade" style="cursor:pointer;"><?= htmlspecialchars($projetoNome) ?></span>
                             <?php endif; ?>
                             <?php if (!empty($bloco['focus_task_title'])): ?>
                                 <?php if ($taskUrl): ?><a href="<?= $taskUrl ?>" class="block-task-link" onclick="event.stopPropagation()">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></a><?php else: ?><span class="block-task">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></span><?php endif; ?>
