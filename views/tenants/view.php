@@ -3306,9 +3306,8 @@ function openInboxNewConversation(tenantId) {
                 alert('✅ Tarefa criada com sucesso!');
                 closeCreateAndScheduleTaskModal();
                 
-                // Redireciona para a agenda do dia
-                var dataAgenda = document.getElementById('create_schedule_date').value;
-                window.location.href = '<?= pixelhub_url('/agenda?data=') ?>' + dataAgenda;
+                // Recarrega a aba de Projetos e Tarefas
+                window.location.reload();
             } else {
                 alert('❌ Erro: ' + (data.error || 'Erro desconhecido'));
             }
