@@ -180,17 +180,8 @@ $baseUrl = pixelhub_url('');
                     $totalDueToday = (float) ($tenant['total_due_today'] ?? 0);
                     $totalDueNext7d = (float) ($tenant['total_due_next_7d'] ?? 0);
                     
-                    // Verifica se foi contatado hoje
-                    $contactedToday = false;
-                    $contactNote = '';
-                    $lastContact = $tenant['last_notification_sent'] ?? $tenant['last_whatsapp_contact'] ?? null;
-                    if ($lastContact) {
-                        try {
-                            $date = new DateTime($lastContact);
-                            $today = new DateTime('today');
-                            $contactedToday = $date >= $today;
-                        } catch (Exception $e) {}
-                    }
+                    // Verifica se foi contatado hoje (vem do banco)
+                    $contactedToday = !empty($tenant['contacted_today']);
                     ?>
                     <tr style="border-bottom: 1px solid #dee2e6;">
                         <td style="padding: 12px;">
@@ -215,25 +206,16 @@ $baseUrl = pixelhub_url('');
                         <td style="padding: 12px; text-align: right; <?= $totalDueNext7d > 0 ? 'color: #ffc107; font-weight: 500;' : 'color: #6c757d;' ?>">
                             R$ <?= number_format($totalDueNext7d, 2, ',', '.') ?>
                         </td>
-                        <td style="padding: 12px; text-align: center;" id="contact-cell-<?= $tenant['tenant_id'] ?>">
-                            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 0;">
-                                    <input type="checkbox" 
-                                           class="contact-checkbox"
-                                           data-tenant-id="<?= $tenant['tenant_id'] ?>"
-                                           <?= $contactedToday ? 'checked' : '' ?>
-                                           onchange="toggleContactNote(this)"
-                                           style="width: 18px; height: 18px; cursor: pointer;">
-                                    <span style="font-size: 13px; color: #6c757d;">Hoje</span>
-                                </label>
-                                <input type="text" 
-                                       class="contact-note"
+                        <td style="padding: 12px; text-align: center;">
+                            <label style="display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; margin: 0;">
+                                <input type="checkbox" 
+                                       class="contact-checkbox"
                                        data-tenant-id="<?= $tenant['tenant_id'] ?>"
-                                       placeholder="Observação..."
-                                       maxlength="100"
-                                       style="display: <?= $contactedToday ? 'block' : 'none' ?>; width: 100%; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;"
-                                       onblur="saveContactNote(<?= $tenant['tenant_id'] ?>, this.value)">
-                            </div>
+                                       <?= $contactedToday ? 'checked' : '' ?>
+                                       onchange="saveContactStatus(<?= $tenant['tenant_id'] ?>, this.checked)"
+                                       style="width: 18px; height: 18px; cursor: pointer;">
+                                <span style="font-size: 13px; color: #6c757d;">Hoje</span>
+                            </label>
                         </td>
                         <td style="padding: 12px; text-align: center;">
                             <button class="btn btn-primary btn-sm" 
@@ -535,36 +517,11 @@ document.addEventListener('DOMContentLoaded', function() {
     window.closeModal = closeModal;
     window.copyMessage = copyMessage;
     
-    // Funções de contato
-    window.toggleContactNote = function(checkbox) {
-        const tenantId = checkbox.dataset.tenantId;
-        const noteInput = document.querySelector(`.contact-note[data-tenant-id="${tenantId}"]`);
-        
-        if (checkbox.checked) {
-            noteInput.style.display = 'block';
-            noteInput.focus();
-            // Salva que foi contatado
-            saveContactStatus(tenantId, true, '');
-        } else {
-            noteInput.style.display = 'none';
-            noteInput.value = '';
-            // Remove status de contatado
-            saveContactStatus(tenantId, false, '');
-        }
-    };
-    
-    window.saveContactNote = function(tenantId, note) {
-        const checkbox = document.querySelector(`.contact-checkbox[data-tenant-id="${tenantId}"]`);
-        if (checkbox && checkbox.checked) {
-            saveContactStatus(tenantId, true, note);
-        }
-    };
-    
-    function saveContactStatus(tenantId, contacted, note) {
+    // Função para salvar status de contato (sem reload)
+    window.saveContactStatus = function(tenantId, contacted) {
         const formData = new FormData();
         formData.append('tenant_id', tenantId);
         formData.append('contacted', contacted ? '1' : '0');
-        formData.append('note', note);
         
         fetch('<?= pixelhub_url('/billing/save-contact-status') ?>', {
             method: 'POST',
@@ -573,14 +530,39 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(r => r.json())
         .then(data => {
-            if (!data.success) {
+            if (data.success) {
+                // Mostra feedback visual sutil
+                const checkbox = document.querySelector(`.contact-checkbox[data-tenant-id="${tenantId}"]`);
+                if (checkbox) {
+                    const label = checkbox.closest('label');
+                    if (label) {
+                        label.style.transition = 'background 0.3s';
+                        label.style.background = contacted ? '#e8f5e9' : 'transparent';
+                        label.style.borderRadius = '4px';
+                        label.style.padding = '4px 8px';
+                        label.style.margin = '-4px -8px';
+                    }
+                }
+            } else {
                 console.error('Erro ao salvar status de contato:', data.error);
+                // Reverte checkbox em caso de erro
+                const checkbox = document.querySelector(`.contact-checkbox[data-tenant-id="${tenantId}"]`);
+                if (checkbox) {
+                    checkbox.checked = !contacted;
+                }
+                alert('Erro ao salvar status de contato');
             }
         })
         .catch(error => {
             console.error('Erro ao salvar status de contato:', error);
+            // Reverte checkbox em caso de erro
+            const checkbox = document.querySelector(`.contact-checkbox[data-tenant-id="${tenantId}"]`);
+            if (checkbox) {
+                checkbox.checked = !contacted;
+            }
+            alert('Erro ao salvar status de contato');
         });
-    }
+    };
 
     // Badge de falhas recentes
     fetch('<?= pixelhub_url('/billing/failure-count') ?>')

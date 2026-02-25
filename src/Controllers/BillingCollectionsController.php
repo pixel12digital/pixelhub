@@ -356,7 +356,13 @@ class BillingCollectionsController extends Controller
                 MAX(bi.whatsapp_last_at) as last_whatsapp_contact,
                 
                 -- Último contato via billing_notifications (usando subquery para evitar JOIN multiplicador)
-                (SELECT MAX(sent_at) FROM billing_notifications WHERE tenant_id = t.id AND status = 'sent_manual') as last_notification_sent,
+                (SELECT MAX(sent_at) FROM billing_notifications WHERE tenant_id = t.id AND status = 'sent') as last_notification_sent,
+                
+                -- Verifica se foi contatado hoje
+                (SELECT COUNT(*) FROM billing_notifications 
+                 WHERE tenant_id = t.id 
+                 AND DATE(sent_at) = CURDATE() 
+                 AND triggered_by = 'manual_contact') > 0 as contacted_today,
                 
                 -- Dias em atraso (da fatura mais antiga vencida) - usando subquery para evitar problema no ORDER BY
                 (SELECT MAX(DATEDIFF(CURDATE(), bi2.due_date)) 
@@ -902,7 +908,6 @@ class BillingCollectionsController extends Controller
         
         $tenantId = isset($_POST['tenant_id']) ? (int)$_POST['tenant_id'] : 0;
         $contacted = isset($_POST['contacted']) && $_POST['contacted'] === '1';
-        $note = trim($_POST['note'] ?? '');
         
         if ($tenantId <= 0) {
             $this->json(['success' => false, 'error' => 'ID do cliente inválido']);
@@ -917,10 +922,18 @@ class BillingCollectionsController extends Controller
                 $stmt = $db->prepare("
                     INSERT INTO billing_notifications 
                     (tenant_id, channel, message, status, triggered_by, created_at, sent_at)
-                    VALUES (?, 'manual', ?, 'sent', 'manual_contact', NOW(), NOW())
+                    VALUES (?, 'manual', 'Contato manual registrado', 'sent', 'manual_contact', NOW(), NOW())
                 ");
-                $message = $note ?: 'Contato manual registrado';
-                $stmt->execute([$tenantId, $message]);
+                $stmt->execute([$tenantId]);
+            } else {
+                // Remove registro de contato de hoje
+                $stmt = $db->prepare("
+                    DELETE FROM billing_notifications 
+                    WHERE tenant_id = ? 
+                    AND DATE(sent_at) = CURDATE() 
+                    AND triggered_by = 'manual_contact'
+                ");
+                $stmt->execute([$tenantId]);
             }
             
             $this->json(['success' => true, 'message' => 'Status salvo com sucesso']);
