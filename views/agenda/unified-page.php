@@ -381,6 +381,7 @@ $highlightBlockId = $expandBlockId ?? 0;
     <input type="hidden" name="data" value="<?= htmlspecialchars($dataStr) ?>">
     <input type="hidden" name="task_id" id="quick-add-task-id" value="">
     <input type="hidden" name="activity_type_id" id="quick-add-activity-type-id" value="">
+    <input type="hidden" name="ticket_id" id="quick-add-ticket-id" value="">
     <div class="quick-add-form-grid">
         <div class="col-projeto">
             <select name="project_id" id="quick-add-project" style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
@@ -415,6 +416,12 @@ $highlightBlockId = $expandBlockId ?? 0;
             <input type="hidden" name="tenant_id" id="quick-add-tenant-id" value="">
             <input type="text" id="quick-add-tenant-input" placeholder="Digite 3 letras para buscar..." autocomplete="off" style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
             <div id="quick-add-tenant-results" class="agenda-cliente-autocomplete-results" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.1); max-height:200px; overflow-y:auto; z-index:100; margin-top:2px;"></div>
+        </div>
+        <div class="col-ticket-avulsa" id="quick-add-ticket-container" style="display:none; min-width:200px;">
+            <label style="font-size:11px; color:#64748b; display:block; margin-bottom:4px;">Ticket (opcional)</label>
+            <select id="quick-add-ticket-select" style="width:100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;" disabled>
+                <option value="">Selecione um cliente primeiro</option>
+            </select>
         </div>
         <div class="col-observacao-avulsa">
             <label style="font-size:11px; color:#64748b; display:block; margin-bottom:4px;">Observação (opcional)</label>
@@ -2071,6 +2078,98 @@ document.addEventListener('DOMContentLoaded', function() {
         tenantInput.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') { hideResults(); this.blur(); }
         });
+    }
+
+    // Ticket dropdown logic (para blocos SUPORTE)
+    const qaTipo = document.getElementById('quick-add-tipo');
+    const ticketContainer = document.getElementById('quick-add-ticket-container');
+    const ticketSelect = document.getElementById('quick-add-ticket-select');
+    const ticketIdHidden = document.getElementById('quick-add-ticket-id');
+
+    if (qaTipo && ticketContainer && ticketSelect && ticketIdHidden && tenantIdHidden) {
+        // Função para verificar se o tipo selecionado é SUPORTE
+        function isSupportBlockType() {
+            const selectedOption = qaTipo.options[qaTipo.selectedIndex];
+            if (!selectedOption || !selectedOption.text) return false;
+            const tipoNome = selectedOption.text.toUpperCase();
+            return tipoNome.includes('SUPORTE');
+        }
+
+        // Função para carregar tickets do cliente
+        function loadTicketsForTenant(tenantId) {
+            if (!tenantId || tenantId <= 0) {
+                ticketSelect.innerHTML = '<option value="">Selecione um cliente primeiro</option>';
+                ticketSelect.disabled = true;
+                ticketIdHidden.value = '';
+                return;
+            }
+
+            ticketSelect.innerHTML = '<option value="">Carregando tickets...</option>';
+            ticketSelect.disabled = true;
+
+            fetch('<?= pixelhub_url('/tickets/list-by-tenant') ?>?tenant_id=' + tenantId)
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success && d.tickets && d.tickets.length > 0) {
+                        let options = '<option value="">Selecione um ticket (opcional)</option>';
+                        d.tickets.forEach(t => {
+                            const titulo = (t.titulo || '').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+                            const status = t.status || '';
+                            const prioridade = t.prioridade || '';
+                            const label = '#' + t.id + ' - ' + titulo + ' (' + status + ')';
+                            options += '<option value="' + t.id + '">' + label + '</option>';
+                        });
+                        ticketSelect.innerHTML = options;
+                        ticketSelect.disabled = false;
+                    } else {
+                        ticketSelect.innerHTML = '<option value="">Nenhum ticket aberto para este cliente</option>';
+                        ticketSelect.disabled = true;
+                    }
+                })
+                .catch(() => {
+                    ticketSelect.innerHTML = '<option value="">Erro ao carregar tickets</option>';
+                    ticketSelect.disabled = true;
+                });
+        }
+
+        // Mostrar/ocultar ticket dropdown baseado no tipo de bloco
+        function updateTicketVisibility() {
+            const isSupport = isSupportBlockType();
+            const isAvulsa = qaProject && qaProject.value === '';
+            
+            if (isSupport && isAvulsa) {
+                ticketContainer.style.display = 'block';
+                const currentTenantId = tenantIdHidden.value;
+                if (currentTenantId && currentTenantId > 0) {
+                    loadTicketsForTenant(currentTenantId);
+                }
+            } else {
+                ticketContainer.style.display = 'none';
+                ticketIdHidden.value = '';
+                ticketSelect.innerHTML = '<option value="">Selecione um cliente primeiro</option>';
+                ticketSelect.disabled = true;
+            }
+        }
+
+        // Event listeners
+        qaTipo.addEventListener('change', updateTicketVisibility);
+
+        // Quando cliente é selecionado, carregar tickets se for bloco SUPORTE
+        const originalSelectClient = selectClient;
+        selectClient = function(id, label) {
+            originalSelectClient(id, label);
+            if (isSupportBlockType()) {
+                loadTicketsForTenant(id);
+            }
+        };
+
+        // Quando ticket é selecionado, atualizar hidden field
+        ticketSelect.addEventListener('change', function() {
+            ticketIdHidden.value = this.value;
+        });
+
+        // Inicializar visibilidade
+        updateTicketVisibility();
     }
 });
 

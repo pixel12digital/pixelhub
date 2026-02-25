@@ -557,6 +557,8 @@ class AgendaService
         
         // Projeto foco (opcional)
         $projetoFocoId = isset($dados['projeto_foco_id']) && (int)$dados['projeto_foco_id'] > 0 ? (int)$dados['projeto_foco_id'] : null;
+        // Ticket (opcional, para blocos de suporte)
+        $ticketId = isset($dados['ticket_id']) && (int)$dados['ticket_id'] > 0 ? (int)$dados['ticket_id'] : null;
         // Cliente (opcional, para atividades avulsas comerciais)
         $tenantId = isset($dados['tenant_id']) && (int)$dados['tenant_id'] > 0 ? (int)$dados['tenant_id'] : null;
         // Observação/resumo (opcional, pode ser preenchido na criação)
@@ -564,11 +566,11 @@ class AgendaService
         // Tipo de atividade (opcional, para atividades avulsas)
         $activityTypeId = isset($dados['activity_type_id']) && (int)$dados['activity_type_id'] > 0 ? (int)$dados['activity_type_id'] : null;
         
-        // Insere o bloco (tenant_id, resumo e activity_type_id opcionais)
+        // Insere o bloco (tenant_id, resumo, activity_type_id e ticket_id opcionais)
         $stmt = $db->prepare("
             INSERT INTO agenda_blocks 
-            (data, hora_inicio, hora_fim, tipo_id, projeto_foco_id, activity_type_id, tenant_id, resumo, status, duracao_planejada, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'planned', ?, NOW(), NOW())
+            (data, hora_inicio, hora_fim, tipo_id, projeto_foco_id, ticket_id, activity_type_id, tenant_id, resumo, status, duracao_planejada, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'planned', ?, NOW(), NOW())
         ");
         $stmt->execute([
             $dataStr,
@@ -576,6 +578,7 @@ class AgendaService
             $horaFim,
             $tipoId,
             $projetoFocoId,
+            $ticketId,
             $activityTypeId,
             $tenantId,
             $resumo,
@@ -1173,6 +1176,7 @@ class AgendaService
         // Constrói a query completa antes de preparar
         // tn_block: cliente vinculado diretamente ao bloco (atividades avulsas)
         // tn_projeto: cliente do projeto (quando item vem de projeto/tarefa)
+        // ticket: ticket de suporte vinculado ao bloco (para blocos SUPORTE)
         $sql = "
             SELECT 
                 b.*,
@@ -1186,6 +1190,9 @@ class AgendaService
                 t_focus.title as focus_task_title,
                 t_focus.status as focus_task_status,
                 t_focus.project_id as focus_task_project_id,
+                ticket.titulo as ticket_titulo,
+                ticket.status as ticket_status,
+                ticket.prioridade as ticket_prioridade,
                 " . $tasksCountSubquery . " as tarefas_count
             FROM agenda_blocks b
             INNER JOIN agenda_block_types bt ON b.tipo_id = bt.id
@@ -1194,6 +1201,7 @@ class AgendaService
             LEFT JOIN tenants tn_block ON b.tenant_id = tn_block.id
             LEFT JOIN tenants tn_projeto ON p.tenant_id = tn_projeto.id
             LEFT JOIN tasks t_focus ON b.focus_task_id = t_focus.id
+            LEFT JOIN tickets ticket ON b.ticket_id = ticket.id
             WHERE b.data = ?
             ORDER BY b.hora_inicio ASC
         ";

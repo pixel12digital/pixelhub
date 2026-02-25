@@ -349,6 +349,54 @@ class TicketController extends Controller
     }
     
     /**
+     * Lista tickets abertos de um cliente específico (JSON para dropdown da agenda)
+     */
+    public function listByTenant(): void
+    {
+        Auth::requireInternal();
+        
+        $tenantId = isset($_GET['tenant_id']) && $_GET['tenant_id'] !== '' ? (int)$_GET['tenant_id'] : 0;
+        
+        if ($tenantId <= 0) {
+            $this->json(['success' => false, 'error' => 'ID do cliente inválido'], 400);
+            return;
+        }
+        
+        try {
+            // Busca apenas tickets abertos (não resolvidos nem cancelados)
+            $filters = [
+                'tenant_id' => $tenantId,
+            ];
+            
+            $allTickets = TicketService::getAllTickets($filters);
+            
+            // Filtra apenas tickets abertos (status: aberto, em_atendimento, aguardando_cliente)
+            $openTickets = array_filter($allTickets, function($ticket) {
+                $status = $ticket['status'] ?? '';
+                return in_array($status, ['aberto', 'em_atendimento', 'aguardando_cliente']);
+            });
+            
+            // Formata para o dropdown (apenas campos necessários)
+            $tickets = array_map(function($ticket) {
+                return [
+                    'id' => (int)$ticket['id'],
+                    'titulo' => $ticket['titulo'],
+                    'status' => $ticket['status'],
+                    'prioridade' => $ticket['prioridade'],
+                ];
+            }, array_values($openTickets));
+            
+            $this->json([
+                'success' => true,
+                'tickets' => $tickets,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Erro ao listar tickets por tenant: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro ao buscar tickets'], 500);
+        }
+    }
+    
+    /**
      * Encerra um ticket
      */
     public function close(): void

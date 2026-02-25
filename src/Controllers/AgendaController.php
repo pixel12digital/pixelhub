@@ -1505,6 +1505,7 @@ class AgendaController extends Controller
         $dataStr = $_POST['data'] ?? date('Y-m-d');
         $projectId = isset($_POST['project_id']) && $_POST['project_id'] !== '' ? (int)$_POST['project_id'] : null;
         $taskId = isset($_POST['task_id']) && $_POST['task_id'] !== '' ? (int)$_POST['task_id'] : 0;
+        $ticketId = isset($_POST['ticket_id']) && $_POST['ticket_id'] !== '' ? (int)$_POST['ticket_id'] : null;
         $activityTypeId = isset($_POST['activity_type_id']) && $_POST['activity_type_id'] !== '' ? (int)$_POST['activity_type_id'] : null;
         $tipoId = isset($_POST['tipo_id']) ? (int)$_POST['tipo_id'] : 0;
         $horaInicio = trim($_POST['hora_inicio'] ?? '');
@@ -1531,6 +1532,7 @@ class AgendaController extends Controller
                 'hora_fim' => $horaFim,
                 'tipo_id' => $tipoId,
                 'projeto_foco_id' => $projectId,
+                'ticket_id' => $ticketId > 0 ? $ticketId : null,
                 'tenant_id' => $tenantId > 0 ? $tenantId : null,
                 'resumo' => $resumo !== '' ? $resumo : null,
                 'activity_type_id' => (!$projectId || $projectId <= 0) && $activityTypeId > 0 ? $activityTypeId : null,

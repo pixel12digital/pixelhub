@@ -908,6 +908,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/tickets/create-task', 'TicketController@createTaskFromTicket');
     $router->post('/tickets/close', 'TicketController@close');
     $router->post('/tickets/add-note', 'TicketController@addNote');
+    $router->get('/tickets/list-by-tenant', 'TicketController@listByTenant');
 
 // Handler para erros fatais (antes do try-catch)
 register_shutdown_function(function() use ($path) {

@@ -1277,6 +1277,30 @@ class ConversationService
                     WHERE id = ? AND (contact_name IS NULL OR contact_name = '')
                 ");
                 $updateNameStmt->execute([$channelInfo['contact_name'], $conversationId]);
+            } else {
+                // Se contact_name não foi fornecido (ex: mensagem outbound), tenta buscar do Lead vinculado
+                $leadNameStmt = $db->prepare("
+                    SELECT l.name 
+                    FROM conversations c
+                    INNER JOIN leads l ON c.lead_id = l.id
+                    WHERE c.id = ? AND c.lead_id IS NOT NULL AND l.name IS NOT NULL AND l.name != ''
+                ");
+                $leadNameStmt->execute([$conversationId]);
+                $leadName = $leadNameStmt->fetchColumn();
+                
+                if ($leadName) {
+                    $updateNameFromLeadStmt = $db->prepare("
+                        UPDATE conversations 
+                        SET contact_name = ? 
+                        WHERE id = ? AND (contact_name IS NULL OR contact_name = '')
+                    ");
+                    $updateNameFromLeadStmt->execute([$leadName, $conversationId]);
+                    error_log(sprintf(
+                        '[CONVERSATION UPDATE] contact_name atualizado do Lead: conversation_id=%d, nome=%s',
+                        $conversationId,
+                        $leadName
+                    ));
+                }
             }
 
             // CORREÇÃO: NÃO resolve tenant_id automaticamente pelo channel_id quando é NULL
