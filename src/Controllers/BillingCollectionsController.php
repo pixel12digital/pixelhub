@@ -373,7 +373,6 @@ class BillingCollectionsController extends Controller
                 
             FROM tenants t
             LEFT JOIN billing_invoices bi ON t.id = bi.tenant_id
-            WHERE t.status = 'active'
             GROUP BY t.id, t.name, t.person_type, t.nome_fantasia, t.phone, t.billing_status
         ";
 
