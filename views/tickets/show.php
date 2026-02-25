@@ -198,22 +198,6 @@ ob_start();
                     <option value="cancelado" <?= $ticket['status'] === 'cancelado' ? 'selected' : '' ?> style="background: #f5f5f5; color: #757575;">Cancelado</option>
                 </select>
             </div>
-            
-            <?php
-            $isBillable = !empty($ticket['is_billable']) && $ticket['is_billable'] == 1;
-            ?>
-            <div style="display: flex; align-items: center; gap: 8px; margin-left: 10px; padding-left: 10px; border-left: 1px solid #ddd;">
-                <label style="display: flex; align-items: center; cursor: pointer; font-size: 13px; color: #666; font-weight: 600;">
-                    <input 
-                        type="checkbox" 
-                        id="billable-toggle"
-                        <?= $isBillable ? 'checked' : '' ?>
-                        onchange="toggleBillable(<?= $ticket['id'] ?>, this.checked)"
-                        style="margin-right: 6px; cursor: pointer;"
-                    >
-                    Faturável
-                </label>
-            </div>
         </div>
     </div>
     
@@ -985,8 +969,25 @@ ob_start();
     </div>
 </div>
 
+<!-- Incluir Modal de Faturamento -->
+<?php include __DIR__ . '/billing_modal.php'; ?>
+
 <script>
 function updateTicketStatus(ticketId, newStatus) {
+    // Intercepta mudança para "resolvido" - abre modal de faturamento
+    if (newStatus === 'resolvido') {
+        const select = document.getElementById('status-select');
+        const originalValue = select.getAttribute('data-original-value') || select.value;
+        
+        // Reverte select temporariamente
+        select.value = originalValue;
+        
+        // Abre modal de faturamento
+        openBillingModal(ticketId);
+        return;
+    }
+    
+    // Para outros status, processa normalmente
     if (!ticketId || !newStatus) {
         alert('Erro: dados inválidos');
         return;
@@ -1049,98 +1050,6 @@ function updateStatusSelectStyle(status) {
     const style = statusStyles[status] || {};
     select.style.background = style.background || 'white';
     select.style.color = style.color || '#333';
-}
-
-// Toggle faturável
-function toggleBillable(ticketId, isBillable) {
-    const formData = new FormData();
-    formData.append('ticket_id', ticketId);
-    formData.append('is_billable', isBillable ? '1' : '0');
-    
-    fetch('<?= pixelhub_url('/tickets/toggle-billable') ?>', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            window.location.reload();
-        } else {
-            alert(data.error || 'Erro ao atualizar');
-            document.getElementById('billable-toggle').checked = !isBillable;
-        }
-    })
-    .catch(error => {
-        console.error('Erro:', error);
-        alert('Erro ao atualizar');
-        document.getElementById('billable-toggle').checked = !isBillable;
-    });
-}
-
-// Toggle seção de faturamento (colapsar/expandir)
-function toggleBillingSection() {
-    const content = document.getElementById('billing-content');
-    const icon = document.getElementById('billing-toggle-icon');
-    
-    if (content.style.display === 'none') {
-        content.style.display = 'block';
-        icon.textContent = '▼';
-    } else {
-        content.style.display = 'none';
-        icon.textContent = '▸';
-    }
-}
-
-// Atualiza label do desconto conforme tipo selecionado
-function updateDiscountLabel() {
-    const discountType = document.getElementById('discount_type');
-    const discountLabel = document.getElementById('discount_label');
-    const discountHint = document.getElementById('discount_hint');
-    const discountValue = document.getElementById('discount_value');
-    
-    if (!discountType || !discountLabel || !discountHint) return;
-    
-    const type = discountType.value;
-    
-    if (type === 'PERCENTAGE') {
-        discountLabel.textContent = 'Desconto (%)';
-        discountHint.textContent = 'Percentual de desconto';
-        discountValue.placeholder = 'Ex: 10.00';
-        discountValue.max = '100';
-    } else if (type === 'FIXED') {
-        discountLabel.textContent = 'Desconto (R$)';
-        discountHint.textContent = 'Valor fixo em reais';
-        discountValue.placeholder = 'Ex: 50.00';
-        discountValue.removeAttribute('max');
-    } else {
-        discountLabel.textContent = 'Valor do Desconto';
-        discountHint.textContent = 'Opcional';
-        discountValue.placeholder = 'Ex: 10.00';
-        discountValue.removeAttribute('max');
-    }
-}
-
-// Toggle campo de parcelas (só aparece para CREDIT_CARD e BOLETO)
-function toggleInstallmentField() {
-    const billingType = document.getElementById('billing_type');
-    const installmentField = document.getElementById('installment_field');
-    
-    if (!billingType || !installmentField) return;
-    
-    const type = billingType.value;
-    
-    // Mostra parcelas apenas para CREDIT_CARD e BOLETO
-    if (type === 'CREDIT_CARD' || type === 'BOLETO') {
-        installmentField.style.display = 'block';
-    } else {
-        installmentField.style.display = 'none';
-    }
-}
-
-// Atualiza preview das parcelas (caso o valor mude dinamicamente)
-function updateInstallmentPreview() {
-    // Função placeholder para futuras melhorias
-    // Por enquanto, os valores são calculados no PHP ao carregar a página
 }
 
 // Salva valor original ao carregar
