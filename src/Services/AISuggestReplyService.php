@@ -1089,15 +1089,25 @@ PROMPT;
      */
     public static function analyzeBillingContext(int $tenantId): array
     {
+        error_log('[AI BILLING] ========== INÍCIO ANÁLISE DE COBRANÇA ==========');
+        error_log('[AI BILLING] tenant_id recebido: ' . $tenantId);
+        
         $db = DB::getConnection();
 
         // Sincroniza com Asaas ANTES de buscar faturas para obter valores atualizados com juros/multas
+        error_log('[AI BILLING] Tentando sincronizar com Asaas...');
         try {
-            error_log('[AI BILLING] Sincronizando com Asaas para tenant_id: ' . $tenantId);
+            error_log('[AI BILLING] Chamando AsaasBillingService::syncInvoicesForTenant(' . $tenantId . ')');
             $syncResult = \PixelHub\Services\AsaasBillingService::syncInvoicesForTenant($tenantId);
-            error_log('[AI BILLING] Sincronização concluída: ' . ($syncResult['created'] ?? 0) . ' criadas, ' . ($syncResult['updated'] ?? 0) . ' atualizadas');
+            error_log('[AI BILLING] Sincronização concluída com sucesso!');
+            error_log('[AI BILLING] Resultado: ' . json_encode($syncResult));
+            error_log('[AI BILLING] Faturas criadas: ' . ($syncResult['created'] ?? 0));
+            error_log('[AI BILLING] Faturas atualizadas: ' . ($syncResult['updated'] ?? 0));
         } catch (\Exception $e) {
-            error_log('[AI BILLING] AVISO: Erro na sincronização com Asaas: ' . $e->getMessage());
+            error_log('[AI BILLING] ERRO na sincronização com Asaas!');
+            error_log('[AI BILLING] Mensagem: ' . $e->getMessage());
+            error_log('[AI BILLING] Arquivo: ' . $e->getFile() . ':' . $e->getLine());
+            error_log('[AI BILLING] Continuando com dados do banco...');
             // Continua mesmo se sincronização falhar - usa dados do banco
         }
 
