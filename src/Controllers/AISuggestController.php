@@ -423,19 +423,25 @@ class AISuggestController extends Controller
             // Análise automática de cobranças se contexto é financeiro E objetivo é cobranca
             $billingAnalysis = null;
             if ($contextSlug === 'financeiro' && $objective === 'cobranca') {
-                // Tenta identificar tenant_id da conversa
-                $tenantId = $this->extractTenantIdFromConversation($conversationId, $opportunityId);
+                // Tenta identificar tenant_id: primeiro do payload, depois da conversa/oportunidade
+                $tenantId = $input['tenant_id'] ?? null;
+                if (!$tenantId) {
+                    $tenantId = $this->extractTenantIdFromConversation($conversationId, $opportunityId);
+                }
+                
                 if ($tenantId) {
                     error_log('[AI CHAT] Iniciando análise de cobrança para tenant_id: ' . $tenantId);
                     $billingAnalysis = AISuggestReplyService::analyzeBillingContext($tenantId);
                     error_log('[AI CHAT] Análise retornou objetivo: ' . ($billingAnalysis['objective'] ?? 'null'));
+                    
                     // Sobrescreve objetivo com o específico (critical/collection/reminder)
                     if (!empty($billingAnalysis['objective']) && $billingAnalysis['objective'] !== 'answer_question') {
                         $objective = $billingAnalysis['objective'];
                         error_log('[AI CHAT] Objetivo sobrescrito para: ' . $objective);
                     }
                 } else {
-                    error_log('[AI CHAT] Contexto financeiro + objetivo cobranca, mas tenant_id não identificado');
+                    error_log('[AI CHAT] ERRO: Contexto financeiro + objetivo cobranca, mas tenant_id não identificado');
+                    error_log('[AI CHAT] conversation_id: ' . ($conversationId ?: 'null') . ', opportunity_id: ' . ($opportunityId ?: 'null'));
                 }
             }
 

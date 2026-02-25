@@ -590,6 +590,21 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         var note = (document.getElementById('newMsgAINote') || {}).value || '';
         var contactName = (document.getElementById('modalClienteSearchInput') || {}).value || '';
         var contactPhone = (document.getElementById('new-message-to') || {}).value || '';
+        
+        // Captura tenant_id do campo hidden ou da URL
+        var tenantId = (document.getElementById('modalClienteTenantId') || {}).value || null;
+        if (!tenantId) {
+            // Tenta extrair da URL (ex: tenants/view?id=71)
+            var urlParams = new URLSearchParams(window.location.search);
+            tenantId = urlParams.get('id');
+        }
+        
+        console.log('[NewMsgAI] Enviando para API:', {
+            context: contextSlug,
+            objective: objective,
+            tenant_id: tenantId,
+            opportunity_id: window._currentOpportunityId
+        });
 
         fetch(_newMsgAIBaseUrl + '/api/ai/chat', {
             method: 'POST',
@@ -602,7 +617,8 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 contact_name: contactName,
                 contact_phone: contactPhone,
                 ai_chat_messages: _newMsgAIChatHistory,
-                opportunity_id: window._currentOpportunityId || null
+                opportunity_id: window._currentOpportunityId || null,
+                tenant_id: tenantId ? parseInt(tenantId) : null
             })
         })
         .then(function(r) { return r.json(); })
