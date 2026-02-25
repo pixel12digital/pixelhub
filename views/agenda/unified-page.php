@@ -2090,14 +2090,21 @@ document.addEventListener('DOMContentLoaded', function() {
         // Função para verificar se o tipo selecionado é SUPORTE
         function isSupportBlockType() {
             const selectedOption = qaTipo.options[qaTipo.selectedIndex];
-            if (!selectedOption || !selectedOption.text) return false;
+            if (!selectedOption || !selectedOption.text) {
+                console.log('DEBUG: Tipo não selecionado ou sem texto');
+                return false;
+            }
             const tipoNome = selectedOption.text.toUpperCase();
-            return tipoNome.includes('SUPORTE');
+            const isSupport = tipoNome.includes('SUPORTE');
+            console.log('DEBUG: Tipo selecionado:', selectedOption.text, '-> isSupport:', isSupport);
+            return isSupport;
         }
 
         // Função para carregar tickets do cliente
         function loadTicketsForTenant(tenantId) {
+            console.log('DEBUG: loadTicketsForTenant chamado com tenantId:', tenantId);
             if (!tenantId || tenantId <= 0) {
+                console.log('DEBUG: tenantId inválido');
                 ticketSelect.innerHTML = '<option value="">Selecione um cliente primeiro</option>';
                 ticketSelect.disabled = true;
                 ticketIdHidden.value = '';
@@ -2107,10 +2114,18 @@ document.addEventListener('DOMContentLoaded', function() {
             ticketSelect.innerHTML = '<option value="">Carregando tickets...</option>';
             ticketSelect.disabled = true;
 
-            fetch('<?= pixelhub_url('/tickets/list-by-tenant') ?>?tenant_id=' + tenantId)
-                .then(r => r.json())
+            const url = '<?= pixelhub_url('/tickets/list-by-tenant') ?>?tenant_id=' + tenantId;
+            console.log('DEBUG: Fazendo fetch para:', url);
+
+            fetch(url)
+                .then(r => {
+                    console.log('DEBUG: Response status:', r.status);
+                    return r.json();
+                })
                 .then(d => {
+                    console.log('DEBUG: Response data:', d);
                     if (d.success && d.tickets && d.tickets.length > 0) {
+                        console.log('DEBUG: Tickets encontrados:', d.tickets.length);
                         let options = '<option value="">Selecione um ticket (opcional)</option>';
                         d.tickets.forEach(t => {
                             const titulo = (t.titulo || '').replace(/</g,'&lt;').replace(/"/g,'&quot;');
@@ -2122,11 +2137,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         ticketSelect.innerHTML = options;
                         ticketSelect.disabled = false;
                     } else {
+                        console.log('DEBUG: Nenhum ticket encontrado ou erro:', d);
                         ticketSelect.innerHTML = '<option value="">Nenhum ticket aberto para este cliente</option>';
                         ticketSelect.disabled = true;
                     }
                 })
-                .catch(() => {
+                .catch((error) => {
+                    console.log('DEBUG: Erro no fetch:', error);
                     ticketSelect.innerHTML = '<option value="">Erro ao carregar tickets</option>';
                     ticketSelect.disabled = true;
                 });
@@ -2136,14 +2153,21 @@ document.addEventListener('DOMContentLoaded', function() {
         function updateTicketVisibility() {
             const isSupport = isSupportBlockType();
             const isAvulsa = qaProject && qaProject.value === '';
+            const currentTenantId = tenantIdHidden.value;
+            
+            console.log('DEBUG: updateTicketVisibility - isSupport:', isSupport, 'isAvulsa:', isAvulsa, 'tenantId:', currentTenantId);
             
             if (isSupport && isAvulsa) {
+                console.log('DEBUG: Mostrando container de tickets');
                 ticketContainer.style.display = 'block';
-                const currentTenantId = tenantIdHidden.value;
                 if (currentTenantId && currentTenantId > 0) {
+                    console.log('DEBUG: Carregando tickets para tenant:', currentTenantId);
                     loadTicketsForTenant(currentTenantId);
+                } else {
+                    console.log('DEBUG: Tenant não selecionado');
                 }
             } else {
+                console.log('DEBUG: Escondendo container de tickets');
                 ticketContainer.style.display = 'none';
                 ticketIdHidden.value = '';
                 ticketSelect.innerHTML = '<option value="">Selecione um cliente primeiro</option>';
