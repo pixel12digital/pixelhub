@@ -45,8 +45,10 @@ class TenantsController extends Controller
         }
 
         // Busca hosting accounts do tenant
-        // Se o cliente estiver inativo (is_archived = 1), não mostra nenhum serviço ativo
-        if (!empty($tenant['is_archived'])) {
+        // Se o cliente estiver inativo (status = 'inactive' ou is_archived = 1), não mostra nenhum serviço ativo
+        $isInactive = ($tenant['status'] ?? 'active') === 'inactive' || !empty($tenant['is_archived']);
+        
+        if ($isInactive) {
             $hostingAccounts = [];
         } else {
             $stmt = $db->prepare("

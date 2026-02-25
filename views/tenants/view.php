@@ -1565,7 +1565,10 @@ function openInboxNewConversation(tenantId) {
         <?php endif; ?>
         
         <?php if (empty($hostingAccounts)): ?>
-            <?php if (!empty($tenant['is_archived'])): ?>
+            <?php 
+            $isInactive = ($tenant['status'] ?? 'active') === 'inactive' || !empty($tenant['is_archived']);
+            if ($isInactive): 
+            ?>
                 <!-- Cliente Inativo -->
                 <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 30px; text-align: center;">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#856404" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 15px;">
