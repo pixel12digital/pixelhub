@@ -548,8 +548,39 @@ Você está em modo CHAT com o atendente. Seu trabalho:
    - NÃO repita valores, links, detalhes que já foram enviados
    - Avance a conversa para o próximo passo
 
+## ANTI-REPETIÇÃO: VARIAÇÃO DE FRASES DE ENCERRAMENTO
+🚫 PROBLEMA CRÍTICO: Frases repetitivas cansam o cliente e soam robóticas.
+
+FRASES PROIBIDAS DE REPETIR em conversas fluídas (< 60 min entre mensagens):
+- "Estou à disposição" / "À disposição"
+- "Se precisar de mais detalhes" / "Se precisar de algo"
+- "Se tiver dúvida" / "Qualquer dúvida"
+- "Pode me chamar" / "Qualquer coisa, me chama"
+- "Podemos agendar uma chamada"
+- "Fico no aguardo" / "Aguardo retorno"
+
+✅ REGRAS DE VARIAÇÃO:
+1. Analise as últimas 5 mensagens do atendente
+2. Se uma frase de encerramento foi usada 2+ vezes → VARIE ou OMITA
+3. Em conversas fluídas, muitas vezes NÃO é necessário encerramento formal
+4. Termine direto após responder a pergunta/dar a informação
+5. Se precisar encerrar, use variações naturais:
+   - "Vou aguardar sua decisão"
+   - "Me avise o que achar melhor"
+   - "Fico por aqui então"
+   - "Qualquer coisa, só chamar"
+   - Ou simplesmente termine sem frase de encerramento
+
+🎯 OBJETIVO: Soar HUMANO, não robótico. Conversas naturais não repetem as mesmas frases a cada mensagem.
+
 Objetivo atual: {$objectiveLabel}
 {$historyInstruction}
+
+🎭 TOM E NATURALIDADE:
+- Seja conversacional, não formal demais
+- Evite soar como chatbot com frases padronizadas
+- Em conversas fluídas, seja direto e natural como em uma conversa presencial
+- Não force encerramentos educados a cada mensagem — isso cansa
 
 {$objectiveInstructions}
 
@@ -684,6 +715,63 @@ PROMPT;
             
             // Limita a últimas 15 mensagens para ter contexto suficiente
             $recentHistory = array_slice($history, -15);
+            
+            // Detecta padrões repetitivos nas últimas mensagens do atendente
+            $repetitivePhrases = [];
+            $recentAgentMessages = [];
+            foreach ($recentHistory as $msg) {
+                if (($msg['direction'] ?? 'in') === 'out') {
+                    $text = $msg['text'] ?? $msg['message'] ?? $msg['content'] ?? '';
+                    if (!empty($text)) {
+                        $recentAgentMessages[] = mb_strtolower($text);
+                    }
+                }
+            }
+            
+            // Padrões comuns de encerramento/disponibilidade
+            $commonPatterns = [
+                'estou à disposição',
+                'à disposição',
+                'se precisar de mais',
+                'se precisar de algo',
+                'se tiver dúvida',
+                'se tiver alguma dúvida',
+                'qualquer dúvida',
+                'qualquer coisa',
+                'pode me chamar',
+                'pode chamar',
+                'agendar uma chamada',
+                'podemos agendar',
+                'quiser saber mais',
+                'se quiser',
+                'fico no aguardo',
+                'aguardo retorno',
+                'aguardo seu retorno'
+            ];
+            
+            foreach ($commonPatterns as $pattern) {
+                $count = 0;
+                foreach ($recentAgentMessages as $agentMsg) {
+                    if (mb_strpos($agentMsg, $pattern) !== false) {
+                        $count++;
+                    }
+                }
+                if ($count >= 2) {
+                    $repetitivePhrases[] = $pattern;
+                }
+            }
+            
+            // Se detectou frases repetitivas, adiciona aviso
+            if (!empty($repetitivePhrases)) {
+                $phrasesList = implode('", "', $repetitivePhrases);
+                $parts[] = "";
+                $parts[] = "🚫 ALERTA DE REPETIÇÃO DETECTADA:";
+                $parts[] = "As seguintes frases foram usadas 2+ vezes nas últimas mensagens do atendente: \"{$phrasesList}\"";
+                $parts[] = "Em conversas FLUÍDAS (mensagens com minutos de diferença), NÃO use essas frases novamente.";
+                $parts[] = "VARIE o encerramento ou OMITA completamente se não for necessário.";
+                $parts[] = "Exemplos de variação: 'Vou aguardar', 'Me avise quando decidir', 'Fico por aqui', ou simplesmente termine direto após responder.";
+                $parts[] = "";
+            }
             
             // Identifica a última mensagem do contato para destacar
             $lastContactIndex = -1;
