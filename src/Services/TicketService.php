@@ -274,14 +274,17 @@ class TicketService
         }
         
         // VALIDAÇÃO: Bloqueia encerramento de ticket faturável sem pagamento
+        // Só valida se JÁ TEM cobrança gerada (billing_invoice_id preenchido)
         if (isset($data['status']) && in_array($data['status'], ['resolvido', 'cancelado'])) {
             $isBillable = !empty($ticket['is_billable']) && $ticket['is_billable'] == 1;
+            $hasInvoice = !empty($ticket['billing_invoice_id']);
             $billingStatus = $ticket['billing_status'] ?? null;
             
-            if ($isBillable && $billingStatus !== 'paid') {
+            // Só bloqueia se é faturável E já tem cobrança gerada E não foi pago
+            if ($isBillable && $hasInvoice && $billingStatus !== 'paid') {
                 throw new \InvalidArgumentException(
-                    'Este ticket é faturável e ainda não foi pago. ' .
-                    'Gere a cobrança e aguarde o pagamento antes de encerrar o ticket.'
+                    'Este ticket possui uma cobrança gerada que ainda não foi paga. ' .
+                    'Aguarde o pagamento antes de encerrar o ticket.'
                 );
             }
         }
