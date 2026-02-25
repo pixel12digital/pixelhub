@@ -198,6 +198,22 @@ ob_start();
                     <option value="cancelado" <?= $ticket['status'] === 'cancelado' ? 'selected' : '' ?> style="background: #f5f5f5; color: #757575;">Cancelado</option>
                 </select>
             </div>
+            
+            <?php
+            $isBillable = !empty($ticket['is_billable']) && $ticket['is_billable'] == 1;
+            ?>
+            <div style="display: flex; align-items: center; gap: 8px; margin-left: 10px; padding-left: 10px; border-left: 1px solid #ddd;">
+                <label style="display: flex; align-items: center; cursor: pointer; font-size: 13px; color: #666; font-weight: 600;">
+                    <input 
+                        type="checkbox" 
+                        id="billable-toggle"
+                        <?= $isBillable ? 'checked' : '' ?>
+                        onchange="toggleBillable(<?= $ticket['id'] ?>, this.checked)"
+                        style="margin-right: 6px; cursor: pointer;"
+                    >
+                    Faturável
+                </label>
+            </div>
         </div>
     </div>
     
@@ -276,17 +292,22 @@ ob_start();
         <?php endif; ?>
     </div>
     
-    <!-- Seção de Faturamento -->
-    <div class="ticket-section">
-        <h3>💰 Faturamento</h3>
+    <!-- Seção de Faturamento (só aparece se faturável) -->
+    <?php
+    $isBillable = !empty($ticket['is_billable']) && $ticket['is_billable'] == 1;
+    $billingStatus = $ticket['billing_status'] ?? null;
+    $hasInvoice = !empty($ticket['billing_invoice_id']);
+    ?>
+    
+    <?php if ($isBillable): ?>
+    <div class="ticket-section" id="billing-section">
+        <h3 style="cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none;" onclick="toggleBillingSection()">
+            <span id="billing-toggle-icon">▼</span> Faturamento
+        </h3>
         
-        <?php
-        $isBillable = !empty($ticket['is_billable']) && $ticket['is_billable'] == 1;
-        $billingStatus = $ticket['billing_status'] ?? null;
-        $hasInvoice = !empty($ticket['billing_invoice_id']);
-        ?>
+        <div id="billing-content" style="display: block;">
         
-        <?php if (!$isBillable): ?>
+        <?php if (empty($ticket['billed_value'])): ?>
             <!-- Formulário para marcar como faturável -->
             <div style="padding: 20px; background: #f9f9f9; border-radius: 4px; border-left: 4px solid #023A8D;">
                 <p style="margin: 0 0 15px 0; color: #666;">
@@ -434,14 +455,65 @@ ob_start();
                                 
                                 <div>
                                     <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
-                                        Descrição (opcional)
+                                        Juros ao Mês (%)
                                     </label>
                                     <input 
-                                        type="text" 
-                                        name="description"
-                                        placeholder="Deixe vazio para usar título do ticket"
+                                        type="number" 
+                                        name="interest_value"
+                                        step="0.01"
+                                        min="0"
+                                        max="100"
+                                        placeholder="Ex: 1.00"
                                         style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
                                     >
+                                    <small style="color: #666; display: block; margin-top: 3px;">Opcional</small>
+                                </div>
+                                
+                                <div>
+                                    <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                                        Multa por Atraso (%)
+                                    </label>
+                                    <input 
+                                        type="number" 
+                                        name="fine_value"
+                                        step="0.01"
+                                        min="0"
+                                        max="100"
+                                        placeholder="Ex: 2.00"
+                                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                                    >
+                                    <small style="color: #666; display: block; margin-top: 3px;">Opcional</small>
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                                <div>
+                                    <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                                        Desconto (R$)
+                                    </label>
+                                    <input 
+                                        type="number" 
+                                        name="discount_value"
+                                        step="0.01"
+                                        min="0"
+                                        placeholder="Ex: 10.00"
+                                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                                    >
+                                    <small style="color: #666; display: block; margin-top: 3px;">Opcional</small>
+                                </div>
+                                
+                                <div>
+                                    <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                                        Dias para Desconto
+                                    </label>
+                                    <input 
+                                        type="number" 
+                                        name="discount_days_before_due"
+                                        min="0"
+                                        placeholder="Ex: 5"
+                                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                                    >
+                                    <small style="color: #666; display: block; margin-top: 3px;">Dias antes do vencimento</small>
                                 </div>
                             </div>
                             
@@ -527,7 +599,9 @@ ob_start();
                 <?php endif; ?>
             </div>
         <?php endif; ?>
+        </div>
     </div>
+    <?php endif; ?>
     
     <?php if ($ticket['descricao']): ?>
         <div class="ticket-description">
@@ -935,6 +1009,46 @@ function updateStatusSelectStyle(status) {
     const style = statusStyles[status] || {};
     select.style.background = style.background || 'white';
     select.style.color = style.color || '#333';
+}
+
+// Toggle faturável
+function toggleBillable(ticketId, isBillable) {
+    const formData = new FormData();
+    formData.append('ticket_id', ticketId);
+    formData.append('is_billable', isBillable ? '1' : '0');
+    
+    fetch('<?= pixelhub_url('/tickets/toggle-billable') ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.error || 'Erro ao atualizar');
+            document.getElementById('billable-toggle').checked = !isBillable;
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao atualizar');
+        document.getElementById('billable-toggle').checked = !isBillable;
+    });
+}
+
+// Toggle seção de faturamento (colapsar/expandir)
+function toggleBillingSection() {
+    const content = document.getElementById('billing-content');
+    const icon = document.getElementById('billing-toggle-icon');
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▼';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▸';
+    }
 }
 
 // Salva valor original ao carregar
