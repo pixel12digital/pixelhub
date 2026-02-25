@@ -477,6 +477,116 @@ class TicketController extends Controller
             $this->json(['error' => 'Erro ao adicionar nota'], 500);
         }
     }
+    
+    /**
+     * Marca um ticket como faturável
+     */
+    public function markBillable(): void
+    {
+        Auth::requireInternal();
+        
+        $ticketId = isset($_POST['ticket_id']) ? (int)$_POST['ticket_id'] : 0;
+        
+        if ($ticketId <= 0) {
+            header('Location: ' . pixelhub_url('/tickets?erro=' . urlencode('ID do ticket inválido')));
+            exit;
+        }
+        
+        try {
+            $billingData = [
+                'billed_value' => $_POST['billed_value'] ?? null,
+                'service_id' => !empty($_POST['service_id']) ? (int)$_POST['service_id'] : null,
+                'billing_due_date' => $_POST['billing_due_date'] ?? null,
+                'billing_notes' => $_POST['billing_notes'] ?? null,
+            ];
+            
+            TicketService::markAsBillable($ticketId, $billingData);
+            
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&sucesso=' . urlencode('Ticket marcado como faturável com sucesso')));
+            exit;
+            
+        } catch (\InvalidArgumentException $e) {
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&erro=' . urlencode($e->getMessage())));
+            exit;
+        } catch (\Exception $e) {
+            error_log("Erro ao marcar ticket como faturável: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&erro=' . urlencode('Erro ao marcar ticket como faturável')));
+            exit;
+        }
+    }
+    
+    /**
+     * Gera cobrança no Asaas para um ticket faturável
+     */
+    public function generateBilling(): void
+    {
+        Auth::requireInternal();
+        
+        $ticketId = isset($_POST['ticket_id']) ? (int)$_POST['ticket_id'] : 0;
+        
+        if ($ticketId <= 0) {
+            header('Location: ' . pixelhub_url('/tickets?erro=' . urlencode('ID do ticket inválido')));
+            exit;
+        }
+        
+        try {
+            $options = [
+                'billing_type' => $_POST['billing_type'] ?? 'BOLETO',
+                'description' => !empty($_POST['description']) ? trim($_POST['description']) : null,
+            ];
+            
+            $result = TicketService::generateBilling($ticketId, $options);
+            
+            if ($result['success']) {
+                $message = 'Cobrança gerada com sucesso no Asaas!';
+                if (!empty($result['invoice_url'])) {
+                    $message .= ' Link: ' . $result['invoice_url'];
+                }
+                header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&sucesso=' . urlencode($message)));
+            } else {
+                header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&erro=' . urlencode($result['message'] ?? 'Erro ao gerar cobrança')));
+            }
+            exit;
+            
+        } catch (\RuntimeException $e) {
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&erro=' . urlencode($e->getMessage())));
+            exit;
+        } catch (\Exception $e) {
+            error_log("Erro ao gerar cobrança do ticket: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&erro=' . urlencode('Erro ao gerar cobrança. Verifique se o cliente possui CPF/CNPJ cadastrado.')));
+            exit;
+        }
+    }
+    
+    /**
+     * Cancela cobrança de um ticket
+     */
+    public function cancelBilling(): void
+    {
+        Auth::requireInternal();
+        
+        $ticketId = isset($_POST['ticket_id']) ? (int)$_POST['ticket_id'] : 0;
+        
+        if ($ticketId <= 0) {
+            header('Location: ' . pixelhub_url('/tickets?erro=' . urlencode('ID do ticket inválido')));
+            exit;
+        }
+        
+        try {
+            TicketService::cancelBilling($ticketId, 'Cancelado manualmente pelo usuário');
+            
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&sucesso=' . urlencode('Cobrança cancelada com sucesso')));
+            exit;
+            
+        } catch (\RuntimeException $e) {
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&erro=' . urlencode($e->getMessage())));
+            exit;
+        } catch (\Exception $e) {
+            error_log("Erro ao cancelar cobrança do ticket: " . $e->getMessage());
+            header('Location: ' . pixelhub_url('/tickets/show?id=' . $ticketId . '&erro=' . urlencode('Erro ao cancelar cobrança')));
+            exit;
+        }
+    }
 }
 
 

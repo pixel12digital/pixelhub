@@ -276,6 +276,259 @@ ob_start();
         <?php endif; ?>
     </div>
     
+    <!-- Seção de Faturamento -->
+    <div class="ticket-section">
+        <h3>💰 Faturamento</h3>
+        
+        <?php
+        $isBillable = !empty($ticket['is_billable']) && $ticket['is_billable'] == 1;
+        $billingStatus = $ticket['billing_status'] ?? null;
+        $hasInvoice = !empty($ticket['billing_invoice_id']);
+        ?>
+        
+        <?php if (!$isBillable): ?>
+            <!-- Formulário para marcar como faturável -->
+            <div style="padding: 20px; background: #f9f9f9; border-radius: 4px; border-left: 4px solid #023A8D;">
+                <p style="margin: 0 0 15px 0; color: #666;">
+                    Este ticket não está marcado como faturável. Se este serviço deve ser cobrado, preencha os dados abaixo:
+                </p>
+                
+                <form id="markBillableForm" method="POST" action="<?= pixelhub_url('/tickets/mark-billable') ?>">
+                    <input type="hidden" name="ticket_id" value="<?= $ticket['id'] ?>">
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                                Valor da Cobrança (R$) *
+                            </label>
+                            <input 
+                                type="number" 
+                                name="billed_value" 
+                                step="0.01" 
+                                min="0.01"
+                                placeholder="150.00"
+                                required
+                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                            >
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                                Data de Vencimento
+                            </label>
+                            <input 
+                                type="date" 
+                                name="billing_due_date"
+                                value="<?= date('Y-m-d', strtotime('+7 days')) ?>"
+                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                            >
+                            <small style="color: #666; display: block; margin-top: 3px;">Padrão: 7 dias</small>
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                                Serviço do Catálogo (opcional)
+                            </label>
+                            <select 
+                                name="service_id"
+                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                            >
+                                <option value="">-- Nenhum --</option>
+                                <?php
+                                $services = \PixelHub\Services\ServiceService::getAllServices();
+                                foreach ($services as $service):
+                                ?>
+                                    <option value="<?= $service['id'] ?>">
+                                        <?= htmlspecialchars($service['name']) ?>
+                                        <?php if ($service['price']): ?>
+                                            - R$ <?= number_format($service['price'], 2, ',', '.') ?>
+                                        <?php endif; ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                            Observações sobre o Faturamento
+                        </label>
+                        <textarea 
+                            name="billing_notes"
+                            rows="3"
+                            placeholder="Ex: Serviço de redirect de 3 domínios (301 permanente)"
+                            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; resize: vertical;"
+                        ></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary" style="margin: 0;">
+                        ✓ Marcar como Faturável
+                    </button>
+                </form>
+            </div>
+        <?php else: ?>
+            <!-- Ticket já é faturável - mostrar status e ações -->
+            <div style="padding: 20px; background: #e8f5e9; border-radius: 4px; border-left: 4px solid #4caf50;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <strong style="display: block; color: #666; font-size: 12px; margin-bottom: 5px;">Valor</strong>
+                        <span style="font-size: 20px; font-weight: 700; color: #2e7d32;">
+                            R$ <?= number_format($ticket['billed_value'], 2, ',', '.') ?>
+                        </span>
+                    </div>
+                    
+                    <div>
+                        <strong style="display: block; color: #666; font-size: 12px; margin-bottom: 5px;">Vencimento</strong>
+                        <span style="font-size: 16px; color: #333;">
+                            <?= $ticket['billing_due_date'] ? date('d/m/Y', strtotime($ticket['billing_due_date'])) : 'Não definido' ?>
+                        </span>
+                    </div>
+                    
+                    <div>
+                        <strong style="display: block; color: #666; font-size: 12px; margin-bottom: 5px;">Status da Cobrança</strong>
+                        <?php
+                        $statusColors = [
+                            'pending' => ['bg' => '#fff3e0', 'color' => '#f57c00', 'label' => 'Pendente'],
+                            'billed' => ['bg' => '#e3f2fd', 'color' => '#1976d2', 'label' => 'Cobrado'],
+                            'paid' => ['bg' => '#e8f5e9', 'color' => '#388e3c', 'label' => 'Pago'],
+                            'canceled' => ['bg' => '#f5f5f5', 'color' => '#757575', 'label' => 'Cancelado'],
+                        ];
+                        $statusInfo = $statusColors[$billingStatus] ?? ['bg' => '#f5f5f5', 'color' => '#666', 'label' => $billingStatus];
+                        ?>
+                        <span style="display: inline-block; padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: 600; background: <?= $statusInfo['bg'] ?>; color: <?= $statusInfo['color'] ?>;">
+                            <?= $statusInfo['label'] ?>
+                        </span>
+                    </div>
+                </div>
+                
+                <?php if ($ticket['billing_notes']): ?>
+                    <div style="margin-top: 15px; padding: 12px; background: white; border-radius: 4px;">
+                        <strong style="display: block; color: #666; font-size: 12px; margin-bottom: 5px;">Observações:</strong>
+                        <p style="margin: 0; color: #333; white-space: pre-wrap;"><?= htmlspecialchars($ticket['billing_notes']) ?></p>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if ($billingStatus === 'pending'): ?>
+                    <!-- Formulário para gerar cobrança -->
+                    <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 4px;">
+                        <h4 style="margin: 0 0 15px 0; color: #023A8D; font-size: 16px;">Gerar Cobrança no Asaas</h4>
+                        
+                        <form id="generateBillingForm" method="POST" action="<?= pixelhub_url('/tickets/generate-billing') ?>">
+                            <input type="hidden" name="ticket_id" value="<?= $ticket['id'] ?>">
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                                <div>
+                                    <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                                        Forma de Pagamento *
+                                    </label>
+                                    <select 
+                                        name="billing_type"
+                                        required
+                                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                                    >
+                                        <option value="BOLETO">Boleto Bancário</option>
+                                        <option value="PIX">PIX</option>
+                                        <option value="CREDIT_CARD">Cartão de Crédito</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                                        Descrição (opcional)
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        name="description"
+                                        placeholder="Deixe vazio para usar título do ticket"
+                                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                                    >
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <button type="submit" class="btn btn-primary" style="margin: 0;">
+                                    🚀 Gerar Cobrança no Asaas
+                                </button>
+                                <span style="color: #666; font-size: 13px;">
+                                    Cliente receberá link de pagamento
+                                </span>
+                            </div>
+                        </form>
+                    </div>
+                <?php elseif ($billingStatus === 'billed' && $hasInvoice): ?>
+                    <!-- Cobrança já gerada - mostrar link -->
+                    <?php
+                    $db = \PixelHub\Core\DB::getConnection();
+                    $stmt = $db->prepare("SELECT * FROM billing_invoices WHERE id = ?");
+                    $stmt->execute([$ticket['billing_invoice_id']]);
+                    $invoice = $stmt->fetch();
+                    ?>
+                    <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 4px;">
+                        <h4 style="margin: 0 0 10px 0; color: #023A8D; font-size: 16px;">Cobrança Gerada</h4>
+                        <p style="margin: 0 0 15px 0; color: #666;">
+                            Cobrança criada em <?= date('d/m/Y H:i', strtotime($ticket['billed_at'])) ?>
+                        </p>
+                        
+                        <?php if ($invoice && $invoice['invoice_url']): ?>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <a href="<?= htmlspecialchars($invoice['invoice_url']) ?>" target="_blank" class="btn btn-primary" style="margin: 0;">
+                                    📄 Ver Cobrança no Asaas
+                                </a>
+                                <button 
+                                    onclick="navigator.clipboard.writeText('<?= htmlspecialchars($invoice['invoice_url']) ?>'); alert('Link copiado!');"
+                                    class="btn btn-secondary" 
+                                    style="margin: 0;"
+                                >
+                                    📋 Copiar Link
+                                </button>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <div style="margin-top: 15px;">
+                            <form method="POST" action="<?= pixelhub_url('/tickets/cancel-billing') ?>" onsubmit="return confirm('Tem certeza que deseja cancelar esta cobrança? Esta ação não pode ser desfeita.');" style="display: inline;">
+                                <input type="hidden" name="ticket_id" value="<?= $ticket['id'] ?>">
+                                <button type="submit" class="btn btn-secondary" style="margin: 0; background: #d32f2f;">
+                                    ❌ Cancelar Cobrança
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                <?php elseif ($billingStatus === 'paid'): ?>
+                    <!-- Cobrança paga -->
+                    <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 4px; border-left: 4px solid #4caf50;">
+                        <h4 style="margin: 0 0 10px 0; color: #388e3c; font-size: 16px;">✓ Cobrança Paga</h4>
+                        <p style="margin: 0; color: #666;">
+                            Pagamento confirmado! Receita registrada com sucesso.
+                        </p>
+                        <?php
+                        if ($hasInvoice) {
+                            $db = \PixelHub\Core\DB::getConnection();
+                            $stmt = $db->prepare("SELECT * FROM billing_invoices WHERE id = ?");
+                            $stmt->execute([$ticket['billing_invoice_id']]);
+                            $invoice = $stmt->fetch();
+                            if ($invoice && $invoice['paid_at']):
+                        ?>
+                            <p style="margin: 10px 0 0 0; color: #666; font-size: 13px;">
+                                Pago em: <?= date('d/m/Y H:i', strtotime($invoice['paid_at'])) ?>
+                            </p>
+                        <?php 
+                            endif;
+                        }
+                        ?>
+                    </div>
+                <?php elseif ($billingStatus === 'canceled'): ?>
+                    <!-- Cobrança cancelada -->
+                    <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 4px; border-left: 4px solid #757575;">
+                        <h4 style="margin: 0 0 10px 0; color: #757575; font-size: 16px;">Cobrança Cancelada</h4>
+                        <p style="margin: 0; color: #666;">
+                            Esta cobrança foi cancelada e não será mais cobrada do cliente.
+                        </p>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+    
     <?php if ($ticket['descricao']): ?>
         <div class="ticket-description">
             <strong>Descrição:</strong>
