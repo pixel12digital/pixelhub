@@ -230,6 +230,43 @@ class ConversationService
             }
         }
 
+        // CORREÇÃO CRÍTICA: Busca por contact_external_id + channel_id ANTES de criar nova conversa
+        // Isso garante que conversas existentes sejam sempre encontradas, mesmo que o channel_account_id seja diferente
+        // (o que pode acontecer em mensagens outbound quando o tenant que envia não é o dono da conversa)
+        if (!empty($channelInfo['contact_external_id']) && !empty($channelInfo['channel_id'])) {
+            error_log('[HUB_CONV_MATCH] Query: findByContactAndChannel contact=' . $channelInfo['contact_external_id'] . ' channel=' . $channelInfo['channel_id']);
+            
+            $db = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT * FROM conversations
+                WHERE contact_external_id = ?
+                  AND channel_type = ?
+                  AND (channel_id = ? OR channel_id IS NULL)
+                ORDER BY 
+                  CASE WHEN channel_id = ? THEN 0 ELSE 1 END,
+                  last_message_at DESC
+                LIMIT 1
+            ");
+            $stmt->execute([
+                $channelInfo['contact_external_id'],
+                $channelInfo['channel_type'],
+                $channelInfo['channel_id'],
+                $channelInfo['channel_id']
+            ]);
+            $existingByContactAndChannel = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if ($existingByContactAndChannel) {
+                error_log('[HUB_CONV_MATCH] FOUND_BY_CONTACT_AND_CHANNEL id=' . $existingByContactAndChannel['id'] . 
+                    ' contact=' . $channelInfo['contact_external_id'] . 
+                    ' channel=' . $channelInfo['channel_id'] . 
+                    ' reason=prevent_duplicate_conversation');
+                
+                // Atualiza a conversa existente ao invés de criar nova
+                self::updateConversationMetadata($existingByContactAndChannel['id'], $eventData, $channelInfo);
+                return $existingByContactAndChannel;
+            }
+        }
+        
         // Se ainda não encontrou, tenta encontrar conversa com mesmo contato mas channel_account_id diferente
         // (ex.: conversa "shared" vs conversa com tenant específico)
         error_log('[HUB_CONV_MATCH] Query: findConversationByContactOnly contact=' . $channelInfo['contact_external_id']);
@@ -1030,22 +1067,33 @@ class ConversationService
         // Se o tenant_id vier NULL do evento, mantém NULL para que apareça em "Não vinculados"
         
         // CORREÇÃO 2: Valida se o telefone do contato corresponde ao telefone do tenant
-        // EXCEÇÃO: explicit_tenant_selection (usuário escolheu no modal), 
-        //          tenant_resolved_from_phone (webhook já validou pelo telefone),
-        //          tenant_resolved_from_channel (legado, mantido por compatibilidade)
+        // EXCEÇÃO: 
+        //   - explicit_tenant_selection (usuário escolheu no modal)
+        //   - tenant_resolved_from_phone (webhook já validou pelo telefone)
+        //   - tenant_resolved_from_channel (legado, mantido por compatibilidade)
+        //   - OUTBOUND: mensagens enviadas SEMPRE vinculam ao tenant que enviou (sem validação)
         $explicitTenant = !empty($eventData['metadata']['explicit_tenant_selection']);
         $tenantFromPhone = !empty($eventData['metadata']['tenant_resolved_from_phone']);
         $tenantFromChannel = !empty($eventData['metadata']['tenant_resolved_from_channel']);
+        $isOutbound = ($direction === 'outbound');
         $contactExternalId = $channelInfo['contact_external_id'] ?? '';
-        if ($tenantId !== null && !empty($contactExternalId) && !$explicitTenant && !$tenantFromPhone && !$tenantFromChannel) {
+        
+        // CRÍTICO: Para mensagens OUTBOUND, NUNCA validar telefone - sempre vincular ao tenant que enviou
+        // A validação de telefone só faz sentido para mensagens INBOUND (contato nos contatando)
+        if ($tenantId !== null && !empty($contactExternalId) && !$explicitTenant && !$tenantFromPhone && !$tenantFromChannel && !$isOutbound) {
             if (!self::validatePhoneBelongsToTenant($contactExternalId, $tenantId)) {
                 error_log(sprintf(
-                    '[CONVERSATION CREATE] Vinculação REJEITADA: contato=%s não pertence ao tenant_id=%d - conversa irá para "Não vinculados"',
+                    '[CONVERSATION CREATE] Vinculação REJEITADA (INBOUND): contato=%s não pertence ao tenant_id=%d - conversa irá para "Não vinculados"',
                     $contactExternalId,
                     $tenantId
                 ));
                 $tenantId = null;
             }
+        } elseif ($isOutbound && $tenantId !== null) {
+            error_log(sprintf(
+                '[CONVERSATION CREATE] OUTBOUND: vinculando conversa ao tenant_id=%d (sem validação de telefone)',
+                $tenantId
+            ));
         }
         
         // Extrai timestamp da mensagem para last_message_at
@@ -1054,7 +1102,9 @@ class ConversationService
         try {
             // Se tenant_id é NULL, tenta resolver lead_id pelo telefone do contato
             $leadId = null;
-            $isIncomingLead = ($tenantId === null) ? 1 : 0;
+            // CORREÇÃO: is_incoming_lead só deve ser 1 para mensagens INBOUND sem tenant
+            // Mensagens OUTBOUND nunca são "incoming lead" (são mensagens que NÓS enviamos)
+            $isIncomingLead = ($tenantId === null && $direction === 'inbound') ? 1 : 0;
             
             if ($tenantId === null && !empty($contactExternalId)) {
                 $leadId = self::resolveLeadByPhone($contactExternalId);
@@ -1066,6 +1116,15 @@ class ConversationService
                     ));
                 }
             }
+            
+            // Log para debug
+            error_log(sprintf(
+                '[CONVERSATION CREATE] Criando conversa: tenant_id=%s, direction=%s, is_incoming_lead=%d, contact=%s',
+                $tenantId !== null ? $tenantId : 'NULL',
+                $direction,
+                $isIncomingLead,
+                $contactExternalId
+            ));
             
             // NOVA ARQUITETURA: Usa remote_key, contact_key, thread_key como identidade primária
             $stmt = $db->prepare("
