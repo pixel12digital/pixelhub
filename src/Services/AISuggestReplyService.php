@@ -1095,19 +1095,17 @@ PROMPT;
         $stmt = $db->prepare("
             SELECT 
                 bi.id,
-                bi.invoice_number,
                 bi.amount,
                 bi.due_date,
                 bi.status,
-                bi.asaas_invoice_url,
-                bi.asaas_bank_slip_url,
-                bi.asaas_pix_qrcode,
+                bi.invoice_url,
+                bi.asaas_payment_id,
                 bi.description,
                 DATEDIFF(CURDATE(), bi.due_date) as days_overdue,
                 s.name as service_name,
                 s.slug as service_slug
             FROM billing_invoices bi
-            LEFT JOIN services s ON bi.service_id = s.id
+            LEFT JOIN services s ON bi.project_id = s.id
             WHERE bi.tenant_id = ?
             AND bi.status IN ('pending', 'overdue')
             AND (bi.is_deleted IS NULL OR bi.is_deleted = 0)
@@ -1154,9 +1152,9 @@ PROMPT;
         // Monta lista de links de pagamento (apenas para cobrança e lembrete)
         $paymentLinks = [];
         foreach ($invoices as $inv) {
-            $link = $inv['asaas_invoice_url'] ?: $inv['asaas_bank_slip_url'] ?: null;
+            $link = $inv['invoice_url'] ?: null;
             if ($link) {
-                $paymentLinks[] = "• Fatura #{$inv['invoice_number']} - R$ " . number_format($inv['amount'], 2, ',', '.') . 
+                $paymentLinks[] = "• Fatura #{$inv['id']} - R$ " . number_format($inv['amount'], 2, ',', '.') . 
                                   " (Venc: " . date('d/m/Y', strtotime($inv['due_date'])) . "): {$link}";
             }
         }
