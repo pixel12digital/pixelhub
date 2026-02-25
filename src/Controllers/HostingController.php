@@ -137,7 +137,7 @@ class HostingController extends Controller
 
         // Se um plano foi selecionado, busca dados do plano para preencher automaticamente
         if ($hostingPlanId) {
-            $stmt = $db->prepare("SELECT name, amount, billing_cycle FROM hosting_plans WHERE id = ?");
+            $stmt = $db->prepare("SELECT name, amount, billing_cycle, provider FROM hosting_plans WHERE id = ?");
             $stmt->execute([$hostingPlanId]);
             $plan = $stmt->fetch();
             
@@ -146,6 +146,8 @@ class HostingController extends Controller
                 $planName = $plan['name'];
                 $rawAmount = (string) $plan['amount'];
                 $billingCycle = $plan['billing_cycle'];
+                // IMPORTANTE: Atualiza current_provider com o provedor do plano
+                $currentProvider = $plan['provider'] ?? $currentProvider;
             }
         }
 
@@ -366,7 +368,7 @@ class HostingController extends Controller
 
         // Se um plano foi selecionado, busca dados do plano para preencher automaticamente
         if ($hostingPlanId) {
-            $stmt = $db->prepare("SELECT name, amount, billing_cycle FROM hosting_plans WHERE id = ?");
+            $stmt = $db->prepare("SELECT name, amount, billing_cycle, provider FROM hosting_plans WHERE id = ?");
             $stmt->execute([$hostingPlanId]);
             $plan = $stmt->fetch();
             
@@ -375,6 +377,8 @@ class HostingController extends Controller
                 $planName = $plan['name'];
                 $rawAmount = (string) $plan['amount'];
                 $billingCycle = $plan['billing_cycle'];
+                // IMPORTANTE: Atualiza current_provider com o provedor do plano
+                $currentProvider = $plan['provider'] ?? $currentProvider;
             }
         }
 
