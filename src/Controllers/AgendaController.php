@@ -2131,5 +2131,72 @@ class AgendaController extends Controller
             $this->json(['success' => false, 'error' => 'Erro ao agendar tarefa: ' . $e->getMessage()], 500);
         }
     }
+    
+    /**
+     * Cria uma nova tarefa E agenda em um único fluxo
+     * POST /agenda/create-and-schedule-task
+     */
+    public function createAndScheduleTask(): void
+    {
+        Auth::requireInternal();
+        
+        $tenantId = isset($_POST['tenant_id']) ? (int)$_POST['tenant_id'] : 0;
+        $projectId = isset($_POST['project_id']) ? (int)$_POST['project_id'] : 0;
+        $title = trim($_POST['title'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $dataStr = isset($_POST['data']) ? $_POST['data'] : '';
+        $horaInicio = trim($_POST['hora_inicio'] ?? '');
+        $horaFim = trim($_POST['hora_fim'] ?? '');
+        $tipoId = isset($_POST['tipo_id']) ? (int)$_POST['tipo_id'] : 0;
+        
+        if ($projectId <= 0 || empty($title) || empty($dataStr) || empty($horaInicio) || empty($horaFim) || $tipoId <= 0) {
+            $this->json(['success' => false, 'error' => 'Dados inválidos'], 400);
+            return;
+        }
+        
+        try {
+            // Converte data
+            $data = new \DateTime($dataStr, new \DateTimeZone('America/Sao_Paulo'));
+            
+            // 1. Cria a tarefa
+            $user = Auth::user();
+            $taskData = [
+                'project_id' => $projectId,
+                'title' => $title,
+                'description' => $description,
+                'status' => 'backlog',
+                'task_type' => 'internal',
+            ];
+            
+            if ($user) {
+                $taskData['created_by'] = $user['id'];
+            }
+            
+            $taskId = \PixelHub\Services\TaskService::createTask($taskData);
+            
+            // 2. Cria o bloco de agenda
+            $blockId = AgendaService::createManualBlock($data, [
+                'hora_inicio' => $horaInicio,
+                'hora_fim' => $horaFim,
+                'tipo_id' => $tipoId,
+                'projeto_foco_id' => $projectId,
+            ]);
+            
+            // 3. Vincula a tarefa ao bloco
+            AgendaService::attachTaskToBlock($blockId, $taskId, true);
+            
+            $this->json([
+                'success' => true,
+                'task_id' => $taskId,
+                'block_id' => $blockId,
+                'redirect_url' => pixelhub_url('/agenda?data=' . $dataStr),
+                'message' => 'Tarefa criada e agendada com sucesso'
+            ]);
+            
+        } catch (\Exception $e) {
+            error_log("Erro ao criar e agendar tarefa: " . $e->getMessage());
+            $this->json(['success' => false, 'error' => 'Erro ao criar e agendar tarefa: ' . $e->getMessage()], 500);
+        }
+    }
 }
 

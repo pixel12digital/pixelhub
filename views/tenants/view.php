@@ -2745,17 +2745,31 @@ function openInboxNewConversation(tenantId) {
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3 style="margin: 0;">Resumo de Tarefas do Cliente</h3>
-            <a href="<?= pixelhub_url('/projects/board?tenant_id=' . $tenant['id']) ?>" 
-               class="btn-action btn-action-primary"
-               data-tooltip="Ver no Quadro Kanban"
-               aria-label="Ver no Quadro Kanban">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="3" width="7" height="7"></rect>
-                    <rect x="14" y="3" width="7" height="7"></rect>
-                    <rect x="14" y="14" width="7" height="7"></rect>
-                    <rect x="3" y="14" width="7" height="7"></rect>
-                </svg>
-            </a>
+            <div style="display: flex; gap: 10px;">
+                <button type="button"
+                        onclick="openCreateAndScheduleTaskModal(<?= $tenant['id'] ?>)"
+                        class="btn-action"
+                        data-tooltip="Criar e Agendar Tarefa"
+                        aria-label="Criar e Agendar Tarefa"
+                        style="background: #023A8D; color: white;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </button>
+                <a href="<?= pixelhub_url('/projects/board?tenant_id=' . $tenant['id']) ?>" 
+                   class="btn-action"
+                   data-tooltip="Ver no Quadro Kanban"
+                   aria-label="Ver no Quadro Kanban"
+                   style="background: #666; color: white;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                </a>
+            </div>
         </div>
         
         <?php
@@ -3240,7 +3254,159 @@ function openInboxNewConversation(tenantId) {
             alert('❌ Erro ao agendar tarefa');
         });
     }
+    
+    // Modal: Criar e Agendar Tarefa
+    function openCreateAndScheduleTaskModal(tenantId) {
+        document.getElementById('create_schedule_tenant_id').value = tenantId;
+        
+        // Carrega projetos do cliente
+        fetch('<?= pixelhub_url('/projects/list-by-tenant?tenant_id=') ?>' + tenantId)
+            .then(response => response.json())
+            .then(data => {
+                const projectSelect = document.getElementById('create_schedule_project_id');
+                projectSelect.innerHTML = '<option value="">Selecione um projeto...</option>';
+                
+                if (data.success && data.projects && data.projects.length > 0) {
+                    data.projects.forEach(project => {
+                        const option = document.createElement('option');
+                        option.value = project.id;
+                        option.textContent = project.name;
+                        projectSelect.appendChild(option);
+                    });
+                } else {
+                    projectSelect.innerHTML = '<option value="">Nenhum projeto encontrado</option>';
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao carregar projetos:', error);
+            });
+        
+        // Preenche data de hoje como padrão
+        var today = new Date().toISOString().split('T')[0];
+        document.getElementById('create_schedule_date').value = today;
+        
+        // Preenche horário padrão (próxima hora cheia)
+        var now = new Date();
+        var nextHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0);
+        var horaInicio = nextHour.toTimeString().substring(0, 5);
+        var horaFim = new Date(nextHour.getTime() + 60 * 60 * 1000).toTimeString().substring(0, 5);
+        
+        document.getElementById('create_schedule_hora_inicio').value = horaInicio;
+        document.getElementById('create_schedule_hora_fim').value = horaFim;
+        
+        document.getElementById('createAndScheduleTaskModal').style.display = 'flex';
+    }
+    
+    function closeCreateAndScheduleTaskModal() {
+        document.getElementById('createAndScheduleTaskModal').style.display = 'none';
+        document.getElementById('createAndScheduleTaskForm').reset();
+    }
+    
+    function submitCreateAndScheduleTask(event) {
+        event.preventDefault();
+        
+        var formData = new FormData(event.target);
+        
+        fetch('<?= pixelhub_url('/agenda/create-and-schedule-task') ?>', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ Tarefa criada e agendada com sucesso!');
+                closeCreateAndScheduleTaskModal();
+                
+                // Redireciona para a agenda do dia
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    var dataAgenda = document.getElementById('create_schedule_date').value;
+                    window.location.href = '<?= pixelhub_url('/agenda?data=') ?>' + dataAgenda;
+                }
+            } else {
+                alert('❌ Erro: ' + (data.error || 'Erro desconhecido'));
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('❌ Erro ao criar e agendar tarefa');
+        });
+    }
     </script>
+    
+    <!-- Modal: Criar e Agendar Tarefa -->
+    <div id="createAndScheduleTaskModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; overflow-y: auto;">
+        <div style="background: white; max-width: 600px; border-radius: 8px; padding: 30px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin: 20px;">
+            <button onclick="closeCreateAndScheduleTaskModal()" style="position: absolute; top: 15px; right: 15px; background: #c33; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; line-height: 1;">×</button>
+            
+            <h2 style="margin: 0 0 20px 0; color: #023A8D;">➕ Criar e Agendar Tarefa</h2>
+            
+            <form id="createAndScheduleTaskForm" onsubmit="submitCreateAndScheduleTask(event)">
+                <input type="hidden" id="create_schedule_tenant_id" name="tenant_id">
+                
+                <!-- Dados da Tarefa -->
+                <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 15px 0; color: #023A8D; font-size: 16px;">📋 Dados da Tarefa</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label for="create_schedule_project_id" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Projeto: *</label>
+                        <select id="create_schedule_project_id" name="project_id" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="">Carregando...</option>
+                        </select>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label for="create_schedule_title" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Título: *</label>
+                        <input type="text" id="create_schedule_title" name="title" required maxlength="200" placeholder="Ex: Resolver pendência de cobrança" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    
+                    <div style="margin-bottom: 0;">
+                        <label for="create_schedule_description" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Descrição:</label>
+                        <textarea id="create_schedule_description" name="description" rows="3" placeholder="Detalhes da tarefa..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"></textarea>
+                    </div>
+                </div>
+                
+                <!-- Dados do Agendamento -->
+                <div style="background: #f0f7ff; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 15px 0; color: #023A8D; font-size: 16px;">📅 Agendamento</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label for="create_schedule_date" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Data: *</label>
+                        <input type="date" id="create_schedule_date" name="data" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label for="create_schedule_hora_inicio" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Hora Início: *</label>
+                            <input type="time" id="create_schedule_hora_inicio" name="hora_inicio" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label for="create_schedule_hora_fim" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Hora Fim: *</label>
+                            <input type="time" id="create_schedule_hora_fim" name="hora_fim" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 0;">
+                        <label for="create_schedule_tipo_bloco" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Tipo de Bloco: *</label>
+                        <select id="create_schedule_tipo_bloco" name="tipo_id" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="">Selecione...</option>
+                            <option value="1">PRODUÇÃO</option>
+                            <option value="2">SUPORTE</option>
+                            <option value="3">COMERCIAL</option>
+                            <option value="4">FINANCEIRO</option>
+                            <option value="5">PAUSA</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" onclick="closeCreateAndScheduleTaskModal()" style="padding: 10px 20px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Cancelar</button>
+                    <button type="submit" style="padding: 10px 20px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Criar e Agendar</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
 <?php endif; ?>
 
