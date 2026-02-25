@@ -886,5 +886,422 @@ class TicketService
         
         return $stmt->fetchAll();
     }
+    
+    /**
+     * Marca um ticket como faturável e define os dados de cobrança
+     * 
+     * @param int $ticketId ID do ticket
+     * @param array $billingData Dados de faturamento (billed_value, service_id, billing_due_date, billing_notes)
+     * @return bool Sucesso da operação
+     * @throws \RuntimeException Se ticket não encontrado
+     * @throws \InvalidArgumentException Se dados inválidos
+     */
+    public static function markAsBillable(int $ticketId, array $billingData): bool
+    {
+        $db = DB::getConnection();
+        
+        // Verifica se o ticket existe
+        $ticket = self::findTicket($ticketId);
+        if (!$ticket) {
+            throw new \RuntimeException('Ticket não encontrado');
+        }
+        
+        // Valida valor
+        $billedValue = isset($billingData['billed_value']) ? (float)$billingData['billed_value'] : null;
+        if (empty($billedValue) || $billedValue <= 0) {
+            throw new \InvalidArgumentException('Valor da cobrança deve ser maior que zero');
+        }
+        
+        // Valida service_id (opcional)
+        $serviceId = !empty($billingData['service_id']) ? (int)$billingData['service_id'] : null;
+        
+        // Valida data de vencimento (opcional, padrão: 7 dias)
+        $billingDueDate = null;
+        if (!empty($billingData['billing_due_date'])) {
+            $billingDueDate = $billingData['billing_due_date'];
+        } else {
+            // Padrão: 7 dias a partir de hoje
+            $billingDueDate = date('Y-m-d', strtotime('+7 days'));
+        }
+        
+        // Notas de faturamento (opcional)
+        $billingNotes = !empty($billingData['billing_notes']) ? trim($billingData['billing_notes']) : null;
+        
+        // Atualiza o ticket
+        $stmt = $db->prepare("
+            UPDATE tickets 
+            SET is_billable = 1,
+                service_id = ?,
+                billed_value = ?,
+                billing_status = 'pending',
+                billing_due_date = ?,
+                billing_notes = ?,
+                updated_at = NOW()
+            WHERE id = ?
+        ");
+        
+        $stmt->execute([
+            $serviceId,
+            $billedValue,
+            $billingDueDate,
+            $billingNotes,
+            $ticketId,
+        ]);
+        
+        return true;
+    }
+    
+    /**
+     * Gera cobrança no Asaas para um ticket faturável
+     * 
+     * Fluxo:
+     * 1. Valida se ticket é faturável e ainda não foi cobrado
+     * 2. Garante que cliente tem customer no Asaas
+     * 3. Cria payment no Asaas
+     * 4. Registra em billing_invoices
+     * 5. Atualiza ticket com billing_status='billed' e vincula invoice_id
+     * 
+     * @param int $ticketId ID do ticket
+     * @param array $options Opções adicionais (billing_type: 'BOLETO'|'PIX'|'CREDIT_CARD', description)
+     * @return array ['success' => bool, 'invoice_id' => int, 'asaas_payment_id' => string, 'invoice_url' => string]
+     * @throws \RuntimeException Se erro na geração da cobrança
+     */
+    public static function generateBilling(int $ticketId, array $options = []): array
+    {
+        $db = DB::getConnection();
+        
+        // Busca o ticket com dados do tenant
+        $stmt = $db->prepare("
+            SELECT t.*, tn.*, t.id as ticket_id, tn.id as tenant_id
+            FROM tickets t
+            INNER JOIN tenants tn ON t.tenant_id = tn.id
+            WHERE t.id = ?
+        ");
+        $stmt->execute([$ticketId]);
+        $ticket = $stmt->fetch();
+        
+        if (!$ticket) {
+            throw new \RuntimeException('Ticket não encontrado');
+        }
+        
+        // Valida se é faturável
+        if (empty($ticket['is_billable']) || $ticket['is_billable'] != 1) {
+            throw new \RuntimeException('Ticket não está marcado como faturável');
+        }
+        
+        // Valida se já não foi cobrado
+        if (!empty($ticket['billing_invoice_id'])) {
+            throw new \RuntimeException('Ticket já possui cobrança gerada');
+        }
+        
+        // Valida valor
+        $amount = (float)$ticket['billed_value'];
+        if ($amount <= 0) {
+            throw new \RuntimeException('Valor da cobrança inválido');
+        }
+        
+        // Valida data de vencimento
+        $dueDate = $ticket['billing_due_date'];
+        if (empty($dueDate)) {
+            $dueDate = date('Y-m-d', strtotime('+7 days'));
+        }
+        
+        // Inicia transação
+        $db->beginTransaction();
+        
+        try {
+            // Garante que o tenant tem customer no Asaas
+            $customerId = AsaasBillingService::ensureCustomerForTenant($ticket);
+            
+            // Prepara descrição da cobrança
+            $description = $options['description'] ?? null;
+            if (empty($description)) {
+                $description = "Ticket #{$ticketId}: " . $ticket['titulo'];
+            }
+            
+            // Limita descrição a 500 caracteres (limite do Asaas)
+            if (strlen($description) > 500) {
+                $description = substr($description, 0, 497) . '...';
+            }
+            
+            // Prepara dados do payment para o Asaas
+            $paymentData = [
+                'customer' => $customerId,
+                'billingType' => $options['billing_type'] ?? 'BOLETO',
+                'dueDate' => $dueDate,
+                'value' => $amount,
+                'description' => $description,
+                'externalReference' => "TICKET_{$ticketId}",
+            ];
+            
+            // Adiciona observações se houver
+            if (!empty($ticket['billing_notes'])) {
+                $paymentData['notes'] = $ticket['billing_notes'];
+            }
+            
+            // Cria payment no Asaas
+            $asaasPayment = AsaasClient::createPayment($paymentData);
+            
+            // Extrai dados do payment criado
+            $asaasPaymentId = $asaasPayment['id'];
+            $invoiceUrl = $asaasPayment['invoiceUrl'] ?? null;
+            $billingType = $asaasPayment['billingType'] ?? 'BOLETO';
+            
+            // Registra em billing_invoices
+            $stmt = $db->prepare("
+                INSERT INTO billing_invoices 
+                (tenant_id, asaas_payment_id, asaas_customer_id, due_date, amount, 
+                 status, invoice_url, billing_type, description, external_reference, 
+                 created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, NOW(), NOW())
+            ");
+            
+            $stmt->execute([
+                $ticket['tenant_id'],
+                $asaasPaymentId,
+                $customerId,
+                $dueDate,
+                $amount,
+                $invoiceUrl,
+                $billingType,
+                $description,
+                "TICKET_{$ticketId}",
+            ]);
+            
+            $invoiceId = (int)$db->lastInsertId();
+            
+            // Atualiza o ticket
+            $stmt = $db->prepare("
+                UPDATE tickets 
+                SET billing_status = 'billed',
+                    billing_invoice_id = ?,
+                    billed_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            
+            $stmt->execute([$invoiceId, $ticketId]);
+            
+            // Atualiza status financeiro do tenant
+            AsaasBillingService::refreshTenantBillingStatus($ticket['tenant_id']);
+            
+            $db->commit();
+            
+            // Log de sucesso
+            error_log(sprintf(
+                '[TicketBilling] Cobrança gerada: ticket_id=%d, invoice_id=%d, asaas_payment_id=%s, amount=%.2f',
+                $ticketId,
+                $invoiceId,
+                $asaasPaymentId,
+                $amount
+            ));
+            
+            return [
+                'success' => true,
+                'invoice_id' => $invoiceId,
+                'asaas_payment_id' => $asaasPaymentId,
+                'invoice_url' => $invoiceUrl,
+                'message' => 'Cobrança gerada com sucesso',
+            ];
+            
+        } catch (\Exception $e) {
+            $db->rollBack();
+            
+            // Log de erro
+            error_log(sprintf(
+                '[TicketBilling] Erro ao gerar cobrança: ticket_id=%d, erro=%s',
+                $ticketId,
+                $e->getMessage()
+            ));
+            
+            throw new \RuntimeException('Erro ao gerar cobrança: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Atualiza status de faturamento de um ticket baseado na invoice vinculada
+     * 
+     * Chamado pelo webhook do Asaas quando status do payment muda
+     * 
+     * @param int $ticketId ID do ticket
+     * @return bool Sucesso da operação
+     */
+    public static function updateBillingStatusFromInvoice(int $ticketId): bool
+    {
+        $db = DB::getConnection();
+        
+        // Busca ticket com invoice
+        $stmt = $db->prepare("
+            SELECT t.*, bi.status as invoice_status, bi.paid_at
+            FROM tickets t
+            LEFT JOIN billing_invoices bi ON t.billing_invoice_id = bi.id
+            WHERE t.id = ?
+        ");
+        $stmt->execute([$ticketId]);
+        $ticket = $stmt->fetch();
+        
+        if (!$ticket || empty($ticket['billing_invoice_id'])) {
+            return false;
+        }
+        
+        // Mapeia status da invoice para status do ticket
+        $invoiceStatus = $ticket['invoice_status'];
+        $billingStatus = 'pending';
+        
+        switch ($invoiceStatus) {
+            case 'paid':
+            case 'received':
+            case 'confirmed':
+                $billingStatus = 'paid';
+                break;
+            case 'canceled':
+            case 'refunded':
+                $billingStatus = 'canceled';
+                break;
+            case 'overdue':
+            case 'pending':
+            default:
+                $billingStatus = 'billed';
+                break;
+        }
+        
+        // Atualiza ticket
+        $stmt = $db->prepare("
+            UPDATE tickets 
+            SET billing_status = ?,
+                updated_at = NOW()
+            WHERE id = ?
+        ");
+        
+        $stmt->execute([$billingStatus, $ticketId]);
+        
+        return true;
+    }
+    
+    /**
+     * Cancela cobrança de um ticket
+     * 
+     * Cancela o payment no Asaas e atualiza status local
+     * 
+     * @param int $ticketId ID do ticket
+     * @param string $reason Motivo do cancelamento
+     * @return bool Sucesso da operação
+     * @throws \RuntimeException Se erro ao cancelar
+     */
+    public static function cancelBilling(int $ticketId, string $reason = ''): bool
+    {
+        $db = DB::getConnection();
+        
+        // Busca ticket com invoice
+        $stmt = $db->prepare("
+            SELECT t.*, bi.asaas_payment_id, bi.status as invoice_status
+            FROM tickets t
+            LEFT JOIN billing_invoices bi ON t.billing_invoice_id = bi.id
+            WHERE t.id = ?
+        ");
+        $stmt->execute([$ticketId]);
+        $ticket = $stmt->fetch();
+        
+        if (!$ticket) {
+            throw new \RuntimeException('Ticket não encontrado');
+        }
+        
+        if (empty($ticket['billing_invoice_id'])) {
+            throw new \RuntimeException('Ticket não possui cobrança gerada');
+        }
+        
+        // Se já está pago, não pode cancelar
+        if ($ticket['invoice_status'] === 'paid') {
+            throw new \RuntimeException('Não é possível cancelar cobrança já paga');
+        }
+        
+        $db->beginTransaction();
+        
+        try {
+            // Cancela no Asaas se ainda não foi cancelado
+            if (!empty($ticket['asaas_payment_id']) && $ticket['invoice_status'] !== 'canceled') {
+                try {
+                    AsaasClient::request('DELETE', "/payments/{$ticket['asaas_payment_id']}", null);
+                } catch (\Exception $e) {
+                    // Log mas não falha (pode já estar cancelado)
+                    error_log("Erro ao cancelar payment no Asaas: " . $e->getMessage());
+                }
+            }
+            
+            // Atualiza invoice local
+            $stmt = $db->prepare("
+                UPDATE billing_invoices 
+                SET status = 'canceled',
+                    is_deleted = 1,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$ticket['billing_invoice_id']]);
+            
+            // Atualiza ticket
+            $stmt = $db->prepare("
+                UPDATE tickets 
+                SET billing_status = 'canceled',
+                    billing_notes = CONCAT(COALESCE(billing_notes, ''), '\n\nCancelado: ', ?),
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([
+                $reason ?: 'Cancelado manualmente',
+                $ticketId,
+            ]);
+            
+            // Atualiza status financeiro do tenant
+            if (!empty($ticket['tenant_id'])) {
+                AsaasBillingService::refreshTenantBillingStatus($ticket['tenant_id']);
+            }
+            
+            $db->commit();
+            
+            return true;
+            
+        } catch (\Exception $e) {
+            $db->rollBack();
+            throw new \RuntimeException('Erro ao cancelar cobrança: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Lista tickets faturáveis pendentes de cobrança
+     * 
+     * @param array $filters Filtros opcionais (tenant_id)
+     * @return array Lista de tickets
+     */
+    public static function getBillablePendingTickets(array $filters = []): array
+    {
+        $db = DB::getConnection();
+        
+        $sql = "
+            SELECT 
+                t.*,
+                tn.name as tenant_name,
+                s.name as service_name
+            FROM tickets t
+            INNER JOIN tenants tn ON t.tenant_id = tn.id
+            LEFT JOIN services s ON t.service_id = s.id
+            WHERE t.is_billable = 1 
+            AND t.billing_status = 'pending'
+            AND t.billing_invoice_id IS NULL
+        ";
+        
+        $params = [];
+        
+        if (!empty($filters['tenant_id'])) {
+            $sql .= " AND t.tenant_id = ?";
+            $params[] = (int)$filters['tenant_id'];
+        }
+        
+        $sql .= " ORDER BY t.billing_due_date ASC, t.created_at ASC";
+        
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        
+        return $stmt->fetchAll();
+    }
 }
 
