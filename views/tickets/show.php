@@ -447,9 +447,10 @@ ob_start();
                                         required
                                         style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
                                     >
-                                        <option value="BOLETO">Boleto Bancário</option>
-                                        <option value="PIX">PIX</option>
+                                        <option value="">Selecione a forma de pagamento</option>
+                                        <option value="BOLETO">Boleto Bancário / Pix</option>
                                         <option value="CREDIT_CARD">Cartão de Crédito</option>
+                                        <option value="UNDEFINED">Pergunte ao cliente</option>
                                     </select>
                                 </div>
                                 
@@ -463,10 +464,11 @@ ob_start();
                                         step="0.01"
                                         min="0"
                                         max="100"
+                                        value="1.00"
                                         placeholder="Ex: 1.00"
                                         style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
                                     >
-                                    <small style="color: #666; display: block; margin-top: 3px;">Opcional</small>
+                                    <small style="color: #666; display: block; margin-top: 3px;">Padrão: 1% a.m.</small>
                                 </div>
                                 
                                 <div>
@@ -479,32 +481,50 @@ ob_start();
                                         step="0.01"
                                         min="0"
                                         max="100"
+                                        value="2.00"
                                         placeholder="Ex: 2.00"
                                         style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
                                     >
-                                    <small style="color: #666; display: block; margin-top: 3px;">Opcional</small>
+                                    <small style="color: #666; display: block; margin-top: 3px;">Padrão: 2%</small>
                                 </div>
                             </div>
                             
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 15px;">
                                 <div>
                                     <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
-                                        Desconto (R$)
+                                        Tipo de Desconto
+                                    </label>
+                                    <select 
+                                        name="discount_type"
+                                        id="discount_type"
+                                        onchange="updateDiscountLabel()"
+                                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                                    >
+                                        <option value="">Sem desconto</option>
+                                        <option value="PERCENTAGE">Percentual</option>
+                                        <option value="FIXED">Valor fixo</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
+                                        <span id="discount_label">Valor do Desconto</span>
                                     </label>
                                     <input 
                                         type="number" 
                                         name="discount_value"
+                                        id="discount_value"
                                         step="0.01"
                                         min="0"
                                         placeholder="Ex: 10.00"
                                         style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
                                     >
-                                    <small style="color: #666; display: block; margin-top: 3px;">Opcional</small>
+                                    <small style="color: #666; display: block; margin-top: 3px;" id="discount_hint">Opcional</small>
                                 </div>
                                 
                                 <div>
                                     <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">
-                                        Dias para Desconto
+                                        Prazo do Desconto (dias)
                                     </label>
                                     <input 
                                         type="number" 
@@ -1048,6 +1068,35 @@ function toggleBillingSection() {
     } else {
         content.style.display = 'none';
         icon.textContent = '▸';
+    }
+}
+
+// Atualiza label do desconto conforme tipo selecionado
+function updateDiscountLabel() {
+    const discountType = document.getElementById('discount_type');
+    const discountLabel = document.getElementById('discount_label');
+    const discountHint = document.getElementById('discount_hint');
+    const discountValue = document.getElementById('discount_value');
+    
+    if (!discountType || !discountLabel || !discountHint) return;
+    
+    const type = discountType.value;
+    
+    if (type === 'PERCENTAGE') {
+        discountLabel.textContent = 'Desconto (%)';
+        discountHint.textContent = 'Percentual de desconto';
+        discountValue.placeholder = 'Ex: 10.00';
+        discountValue.max = '100';
+    } else if (type === 'FIXED') {
+        discountLabel.textContent = 'Desconto (R$)';
+        discountHint.textContent = 'Valor fixo em reais';
+        discountValue.placeholder = 'Ex: 50.00';
+        discountValue.removeAttribute('max');
+    } else {
+        discountLabel.textContent = 'Valor do Desconto';
+        discountHint.textContent = 'Opcional';
+        discountValue.placeholder = 'Ex: 10.00';
+        discountValue.removeAttribute('max');
     }
 }
 

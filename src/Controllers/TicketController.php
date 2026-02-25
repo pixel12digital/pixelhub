@@ -536,6 +536,7 @@ class TicketController extends Controller
                 'interest_value' => !empty($_POST['interest_value']) ? $_POST['interest_value'] : null,
                 'fine_value' => !empty($_POST['fine_value']) ? $_POST['fine_value'] : null,
                 'discount_value' => !empty($_POST['discount_value']) ? $_POST['discount_value'] : null,
+                'discount_type' => !empty($_POST['discount_type']) ? $_POST['discount_type'] : 'FIXED',
                 'discount_days_before_due' => !empty($_POST['discount_days_before_due']) ? $_POST['discount_days_before_due'] : null,
             ];
             

@@ -1074,10 +1074,11 @@ class TicketService
             if (!empty($options['discount_value'])) {
                 $discountValue = (float)$options['discount_value'];
                 if ($discountValue > 0) {
+                    $discountType = $options['discount_type'] ?? 'FIXED';
                     $paymentData['discount'] = [
                         'value' => $discountValue,
                         'dueDateLimitDays' => !empty($options['discount_days_before_due']) ? (int)$options['discount_days_before_due'] : 0,
-                        'type' => 'FIXED',
+                        'type' => $discountType, // FIXED ou PERCENTAGE
                     ];
                 }
             }
