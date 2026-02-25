@@ -503,8 +503,13 @@ class HostingController extends Controller
 
             $db = DB::getConnection();
 
-            // Busca conta de hospedagem
-            $stmt = $db->prepare("SELECT * FROM hosting_accounts WHERE id = ?");
+            // Busca conta de hospedagem com dados do plano
+            $stmt = $db->prepare("
+                SELECT ha.*, hp.provider as plan_provider, hp.name as plan_full_name
+                FROM hosting_accounts ha
+                LEFT JOIN hosting_plans hp ON ha.hosting_plan_id = hp.id
+                WHERE ha.id = ?
+            ");
             $stmt->execute([$id]);
             $hostingAccount = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -521,7 +526,7 @@ class HostingController extends Controller
                 exit;
             }
 
-            // Busca nome do provedor
+            // Busca nome do provedor - prioriza o provedor do plano
             try {
                 $providerMap = HostingProviderService::getSlugToNameMap();
             } catch (\Throwable $e) {
@@ -530,16 +535,29 @@ class HostingController extends Controller
                 }
                 $providerMap = [];
             }
-            $providerSlug = $hostingAccount['current_provider'] ?? '';
+            
+            // Usa o provedor do plano se disponível, senão usa current_provider
+            $providerSlug = $hostingAccount['plan_provider'] ?? $hostingAccount['current_provider'] ?? '';
             $providerName = $providerMap[$providerSlug] ?? $providerSlug;
 
             // Calcula status com retorno estruturado
-            $calculateStatus = function($expirationDate, $type = '') {
+            $calculateStatus = function($expirationDate, $type = '', $isRecurring = false) use ($hostingAccount) {
                 $days = null;
                 $tipo = 'sem_data';
                 $label = '';
                 
                 if (empty($expirationDate)) {
+                    // Se é hospedagem recorrente sem vencimento
+                    if ($type === 'hosting' && $isRecurring) {
+                        $label = 'Recorrente, sem data de vencimento';
+                        return [
+                            'label' => $label,
+                            'tipo' => 'recorrente',
+                            'dias' => $days,
+                            'text' => $label,
+                            'style' => 'background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;'
+                        ];
+                    }
                     $label = $type === 'domain' ? 'Domínio: Sem data' : ($type === 'hosting' ? 'Hospedagem: Sem data' : 'Sem data');
                     return [
                         'label' => $label,
@@ -623,7 +641,8 @@ class HostingController extends Controller
                 }
             };
 
-            $hostingStatus = $calculateStatus($hostingAccount['hostinger_expiration_date'] ?? null, 'hosting');
+            $isRecurring = !empty($hostingAccount['has_no_hosting_expiration']);
+            $hostingStatus = $calculateStatus($hostingAccount['hostinger_expiration_date'] ?? null, 'hosting', $isRecurring);
             $domainStatus = $calculateStatus($hostingAccount['domain_expiration_date'] ?? null, 'domain');
 
             // Formata valor
@@ -645,6 +664,7 @@ class HostingController extends Controller
                     'id' => $hostingAccount['id'],
                     'domain' => $hostingAccount['domain'],
                     'plan_name' => $hostingAccount['plan_name'] ?? '-',
+                    'plan_full_name' => $hostingAccount['plan_full_name'] ?? null,
                     'amount' => $amountFormatted,
                     'hosting_panel_url' => $hostingAccount['hosting_panel_url'] ?? '',
                     'hosting_panel_username' => $hostingAccount['hosting_panel_username'] ?? '',
@@ -655,9 +675,12 @@ class HostingController extends Controller
                     'hostinger_expiration_date' => $hostingAccount['hostinger_expiration_date'] ?? null,
                     'domain_expiration_date' => $hostingAccount['domain_expiration_date'] ?? null,
                     'current_provider' => $providerSlug,
+                    'plan_provider' => $hostingAccount['plan_provider'] ?? null,
+                    'has_no_hosting_expiration' => $hostingAccount['has_no_hosting_expiration'] ?? 0,
                 ],
                 'provider_name' => $providerName,
                 'current_provider' => $providerSlug,
+                'plan_provider' => $hostingAccount['plan_provider'] ?? null,
                 'status_hospedagem' => [
                     'label' => $hostingStatus['label'],
                     'tipo' => $hostingStatus['tipo'],

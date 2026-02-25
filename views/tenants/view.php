@@ -1619,7 +1619,8 @@ function openInboxNewConversation(tenantId) {
                         </td>
                         <td style="padding: 12px; border-bottom: 1px solid #eee;">
                             <?php
-                            $providerSlug = $hosting['current_provider'] ?? '';
+                            // Prioriza o provedor do plano, senão usa current_provider
+                            $providerSlug = $hosting['plan_provider'] ?? $hosting['current_provider'] ?? '';
                             $providerName = $providerMap[$providerSlug] ?? $providerSlug;
                             
                             if ($providerSlug === 'nenhum_backup') {
@@ -3491,16 +3492,21 @@ function openHostingDetailsModal(hostingId) {
             console.log('hostinger_expiration_date:', hosting.hostinger_expiration_date || data.hostinger_expiration_date);
             console.log('domain_expiration_date:', hosting.domain_expiration_date || data.domain_expiration_date);
             
-            // Atualiza título
-            modalTitle.textContent = escapeHtml((hosting.domain || data.domain || '').toUpperCase()) + ' — ' + escapeHtml(providerName);
+            // Atualiza título - não mostra "Nenhum (Somente backup externo)" no título
+            var titleProvider = providerName;
+            if (providerName === 'Nenhum (Somente backup externo)') {
+                titleProvider = 'Sem Provedor';
+            }
+            modalTitle.textContent = escapeHtml((hosting.domain || data.domain || '').toUpperCase()) + ' — ' + escapeHtml(titleProvider);
             
             // Monta conteúdo do modal
             var html = '<div style="margin-bottom: 25px;">';
             html += '<h3 style="margin: 0 0 15px 0; font-size: 16px; color: #023A8D; border-bottom: 2px solid #023A8D; padding-bottom: 8px;">Resumo</h3>';
             html += '<table style="width: 100%; border-collapse: collapse;">';
             html += '<tr><td style="padding: 8px; font-weight: 600; width: 150px;">Plano / Valor:</td><td style="padding: 8px;">' + escapeHtml(hosting.plan_name || data.plan_name || '-') + ' / ' + escapeHtml(hosting.amount || data.amount || '-') + '</td></tr>';
-            // Verifica se é "nenhum_backup" para mostrar badge
-            var currentProvider = data.current_provider || (hosting && hosting.current_provider) || '';
+            // Verifica se é "nenhum_backup" para mostrar badge - usa plan_provider se disponível
+            var planProvider = data.plan_provider || (hosting && hosting.plan_provider) || '';
+            var currentProvider = planProvider || data.current_provider || (hosting && hosting.current_provider) || '';
             var providerDisplay = providerName;
             if (currentProvider === 'nenhum_backup' || providerName === 'Nenhum (Somente backup externo)') {
                 providerDisplay = '<span style="background: #ffc107; color: #856404; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-block;">Somente backup</span>';
@@ -3510,10 +3516,18 @@ function openHostingDetailsModal(hostingId) {
             html += '<tr><td style="padding: 8px; font-weight: 600;">Provedor:</td><td style="padding: 8px;">' + providerDisplay + '</td></tr>';
             
             // Extrai datas corretamente (tenta todas as possibilidades)
-            const hostingExpDate = hosting.hostinger_expiration_date || data.hostinger_expiration_date || hosting.hostinger_expiration_date;
-            const domainExpDate = hosting.domain_expiration_date || data.domain_expiration_date || hosting.domain_expiration_date;
+            const hostingExpDate = hosting.hostinger_expiration_date || data.hostinger_expiration_date;
+            const domainExpDate = hosting.domain_expiration_date || data.domain_expiration_date;
+            const hasNoHostingExpiration = hosting.has_no_hosting_expiration || data.has_no_hosting_expiration || (hosting && hosting.has_no_hosting_expiration);
             
-            html += '<tr><td style="padding: 8px; font-weight: 600;">Venc. Hospedagem:</td><td style="padding: 8px;">' + (hostingExpDate ? formatDate(hostingExpDate) : '-') + '</td></tr>';
+            // Vencimento da hospedagem - mostra "Recorrente" se não tem data de vencimento
+            var hostingExpDisplay = '-';
+            if (hasNoHostingExpiration && !hostingExpDate) {
+                hostingExpDisplay = '<span style="background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; display: inline-block;">Recorrente, sem data de vencimento</span>';
+            } else if (hostingExpDate) {
+                hostingExpDisplay = formatDate(hostingExpDate);
+            }
+            html += '<tr><td style="padding: 8px; font-weight: 600;">Venc. Hospedagem:</td><td style="padding: 8px;">' + hostingExpDisplay + '</td></tr>';
             html += '<tr><td style="padding: 8px; font-weight: 600;">Venc. Domínio:</td><td style="padding: 8px;">' + (domainExpDate ? formatDate(domainExpDate) : '-') + '</td></tr>';
             html += '<tr><td style="padding: 8px; font-weight: 600;">Situação:</td><td style="padding: 8px;">';
             html += '<div style="display: flex; flex-direction: column; gap: 4px;">';

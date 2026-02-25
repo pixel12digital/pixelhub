@@ -52,9 +52,11 @@ class TenantsController extends Controller
             $hostingAccounts = [];
         } else {
             $stmt = $db->prepare("
-                SELECT * FROM hosting_accounts
-                WHERE tenant_id = ?
-                ORDER BY domain ASC
+                SELECT ha.*, hp.provider as plan_provider, hp.service_type as plan_service_type
+                FROM hosting_accounts ha
+                LEFT JOIN hosting_plans hp ON ha.hosting_plan_id = hp.id
+                WHERE ha.tenant_id = ?
+                ORDER BY ha.domain ASC
             ");
             $stmt->execute([$tenantId]);
             $hostingAccounts = $stmt->fetchAll();
