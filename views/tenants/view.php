@@ -2751,7 +2751,7 @@ function openInboxNewConversation(tenantId) {
                         class="btn-action"
                         data-tooltip="Criar e Agendar Tarefa"
                         aria-label="Criar e Agendar Tarefa"
-                        style="background: #023A8D; color: white;">
+                        style="background: #666; color: white;">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
                         <line x1="12" y1="5" x2="12" y2="19"></line>
                         <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -3337,17 +3337,17 @@ function openInboxNewConversation(tenantId) {
     
     <!-- Modal: Criar e Agendar Tarefa -->
     <div id="createAndScheduleTaskModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; overflow-y: auto;">
-        <div style="background: white; max-width: 600px; border-radius: 8px; padding: 30px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin: 20px;">
-            <button onclick="closeCreateAndScheduleTaskModal()" style="position: absolute; top: 15px; right: 15px; background: #c33; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; line-height: 1;">×</button>
+        <div style="background: white; max-width: 800px; width: 90%; border-radius: 8px; padding: 30px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin: 20px;">
+            <button onclick="closeCreateAndScheduleTaskModal()" style="position: absolute; top: 15px; right: 15px; background: #666; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; line-height: 1;">×</button>
             
-            <h2 style="margin: 0 0 20px 0; color: #023A8D;">➕ Criar e Agendar Tarefa</h2>
+            <h2 style="margin: 0 0 20px 0; color: #333;">Criar e Agendar Tarefa</h2>
             
             <form id="createAndScheduleTaskForm" onsubmit="submitCreateAndScheduleTask(event)">
                 <input type="hidden" id="create_schedule_tenant_id" name="tenant_id">
                 
                 <!-- Dados da Tarefa -->
-                <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                    <h3 style="margin: 0 0 15px 0; color: #023A8D; font-size: 16px;">📋 Dados da Tarefa</h3>
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 3px solid #666;">
+                    <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px; font-weight: 600;">Dados da Tarefa</h3>
                     
                     <div style="margin-bottom: 15px;">
                         <label for="create_schedule_project_id" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Projeto: *</label>
@@ -3368,8 +3368,8 @@ function openInboxNewConversation(tenantId) {
                 </div>
                 
                 <!-- Dados do Agendamento -->
-                <div style="background: #f0f7ff; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                    <h3 style="margin: 0 0 15px 0; color: #023A8D; font-size: 16px;">📅 Agendamento</h3>
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 3px solid #666;">
+                    <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px; font-weight: 600;">Agendamento</h3>
                     
                     <div style="margin-bottom: 15px;">
                         <label for="create_schedule_date" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Data: *</label>
@@ -3401,8 +3401,8 @@ function openInboxNewConversation(tenantId) {
                 </div>
                 
                 <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button type="button" onclick="closeCreateAndScheduleTaskModal()" style="padding: 10px 20px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Cancelar</button>
-                    <button type="submit" style="padding: 10px 20px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Criar e Agendar</button>
+                    <button type="button" onclick="closeCreateAndScheduleTaskModal()" style="padding: 10px 20px; background: #999; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Cancelar</button>
+                    <button type="submit" style="padding: 10px 20px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Criar e Agendar</button>
                 </div>
             </form>
         </div>
