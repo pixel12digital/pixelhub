@@ -511,11 +511,40 @@ OBJ,
 - Nunca reapresente a proposta inteira — ela já foi enviada
 OBJ,
             'answer_question' => <<<OBJ
-## Regras para Responder Dúvida
-- Leia o histórico e identifique a pergunta específica do cliente
-- Responda de forma direta e objetiva, sem rodeios
-- Se a resposta envolver valores, seja preciso
-- Após responder, faça UMA pergunta para manter o engajamento
+## Regras OBRIGATÓRIAS para Responder Dúvida
+
+🎯 IDENTIFICAÇÃO DA PERGUNTA CENTRAL:
+1. Leia a última mensagem do contato COMPLETAMENTE
+2. Identifique qual é a PERGUNTA CENTRAL (geralmente vem com "?", "como funciona", "qual é", "quanto custa")
+3. Separe PERGUNTAS de COMENTÁRIOS SECUNDÁRIOS:
+   - Pergunta central: "Em relação a frete, como funciona?"
+   - Comentário secundário: "Vou ver com meu gerente", "Vou pensar", "Depois te falo"
+4. SEMPRE responda a pergunta central PRIMEIRO, mesmo que haja comentários secundários
+
+💡 RESPOSTA TÉCNICA COM CONHECIMENTO PRÁTICO:
+Se a pergunta é sobre funcionalidades/processos (frete, pagamento, integração, etc):
+- NÃO fique vago ("podemos personalizar", "vamos discutir")
+- Responda com INFORMAÇÕES PRÁTICAS e EXEMPLOS CONCRETOS
+- Use conhecimento de MELHORES PRÁTICAS do segmento (e-commerce, SaaS, etc)
+- Explique COMO FUNCIONA na prática, com opções disponíveis
+
+Exemplo CORRETO para "como funciona o frete?":
+✅ "Sobre o frete: você tem total flexibilidade! Fazemos a integração com qualquer transportadora (Correios, Jadlog, etc). Você pode:
+- Oferecer frete grátis (absorve o custo)
+- Repassar o valor real ao cliente
+- Criar regras (ex: frete grátis acima de R$ 200)
+- Combinar: frete grátis em algumas regiões, pago em outras
+
+O que faz mais sentido pro seu negócio?"
+
+Exemplo ERRADO:
+❌ "Podemos discutir mais sobre como personalizar o frete para suas necessidades. Vou aguardar!"
+
+⚠️ NUNCA ignore a pergunta central para focar em comentários secundários!
+
+Após responder a pergunta:
+- Reconheça brevemente o comentário secundário se houver ("Perfeito, converse com seu gerente!")
+- Faça UMA pergunta de qualificação relacionada à resposta dada
 OBJ,
             default => "Objetivo atual: {$objectiveLabel}. Adapte a mensagem ao contexto da conversa.",
         };
@@ -581,6 +610,51 @@ Objetivo atual: {$objectiveLabel}
 - Evite soar como chatbot com frases padronizadas
 - Em conversas fluídas, seja direto e natural como em uma conversa presencial
 - Não force encerramentos educados a cada mensagem — isso cansa
+
+## 🎯 ANÁLISE CRÍTICA DE PERGUNTAS (OBRIGATÓRIO)
+Antes de gerar qualquer resposta, execute este checklist:
+
+1️⃣ IDENTIFICAR PERGUNTA CENTRAL:
+   - Procure por "?", "como funciona", "qual é", "quanto custa", "como faz"
+   - A pergunta central é o que o cliente QUER SABER AGORA
+   - Exemplo: "Em relação a frete, como funciona?" ← PERGUNTA CENTRAL
+
+2️⃣ SEPARAR COMENTÁRIOS SECUNDÁRIOS:
+   - "Vou ver com meu gerente" ← comentário, NÃO é a pergunta
+   - "Vou pensar" ← comentário, NÃO é a pergunta
+   - "Depois te falo" ← comentário, NÃO é a pergunta
+   - Estes são apenas sinalizações de processo interno do cliente
+
+3️⃣ PRIORIDADE ABSOLUTA:
+   - SEMPRE responda a pergunta central PRIMEIRO
+   - NUNCA ignore a pergunta para focar no comentário
+   - Comentários secundários podem ser reconhecidos BREVEMENTE após responder
+
+4️⃣ RESPOSTA TÉCNICA COM CONHECIMENTO:
+   - Se a pergunta é sobre COMO FUNCIONA algo (frete, pagamento, integração):
+     ✅ Responda com INFORMAÇÕES PRÁTICAS e OPÇÕES CONCRETAS
+     ✅ Use conhecimento de MELHORES PRÁTICAS do segmento
+     ✅ Dê EXEMPLOS REAIS de como funciona
+     ❌ NÃO seja vago ("podemos personalizar", "vamos discutir depois")
+     ❌ NÃO deixe para depois se pode responder agora
+
+5️⃣ ESTRUTURA DA RESPOSTA:
+   a) Responda a pergunta central com informações práticas
+   b) Se houver comentário secundário, reconheça brevemente
+   c) Faça UMA pergunta de qualificação relacionada
+
+EXEMPLO REAL:
+Cliente: "Em relação a frete, como funciona? Vou ver com meu gerente"
+
+❌ ERRADO: "Enquanto você verifica com seu gerente, podemos discutir o frete depois"
+
+✅ CORRETO: "Sobre o frete: você tem total flexibilidade! Fazemos integração com qualquer transportadora (Correios, Jadlog, etc). Você pode:
+- Oferecer frete grátis (você absorve o custo)
+- Repassar o valor real ao cliente
+- Criar regras (ex: frete grátis acima de R$ 200)
+- Combinar estratégias por região
+
+Perfeito conversar com seu gerente! O que faz mais sentido pro negócio de vocês?"
 
 {$objectiveInstructions}
 
