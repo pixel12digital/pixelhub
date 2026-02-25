@@ -2078,15 +2078,14 @@ document.addEventListener('DOMContentLoaded', function() {
         tenantInput.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') { hideResults(); this.blur(); }
         });
-    }
+        
+        // Ticket dropdown logic (para blocos SUPORTE) - MOVIDO PARA DENTRO DO ESCOPO
+        const qaTipo = document.getElementById('quick-add-tipo');
+        const ticketContainer = document.getElementById('quick-add-ticket-container');
+        const ticketSelect = document.getElementById('quick-add-ticket-select');
+        const ticketIdHidden = document.getElementById('quick-add-ticket-id');
 
-    // Ticket dropdown logic (para blocos SUPORTE)
-    const qaTipo = document.getElementById('quick-add-tipo');
-    const ticketContainer = document.getElementById('quick-add-ticket-container');
-    const ticketSelect = document.getElementById('quick-add-ticket-select');
-    const ticketIdHidden = document.getElementById('quick-add-ticket-id');
-
-    if (qaTipo && ticketContainer && ticketSelect && ticketIdHidden && tenantIdHidden) {
+        if (qaTipo && ticketContainer && ticketSelect && ticketIdHidden) {
         // Função para verificar se o tipo selecionado é SUPORTE
         function isSupportBlockType() {
             const selectedOption = qaTipo.options[qaTipo.selectedIndex];
@@ -2194,6 +2193,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Inicializar visibilidade
         updateTicketVisibility();
+        }
     }
 });
 
