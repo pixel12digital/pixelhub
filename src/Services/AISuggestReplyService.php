@@ -29,7 +29,11 @@ class AISuggestReplyService
         'send_proposal'      => 'Enviar proposta',
         'close_deal'         => 'Fechar negócio',
         'support'            => 'Suporte técnico',
-        'billing'            => 'Questão financeira',
+        'billing'            => 'Gerar cobrança (automático)',
+    ];
+
+    // Objetivos internos (não aparecem no dropdown, usados apenas pela análise automática)
+    private const INTERNAL_OBJECTIVES = [
         'billing_reminder'   => 'Lembrete de vencimento',
         'billing_collection' => 'Cobrança (1-2 faturas vencidas)',
         'billing_critical'   => 'Cobrança crítica (3+ faturas)',

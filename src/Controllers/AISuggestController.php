@@ -420,17 +420,19 @@ class AISuggestController extends Controller
                 }
             }
 
-            // Análise automática de cobranças se contexto é financeiro
+            // Análise automática de cobranças se contexto é financeiro E objetivo é billing
             $billingAnalysis = null;
-            if ($contextSlug === 'financeiro' && !empty($conversationHistory)) {
+            if ($contextSlug === 'financeiro' && $objective === 'billing') {
                 // Tenta identificar tenant_id da conversa
                 $tenantId = $this->extractTenantIdFromConversation($conversationId, $opportunityId);
                 if ($tenantId) {
                     $billingAnalysis = AISuggestReplyService::analyzeBillingContext($tenantId);
-                    // Se análise retornou objetivo específico, sobrescreve
+                    // Sobrescreve objetivo com o específico (critical/collection/reminder)
                     if (!empty($billingAnalysis['objective']) && $billingAnalysis['objective'] !== 'answer_question') {
                         $objective = $billingAnalysis['objective'];
                     }
+                } else {
+                    error_log('[AI CHAT] Contexto financeiro + objetivo billing, mas tenant_id não identificado');
                 }
             }
 
