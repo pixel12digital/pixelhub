@@ -1094,26 +1094,14 @@ PROMPT;
         
         $db = DB::getConnection();
 
-        // Cache de sincronização: só sincroniza se passou mais de 5 minutos desde a última
-        $cacheKey = 'ai_billing_sync_' . $tenantId;
-        $lastSync = apcu_exists($cacheKey) ? apcu_fetch($cacheKey) : 0;
-        $now = time();
-        $cacheExpiry = 300; // 5 minutos
-        
-        if (($now - $lastSync) > $cacheExpiry) {
-            // Sincroniza com Asaas ANTES de buscar faturas para obter valores atualizados com juros/multas
-            error_log('[AI BILLING] Sincronizando com Asaas (cache expirado)...');
-            try {
-                $syncResult = \PixelHub\Services\AsaasBillingService::syncInvoicesForTenant($tenantId);
-                apcu_store($cacheKey, $now, $cacheExpiry);
-                error_log('[AI BILLING] Sincronização OK! Criadas: ' . ($syncResult['created'] ?? 0) . ', Atualizadas: ' . ($syncResult['updated'] ?? 0));
-            } catch (\Exception $e) {
-                error_log('[AI BILLING] ERRO na sincronização: ' . $e->getMessage());
-                // Continua mesmo se sincronização falhar - usa dados do banco
-            }
-        } else {
-            $timeLeft = $cacheExpiry - ($now - $lastSync);
-            error_log('[AI BILLING] Usando cache (próxima sync em ' . $timeLeft . 's)');
+        // Sincroniza com Asaas ANTES de buscar faturas para obter valores atualizados com juros/multas
+        error_log('[AI BILLING] Sincronizando com Asaas...');
+        try {
+            $syncResult = \PixelHub\Services\AsaasBillingService::syncInvoicesForTenant($tenantId);
+            error_log('[AI BILLING] Sincronização OK! Criadas: ' . ($syncResult['created'] ?? 0) . ', Atualizadas: ' . ($syncResult['updated'] ?? 0));
+        } catch (\Exception $e) {
+            error_log('[AI BILLING] ERRO na sincronização: ' . $e->getMessage());
+            // Continua mesmo se sincronização falhar - usa dados do banco
         }
 
         // Busca faturas pendentes e vencidas do tenant com detalhes de serviços
