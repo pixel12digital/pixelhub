@@ -1101,9 +1101,9 @@ PROMPT;
                 bi.invoice_url,
                 bi.asaas_payment_id,
                 bi.description,
+                bi.billing_type,
                 DATEDIFF(CURDATE(), bi.due_date) as days_overdue,
-                s.name as service_name,
-                s.slug as service_slug
+                s.name as service_name
             FROM billing_invoices bi
             LEFT JOIN services s ON bi.project_id = s.id
             WHERE bi.tenant_id = ?
