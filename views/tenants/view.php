@@ -1524,19 +1524,38 @@ function openInboxNewConversation(tenantId) {
 
 <?php elseif ($activeTab === 'hosting'): ?>
     <!-- ABA: Serviços Ativos -->
-    <div class="card">
-        <?php 
-        $isInactive = ($tenant['status'] ?? 'active') === 'inactive' || !empty($tenant['is_archived']);
-        ?>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 style="margin: 0;">Sites e Hospedagens</h3>
-            <?php if (!$isInactive): ?>
-            <a href="<?= pixelhub_url('/hosting/create?tenant_id=' . $tenant['id'] . '&redirect_to=tenant') ?>" 
-               style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
-                Nova conta de hospedagem
-            </a>
-            <?php endif; ?>
+    <?php 
+    $isInactive = ($tenant['status'] ?? 'active') === 'inactive' || !empty($tenant['is_archived']);
+    
+    if ($isInactive): 
+    ?>
+        <!-- Cliente Inativo - Exibe apenas mensagem -->
+        <div class="card">
+            <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 30px; text-align: center;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#856404" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 15px;">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <h4 style="color: #856404; margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">Cliente Inativo</h4>
+                <p style="color: #856404; margin: 0 0 10px 0; font-size: 14px; line-height: 1.6;">
+                    Este cliente está inativo/arquivado. Serviços ativos não são exibidos para clientes inativos.
+                </p>
+                <p style="color: #856404; margin: 0; font-size: 14px; line-height: 1.6;">
+                    Para adicionar contas de hospedagem, contas de e-mail ou outros serviços, é necessário <strong>ativar o cadastro do cliente</strong> novamente na aba "Visão Geral".
+                </p>
+            </div>
         </div>
+    <?php else: ?>
+        <!-- Cliente Ativo - Exibe seções normalmente -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0;">Sites e Hospedagens</h3>
+                <a href="<?= pixelhub_url('/hosting/create?tenant_id=' . $tenant['id'] . '&redirect_to=tenant') ?>" 
+                   style="background: #023A8D; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
+                    Nova conta de hospedagem
+                </a>
+            </div>
         
         <?php if (isset($_GET['success']) && $_GET['success'] === 'created'): ?>
             <div style="background: #efe; color: #3c3; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
@@ -1570,35 +1589,14 @@ function openInboxNewConversation(tenantId) {
         <?php endif; ?>
         
         <?php if (empty($hostingAccounts)): ?>
-            <?php 
-            $isInactive = ($tenant['status'] ?? 'active') === 'inactive' || !empty($tenant['is_archived']);
-            if ($isInactive): 
-            ?>
-                <!-- Cliente Inativo -->
-                <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 30px; text-align: center;">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#856404" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 15px;">
-                        <circle cx="12" cy="12" r="10"/>
-                        <line x1="12" y1="8" x2="12" y2="12"/>
-                        <line x1="12" y1="16" x2="12.01" y2="16"/>
-                    </svg>
-                    <h4 style="color: #856404; margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">Cliente Inativo</h4>
-                    <p style="color: #856404; margin: 0 0 10px 0; font-size: 14px; line-height: 1.6;">
-                        Este cliente está inativo/arquivado. Serviços ativos não são exibidos para clientes inativos.
-                    </p>
-                    <p style="color: #856404; margin: 0; font-size: 14px; line-height: 1.6;">
-                        Para adicionar contas de hospedagem, contas de e-mail ou outros serviços, é necessário <strong>ativar o cadastro do cliente</strong> novamente na aba "Visão Geral".
-                    </p>
-                </div>
-            <?php else: ?>
-                <!-- Cliente Ativo sem serviços -->
-                <div style="text-align: center; padding: 40px 20px;">
-                    <p style="color: #666; margin-bottom: 20px;">Nenhum site cadastrado para este cliente.</p>
-                    <a href="<?= pixelhub_url('/hosting/create?tenant_id=' . $tenant['id'] . '&redirect_to=tenant') ?>" 
-                       style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; display: inline-block;">
-                        Nova conta de hospedagem
-                    </a>
-                </div>
-            <?php endif; ?>
+            <!-- Cliente Ativo sem serviços -->
+            <div style="text-align: center; padding: 40px 20px;">
+                <p style="color: #666; margin-bottom: 20px;">Nenhum site cadastrado para este cliente.</p>
+                <a href="<?= pixelhub_url('/hosting/create?tenant_id=' . $tenant['id'] . '&redirect_to=tenant') ?>" 
+                   style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; display: inline-block;">
+                    Nova conta de hospedagem
+                </a>
+            </div>
         <?php else: ?>
             <table style="width: 100%; border-collapse: collapse;">
                 <thead>
@@ -1836,6 +1834,7 @@ function openInboxNewConversation(tenantId) {
             </div>
         <?php endif; ?>
     </div>
+    <?php endif; // Fim do bloco if ($isInactive) ?>
 
 <?php elseif ($activeTab === 'docs_backups'): ?>
     <!-- ABA: Docs & Backups -->
