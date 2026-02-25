@@ -248,7 +248,7 @@ $baseUrl = pixelhub_url('');
                                         data-channel="email"
                                         style="background: #023A8D; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;"
                                         title="Enviar E-mail manualmente">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
                                         <rect x="2" y="4" width="20" height="16" rx="2"/>
                                         <path d="m22 7-10 5L2 7"/>
                                     </svg>
