@@ -230,22 +230,7 @@ class ProjectContractController extends Controller
             error_log("Erro ao marcar contrato como enviado: " . $e->getMessage());
         }
         
-        // Registra no histórico de WhatsApp
-        try {
-            $logStmt = $db->prepare("
-                INSERT INTO whatsapp_generic_logs 
-                (tenant_id, template_id, phone, message, sent_at, created_at)
-                VALUES (?, NULL, ?, ?, NOW(), NOW())
-            ");
-            $logStmt->execute([
-                $contract['tenant_id'],
-                $phoneNormalized,
-                $message
-            ]);
-        } catch (\Exception $logError) {
-            // Log erro mas não bloqueia o processo
-            error_log("Erro ao registrar log de WhatsApp (contrato {$id}): " . $logError->getMessage());
-        }
+        // Log de WhatsApp genérico removido - funcionalidade de notificações desativada
         
         $this->json([
             'success' => true,

@@ -229,22 +229,7 @@ class WizardController extends Controller
                                         // Normaliza telefone
                                         $phoneNormalized = preg_replace('/[^0-9]/', '', $tenantForContract['phone']);
                                         
-                                        // Registra no histórico de WhatsApp
-                                        try {
-                                            $logStmt = $db->prepare("
-                                                INSERT INTO whatsapp_generic_logs 
-                                                (tenant_id, template_id, phone, message, sent_at, created_at)
-                                                VALUES (?, NULL, ?, ?, NOW(), NOW())
-                                            ");
-                                            $logStmt->execute([
-                                                $tenantId,
-                                                $phoneNormalized,
-                                                $message
-                                            ]);
-                                        } catch (\Exception $logError) {
-                                            // Log erro mas não bloqueia o processo
-                                            error_log("Erro ao registrar log de WhatsApp (contrato {$contractId}): " . $logError->getMessage());
-                                        }
+                                        // Log de WhatsApp genérico removido - funcionalidade de notificações desativada
                                         
                                         // Gera link do WhatsApp (será aberto em nova aba)
                                         $whatsappLink = \PixelHub\Services\WhatsAppTemplateService::buildWhatsAppLink($phoneNormalized, $message);

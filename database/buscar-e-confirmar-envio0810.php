@@ -285,21 +285,9 @@ if (!empty($eventsToConfirm)) {
                     $skipped++;
                 }
             } else {
-                // Cria novo registro em whatsapp_generic_logs
-                $stmt = $db->prepare("
-                    INSERT INTO whatsapp_generic_logs
-                    (tenant_id, template_id, phone, message, sent_at, created_at)
-                    VALUES (?, NULL, ?, ?, ?, NOW())
-                ");
-                $stmt->execute([
-                    $tenantId,
-                    $phoneNormalized,
-                    $content,
-                    $event['created_at']
-                ]);
-                $logId = (int) $db->lastInsertId();
-                echo "   ✅ Evento {$event['event_id']}: Criado registro em whatsapp_generic_logs (ID: {$logId})\n";
-                $confirmed++;
+                // Log de WhatsApp genérico removido - funcionalidade de notificações desativada
+                echo "   ℹ️  Evento {$event['event_id']}: Log genérico desativado (funcionalidade removida)\n";
+                $skipped++;
             }
         }
         

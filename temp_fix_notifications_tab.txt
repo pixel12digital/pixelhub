@@ -1,0 +1,48 @@
+Linha 2585 até linha 2627 deve conter APENAS isto:
+
+<?php elseif ($activeTab === 'notifications'): ?>
+    <!-- ABA: Observações -->
+    
+    <div class="card">
+        <h3 style="margin: 0 0 20px 0;">Observações sobre o Cliente</h3>
+        <p style="color: #666; margin-bottom: 20px;">
+            Use este espaço para registrar observações importantes sobre o cliente, anotações de reuniões, lembretes ou qualquer informação relevante.
+        </p>
+        
+        <form method="POST" action="<?= pixelhub_url('/tenants/update-observations') ?>" style="margin-bottom: 20px;">
+            <input type="hidden" name="tenant_id" value="<?= $tenant['id'] ?>">
+            
+            <textarea name="observations" 
+                      id="observations-textarea"
+                      style="width: 100%; min-height: 300px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.6; resize: vertical;"
+                      placeholder="Digite suas observações aqui..."><?= htmlspecialchars($tenant['observations'] ?? '') ?></textarea>
+            
+            <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #666; font-size: 13px;">
+                    💡 Dica: Use este campo para registrar informações que não se encaixam em outros campos do sistema.
+                </span>
+                <button type="submit" 
+                        style="background: #023A8D; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                    💾 Salvar Observações
+                </button>
+            </div>
+        </form>
+        
+        <?php if (!empty($tenant['observations'])): ?>
+        <div style="background: #f9f9f9; padding: 15px; border-radius: 4px; border-left: 4px solid #023A8D;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <strong style="color: #023A8D;">Observações Salvas:</strong>
+                <span style="color: #666; font-size: 13px;">
+                    Última edição
+                </span>
+            </div>
+            <div style="white-space: pre-wrap; color: #333; line-height: 1.6;">
+                <?= htmlspecialchars($tenant['observations']) ?>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+
+DEPOIS disso, na linha 2628, deve vir DIRETAMENTE:
+
+<?php elseif ($activeTab === 'tasks'): ?>
