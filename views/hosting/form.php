@@ -556,6 +556,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Aguarda um pouco para garantir que o DOM está totalmente carregado
         setTimeout(function() {
             updatePlanFields();
+            // Força atualização do valor baseado na periodicidade selecionada (importante para edição)
+            updateAmountByPeriod();
         }, 100);
     }
 });
