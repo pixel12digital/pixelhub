@@ -184,21 +184,44 @@ class InboxEmailController
             $smtpFromEmail = $smtp['smtp_from_email'] ?: $smtpUser;
             $smtpEncryption = $smtp['smtp_encryption'] ?: 'tls';
             
-            // Assinatura profissional
-            $signature = "\n\n" .
-                "---\n\n" .
-                "Atenciosamente,\n\n" .
-                "Charles Dietrich\n" .
-                "Consultor em Transformação Digital\n" .
-                "Pixel12 Digital\n\n" .
-                "WhatsApp: (47) 99730-9525\n" .
-                "Site: https://pixel12digital.com.br\n" .
-                "Email: contato@pixel12digital.com.br\n\n" .
-                "---\n" .
-                "Pixel12 Digital - Soluções em Desenvolvimento Web e Marketing Digital";
+            // Converte mensagem para HTML
+            $messageHtml = nl2br(htmlspecialchars($message));
             
-            // Adiciona assinatura à mensagem
-            $messageWithSignature = $message . $signature;
+            // Assinatura profissional em HTML
+            $signatureHtml = '
+                <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+                <p style="margin: 0; line-height: 1.6;">
+                    Atenciosamente,<br><br>
+                    <strong>Charles Dietrich</strong><br>
+                    Consultor em Transformação Digital<br>
+                    Pixel12 Digital<br><br>
+                    WhatsApp: (47) 99730-9525<br>
+                    Site: <a href="https://pixel12digital.com.br">https://pixel12digital.com.br</a><br>
+                    Email: <a href="mailto:contato@pixel12digital.com.br">contato@pixel12digital.com.br</a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+                <p style="text-align: center; margin: 20px 0;">
+                    <img src="https://hub.pixel12digital.com.br/assets/img/logo-pixel12.png" alt="Pixel12 Digital" style="max-width: 200px; height: auto;">
+                </p>
+                <p style="text-align: center; color: #666; font-size: 12px; margin: 10px 0;">
+                    Pixel12 Digital - Soluções em Desenvolvimento Web e Marketing Digital
+                </p>
+            ';
+            
+            // Monta email HTML completo
+            $emailBody = '
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                </head>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    ' . $messageHtml . '
+                    ' . $signatureHtml . '
+                </body>
+                </html>
+            ';
             
             // Envia email via PHPMailer
             require_once __DIR__ . '/../../vendor/autoload.php';
@@ -214,11 +237,13 @@ class InboxEmailController
                 : \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port = $smtpPort;
             $mail->CharSet = 'UTF-8';
+            $mail->isHTML(true);
             
             $mail->setFrom($smtpFromEmail, $smtpFromName);
             $mail->addAddress($tenant['email'], $tenant['name']);
             $mail->Subject = $subject;
-            $mail->Body = $messageWithSignature;
+            $mail->Body = $emailBody;
+            $mail->AltBody = $message . "\n\n---\n\nAtenciosamente,\n\nCharles Dietrich\nConsultor em Transformação Digital\nPixel12 Digital\n\nWhatsApp: (47) 99730-9525\nSite: https://pixel12digital.com.br\nEmail: contato@pixel12digital.com.br";
             
             $mail->send();
             
