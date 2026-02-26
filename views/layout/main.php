@@ -5081,6 +5081,11 @@
             }
         };
         
+        // ============================================================================
+        // Email Modal - Variáveis Globais
+        // ============================================================================
+        let emailAttachedFile = null;
+        
         window.openInboxNovoEmail = function() {
             const modal = document.getElementById('inboxEmailModal');
             if (modal) {
@@ -5484,8 +5489,6 @@
         // ============================================================================
         // Email Modal - Anexar Arquivo
         // ============================================================================
-        let emailAttachedFile = null;
-        
         window.handleEmailAttachment = function(event) {
             const file = event.target.files[0];
             if (!file) return;
