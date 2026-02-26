@@ -302,7 +302,13 @@ class BillingStartService
                 $valueFormatted = 'R$ ' . number_format($nextInvoice['amount'], 2, ',', '.');
                 
                 $message .= "Tudo bem? Só passando para lembrar que sua próxima fatura ({$valueFormatted}) vence em {$dueDate}.\n\n";
-                $message .= "O link de pagamento estará disponível no seu painel em breve.\n\n";
+                
+                // Adiciona link se disponível
+                if (!empty($nextInvoice['invoice_url'])) {
+                    $message .= "Link para pagamento: {$nextInvoice['invoice_url']}\n\n";
+                } else {
+                    $message .= "O link de pagamento será enviado em breve.\n\n";
+                }
             }
             
             $message .= "Qualquer dúvida, pode contar conosco! 😊";
