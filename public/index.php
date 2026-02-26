@@ -721,6 +721,10 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/communication-hub/messages/new', 'CommunicationHubController@getNewMessages');
     $router->get('/communication-hub/message', 'CommunicationHubController@getMessage');
     $router->get('/communication-hub/media', 'CommunicationHubController@serveMedia');
+    
+    // Rotas do Inbox de Emails (separadas do WhatsApp)
+    $router->get('/inbox/emails', 'InboxEmailController@listEmails');
+    $router->get('/inbox/emails/thread', 'InboxEmailController@getEmailThread');
     // Incoming Leads actions
     $router->post('/communication-hub/incoming-lead/create-tenant', 'CommunicationHubController@createTenantFromIncomingLead');
     $router->post('/communication-hub/incoming-lead/link-tenant', 'CommunicationHubController@linkIncomingLeadToTenant');

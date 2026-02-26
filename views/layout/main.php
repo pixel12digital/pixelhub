@@ -2113,6 +2113,7 @@
                     <select id="inboxFilterChannel" onchange="onInboxChannelChange(); loadInboxConversations();" title="Canal">
                         <option value="all">Canal: Todos</option>
                         <option value="whatsapp">WhatsApp</option>
+                        <option value="email">Email</option>
                         <option value="chat">Chat Interno</option>
                     </select>
                     <div id="inboxSessionFilterWrap" style="display: none;">
@@ -4965,6 +4966,24 @@
             
             try {
                 const channel = (document.getElementById('inboxFilterChannel') || {}).value || 'all';
+                
+                // ===== CONDICIONAL ISOLADA: Email usa endpoint separado =====
+                if (channel === 'email') {
+                    const tenantId = (document.getElementById('inboxFilterTenant') || {}).value || '';
+                    const params = new URLSearchParams({ status: 'all' });
+                    if (tenantId) params.set('tenant_id', tenantId);
+                    
+                    const url = INBOX_BASE_URL + '/inbox/emails?' + params.toString();
+                    const response = await fetch(url);
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        renderEmailList(result.conversations || []);
+                    }
+                    return;
+                }
+                // ===== FIM DA CONDICIONAL EMAIL - Código WhatsApp abaixo permanece intacto =====
+                
                 const sessionId = (document.getElementById('inboxFilterSession') || {}).value || '';
                 const tenantId = (document.getElementById('inboxFilterTenant') || {}).value || '';
                 const status = filterStatus ? filterStatus.value : 'active';
@@ -5160,6 +5179,136 @@
             });
             
             listScroll.innerHTML = html;
+        }
+        
+        // ===== RENDERIZAR LISTA DE EMAILS (FUNÇÃO SEPARADA - NÃO AFETA WHATSAPP) =====
+        function renderEmailList(conversations) {
+            const listScroll = document.getElementById('inboxListScroll');
+            if (!listScroll) return;
+            
+            if (conversations.length === 0) {
+                listScroll.innerHTML = '<div class="inbox-drawer-loading">Nenhum email encontrado</div>';
+                return;
+            }
+            
+            let html = '';
+            
+            conversations.forEach(conv => {
+                const tenantName = escapeInboxHtml(conv.tenant_name || 'Cliente Desconhecido');
+                const emailCount = conv.email_count || 0;
+                const sentCount = conv.sent_count || 0;
+                const failedCount = conv.failed_count || 0;
+                const lastEmailAt = formatInboxDateBrasilia(conv.last_email_at);
+                const tenantId = conv.tenant_id;
+                
+                const statusBadge = failedCount > 0 
+                    ? `<span style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;">❌ ${failedCount} falha(s)</span>`
+                    : `<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;">✅ ${sentCount} enviado(s)</span>`;
+                
+                html += `
+                    <div class="inbox-drawer-conversation" 
+                         data-tenant-id="${tenantId}"
+                         onclick="loadEmailThread(${tenantId}, '${escapeInboxHtml(tenantName)}')">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
+                            <div class="conv-content" style="flex: 1;">
+                                <div class="conv-name">
+                                    <span>📧 ${tenantName}</span>
+                                    <span class="conv-time">${lastEmailAt}</span>
+                                </div>
+                                <div class="conv-preview" style="font-size: 12px; color: #667781; margin-top: 4px;">
+                                    ${emailCount} email(s) • ${statusBadge}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            listScroll.innerHTML = html;
+        }
+        
+        // ===== CARREGAR THREAD DE EMAILS (FUNÇÃO SEPARADA - NÃO AFETA WHATSAPP) =====
+        async function loadEmailThread(tenantId, tenantName) {
+            const chatDiv = document.getElementById('inboxChat');
+            const chatHeader = document.getElementById('inboxChatHeader');
+            const messagesDiv = document.getElementById('inboxMessages');
+            
+            if (!chatDiv || !chatHeader || !messagesDiv) return;
+            
+            try {
+                chatDiv.style.display = 'flex';
+                messagesDiv.innerHTML = '<div class="inbox-drawer-loading">Carregando emails...</div>';
+                
+                // Header
+                chatHeader.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 16px;">
+                            📧
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 600; font-size: 14px; color: #111b21; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                ${escapeInboxHtml(tenantName)}
+                            </div>
+                            <div style="font-size: 12px; color: #667781;">
+                                Histórico de Emails
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Busca emails
+                const response = await fetch(INBOX_BASE_URL + '/inbox/emails/thread?tenant_id=' + tenantId);
+                const result = await response.json();
+                
+                if (result.success && result.emails) {
+                    const emails = result.emails;
+                    
+                    if (emails.length === 0) {
+                        messagesDiv.innerHTML = '<div class="inbox-drawer-loading">Nenhum email encontrado</div>';
+                        return;
+                    }
+                    
+                    let html = '';
+                    
+                    emails.forEach(email => {
+                        const statusColor = email.status === 'sent' ? '#28a745' : '#dc3545';
+                        const statusIcon = email.status === 'sent' ? '✅' : '❌';
+                        const statusText = email.status === 'sent' ? 'Enviado' : 'Falhou';
+                        const sentAt = email.sent_at ? formatInboxDateBrasilia(email.sent_at) : '-';
+                        const messageText = escapeInboxHtml(email.message_text || 'Sem conteúdo');
+                        const invoiceInfo = email.invoice_amount 
+                            ? `<div style="background: #f0f0f0; padding: 8px; border-radius: 6px; margin-top: 8px; font-size: 12px;">
+                                   💰 Fatura: R$ ${parseFloat(email.invoice_amount).toFixed(2)} - Vence em ${new Date(email.invoice_due_date).toLocaleDateString('pt-BR')}
+                               </div>`
+                            : '';
+                        
+                        html += `
+                            <div style="padding: 12px; margin: 8px; background: white; border: 1px solid #e0e0e0; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <span style="font-weight: 600; color: ${statusColor};">
+                                        ${statusIcon} ${statusText}
+                                    </span>
+                                    <span style="font-size: 11px; color: #667781;">
+                                        ${sentAt}
+                                    </span>
+                                </div>
+                                <div style="white-space: pre-wrap; font-size: 13px; line-height: 1.5; color: #111b21;">
+                                    ${messageText}
+                                </div>
+                                ${invoiceInfo}
+                                ${email.last_error ? `<div style="color: #dc3545; font-size: 11px; margin-top: 8px;">❌ Erro: ${escapeInboxHtml(email.last_error)}</div>` : ''}
+                            </div>
+                        `;
+                    });
+                    
+                    messagesDiv.innerHTML = html;
+                } else {
+                    messagesDiv.innerHTML = '<div class="inbox-drawer-loading">Erro ao carregar emails</div>';
+                }
+            } catch (error) {
+                console.error('[Inbox] Erro ao carregar thread de emails:', error);
+                messagesDiv.innerHTML = '<div class="inbox-drawer-loading">Erro ao carregar emails</div>';
+            }
         }
         
         // ===== CARREGAR CONVERSA =====
