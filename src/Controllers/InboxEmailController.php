@@ -153,7 +153,7 @@ class InboxEmailController
         
         try {
             // Busca dados do tenant
-            $stmt = $db->prepare("SELECT name, email, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from_name FROM tenants WHERE id = ?");
+            $stmt = $db->prepare("SELECT name, email FROM tenants WHERE id = ?");
             $stmt->execute([$tenantId]);
             $tenant = $stmt->fetch(\PDO::FETCH_ASSOC);
             
@@ -167,15 +167,15 @@ class InboxEmailController
                 return;
             }
             
-            // Usa SMTP global se tenant não tiver configurado
-            $smtpHost = $tenant['smtp_host'] ?: ($_ENV['SMTP_HOST'] ?? null);
-            $smtpPort = $tenant['smtp_port'] ?: ($_ENV['SMTP_PORT'] ?? 587);
-            $smtpUser = $tenant['smtp_user'] ?: ($_ENV['SMTP_USER'] ?? null);
-            $smtpPassword = $tenant['smtp_password'] ?: ($_ENV['SMTP_PASSWORD'] ?? null);
-            $smtpFromName = $tenant['smtp_from_name'] ?: ($_ENV['SMTP_FROM_NAME'] ?? 'Pixel12 Digital');
+            // Usa configuração SMTP global do .env
+            $smtpHost = $_ENV['SMTP_HOST'] ?? null;
+            $smtpPort = $_ENV['SMTP_PORT'] ?? 587;
+            $smtpUser = $_ENV['SMTP_USER'] ?? null;
+            $smtpPassword = $_ENV['SMTP_PASSWORD'] ?? null;
+            $smtpFromName = $_ENV['SMTP_FROM_NAME'] ?? 'Pixel12 Digital';
             
             if (!$smtpHost || !$smtpUser || !$smtpPassword) {
-                $this->json(['success' => false, 'error' => 'Configuração SMTP não encontrada']);
+                $this->json(['success' => false, 'error' => 'Configuração SMTP não encontrada no servidor']);
                 return;
             }
             
