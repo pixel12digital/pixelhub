@@ -2401,14 +2401,113 @@
                     <input type="text" id="inboxEmailSubject" required placeholder="Ex: Atualização importante" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
                 </div>
                 <div style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Mensagem *</label>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <label style="font-weight: 600; margin: 0;">Mensagem *</label>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <!-- Botão Anexar -->
+                            <button type="button" id="emailAttachBtn" onclick="document.getElementById('emailAttachInput').click()" title="Anexar arquivo" style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; padding: 4px 10px; font-size: 12px; color: #666; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s; font-weight: 600;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                                </svg>
+                                Anexar
+                            </button>
+                            <input type="file" id="emailAttachInput" accept="image/*,.pdf,.doc,.docx" style="display: none;" onchange="handleEmailAttachment(event)">
+                            
+                            <!-- Botão Templates -->
+                            <button type="button" id="emailTemplatesBtn" onclick="toggleEmailTemplatesPanel()" title="Templates" style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; padding: 4px 10px; font-size: 12px; color: #666; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s; font-weight: 600;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                                </svg>
+                                Templates
+                            </button>
+                            
+                            <!-- Botão IA -->
+                            <button type="button" id="emailAIBtn" onclick="toggleEmailAIPanel()" title="Sugestão IA" style="background: #f8f5ff; border: 1px solid #d4c5f9; border-radius: 6px; cursor: pointer; padding: 4px 10px; font-size: 12px; color: #6f42c1; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s; font-weight: 600;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 2a4 4 0 0 1 4 4v1a3 3 0 0 1 3 3v1a2 2 0 0 1-2 2h-1l-1 5H9l-1-5H7a2 2 0 0 1-2-2v-1a3 3 0 0 1 3-3V6a4 4 0 0 1 4-4z"/>
+                                    <circle cx="9" cy="9" r="1"/>
+                                    <circle cx="15" cy="9" r="1"/>
+                                </svg>
+                                IA
+                            </button>
+                        </div>
+                    </div>
                     <textarea id="inboxEmailMessage" required rows="8" placeholder="Digite sua mensagem aqui..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; font-family: inherit;"></textarea>
+                    
+                    <!-- Preview de arquivo anexado -->
+                    <div id="emailAttachmentPreview" style="display: none; margin-top: 10px; padding: 10px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2">
+                                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                                </svg>
+                                <span id="emailAttachmentName" style="font-size: 13px; color: #333;"></span>
+                            </div>
+                            <button type="button" onclick="removeEmailAttachment()" style="background: none; border: none; color: #dc3545; cursor: pointer; font-size: 18px; padding: 0 4px;">&times;</button>
+                        </div>
+                    </div>
                 </div>
                 <div style="display: flex; gap: 10px;">
                     <button type="submit" id="inboxEmailSendBtn" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Enviar Email</button>
                     <button type="button" onclick="closeInboxEmailModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Cancelar</button>
                 </div>
             </form>
+        </div>
+    </div>
+    
+    <!-- Painel Templates para Email -->
+    <div id="emailTemplatesPanel" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 440px; max-height: 500px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); z-index: 10001; overflow: hidden; flex-direction: column;">
+        <div style="padding: 12px 16px; border-bottom: 1px solid #eee; background: #f8f9fa; border-radius: 12px 12px 0 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-weight: 700; font-size: 14px; color: #333;">Templates</span>
+                <button type="button" onclick="closeEmailTemplatesPanel()" style="background: none; border: none; cursor: pointer; padding: 2px; color: #999; font-size: 18px; line-height: 1;">&times;</button>
+            </div>
+            <input type="text" id="emailTemplatesSearch" placeholder="Buscar template..." autocomplete="off" onkeyup="filterEmailTemplates(this.value)" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; box-sizing: border-box;">
+        </div>
+        <div id="emailTemplatesList" style="overflow-y: auto; max-height: 380px; padding: 6px 0;">
+            <div style="padding: 20px; text-align: center; color: #999; font-size: 13px;">Carregando templates...</div>
+        </div>
+    </div>
+    
+    <!-- Painel IA para Email -->
+    <div id="emailAIPanel" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 440px; max-height: 600px; background: white; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); z-index: 10001; overflow: hidden; flex-direction: column;">
+        <div style="padding: 10px 16px; border-bottom: 1px solid #eee; background: linear-gradient(135deg, #6f42c1 0%, #023A8D 100%); border-radius: 12px 12px 0 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 700; font-size: 14px; color: white;">IA Assistente</span>
+                <button type="button" onclick="closeEmailAIPanel()" style="background: none; border: none; cursor: pointer; padding: 2px; color: rgba(255,255,255,0.8); font-size: 18px; line-height: 1;">&times;</button>
+            </div>
+        </div>
+        <div id="emailAICfg" style="padding: 10px 16px; border-bottom: 1px solid #f0f0f0; background: #fafafa;">
+            <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+                <div style="flex: 1;">
+                    <label style="font-size: 10px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Contexto</label>
+                    <select id="emailAIContext" style="width: 100%; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                        <option value="">Geral</option>
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size: 10px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Objetivo</label>
+                    <select id="emailAIObjective" style="width: 100%; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                        <option value="first_contact">Primeiro Contato</option>
+                        <option value="follow_up">Follow-up</option>
+                        <option value="answer_question">Responder Dúvida</option>
+                        <option value="send_proposal">Enviar Proposta</option>
+                        <option value="support">Suporte</option>
+                        <option value="billing">Financeiro</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label style="font-size: 10px; font-weight: 600; color: #555; display: block; margin-bottom: 2px;">Observação (opcional)</label>
+                <textarea id="emailAIObservation" rows="2" placeholder="Ex: mencionar prazo de entrega..." style="width: 100%; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; resize: none; box-sizing: border-box;"></textarea>
+            </div>
+        </div>
+        <div id="emailAIChatArea" style="flex: 1; overflow-y: auto; padding: 12px; background: #f9f9f9; max-height: 300px; min-height: 200px;"></div>
+        <div style="padding: 12px; border-top: 1px solid #eee; background: white;">
+            <div style="display: flex; gap: 8px;">
+                <textarea id="emailAIChatInput" rows="2" placeholder="Digite sua mensagem para a IA..." onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendEmailAIChat(); }" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; resize: none; font-family: inherit;"></textarea>
+                <button type="button" onclick="sendEmailAIChat()" style="padding: 8px 16px; background: linear-gradient(135deg, #6f42c1 0%, #023A8D 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap;">Enviar</button>
+            </div>
         </div>
     </div>
     
@@ -5057,6 +5156,13 @@
         window.closeInboxEmailModal = function() {
             const modal = document.getElementById('inboxEmailModal');
             if (modal) modal.style.display = 'none';
+            
+            // Limpa anexo
+            removeEmailAttachment();
+            
+            // Fecha painéis auxiliares
+            closeEmailTemplatesPanel();
+            closeEmailAIPanel();
         };
         
         window.sendInboxEmail = async function() {
@@ -5087,6 +5193,359 @@
                 if (result.success) {
                     alert('Email enviado com sucesso!');
                     closeInboxEmailModal();
+                    loadInboxConversations();
+                } else {
+                    alert('Erro ao enviar email: ' + (result.error || 'Erro desconhecido'));
+                }
+            } catch (error) {
+                console.error('[Inbox Email] Erro ao enviar:', error);
+                alert('Erro ao enviar email. Verifique o console.');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Enviar Email';
+                }
+            }
+        };
+        
+        // ============================================================================
+        // Email Modal - Templates
+        // ============================================================================
+        const EmailTemplatesState = {
+            templates: [],
+            isLoaded: false,
+            isOpen: false
+        };
+        
+        window.toggleEmailTemplatesPanel = async function() {
+            const panel = document.getElementById('emailTemplatesPanel');
+            if (!panel) return;
+            
+            if (panel.style.display === 'flex') {
+                closeEmailTemplatesPanel();
+            } else {
+                panel.style.display = 'flex';
+                EmailTemplatesState.isOpen = true;
+                if (!EmailTemplatesState.isLoaded) {
+                    await loadEmailTemplates();
+                }
+            }
+        };
+        
+        window.closeEmailTemplatesPanel = function() {
+            const panel = document.getElementById('emailTemplatesPanel');
+            if (panel) {
+                panel.style.display = 'none';
+                EmailTemplatesState.isOpen = false;
+            }
+        };
+        
+        async function loadEmailTemplates() {
+            const container = document.getElementById('emailTemplatesList');
+            if (!container) return;
+            
+            try {
+                const response = await fetch(INBOX_BASE_URL + '/settings/whatsapp-templates/quick-replies');
+                const data = await response.json();
+                
+                if (data.success && Array.isArray(data.templates)) {
+                    EmailTemplatesState.templates = data.templates;
+                    EmailTemplatesState.isLoaded = true;
+                    renderEmailTemplates('');
+                } else {
+                    container.innerHTML = '<div style="padding: 20px; text-align: center; color: #999; font-size: 13px;">Nenhum template encontrado.</div>';
+                }
+            } catch (error) {
+                console.error('[Email Templates] Erro ao carregar:', error);
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #dc3545; font-size: 13px;">Erro ao carregar templates.</div>';
+            }
+        }
+        
+        function renderEmailTemplates(searchTerm) {
+            const container = document.getElementById('emailTemplatesList');
+            if (!container) return;
+            
+            const term = (searchTerm || '').toLowerCase().trim();
+            const filtered = EmailTemplatesState.templates.filter(t => {
+                if (!term) return true;
+                return (t.name || '').toLowerCase().includes(term) || (t.content || '').toLowerCase().includes(term);
+            });
+            
+            if (filtered.length === 0) {
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #999; font-size: 13px;">Nenhum template encontrado.</div>';
+                return;
+            }
+            
+            let html = '';
+            filtered.forEach(t => {
+                const preview = (t.content || '').substring(0, 80) + ((t.content || '').length > 80 ? '...' : '');
+                html += `
+                    <div onclick="useEmailTemplate(${t.id})" style="padding: 10px 16px; cursor: pointer; border-bottom: 1px solid #f0f0f0; transition: background 0.2s;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='white'">
+                        <div style="font-weight: 600; font-size: 13px; color: #333; margin-bottom: 4px;">${escapeInboxHtml(t.name || '')}</div>
+                        <div style="font-size: 12px; color: #666; line-height: 1.4;">${escapeInboxHtml(preview)}</div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+        
+        window.filterEmailTemplates = function(searchTerm) {
+            renderEmailTemplates(searchTerm);
+        };
+        
+        window.useEmailTemplate = function(templateId) {
+            const template = EmailTemplatesState.templates.find(t => t.id == templateId);
+            if (!template) return;
+            
+            const messageTextarea = document.getElementById('inboxEmailMessage');
+            if (messageTextarea) {
+                messageTextarea.value = template.content || '';
+                messageTextarea.focus();
+            }
+            
+            closeEmailTemplatesPanel();
+        };
+        
+        // ============================================================================
+        // Email Modal - IA Assistente
+        // ============================================================================
+        const EmailAIState = {
+            chatHistory: [],
+            contexts: [],
+            contextsLoaded: false,
+            pendingLearn: null
+        };
+        
+        window.toggleEmailAIPanel = async function() {
+            const panel = document.getElementById('emailAIPanel');
+            if (!panel) return;
+            
+            if (panel.style.display === 'flex') {
+                closeEmailAIPanel();
+            } else {
+                panel.style.display = 'flex';
+                if (!EmailAIState.contextsLoaded) {
+                    await loadEmailAIContexts();
+                }
+                // Limpa chat ao abrir
+                EmailAIState.chatHistory = [];
+                document.getElementById('emailAIChatArea').innerHTML = '<div style="padding: 20px; text-align: center; color: #999; font-size: 13px;">Configure o contexto e objetivo, depois envie uma mensagem para a IA.</div>';
+            }
+        };
+        
+        window.closeEmailAIPanel = function() {
+            const panel = document.getElementById('emailAIPanel');
+            if (panel) panel.style.display = 'none';
+        };
+        
+        async function loadEmailAIContexts() {
+            try {
+                const response = await fetch(INBOX_BASE_URL + '/api/ai/contexts');
+                const data = await response.json();
+                
+                if (data.success && Array.isArray(data.contexts)) {
+                    EmailAIState.contexts = data.contexts;
+                    EmailAIState.contextsLoaded = true;
+                    
+                    const select = document.getElementById('emailAIContext');
+                    if (select) {
+                        select.innerHTML = '<option value="">Geral</option>';
+                        data.contexts.forEach(ctx => {
+                            const opt = document.createElement('option');
+                            opt.value = ctx.id;
+                            opt.textContent = ctx.name || '';
+                            select.appendChild(opt);
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('[Email IA] Erro ao carregar contextos:', error);
+            }
+        }
+        
+        window.sendEmailAIChat = async function() {
+            const input = document.getElementById('emailAIChatInput');
+            const chatArea = document.getElementById('emailAIChatArea');
+            const contextId = document.getElementById('emailAIContext').value;
+            const objective = document.getElementById('emailAIObjective').value;
+            const observation = document.getElementById('emailAIObservation').value.trim();
+            
+            if (!input || !chatArea) return;
+            
+            const userMessage = input.value.trim();
+            if (!userMessage) return;
+            
+            // Adiciona mensagem do usuário ao chat
+            EmailAIState.chatHistory.push({ role: 'user', content: userMessage });
+            renderEmailAIChat();
+            input.value = '';
+            
+            // Mostra loading
+            const loadingId = 'ai-loading-' + Date.now();
+            chatArea.innerHTML += `<div id="${loadingId}" style="padding: 10px; background: #f0f0f0; border-radius: 8px; margin-bottom: 8px; font-size: 13px; color: #666;">IA está pensando...</div>`;
+            chatArea.scrollTop = chatArea.scrollHeight;
+            
+            try {
+                const response = await fetch(INBOX_BASE_URL + '/api/ai/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        context_id: contextId,
+                        objective: objective,
+                        observation: observation,
+                        chat_history: EmailAIState.chatHistory,
+                        lead_context: null
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Remove loading
+                const loadingEl = document.getElementById(loadingId);
+                if (loadingEl) loadingEl.remove();
+                
+                if (data.success && data.response) {
+                    EmailAIState.chatHistory.push({ role: 'assistant', content: data.response });
+                    renderEmailAIChat();
+                } else {
+                    chatArea.innerHTML += `<div style="padding: 10px; background: #fee; border-radius: 8px; margin-bottom: 8px; font-size: 13px; color: #c33;">Erro: ${data.error || 'Erro desconhecido'}</div>`;
+                }
+            } catch (error) {
+                console.error('[Email IA] Erro ao enviar:', error);
+                const loadingEl = document.getElementById(loadingId);
+                if (loadingEl) loadingEl.remove();
+                chatArea.innerHTML += `<div style="padding: 10px; background: #fee; border-radius: 8px; margin-bottom: 8px; font-size: 13px; color: #c33;">Erro ao comunicar com a IA.</div>`;
+            }
+        };
+        
+        function renderEmailAIChat() {
+            const chatArea = document.getElementById('emailAIChatArea');
+            if (!chatArea) return;
+            
+            let html = '';
+            EmailAIState.chatHistory.forEach((msg, idx) => {
+                if (msg.role === 'user') {
+                    html += `<div style="margin-bottom: 12px; text-align: right;">
+                        <div style="display: inline-block; max-width: 80%; padding: 8px 12px; background: #023A8D; color: white; border-radius: 12px 12px 0 12px; font-size: 13px; text-align: left; word-wrap: break-word;">${escapeInboxHtml(msg.content).replace(/\n/g, '<br>')}</div>
+                    </div>`;
+                } else {
+                    html += `<div style="margin-bottom: 12px;">
+                        <div style="display: inline-block; max-width: 80%; padding: 8px 12px; background: #f0f0f0; color: #333; border-radius: 12px 12px 12px 0; font-size: 13px; word-wrap: break-word;">${escapeInboxHtml(msg.content).replace(/\n/g, '<br>')}</div>
+                        <div style="margin-top: 6px;">
+                            <button onclick="useEmailAIResponse(${idx})" style="padding: 4px 10px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; margin-right: 6px;">Usar esta resposta</button>
+                            <button onclick="copyEmailAIResponse(${idx})" style="padding: 4px 10px; background: #f8f9fa; color: #666; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600;">Copiar</button>
+                        </div>
+                    </div>`;
+                }
+            });
+            
+            chatArea.innerHTML = html;
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+        
+        window.useEmailAIResponse = function(idx) {
+            const msg = EmailAIState.chatHistory[idx];
+            if (!msg || msg.role !== 'assistant') return;
+            
+            const messageTextarea = document.getElementById('inboxEmailMessage');
+            if (messageTextarea) {
+                EmailAIState.pendingLearn = {
+                    original: msg.content,
+                    context_id: document.getElementById('emailAIContext').value,
+                    objective: document.getElementById('emailAIObjective').value
+                };
+                messageTextarea.value = msg.content;
+                messageTextarea.focus();
+            }
+            
+            closeEmailAIPanel();
+        };
+        
+        window.copyEmailAIResponse = function(idx) {
+            const msg = EmailAIState.chatHistory[idx];
+            if (!msg || msg.role !== 'assistant') return;
+            
+            navigator.clipboard.writeText(msg.content).then(() => {
+                alert('Resposta copiada!');
+            }).catch(err => {
+                console.error('[Email IA] Erro ao copiar:', err);
+            });
+        };
+        
+        // ============================================================================
+        // Email Modal - Anexar Arquivo
+        // ============================================================================
+        let emailAttachedFile = null;
+        
+        window.handleEmailAttachment = function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Validação de tamanho (10MB)
+            if (file.size > 10 * 1024 * 1024) {
+                alert('Arquivo muito grande. Tamanho máximo: 10MB');
+                event.target.value = '';
+                return;
+            }
+            
+            emailAttachedFile = file;
+            
+            // Mostra preview
+            const preview = document.getElementById('emailAttachmentPreview');
+            const nameSpan = document.getElementById('emailAttachmentName');
+            if (preview && nameSpan) {
+                nameSpan.textContent = file.name;
+                preview.style.display = 'block';
+            }
+        };
+        
+        window.removeEmailAttachment = function() {
+            emailAttachedFile = null;
+            const input = document.getElementById('emailAttachInput');
+            const preview = document.getElementById('emailAttachmentPreview');
+            if (input) input.value = '';
+            if (preview) preview.style.display = 'none';
+        };
+        
+        // Atualizar sendInboxEmail para incluir anexo
+        const originalSendInboxEmail = window.sendInboxEmail;
+        window.sendInboxEmail = async function() {
+            const tenantId = document.getElementById('inboxEmailTo').value;
+            const subject = document.getElementById('inboxEmailSubject').value.trim();
+            const message = document.getElementById('inboxEmailMessage').value.trim();
+            
+            if (!tenantId || !subject || !message) {
+                alert('Por favor, preencha todos os campos.');
+                return;
+            }
+            
+            const btn = document.getElementById('inboxEmailSendBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Enviando...';
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('tenant_id', tenantId);
+                formData.append('subject', subject);
+                formData.append('message', message);
+                
+                if (emailAttachedFile) {
+                    formData.append('attachment', emailAttachedFile);
+                }
+                
+                const response = await fetch(INBOX_BASE_URL + '/inbox/emails/send', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Email enviado com sucesso!');
+                    closeInboxEmailModal();
+                    removeEmailAttachment();
                     loadInboxConversations();
                 } else {
                     alert('Erro ao enviar email: ' + (result.error || 'Erro desconhecido'));
