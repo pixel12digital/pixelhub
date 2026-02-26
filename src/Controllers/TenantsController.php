@@ -1960,7 +1960,8 @@ class TenantsController extends Controller
         header('Content-Type: application/json');
         
         $tenantId = (int)($_POST['tenant_id'] ?? 0);
-        $userId = Auth::getUserId();
+        $user = Auth::user();
+        $userId = $user['id'] ?? null;
         
         if (!$tenantId || !$userId) {
             echo json_encode(['success' => false, 'error' => 'Dados inválidos']);
@@ -2028,7 +2029,8 @@ class TenantsController extends Controller
         
         header('Content-Type: application/json');
         
-        $userId = Auth::getUserId();
+        $user = Auth::user();
+        $userId = $user['id'] ?? null;
         
         if (!$userId) {
             echo json_encode(['success' => false, 'selections' => []]);
