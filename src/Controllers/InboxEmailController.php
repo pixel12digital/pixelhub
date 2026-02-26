@@ -167,23 +167,22 @@ class InboxEmailController
                 return;
             }
             
-            // Busca configuração SMTP global
-            $stmt = $db->query("SELECT config_value FROM system_settings WHERE config_key = 'smtp_host' LIMIT 1");
-            $smtpHost = $stmt ? $stmt->fetchColumn() : null;
+            // Busca configuração SMTP da tabela smtp_settings
+            $stmt = $db->query("SELECT * FROM smtp_settings WHERE smtp_enabled = 1 LIMIT 1");
+            $smtp = $stmt ? $stmt->fetch(\PDO::FETCH_ASSOC) : null;
             
-            $stmt = $db->query("SELECT config_value FROM system_settings WHERE config_key = 'smtp_port' LIMIT 1");
-            $smtpPort = $stmt ? $stmt->fetchColumn() : 587;
-            
-            $stmt = $db->query("SELECT config_value FROM system_settings WHERE config_key = 'smtp_user' LIMIT 1");
-            $smtpUser = $stmt ? $stmt->fetchColumn() : null;
-            
-            $stmt = $db->query("SELECT config_value FROM system_settings WHERE config_key = 'smtp_password' LIMIT 1");
-            $smtpPassword = $stmt ? $stmt->fetchColumn() : null;
-            
-            if (!$smtpHost || !$smtpUser || !$smtpPassword) {
-                $this->json(['success' => false, 'error' => 'Configuração SMTP não encontrada. Configure em /settings/smtp']);
+            if (!$smtp || !$smtp['smtp_host'] || !$smtp['smtp_username'] || !$smtp['smtp_password']) {
+                $this->json(['success' => false, 'error' => 'Configuração SMTP não encontrada ou incompleta. Configure em /settings/smtp']);
                 return;
             }
+            
+            $smtpHost = $smtp['smtp_host'];
+            $smtpPort = $smtp['smtp_port'] ?: 587;
+            $smtpUser = $smtp['smtp_username'];
+            $smtpPassword = $smtp['smtp_password'];
+            $smtpFromName = $smtp['smtp_from_name'] ?: 'Pixel12 Digital';
+            $smtpFromEmail = $smtp['smtp_from_email'] ?: $smtpUser;
+            $smtpEncryption = $smtp['smtp_encryption'] ?: 'tls';
             
             // Envia email via PHPMailer
             require_once __DIR__ . '/../../vendor/autoload.php';
@@ -194,11 +193,13 @@ class InboxEmailController
             $mail->SMTPAuth = true;
             $mail->Username = $smtpUser;
             $mail->Password = $smtpPassword;
-            $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->SMTPSecure = strtolower($smtpEncryption) === 'ssl' 
+                ? \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS 
+                : \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port = $smtpPort;
             $mail->CharSet = 'UTF-8';
             
-            $mail->setFrom($smtpUser, 'Pixel12 Digital');
+            $mail->setFrom($smtpFromEmail, $smtpFromName);
             $mail->addAddress($tenant['email'], $tenant['name']);
             $mail->Subject = $subject;
             $mail->Body = $message;
