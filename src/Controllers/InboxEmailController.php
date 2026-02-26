@@ -167,41 +167,26 @@ class InboxEmailController
                 return;
             }
             
-            // Usa configuração SMTP global do .env
-            $smtpHost = $_ENV['SMTP_HOST'] ?? null;
-            $smtpPort = $_ENV['SMTP_PORT'] ?? 587;
-            $smtpUser = $_ENV['SMTP_USER'] ?? null;
-            $smtpPassword = $_ENV['SMTP_PASSWORD'] ?? null;
-            $smtpFromName = $_ENV['SMTP_FROM_NAME'] ?? 'Pixel12 Digital';
+            // Usa BillingSenderService para enviar (já tem SMTP configurado)
+            require_once __DIR__ . '/../Services/BillingSenderService.php';
+            $sender = new \PixelHub\Services\BillingSenderService();
             
-            if (!$smtpHost || !$smtpUser || !$smtpPassword) {
-                $this->json(['success' => false, 'error' => 'Configuração SMTP não encontrada no servidor']);
-                return;
-            }
+            // Monta mensagem formatada
+            $fullMessage = "Assunto: {$subject}\n\n{$message}";
             
-            // Envia email via mail() nativo do PHP (simplificado)
-            $to = $tenant['email'];
-            $headers = "From: {$smtpFromName} <{$smtpUser}>\r\n";
-            $headers .= "Reply-To: {$smtpUser}\r\n";
-            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+            // Envia via BillingSenderService (canal email)
+            $result = $sender->send($tenantId, 'email', $fullMessage);
             
-            $sent = mail($to, $subject, $message, $headers);
-            
-            if ($sent) {
-                // Registra em billing_notifications
-                $stmt = $db->prepare("
-                    INSERT INTO billing_notifications 
-                    (tenant_id, channel, status, message, sent_at, created_at) 
-                    VALUES (?, 'email_smtp', 'sent', ?, NOW(), NOW())
-                ");
-                $stmt->execute([$tenantId, $message]);
-                
+            if ($result['success']) {
                 $this->json([
                     'success' => true,
                     'message' => 'Email enviado com sucesso'
                 ]);
             } else {
-                $this->json(['success' => false, 'error' => 'Falha ao enviar email']);
+                $this->json([
+                    'success' => false,
+                    'error' => $result['error'] ?? 'Falha ao enviar email'
+                ]);
             }
             
         } catch (\Exception $e) {
