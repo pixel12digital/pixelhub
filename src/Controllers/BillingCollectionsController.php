@@ -779,12 +779,14 @@ class BillingCollectionsController extends Controller
 
         try {
             // Verifica se está ATIVANDO o automático (estava desligado e agora está ligando)
+            // OU se automático está ativo mas start nunca foi dado (billing_started_at IS NULL)
             $stmt = $db->prepare("SELECT billing_auto_send, billing_started_at FROM tenants WHERE id = ?");
             $stmt->execute([$tenantId]);
             $currentSettings = $stmt->fetch(\PDO::FETCH_ASSOC);
             
             $wasOff = !$currentSettings || $currentSettings['billing_auto_send'] == 0;
             $turningOn = $autoSend == 1 && $wasOff;
+            $needsStart = $autoSend == 1 && empty($currentSettings['billing_started_at']);
             
             // Atualiza configurações
             $stmt = $db->prepare("
@@ -795,9 +797,9 @@ class BillingCollectionsController extends Controller
             ");
             $stmt->execute([$autoSend, $autoChannel, $tenantId]);
 
-            // ═══ GERA MENSAGEM DE START se estiver ATIVANDO ═══
+            // ═══ GERA MENSAGEM DE START se estiver ATIVANDO OU se precisa dar start ═══
             $startResult = null;
-            if ($turningOn) {
+            if ($turningOn || $needsStart) {
                 $startResult = \PixelHub\Services\BillingStartService::generateStartMessage($tenantId);
                 
                 // Log do resultado
