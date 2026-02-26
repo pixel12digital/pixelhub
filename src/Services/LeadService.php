@@ -465,10 +465,12 @@ class LeadService
     }
 
     /**
-     * Exclui um lead
+     * Exclui um lead e todos os registros vinculados (cascata)
      * 
-     * Verifica se há oportunidades ou conversas vinculadas antes de excluir.
-     * Se houver, retorna erro com detalhes.
+     * Remove em cascata:
+     * - Oportunidades vinculadas
+     * - Conversas vinculadas (desvincula, não exclui)
+     * - Vínculos de prospecção
      * 
      * @param int $id
      * @return array ['success' => bool, 'error' => string|null, 'details' => array|null]
@@ -487,58 +489,40 @@ class LeadService
             ];
         }
 
-        // Verifica se há oportunidades vinculadas
-        $stmt = $db->prepare("SELECT COUNT(*) as count FROM opportunities WHERE lead_id = ? AND status = 'active'");
-        $stmt->execute([$id]);
-        $oppCount = (int) $stmt->fetch(\PDO::FETCH_ASSOC)['count'];
-
-        if ($oppCount > 0) {
-            return [
-                'success' => false,
-                'error' => 'Não é possível excluir este lead pois existem oportunidades vinculadas',
-                'details' => ['opportunities_count' => $oppCount],
-            ];
-        }
-
-        // Verifica se há conversas vinculadas
-        $stmt = $db->prepare("SELECT COUNT(*) as count FROM conversations WHERE lead_id = ?");
-        $stmt->execute([$id]);
-        $convCount = (int) $stmt->fetch(\PDO::FETCH_ASSOC)['count'];
-
-        if ($convCount > 0) {
-            return [
-                'success' => false,
-                'error' => 'Não é possível excluir este lead pois existem conversas vinculadas',
-                'details' => ['conversations_count' => $convCount],
-            ];
-        }
-
-        // Verifica se há resultados de prospecção vinculados
-        $stmt = $db->prepare("SELECT COUNT(*) as count FROM prospecting_results WHERE lead_id = ?");
-        $stmt->execute([$id]);
-        $prospectCount = (int) $stmt->fetch(\PDO::FETCH_ASSOC)['count'];
-
         try {
             $db->beginTransaction();
 
-            // Remove vínculo de prospecção se existir (não exclui o resultado, apenas desvincula)
-            if ($prospectCount > 0) {
-                $stmt = $db->prepare("UPDATE prospecting_results SET lead_id = NULL WHERE lead_id = ?");
-                $stmt->execute([$id]);
-            }
+            // 1. Exclui oportunidades vinculadas ao lead
+            $stmt = $db->prepare("DELETE FROM opportunities WHERE lead_id = ?");
+            $stmt->execute([$id]);
+            $deletedOpportunities = $stmt->rowCount();
 
-            // Exclui o lead
+            // 2. Desvincula conversas (não exclui, apenas remove o vínculo com o lead)
+            $stmt = $db->prepare("UPDATE conversations SET lead_id = NULL WHERE lead_id = ?");
+            $stmt->execute([$id]);
+            $unlinkedConversations = $stmt->rowCount();
+
+            // 3. Desvincula resultados de prospecção (não exclui, apenas remove o vínculo)
+            $stmt = $db->prepare("UPDATE prospecting_results SET lead_id = NULL WHERE lead_id = ?");
+            $stmt->execute([$id]);
+            $unlinkedProspecting = $stmt->rowCount();
+
+            // 4. Exclui o lead
             $stmt = $db->prepare("DELETE FROM leads WHERE id = ?");
             $stmt->execute([$id]);
 
             $db->commit();
 
-            error_log("[LeadService] Lead #{$id} excluído com sucesso");
+            error_log("[LeadService] Lead #{$id} excluído com sucesso (oportunidades: {$deletedOpportunities}, conversas desvinculadas: {$unlinkedConversations}, prospecção desvinculada: {$unlinkedProspecting})");
 
             return [
                 'success' => true,
                 'error' => null,
-                'details' => null,
+                'details' => [
+                    'deleted_opportunities' => $deletedOpportunities,
+                    'unlinked_conversations' => $unlinkedConversations,
+                    'unlinked_prospecting' => $unlinkedProspecting,
+                ],
             ];
 
         } catch (\Exception $e) {

@@ -227,13 +227,13 @@ function confirmDeleteLead() {
     const leadName = <?= json_encode($lead['name'] ?? 'Lead #' . $lead['id']) ?>;
     const hasOpportunities = <?= !empty($opportunities) ? 'true' : 'false' ?>;
     
+    let message = 'Tem certeza que deseja excluir o lead "' + leadName + '"?\n\n';
+    
     if (hasOpportunities) {
-        alert('Não é possível excluir este lead pois existem oportunidades vinculadas.\n\nPrimeiro você precisa excluir ou desvincular as oportunidades.');
-        return;
+        message += 'ATENÇÃO: Este lead possui oportunidades vinculadas que também serão excluídas.\n\n';
     }
     
-    const message = 'Tem certeza que deseja excluir o lead "' + leadName + '"?\n\n' +
-                    'Esta ação não pode ser desfeita.';
+    message += 'Esta ação não pode ser desfeita.';
     
     if (confirm(message)) {
         document.getElementById('deleteLeadForm').submit();
