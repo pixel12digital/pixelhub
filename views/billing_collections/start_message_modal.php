@@ -222,7 +222,13 @@ function cancelStartMessage() {
         if (data.success) {
             alert('Mensagem de start cancelada com sucesso!');
             closeStartMessageModal();
-            location.reload();
+            // Redireciona para URL limpa sem parâmetros start_generated
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.delete('start_generated');
+            urlParams.delete('start_id');
+            urlParams.delete('success');
+            const newUrl = window.location.pathname + '?' + urlParams.toString();
+            window.location.href = newUrl;
         } else {
             alert('Erro ao cancelar: ' + data.message);
         }
@@ -263,7 +269,13 @@ function approveAndSendStartMessage() {
         if (data.success) {
             alert('✅ Mensagem de start enviada com sucesso!');
             closeStartMessageModal();
-            location.reload();
+            // Redireciona para URL limpa sem parâmetros start_generated
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.delete('start_generated');
+            urlParams.delete('start_id');
+            urlParams.delete('success');
+            const newUrl = window.location.pathname + '?' + urlParams.toString();
+            window.location.href = newUrl;
         } else {
             alert('❌ Erro ao enviar: ' + data.message);
             btn.disabled = false;
