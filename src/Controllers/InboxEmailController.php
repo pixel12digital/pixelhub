@@ -184,6 +184,20 @@ class InboxEmailController
             $smtpFromEmail = $smtp['smtp_from_email'] ?: $smtpUser;
             $smtpEncryption = $smtp['smtp_encryption'] ?: 'tls';
             
+            // Assinatura profissional
+            $signature = "\n\n" .
+                "---\n\n" .
+                "Atenciosamente,\n\n" .
+                "Charles Dietrich\n" .
+                "Consultor em Transformação Digital\n" .
+                "Pixel12 Digital\n\n" .
+                "📱 WhatsApp: (47) 99730-9525\n" .
+                "🌐 Site: https://pixel12digital.com.br\n" .
+                "📧 Email: contato@pixel12digital.com.br";
+            
+            // Adiciona assinatura à mensagem
+            $messageWithSignature = $message . $signature;
+            
             // Envia email via PHPMailer
             require_once __DIR__ . '/../../vendor/autoload.php';
             $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
@@ -202,7 +216,7 @@ class InboxEmailController
             $mail->setFrom($smtpFromEmail, $smtpFromName);
             $mail->addAddress($tenant['email'], $tenant['name']);
             $mail->Subject = $subject;
-            $mail->Body = $message;
+            $mail->Body = $messageWithSignature;
             
             $mail->send();
             

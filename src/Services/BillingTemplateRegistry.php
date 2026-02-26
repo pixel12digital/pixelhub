@@ -125,8 +125,9 @@ class BillingTemplateRegistry
         $signature = "\n\n" .
             "---\n\n" .
             "Atenciosamente,\n\n" .
-            "**Equipe Pixel12 Digital**\n" .
-            "Soluções em Desenvolvimento Web e Marketing Digital\n\n" .
+            "**Charles Dietrich**\n" .
+            "Consultor em Transformação Digital\n" .
+            "Pixel12 Digital\n\n" .
             "📱 WhatsApp: (47) 99730-9525\n" .
             "🌐 Site: https://pixel12digital.com.br\n" .
             "📧 Email: contato@pixel12digital.com.br\n\n" .
