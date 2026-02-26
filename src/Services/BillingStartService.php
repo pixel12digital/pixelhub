@@ -194,49 +194,90 @@ class BillingStartService
     {
         $data = $billingContext['invoices_data'];
         $objective = $billingContext['objective'];
+        $invoices = $data['invoices'];
         
         $totalFormatted = 'R$ ' . number_format($data['total_amount'], 2, ',', '.');
         
-        // Monta resumo de serviços
-        $servicesText = [];
-        foreach ($data['services_summary'] as $serviceName => $serviceData) {
-            $servicesText[] = "• {$serviceData['count']}x {$serviceName}";
+        // Separa faturas vencidas e a vencer
+        $overdueInvoices = array_filter($invoices, fn($inv) => $inv['status'] === 'overdue');
+        $pendingInvoices = array_filter($invoices, fn($inv) => $inv['status'] === 'pending');
+        
+        // Extrai primeiro nome do cliente
+        $firstName = explode(' ', $tenantName)[0];
+        
+        // Monta lista de links de faturas VENCIDAS
+        $overdueLinks = [];
+        foreach ($overdueInvoices as $inv) {
+            if (!empty($inv['invoice_url'])) {
+                $valueFormatted = 'R$ ' . number_format($inv['amount'], 2, ',', '.');
+                $overdueLinks[] = "• {$valueFormatted} - {$inv['invoice_url']}";
+            }
         }
-        $servicesLine = implode("\n", $servicesText);
         
         // Gera mensagem baseada na gravidade
         if ($objective === 'billing_critical') {
-            // 3+ faturas vencidas - RENEGOCIAÇÃO
-            return "Olá! 👋\n\n" .
-                   "Identificamos {$data['overdue_count']} faturas vencidas em sua conta, totalizando {$totalFormatted}.\n\n" .
-                   "Serviços em aberto:\n{$servicesLine}\n\n" .
-                   "⚠️ Precisamos regularizar esta situação em até 48 horas.\n\n" .
-                   "Após este prazo, os serviços serão suspensos e haverá custos de reativação.\n\n" .
-                   "Podemos conversar sobre formas de pagamento?\n\n" .
-                   "Você prefere regularizar ou que a gente suspenda os serviços?";
+            // 3+ faturas vencidas - RENEGOCIAÇÃO (sem links, precisa negociar)
+            $message = "Olá, {$firstName}! 👋\n\n";
+            $message .= "Tudo bem? Notamos que você tem {$data['overdue_count']} faturas em aberto, totalizando {$totalFormatted}.\n\n";
+            $message .= "Precisamos regularizar essa situação para evitar a suspensão dos serviços.\n\n";
+            $message .= "Podemos conversar sobre as melhores opções de pagamento para você?\n\n";
+            $message .= "Qualquer dúvida, pode contar conosco! 😊";
+            
+            return $message;
             
         } elseif ($objective === 'billing_collection') {
-            // 1-2 faturas vencidas - COBRANÇA
-            $message = "Olá! 👋\n\n" .
-                      "Identificamos {$data['overdue_count']} fatura(s) vencida(s)";
+            // 1-2 faturas vencidas - COBRANÇA COM LINKS
+            $message = "Olá, {$firstName}! 👋\n\n";
+            $message .= "Tudo bem? Notamos que você tem ";
             
-            if ($data['pending_count'] > 0) {
-                $message .= " e {$data['pending_count']} a vencer";
+            // Descreve faturas vencidas
+            if ($data['overdue_count'] == 1) {
+                $message .= "1 fatura em aberto";
+            } else {
+                $message .= "{$data['overdue_count']} faturas em aberto";
             }
             
-            $message .= ", totalizando {$totalFormatted}.\n\n" .
-                       "Serviços:\n{$servicesLine}\n\n" .
-                       "Por favor, regularize o quanto antes para evitar suspensão dos serviços.\n\n" .
-                       "Os links de pagamento estão disponíveis no seu painel ou posso enviar aqui. Precisa de ajuda?";
+            // Adiciona faturas a vencer se houver
+            if ($data['pending_count'] > 0) {
+                if ($data['pending_count'] == 1) {
+                    $message .= " e 1 para vencer";
+                } else {
+                    $message .= " e {$data['pending_count']} para vencer";
+                }
+            }
+            
+            $message .= ".\n\n";
+            
+            // Links das faturas vencidas
+            if (!empty($overdueLinks)) {
+                if ($data['overdue_count'] == 1) {
+                    $message .= "Aqui está o link para pagamento:\n\n";
+                } else {
+                    $message .= "Aqui estão os links para pagamento:\n\n";
+                }
+                $message .= implode("\n", $overdueLinks) . "\n\n";
+            }
+            
+            $message .= "Qualquer dúvida, pode contar conosco! 😊";
             
             return $message;
             
         } else {
-            // Apenas faturas a vencer - LEMBRETE
-            return "Olá! 👋\n\n" .
-                   "Lembrete: você possui {$data['pending_count']} fatura(s) a vencer, totalizando {$totalFormatted}.\n\n" .
-                   "Serviços:\n{$servicesLine}\n\n" .
-                   "Os links de pagamento estão disponíveis no seu painel. Precisa de ajuda?";
+            // Apenas faturas a vencer - LEMBRETE AMIGÁVEL (sem links)
+            $message = "Olá, {$firstName}! 👋\n\n";
+            $message .= "Tudo bem? Só passando para lembrar que você tem ";
+            
+            if ($data['pending_count'] == 1) {
+                $message .= "1 fatura para vencer";
+            } else {
+                $message .= "{$data['pending_count']} faturas para vencer";
+            }
+            
+            $message .= ", totalizando {$totalFormatted}.\n\n";
+            $message .= "Os links de pagamento estão disponíveis no seu painel.\n\n";
+            $message .= "Qualquer dúvida, pode contar conosco! 😊";
+            
+            return $message;
         }
     }
     
