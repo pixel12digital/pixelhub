@@ -191,9 +191,11 @@ class InboxEmailController
                 "Charles Dietrich\n" .
                 "Consultor em Transformação Digital\n" .
                 "Pixel12 Digital\n\n" .
-                "📱 WhatsApp: (47) 99730-9525\n" .
-                "🌐 Site: https://pixel12digital.com.br\n" .
-                "📧 Email: contato@pixel12digital.com.br";
+                "WhatsApp: (47) 99730-9525\n" .
+                "Site: https://pixel12digital.com.br\n" .
+                "Email: contato@pixel12digital.com.br\n\n" .
+                "---\n" .
+                "Pixel12 Digital - Soluções em Desenvolvimento Web e Marketing Digital";
             
             // Adiciona assinatura à mensagem
             $messageWithSignature = $message . $signature;
