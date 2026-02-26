@@ -224,26 +224,45 @@ class BillingStartService
         
         // Monta lista de links de faturas VENCIDAS
         $overdueLinks = [];
+        $hasAnyLink = false;
         foreach ($overdueInvoices as $inv) {
+            $valueFormatted = 'R$ ' . number_format($inv['amount'], 2, ',', '.');
             if (!empty($inv['invoice_url'])) {
-                $valueFormatted = 'R$ ' . number_format($inv['amount'], 2, ',', '.');
                 $overdueLinks[] = "• {$valueFormatted} - {$inv['invoice_url']}";
+                $hasAnyLink = true;
+            } else {
+                $overdueLinks[] = "• {$valueFormatted}";
             }
         }
         
+        // Informações de PIX para quando não houver link
+        $pixInfo = "\n*PIX:* 29.714.777/0001-08\n*Favorecido:* Pixel12 Agência de Marketing Digital Ltda";
+        $pixInstructions = "\nApós o pagamento, por favor envie o comprovante para baixarmos manualmente.";
+        
         // Gera mensagem baseada na gravidade
         if ($objective === 'billing_critical') {
-            // 3+ faturas vencidas - RENEGOCIAÇÃO (sem links, precisa negociar)
+            // 3+ faturas vencidas - RENEGOCIAÇÃO
             $message = "Olá, {$firstName}! 👋\n\n";
             $message .= "Tudo bem? Notamos que você tem {$data['overdue_count']} faturas em aberto, totalizando {$totalFormatted}.\n\n";
-            $message .= "Precisamos regularizar essa situação para evitar a suspensão dos serviços.\n\n";
+            
+            // Lista faturas com ou sem link
+            if (!empty($overdueLinks)) {
+                $message .= "Faturas:\n" . implode("\n", $overdueLinks) . "\n\n";
+            }
+            
+            // Se não houver links, adiciona PIX
+            if (!$hasAnyLink) {
+                $message .= $pixInfo . $pixInstructions . "\n\n";
+            }
+            
+            $message .= "Precisamos regularizar essa situação para garantir que todos os serviços continuem ativos.\n\n";
             $message .= "Podemos conversar sobre as melhores opções de pagamento para você?\n\n";
             $message .= "Qualquer dúvida, pode contar conosco! 😊";
             
             return $message;
             
         } elseif ($objective === 'billing_collection') {
-            // 1-2 faturas vencidas - COBRANÇA COM LINKS
+            // 1-2 faturas vencidas - COBRANÇA
             $message = "Olá, {$firstName}! 👋\n\n";
             $message .= "Tudo bem? Notamos que você tem ";
             
@@ -254,14 +273,19 @@ class BillingStartService
                 $message .= "{$data['overdue_count']} faturas em aberto.\n\n";
             }
             
-            // Links das faturas vencidas
+            // Links/valores das faturas vencidas
             if (!empty($overdueLinks)) {
                 if ($data['overdue_count'] == 1) {
-                    $message .= "Aqui está o link para pagamento:\n\n";
+                    $message .= $hasAnyLink ? "Aqui está o link para pagamento:\n\n" : "Valor:\n\n";
                 } else {
-                    $message .= "Aqui estão os links para pagamento:\n\n";
+                    $message .= $hasAnyLink ? "Aqui estão os links para pagamento:\n\n" : "Valores:\n\n";
                 }
                 $message .= implode("\n", $overdueLinks) . "\n\n";
+            }
+            
+            // Se não houver links, adiciona PIX
+            if (!$hasAnyLink) {
+                $message .= $pixInfo . $pixInstructions . "\n\n";
             }
             
             // Menciona APENAS a próxima fatura (primeira a vencer) se houver
@@ -271,6 +295,7 @@ class BillingStartService
                 $message .= "Sua próxima fatura vence em {$dueDate}.\n\n";
             }
             
+            $message .= "Para garantir que todos os serviços continuem ativos, pedimos a gentileza de regularizar.\n\n";
             $message .= "Qualquer dúvida, pode contar conosco! 😊";
             
             return $message;

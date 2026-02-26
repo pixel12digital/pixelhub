@@ -136,9 +136,10 @@ class BillingTemplateRegistry
 
         switch ($stage) {
             case 'pre_due':
-                $subject = "[Pixel12] Lembrete: {$chargeTitleShort} — vence {$dueDateFormatted}";
+                $subject = "[Pixel12 Digital] Lembrete: {$chargeTitleShort} — vence {$dueDateFormatted}";
                 $body = "Olá {$clientName},\n\n" .
-                        "Gostaríamos de lembrar que existe uma cobrança da Pixel12 Digital referente a:\n\n" .
+                        "Esta é uma mensagem da *Pixel12 Digital* referente ao serviço contratado com nossa agência.\n\n" .
+                        "Gostaríamos de lembrar que existe uma cobrança referente a:\n\n" .
                         "Serviço: {$serviceDescription}\n" .
                         "Vencimento: {$dueDateFormatted}\n" .
                         "Valor: {$amount}\n\n" .
@@ -148,9 +149,10 @@ class BillingTemplateRegistry
                 break;
 
             case 'due_day':
-                $subject = "[Pixel12] Sua cobrança vence hoje — {$chargeTitleShort}";
+                $subject = "[Pixel12 Digital] Sua cobrança vence hoje — {$chargeTitleShort}";
                 $body = "Olá {$clientName},\n\n" .
-                        "Informamos que sua cobrança da Pixel12 Digital vence hoje.\n\n" .
+                        "Esta é uma mensagem da *Pixel12 Digital* referente ao serviço contratado com nossa agência.\n\n" .
+                        "Informamos que sua cobrança vence hoje.\n\n" .
                         "Serviço: {$serviceDescription}\n" .
                         "Vencimento: {$dueDateFormatted}\n" .
                         "Valor: {$amount}\n\n" .
@@ -160,8 +162,9 @@ class BillingTemplateRegistry
                 break;
 
             case 'overdue_1d':
-                $subject = "[Pixel12] Cobrança vencida — {$chargeTitleShort}";
+                $subject = "[Pixel12 Digital] Cobrança vencida — {$chargeTitleShort}";
                 $body = "Olá {$clientName},\n\n" .
+                        "Esta é uma mensagem da *Pixel12 Digital* referente ao serviço contratado com nossa agência.\n\n" .
                         "Identificamos que a cobrança abaixo venceu ontem e ainda consta em aberto:\n\n" .
                         "Serviço: {$serviceDescription}\n" .
                         "Vencimento: {$dueDateFormatted}\n" .
@@ -172,8 +175,9 @@ class BillingTemplateRegistry
                 break;
 
             case 'overdue_3d':
-                $subject = "[Pixel12] Cobrança em aberto — {$chargeTitleShort}";
+                $subject = "[Pixel12 Digital] Cobrança em aberto — {$chargeTitleShort}";
                 $body = "Olá {$clientName},\n\n" .
+                        "Esta é uma mensagem da *Pixel12 Digital* referente ao serviço contratado com nossa agência.\n\n" .
                         "Gostaríamos de informar que a cobrança abaixo segue em aberto:\n\n" .
                         "Serviço: {$serviceDescription}\n" .
                         "Vencimento: {$dueDateFormatted}\n" .
@@ -185,9 +189,10 @@ class BillingTemplateRegistry
                 break;
 
             case 'overdue_7d':
-                $subject = "[Pixel12] Atenção: cobrança em atraso — {$chargeTitleShort}";
+                $subject = "[Pixel12 Digital] Atenção: cobrança em atraso — {$chargeTitleShort}";
                 $body = "Olá {$clientName},\n\n" .
-                        "Identificamos que a cobrança referente ao serviço abaixo ainda está em aberto e já ultrapassou 7 dias de vencimento:\n\n" .
+                        "Esta é uma mensagem da *Pixel12 Digital* referente ao serviço contratado com nossa agência.\n\n" .
+                        "Identificamos que a cobrança abaixo ainda está em aberto e já ultrapassou 7 dias de vencimento:\n\n" .
                         "Serviço: {$serviceDescription}\n" .
                         "Vencimento: {$dueDateFormatted}\n" .
                         "Valor: {$amount}\n\n" .
@@ -198,8 +203,9 @@ class BillingTemplateRegistry
                 break;
 
             case 'overdue_15d':
-                $subject = "[Pixel12] Urgente: cobrança em atraso há mais de 15 dias — {$chargeTitleShort}";
+                $subject = "[Pixel12 Digital] Urgente: cobrança em atraso há mais de 15 dias — {$chargeTitleShort}";
                 $body = "Olá {$clientName},\n\n" .
+                        "Esta é uma mensagem da *Pixel12 Digital* referente ao serviço contratado com nossa agência.\n\n" .
                         "A cobrança abaixo permanece em aberto há mais de 15 dias:\n\n" .
                         "Serviço: {$serviceDescription}\n" .
                         "Vencimento: {$dueDateFormatted}\n" .
@@ -211,9 +217,10 @@ class BillingTemplateRegistry
                 break;
 
             default:
-                $subject = "[Pixel12] Cobrança — {$chargeTitleShort}";
+                $subject = "[Pixel12 Digital] Cobrança — {$chargeTitleShort}";
                 $body = "Olá {$clientName},\n\n" .
-                        "Existe uma cobrança da Pixel12 Digital referente a:\n\n" .
+                        "Esta é uma mensagem da *Pixel12 Digital* referente ao serviço contratado com nossa agência.\n\n" .
+                        "Existe uma cobrança referente a:\n\n" .
                         "Serviço: {$serviceDescription}\n" .
                         "Vencimento: {$dueDateFormatted}\n" .
                         "Valor: {$amount}\n\n" .

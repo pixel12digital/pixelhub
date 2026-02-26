@@ -211,7 +211,11 @@ class WhatsAppBillingService
         $amountFormatted = 'R$ ' . number_format($amount, 2, ',', '.');
 
         // ─── Link da fatura ───
-        $invoiceLink = $invoice['invoice_url'] ?? ('https://hub.pixel12digital.com.br/billing/view_invoice?id=' . $invoice['id']);
+        $invoiceLink = $invoice['invoice_url'] ?? null;
+        $hasLink = !empty($invoiceLink);
+        
+        // ─── Informações de PIX para quando não houver link ───
+        $pixInfo = "\n*PIX:* 29.714.777/0001-08\n*Favorecido:* Pixel12 Agência de Marketing Digital Ltda\n\nApós o pagamento, por favor envie o comprovante para baixarmos manualmente.";
 
         // ─── Descrição do serviço (limpa e curta) ───
         $description = trim($invoice['description'] ?? '');
@@ -220,70 +224,119 @@ class WhatsAppBillingService
         // ─── Monta mensagem por estágio ───
         switch ($stage) {
             case 'pre_due':
-                return "Oi {$clientName}, tudo bem?\n\n" .
+                $msg = "Oi {$clientName}, tudo bem?\n\n" .
                        "Passando para lembrar que existe uma cobrança da *Pixel12 Digital* referente a:\n" .
                        "{$serviceDescription}\n\n" .
                        "*Vencimento:* {$dueDateFormatted}\n" .
-                       "*Valor:* {$amountFormatted}\n\n" .
-                       "Link para pagamento:\n{$invoiceLink}\n\n" .
-                       "Qualquer dúvida, fico à disposição.";
+                       "*Valor:* {$amountFormatted}\n\n";
+                
+                if ($hasLink) {
+                    $msg .= "Link para pagamento:\n{$invoiceLink}\n\n";
+                } else {
+                    $msg .= $pixInfo . "\n\n";
+                }
+                
+                $msg .= "Qualquer dúvida, fico à disposição.";
+                return $msg;
 
             case 'due_day':
-                return "Oi {$clientName}, tudo bem?\n\n" .
+                $msg = "Oi {$clientName}, tudo bem?\n\n" .
                        "Sua cobrança da *Pixel12 Digital* vence *hoje*.\n\n" .
                        "*Serviço:* {$serviceDescription}\n" .
                        "*Vencimento:* {$dueDateFormatted}\n" .
-                       "*Valor:* {$amountFormatted}\n\n" .
-                       "Link para pagamento:\n{$invoiceLink}\n\n" .
-                       "Se já realizou o pagamento, pode desconsiderar esta mensagem.";
+                       "*Valor:* {$amountFormatted}\n\n";
+                
+                if ($hasLink) {
+                    $msg .= "Link para pagamento:\n{$invoiceLink}\n\n";
+                } else {
+                    $msg .= $pixInfo . "\n\n";
+                }
+                
+                $msg .= "Se já realizou o pagamento, pode desconsiderar esta mensagem.";
+                return $msg;
 
             case 'overdue_1d':
-                return "Oi {$clientName}, tudo bem?\n\n" .
+                $msg = "Oi {$clientName}, tudo bem?\n\n" .
                        "Identificamos que a cobrança abaixo venceu ontem e ainda consta em aberto:\n\n" .
                        "*Serviço:* {$serviceDescription}\n" .
                        "*Vencimento:* {$dueDateFormatted}\n" .
-                       "*Valor:* {$amountFormatted}\n\n" .
-                       "Link para pagamento:\n{$invoiceLink}\n\n" .
-                       "Se já efetuou o pagamento, por favor desconsidere. Caso precise de ajuda, estamos à disposição.";
+                       "*Valor:* {$amountFormatted}\n\n";
+                
+                if ($hasLink) {
+                    $msg .= "Link para pagamento:\n{$invoiceLink}\n\n";
+                } else {
+                    $msg .= $pixInfo . "\n\n";
+                }
+                
+                $msg .= "Se já efetuou o pagamento, por favor desconsidere. Caso precise de ajuda, estamos à disposição.";
+                return $msg;
 
             case 'overdue_3d':
-                return "Oi {$clientName}, tudo bem?\n\n" .
+                $msg = "Oi {$clientName}, tudo bem?\n\n" .
                        "Gostaríamos de informar que a cobrança abaixo segue em aberto:\n\n" .
                        "*Serviço:* {$serviceDescription}\n" .
                        "*Vencimento:* {$dueDateFormatted}\n" .
-                       "*Valor:* {$amountFormatted}\n\n" .
-                       "Link para pagamento:\n{$invoiceLink}\n\n" .
-                       "Pedimos a gentileza de verificar a regularização para evitar qualquer impacto no serviço.\n\n" .
-                       "Se já pagou, pode desconsiderar. Qualquer dúvida, estamos à disposição.";
+                       "*Valor:* {$amountFormatted}\n\n";
+                
+                if ($hasLink) {
+                    $msg .= "Link para pagamento:\n{$invoiceLink}\n\n";
+                } else {
+                    $msg .= $pixInfo . "\n\n";
+                }
+                
+                $msg .= "Para garantir que todos os serviços continuem ativos, pedimos a gentileza de regularizar.\n\n" .
+                        "Se já pagou, pode desconsiderar. Qualquer dúvida, estamos à disposição.";
+                return $msg;
 
             case 'overdue_7d':
-                return "Oi {$clientName},\n\n" .
+                $msg = "Oi {$clientName},\n\n" .
                        "Identificamos que a cobrança referente ao serviço abaixo ainda está em aberto e já ultrapassou 7 dias de vencimento:\n\n" .
                        "*Serviço:* {$serviceDescription}\n" .
                        "*Vencimento:* {$dueDateFormatted}\n" .
-                       "*Valor:* {$amountFormatted}\n\n" .
-                       "Link para pagamento:\n{$invoiceLink}\n\n" .
-                       "Para evitar eventual bloqueio do serviço, pedimos a gentileza de verificar a regularização.\n\n" .
-                       "Caso esteja enfrentando alguma dificuldade, por favor entre em contato conosco para que possamos conversar.";
+                       "*Valor:* {$amountFormatted}\n\n";
+                
+                if ($hasLink) {
+                    $msg .= "Link para pagamento:\n{$invoiceLink}\n\n";
+                } else {
+                    $msg .= $pixInfo . "\n\n";
+                }
+                
+                $msg .= "Para garantir que todos os serviços continuem ativos, pedimos a gentileza de regularizar.\n\n" .
+                        "Caso esteja enfrentando alguma dificuldade, por favor entre em contato conosco para que possamos conversar.";
+                return $msg;
 
             case 'overdue_15d':
-                return "Oi {$clientName},\n\n" .
+                $msg = "Oi {$clientName},\n\n" .
                        "A cobrança abaixo permanece em aberto há mais de 15 dias:\n\n" .
                        "*Serviço:* {$serviceDescription}\n" .
                        "*Vencimento:* {$dueDateFormatted}\n" .
-                       "*Valor:* {$amountFormatted}\n\n" .
-                       "Link para pagamento:\n{$invoiceLink}\n\n" .
-                       "Informamos que o serviço poderá ser suspenso caso a regularização não seja efetuada.\n\n" .
-                       "Se houver qualquer dificuldade ou necessidade de negociação, estamos à disposição para conversar.";
+                       "*Valor:* {$amountFormatted}\n\n";
+                
+                if ($hasLink) {
+                    $msg .= "Link para pagamento:\n{$invoiceLink}\n\n";
+                } else {
+                    $msg .= $pixInfo . "\n\n";
+                }
+                
+                $msg .= "Para garantir que todos os serviços continuem ativos, precisamos regularizar essa situação.\n\n" .
+                        "Se houver qualquer dificuldade ou necessidade de negociação, estamos à disposição para conversar.";
+                return $msg;
 
             default:
-                return "Oi {$clientName}, tudo bem?\n\n" .
+                $msg = "Oi {$clientName}, tudo bem?\n\n" .
                        "Existe uma cobrança da *Pixel12 Digital* referente a:\n" .
                        "{$serviceDescription}\n\n" .
                        "*Vencimento:* {$dueDateFormatted}\n" .
-                       "*Valor:* {$amountFormatted}\n\n" .
-                       "Link para pagamento:\n{$invoiceLink}\n\n" .
-                       "Qualquer dúvida, fico à disposição.";
+                       "*Valor:* {$amountFormatted}\n\n";
+                
+                if ($hasLink) {
+                    $msg .= "Link para pagamento:\n{$invoiceLink}\n\n";
+                } else {
+                    $msg .= $pixInfo . "\n\n";
+                }
+                
+                $msg .= "Qualquer dúvida, fico à disposição.";
+                return $msg;
         }
     }
 
