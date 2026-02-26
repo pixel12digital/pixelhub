@@ -191,6 +191,35 @@ class WhatsAppWebhookController extends Controller
                 exit;
             }
 
+            // ─── FILTRO: Ignora tipos de mensagem não-textuais ───
+            // Mensagens criptografadas não decodificadas, notificações de sistema, etc.
+            // não devem aparecer no Inbox pois não têm conteúdo útil
+            if ($eventType === 'message') {
+                $messageType = $payload['raw']['payload']['type'] ?? $payload['type'] ?? null;
+                $skipTypes = [
+                    'ciphertext',           // Mensagem criptografada não decodificada
+                    'notification_template', // Notificação de sistema (cartão de contato, etc)
+                    'e2e_notification',     // Notificação de criptografia E2E
+                    'protocol',             // Mensagens de protocolo WhatsApp
+                    'revoked',              // Mensagens apagadas
+                ];
+                
+                if (in_array($messageType, $skipTypes, true)) {
+                    error_log(sprintf(
+                        '[WEBHOOK_FILTER] Ignorando mensagem tipo "%s" (não-textual) - from=%s',
+                        $messageType,
+                        $from ?? 'NULL'
+                    ));
+                    http_response_code(200);
+                    echo json_encode([
+                        'success' => true,
+                        'code' => 'MESSAGE_TYPE_SKIPPED',
+                        'message' => "Message type '{$messageType}' not processed (non-textual)"
+                    ], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+            }
+
             // Mapeia evento do gateway para evento interno
             // Passa payload para verificar fromMe em eventos 'message'
             $internalEventType = $this->mapEventType($eventType, $payload);
