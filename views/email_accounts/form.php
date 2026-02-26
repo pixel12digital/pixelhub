@@ -67,7 +67,7 @@ $redirectTo = $redirectTo ?? 'tenant';
         </div>
 
         <div style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px; border-left: 4px solid #023A8D;">
-            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #023A8D;">Credenciais de Acesso</h3>
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #023A8D;">Informações de Acesso</h3>
             
             <div style="margin-bottom: 15px;">
                 <label for="provider" style="display: block; margin-bottom: 5px; font-weight: 600;">Provedor</label>
@@ -92,38 +92,12 @@ $redirectTo = $redirectTo ?? 'tenant';
                 <?php endif; ?>
             </div>
             
-            <div style="margin-bottom: 15px;">
+            <div style="margin-bottom: 0;">
                 <label for="access_url" style="display: block; margin-bottom: 5px; font-weight: 600;">URL de Acesso</label>
                 <input type="url" id="access_url" name="access_url" 
                        value="<?= $emailAccount ? htmlspecialchars($emailAccount['access_url'] ?? '') : '' ?>"
                        placeholder="https://mail.google.com ou https://cpanel.dominio.com.br" 
                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-            </div>
-            
-            <div style="margin-bottom: 15px;">
-                <label for="username" style="display: block; margin-bottom: 5px; font-weight: 600;">Usuário</label>
-                <input type="text" id="username" name="username" 
-                       value="<?= $emailAccount ? htmlspecialchars($emailAccount['username'] ?? '') : '' ?>"
-                       placeholder="usuário para acesso ao email" 
-                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-            </div>
-            
-            <div style="margin-bottom: 0;">
-                <label for="password" style="display: block; margin-bottom: 5px; font-weight: 600;">Senha</label>
-                <div style="display: flex; gap: 5px; align-items: center;">
-                    <input type="password" id="password" name="password" 
-                           value=""
-                           placeholder="<?= $emailAccount && !empty($emailAccount['password_encrypted']) ? '•••••••• (deixe em branco para manter)' : 'Digite a senha' ?>" 
-                           style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    <button type="button" onclick="togglePassword('password', this)" 
-                            style="background: #666; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; justify-content: center;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                            <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                    </button>
-                </div>
-                <small style="color: #666; font-size: 12px;"><?= $emailAccount ? 'Deixe em branco para manter a senha atual' : 'Digite a senha da conta de email' ?></small>
             </div>
         </div>
 

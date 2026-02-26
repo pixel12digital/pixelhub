@@ -65,8 +65,6 @@ $redirectTo = $redirectTo ?? 'tenant';
             <thead>
                 <tr style="background: #f5f5f5;">
                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Email</th>
-                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Usuário</th>
-                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Senha</th>
                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Provedor</th>
                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Domínio Vinculado</th>
                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>
@@ -77,27 +75,6 @@ $redirectTo = $redirectTo ?? 'tenant';
                 <tr>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <strong style="color: #023A8D;"><?= htmlspecialchars($account['email']) ?></strong>
-                    </td>
-                    <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <?= htmlspecialchars($account['username'] ?? '-') ?>
-                    </td>
-                    <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                        <div style="display: flex; gap: 5px; align-items: center;">
-                            <span id="email_password_<?= $account['id'] ?>" style="font-family: monospace; color: #666;">
-                                <?= !empty($account['password_encrypted']) ? '••••••••' : '-' ?>
-                            </span>
-                            <?php if (!empty($account['password_encrypted'])): ?>
-                            <button type="button" 
-                                    onclick="toggleEmailPassword(<?= $account['id'] ?>, this)" 
-                                    style="background: #666; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; justify-content: center;"
-                                    title="Mostrar/Ocultar senha">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                            </button>
-                            <?php endif; ?>
-                        </div>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee;">
                         <?= htmlspecialchars($account['provider'] ?? '-') ?>
