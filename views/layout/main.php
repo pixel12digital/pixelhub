@@ -5418,17 +5418,21 @@
                 const loadingEl = document.getElementById(loadingId);
                 if (loadingEl) loadingEl.remove();
                 
+                console.log('[Email IA] Response data:', data);
+                
                 if (data.success && data.response) {
                     EmailAIState.chatHistory.push({ role: 'assistant', content: data.response });
                     renderEmailAIChat();
                 } else {
-                    chatArea.innerHTML += `<div style="padding: 10px; background: #fee; border-radius: 8px; margin-bottom: 8px; font-size: 13px; color: #c33;">Erro: ${data.error || 'Erro desconhecido'}</div>`;
+                    const errorMsg = data.error || data.message || 'Erro desconhecido';
+                    console.error('[Email IA] Erro na resposta:', errorMsg, data);
+                    chatArea.innerHTML += `<div style="padding: 10px; background: #fee; border-radius: 8px; margin-bottom: 8px; font-size: 13px; color: #c33;">Erro: ${errorMsg}</div>`;
                 }
             } catch (error) {
                 console.error('[Email IA] Erro ao enviar:', error);
                 const loadingEl = document.getElementById(loadingId);
                 if (loadingEl) loadingEl.remove();
-                chatArea.innerHTML += `<div style="padding: 10px; background: #fee; border-radius: 8px; margin-bottom: 8px; font-size: 13px; color: #c33;">Erro ao comunicar com a IA.</div>`;
+                chatArea.innerHTML += `<div style="padding: 10px; background: #fee; border-radius: 8px; margin-bottom: 8px; font-size: 13px; color: #c33;">Erro ao comunicar com a IA: ${error.message}</div>`;
             }
         };
         
