@@ -1948,5 +1948,122 @@ class TenantsController extends Controller
         // Redireciona de volta para a aba de observações
         $this->redirect('/tenants/view?id=' . $tenantId . '&tab=notifications&success=observations_updated');
     }
+    
+    /**
+     * Toggle seleção de linha na tabela de clientes
+     * POST /tenants/toggle-row-selection
+     */
+    public function toggleRowSelection(): void
+    {
+        Auth::requireInternal();
+        
+        header('Content-Type: application/json');
+        
+        $tenantId = (int)($_POST['tenant_id'] ?? 0);
+        $userId = Auth::getUserId();
+        
+        if (!$tenantId || !$userId) {
+            echo json_encode(['success' => false, 'error' => 'Dados inválidos']);
+            exit;
+        }
+        
+        try {
+            $db = DB::getConnection();
+            
+            // Verifica se já existe seleção
+            $stmt = $db->prepare("
+                SELECT id, selected 
+                FROM tenant_row_selections 
+                WHERE tenant_id = ? AND user_id = ?
+            ");
+            $stmt->execute([$tenantId, $userId]);
+            $existing = $stmt->fetch();
+            
+            if ($existing) {
+                // Toggle: inverte o estado
+                $newSelected = $existing['selected'] ? 0 : 1;
+                $stmt = $db->prepare("
+                    UPDATE tenant_row_selections 
+                    SET selected = ?, updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([$newSelected, $existing['id']]);
+                
+                echo json_encode([
+                    'success' => true,
+                    'selected' => (bool)$newSelected
+                ]);
+            } else {
+                // Cria nova seleção
+                $stmt = $db->prepare("
+                    INSERT INTO tenant_row_selections (tenant_id, user_id, selected)
+                    VALUES (?, ?, 1)
+                ");
+                $stmt->execute([$tenantId, $userId]);
+                
+                echo json_encode([
+                    'success' => true,
+                    'selected' => true
+                ]);
+            }
+            
+        } catch (\Exception $e) {
+            error_log('[TenantsController] Erro ao toggle seleção: ' . $e->getMessage());
+            echo json_encode([
+                'success' => false,
+                'error' => 'Erro ao salvar seleção'
+            ]);
+        }
+        
+        exit;
+    }
+    
+    /**
+     * Retorna seleções de linhas do usuário atual
+     * GET /tenants/get-row-selections
+     */
+    public function getRowSelections(): void
+    {
+        Auth::requireInternal();
+        
+        header('Content-Type: application/json');
+        
+        $userId = Auth::getUserId();
+        
+        if (!$userId) {
+            echo json_encode(['success' => false, 'selections' => []]);
+            exit;
+        }
+        
+        try {
+            $db = DB::getConnection();
+            
+            $stmt = $db->prepare("
+                SELECT tenant_id, selected
+                FROM tenant_row_selections
+                WHERE user_id = ? AND selected = 1
+            ");
+            $stmt->execute([$userId]);
+            $selections = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $selectedIds = array_map(function($s) {
+                return (int)$s['tenant_id'];
+            }, $selections);
+            
+            echo json_encode([
+                'success' => true,
+                'selections' => $selectedIds
+            ]);
+            
+        } catch (\Exception $e) {
+            error_log('[TenantsController] Erro ao buscar seleções: ' . $e->getMessage());
+            echo json_encode([
+                'success' => false,
+                'selections' => []
+            ]);
+        }
+        
+        exit;
+    }
 }
 

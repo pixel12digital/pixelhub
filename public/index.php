@@ -429,6 +429,8 @@ $router->post('/tenants/archive', 'TenantsController@archive');
     $router->get('/tenants/whatsapp-history', 'TenantsController@whatsappHistory');
     $router->post('/tenants/sync-billing', 'TenantsController@syncBilling');
     $router->post('/tenants/sync-asaas-data', 'TenantsController@syncAsaasData');
+    $router->post('/tenants/toggle-row-selection', 'TenantsController@toggleRowSelection');
+    $router->get('/tenants/get-row-selections', 'TenantsController@getRowSelections');
     $router->post('/tenants/update-asaas-fields', 'TenantsController@updateAsaasFields');
     $router->post('/tenants/whatsapp-generic-log', 'TenantsController@logGenericWhatsApp');
     $router->get('/tenants/whatsapp-timeline-ajax', 'TenantsController@getWhatsAppTimelineAjax');

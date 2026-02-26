@@ -241,6 +241,7 @@ document.addEventListener('click', function(event) {
         // Observer para detectar mudanças no DOM após AJAX
         const observer = new MutationObserver(function(mutations) {
             removeNativeTooltips();
+            loadTenantRowSelections(); // Reaplica seleções após AJAX
         });
         
         const tableBody = document.getElementById('tenants-table-body');
@@ -248,6 +249,78 @@ document.addEventListener('click', function(event) {
             observer.observe(tableBody, { childList: true, subtree: true });
         }
     }
+
+// Funcionalidade de seleção de linhas
+let selectedTenantRows = new Set();
+
+// Carrega seleções salvas ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadTenantRowSelections();
+});
+
+function loadTenantRowSelections() {
+    fetch('<?= pixelhub_url('/tenants/get-row-selections') ?>')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && Array.isArray(data.selections)) {
+                selectedTenantRows = new Set(data.selections);
+                applyRowSelections();
+            }
+        })
+        .catch(err => console.error('Erro ao carregar seleções:', err));
+}
+
+function applyRowSelections() {
+    document.querySelectorAll('.tenant-row').forEach(row => {
+        const tenantId = parseInt(row.getAttribute('data-tenant-id'));
+        if (selectedTenantRows.has(tenantId)) {
+            row.style.backgroundColor = '#f0f0f0';
+        } else {
+            // Mantém background original se houver
+            const isInactive = row.style.opacity === '0.5';
+            if (!isInactive) {
+                row.style.backgroundColor = '';
+            }
+        }
+    });
+}
+
+function toggleTenantRowSelection(tenantId, event) {
+    // Previne clique em links e botões
+    if (event.target.tagName === 'A' || event.target.tagName === 'BUTTON' || event.target.closest('a') || event.target.closest('button')) {
+        return;
+    }
+    
+    event.stopPropagation();
+    
+    const row = document.querySelector(`.tenant-row[data-tenant-id="${tenantId}"]`);
+    if (!row) return;
+    
+    // Envia toggle para o servidor
+    fetch('<?= pixelhub_url('/tenants/toggle-row-selection') ?>', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'tenant_id=' + tenantId
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (data.selected) {
+                selectedTenantRows.add(tenantId);
+                row.style.backgroundColor = '#f0f0f0';
+            } else {
+                selectedTenantRows.delete(tenantId);
+                const isInactive = row.style.opacity === '0.5';
+                if (!isInactive) {
+                    row.style.backgroundColor = '';
+                }
+            }
+        }
+    })
+    .catch(err => console.error('Erro ao toggle seleção:', err));
+}
 </script>
 
 <?php
