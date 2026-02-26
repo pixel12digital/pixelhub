@@ -4975,6 +4975,10 @@
                 
                 // ===== CONDICIONAL ISOLADA: Email usa endpoint separado =====
                 if (channel === 'email') {
+                    // Limpa painel direito (esconde conversa WhatsApp)
+                    const chatDiv = document.getElementById('inboxChat');
+                    if (chatDiv) chatDiv.style.display = 'none';
+                    
                     const tenantId = (document.getElementById('inboxFilterTenant') || {}).value || '';
                     const params = new URLSearchParams({ status: 'all' });
                     if (tenantId) params.set('tenant_id', tenantId);
@@ -5235,12 +5239,17 @@
         
         // ===== CARREGAR THREAD DE EMAILS (FUNÇÃO SEPARADA - NÃO AFETA WHATSAPP) =====
         async function loadEmailThread(tenantId, tenantName) {
+            console.log('[Inbox Email] Carregando thread:', tenantId, tenantName);
+            
             const chatDiv = document.getElementById('inboxChat');
             const chatHeader = document.getElementById('inboxChatHeader');
             const messagesDiv = document.getElementById('inboxMessages');
             const inputDiv = document.querySelector('.inbox-drawer-input');
             
-            if (!chatDiv || !chatHeader || !messagesDiv) return;
+            if (!chatDiv || !chatHeader || !messagesDiv) {
+                console.error('[Inbox Email] Elementos não encontrados');
+                return;
+            }
             
             try {
                 chatDiv.style.display = 'flex';
@@ -5267,8 +5276,11 @@
                 `;
                 
                 // Busca emails
+                console.log('[Inbox Email] Buscando emails do tenant:', tenantId);
                 const response = await fetch(INBOX_BASE_URL + '/inbox/emails/thread?tenant_id=' + tenantId);
+                console.log('[Inbox Email] Response status:', response.status);
                 const result = await response.json();
+                console.log('[Inbox Email] Result:', result);
                 
                 if (result.success && result.emails) {
                     const emails = result.emails;
