@@ -37,7 +37,7 @@ class InboxEmailController
                     MAX(bn.id) as latest_email_id
                 FROM billing_notifications bn
                 INNER JOIN tenants t ON bn.tenant_id = t.id
-                WHERE bn.channel = 'email'
+                WHERE bn.channel LIKE 'email%'
             ";
             
             $params = [];
@@ -107,7 +107,7 @@ class InboxEmailController
                 FROM billing_notifications bn
                 LEFT JOIN billing_invoices bi ON bn.invoice_id = bi.id
                 INNER JOIN tenants t ON bn.tenant_id = t.id
-                WHERE bn.tenant_id = ? AND bn.channel = 'email'
+                WHERE bn.tenant_id = ? AND bn.channel LIKE 'email%'
                 ORDER BY bn.created_at DESC
                 LIMIT 50
             ");
