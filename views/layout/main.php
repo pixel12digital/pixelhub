@@ -610,6 +610,13 @@
             overflow-y: auto;
             padding: 16px 20px;
         }
+        /* Mensagens de email ocupam 100% da largura */
+        .inbox-drawer-messages > div[style*="padding: 12px"] {
+            width: 100%;
+            box-sizing: border-box;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+        }
         .inbox-drawer-messages .msg {
             max-width: 70%;
             padding: 10px 14px;
