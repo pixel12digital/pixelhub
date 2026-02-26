@@ -2144,6 +2144,13 @@
                         </svg>
                         Nova Conversa
                     </button>
+                    <button type="button" id="inboxBtnNovoEmail" class="inbox-btn-nova-conversa" onclick="openInboxNovoEmail()" title="Novo Email" style="display: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                            <polyline points="22,6 12,13 2,6"></polyline>
+                        </svg>
+                        Novo Email
+                    </button>
                 </div>
                 <div class="inbox-drawer-list-scroll" id="inboxListScroll">
                     <div class="inbox-drawer-loading" id="inboxListLoading">
@@ -4917,6 +4924,7 @@
             const sessionWrap = document.getElementById('inboxSessionFilterWrap');
             const emailTypeWrap = document.getElementById('inboxEmailTypeFilterWrap');
             const btnNovaConversa = document.getElementById('inboxBtnNovaConversa');
+            const btnNovoEmail = document.getElementById('inboxBtnNovoEmail');
             
             // Esconde filtro de sessão quando não é WhatsApp
             if (sessionWrap) sessionWrap.style.display = channel === 'whatsapp' ? '' : 'none';
@@ -4924,8 +4932,9 @@
             // Mostra filtro de tipo de email quando canal = email
             if (emailTypeWrap) emailTypeWrap.style.display = channel === 'email' ? '' : 'none';
             
-            // Esconde botão "Nova Conversa" quando canal = email
+            // Alterna entre botões Nova Conversa e Novo Email
             if (btnNovaConversa) btnNovaConversa.style.display = channel === 'email' ? 'none' : '';
+            if (btnNovoEmail) btnNovoEmail.style.display = channel === 'email' ? '' : 'none';
         };
         window.openInboxNovaConversa = function() {
             if (typeof openNewMessageModal === 'function') {
