@@ -2221,7 +2221,8 @@ function openInboxNewConversation(tenantId) {
                 // Verifica se há faturas vencidas para mostrar "AGUARDANDO START"
                 $hasOverdueInvoices = false;
                 if ($needsStart) {
-                    $stmtOverdue = $db->prepare("
+                    $dbConn = \PixelHub\Core\DB::getConnection();
+                    $stmtOverdue = $dbConn->prepare("
                         SELECT COUNT(*) as overdue_count 
                         FROM billing_invoices 
                         WHERE tenant_id = ? 
