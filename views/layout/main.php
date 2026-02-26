@@ -4908,7 +4908,13 @@
         window.onInboxChannelChange = function() {
             const channel = (document.getElementById('inboxFilterChannel') || {}).value;
             const wrap = document.getElementById('inboxSessionFilterWrap');
+            const btnNovaConversa = document.getElementById('inboxBtnNovaConversa');
+            
+            // Esconde filtro de sessão quando não é WhatsApp
             if (wrap) wrap.style.display = channel === 'whatsapp' ? '' : 'none';
+            
+            // Esconde botão "Nova Conversa" quando canal = email
+            if (btnNovaConversa) btnNovaConversa.style.display = channel === 'email' ? 'none' : '';
         };
         window.openInboxNovaConversa = function() {
             if (typeof openNewMessageModal === 'function') {
@@ -5232,12 +5238,16 @@
             const chatDiv = document.getElementById('inboxChat');
             const chatHeader = document.getElementById('inboxChatHeader');
             const messagesDiv = document.getElementById('inboxMessages');
+            const inputDiv = document.querySelector('.inbox-drawer-input');
             
             if (!chatDiv || !chatHeader || !messagesDiv) return;
             
             try {
                 chatDiv.style.display = 'flex';
                 messagesDiv.innerHTML = '<div class="inbox-drawer-loading">Carregando emails...</div>';
+                
+                // Esconde input de mensagem para emails (read-only)
+                if (inputDiv) inputDiv.style.display = 'none';
                 
                 // Header
                 chatHeader.innerHTML = `
@@ -5322,6 +5332,10 @@
             if ((channel === 'whatsapp' || !channel) && typeof threadId === 'number') {
                 threadId = 'whatsapp_' + threadId;
             }
+            
+            // Mostra input de mensagem para WhatsApp/Chat (esconde para Email)
+            const inputDiv = document.querySelector('.inbox-drawer-input');
+            if (inputDiv) inputDiv.style.display = '';
             
             // Cancela fetch anterior (AbortController - mesmo padrão Fase 1)
             if (InboxState.currentLoadController) {
