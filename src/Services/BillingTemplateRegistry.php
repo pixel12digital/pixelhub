@@ -120,6 +120,17 @@ class BillingTemplateRegistry
         $description = trim($invoice['description'] ?? '');
         $serviceDescription = !empty($description) ? $description : 'Serviço Pixel12 Digital';
         $chargeTitleShort = strlen($serviceDescription) > 80 ? substr($serviceDescription, 0, 77) . '...' : $serviceDescription;
+        
+        // Assinatura profissional HTML
+        $signature = "\n\n" .
+            "---\n\n" .
+            "Atenciosamente,\n\n" .
+            "**Equipe Pixel12 Digital**\n" .
+            "Soluções em Desenvolvimento Web e Marketing Digital\n\n" .
+            "📱 WhatsApp: (47) 99730-9525\n" .
+            "🌐 Site: https://pixel12digital.com.br\n" .
+            "📧 Email: contato@pixel12digital.com.br\n\n" .
+            "![Pixel12 Digital](https://hub.pixel12digital.com.br/assets/img/logo-pixel12.png)";
 
         switch ($stage) {
             case 'pre_due':
@@ -130,8 +141,8 @@ class BillingTemplateRegistry
                         "Vencimento: {$dueDateFormatted}\n" .
                         "Valor: {$amount}\n\n" .
                         "Para acessar a fatura e efetuar o pagamento:\n{$invoiceLink}\n\n" .
-                        "Qualquer dúvida, estamos à disposição.\n\n" .
-                        "Atenciosamente,\nEquipe Pixel12 Digital";
+                        "Qualquer dúvida, estamos à disposição." .
+                        $signature;
                 break;
 
             case 'due_day':
@@ -142,8 +153,8 @@ class BillingTemplateRegistry
                         "Vencimento: {$dueDateFormatted}\n" .
                         "Valor: {$amount}\n\n" .
                         "Para acessar a fatura e efetuar o pagamento:\n{$invoiceLink}\n\n" .
-                        "Se já realizou o pagamento, por favor desconsidere este e-mail.\n\n" .
-                        "Atenciosamente,\nEquipe Pixel12 Digital";
+                        "Se já realizou o pagamento, por favor desconsidere este e-mail." .
+                        $signature;
                 break;
 
             case 'overdue_1d':
@@ -154,8 +165,8 @@ class BillingTemplateRegistry
                         "Vencimento: {$dueDateFormatted}\n" .
                         "Valor: {$amount}\n\n" .
                         "Para acessar a fatura e efetuar o pagamento:\n{$invoiceLink}\n\n" .
-                        "Se já efetuou o pagamento, por favor desconsidere. Caso precise de ajuda, estamos à disposição.\n\n" .
-                        "Atenciosamente,\nEquipe Pixel12 Digital";
+                        "Se já efetuou o pagamento, por favor desconsidere. Caso precise de ajuda, estamos à disposição." .
+                        $signature;
                 break;
 
             case 'overdue_3d':
@@ -167,8 +178,8 @@ class BillingTemplateRegistry
                         "Valor: {$amount}\n\n" .
                         "Para acessar a fatura e efetuar o pagamento:\n{$invoiceLink}\n\n" .
                         "Pedimos a gentileza de verificar a regularização para evitar qualquer impacto no serviço.\n\n" .
-                        "Se já pagou, pode desconsiderar. Qualquer dúvida, estamos à disposição.\n\n" .
-                        "Atenciosamente,\nEquipe Pixel12 Digital";
+                        "Se já pagou, pode desconsiderar. Qualquer dúvida, estamos à disposição." .
+                        $signature;
                 break;
 
             case 'overdue_7d':
@@ -180,8 +191,8 @@ class BillingTemplateRegistry
                         "Valor: {$amount}\n\n" .
                         "Para acessar a fatura e efetuar o pagamento:\n{$invoiceLink}\n\n" .
                         "Para evitar eventual bloqueio do serviço, pedimos a gentileza de verificar a regularização.\n\n" .
-                        "Caso esteja enfrentando alguma dificuldade, por favor entre em contato conosco para que possamos conversar.\n\n" .
-                        "Atenciosamente,\nEquipe Pixel12 Digital";
+                        "Caso esteja enfrentando alguma dificuldade, por favor entre em contato conosco para que possamos conversar." .
+                        $signature;
                 break;
 
             case 'overdue_15d':
@@ -193,8 +204,8 @@ class BillingTemplateRegistry
                         "Valor: {$amount}\n\n" .
                         "Para acessar a fatura e efetuar o pagamento:\n{$invoiceLink}\n\n" .
                         "Informamos que o serviço poderá ser suspenso caso a regularização não seja efetuada.\n\n" .
-                        "Se houver qualquer dificuldade ou necessidade de negociação, estamos à disposição para conversar.\n\n" .
-                        "Atenciosamente,\nEquipe Pixel12 Digital";
+                        "Se houver qualquer dificuldade ou necessidade de negociação, estamos à disposição para conversar." .
+                        $signature;
                 break;
 
             default:
@@ -205,8 +216,8 @@ class BillingTemplateRegistry
                         "Vencimento: {$dueDateFormatted}\n" .
                         "Valor: {$amount}\n\n" .
                         "Para acessar a fatura e efetuar o pagamento:\n{$invoiceLink}\n\n" .
-                        "Qualquer dúvida, estamos à disposição.\n\n" .
-                        "Atenciosamente,\nEquipe Pixel12 Digital";
+                        "Qualquer dúvida, estamos à disposição." .
+                        $signature;
                 break;
         }
 
