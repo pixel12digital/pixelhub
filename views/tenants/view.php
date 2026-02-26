@@ -1633,8 +1633,15 @@ function openInboxNewConversation(tenantId) {
                         <td style="padding: 12px; border-bottom: 1px solid #eee;">
                             <?php
                             $amount = $hosting['amount'] ?? 0;
+                            $billingPeriodType = $hosting['billing_period_type'] ?? 'mensal';
+                            
                             if ($amount > 0) {
-                                echo 'R$ ' . number_format($amount, 2, ',', '.');
+                                $formattedAmount = 'R$ ' . number_format($amount, 2, ',', '.');
+                                if ($billingPeriodType === 'anual') {
+                                    echo $formattedAmount . '/ano';
+                                } else {
+                                    echo $formattedAmount . '/mês';
+                                }
                             } else {
                                 echo '-';
                             }
