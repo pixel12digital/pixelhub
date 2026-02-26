@@ -101,14 +101,40 @@ $providers = $providers ?? [];
                                 data-amount="<?= htmlspecialchars($plan['amount']) ?>"
                                 data-billing-cycle="<?= htmlspecialchars($plan['billing_cycle']) ?>"
                                 data-provider="<?= htmlspecialchars($planProv) ?>"
+                                data-annual-enabled="<?= !empty($plan['annual_enabled']) ? '1' : '0' ?>"
+                                data-annual-monthly="<?= htmlspecialchars($plan['annual_monthly_amount'] ?? '0') ?>"
+                                data-annual-total="<?= htmlspecialchars($plan['annual_total_amount'] ?? '0') ?>"
                                 <?php if (!empty($hostingAccount['hosting_plan_id']) && $hostingAccount['hosting_plan_id'] == $plan['id']) echo 'selected'; ?>>
-                                <?= htmlspecialchars($plan['name']) ?> — R$ <?= number_format($plan['amount'], 2, ',', '.') ?> (<?= htmlspecialchars($plan['billing_cycle']) ?>)<?= $planProvSuffix ?>
+                                <?= htmlspecialchars($plan['name']) ?> — R$ <?= number_format($plan['amount'], 2, ',', '.') ?>/mês<?= $planProvSuffix ?>
                             </option>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </select>
                 <small style="display: block; margin-top: 5px; color: #666;">
                     Cadastre os planos em <strong>Hospedagem & Cobranças → Planos de Hospedagem</strong>.
+                </small>
+            </div>
+
+            <!-- Seleção de Periodicidade (Mensal/Anual) -->
+            <div id="billing-period-selector" style="display: none; margin-bottom: 15px; padding: 12px; background: white; border: 1px solid #ddd; border-radius: 4px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Periodicidade da Cobrança</label>
+                <div style="display: flex; gap: 15px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="billing_period_type" value="mensal" 
+                               <?= ($hostingAccount['billing_period_type'] ?? 'mensal') === 'mensal' ? 'checked' : '' ?>
+                               style="width: 18px; height: 18px; cursor: pointer;">
+                        <span id="mensal-label" style="font-weight: 500;">Mensal - R$ 0,00/mês</span>
+                    </label>
+                    <label id="anual-option" style="display: none; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="billing_period_type" value="anual"
+                               <?= ($hostingAccount['billing_period_type'] ?? '') === 'anual' ? 'checked' : '' ?>
+                               style="width: 18px; height: 18px; cursor: pointer;">
+                        <span id="anual-label" style="font-weight: 500;">Anual - R$ 0,00/ano (R$ 0,00/mês)</span>
+                    </label>
+                </div>
+                <small style="display: block; margin-top: 8px; color: #666;">
+                    <strong>Mensal:</strong> Renovação automática mensal (sem data de vencimento).<br>
+                    <strong>Anual:</strong> Pagamento anual com data de renovação obrigatória.
                 </small>
             </div>
 
@@ -369,6 +395,15 @@ document.addEventListener('DOMContentLoaded', function () {
     var amountManual = document.getElementById('amount_manual');
     var billingCycleManual = document.getElementById('billing_cycle_manual');
 
+    // Elementos de periodicidade
+    var periodSelector = document.getElementById('billing-period-selector');
+    var mensalLabel = document.getElementById('mensal-label');
+    var anualOption = document.getElementById('anual-option');
+    var anualLabel = document.getElementById('anual-label');
+    var periodRadios = document.querySelectorAll('input[name="billing_period_type"]');
+    var expirationDateInput = document.getElementById('hostinger_expiration_date');
+    var noExpirationCheckbox = document.getElementById('has_no_hosting_expiration');
+
     function updatePlanFields() {
         if (!select) return;
         
@@ -376,14 +411,17 @@ document.addEventListener('DOMContentLoaded', function () {
         var option = select.options[select.selectedIndex];
         
         if (selectedValue && option) {
-            // Plano selecionado: oculta campos customizados e preenche campos hidden
+            // Plano selecionado: oculta campos customizados
             if (customFields) customFields.style.display = 'none';
             
-            var amount = option.getAttribute('data-amount');
+            var monthlyAmount = parseFloat(option.getAttribute('data-amount'));
             var cycle = option.getAttribute('data-billing-cycle');
+            var annualEnabled = option.getAttribute('data-annual-enabled') === '1';
+            var annualMonthly = parseFloat(option.getAttribute('data-annual-monthly') || 0);
+            var annualTotal = parseFloat(option.getAttribute('data-annual-total') || 0);
             var fullText = option.text;
             
-            // Extrai o nome do plano (tudo antes do " — ")
+            // Extrai o nome do plano
             var name = '';
             if (fullText.indexOf(' — ') !== -1) {
                 name = fullText.split(' — ')[0];
@@ -391,19 +429,47 @@ document.addEventListener('DOMContentLoaded', function () {
                 name = fullText;
             }
 
-            // Preenche campos hidden
+            // Preenche nome do plano
             if (planNameInput && name) {
                 planNameInput.value = name;
-            }
-            if (amountInput && amount) {
-                amountInput.value = parseFloat(amount).toFixed(2);
             }
             if (billingCycleInput && cycle) {
                 billingCycleInput.value = cycle;
             }
+
+            // Mostra/oculta seletor de periodicidade
+            if (periodSelector) {
+                if (annualEnabled && annualTotal > 0) {
+                    periodSelector.style.display = 'block';
+                    
+                    // Atualiza labels com valores
+                    if (mensalLabel) {
+                        mensalLabel.textContent = 'Mensal - R$ ' + monthlyAmount.toFixed(2).replace('.', ',') + '/mês';
+                    }
+                    if (anualLabel) {
+                        anualLabel.textContent = 'Anual - R$ ' + annualTotal.toFixed(2).replace('.', ',') + '/ano (R$ ' + annualMonthly.toFixed(2).replace('.', ',') + '/mês)';
+                    }
+                    if (anualOption) {
+                        anualOption.style.display = 'flex';
+                    }
+                    
+                    // Atualiza valor baseado na periodicidade selecionada
+                    updateAmountByPeriod();
+                } else {
+                    // Plano sem opção anual
+                    periodSelector.style.display = 'none';
+                    if (amountInput) {
+                        amountInput.value = monthlyAmount.toFixed(2);
+                    }
+                    // Força mensal
+                    var mensalRadio = document.querySelector('input[name="billing_period_type"][value="mensal"]');
+                    if (mensalRadio) mensalRadio.checked = true;
+                }
+            }
         } else {
             // Nenhum plano selecionado: mostra campos customizados
             if (customFields) customFields.style.display = 'block';
+            if (periodSelector) periodSelector.style.display = 'none';
             
             // Sincroniza valores dos campos manual com os hidden
             if (planNameManual && planNameInput) {
@@ -415,6 +481,48 @@ document.addEventListener('DOMContentLoaded', function () {
             if (billingCycleManual && billingCycleInput) {
                 billingCycleInput.value = billingCycleManual.value;
             }
+        }
+    }
+
+    function updateAmountByPeriod() {
+        var selectedPeriod = document.querySelector('input[name="billing_period_type"]:checked');
+        if (!selectedPeriod || !select) return;
+        
+        var option = select.options[select.selectedIndex];
+        if (!option || !option.value) return;
+        
+        var monthlyAmount = parseFloat(option.getAttribute('data-amount'));
+        var annualTotal = parseFloat(option.getAttribute('data-annual-total') || 0);
+        
+        if (selectedPeriod.value === 'anual' && annualTotal > 0) {
+            // Anual: usa valor total anual
+            if (amountInput) {
+                amountInput.value = annualTotal.toFixed(2);
+            }
+            // Anual SEMPRE requer data de renovação
+            if (noExpirationCheckbox) {
+                noExpirationCheckbox.checked = false;
+                noExpirationCheckbox.disabled = true;
+            }
+            if (expirationDateInput) {
+                expirationDateInput.disabled = false;
+                expirationDateInput.style.background = '';
+                expirationDateInput.style.cursor = '';
+                expirationDateInput.required = true;
+            }
+        } else {
+            // Mensal: usa valor mensal
+            if (amountInput) {
+                amountInput.value = monthlyAmount.toFixed(2);
+            }
+            // Mensal: permite renovação automática (sem data)
+            if (noExpirationCheckbox) {
+                noExpirationCheckbox.disabled = false;
+            }
+            if (expirationDateInput) {
+                expirationDateInput.required = false;
+            }
+            toggleHostingExpiration();
         }
     }
 
@@ -434,6 +542,11 @@ document.addEventListener('DOMContentLoaded', function () {
             if (billingCycleInput) billingCycleInput.value = this.value;
         });
     }
+
+    // Event listeners para mudança de periodicidade
+    periodRadios.forEach(function(radio) {
+        radio.addEventListener('change', updateAmountByPeriod);
+    });
 
     if (select) {
         // Atualiza campos ao mudar seleção

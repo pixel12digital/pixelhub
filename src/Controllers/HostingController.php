@@ -101,6 +101,7 @@ class HostingController extends Controller
         $planName = trim($_POST['plan_name'] ?? '');
         $rawAmount = $_POST['amount'] ?? '0';
         $billingCycle = $_POST['billing_cycle'] ?? 'mensal';
+        $billingPeriodType = $_POST['billing_period_type'] ?? 'mensal'; // mensal ou anual
         $currentProvider = $_POST['current_provider'] ?? 'hostinger';
         $hasNoHostingExpiration = isset($_POST['has_no_hosting_expiration']) && $_POST['has_no_hosting_expiration'] == '1' ? 1 : 0;
         $hostingerExpirationDate = !empty($_POST['hostinger_expiration_date']) && !$hasNoHostingExpiration ? $_POST['hostinger_expiration_date'] : null;
@@ -162,12 +163,12 @@ class HostingController extends Controller
             
             $stmt = $db->prepare("
                 INSERT INTO hosting_accounts 
-                (tenant_id, domain, hosting_plan_id, plan_name, amount, billing_cycle, current_provider, 
+                (tenant_id, domain, hosting_plan_id, plan_name, amount, billing_cycle, billing_period_type, current_provider, 
                  hostinger_expiration_date, has_no_hosting_expiration, domain_expiration_date, decision, migration_status, notes, 
                  hosting_panel_url, hosting_panel_username, hosting_panel_password,
                  site_admin_url, site_admin_username, site_admin_password,
                  backup_status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'nenhum', NOW(), NOW())
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'nenhum', NOW(), NOW())
             ");
 
             $stmt->execute([
@@ -177,6 +178,7 @@ class HostingController extends Controller
                 $planName ?: null,
                 $amount,
                 $billingCycle,
+                $billingPeriodType,
                 $currentProvider,
                 $hostingerExpirationDate ?: null,
                 $hasNoHostingExpiration,
@@ -327,6 +329,7 @@ class HostingController extends Controller
         $planName = trim($_POST['plan_name'] ?? '');
         $rawAmount = $_POST['amount'] ?? '0';
         $billingCycle = $_POST['billing_cycle'] ?? 'mensal';
+        $billingPeriodType = $_POST['billing_period_type'] ?? 'mensal';
         $currentProvider = $_POST['current_provider'] ?? 'hostinger';
         $hasNoHostingExpiration = isset($_POST['has_no_hosting_expiration']) && $_POST['has_no_hosting_expiration'] == '1' ? 1 : 0;
         $hostingerExpirationDate = !empty($_POST['hostinger_expiration_date']) && !$hasNoHostingExpiration ? $_POST['hostinger_expiration_date'] : null;
@@ -398,7 +401,7 @@ class HostingController extends Controller
             $stmt = $db->prepare("
                 UPDATE hosting_accounts 
                 SET tenant_id = ?, domain = ?, hosting_plan_id = ?, plan_name = ?, amount = ?, 
-                    billing_cycle = ?, current_provider = ?, hostinger_expiration_date = ?, 
+                    billing_cycle = ?, billing_period_type = ?, current_provider = ?, hostinger_expiration_date = ?, 
                     has_no_hosting_expiration = ?, domain_expiration_date = ?, notes = ?, 
                     hosting_panel_url = ?, hosting_panel_username = ?, hosting_panel_password = ?,
                     site_admin_url = ?, site_admin_username = ?, site_admin_password = ?,
@@ -413,6 +416,7 @@ class HostingController extends Controller
                 $planName ?: null,
                 $amount,
                 $billingCycle,
+                $billingPeriodType,
                 $currentProvider,
                 $hostingerExpirationDate ?: null,
                 $hasNoHostingExpiration,
