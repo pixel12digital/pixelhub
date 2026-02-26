@@ -402,7 +402,7 @@ class AISuggestReplyService
         $objectiveInstructions = match ($objective) {
             'follow_up' => "REGRAS OBRIGATÓRIAS PARA FOLLOW-UP: Não mencione valores, preços ou condições de pagamento — isso é exclusivo de 'Enviar proposta'. Não envie proposta comercial. Leia o histórico: qual pergunta ficou sem resposta? qual conteúdo foi enviado sem retorno? Foque nisso. Mensagens CURTAS (máx 3-4 linhas). Sem redundância — não repita a mesma ideia duas vezes.",
             'send_proposal' => "REGRAS PARA PROPOSTA: Apresente valores, condições e detalhes comerciais com clareza. Inclua um CTA claro.",
-            'first_contact' => "REGRAS PARA PRIMEIRO CONTATO: Apresente-se brevemente. Faça UMA pergunta de qualificação. Não mencione valores ainda.",
+            'first_contact' => "REGRAS OBRIGATÓRIAS PARA PRIMEIRO CONTATO:\n1. SEMPRE se apresente como 'Charles da Pixel12 Digital' (ou variação natural como 'Oi, sou o Charles da Pixel12')\n2. Demonstre que ENTENDEU o negócio do cliente (mencione 2-3 pontos relevantes do segmento dele)\n3. Apresente o valor de forma CLARA e CORRETA (ex: 12x de R$ 97 significa DOZE parcelas de noventa e sete reais)\n4. Crie uma mensagem ENVOLVENTE que diferencie da concorrência (foque no que o cliente QUER alcançar, não em features genéricas)\n5. Seja CONVERSACIONAL e HUMANO, não robótico\n6. Termine com próximo passo claro (chamada ou pergunta de qualificação)",
             'qualify' => "REGRAS PARA QUALIFICAÇÃO: Faça perguntas abertas. Máximo 1-2 perguntas por mensagem. Não mencione valores ainda.",
             'close_deal' => "REGRAS OBRIGATÓRIAS PARA FECHAR NEGÓCIO: LEIA O HISTÓRICO — identifique o que JÁ foi enviado (proposta, valores, condições). NUNCA repita o que já foi enviado. Sonde o fechamento: pergunte se o valor está dentro do esperado, se ficou alguma dúvida, o que falta para decidir. Mensagem CURTA (2-4 linhas). A observação do atendente é a instrução principal — siga-a à risca.",
             'answer_question' => "REGRAS PARA RESPONDER DÚVIDA: Leia o histórico e identifique a pergunta específica. Responda de forma direta. Após responder, faça UMA pergunta para manter o engajamento.",
@@ -498,10 +498,21 @@ OBJ,
 - Inclua um CTA claro (próximo passo)
 OBJ,
             'first_contact' => <<<OBJ
-## Regras para Primeiro Contato
-- Apresente-se brevemente e demonstre interesse genuíno no negócio do cliente
-- Faça UMA pergunta de qualificação — não sobrecarregue com muitas perguntas
-- Não mencione valores ou condições ainda
+## Regras OBRIGATÓRIAS para Primeiro Contato
+1. **APRESENTAÇÃO OBRIGATÓRIA**: SEMPRE se apresente como "Charles da Pixel12 Digital" (ou variação natural)
+2. **ENTENDIMENTO DO NEGÓCIO**: Demonstre que você ENTENDEU o negócio do cliente:
+   - Mencione 2-3 pontos relevantes do segmento (ex: para moda = mostrar produtos, para alimentos = controle de estoque)
+   - Foque no que o cliente QUER alcançar (vender, alcançar clientes, facilitar pedidos)
+   - Seja ESPECÍFICO ao negócio dele, não genérico
+3. **VALORES CORRETOS**: Se mencionar preço, seja PRECISO:
+   - "12x de R$ 97" = DOZE parcelas de NOVENTA E SETE reais cada
+   - "R$ 197 em 12x" = valor total de R$ 197 parcelado em 12 vezes
+   - NUNCA inverta ou confunda os valores
+4. **MENSAGEM ENVOLVENTE**: Diferencie-se da concorrência:
+   - Não use frases genéricas ("aumente suas vendas", "solução completa")
+   - Foque em BENEFÍCIOS PRÁTICOS para o negócio específico
+   - Seja CONVERSACIONAL, não corporativo
+5. **PRÓXIMO PASSO**: Termine com CTA claro (agendar chamada OU pergunta de qualificação)
 OBJ,
             'qualify' => <<<OBJ
 ## Regras para Qualificação
@@ -690,8 +701,8 @@ PROMPT;
     private static function callOpenAIChat(string $apiKey, array $messages): string
     {
         $model = Env::get('OPENAI_MODEL', 'gpt-4.1-mini');
-        $temperature = (float) Env::get('OPENAI_TEMPERATURE', '0.7');
-        $maxTokens = (int) Env::get('OPENAI_MAX_TOKENS', '800');
+        $temperature = (float) Env::get('OPENAI_TEMPERATURE', '0.8');
+        $maxTokens = (int) Env::get('OPENAI_MAX_TOKENS', '1000');
         $maxTokens = max($maxTokens, 600);
 
         $ch = curl_init('https://api.openai.com/v1/chat/completions');
@@ -795,7 +806,16 @@ PROMPT;
 
         // Observação do atendente vem ANTES do histórico para ter peso máximo
         if (!empty($attendantNote)) {
-            $parts[] = "\n⚠️ INSTRUÇÃO PRIORITÁRIA DO ATENDENTE (siga à risca, sobrepõe qualquer inferência): {$attendantNote}";
+            $parts[] = "\n🔴 INSTRUÇÃO PRIORITÁRIA DO ATENDENTE - PRIORIDADE ABSOLUTA 🔴";
+            $parts[] = "Esta é a VERDADE ABSOLUTA que você DEVE seguir. Sobrepõe QUALQUER inferência ou sugestão.";
+            $parts[] = "Use EXATAMENTE as informações, valores e CTAs especificados abaixo:";
+            $parts[] = "\n{$attendantNote}";
+            $parts[] = "\n⚠️ REGRAS OBRIGATÓRIAS:";
+            $parts[] = "- Se o atendente especificou um valor (ex: '12 vezes de 97'), use EXATAMENTE esse formato";
+            $parts[] = "- Se o atendente especificou um CTA (ex: 'próximo passo seria fazermos uma chamada'), use EXATAMENTE esse CTA";
+            $parts[] = "- Se o atendente especificou informações sobre o cliente, use EXATAMENTE essas informações";
+            $parts[] = "- NUNCA altere, interprete ou 'melhore' o que o atendente especificou";
+            $parts[] = "- A observação é sua INSTRUÇÃO PRINCIPAL - siga à risca\n";
         }
 
         if ($hasHistory && !empty($history)) {
@@ -939,8 +959,8 @@ PROMPT;
     private static function callOpenAI(string $apiKey, string $systemPrompt, string $userPrompt): array
     {
         $model = Env::get('OPENAI_MODEL', 'gpt-4.1-mini');
-        $temperature = (float) Env::get('OPENAI_TEMPERATURE', '0.7');
-        $maxTokens = (int) Env::get('OPENAI_MAX_TOKENS', '800');
+        $temperature = (float) Env::get('OPENAI_TEMPERATURE', '0.8');
+        $maxTokens = (int) Env::get('OPENAI_MAX_TOKENS', '1000');
 
         // Otimizado para economizar tokens
         $maxTokens = max($maxTokens, 600);
