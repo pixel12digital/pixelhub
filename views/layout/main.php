@@ -5182,10 +5182,18 @@
             }
             
             try {
+                const formData = new FormData();
+                formData.append('tenant_id', tenantId);
+                formData.append('subject', subject);
+                formData.append('message', message);
+                
+                if (emailAttachedFile) {
+                    formData.append('attachment', emailAttachedFile);
+                }
+                
                 const response = await fetch(INBOX_BASE_URL + '/inbox/emails/send', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tenant_id: tenantId, subject, message })
+                    body: formData
                 });
                 
                 const result = await response.json();
@@ -5193,6 +5201,7 @@
                 if (result.success) {
                     alert('Email enviado com sucesso!');
                     closeInboxEmailModal();
+                    removeEmailAttachment();
                     loadInboxConversations();
                 } else {
                     alert('Erro ao enviar email: ' + (result.error || 'Erro desconhecido'));
@@ -5507,59 +5516,6 @@
             if (preview) preview.style.display = 'none';
         };
         
-        // Atualizar sendInboxEmail para incluir anexo
-        const originalSendInboxEmail = window.sendInboxEmail;
-        window.sendInboxEmail = async function() {
-            const tenantId = document.getElementById('inboxEmailTo').value;
-            const subject = document.getElementById('inboxEmailSubject').value.trim();
-            const message = document.getElementById('inboxEmailMessage').value.trim();
-            
-            if (!tenantId || !subject || !message) {
-                alert('Por favor, preencha todos os campos.');
-                return;
-            }
-            
-            const btn = document.getElementById('inboxEmailSendBtn');
-            if (btn) {
-                btn.disabled = true;
-                btn.textContent = 'Enviando...';
-            }
-            
-            try {
-                const formData = new FormData();
-                formData.append('tenant_id', tenantId);
-                formData.append('subject', subject);
-                formData.append('message', message);
-                
-                if (emailAttachedFile) {
-                    formData.append('attachment', emailAttachedFile);
-                }
-                
-                const response = await fetch(INBOX_BASE_URL + '/inbox/emails/send', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    alert('Email enviado com sucesso!');
-                    closeInboxEmailModal();
-                    removeEmailAttachment();
-                    loadInboxConversations();
-                } else {
-                    alert('Erro ao enviar email: ' + (result.error || 'Erro desconhecido'));
-                }
-            } catch (error) {
-                console.error('[Inbox Email] Erro ao enviar:', error);
-                alert('Erro ao enviar email. Verifique o console.');
-            } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.textContent = 'Enviar Email';
-                }
-            }
-        };
         
         window.archiveEmail = function(tenantId, tenantName) {
             if (!confirm(`Arquivar emails de ${tenantName}?`)) return;
