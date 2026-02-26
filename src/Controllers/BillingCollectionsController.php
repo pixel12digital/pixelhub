@@ -819,16 +819,17 @@ class BillingCollectionsController extends Controller
             // Adiciona parâmetros de sucesso
             if (($turningOn || $needsStart) && $startResult && $startResult['success']) {
                 // Mensagem de start gerada com sucesso
-                $redirectUrl .= '&success=auto_settings_saved&start_generated=1&start_id=' . $startResult['start_message_id'];
+                $redirectUrl .= '&success=auto_settings_saved&action=enabled&start_generated=1&start_id=' . $startResult['start_message_id'];
             } elseif (($turningOn || $needsStart) && $startResult && isset($startResult['already_started'])) {
                 // Já foi iniciado antes (proteção anti-duplicação)
-                $redirectUrl .= '&success=auto_settings_saved&info=already_started';
+                $redirectUrl .= '&success=auto_settings_saved&action=enabled&info=already_started';
             } elseif (($turningOn || $needsStart) && $startResult && isset($startResult['no_invoices'])) {
                 // Sem faturas pendentes
-                $redirectUrl .= '&success=auto_settings_saved&info=no_invoices';
+                $redirectUrl .= '&success=auto_settings_saved&action=enabled&info=no_invoices';
             } else {
-                // Apenas salvou configurações
-                $redirectUrl .= '&success=auto_settings_saved';
+                // Apenas salvou configurações (ativou ou desativou)
+                $action = $autoSend == 1 ? 'enabled' : 'disabled';
+                $redirectUrl .= '&success=auto_settings_saved&action=' . $action;
             }
             
             $this->redirect($redirectUrl);
