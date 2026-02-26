@@ -67,13 +67,14 @@ class BillingStartService
                 ];
             }
             
-            // ═══ PROTEÇÃO 2: Verifica se já existe mensagem de start ═══
+            // ═══ PROTEÇÃO 2: Verifica se já existe mensagem de start ativa ═══
+            // Ignora mensagens canceladas - permite gerar nova mensagem se a anterior foi cancelada
             $stmt = $db->prepare("
                 SELECT id, status
                 FROM billing_start_messages
                 WHERE tenant_id = ?
                   AND is_start_message = 1
-                  AND status IN ('pending', 'approved')
+                  AND status IN ('pending', 'approved', 'sent')
             ");
             $stmt->execute([$tenantId]);
             $existingMessage = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -82,9 +83,9 @@ class BillingStartService
                 $db->rollBack();
                 return [
                     'success' => false,
-                    'message' => 'Já existe uma mensagem de start pendente (ID: ' . $existingMessage['id'] . ')',
+                    'message' => 'Mensagem de start já existe para este tenant (proteção anti-duplicação)',
                     'start_message_id' => (int) $existingMessage['id'],
-                    'already_exists' => true,
+                    'duplicate_prevented' => true,
                 ];
             }
             
