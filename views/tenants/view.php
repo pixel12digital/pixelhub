@@ -2243,8 +2243,9 @@ function openInboxNewConversation(tenantId) {
                     <br><br>
                     <strong>📨 Mensagem de regularização gerada!</strong><br>
                     Uma mensagem de start foi criada com base na situação financeira atual.<br>
-                    <a href="/billing/review-start?id=<?= htmlspecialchars($_GET['start_id'] ?? '') ?>" 
-                       style="color: #155724; text-decoration: underline; font-weight: 600;">
+                    <a href="javascript:void(0)" 
+                       onclick="openStartMessageModal(<?= htmlspecialchars($_GET['start_id'] ?? '') ?>)"
+                       style="color: #155724; text-decoration: underline; font-weight: 600; cursor: pointer;">
                         Clique aqui para revisar e aprovar antes do envio
                     </a>
                 <?php elseif (isset($_GET['info']) && $_GET['info'] === 'already_started'): ?>
