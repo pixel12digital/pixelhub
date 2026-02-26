@@ -5044,6 +5044,18 @@
                 }
             }
         };
+        
+        window.archiveEmail = function(tenantId, tenantName) {
+            if (!confirm(`Arquivar emails de ${tenantName}?`)) return;
+            alert('Funcionalidade de arquivar será implementada em breve.');
+            // TODO: Implementar endpoint para arquivar emails
+        };
+        
+        window.deleteEmail = function(tenantId, tenantName) {
+            if (!confirm(`Excluir TODOS os emails de ${tenantName}? Esta ação não pode ser desfeita!`)) return;
+            alert('Funcionalidade de excluir será implementada em breve.');
+            // TODO: Implementar endpoint para excluir emails
+        };
         window.loadInboxFilterOptions = async function() {
             if (InboxState.filterOptionsLoaded) return;
             try {
@@ -5349,8 +5361,18 @@
                                     <span>${tenantName}</span>
                                     <span class="conv-time">${lastEmailAt}</span>
                                 </div>
-                                <div class="conv-preview" style="font-size: 12px; color: #667781; margin-top: 4px;">
-                                    ${emailCount} email(s) • ${statusBadge}
+                                <div class="conv-preview" style="font-size: 12px; color: #667781; margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                    <span>${emailCount} email(s) • ${statusBadge}</span>
+                                    <a href="${INBOX_BASE_URL}/tenants/view?id=${tenantId}" onclick="event.stopPropagation();" style="opacity: 0.8; font-weight: 500; color: #667eea; font-size: 11px; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para ver detalhes do cliente">• Ver Cliente</a>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                                <div class="conversation-menu">
+                                    <button type="button" class="conversation-menu-toggle" onclick="event.stopPropagation(); toggleConversationMenu(this)" aria-label="Mais opções">⋮</button>
+                                    <div class="conversation-menu-dropdown">
+                                        <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); archiveEmail(${tenantId}, '${escapeInboxHtml(tenantName)}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Arquivar</button>
+                                        <button type="button" class="conversation-menu-item danger" onclick="event.stopPropagation(); deleteEmail(${tenantId}, '${escapeInboxHtml(tenantName)}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>Excluir</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
