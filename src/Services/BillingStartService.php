@@ -103,6 +103,19 @@ class BillingStartService
                 ];
             }
             
+            // ═══ PROTEÇÃO 6: Valida se existem faturas VENCIDAS ═══
+            // Mensagem de start só deve ser enviada se houver faturas vencidas
+            // Clientes com apenas faturas a vencer (4+ dias) não devem receber mensagem de regularização
+            if ($billingContext['invoices_data']['overdue_count'] == 0) {
+                $db->rollBack();
+                return [
+                    'success' => false,
+                    'message' => 'Cliente possui apenas faturas a vencer. Mensagem de start não é necessária (sem faturas vencidas).',
+                    'start_message_id' => null,
+                    'no_overdue_invoices' => true,
+                ];
+            }
+            
             // ═══ Gera mensagem usando IA ═══
             $messageText = self::generateMessageText($billingContext, $tenant['name']);
             
