@@ -26,15 +26,20 @@ try {
     
     echo "=== Criando Sistema de Billing Start ===\n\n";
     
-    // 1. Adiciona campo billing_started_at em tenants
-    echo "1. Adicionando campo billing_started_at em tenants...\n";
-    $db->exec("
-        ALTER TABLE tenants
-        ADD COLUMN billing_started_at DATETIME NULL DEFAULT NULL
-        COMMENT 'Timestamp único de quando cobrança automática foi ativada pela primeira vez (proteção anti-duplicação)'
-        AFTER billing_auto_channel
-    ");
-    echo "   ✓ Campo billing_started_at adicionado\n\n";
+    // 1. Adiciona campo billing_started_at em tenants (se não existir)
+    echo "1. Verificando campo billing_started_at em tenants...\n";
+    $checkColumn = $db->query("SHOW COLUMNS FROM tenants LIKE 'billing_started_at'")->fetch();
+    if (!$checkColumn) {
+        $db->exec("
+            ALTER TABLE tenants
+            ADD COLUMN billing_started_at DATETIME NULL DEFAULT NULL
+            COMMENT 'Timestamp único de quando cobrança automática foi ativada pela primeira vez (proteção anti-duplicação)'
+            AFTER billing_auto_channel
+        ");
+        echo "   ✓ Campo billing_started_at adicionado\n\n";
+    } else {
+        echo "   ℹ️  Campo billing_started_at já existe (pulando)\n\n";
+    }
     
     // 2. Cria tabela billing_start_messages
     echo "2. Criando tabela billing_start_messages...\n";
