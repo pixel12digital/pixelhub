@@ -246,6 +246,7 @@ class BillingStartService
         if ($objective === 'billing_critical') {
             // 3+ faturas vencidas - RENEGOCIAÇÃO
             $message = "Olá, {$firstName}! 👋\n\n";
+            $message .= "Aqui é da *Pixel12 Digital*, referente aos seus serviços contratados com nossa agência.\n\n";
             $message .= "Tudo bem? Notamos que você tem {$data['overdue_count']} faturas em aberto, totalizando {$totalFormatted}.\n\n";
             
             // Lista faturas com ou sem link
@@ -264,6 +265,7 @@ class BillingStartService
         } elseif ($objective === 'billing_collection') {
             // 1-2 faturas vencidas - COBRANÇA
             $message = "Olá, {$firstName}! 👋\n\n";
+            $message .= "Aqui é da *Pixel12 Digital*, referente aos seus serviços contratados com nossa agência.\n\n";
             $message .= "Tudo bem? Notamos que você tem ";
             
             // Descreve faturas vencidas
@@ -291,6 +293,7 @@ class BillingStartService
         } else {
             // Apenas faturas a vencer - LEMBRETE AMIGÁVEL (sem links)
             $message = "Olá, {$firstName}! 👋\n\n";
+            $message .= "Aqui é da *Pixel12 Digital*, referente aos seus serviços contratados com nossa agência.\n\n";
             
             // Menciona APENAS a próxima fatura (primeira a vencer)
             if (!empty($pendingInvoices)) {
