@@ -101,7 +101,7 @@ class InboxEmailController
                     bn.gateway_message_id,
                     bi.amount as invoice_amount,
                     bi.due_date as invoice_due_date,
-                    bi.asaas_status as invoice_status,
+                    bi.status as invoice_status,
                     t.name as tenant_name,
                     t.email as tenant_email
                 FROM billing_notifications bn
