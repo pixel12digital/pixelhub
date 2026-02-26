@@ -5803,8 +5803,12 @@
                 const result = await response.json();
                 
                 if (result.success && result.has_updates) {
-                    console.log('[Inbox] Atualizações detectadas, recarregando lista');
-                    loadInboxConversations();
+                    // Não recarrega se estiver no canal Email (evita que email desapareça)
+                    const channel = (document.getElementById('inboxFilterChannel') || {}).value || 'all';
+                    if (channel !== 'email') {
+                        console.log('[Inbox] Atualizações detectadas, recarregando lista');
+                        loadInboxConversations();
+                    }
                 }
             } catch (error) {
                 console.error('[Inbox] Erro no polling:', error);
