@@ -817,13 +817,13 @@ class BillingCollectionsController extends Controller
                 : '/billing/overview';
             
             // Adiciona parâmetros de sucesso
-            if ($turningOn && $startResult && $startResult['success']) {
+            if (($turningOn || $needsStart) && $startResult && $startResult['success']) {
                 // Mensagem de start gerada com sucesso
                 $redirectUrl .= '&success=auto_settings_saved&start_generated=1&start_id=' . $startResult['start_message_id'];
-            } elseif ($turningOn && $startResult && isset($startResult['already_started'])) {
+            } elseif (($turningOn || $needsStart) && $startResult && isset($startResult['already_started'])) {
                 // Já foi iniciado antes (proteção anti-duplicação)
                 $redirectUrl .= '&success=auto_settings_saved&info=already_started';
-            } elseif ($turningOn && $startResult && isset($startResult['no_invoices'])) {
+            } elseif (($turningOn || $needsStart) && $startResult && isset($startResult['no_invoices'])) {
                 // Sem faturas pendentes
                 $redirectUrl .= '&success=auto_settings_saved&info=no_invoices';
             } else {
