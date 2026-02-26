@@ -2386,19 +2386,15 @@
             </div>
             <form onsubmit="event.preventDefault(); sendInboxEmail();">
                 <div style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Para (Cliente) *</label>
-                    <select id="inboxEmailTo" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                        <option value="">Selecione um cliente...</option>
-                        <?php
-                        try {
-                            $db = \PixelHub\Core\DB::getConnection();
-                            $stmt = $db->query("SELECT id, name, email FROM tenants WHERE email IS NOT NULL AND email != '' ORDER BY name");
-                            foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $t) {
-                                echo '<option value="' . htmlspecialchars($t['id']) . '">' . htmlspecialchars($t['name']) . ' (' . htmlspecialchars($t['email']) . ')</option>';
-                            }
-                        } catch (\Exception $e) { /* silencioso */ }
-                        ?>
-                    </select>
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Para (Cliente ou Lead) *</label>
+                    <input type="text" 
+                           id="inboxEmailToSearch" 
+                           placeholder="Digite nome ou email (mínimo 3 letras)..." 
+                           autocomplete="off"
+                           style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <input type="hidden" id="inboxEmailTo" required>
+                    <input type="hidden" id="inboxEmailToType">
+                    <div id="inboxEmailToResults" style="display: none; position: absolute; background: white; border: 1px solid #ddd; border-radius: 4px; max-height: 200px; overflow-y: auto; width: calc(100% - 60px); z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
                 </div>
                 <div style="margin-bottom: 20px;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 600;">Assunto *</label>
@@ -4991,10 +4987,71 @@
             if (modal) {
                 modal.style.display = 'flex';
                 // Limpa campos
+                document.getElementById('inboxEmailToSearch').value = '';
                 document.getElementById('inboxEmailTo').value = '';
+                document.getElementById('inboxEmailToType').value = '';
                 document.getElementById('inboxEmailSubject').value = '';
                 document.getElementById('inboxEmailMessage').value = '';
+                document.getElementById('inboxEmailToResults').style.display = 'none';
             }
+        };
+        
+        // Autocomplete para buscar clientes e leads
+        let inboxEmailSearchTimeout = null;
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('inboxEmailToSearch');
+            const resultsDiv = document.getElementById('inboxEmailToResults');
+            const hiddenInput = document.getElementById('inboxEmailTo');
+            const typeInput = document.getElementById('inboxEmailToType');
+            
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    const query = this.value.trim();
+                    
+                    if (query.length < 3) {
+                        resultsDiv.style.display = 'none';
+                        hiddenInput.value = '';
+                        typeInput.value = '';
+                        return;
+                    }
+                    
+                    clearTimeout(inboxEmailSearchTimeout);
+                    inboxEmailSearchTimeout = setTimeout(async () => {
+                        try {
+                            const response = await fetch(INBOX_BASE_URL + '/inbox/emails/search-recipients?q=' + encodeURIComponent(query));
+                            const result = await response.json();
+                            
+                            if (result.success && result.recipients.length > 0) {
+                                let html = '';
+                                result.recipients.forEach(r => {
+                                    html += `<div onclick="selectInboxEmailRecipient('${r.id}', '${r.type}', '${escapeInboxHtml(r.label)}')" style="padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; hover:background: #f5f5f5;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='white'">${escapeInboxHtml(r.label)}</div>`;
+                                });
+                                resultsDiv.innerHTML = html;
+                                resultsDiv.style.display = 'block';
+                            } else {
+                                resultsDiv.innerHTML = '<div style="padding: 10px; color: #999;">Nenhum resultado encontrado</div>';
+                                resultsDiv.style.display = 'block';
+                            }
+                        } catch (error) {
+                            console.error('[Inbox Email] Erro ao buscar destinatários:', error);
+                        }
+                    }, 300);
+                });
+                
+                // Fecha resultados ao clicar fora
+                document.addEventListener('click', function(e) {
+                    if (!searchInput.contains(e.target) && !resultsDiv.contains(e.target)) {
+                        resultsDiv.style.display = 'none';
+                    }
+                });
+            }
+        });
+        
+        window.selectInboxEmailRecipient = function(id, type, label) {
+            document.getElementById('inboxEmailToSearch').value = label;
+            document.getElementById('inboxEmailTo').value = id;
+            document.getElementById('inboxEmailToType').value = type;
+            document.getElementById('inboxEmailToResults').style.display = 'none';
         };
         
         window.closeInboxEmailModal = function() {

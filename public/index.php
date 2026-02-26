@@ -725,6 +725,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Rotas do Inbox de Emails (separadas do WhatsApp)
     $router->get('/inbox/emails', 'InboxEmailController@listEmails');
     $router->get('/inbox/emails/thread', 'InboxEmailController@getEmailThread');
+    $router->get('/inbox/emails/search-recipients', 'InboxEmailController@searchRecipients');
     $router->post('/inbox/emails/send', 'InboxEmailController@sendEmail');
     // Incoming Leads actions
     $router->post('/communication-hub/incoming-lead/create-tenant', 'CommunicationHubController@createTenantFromIncomingLead');

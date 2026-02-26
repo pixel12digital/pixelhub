@@ -246,6 +246,96 @@ class InboxEmailController
     }
     
     /**
+     * Busca clientes e leads por nome ou email (autocomplete)
+     * GET /inbox/emails/search-recipients?q={query}
+     */
+    public function searchRecipients(): void
+    {
+        Auth::requireInternal();
+        
+        $query = trim($_GET['q'] ?? '');
+        
+        if (strlen($query) < 3) {
+            $this->json(['success' => true, 'recipients' => []]);
+            return;
+        }
+        
+        $db = DB::getConnection();
+        $recipients = [];
+        
+        try {
+            // Busca clientes (tenants) com email
+            $stmt = $db->prepare("
+                SELECT 
+                    id,
+                    name,
+                    email,
+                    'tenant' as type
+                FROM tenants 
+                WHERE (name LIKE ? OR email LIKE ?) 
+                  AND email IS NOT NULL 
+                  AND email != ''
+                ORDER BY name
+                LIMIT 20
+            ");
+            $searchTerm = "%{$query}%";
+            $stmt->execute([$searchTerm, $searchTerm]);
+            $tenants = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            
+            foreach ($tenants as $t) {
+                $recipients[] = [
+                    'id' => $t['id'],
+                    'name' => $t['name'],
+                    'email' => $t['email'],
+                    'type' => 'tenant',
+                    'label' => $t['name'] . ' (' . $t['email'] . ')'
+                ];
+            }
+            
+            // Busca leads com email
+            $stmt = $db->prepare("
+                SELECT 
+                    id,
+                    name,
+                    email,
+                    'lead' as type
+                FROM leads 
+                WHERE (name LIKE ? OR email LIKE ?) 
+                  AND email IS NOT NULL 
+                  AND email != ''
+                ORDER BY name
+                LIMIT 20
+            ");
+            $stmt->execute([$searchTerm, $searchTerm]);
+            $leads = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            
+            foreach ($leads as $l) {
+                $recipients[] = [
+                    'id' => $l['id'],
+                    'name' => $l['name'],
+                    'email' => $l['email'],
+                    'type' => 'lead',
+                    'label' => $l['name'] . ' (' . $l['email'] . ') - Lead'
+                ];
+            }
+            
+            $this->json([
+                'success' => true,
+                'recipients' => $recipients,
+                'count' => count($recipients)
+            ]);
+            
+        } catch (\Exception $e) {
+            error_log('[InboxEmail] Erro ao buscar destinatários: ' . $e->getMessage());
+            $this->json([
+                'success' => false,
+                'error' => 'Erro ao buscar destinatários',
+                'debug' => $e->getMessage()
+            ]);
+        }
+    }
+    
+    /**
      * Retorna JSON response
      */
     private function json(array $data): void
