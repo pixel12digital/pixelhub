@@ -187,25 +187,21 @@ class InboxEmailController
             // Converte mensagem para HTML
             $messageHtml = nl2br(htmlspecialchars($message));
             
-            // Assinatura profissional em HTML
+            // Assinatura profissional em HTML (otimizada para deliverability)
             $signatureHtml = '
-                <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
-                <p style="margin: 0; line-height: 1.6;">
-                    Atenciosamente,<br><br>
-                    <strong>Charles Dietrich</strong><br>
-                    Consultor em Transformação Digital<br>
-                    Pixel12 Digital<br><br>
-                    WhatsApp: (47) 99730-9525<br>
-                    Site: <a href="https://pixel12digital.com.br">https://pixel12digital.com.br</a><br>
-                    Email: <a href="mailto:contato@pixel12digital.com.br">contato@pixel12digital.com.br</a>
-                </p>
-                <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
-                <p style="text-align: center; margin: 20px 0;">
-                    <img src="https://hub.pixel12digital.com.br/assets/img/logo-pixel12.png" alt="Pixel12 Digital" style="max-width: 200px; height: auto;">
-                </p>
-                <p style="text-align: center; color: #666; font-size: 12px; margin: 10px 0;">
-                    Pixel12 Digital - Soluções em Desenvolvimento Web e Marketing Digital
-                </p>
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+                    <p style="margin: 0; line-height: 1.6; color: #333;">
+                        Atenciosamente,<br><br>
+                        <strong>Charles Dietrich</strong><br>
+                        <span style="color: #666;">Consultor em Transformação Digital</span><br>
+                        <strong>Pixel12 Digital</strong>
+                    </p>
+                    <p style="margin: 15px 0 0 0; line-height: 1.6; color: #666; font-size: 14px;">
+                        WhatsApp: (47) 99730-9525<br>
+                        pixel12digital.com.br<br>
+                        contato@pixel12digital.com.br
+                    </p>
+                </div>
             ';
             
             // Monta email HTML completo
