@@ -132,6 +132,89 @@ class InboxEmailController
     }
     
     /**
+     * Envia novo email
+     * POST /inbox/emails/send
+     */
+    public function sendEmail(): void
+    {
+        Auth::requireInternal();
+        
+        $input = json_decode(file_get_contents('php://input'), true);
+        $tenantId = $input['tenant_id'] ?? null;
+        $subject = trim($input['subject'] ?? '');
+        $message = trim($input['message'] ?? '');
+        
+        if (!$tenantId || !$subject || !$message) {
+            $this->json(['success' => false, 'error' => 'Campos obrigatórios: tenant_id, subject, message']);
+            return;
+        }
+        
+        $db = DB::getConnection();
+        
+        try {
+            // Busca dados do tenant
+            $stmt = $db->prepare("SELECT name, email, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from_name FROM tenants WHERE id = ?");
+            $stmt->execute([$tenantId]);
+            $tenant = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if (!$tenant) {
+                $this->json(['success' => false, 'error' => 'Cliente não encontrado']);
+                return;
+            }
+            
+            if (!$tenant['email']) {
+                $this->json(['success' => false, 'error' => 'Cliente não possui email cadastrado']);
+                return;
+            }
+            
+            // Usa SMTP global se tenant não tiver configurado
+            $smtpHost = $tenant['smtp_host'] ?: ($_ENV['SMTP_HOST'] ?? null);
+            $smtpPort = $tenant['smtp_port'] ?: ($_ENV['SMTP_PORT'] ?? 587);
+            $smtpUser = $tenant['smtp_user'] ?: ($_ENV['SMTP_USER'] ?? null);
+            $smtpPassword = $tenant['smtp_password'] ?: ($_ENV['SMTP_PASSWORD'] ?? null);
+            $smtpFromName = $tenant['smtp_from_name'] ?: ($_ENV['SMTP_FROM_NAME'] ?? 'Pixel12 Digital');
+            
+            if (!$smtpHost || !$smtpUser || !$smtpPassword) {
+                $this->json(['success' => false, 'error' => 'Configuração SMTP não encontrada']);
+                return;
+            }
+            
+            // Envia email via mail() nativo do PHP (simplificado)
+            $to = $tenant['email'];
+            $headers = "From: {$smtpFromName} <{$smtpUser}>\r\n";
+            $headers .= "Reply-To: {$smtpUser}\r\n";
+            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+            
+            $sent = mail($to, $subject, $message, $headers);
+            
+            if ($sent) {
+                // Registra em billing_notifications
+                $stmt = $db->prepare("
+                    INSERT INTO billing_notifications 
+                    (tenant_id, channel, status, message, sent_at, created_at) 
+                    VALUES (?, 'email_smtp', 'sent', ?, NOW(), NOW())
+                ");
+                $stmt->execute([$tenantId, $message]);
+                
+                $this->json([
+                    'success' => true,
+                    'message' => 'Email enviado com sucesso'
+                ]);
+            } else {
+                $this->json(['success' => false, 'error' => 'Falha ao enviar email']);
+            }
+            
+        } catch (\Exception $e) {
+            error_log('[InboxEmail] Erro ao enviar email: ' . $e->getMessage());
+            $this->json([
+                'success' => false,
+                'error' => 'Erro ao enviar email',
+                'debug' => $e->getMessage()
+            ]);
+        }
+    }
+    
+    /**
      * Retorna JSON response
      */
     private function json(array $data): void
