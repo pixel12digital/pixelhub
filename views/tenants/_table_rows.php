@@ -17,8 +17,7 @@
     ?>
     <tr data-tenant-id="<?= $tenant['id'] ?>" 
         class="tenant-row" 
-        style="<?= $rowStyle ?> cursor: pointer; transition: background-color 0.2s;"
-        onclick="toggleTenantRowSelection(<?= $tenant['id'] ?>, event)">
+        style="<?= $rowStyle ?> transition: background-color 0.2s;">
         <td style="padding: 12px; border-bottom: 1px solid #eee;">
             <a href="<?= pixelhub_url('/tenants/view?id=' . $tenant['id']) ?>" 
                style="color: #023A8D; text-decoration: none; font-weight: 600;">

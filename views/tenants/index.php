@@ -273,31 +273,28 @@ function loadTenantRowSelections() {
 function applyRowSelections() {
     document.querySelectorAll('.tenant-row').forEach(row => {
         const tenantId = parseInt(row.getAttribute('data-tenant-id'));
-        if (selectedTenantRows.has(tenantId)) {
+        const isSelected = selectedTenantRows.has(tenantId);
+        
+        // Atualiza background da linha
+        if (isSelected) {
             row.style.backgroundColor = '#f0f0f0';
         } else {
-            // Mantém background original se houver
             const isInactive = row.style.opacity === '0.5';
             if (!isInactive) {
                 row.style.backgroundColor = '';
             }
         }
+        
+        // Atualiza botão Selecionar
+        const btn = row.querySelector(`.tenant-select-btn[data-tenant-id="${tenantId}"]`);
+        if (btn) {
+            btn.textContent = isSelected ? 'Selecionado' : 'Selecionar';
+            btn.style.background = isSelected ? '#28a745' : '#6c757d';
+        }
     });
 }
 
 function toggleTenantRowSelection(tenantId, event) {
-    // Se Ctrl/Cmd está pressionado, permite navegação normal
-    if (event.ctrlKey || event.metaKey) {
-        return;
-    }
-    
-    // Previne clique em botões (ações)
-    if (event.target.tagName === 'BUTTON' || event.target.closest('button')) {
-        return;
-    }
-    
-    // Previne navegação de links
-    event.preventDefault();
     event.stopPropagation();
     
     const row = document.querySelector(`.tenant-row[data-tenant-id="${tenantId}"]`);
@@ -314,6 +311,7 @@ function toggleTenantRowSelection(tenantId, event) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            // Atualiza visual da linha
             if (data.selected) {
                 selectedTenantRows.add(tenantId);
                 row.style.backgroundColor = '#f0f0f0';
@@ -323,6 +321,13 @@ function toggleTenantRowSelection(tenantId, event) {
                 if (!isInactive) {
                     row.style.backgroundColor = '';
                 }
+            }
+            
+            // Atualiza texto do botão
+            const btn = event.target;
+            if (btn && btn.classList.contains('tenant-select-btn')) {
+                btn.textContent = data.selected ? 'Selecionado' : 'Selecionar';
+                btn.style.background = data.selected ? '#28a745' : '#6c757d';
             }
         }
     })

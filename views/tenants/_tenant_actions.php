@@ -19,13 +19,14 @@ if (!isset($tenant) || empty($tenant)) {
             aria-label="WhatsApp">
         WhatsApp
     </button>
-    <a href="<?= pixelhub_url('/tenants/edit?id=' . $tenant['id']) ?>" 
-       class="btn btn-small"
-       style="background: #6c757d; color: white; text-decoration: none;"
-       data-tooltip="Editar"
-       aria-label="Editar">
-        Editar
-    </a>
+    <button onclick="toggleTenantRowSelection(<?= $tenant['id'] ?>, event)" 
+            class="btn btn-small tenant-select-btn"
+            data-tenant-id="<?= $tenant['id'] ?>"
+            style="background: #6c757d; color: white; border: none; cursor: pointer; font-size: 13px; font-weight: 600;"
+            data-tooltip="Selecionar linha"
+            aria-label="Selecionar">
+        Selecionar
+    </button>
 </div>
 
 
