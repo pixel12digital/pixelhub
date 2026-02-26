@@ -286,11 +286,18 @@ function applyRowSelections() {
 }
 
 function toggleTenantRowSelection(tenantId, event) {
-    // Previne clique em links e botões
-    if (event.target.tagName === 'A' || event.target.tagName === 'BUTTON' || event.target.closest('a') || event.target.closest('button')) {
+    // Se Ctrl/Cmd está pressionado, permite navegação normal
+    if (event.ctrlKey || event.metaKey) {
         return;
     }
     
+    // Previne clique em botões (ações)
+    if (event.target.tagName === 'BUTTON' || event.target.closest('button')) {
+        return;
+    }
+    
+    // Previne navegação de links
+    event.preventDefault();
     event.stopPropagation();
     
     const row = document.querySelector(`.tenant-row[data-tenant-id="${tenantId}"]`);
