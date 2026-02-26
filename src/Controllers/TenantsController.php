@@ -362,8 +362,8 @@ class TenantsController extends Controller
         $db = DB::getConnection();
 
         // Monta WHERE clause para busca
-        // Filtro padrão: excluir arquivados e somente financeiro
-        $whereSql = " WHERE (t.is_archived = 0 AND t.is_financial_only = 0)";
+        // Filtro padrão: excluir arquivados, somente financeiro E LEADS (apenas clientes reais)
+        $whereSql = " WHERE (t.is_archived = 0 AND t.is_financial_only = 0 AND (t.contact_type = 'client' OR t.contact_type IS NULL))";
         $params = [];
 
         // Adiciona filtro de status
