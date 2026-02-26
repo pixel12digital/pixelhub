@@ -122,9 +122,11 @@ class InboxEmailController
             
         } catch (\Exception $e) {
             error_log('[InboxEmail] Erro ao buscar thread: ' . $e->getMessage());
+            error_log('[InboxEmail] Stack trace: ' . $e->getTraceAsString());
             $this->json([
                 'success' => false,
-                'error' => 'Erro ao carregar emails'
+                'error' => 'Erro ao carregar emails',
+                'debug' => $e->getMessage()
             ]);
         }
     }
