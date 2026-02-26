@@ -167,27 +167,56 @@ class InboxEmailController
                 return;
             }
             
-            // Usa BillingSenderService para enviar (já tem SMTP configurado)
-            require_once __DIR__ . '/../Services/BillingSenderService.php';
-            $sender = new \PixelHub\Services\BillingSenderService();
+            // Busca configuração SMTP global
+            $stmt = $db->query("SELECT config_value FROM system_settings WHERE config_key = 'smtp_host' LIMIT 1");
+            $smtpHost = $stmt ? $stmt->fetchColumn() : null;
             
-            // Monta mensagem formatada
-            $fullMessage = "Assunto: {$subject}\n\n{$message}";
+            $stmt = $db->query("SELECT config_value FROM system_settings WHERE config_key = 'smtp_port' LIMIT 1");
+            $smtpPort = $stmt ? $stmt->fetchColumn() : 587;
             
-            // Envia via BillingSenderService (canal email)
-            $result = $sender->send($tenantId, 'email', $fullMessage);
+            $stmt = $db->query("SELECT config_value FROM system_settings WHERE config_key = 'smtp_user' LIMIT 1");
+            $smtpUser = $stmt ? $stmt->fetchColumn() : null;
             
-            if ($result['success']) {
-                $this->json([
-                    'success' => true,
-                    'message' => 'Email enviado com sucesso'
-                ]);
-            } else {
-                $this->json([
-                    'success' => false,
-                    'error' => $result['error'] ?? 'Falha ao enviar email'
-                ]);
+            $stmt = $db->query("SELECT config_value FROM system_settings WHERE config_key = 'smtp_password' LIMIT 1");
+            $smtpPassword = $stmt ? $stmt->fetchColumn() : null;
+            
+            if (!$smtpHost || !$smtpUser || !$smtpPassword) {
+                $this->json(['success' => false, 'error' => 'Configuração SMTP não encontrada. Configure em /settings/smtp']);
+                return;
             }
+            
+            // Envia email via PHPMailer
+            require_once __DIR__ . '/../../vendor/autoload.php';
+            $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+            
+            $mail->isSMTP();
+            $mail->Host = $smtpHost;
+            $mail->SMTPAuth = true;
+            $mail->Username = $smtpUser;
+            $mail->Password = $smtpPassword;
+            $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port = $smtpPort;
+            $mail->CharSet = 'UTF-8';
+            
+            $mail->setFrom($smtpUser, 'Pixel12 Digital');
+            $mail->addAddress($tenant['email'], $tenant['name']);
+            $mail->Subject = $subject;
+            $mail->Body = $message;
+            
+            $mail->send();
+            
+            // Registra em billing_notifications
+            $stmt = $db->prepare("
+                INSERT INTO billing_notifications 
+                (tenant_id, channel, status, message, sent_at, created_at) 
+                VALUES (?, 'email_smtp', 'sent', ?, NOW(), NOW())
+            ");
+            $stmt->execute([$tenantId, $message]);
+            
+            $this->json([
+                'success' => true,
+                'message' => 'Email enviado com sucesso'
+            ]);
             
         } catch (\Exception $e) {
             error_log('[InboxEmail] Erro ao enviar email: ' . $e->getMessage());
