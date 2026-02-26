@@ -2217,38 +2217,20 @@ function openInboxNewConversation(tenantId) {
                 <?php
                 // Verifica se precisa iniciar (automático ativo mas start não foi dado)
                 $needsStart = !empty($tenant['billing_auto_send']) && empty($tenant['billing_started_at']);
-                
-                // Verifica se há faturas vencidas para mostrar "AGUARDANDO START"
-                $hasOverdueInvoices = false;
-                if ($needsStart) {
-                    $dbConn = \PixelHub\Core\DB::getConnection();
-                    $stmtOverdue = $dbConn->prepare("
-                        SELECT COUNT(*) as overdue_count 
-                        FROM billing_invoices 
-                        WHERE tenant_id = ? 
-                          AND status = 'overdue'
-                          AND deleted_at IS NULL
-                    ");
-                    $stmtOverdue->execute([$tenant['id']]);
-                    $overdueData = $stmtOverdue->fetch(PDO::FETCH_ASSOC);
-                    $hasOverdueInvoices = ($overdueData['overdue_count'] ?? 0) > 0;
-                }
                 ?>
                 
                 <button type="submit" style="background: #6f42c1; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 13px;">
-                    <?= ($needsStart && $hasOverdueInvoices) ? 'Iniciar' : 'Salvar' ?>
+                    Salvar
                 </button>
 
                 <?php if (!empty($tenant['is_billing_test'])): ?>
                     <span style="background: #fff3cd; color: #856404; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">TESTE</span>
                 <?php endif; ?>
                 
-                <?php if ($needsStart && $hasOverdueInvoices): ?>
-                    <span style="background: #fff3cd; color: #856404; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">⚠️ AGUARDANDO START</span>
-                <?php elseif (!empty($tenant['billing_auto_send']) && !empty($tenant['billing_started_at'])): ?>
+                <?php if (!empty($tenant['billing_auto_send']) && !empty($tenant['billing_started_at'])): ?>
                     <span style="background: #d4edda; color: #155724; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">✅ ATIVO</span>
-                <?php elseif (!empty($tenant['billing_auto_send']) && !$hasOverdueInvoices): ?>
-                    <span style="background: #d4edda; color: #155724; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">✅ ATIVO</span>
+                <?php elseif (!empty($tenant['billing_auto_send'])): ?>
+                    <span style="background: #d1ecf1; color: #0c5460; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">⏳ CONFIGURADO</span>
                 <?php endif; ?>
             </form>
         </div>
