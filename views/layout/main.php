@@ -5420,11 +5420,11 @@
                 
                 console.log('[Email IA] Response data:', data);
                 
-                if (data.success && data.response) {
-                    EmailAIState.chatHistory.push({ role: 'assistant', content: data.response });
+                if (data.success && data.message) {
+                    EmailAIState.chatHistory.push({ role: 'assistant', content: data.message });
                     renderEmailAIChat();
                 } else {
-                    const errorMsg = data.error || data.message || 'Erro desconhecido';
+                    const errorMsg = data.error || 'Erro desconhecido';
                     console.error('[Email IA] Erro na resposta:', errorMsg, data);
                     chatArea.innerHTML += `<div style="padding: 10px; background: #fee; border-radius: 8px; margin-bottom: 8px; font-size: 13px; color: #c33;">Erro: ${errorMsg}</div>`;
                 }
