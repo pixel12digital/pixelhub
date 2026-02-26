@@ -280,13 +280,14 @@ class TenantsController extends Controller
 
         // Lê parâmetros de busca e paginação via GET
         $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+        $statusFilter = isset($_GET['status']) ? trim($_GET['status']) : 'active';
         $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
         $page = $page > 0 ? $page : 1;
         $perPage = 25;
         $offset = ($page - 1) * $perPage;
 
         // Busca tenants com paginação
-        $result = $this->searchWithPagination($search, $perPage, $offset);
+        $result = $this->searchWithPagination($search, $perPage, $offset, $statusFilter);
         $tenants = $result['items'];
         $total = $result['total'];
 
@@ -296,7 +297,7 @@ class TenantsController extends Controller
             $page = $totalPages;
             // Rebusca com página corrigida
             $offset = ($page - 1) * $perPage;
-            $result = $this->searchWithPagination($search, $perPage, $offset);
+            $result = $this->searchWithPagination($search, $perPage, $offset, $statusFilter);
             $tenants = $result['items'];
         }
 
@@ -309,6 +310,7 @@ class TenantsController extends Controller
             $viewData = [
                 'tenants' => $tenants,
                 'search' => $search,
+                'statusFilter' => $statusFilter,
                 'page' => $page,
                 'totalPages' => $totalPages,
             ];
@@ -338,6 +340,7 @@ class TenantsController extends Controller
         $this->view('tenants.index', [
             'tenants' => $tenants,
             'search' => $search,
+            'statusFilter' => $statusFilter,
             'page' => $page,
             'perPage' => $perPage,
             'total' => $total,
@@ -351,9 +354,10 @@ class TenantsController extends Controller
      * @param string|null $search Termo de busca
      * @param int $limit Limite de registros
      * @param int $offset Offset para paginação
+     * @param string $statusFilter Filtro de status (all, active, inactive)
      * @return array{items: array<int, array>, total: int}
      */
-    private function searchWithPagination(?string $search, int $limit, int $offset): array
+    private function searchWithPagination(?string $search, int $limit, int $offset, string $statusFilter = 'active'): array
     {
         $db = DB::getConnection();
 
@@ -361,6 +365,14 @@ class TenantsController extends Controller
         // Filtro padrão: excluir arquivados e somente financeiro
         $whereSql = " WHERE (t.is_archived = 0 AND t.is_financial_only = 0)";
         $params = [];
+
+        // Adiciona filtro de status
+        if ($statusFilter === 'active') {
+            $whereSql .= " AND t.status = 'active'";
+        } elseif ($statusFilter === 'inactive') {
+            $whereSql .= " AND t.status = 'inactive'";
+        }
+        // Se statusFilter === 'all', não adiciona filtro de status
 
         if ($search !== null && $search !== '') {
             $whereSql .= " AND (

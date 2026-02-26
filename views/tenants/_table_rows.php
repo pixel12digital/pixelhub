@@ -1,6 +1,6 @@
 <?php if (empty($tenants)): ?>
     <tr>
-        <td colspan="7" style="padding: 20px; text-align: center; color: #666;">
+        <td colspan="6" style="padding: 20px; text-align: center; color: #666;">
             <?php if (!empty($search ?? '')): ?>
                 Nenhum cliente encontrado para a busca "<?= htmlspecialchars($search) ?>".
             <?php else: ?>
@@ -10,7 +10,12 @@
     </tr>
 <?php else: ?>
     <?php foreach ($tenants as $tenant): ?>
-    <tr>
+    <?php 
+        $isInactive = ($tenant['status'] ?? 'active') === 'inactive';
+        $showingAll = ($statusFilter ?? 'active') === 'all';
+        $rowStyle = ($isInactive && $showingAll) ? 'opacity: 0.5; background-color: #f9f9f9;' : '';
+    ?>
+    <tr style="<?= $rowStyle ?>">
         <td style="padding: 12px; border-bottom: 1px solid #eee;">
             <a href="<?= pixelhub_url('/tenants/view?id=' . $tenant['id']) ?>" 
                style="color: #023A8D; text-decoration: none; font-weight: 600;">
@@ -31,17 +36,6 @@
         </td>
         <td style="padding: 12px; border-bottom: 1px solid #eee;">
             <?= $tenant['hosting_count'] ?? 0 ?>
-        </td>
-        <td style="padding: 12px; border-bottom: 1px solid #eee;">
-            <?php
-            $backupsCompletos = $tenant['backups_completos'] ?? 0;
-            $hostingCount = $tenant['hosting_count'] ?? 0;
-            if ($hostingCount > 0) {
-                echo $backupsCompletos . ' / ' . $hostingCount;
-            } else {
-                echo '-';
-            }
-            ?>
         </td>
         <td style="padding: 12px; border-bottom: 1px solid #eee;">
             <?php

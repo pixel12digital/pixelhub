@@ -9,6 +9,17 @@ ob_start();
     </div>
     <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
         <form method="get" action="<?= pixelhub_url('/tenants') ?>" style="display: flex; align-items: center; gap: 8px; margin-right: 10px;">
+            <select
+                name="status"
+                id="statusFilter"
+                class="form-control form-control-sm"
+                style="min-width: 120px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                onchange="this.form.submit()"
+            >
+                <option value="all" <?= ($statusFilter ?? 'active') === 'all' ? 'selected' : '' ?>>Todos</option>
+                <option value="active" <?= ($statusFilter ?? 'active') === 'active' ? 'selected' : '' ?>>Ativos</option>
+                <option value="inactive" <?= ($statusFilter ?? 'active') === 'inactive' ? 'selected' : '' ?>>Inativos</option>
+            </select>
             <input
                 type="text"
                 name="search"
@@ -21,7 +32,7 @@ ob_start();
             <button type="submit" style="background: #023A8D; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px;">
                 Buscar
             </button>
-            <?php if (!empty($search ?? '')): ?>
+            <?php if (!empty($search ?? '') || ($statusFilter ?? 'active') !== 'active'): ?>
                 <a href="<?= pixelhub_url('/tenants') ?>" style="background: #6c757d; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
                     Limpar
                 </a>
@@ -76,7 +87,6 @@ ob_start();
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Email</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">WhatsApp</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Sites</th>
-                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Backups</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Status</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Ações</th>
             </tr>
@@ -126,7 +136,7 @@ document.addEventListener('DOMContentLoaded', function () {
         params.set('ajax', '1');
 
         // Loading simples
-        tableBody.innerHTML = '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #666;">Buscando...</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="6" style="padding: 20px; text-align: center; color: #666;">Buscando...</td></tr>';
 
         fetch(form.action + '?' + params.toString(), {
             headers: {
@@ -166,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .catch(err => {
                 console.error('Erro na busca AJAX de clientes', err);
-                tableBody.innerHTML = '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #c33;">Erro ao buscar clientes. Tente recarregar a página.</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="6" style="padding: 20px; text-align: center; color: #c33;">Erro ao buscar clientes. Tente recarregar a página.</td></tr>';
             });
     }
 
