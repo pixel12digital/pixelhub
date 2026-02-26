@@ -69,7 +69,7 @@ class HostingController extends Controller
         $tenants = $stmt->fetchAll();
 
         // Busca planos de hospedagem ativos
-        $stmt = $db->query("SELECT id, name, provider, amount, billing_cycle FROM hosting_plans WHERE is_active = 1 ORDER BY name");
+        $stmt = $db->query("SELECT id, name, provider, amount, billing_cycle, annual_enabled, annual_monthly_amount, annual_total_amount FROM hosting_plans WHERE is_active = 1 ORDER BY name");
         $hostingPlans = $stmt->fetchAll();
 
         // Busca provedores de hospedagem ativos
@@ -262,7 +262,7 @@ class HostingController extends Controller
             $tenants = $stmt->fetchAll();
 
             // Busca planos de hospedagem ativos
-            $stmt = $db->query("SELECT id, name, provider, amount, billing_cycle FROM hosting_plans WHERE is_active = 1 ORDER BY name");
+            $stmt = $db->query("SELECT id, name, provider, amount, billing_cycle, annual_enabled, annual_monthly_amount, annual_total_amount FROM hosting_plans WHERE is_active = 1 ORDER BY name");
             $hostingPlans = $stmt->fetchAll();
 
             // Busca provedores de hospedagem ativos
