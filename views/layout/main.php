@@ -2121,6 +2121,13 @@
                             <option value="">Todas as sessões</option>
                         </select>
                     </div>
+                    <div id="inboxEmailTypeFilterWrap" style="display: none;">
+                        <select id="inboxFilterEmailType" onchange="loadInboxConversations()" title="Tipo de Email">
+                            <option value="all">Tipo: Todos</option>
+                            <option value="sent">Enviadas</option>
+                            <option value="received">Recebidas</option>
+                        </select>
+                    </div>
                     <select id="inboxFilterTenant" onchange="loadInboxConversations()" title="Cliente">
                         <option value="">Cliente: Todos</option>
                     </select>
@@ -4907,11 +4914,15 @@
         // ===== FILTROS (mesmo comportamento do Painel de Comunicação) =====
         window.onInboxChannelChange = function() {
             const channel = (document.getElementById('inboxFilterChannel') || {}).value;
-            const wrap = document.getElementById('inboxSessionFilterWrap');
+            const sessionWrap = document.getElementById('inboxSessionFilterWrap');
+            const emailTypeWrap = document.getElementById('inboxEmailTypeFilterWrap');
             const btnNovaConversa = document.getElementById('inboxBtnNovaConversa');
             
             // Esconde filtro de sessão quando não é WhatsApp
-            if (wrap) wrap.style.display = channel === 'whatsapp' ? '' : 'none';
+            if (sessionWrap) sessionWrap.style.display = channel === 'whatsapp' ? '' : 'none';
+            
+            // Mostra filtro de tipo de email quando canal = email
+            if (emailTypeWrap) emailTypeWrap.style.display = channel === 'email' ? '' : 'none';
             
             // Esconde botão "Nova Conversa" quando canal = email
             if (btnNovaConversa) btnNovaConversa.style.display = channel === 'email' ? 'none' : '';
@@ -5219,10 +5230,13 @@
                     <div class="inbox-drawer-conversation" 
                          data-tenant-id="${tenantId}"
                          onclick="loadEmailThread(${tenantId}, '${escapeInboxHtml(tenantName)}')">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
-                            <div class="conv-content" style="flex: 1;">
+                        <div style="display: flex; gap: 12px; align-items: start;">
+                            <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; flex-shrink: 0;">
+                                📧
+                            </div>
+                            <div class="conv-content" style="flex: 1; min-width: 0;">
                                 <div class="conv-name">
-                                    <span>📧 ${tenantName}</span>
+                                    <span>${tenantName}</span>
                                     <span class="conv-time">${lastEmailAt}</span>
                                 </div>
                                 <div class="conv-preview" style="font-size: 12px; color: #667781; margin-top: 4px;">
