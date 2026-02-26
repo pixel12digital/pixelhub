@@ -5238,7 +5238,7 @@
         }
         
         // ===== CARREGAR THREAD DE EMAILS (FUNÇÃO SEPARADA - NÃO AFETA WHATSAPP) =====
-        async function loadEmailThread(tenantId, tenantName) {
+        window.loadEmailThread = async function(tenantId, tenantName) {
             console.log('[Inbox Email] Carregando thread:', tenantId, tenantName);
             
             const chatDiv = document.getElementById('inboxChat');
