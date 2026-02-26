@@ -233,21 +233,10 @@ class BillingStartService
             
             // Descreve faturas vencidas
             if ($data['overdue_count'] == 1) {
-                $message .= "1 fatura em aberto";
+                $message .= "uma fatura em aberto.\n\n";
             } else {
-                $message .= "{$data['overdue_count']} faturas em aberto";
+                $message .= "{$data['overdue_count']} faturas em aberto.\n\n";
             }
-            
-            // Adiciona faturas a vencer se houver
-            if ($data['pending_count'] > 0) {
-                if ($data['pending_count'] == 1) {
-                    $message .= " e 1 para vencer";
-                } else {
-                    $message .= " e {$data['pending_count']} para vencer";
-                }
-            }
-            
-            $message .= ".\n\n";
             
             // Links das faturas vencidas
             if (!empty($overdueLinks)) {
@@ -259,6 +248,13 @@ class BillingStartService
                 $message .= implode("\n", $overdueLinks) . "\n\n";
             }
             
+            // Menciona APENAS a próxima fatura (primeira a vencer) se houver
+            if (!empty($pendingInvoices)) {
+                $nextInvoice = reset($pendingInvoices); // Pega a primeira
+                $dueDate = date('d/m/Y', strtotime($nextInvoice['due_date']));
+                $message .= "Sua próxima fatura vence em {$dueDate}.\n\n";
+            }
+            
             $message .= "Qualquer dúvida, pode contar conosco! 😊";
             
             return $message;
@@ -266,16 +262,17 @@ class BillingStartService
         } else {
             // Apenas faturas a vencer - LEMBRETE AMIGÁVEL (sem links)
             $message = "Olá, {$firstName}! 👋\n\n";
-            $message .= "Tudo bem? Só passando para lembrar que você tem ";
             
-            if ($data['pending_count'] == 1) {
-                $message .= "1 fatura para vencer";
-            } else {
-                $message .= "{$data['pending_count']} faturas para vencer";
+            // Menciona APENAS a próxima fatura (primeira a vencer)
+            if (!empty($pendingInvoices)) {
+                $nextInvoice = reset($pendingInvoices); // Pega a primeira
+                $dueDate = date('d/m/Y', strtotime($nextInvoice['due_date']));
+                $valueFormatted = 'R$ ' . number_format($nextInvoice['amount'], 2, ',', '.');
+                
+                $message .= "Tudo bem? Só passando para lembrar que sua próxima fatura ({$valueFormatted}) vence em {$dueDate}.\n\n";
+                $message .= "O link de pagamento estará disponível no seu painel em breve.\n\n";
             }
             
-            $message .= ", totalizando {$totalFormatted}.\n\n";
-            $message .= "Os links de pagamento estão disponíveis no seu painel.\n\n";
             $message .= "Qualquer dúvida, pode contar conosco! 😊";
             
             return $message;
