@@ -778,6 +778,15 @@ class BillingCollectionsController extends Controller
         $db = DB::getConnection();
 
         try {
+            // Verifica se está ATIVANDO o automático (estava desligado e agora está ligando)
+            $stmt = $db->prepare("SELECT billing_auto_send, billing_started_at FROM tenants WHERE id = ?");
+            $stmt->execute([$tenantId]);
+            $currentSettings = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            $wasOff = !$currentSettings || $currentSettings['billing_auto_send'] == 0;
+            $turningOn = $autoSend == 1 && $wasOff;
+            
+            // Atualiza configurações
             $stmt = $db->prepare("
                 UPDATE tenants
                 SET billing_auto_send = ?,
@@ -786,15 +795,49 @@ class BillingCollectionsController extends Controller
             ");
             $stmt->execute([$autoSend, $autoChannel, $tenantId]);
 
-            $redirectTab = $_POST['redirect_to'] ?? 'tenant';
-            if ($redirectTab === 'tenant') {
-                $this->redirect('/tenants/view?id=' . $tenantId . '&tab=financial&success=auto_settings_saved');
-            } else {
-                $this->redirect('/billing/overview?success=auto_settings_saved');
+            // ═══ GERA MENSAGEM DE START se estiver ATIVANDO ═══
+            $startResult = null;
+            if ($turningOn) {
+                $startResult = \PixelHub\Services\BillingStartService::generateStartMessage($tenantId);
+                
+                // Log do resultado
+                if ($startResult['success']) {
+                    error_log('[BILLING] Mensagem de start gerada: ID ' . $startResult['start_message_id']);
+                } else {
+                    error_log('[BILLING] Start não gerado: ' . $startResult['message']);
+                }
             }
+
+            // Monta URL de redirecionamento com feedback
+            $redirectTab = $_POST['redirect_to'] ?? 'tenant';
+            $redirectUrl = $redirectTab === 'tenant' 
+                ? '/tenants/view?id=' . $tenantId . '&tab=financial'
+                : '/billing/overview';
+            
+            // Adiciona parâmetros de sucesso
+            if ($turningOn && $startResult && $startResult['success']) {
+                // Mensagem de start gerada com sucesso
+                $redirectUrl .= '&success=auto_settings_saved&start_generated=1&start_id=' . $startResult['start_message_id'];
+            } elseif ($turningOn && $startResult && isset($startResult['already_started'])) {
+                // Já foi iniciado antes (proteção anti-duplicação)
+                $redirectUrl .= '&success=auto_settings_saved&info=already_started';
+            } elseif ($turningOn && $startResult && isset($startResult['no_invoices'])) {
+                // Sem faturas pendentes
+                $redirectUrl .= '&success=auto_settings_saved&info=no_invoices';
+            } else {
+                // Apenas salvou configurações
+                $redirectUrl .= '&success=auto_settings_saved';
+            }
+            
+            $this->redirect($redirectUrl);
+            
         } catch (\Exception $e) {
             error_log('[BILLING] Erro ao salvar auto settings: ' . $e->getMessage());
-            $this->redirect('/tenants/view?id=' . $tenantId . '&tab=financial&error=save_failed');
+            $redirectTab = $_POST['redirect_to'] ?? 'tenant';
+            $redirectUrl = $redirectTab === 'tenant' 
+                ? '/tenants/view?id=' . $tenantId . '&tab=financial&error=save_failed'
+                : '/billing/overview?error=save_failed';
+            $this->redirect($redirectUrl);
         }
     }
 
@@ -1239,6 +1282,159 @@ class BillingCollectionsController extends Controller
             return 'overdue_15d';
         } else {
             return 'overdue_30d';
+        }
+    }
+    
+    /**
+     * Busca dados da mensagem de start (para modal)
+     * GET /billing/get-start-message?id=X
+     */
+    public function getStartMessage(): void
+    {
+        Auth::requireInternal();
+        
+        $startId = $_GET['id'] ?? null;
+        
+        if (!$startId) {
+            $this->json(['success' => false, 'message' => 'ID não fornecido']);
+            return;
+        }
+        
+        $db = DB::getConnection();
+        
+        $stmt = $db->prepare("
+            SELECT * FROM billing_start_messages
+            WHERE id = ?
+        ");
+        $stmt->execute([$startId]);
+        $message = $stmt->fetch(\PDO::FETCH_ASSOC);
+        
+        if (!$message) {
+            $this->json(['success' => false, 'message' => 'Mensagem não encontrada']);
+            return;
+        }
+        
+        // Decodifica invoice_ids
+        $message['invoice_ids'] = json_decode($message['invoice_ids'], true);
+        
+        $this->json([
+            'success' => true,
+            'message' => $message
+        ]);
+    }
+    
+    /**
+     * Cancela mensagem de start
+     * POST /billing/cancel-start-message
+     */
+    public function cancelStartMessage(): void
+    {
+        Auth::requireInternal();
+        
+        $data = json_decode(file_get_contents('php://input'), true);
+        $startId = $data['id'] ?? null;
+        
+        if (!$startId) {
+            $this->json(['success' => false, 'message' => 'ID não fornecido']);
+            return;
+        }
+        
+        $result = \PixelHub\Services\BillingStartService::cancelStartMessage($startId);
+        
+        if ($result) {
+            $this->json(['success' => true, 'message' => 'Mensagem cancelada com sucesso']);
+        } else {
+            $this->json(['success' => false, 'message' => 'Erro ao cancelar mensagem']);
+        }
+    }
+    
+    /**
+     * Envia mensagem de start (após aprovação)
+     * POST /billing/send-start-message
+     */
+    public function sendStartMessage(): void
+    {
+        Auth::requireInternal();
+        
+        $data = json_decode(file_get_contents('php://input'), true);
+        $startId = $data['id'] ?? null;
+        $messageText = $data['message_text'] ?? null;
+        
+        if (!$startId || !$messageText) {
+            $this->json(['success' => false, 'message' => 'Dados incompletos']);
+            return;
+        }
+        
+        $db = DB::getConnection();
+        
+        try {
+            // Busca mensagem
+            $stmt = $db->prepare("SELECT * FROM billing_start_messages WHERE id = ?");
+            $stmt->execute([$startId]);
+            $startMessage = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if (!$startMessage) {
+                $this->json(['success' => false, 'message' => 'Mensagem não encontrada']);
+                return;
+            }
+            
+            if ($startMessage['status'] !== 'pending') {
+                $this->json(['success' => false, 'message' => 'Mensagem já foi processada']);
+                return;
+            }
+            
+            // Busca tenant
+            $stmt = $db->prepare("SELECT * FROM tenants WHERE id = ?");
+            $stmt->execute([$startMessage['tenant_id']]);
+            $tenant = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if (!$tenant) {
+                $this->json(['success' => false, 'message' => 'Tenant não encontrado']);
+                return;
+            }
+            
+            // Atualiza mensagem se foi editada
+            if ($messageText !== $startMessage['message_text']) {
+                $stmt = $db->prepare("UPDATE billing_start_messages SET message_text = ? WHERE id = ?");
+                $stmt->execute([$messageText, $startId]);
+            }
+            
+            // Envia via BillingSenderService
+            $invoiceIds = json_decode($startMessage['invoice_ids'], true);
+            
+            $sendResult = BillingSenderService::sendBillingMessage(
+                $startMessage['tenant_id'],
+                $invoiceIds,
+                $startMessage['channel'],
+                'start_message',
+                null, // dispatch_rule_id
+                $messageText // custom message
+            );
+            
+            if ($sendResult['success']) {
+                // Marca como enviada
+                \PixelHub\Services\BillingStartService::markAsSent(
+                    $startId,
+                    $sendResult['gateway_message_id'] ?? null
+                );
+                
+                $this->json([
+                    'success' => true,
+                    'message' => 'Mensagem enviada com sucesso!'
+                ]);
+            } else {
+                $this->json([
+                    'success' => false,
+                    'message' => $sendResult['error'] ?? 'Erro ao enviar mensagem'
+                ]);
+            }
+            
+        } catch (\Exception $e) {
+            error_log('[BILLING_START] Erro ao enviar: ' . $e->getMessage());
+            $this->json([
+                'success' => false,
+                'message' => 'Erro ao enviar: ' . $e->getMessage()
+            ]);
         }
     }
 }

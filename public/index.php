@@ -510,6 +510,11 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/billing/get-last-dispatch', 'BillingCollectionsController@getLastDispatch');
     $router->get('/billing/preview-message', 'BillingCollectionsController@previewMessage');
     
+    // Rotas de Mensagem de Start (modal)
+    $router->get('/billing/get-start-message', 'BillingCollectionsController@getStartMessage');
+    $router->post('/billing/cancel-start-message', 'BillingCollectionsController@cancelStartMessage');
+    $router->post('/billing/send-start-message', 'BillingCollectionsController@sendStartMessage');
+    
     // Rotas de Templates de Cobrança
     $router->get('/billing/templates', 'BillingTemplatesController@index');
     $router->get('/billing/templates/view', 'BillingTemplatesController@show');

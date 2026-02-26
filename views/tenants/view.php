@@ -2227,7 +2227,25 @@ function openInboxNewConversation(tenantId) {
 
     <?php if (isset($_GET['success']) && $_GET['success'] === 'auto_settings_saved'): ?>
         <div class="card" style="background: #d4edda; border-left: 4px solid #28a745; margin-bottom: 20px;">
-            <p style="color: #155724; margin: 0;">Configurações de cobrança automática salvas com sucesso!</p>
+            <p style="color: #155724; margin: 0;">
+                ✅ Configurações de cobrança automática salvas com sucesso!
+                
+                <?php if (isset($_GET['start_generated']) && $_GET['start_generated'] == 1): ?>
+                    <br><br>
+                    <strong>📨 Mensagem de regularização gerada!</strong><br>
+                    Uma mensagem de start foi criada com base na situação financeira atual.<br>
+                    <a href="/billing/review-start?id=<?= htmlspecialchars($_GET['start_id'] ?? '') ?>" 
+                       style="color: #155724; text-decoration: underline; font-weight: 600;">
+                        Clique aqui para revisar e aprovar antes do envio
+                    </a>
+                <?php elseif (isset($_GET['info']) && $_GET['info'] === 'already_started'): ?>
+                    <br><br>
+                    ℹ️ Cobrança automática já foi iniciada anteriormente. As regras diárias continuarão normalmente.
+                <?php elseif (isset($_GET['info']) && $_GET['info'] === 'no_invoices'): ?>
+                    <br><br>
+                    ℹ️ Nenhuma fatura pendente encontrada. Mensagem de start não foi necessária.
+                <?php endif; ?>
+            </p>
         </div>
     <?php endif; ?>
 
@@ -4197,6 +4215,12 @@ ob_start();
 require __DIR__ . '/whatsapp_modal.php';
 $modalContent = ob_get_clean();
 $content .= $modalContent;
+
+// Inclui modal de mensagem de start (cobrança automática)
+ob_start();
+require __DIR__ . '/../billing_collections/start_message_modal.php';
+$startModalContent = ob_get_clean();
+$content .= $startModalContent;
 
 require __DIR__ . '/../layout/main.php';
 ?>
