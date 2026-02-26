@@ -463,4 +463,93 @@ class LeadService
         
         error_log("[LeadService] Opportunity {$opportunityId} criada automaticamente para lead {$leadId}");
     }
+
+    /**
+     * Exclui um lead
+     * 
+     * Verifica se há oportunidades ou conversas vinculadas antes de excluir.
+     * Se houver, retorna erro com detalhes.
+     * 
+     * @param int $id
+     * @return array ['success' => bool, 'error' => string|null, 'details' => array|null]
+     */
+    public static function delete(int $id): array
+    {
+        $db = DB::getConnection();
+
+        // Verifica se o lead existe
+        $lead = self::findById($id);
+        if (!$lead) {
+            return [
+                'success' => false,
+                'error' => 'Lead não encontrado',
+                'details' => null,
+            ];
+        }
+
+        // Verifica se há oportunidades vinculadas
+        $stmt = $db->prepare("SELECT COUNT(*) as count FROM opportunities WHERE lead_id = ? AND status = 'active'");
+        $stmt->execute([$id]);
+        $oppCount = (int) $stmt->fetch(\PDO::FETCH_ASSOC)['count'];
+
+        if ($oppCount > 0) {
+            return [
+                'success' => false,
+                'error' => 'Não é possível excluir este lead pois existem oportunidades vinculadas',
+                'details' => ['opportunities_count' => $oppCount],
+            ];
+        }
+
+        // Verifica se há conversas vinculadas
+        $stmt = $db->prepare("SELECT COUNT(*) as count FROM conversations WHERE lead_id = ?");
+        $stmt->execute([$id]);
+        $convCount = (int) $stmt->fetch(\PDO::FETCH_ASSOC)['count'];
+
+        if ($convCount > 0) {
+            return [
+                'success' => false,
+                'error' => 'Não é possível excluir este lead pois existem conversas vinculadas',
+                'details' => ['conversations_count' => $convCount],
+            ];
+        }
+
+        // Verifica se há resultados de prospecção vinculados
+        $stmt = $db->prepare("SELECT COUNT(*) as count FROM prospecting_results WHERE lead_id = ?");
+        $stmt->execute([$id]);
+        $prospectCount = (int) $stmt->fetch(\PDO::FETCH_ASSOC)['count'];
+
+        try {
+            $db->beginTransaction();
+
+            // Remove vínculo de prospecção se existir (não exclui o resultado, apenas desvincula)
+            if ($prospectCount > 0) {
+                $stmt = $db->prepare("UPDATE prospecting_results SET lead_id = NULL WHERE lead_id = ?");
+                $stmt->execute([$id]);
+            }
+
+            // Exclui o lead
+            $stmt = $db->prepare("DELETE FROM leads WHERE id = ?");
+            $stmt->execute([$id]);
+
+            $db->commit();
+
+            error_log("[LeadService] Lead #{$id} excluído com sucesso");
+
+            return [
+                'success' => true,
+                'error' => null,
+                'details' => null,
+            ];
+
+        } catch (\Exception $e) {
+            $db->rollBack();
+            error_log("[LeadService] Erro ao excluir lead #{$id}: " . $e->getMessage());
+            
+            return [
+                'success' => false,
+                'error' => 'Erro ao excluir lead: ' . $e->getMessage(),
+                'details' => null,
+            ];
+        }
+    }
 }

@@ -5,6 +5,7 @@ namespace PixelHub\Controllers;
 use PixelHub\Core\Controller;
 use PixelHub\Core\Auth;
 use PixelHub\Core\DB;
+use PixelHub\Services\LeadService;
 
 /**
  * Controller para gerenciar leads (tabela leads legada)
@@ -118,6 +119,31 @@ class LeadsController extends Controller
         } catch (\Exception $e) {
             error_log("[Leads] Erro ao atualizar lead #{$id}: " . $e->getMessage());
             $this->redirect('/leads/edit?id=' . $id . '&error=database_error');
+        }
+    }
+
+    /**
+     * Exclui um lead
+     * POST /leads/delete
+     */
+    public function delete(): void
+    {
+        Auth::requireInternal();
+
+        $id = (int) ($_POST['id'] ?? 0);
+        if (!$id) {
+            $this->redirect('/opportunities?error=invalid_lead');
+            return;
+        }
+
+        $result = LeadService::delete($id);
+
+        if ($result['success']) {
+            $redirectUrl = $_POST['redirect_url'] ?? '/opportunities';
+            $this->redirect($redirectUrl . '?success=lead_deleted');
+        } else {
+            $errorParam = urlencode($result['error']);
+            $this->redirect('/leads/edit?id=' . $id . '&error=delete_failed&message=' . $errorParam);
         }
     }
 }

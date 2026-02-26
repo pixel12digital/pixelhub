@@ -56,6 +56,10 @@ if ($tenantId) {
             <?php
             if ($_GET['error'] === 'contact_required') echo 'Informe pelo menos um telefone ou e-mail.';
             elseif ($_GET['error'] === 'database_error') echo 'Erro ao salvar. Tente novamente.';
+            elseif ($_GET['error'] === 'delete_failed') {
+                $message = isset($_GET['message']) ? urldecode($_GET['message']) : 'Erro ao excluir lead.';
+                echo htmlspecialchars($message);
+            }
             else echo 'Erro desconhecido.';
             ?>
         </p>
@@ -167,6 +171,15 @@ use PixelHub\Services\OriginCatalog;
                     <?= date('d/m/Y H:i', strtotime($lead['updated_at'])) ?>
                 </div>
             </div>
+            
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 16px 0;">
+            
+            <div>
+                <button type="button" onclick="confirmDeleteLead()" 
+                        style="width: 100%; padding: 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px;">
+                    Excluir Lead
+                </button>
+            </div>
         </div>
         
         <!-- Oportunidades vinculadas -->
@@ -202,6 +215,31 @@ use PixelHub\Services\OriginCatalog;
     margin-bottom: 20px;
 }
 </style>
+
+<!-- Hidden form for deletion -->
+<form id="deleteLeadForm" method="POST" action="<?= pixelhub_url('/leads/delete') ?>" style="display: none;">
+    <input type="hidden" name="id" value="<?= $lead['id'] ?>">
+    <input type="hidden" name="redirect_url" value="<?= htmlspecialchars($backUrl) ?>">
+</form>
+
+<script>
+function confirmDeleteLead() {
+    const leadName = <?= json_encode($lead['name'] ?? 'Lead #' . $lead['id']) ?>;
+    const hasOpportunities = <?= !empty($opportunities) ? 'true' : 'false' ?>;
+    
+    if (hasOpportunities) {
+        alert('Não é possível excluir este lead pois existem oportunidades vinculadas.\n\nPrimeiro você precisa excluir ou desvincular as oportunidades.');
+        return;
+    }
+    
+    const message = 'Tem certeza que deseja excluir o lead "' + leadName + '"?\n\n' +
+                    'Esta ação não pode ser desfeita.';
+    
+    if (confirm(message)) {
+        document.getElementById('deleteLeadForm').submit();
+    }
+}
+</script>
 
 <?php
 $content = ob_get_clean();

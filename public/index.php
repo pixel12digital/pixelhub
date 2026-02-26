@@ -811,6 +811,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Rotas de Leads (tabela leads legada)
     $router->get('/leads/edit', 'LeadsController@edit');
     $router->post('/leads/update', 'LeadsController@update');
+    $router->post('/leads/delete', 'LeadsController@delete');
     
     // Rotas de acessos e links de infraestrutura (apenas internos)
     $router->get('/owner/shortcuts', 'OwnerShortcutsController@index');
