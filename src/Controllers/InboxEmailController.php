@@ -139,10 +139,23 @@ class InboxEmailController
     {
         Auth::requireInternal();
         
-        $input = json_decode(file_get_contents('php://input'), true);
-        $tenantId = $input['tenant_id'] ?? null;
-        $subject = trim($input['subject'] ?? '');
-        $message = trim($input['message'] ?? '');
+        // Suporta tanto JSON quanto FormData (para anexos)
+        $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+        
+        if (strpos($contentType, 'application/json') !== false) {
+            // Requisição JSON (sem anexo)
+            $input = json_decode(file_get_contents('php://input'), true);
+            $tenantId = $input['tenant_id'] ?? null;
+            $subject = trim($input['subject'] ?? '');
+            $message = trim($input['message'] ?? '');
+            $attachment = null;
+        } else {
+            // Requisição FormData (com ou sem anexo)
+            $tenantId = $_POST['tenant_id'] ?? null;
+            $subject = trim($_POST['subject'] ?? '');
+            $message = trim($_POST['message'] ?? '');
+            $attachment = $_FILES['attachment'] ?? null;
+        }
         
         if (!$tenantId || !$subject || !$message) {
             $this->json(['success' => false, 'error' => 'Campos obrigatórios: tenant_id, subject, message']);
