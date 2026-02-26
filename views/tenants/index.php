@@ -264,7 +264,10 @@ function loadTenantRowSelections() {
         .then(data => {
             if (data.success && Array.isArray(data.selections)) {
                 selectedTenantRows = new Set(data.selections);
-                applyRowSelections();
+                // Aguarda DOM estar pronto antes de aplicar seleções
+                setTimeout(() => {
+                    applyRowSelections();
+                }, 100);
             }
         })
         .catch(err => console.error('Erro ao carregar seleções:', err));
