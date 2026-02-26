@@ -250,13 +250,10 @@ class BillingStartService
                 $message .= "Faturas:\n" . implode("\n", $overdueLinks) . "\n\n";
             }
             
-            // Se não houver links, adiciona PIX
-            if (!$hasAnyLink) {
-                $message .= $pixInfo . $pixInstructions . "\n\n";
-            }
+            // Adiciona PIX como opção alternativa (apenas para 3+ faturas)
+            $message .= "Ou pague via PIX:" . $pixInfo . $pixInstructions . "\n\n";
             
             $message .= "Precisamos regularizar essa situação para garantir que todos os serviços continuem ativos.\n\n";
-            $message .= "Podemos conversar sobre as melhores opções de pagamento para você?\n\n";
             $message .= "Qualquer dúvida, pode contar conosco! 😊";
             
             return $message;
@@ -281,11 +278,6 @@ class BillingStartService
                     $message .= $hasAnyLink ? "Aqui estão os links para pagamento:\n\n" : "Valores:\n\n";
                 }
                 $message .= implode("\n", $overdueLinks) . "\n\n";
-            }
-            
-            // Se não houver links, adiciona PIX
-            if (!$hasAnyLink) {
-                $message .= $pixInfo . $pixInstructions . "\n\n";
             }
             
             // Menciona APENAS a próxima fatura (primeira a vencer) se houver
