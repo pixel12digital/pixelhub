@@ -197,7 +197,10 @@ class BillingStartService
         $objective = $billingContext['objective'];
         $invoices = $data['invoices'];
         
-        $totalFormatted = 'R$ ' . number_format($data['total_amount'], 2, ',', '.');
+        // Calcula total APENAS das faturas vencidas (não inclui faturas a vencer)
+        $overdueOnly = array_filter($invoices, fn($inv) => $inv['status'] === 'overdue');
+        $totalOverdueAmount = array_sum(array_column($overdueOnly, 'amount'));
+        $totalFormatted = 'R$ ' . number_format($totalOverdueAmount, 2, ',', '.');
         
         // Separa faturas vencidas e a vencer
         $overdueInvoices = array_filter($invoices, fn($inv) => $inv['status'] === 'overdue');
@@ -278,13 +281,6 @@ class BillingStartService
                     $message .= $hasAnyLink ? "Aqui estão os links para pagamento:\n\n" : "Valores:\n\n";
                 }
                 $message .= implode("\n", $overdueLinks) . "\n\n";
-            }
-            
-            // Menciona APENAS a próxima fatura (primeira a vencer) se houver
-            if (!empty($pendingInvoices)) {
-                $nextInvoice = reset($pendingInvoices); // Pega a primeira
-                $dueDate = date('d/m/Y', strtotime($nextInvoice['due_date']));
-                $message .= "Sua próxima fatura vence em {$dueDate}.\n\n";
             }
             
             $message .= "Para garantir que todos os serviços continuem ativos, pedimos a gentileza de regularizar.\n\n";
