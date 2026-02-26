@@ -2374,6 +2374,48 @@
         </div>
     </div>
     
+    <!-- Modal Novo Email -->
+    <div id="inboxEmailModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
+        <div style="background: white; border-radius: 12px; padding: 30px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                    <span style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 18px;">📧</span>
+                    Novo Email
+                </h2>
+                <button type="button" onclick="closeInboxEmailModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+            </div>
+            <form onsubmit="event.preventDefault(); sendInboxEmail();">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Para (Cliente) *</label>
+                    <select id="inboxEmailTo" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">Selecione um cliente...</option>
+                        <?php
+                        try {
+                            $db = \PixelHub\Core\DB::getConnection();
+                            $stmt = $db->query("SELECT id, name, email FROM tenants WHERE email IS NOT NULL AND email != '' ORDER BY name");
+                            foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $t) {
+                                echo '<option value="' . htmlspecialchars($t['id']) . '">' . htmlspecialchars($t['name']) . ' (' . htmlspecialchars($t['email']) . ')</option>';
+                            }
+                        } catch (\Exception $e) { /* silencioso */ }
+                        ?>
+                    </select>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Assunto *</label>
+                    <input type="text" id="inboxEmailSubject" required placeholder="Ex: Atualização importante" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Mensagem *</label>
+                    <textarea id="inboxEmailMessage" required rows="8" placeholder="Digite sua mensagem aqui..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; font-family: inherit;"></textarea>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" id="inboxEmailSendBtn" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Enviar Email</button>
+                    <button type="button" onclick="closeInboxEmailModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
     <?php
     // Modal "Nova Mensagem" para Inbox (quando não está no Communication Hub)
     $currentUri = $_SERVER['REQUEST_URI'] ?? '';
@@ -4941,6 +4983,65 @@
                 openNewMessageModal();
             } else {
                 window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+            }
+        };
+        
+        window.openInboxNovoEmail = function() {
+            const modal = document.getElementById('inboxEmailModal');
+            if (modal) {
+                modal.style.display = 'flex';
+                // Limpa campos
+                document.getElementById('inboxEmailTo').value = '';
+                document.getElementById('inboxEmailSubject').value = '';
+                document.getElementById('inboxEmailMessage').value = '';
+            }
+        };
+        
+        window.closeInboxEmailModal = function() {
+            const modal = document.getElementById('inboxEmailModal');
+            if (modal) modal.style.display = 'none';
+        };
+        
+        window.sendInboxEmail = async function() {
+            const tenantId = document.getElementById('inboxEmailTo').value;
+            const subject = document.getElementById('inboxEmailSubject').value.trim();
+            const message = document.getElementById('inboxEmailMessage').value.trim();
+            
+            if (!tenantId || !subject || !message) {
+                alert('Por favor, preencha todos os campos.');
+                return;
+            }
+            
+            const btn = document.getElementById('inboxEmailSendBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Enviando...';
+            }
+            
+            try {
+                const response = await fetch(INBOX_BASE_URL + '/inbox/emails/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tenant_id: tenantId, subject, message })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Email enviado com sucesso!');
+                    closeInboxEmailModal();
+                    loadInboxConversations();
+                } else {
+                    alert('Erro ao enviar email: ' + (result.error || 'Erro desconhecido'));
+                }
+            } catch (error) {
+                console.error('[Inbox Email] Erro ao enviar:', error);
+                alert('Erro ao enviar email. Verifique o console.');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Enviar Email';
+                }
             }
         };
         window.loadInboxFilterOptions = async function() {
