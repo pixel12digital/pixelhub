@@ -2214,12 +2214,21 @@ function openInboxNewConversation(tenantId) {
                     <option value="both" <?= ($tenant['billing_auto_channel'] ?? '') === 'both' ? 'selected' : '' ?>>Ambos</option>
                 </select>
 
+                <?php
+                // Verifica se precisa iniciar (automático ativo mas start não foi dado)
+                $needsStart = !empty($tenant['billing_auto_send']) && empty($tenant['billing_started_at']);
+                ?>
+                
                 <button type="submit" style="background: #6f42c1; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 13px;">
-                    Salvar
+                    <?= $needsStart ? 'Iniciar' : 'Salvar' ?>
                 </button>
 
                 <?php if (!empty($tenant['is_billing_test'])): ?>
                     <span style="background: #fff3cd; color: #856404; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">TESTE</span>
+                <?php endif; ?>
+                
+                <?php if ($needsStart): ?>
+                    <span style="background: #fff3cd; color: #856404; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">⚠️ AGUARDANDO START</span>
                 <?php endif; ?>
             </form>
         </div>
