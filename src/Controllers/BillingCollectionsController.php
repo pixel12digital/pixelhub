@@ -1404,14 +1404,15 @@ class BillingCollectionsController extends Controller
             // Envia via BillingSenderService
             $invoiceIds = json_decode($startMessage['invoice_ids'], true);
             
-            $sendResult = BillingSenderService::sendBillingMessage(
-                $startMessage['tenant_id'],
-                $invoiceIds,
-                $startMessage['channel'],
-                'start_message',
-                null, // dispatch_rule_id
-                $messageText // custom message
-            );
+            $sendResult = BillingSenderService::send([
+                'tenant_id' => $startMessage['tenant_id'],
+                'invoice_ids' => $invoiceIds,
+                'channel' => $startMessage['channel'],
+                'triggered_by' => 'manual',
+                'dispatch_rule_id' => null,
+                'message_override' => $messageText,
+                'skip_asaas_sync' => true, // Já foi sincronizado ao gerar a mensagem
+            ]);
             
             if ($sendResult['success']) {
                 // Marca como enviada

@@ -203,8 +203,24 @@ class BillingStartService
         $overdueInvoices = array_filter($invoices, fn($inv) => $inv['status'] === 'overdue');
         $pendingInvoices = array_filter($invoices, fn($inv) => $inv['status'] === 'pending');
         
-        // Extrai primeiro nome do cliente
-        $firstName = explode(' ', $tenantName)[0];
+        // Extrai nome amigável do cliente
+        // Se o nome tem artigos (A, O, AS, OS) ou preposições (DA, DO, DE), pega mais palavras
+        $nameParts = explode(' ', $tenantName);
+        $firstName = $nameParts[0];
+        
+        // Se primeira palavra é artigo/preposição curta, pega as primeiras 2-3 palavras
+        $shortWords = ['A', 'O', 'AS', 'OS', 'DA', 'DO', 'DE', 'DAS', 'DOS'];
+        if (in_array(strtoupper($firstName), $shortWords) && count($nameParts) > 1) {
+            // Pega até 3 palavras ou até encontrar palavra longa
+            $firstName = $nameParts[0];
+            for ($i = 1; $i < min(3, count($nameParts)); $i++) {
+                $firstName .= ' ' . $nameParts[$i];
+                // Para se encontrar palavra com mais de 3 letras que não seja artigo/preposição
+                if (strlen($nameParts[$i]) > 3 && !in_array(strtoupper($nameParts[$i]), $shortWords)) {
+                    break;
+                }
+            }
+        }
         
         // Monta lista de links de faturas VENCIDAS
         $overdueLinks = [];
