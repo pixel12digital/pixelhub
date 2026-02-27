@@ -457,7 +457,7 @@ if (!empty($dailyTasks)):
         ?>
         <div class="daily-task-item" style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f9fafb; border-radius: 6px; border-left: 3px solid <?= $taskTypeInfo['color'] ?>;">
             <input type="checkbox" 
-                   onchange="markDailyTaskComplete(<?= (int)$task['id'] ?>)" 
+                   onchange="markDailyTaskComplete(event, <?= (int)$task['id'] ?>)" 
                    style="width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;">
             <div style="flex: 1; min-width: 0;">
                 <a href="<?= $taskUrl ?>" 
@@ -2284,9 +2284,11 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; ?>
 
 // Marcar tarefa do dia como concluída
-function markDailyTaskComplete(taskId) {
+function markDailyTaskComplete(event, taskId) {
+    const checkbox = event.target;
+    
     if (!confirm('Marcar esta tarefa como concluída?')) {
-        event.target.checked = false;
+        checkbox.checked = false;
         return;
     }
     
@@ -2301,9 +2303,9 @@ function markDailyTaskComplete(taskId) {
     .then(data => {
         if (data.success) {
             // Remove a tarefa da lista com animação
-            event.target.closest('.daily-task-item').style.opacity = '0.5';
+            checkbox.closest('.daily-task-item').style.opacity = '0.5';
             setTimeout(() => {
-                event.target.closest('.daily-task-item').remove();
+                checkbox.closest('.daily-task-item').remove();
                 
                 // Se não houver mais tarefas, remove a seção
                 const remainingTasks = document.querySelectorAll('.daily-task-item');
@@ -2319,13 +2321,13 @@ function markDailyTaskComplete(taskId) {
             }, 300);
         } else {
             alert('Erro ao marcar tarefa como concluída');
-            event.target.checked = false;
+            checkbox.checked = false;
         }
     })
     .catch(error => {
         console.error('Erro:', error);
         alert('Erro ao marcar tarefa como concluída');
-        event.target.checked = false;
+        checkbox.checked = false;
     });
 }
 </script>
