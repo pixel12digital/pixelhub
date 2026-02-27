@@ -350,10 +350,45 @@ class ContactService
 
     /**
      * Busca leads para autocomplete (compatibilidade com sistema atual)
+     * 
+     * IMPORTANTE: Busca na tabela 'leads' (não em tenants), pois o sistema
+     * mantém separação entre leads (prospectos) e tenants (clientes convertidos)
      */
     public static function searchLeads(?string $search = null, int $limit = 50): array
     {
-        return self::list(self::TYPE_LEAD, ['search' => $search], $limit);
+        $db = DB::getConnection();
+        
+        // Requer mínimo 3 caracteres
+        if (empty($search) || strlen(trim($search)) < 3) {
+            return [];
+        }
+        
+        $searchTerm = '%' . trim($search) . '%';
+        $searchDigits = preg_replace('/[^0-9]/', '', $search);
+        
+        $where = ["status != 'converted'"]; // Exclui leads já convertidos
+        $params = [];
+        
+        if (!empty($searchDigits)) {
+            $where[] = "(name LIKE ? OR company LIKE ? OR email LIKE ? OR REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', '') LIKE ?)";
+            $params = [$searchTerm, $searchTerm, $searchTerm, '%' . $searchDigits . '%'];
+        } else {
+            $where[] = "(name LIKE ? OR company LIKE ? OR email LIKE ?)";
+            $params = [$searchTerm, $searchTerm, $searchTerm];
+        }
+        
+        $params[] = $limit;
+        
+        $stmt = $db->prepare("
+            SELECT id, name, phone, email, company, status
+            FROM leads
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY created_at DESC
+            LIMIT ?
+        ");
+        $stmt->execute($params);
+        
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 
     /**
