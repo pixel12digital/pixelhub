@@ -42,19 +42,83 @@ ob_start();
 <!-- Tab WPPConnect -->
 <div id="content-wppconnect" class="tab-content">
     <div class="card">
-        <h3>WPPConnect Gateway (Atual)</h3>
-        <p>Gateway próprio rodando na VPS Hostinger. Este é o provider padrão atual.</p>
-        <p><strong>Status:</strong> <span style="color: #28a745;">✓ Ativo</span></p>
-        <p><strong>Endpoint Webhook:</strong> <code>/api/whatsapp/webhook</code></p>
-        <p><strong>Configuração:</strong> <a href="<?= pixelhub_url('/settings/whatsapp-gateway') ?>">Gerenciar WPPConnect →</a></p>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+            <h3 style="margin: 0;">WPPConnect Gateway</h3>
+            <span style="background: #28a745; color: white; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; line-height: 1.4;">● Ativo</span>
+        </div>
+        <p style="color: #6c757d; margin-bottom: 20px;">Gateway próprio rodando na VPS Hostinger — provider padrão do sistema.</p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px;">
+            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 14px 16px;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">&#9679; Status</div>
+                <div style="font-weight: 600; color: #28a745;">Operacional</div>
+            </div>
+            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 14px 16px;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">&#128279; Endpoint Webhook</div>
+                <code style="font-size: 13px; color: #333;">/api/whatsapp/webhook</code>
+            </div>
+            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 14px 16px;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">&#9881; Provider</div>
+                <div style="font-weight: 600; color: #333;">WPPConnect</div>
+            </div>
+        </div>
+
+        <a href="<?= pixelhub_url('/settings/whatsapp-gateway') ?>"
+           style="display: inline-block; background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px;">
+            &#9881; Gerenciar WPPConnect
+        </a>
     </div>
 </div>
 
 <!-- Tab Meta -->
 <div id="content-meta" class="tab-content" style="display: none;">
-    <div class="card">
-        <h3>Configurar Meta Official API</h3>
-        
+
+    <!-- Card de visão geral Meta -->
+    <div class="card" style="margin-bottom: 20px;">
+        <?php
+            $activeMetaCount = count(array_filter($metaConfigs ?? [], fn($c) => $c['is_active']));
+            $totalMetaCount  = count($metaConfigs ?? []);
+        ?>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+            <h3 style="margin: 0;">Meta Official API</h3>
+            <?php if ($activeMetaCount > 0): ?>
+                <span style="background: #28a745; color: white; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; line-height: 1.4;">
+                    ● <?= $activeMetaCount ?> Ativo<?= $activeMetaCount > 1 ? 's' : '' ?>
+                </span>
+            <?php else: ?>
+                <span style="background: #6c757d; color: white; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; line-height: 1.4;">
+                    ○ Não configurado
+                </span>
+            <?php endif; ?>
+        </div>
+        <p style="color: #6c757d; margin-bottom: 20px;">API oficial do WhatsApp Business — conexão direta com a plataforma Meta, suporte a múltiplos clientes.</p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px;">
+            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 14px 16px;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">&#9679; Status</div>
+                <div style="font-weight: 600; color: <?= $activeMetaCount > 0 ? '#28a745' : '#6c757d' ?>;">
+                    <?= $activeMetaCount > 0 ? $activeMetaCount . ' de ' . $totalMetaCount . ' ativo(s)' : 'Nenhuma config ativa' ?>
+                </div>
+            </div>
+            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 14px 16px;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">&#128279; Endpoint Webhook</div>
+                <code style="font-size: 13px; color: #333;">/api/whatsapp/meta/webhook</code>
+            </div>
+            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 14px 16px;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">&#9881; Provider</div>
+                <div style="font-weight: 600; color: #333;">Meta Cloud API</div>
+            </div>
+        </div>
+
+        <a href="#meta-form" onclick="document.getElementById('meta-form').scrollIntoView({behavior:'smooth'}); return false;"
+           style="display: inline-block; background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px;">
+            &#43; Nova Configuração
+        </a>
+    </div>
+
+    <!-- Card de formulário Meta -->
+    <div class="card" id="meta-form">
+        <h4 style="margin-top: 0; margin-bottom: 20px;">Adicionar Configuração Meta</h4>
         <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/meta/save') ?>">
             <div style="margin-bottom: 20px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">
