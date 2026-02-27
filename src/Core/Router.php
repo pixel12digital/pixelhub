@@ -242,18 +242,21 @@ class Router
             [$controller, $method] = explode('@', $handler);
             $controllerClass = "PixelHub\\Controllers\\{$controller}";
             
+            error_log("Router::executeHandler: Tentando executar {$controllerClass}@{$method}");
             if (function_exists('pixelhub_log')) {
                 pixelhub_log("Router: Tentando executar {$controllerClass}@{$method}");
             }
             
             if (!class_exists($controllerClass)) {
                 $errorMsg = "Controller {$controllerClass} não encontrado";
+                error_log("Router::executeHandler: ERRO - {$errorMsg}");
                 if (function_exists('pixelhub_log')) {
                     pixelhub_log("Router: ERRO - {$errorMsg}");
                 }
                 throw new \RuntimeException($errorMsg);
             }
             
+            error_log("Router::executeHandler: Classe {$controllerClass} encontrada, instanciando...");
             if (function_exists('pixelhub_log')) {
                 pixelhub_log("Router: Classe {$controllerClass} encontrada, instanciando...");
             }
@@ -263,17 +266,20 @@ class Router
                 
                 if (!method_exists($controllerInstance, $method)) {
                     $errorMsg = "Método {$method} não encontrado em {$controllerClass}";
+                    error_log("Router::executeHandler: ERRO - {$errorMsg}");
                     if (function_exists('pixelhub_log')) {
                         pixelhub_log("Router: ERRO - {$errorMsg}");
                     }
                     throw new \RuntimeException($errorMsg);
                 }
                 
+                error_log("Router::executeHandler: Método {$method} encontrado, executando...");
                 if (function_exists('pixelhub_log')) {
                     pixelhub_log("Router: Método {$method} encontrado, executando...");
                 }
                 
                 $controllerInstance->$method();
+                error_log("Router::executeHandler: Método {$method} executado com sucesso");
                 
             } catch (\Throwable $e) {
                 $errorMsg = "Router: ❌❌❌ ERRO ao executar handler ❌❌❌";
