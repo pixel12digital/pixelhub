@@ -28,44 +28,31 @@ class WhatsAppProvidersController extends Controller
         // Lista providers disponíveis
         $availableProviders = WhatsAppProviderFactory::getAvailableProviders();
 
-        // Busca configurações Meta existentes
+        // Busca configuração Meta GLOBAL (apenas 1)
+        $metaConfig = null;
         try {
             $stmt = $db->query("
-                SELECT wpc.*, t.name as tenant_name
-                FROM whatsapp_provider_configs wpc
-                LEFT JOIN tenants t ON wpc.tenant_id = t.id
-                WHERE wpc.provider_type = 'meta_official'
-                ORDER BY wpc.created_at DESC
+                SELECT *
+                FROM whatsapp_provider_configs
+                WHERE provider_type = 'meta_official' AND is_global = TRUE
+                LIMIT 1
             ");
-            $metaConfigs = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            $metaConfig = $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
         } catch (\Exception $e) {
-            $metaConfigs = [];
-            $error = 'Erro ao carregar configurações: ' . $e->getMessage();
-        }
-
-        // Busca tenants para o formulário
-        try {
-            $tenantsStmt = $db->query("
-                SELECT id, name, email 
-                FROM tenants 
-                WHERE (is_archived IS NULL OR is_archived = 0)
-                ORDER BY name
-            ");
-            $tenants = $tenantsStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-        } catch (\Exception $e) {
-            $tenants = [];
+            $error = 'Erro ao carregar configuração Meta: ' . $e->getMessage();
         }
 
         $this->view('settings.whatsapp_providers', [
             'availableProviders' => $availableProviders,
-            'metaConfigs' => $metaConfigs,
-            'tenants' => $tenants,
+            'metaConfig' => $metaConfig,
             'error' => $error ?? null
         ]);
     }
 
     /**
-     * Salva configuração Meta para um tenant
+     * Salva configuração GLOBAL do Meta Official API
+     * 
+     * Meta usa 1 número único para TODOS os clientes (config global)
      * 
      * POST /settings/whatsapp-providers/meta/save
      */
@@ -73,7 +60,6 @@ class WhatsAppProvidersController extends Controller
     {
         Auth::requireInternal();
 
-        $tenantId = (int)($_POST['tenant_id'] ?? 0);
         $phoneNumberId = trim($_POST['phone_number_id'] ?? '');
         $accessToken = trim($_POST['access_token'] ?? '');
         $businessAccountId = trim($_POST['business_account_id'] ?? '');
@@ -81,11 +67,6 @@ class WhatsAppProvidersController extends Controller
         $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : true;
 
         // Validações
-        if ($tenantId <= 0) {
-            $this->redirect('/settings/whatsapp-providers?error=tenant_required');
-            return;
-        }
-
         if (empty($phoneNumberId) || empty($accessToken) || empty($businessAccountId)) {
             $this->redirect('/settings/whatsapp-providers?error=missing_credentials');
             return;
@@ -97,13 +78,12 @@ class WhatsAppProvidersController extends Controller
             // Criptografa access token
             $encryptedToken = 'encrypted:' . CryptoHelper::encrypt($accessToken);
 
-            // Verifica se já existe config para este tenant
-            $stmt = $db->prepare("
+            // Verifica se já existe config global Meta
+            $stmt = $db->query("
                 SELECT id FROM whatsapp_provider_configs 
-                WHERE tenant_id = ? AND provider_type = 'meta_official'
+                WHERE provider_type = 'meta_official' AND is_global = TRUE
                 LIMIT 1
             ");
-            $stmt->execute([$tenantId]);
             $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
 
             $userId = Auth::getUserId();
@@ -133,17 +113,16 @@ class WhatsAppProvidersController extends Controller
 
                 $message = 'Configuração Meta atualizada com sucesso';
             } else {
-                // Insere nova
+                // Insere nova config GLOBAL (tenant_id = NULL, is_global = TRUE)
                 $insertStmt = $db->prepare("
                     INSERT INTO whatsapp_provider_configs (
-                        tenant_id, provider_type, meta_phone_number_id, 
-                        meta_access_token, meta_business_account_id, 
-                        meta_webhook_verify_token, is_active, 
-                        created_by, updated_by
-                    ) VALUES (?, 'meta_official', ?, ?, ?, ?, ?, ?, ?)
+                        tenant_id, provider_type, is_global,
+                        meta_phone_number_id, meta_access_token, 
+                        meta_business_account_id, meta_webhook_verify_token, 
+                        is_active, created_by, updated_by
+                    ) VALUES (NULL, 'meta_official', TRUE, ?, ?, ?, ?, ?, ?, ?)
                 ");
                 $insertStmt->execute([
-                    $tenantId,
                     $phoneNumberId,
                     $encryptedToken,
                     $businessAccountId,

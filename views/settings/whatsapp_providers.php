@@ -118,20 +118,17 @@ ob_start();
 
     <!-- Card de formulário Meta -->
     <div class="card" id="meta-form">
-        <h4 style="margin-top: 0; margin-bottom: 20px;">Adicionar Configuração Meta</h4>
+        <h3 style="margin-top: 0;">Configurar Meta Official API</h3>
+        
+        <div style="background: #e7f3ff; border-left: 4px solid #0066cc; padding: 12px; margin-bottom: 20px;">
+            <strong>ℹ️ Configuração Global</strong>
+            <p style="margin: 8px 0 0 0; font-size: 14px;">
+                A Meta Official API usa <strong>1 número único</strong> para conversar com <strong>TODOS os clientes</strong>.
+                Esta configuração é global e será usada por todo o sistema.
+            </p>
+        </div>
+        
         <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/meta/save') ?>">
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600;">
-                    Cliente <span style="color: #dc3545;">*</span>
-                </label>
-                <select name="tenant_id" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                    <option value="">Selecione um cliente...</option>
-                    <?php foreach ($tenants ?? [] as $tenant): ?>
-                        <option value="<?= $tenant['id'] ?>"><?= htmlspecialchars($tenant['name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
             <div style="margin-bottom: 20px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">
                     Phone Number ID <span style="color: #dc3545;">*</span>
@@ -184,53 +181,40 @@ ob_start();
         </form>
     </div>
 
-    <!-- Lista de Configurações Meta Existentes -->
-    <?php if (!empty($metaConfigs)): ?>
-        <div class="card" style="margin-top: 20px;">
-            <h3>Configurações Meta Existentes</h3>
-            <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="background: #f8f9fa;">
-                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Cliente</th>
-                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Phone Number ID</th>
-                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Status</th>
-                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($metaConfigs as $config): ?>
-                        <tr>
-                            <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">
-                                <?= htmlspecialchars($config['tenant_name'] ?? 'N/A') ?>
-                            </td>
-                            <td style="padding: 12px; border-bottom: 1px solid #dee2e6; font-family: monospace;">
-                                <?= htmlspecialchars($config['meta_phone_number_id']) ?>
-                            </td>
-                            <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">
-                                <?php if ($config['is_active']): ?>
-                                    <span style="color: #28a745;">✓ Ativo</span>
-                                <?php else: ?>
-                                    <span style="color: #6c757d;">○ Inativo</span>
-                                <?php endif; ?>
-                            </td>
-                            <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">
-                                <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/toggle-status') ?>" style="display: inline;">
-                                    <input type="hidden" name="config_id" value="<?= $config['id'] ?>">
-                                    <button type="submit" style="background: #ffc107; color: #000; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">
-                                        <?= $config['is_active'] ? 'Desativar' : 'Ativar' ?>
-                                    </button>
-                                </form>
-                                <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/delete') ?>" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja remover esta configuração?');">
-                                    <input type="hidden" name="config_id" value="<?= $config['id'] ?>">
-                                    <button type="submit" style="background: #dc3545; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer;">
-                                        Remover
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+    <!-- Configuração Meta Atual -->
+    <?php if (!empty($metaConfig)): ?>
+        <div class="card" style="margin-top: 20px; border-left: 4px solid <?= $metaConfig['is_active'] ? '#28a745' : '#6c757d' ?>;">
+            <h3>Configuração Meta Atual</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px;">
+                <div>
+                    <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">Phone Number ID</div>
+                    <div style="font-family: monospace; font-weight: 600;"><?= htmlspecialchars($metaConfig['meta_phone_number_id']) ?></div>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">Business Account ID</div>
+                    <div style="font-family: monospace; font-weight: 600;"><?= htmlspecialchars($metaConfig['meta_business_account_id']) ?></div>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">Status</div>
+                    <div style="font-weight: 600; color: <?= $metaConfig['is_active'] ? '#28a745' : '#6c757d' ?>;">
+                        <?= $metaConfig['is_active'] ? '✓ Ativo' : '○ Inativo' ?>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/toggle-status') ?>" style="display: inline;">
+                    <input type="hidden" name="config_id" value="<?= $metaConfig['id'] ?>">
+                    <button type="submit" style="background: #ffc107; color: #000; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                        <?= $metaConfig['is_active'] ? 'Desativar' : 'Ativar' ?>
+                    </button>
+                </form>
+                <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/delete') ?>" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja remover esta configuração?');">
+                    <input type="hidden" name="config_id" value="<?= $metaConfig['id'] ?>">
+                    <button type="submit" style="background: #dc3545; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                        Remover Configuração
+                    </button>
+                </form>
+            </div>
         </div>
     <?php endif; ?>
 
