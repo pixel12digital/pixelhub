@@ -249,8 +249,11 @@ class OpportunityService
                    u.name as responsible_name,
                    p.label as product_label,
                    p.slug as product_slug,
-                   -- Dias sem interação (simplificado)
-                   DATEDIFF(CURRENT_DATE, o.updated_at) as days_inactive,
+                   -- Dias sem interação (simplificado) - apenas para oportunidades ativas
+                   CASE 
+                       WHEN o.stage IN ('won', 'lost') THEN NULL
+                       ELSE DATEDIFF(CURRENT_DATE, o.updated_at)
+                   END as days_inactive,
                    -- Tem tarefa agendada (simplificado)
                    (SELECT COUNT(*) FROM agenda_manual_items ami 
                     WHERE ami.opportunity_id = o.id 
