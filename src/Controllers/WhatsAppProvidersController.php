@@ -158,7 +158,7 @@ class WhatsAppProvidersController extends Controller
     }
 
     /**
-     * Testa conexão com Meta API
+     * Testa conexão com Meta API (configuração global)
      * 
      * POST /settings/whatsapp-providers/meta/test
      */
@@ -168,38 +168,71 @@ class WhatsAppProvidersController extends Controller
 
         header('Content-Type: application/json');
 
-        $tenantId = (int)($_POST['tenant_id'] ?? 0);
-
-        if ($tenantId <= 0) {
-            echo json_encode([
-                'success' => false,
-                'error' => 'Tenant ID inválido'
-            ]);
-            return;
-        }
-
         try {
-            $provider = WhatsAppProviderFactory::getProviderForTenant($tenantId, 'meta_official');
+            $db = DB::getConnection();
             
-            // Valida configuração
-            $validation = $provider->validateConfiguration();
+            // Busca configuração global Meta
+            $stmt = $db->query("
+                SELECT * FROM whatsapp_provider_configs 
+                WHERE provider_type = 'meta_official' AND is_global = TRUE
+                LIMIT 1
+            ");
+            $config = $stmt->fetch(\PDO::FETCH_ASSOC);
             
-            if (!$validation['valid']) {
+            if (!$config) {
                 echo json_encode([
                     'success' => false,
-                    'error' => 'Configuração inválida: ' . implode(', ', $validation['errors'])
+                    'error' => 'Nenhuma configuração Meta encontrada'
                 ]);
                 return;
             }
-
-            // Obtém info do provider
-            $info = $provider->getProviderInfo();
-
-            echo json_encode([
-                'success' => true,
-                'message' => 'Conexão com Meta API validada com sucesso',
-                'provider_info' => $info
+            
+            if (!$config['is_active']) {
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Configuração Meta está inativa'
+                ]);
+                return;
+            }
+            
+            // Testa chamada à API Meta (verifica se o token é válido)
+            $phoneNumberId = $config['meta_phone_number_id'];
+            $accessToken = $config['meta_access_token'];
+            
+            // Descriptografa token se necessário
+            if (strpos($accessToken, 'encrypted:') === 0) {
+                $accessToken = CryptoHelper::decrypt(substr($accessToken, 10));
+            }
+            
+            // Faz uma chamada simples à API Meta para validar credenciais
+            $url = "https://graph.facebook.com/v21.0/{$phoneNumberId}";
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                "Authorization: Bearer {$accessToken}"
             ]);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            if ($httpCode === 200) {
+                $data = json_decode($response, true);
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Conexão com Meta API validada com sucesso!',
+                    'phone_number' => $data['display_phone_number'] ?? 'N/A',
+                    'verified_name' => $data['verified_name'] ?? 'N/A'
+                ]);
+            } else {
+                $errorData = json_decode($response, true);
+                $errorMsg = $errorData['error']['message'] ?? 'Erro desconhecido';
+                
+                echo json_encode([
+                    'success' => false,
+                    'error' => "Erro ao conectar com Meta API (HTTP {$httpCode}): {$errorMsg}"
+                ]);
+            }
 
         } catch (\Exception $e) {
             error_log('[WhatsAppProvidersController] Erro ao testar Meta: ' . $e->getMessage());

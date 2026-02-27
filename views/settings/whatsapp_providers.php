@@ -128,7 +128,7 @@ ob_start();
             </p>
         </div>
         
-        <form method="POST" action="<?= pixelhub_url('/save-meta-config.php') ?>">
+        <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/meta/save') ?>">
             <div style="margin-bottom: 20px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">
                     Phone Number ID <span style="color: #dc3545;">*</span>
@@ -202,6 +202,9 @@ ob_start();
                 </div>
             </div>
             <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button onclick="testMetaConnection()" style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    🔍 Testar Conexão
+                </button>
                 <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/toggle-status') ?>" style="display: inline;">
                     <input type="hidden" name="config_id" value="<?= $metaConfig['id'] ?>">
                     <button type="submit" style="background: #ffc107; color: #000; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
@@ -215,6 +218,7 @@ ob_start();
                     </button>
                 </form>
             </div>
+            <div id="metaTestResult" style="margin-top: 15px; padding: 12px; border-radius: 4px; display: none;"></div>
         </div>
     <?php endif; ?>
 
@@ -243,6 +247,52 @@ function showTab(tab) {
     
     // Ativa botão selecionado
     document.getElementById('tab-' + tab).style.background = '#023A8D';
+}
+
+function testMetaConnection() {
+    const resultDiv = document.getElementById('metaTestResult');
+    const btn = event.target;
+    
+    // Desabilita botão e mostra loading
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Testando...';
+    
+    // Mostra mensagem de loading
+    resultDiv.style.display = 'block';
+    resultDiv.style.background = '#e7f3ff';
+    resultDiv.style.border = '1px solid #0066cc';
+    resultDiv.innerHTML = '⏳ Testando conexão com Meta API...';
+    
+    // Faz requisição para testar
+    fetch('<?= pixelhub_url('/settings/whatsapp-providers/meta/test') ?>', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.style.background = '#d4edda';
+            resultDiv.style.border = '1px solid #28a745';
+            resultDiv.innerHTML = '✅ <strong>Conexão bem-sucedida!</strong><br>' + 
+                                  (data.message || 'API Meta está respondendo corretamente.');
+        } else {
+            resultDiv.style.background = '#f8d7da';
+            resultDiv.style.border = '1px solid #dc3545';
+            resultDiv.innerHTML = '❌ <strong>Erro na conexão:</strong><br>' + 
+                                  (data.error || 'Não foi possível conectar à API Meta.');
+        }
+    })
+    .catch(error => {
+        resultDiv.style.background = '#f8d7da';
+        resultDiv.style.border = '1px solid #dc3545';
+        resultDiv.innerHTML = '❌ <strong>Erro:</strong> ' + error.message;
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '🔍 Testar Conexão';
+    });
 }
 </script>
 
