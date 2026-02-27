@@ -3253,228 +3253,229 @@ function openInboxNewConversation(tenantId) {
             </form>
         </div>
     </div>
-    
-    <script>
-    function openScheduleTaskModal(taskId, projectId, taskTitle) {
-        document.getElementById('schedule_task_id').value = taskId;
-        document.getElementById('schedule_project_id').value = projectId;
-        document.getElementById('schedule_task_title').textContent = taskTitle;
-        
-        // Preenche data de hoje como padrão
-        var today = new Date().toISOString().split('T')[0];
-        document.getElementById('schedule_date').value = today;
-        
-        // Preenche horário padrão (próxima hora cheia)
-        var now = new Date();
-        var nextHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0);
-        var horaInicio = nextHour.toTimeString().substring(0, 5);
-        var horaFim = new Date(nextHour.getTime() + 60 * 60 * 1000).toTimeString().substring(0, 5);
-        
-        document.getElementById('schedule_hora_inicio').value = horaInicio;
-        document.getElementById('schedule_hora_fim').value = horaFim;
-        
-        document.getElementById('scheduleTaskModal').style.display = 'flex';
-    }
-    
-    function closeScheduleTaskModal() {
-        document.getElementById('scheduleTaskModal').style.display = 'none';
-        document.getElementById('scheduleTaskForm').reset();
-    }
-    
-    function submitScheduleTask(event) {
-        event.preventDefault();
-        
-        var formData = new FormData(event.target);
-        
-        fetch('<?= pixelhub_url('/agenda/schedule-task') ?>', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('✅ Tarefa agendada com sucesso!');
-                closeScheduleTaskModal();
-                
-                // Redireciona para a agenda do dia
-                if (data.redirect_url) {
-                    window.location.href = data.redirect_url;
-                } else {
-                    var data = document.getElementById('schedule_date').value;
-                    window.location.href = '<?= pixelhub_url('/agenda?data=') ?>' + data;
-                }
-            } else {
-                alert('❌ Erro: ' + (data.error || 'Erro desconhecido'));
-            }
-        })
-        .catch(error => {
-            console.error('Erro:', error);
-            alert('❌ Erro ao agendar tarefa');
-        });
-    }
-    
-    // Modal: Criar Tarefa do Dia
-    function openCreateAndScheduleTaskModal(tenantId) {
-        document.getElementById('create_schedule_tenant_id').value = tenantId;
-        
-        // Carrega projetos do cliente
-        fetch('<?= pixelhub_url('/projects/list-by-tenant?tenant_id=') ?>' + tenantId)
-            .then(response => response.json())
-            .then(data => {
-                const projectSelect = document.getElementById('create_schedule_project_id');
-                projectSelect.innerHTML = '<option value="">Nenhum (tarefa avulsa)</option>';
-                
-                if (data.success && data.projects && data.projects.length > 0) {
-                    data.projects.forEach(project => {
-                        const option = document.createElement('option');
-                        option.value = project.id;
-                        option.textContent = project.name;
-                        projectSelect.appendChild(option);
-                    });
-                }
-            })
-            .catch(error => {
-                console.error('Erro ao carregar projetos:', error);
-            });
-        
-        // Preenche data de hoje como padrão
-        var today = new Date().toISOString().split('T')[0];
-        document.getElementById('create_schedule_date').value = today;
-        
-        document.getElementById('createAndScheduleTaskModal').style.display = 'flex';
-    }
-    
-    function closeCreateAndScheduleTaskModal() {
-        document.getElementById('createAndScheduleTaskModal').style.display = 'none';
-        document.getElementById('createAndScheduleTaskForm').reset();
-    }
-    
-    function submitCreateAndScheduleTask(event) {
-        event.preventDefault();
-        
-        var formData = new FormData(event.target);
-        
-        fetch('<?= pixelhub_url('/tasks/create-daily-task') ?>', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                closeCreateAndScheduleTaskModal();
-                
-                // Mostra notificação de sucesso sem alert
-                showSuccessNotification('✅ Tarefa criada com sucesso!');
-                
-                // Se estiver na aba de Projetos e Tarefas, recarrega apenas essa seção
-                const projectsTab = document.querySelector('[data-tab="projects"]');
-                if (projectsTab && projectsTab.style.display !== 'none') {
-                    // Recarrega apenas a seção de projetos via AJAX
-                    const tenantId = <?= $tenant['id'] ?? 0 ?>;
-                    if (tenantId > 0) {
-                        fetch('<?= pixelhub_url('/tenants/view?id=') ?>' + tenantId + '&tab=projects&ajax=1')
-                            .then(r => r.text())
-                            .then(html => {
-                                const parser = new DOMParser();
-                                const doc = parser.parseFromString(html, 'text/html');
-                                const newContent = doc.querySelector('[data-tab="projects"]');
-                                if (newContent && projectsTab) {
-                                    projectsTab.innerHTML = newContent.innerHTML;
-                                }
-                            })
-                            .catch(err => {
-                                console.error('Erro ao recarregar projetos:', err);
-                                // Fallback: recarrega a página se AJAX falhar
-                                window.location.reload();
-                            });
-                    }
-                }
-            } else {
-                alert('❌ Erro: ' + (data.error || 'Erro desconhecido'));
-            }
-        })
-        .catch(error => {
-            console.error('Erro:', error);
-            alert('❌ Erro ao criar tarefa');
-        });
-    }
-    
-    // Função para mostrar notificação de sucesso sem alert
-    function showSuccessNotification(message) {
-        const notification = document.createElement('div');
-        notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4caf50; color: white; padding: 16px 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000; font-weight: 500; animation: slideIn 0.3s ease-out;';
-        notification.textContent = message;
-        
-        // Adiciona animação
-        const style = document.createElement('style');
-        style.textContent = '@keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }';
-        document.head.appendChild(style);
-        
-        document.body.appendChild(notification);
-        
-        // Remove após 3 segundos
-        setTimeout(() => {
-            notification.style.animation = 'slideIn 0.3s ease-out reverse';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
-    </script>
-    
-    <!-- Modal: Criar e Agendar Tarefa -->
-    <div id="createAndScheduleTaskModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; overflow-y: auto;">
-        <div style="background: white; max-width: 800px; width: 90%; border-radius: 8px; padding: 30px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin: 20px;">
-            <button onclick="closeCreateAndScheduleTaskModal()" style="position: absolute; top: 15px; right: 15px; background: #666; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; line-height: 1;">×</button>
-            
-            <h2 style="margin: 0 0 20px 0; color: #333;">Nova Tarefa do Dia</h2>
-            
-            <form id="createAndScheduleTaskForm" onsubmit="submitCreateAndScheduleTask(event)">
-                <input type="hidden" id="create_schedule_tenant_id" name="tenant_id">
-                
-                <div style="margin-bottom: 20px;">
-                    <label for="create_schedule_title" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Título: *</label>
-                    <input type="text" id="create_schedule_title" name="title" required maxlength="200" placeholder="Ex: Resolver pendência de cobrança" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                    <div>
-                        <label for="create_schedule_date" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Data: *</label>
-                        <input type="date" id="create_schedule_date" name="data" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                    </div>
-                    <div>
-                        <label for="create_schedule_task_type" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Tipo: *</label>
-                        <select id="create_schedule_task_type" name="task_type" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                            <option value="">Selecione...</option>
-                            <option value="finance_overdue">Cobrança</option>
-                            <option value="lead_followup">Follow-up</option>
-                            <option value="client_ticket">Suporte</option>
-                            <option value="crm_followup">CRM</option>
-                            <option value="internal">Outro</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div style="margin-bottom: 20px;">
-                    <label for="create_schedule_project_id" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Projeto (opcional):</label>
-                    <select id="create_schedule_project_id" name="project_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                        <option value="">Nenhum (tarefa avulsa)</option>
-                    </select>
-                    <small style="color: #666; font-size: 12px;">Deixe em branco para tarefas gerais do cliente</small>
-                </div>
-                
-                <div style="margin-bottom: 20px;">
-                    <label for="create_schedule_description" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Descrição:</label>
-                    <textarea id="create_schedule_description" name="description" rows="3" placeholder="Detalhes da tarefa..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"></textarea>
-                </div>
-                
-                <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button type="button" onclick="closeCreateAndScheduleTaskModal()" style="padding: 10px 20px; background: #999; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Cancelar</button>
-                    <button type="submit" style="padding: 10px 20px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Criar Tarefa</button>
-                </div>
-            </form>
-        </div>
-    </div>
 
 <?php endif; ?>
+
+<!-- Scripts e Modais Globais (acessíveis de todas as abas) -->
+<script>
+function openScheduleTaskModal(taskId, projectId, taskTitle) {
+    document.getElementById('schedule_task_id').value = taskId;
+    document.getElementById('schedule_project_id').value = projectId;
+    document.getElementById('schedule_task_title').textContent = taskTitle;
+    
+    // Preenche data de hoje como padrão
+    var today = new Date().toISOString().split('T')[0];
+    document.getElementById('schedule_date').value = today;
+    
+    // Preenche horário padrão (próxima hora cheia)
+    var now = new Date();
+    var nextHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0);
+    var horaInicio = nextHour.toTimeString().substring(0, 5);
+    var horaFim = new Date(nextHour.getTime() + 60 * 60 * 1000).toTimeString().substring(0, 5);
+    
+    document.getElementById('schedule_hora_inicio').value = horaInicio;
+    document.getElementById('schedule_hora_fim').value = horaFim;
+    
+    document.getElementById('scheduleTaskModal').style.display = 'flex';
+}
+
+function closeScheduleTaskModal() {
+    document.getElementById('scheduleTaskModal').style.display = 'none';
+    document.getElementById('scheduleTaskForm').reset();
+}
+
+function submitScheduleTask(event) {
+    event.preventDefault();
+    
+    var formData = new FormData(event.target);
+    
+    fetch('<?= pixelhub_url('/agenda/schedule-task') ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Tarefa agendada com sucesso!');
+            closeScheduleTaskModal();
+            
+            // Redireciona para a agenda do dia
+            if (data.redirect_url) {
+                window.location.href = data.redirect_url;
+            } else {
+                var data = document.getElementById('schedule_date').value;
+                window.location.href = '<?= pixelhub_url('/agenda?data=') ?>' + data;
+            }
+        } else {
+            alert('❌ Erro: ' + (data.error || 'Erro desconhecido'));
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('❌ Erro ao agendar tarefa');
+    });
+}
+
+// Modal: Criar Tarefa do Dia
+function openCreateAndScheduleTaskModal(tenantId) {
+    document.getElementById('create_schedule_tenant_id').value = tenantId;
+    
+    // Carrega projetos do cliente
+    fetch('<?= pixelhub_url('/projects/list-by-tenant?tenant_id=') ?>' + tenantId)
+        .then(response => response.json())
+        .then(data => {
+            const projectSelect = document.getElementById('create_schedule_project_id');
+            projectSelect.innerHTML = '<option value="">Nenhum (tarefa avulsa)</option>';
+            
+            if (data.success && data.projects && data.projects.length > 0) {
+                data.projects.forEach(project => {
+                    const option = document.createElement('option');
+                    option.value = project.id;
+                    option.textContent = project.name;
+                    projectSelect.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao carregar projetos:', error);
+        });
+    
+    // Preenche data de hoje como padrão
+    var today = new Date().toISOString().split('T')[0];
+    document.getElementById('create_schedule_date').value = today;
+    
+    document.getElementById('createAndScheduleTaskModal').style.display = 'flex';
+}
+
+function closeCreateAndScheduleTaskModal() {
+    document.getElementById('createAndScheduleTaskModal').style.display = 'none';
+    document.getElementById('createAndScheduleTaskForm').reset();
+}
+
+function submitCreateAndScheduleTask(event) {
+    event.preventDefault();
+    
+    var formData = new FormData(event.target);
+    
+    fetch('<?= pixelhub_url('/tasks/create-daily-task') ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            closeCreateAndScheduleTaskModal();
+            
+            // Mostra notificação de sucesso sem alert
+            showSuccessNotification('✅ Tarefa criada com sucesso!');
+            
+            // Se estiver na aba de Projetos e Tarefas, recarrega apenas essa seção
+            const projectsTab = document.querySelector('[data-tab="projects"]');
+            if (projectsTab && projectsTab.style.display !== 'none') {
+                // Recarrega apenas a seção de projetos via AJAX
+                const tenantId = <?= $tenant['id'] ?? 0 ?>;
+                if (tenantId > 0) {
+                    fetch('<?= pixelhub_url('/tenants/view?id=') ?>' + tenantId + '&tab=projects&ajax=1')
+                        .then(r => r.text())
+                        .then(html => {
+                            const parser = new DOMParser();
+                            const doc = parser.parseFromString(html, 'text/html');
+                            const newContent = doc.querySelector('[data-tab="projects"]');
+                            if (newContent && projectsTab) {
+                                projectsTab.innerHTML = newContent.innerHTML;
+                            }
+                        })
+                        .catch(err => {
+                            console.error('Erro ao recarregar projetos:', err);
+                            // Fallback: recarrega a página se AJAX falhar
+                            window.location.reload();
+                        });
+                }
+            }
+        } else {
+            alert('❌ Erro: ' + (data.error || 'Erro desconhecido'));
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('❌ Erro ao criar tarefa');
+    });
+}
+
+// Função para mostrar notificação de sucesso sem alert
+function showSuccessNotification(message) {
+    const notification = document.createElement('div');
+    notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4caf50; color: white; padding: 16px 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000; font-weight: 500; animation: slideIn 0.3s ease-out;';
+    notification.textContent = message;
+    
+    // Adiciona animação
+    const style = document.createElement('style');
+    style.textContent = '@keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }';
+    document.head.appendChild(style);
+    
+    document.body.appendChild(notification);
+    
+    // Remove após 3 segundos
+    setTimeout(() => {
+        notification.style.animation = 'slideIn 0.3s ease-out reverse';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+</script>
+
+<!-- Modal: Criar e Agendar Tarefa -->
+<div id="createAndScheduleTaskModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; overflow-y: auto;">
+    <div style="background: white; max-width: 800px; width: 90%; border-radius: 8px; padding: 30px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin: 20px;">
+        <button onclick="closeCreateAndScheduleTaskModal()" style="position: absolute; top: 15px; right: 15px; background: #666; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; line-height: 1;">×</button>
+        
+        <h2 style="margin: 0 0 20px 0; color: #333;">Nova Tarefa do Dia</h2>
+        
+        <form id="createAndScheduleTaskForm" onsubmit="submitCreateAndScheduleTask(event)">
+            <input type="hidden" id="create_schedule_tenant_id" name="tenant_id">
+            
+            <div style="margin-bottom: 20px;">
+                <label for="create_schedule_title" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Título: *</label>
+                <input type="text" id="create_schedule_title" name="title" required maxlength="200" placeholder="Ex: Resolver pendência de cobrança" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                <div>
+                    <label for="create_schedule_date" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Data: *</label>
+                    <input type="date" id="create_schedule_date" name="data" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div>
+                    <label for="create_schedule_task_type" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Tipo: *</label>
+                    <select id="create_schedule_task_type" name="task_type" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">Selecione...</option>
+                        <option value="finance_overdue">Cobrança</option>
+                        <option value="lead_followup">Follow-up</option>
+                        <option value="client_ticket">Suporte</option>
+                        <option value="crm_followup">CRM</option>
+                        <option value="internal">Outro</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label for="create_schedule_project_id" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Projeto (opcional):</label>
+                <select id="create_schedule_project_id" name="project_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="">Nenhum (tarefa avulsa)</option>
+                </select>
+                <small style="color: #666; font-size: 12px;">Deixe em branco para tarefas gerais do cliente</small>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label for="create_schedule_description" style="display: block; font-weight: 600; margin-bottom: 5px; color: #333;">Descrição:</label>
+                <textarea id="create_schedule_description" name="description" rows="3" placeholder="Detalhes da tarefa..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"></textarea>
+            </div>
+            
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" onclick="closeCreateAndScheduleTaskModal()" style="padding: 10px 20px; background: #999; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Cancelar</button>
+                <button type="submit" style="padding: 10px 20px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Criar Tarefa</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <!-- Modal de Detalhes de Hospedagem -->
 <div id="hostingDetailsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
