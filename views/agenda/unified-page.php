@@ -440,7 +440,7 @@ if (!empty($dailyTasks)):
 ?>
 <div class="daily-tasks-section" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
     <h3 style="margin: 0 0 15px 0; font-size: 14px; font-weight: 600; color: #374151; display: flex; align-items: center; gap: 8px;">
-        <span>📋 Tarefas do Dia</span>
+        <span>Tarefas do Dia</span>
         <span style="background: #f3f4f6; color: #6b7280; padding: 2px 8px; border-radius: 12px; font-size: 12px;"><?= count($dailyTasks) ?></span>
     </h3>
     <div style="display: flex; flex-direction: column; gap: 8px;">
