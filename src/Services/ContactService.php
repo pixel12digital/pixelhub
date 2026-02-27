@@ -358,23 +358,21 @@ class ContactService
     {
         $db = DB::getConnection();
         
-        // Requer mínimo 3 caracteres
-        if (empty($search) || strlen(trim($search)) < 3) {
-            return [];
-        }
-        
-        $searchTerm = '%' . trim($search) . '%';
-        $searchDigits = preg_replace('/[^0-9]/', '', $search);
-        
         $where = ["status != 'converted'"]; // Exclui leads já convertidos
         $params = [];
         
-        if (!empty($searchDigits)) {
-            $where[] = "(name LIKE ? OR company LIKE ? OR email LIKE ? OR REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', '') LIKE ?)";
-            $params = [$searchTerm, $searchTerm, $searchTerm, '%' . $searchDigits . '%'];
-        } else {
-            $where[] = "(name LIKE ? OR company LIKE ? OR email LIKE ?)";
-            $params = [$searchTerm, $searchTerm, $searchTerm];
+        // Se tem busca, adiciona filtros
+        if (!empty($search) && strlen(trim($search)) >= 3) {
+            $searchTerm = '%' . trim($search) . '%';
+            $searchDigits = preg_replace('/[^0-9]/', '', $search);
+            
+            if (!empty($searchDigits)) {
+                $where[] = "(name LIKE ? OR company LIKE ? OR email LIKE ? OR REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', '') LIKE ?)";
+                $params = [$searchTerm, $searchTerm, $searchTerm, '%' . $searchDigits . '%'];
+            } else {
+                $where[] = "(name LIKE ? OR company LIKE ? OR email LIKE ?)";
+                $params = [$searchTerm, $searchTerm, $searchTerm];
+            }
         }
         
         $params[] = $limit;
