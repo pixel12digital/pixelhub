@@ -488,8 +488,12 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Webhook do Asaas
     $router->post('/webhook/asaas', 'AsaasWebhookController@handle');
     
-    // Webhook do WhatsApp Gateway
+    // Webhook do WhatsApp Gateway (WPPConnect)
     $router->post('/api/whatsapp/webhook', 'WhatsAppWebhookController@handle');
+    
+    // Webhook do Meta Official API
+    $router->get('/api/whatsapp/meta/webhook', 'MetaWebhookController@handle');
+    $router->post('/api/whatsapp/meta/webhook', 'MetaWebhookController@handle');
     
     // API de Eventos (para sistemas internos emitirem eventos)
     $router->post('/api/events', 'EventIngestionController@handle');
@@ -659,7 +663,14 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/settings/smtp', 'SmtpSettingsController@update');
     $router->post('/settings/smtp/test', 'SmtpSettingsController@test');
     
-    // Configurações do WhatsApp Gateway
+    // Configurações de Providers WhatsApp (WPPConnect + Meta Official API)
+    $router->get('/settings/whatsapp-providers', 'WhatsAppProvidersController@index');
+    $router->post('/settings/whatsapp-providers/meta/save', 'WhatsAppProvidersController@saveMetaConfig');
+    $router->post('/settings/whatsapp-providers/meta/test', 'WhatsAppProvidersController@testMetaConnection');
+    $router->post('/settings/whatsapp-providers/toggle-status', 'WhatsAppProvidersController@toggleStatus');
+    $router->post('/settings/whatsapp-providers/delete', 'WhatsAppProvidersController@delete');
+    
+    // Configurações do WhatsApp Gateway (WPPConnect)
     $router->get('/settings/whatsapp-gateway', 'WhatsAppGatewaySettingsController@index');
     $router->post('/settings/whatsapp-gateway', 'WhatsAppGatewaySettingsController@update');
     $router->post('/settings/whatsapp-gateway/test-connection', 'WhatsAppGatewaySettingsController@testConnection');

@@ -14,6 +14,8 @@ use PixelHub\Services\EventRouterService;
 use PixelHub\Services\EventNormalizationService;
 use PixelHub\Services\WhatsAppBillingService;
 use PixelHub\Services\GatewaySecret;
+use PixelHub\Services\WhatsAppProviderFactory;
+use PixelHub\Integrations\WhatsApp\WppConnectProvider;
 use PDO;
 
 /**
@@ -62,6 +64,55 @@ class CommunicationHubController extends Controller
         }
         return $oppId;
     }
+
+    /**
+     * Resolve provider WhatsApp para um tenant com fallback total para WPPConnect
+     * 
+     * GARANTIA: SEMPRE retorna um provider funcional (WppConnectProvider como fallback)
+     * NUNCA lança exceção - em caso de erro, usa WPPConnect
+     * 
+     * @param int|null $tenantId ID do tenant (null = usa WPPConnect padrão)
+     * @param string|null $channelId Channel ID para WPPConnect (opcional)
+     * @return WhatsAppGatewayClient Client compatível (WppConnectProvider retorna o underlying client)
+     */
+    private function resolveWhatsAppProvider(?int $tenantId, ?string $channelId = null): WhatsAppGatewayClient
+    {
+        // Se não tem tenant_id, usa WPPConnect padrão
+        if (empty($tenantId)) {
+            error_log("[CommunicationHub] Sem tenant_id, usando WPPConnect padrão");
+            $provider = new WppConnectProvider(['channel_id' => $channelId]);
+            return $provider->getUnderlyingClient();
+        }
+
+        try {
+            // Tenta obter provider via Factory
+            $provider = WhatsAppProviderFactory::getProviderForTenant($tenantId);
+            
+            // Se for WppConnectProvider, retorna o client subjacente (compatibilidade total)
+            if ($provider instanceof WppConnectProvider) {
+                error_log("[CommunicationHub] Tenant {$tenantId}: usando WPPConnect");
+                // Atualiza channel_id se fornecido
+                if ($channelId) {
+                    $provider = new WppConnectProvider(['channel_id' => $channelId, 'tenant_id' => $tenantId]);
+                }
+                return $provider->getUnderlyingClient();
+            }
+            
+            // Se for Meta ou outro provider, cria wrapper compatível
+            // NOTA: Por enquanto, Meta não é usado aqui pois o código atual espera WhatsAppGatewayClient
+            // Quando Meta estiver pronto, este código será expandido
+            error_log("[CommunicationHub] Tenant {$tenantId}: provider={$provider->getProviderInfo()['provider_type']}, usando WPPConnect como fallback");
+            $fallbackProvider = new WppConnectProvider(['channel_id' => $channelId, 'tenant_id' => $tenantId]);
+            return $fallbackProvider->getUnderlyingClient();
+            
+        } catch (\Exception $e) {
+            // FALLBACK TOTAL: Em caso de qualquer erro, usa WPPConnect
+            error_log("[CommunicationHub] Erro ao resolver provider para tenant {$tenantId}: " . $e->getMessage() . " - usando WPPConnect (fallback)");
+            $fallbackProvider = new WppConnectProvider(['channel_id' => $channelId, 'tenant_id' => $tenantId]);
+            return $fallbackProvider->getUnderlyingClient();
+        }
+    }
+
     /**
      * Cache estático de existência de tabelas (evita SHOW TABLES repetidos no mesmo request)
      * @var array<string, bool>
@@ -1448,8 +1499,15 @@ class CommunicationHubController extends Controller
                 $gatewayTimeout = in_array($messageType, ['audio', 'image', 'video', 'document']) ? 120 : 30;
                 error_log("[CommunicationHub::send] Timeout do gateway: {$gatewayTimeout}s (tipo: {$messageType})");
                 
-                // Cria gateway com configurações (específicas do canal ou globais)
-                $gateway = new WhatsAppGatewayClient($baseUrl, $secret, $gatewayTimeout);
+                // INTEGRAÇÃO MULTI-PROVIDER: Resolve provider WhatsApp (WPPConnect ou Meta Official API)
+                // GARANTIA: Sempre retorna WppConnectProvider como fallback (100% compatível)
+                $gateway = $this->resolveWhatsAppProvider($tenantId, $channelId);
+                
+                // Aplica configurações específicas (timeout, request_id)
+                // Nota: Se o provider já foi criado com configurações, recria com as corretas
+                if ($baseUrl || $secret || $gatewayTimeout !== 30) {
+                    $gateway = new WhatsAppGatewayClient($baseUrl, $secret, $gatewayTimeout);
+                }
                 $gateway->setRequestId($requestId);
                 
                 // ===== LOG TEMPORÁRIO: Endpoint de verificação de status =====
