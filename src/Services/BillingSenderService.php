@@ -280,13 +280,93 @@ class BillingSenderService
                     'message_id' => $gwResult['message_id'] ?? null
                 ]);
             } else {
-                $result['error'] = $gwResult['error'] ?? 'Erro desconhecido no gateway WhatsApp';
-                self::logDispatch('WHATSAPP_FAIL', $result['error'], [
-                    'tenant_id' => $tenantId,
-                    'invoice_id' => $invoice['id'],
-                    'phone' => $phoneNormalized
-                ]);
-                self::recordFailedNotification($db, $tenantId, $invoice['id'], 'whatsapp_inbox', $triggeredBy, $dispatchRuleId, $result['error']);
+                $errorCode = $gwResult['error_code'] ?? null;
+                $error = $gwResult['error'] ?? 'Erro desconhecido no gateway WhatsApp';
+                
+                // ─── TIMEOUT RESILIENCE: Para mensagens de texto com timeout ───
+                // O gateway provavelmente enviou a mensagem mas não respondeu a tempo.
+                // Registra como 'sent_uncertain' e cria evento no Inbox para aparecer na conversa.
+                if ($errorCode === 'TIMEOUT') {
+                    self::logDispatch('WHATSAPP_TIMEOUT', 'Timeout detectado - aplicando timeout resilience', [
+                        'tenant_id' => $tenantId,
+                        'invoice_id' => $invoice['id'],
+                        'phone' => $phoneNormalized
+                    ]);
+                    
+                    // Registra notificação como 'sent_uncertain'
+                    $notificationId = self::recordUncertainNotification(
+                        $db,
+                        $tenantId,
+                        $invoice['id'],
+                        'whatsapp_inbox',
+                        $triggeredBy,
+                        $dispatchRuleId,
+                        $error,
+                        $messageBody
+                    );
+                    
+                    // Cria evento no Inbox com delivery_uncertain=true
+                    try {
+                        $normalizedChannelId = strtolower(str_replace(' ', '', self::WHATSAPP_SESSION));
+                        $timeoutEventPayload = [
+                            'to' => $phoneNormalized,
+                            'timestamp' => time(),
+                            'channel_id' => self::WHATSAPP_SESSION,
+                            'type' => 'text',
+                            'message' => [
+                                'to' => $phoneNormalized,
+                                'text' => $messageBody,
+                                'timestamp' => time()
+                            ],
+                            'text' => $messageBody
+                        ];
+                        
+                        $timeoutMetadata = [
+                            'sent_by' => null,
+                            'sent_by_name' => 'Sistema de Cobrança',
+                            'channel_id' => $normalizedChannelId,
+                            'billing_auto_send' => true,
+                            'invoice_id' => $invoice['id'],
+                            'explicit_tenant_selection' => true,
+                            'delivery_uncertain' => true,
+                            'timeout_at' => date('Y-m-d H:i:s')
+                        ];
+                        
+                        EventIngestionService::ingest([
+                            'event_type' => 'whatsapp.outbound.message',
+                            'source_system' => 'pixelhub_operator',
+                            'payload' => $timeoutEventPayload,
+                            'tenant_id' => $tenantId,
+                            'metadata' => $timeoutMetadata
+                        ]);
+                        
+                        self::logDispatch('INBOX_EVENT_TIMEOUT_CREATED', 'Evento de timeout criado no Inbox', [
+                            'tenant_id' => $tenantId,
+                            'invoice_id' => $invoice['id'],
+                            'phone' => $phoneNormalized
+                        ]);
+                        
+                        // Marca como sucesso parcial (mensagem provavelmente foi enviada)
+                        $result['success'] = true;
+                        $result['notification_ids'][] = $notificationId;
+                        $result['uncertain'] = true;
+                        
+                    } catch (\Exception $ingestEx) {
+                        self::logDispatch('INBOX_EVENT_TIMEOUT_FAIL', 'Erro ao criar evento de timeout: ' . $ingestEx->getMessage(), [
+                            'tenant_id' => $tenantId,
+                            'invoice_id' => $invoice['id']
+                        ]);
+                    }
+                } else {
+                    // Erro real (não timeout) - registra como falha
+                    $result['error'] = $error;
+                    self::logDispatch('WHATSAPP_FAIL', $result['error'], [
+                        'tenant_id' => $tenantId,
+                        'invoice_id' => $invoice['id'],
+                        'phone' => $phoneNormalized
+                    ]);
+                    self::recordFailedNotification($db, $tenantId, $invoice['id'], 'whatsapp_inbox', $triggeredBy, $dispatchRuleId, $result['error']);
+                }
             }
         } catch (\Exception $e) {
             $result['error'] = 'Exception no envio WhatsApp: ' . $e->getMessage();
@@ -497,6 +577,32 @@ class BillingSenderService
             ) VALUES (?, ?, ?, 'manual', 'failed', NOW(), ?)
         ");
         $stmt->execute([$tenantId, $invoiceId, $channel, $errorMessage]);
+    }
+
+    /**
+     * Registra notificação com status 'sent_uncertain' (timeout resilience)
+     * 
+     * Usado quando há timeout na requisição ao gateway, mas a mensagem
+     * provavelmente foi enviada (mensagem de texto).
+     */
+    private static function recordUncertainNotification(
+        \PDO $db,
+        int $tenantId,
+        int $invoiceId,
+        string $channel,
+        string $triggeredBy,
+        ?int $dispatchRuleId,
+        string $errorMessage,
+        string $messageBody
+    ): int {
+        $stmt = $db->prepare("
+            INSERT INTO billing_notifications (
+                tenant_id, invoice_id, channel, template,
+                status, sent_at, last_error, message
+            ) VALUES (?, ?, ?, 'manual', 'sent_uncertain', NOW(), ?, ?)
+        ");
+        $stmt->execute([$tenantId, $invoiceId, $channel, $errorMessage, $messageBody]);
+        return (int) $db->lastInsertId();
     }
 
     /**

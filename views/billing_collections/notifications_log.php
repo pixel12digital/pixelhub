@@ -110,6 +110,7 @@ $hasQueue = $queueTotal > 0;
             <select name="status" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
                 <option value="all" <?= $status === 'all' ? 'selected' : '' ?>>Todos</option>
                 <option value="sent" <?= $status === 'sent' ? 'selected' : '' ?>>Enviado</option>
+                <option value="sent_uncertain" <?= $status === 'sent_uncertain' ? 'selected' : '' ?>>Enviado (confirmação pendente)</option>
                 <option value="sent_manual" <?= $status === 'sent_manual' ? 'selected' : '' ?>>Enviado (manual)</option>
                 <option value="failed" <?= $status === 'failed' ? 'selected' : '' ?>>Falha</option>
                 <option value="prepared" <?= $status === 'prepared' ? 'selected' : '' ?>>Preparado</option>
@@ -164,6 +165,7 @@ $hasQueue = $queueTotal > 0;
                         <?php
                         $statusColors = [
                             'sent' => ['bg' => '#d4edda', 'color' => '#155724', 'label' => 'Enviado'],
+                            'sent_uncertain' => ['bg' => '#fff3cd', 'color' => '#856404', 'label' => 'Enviado (confirmação pendente)'],
                             'sent_manual' => ['bg' => '#cce5ff', 'color' => '#004085', 'label' => 'Manual'],
                             'failed' => ['bg' => '#f8d7da', 'color' => '#721c24', 'label' => 'Falha'],
                             'prepared' => ['bg' => '#fff3cd', 'color' => '#856404', 'label' => 'Preparado'],
@@ -200,7 +202,7 @@ $hasQueue = $queueTotal > 0;
                             $invoiceInfo .= ' R$ ' . number_format((float) $n['amount'], 2, ',', '.');
                         }
                         ?>
-                        <tr style="border-bottom: 1px solid #eee; <?= $n['status'] === 'failed' ? 'background: #fff5f5;' : '' ?>">
+                        <tr style="border-bottom: 1px solid #eee; <?= $n['status'] === 'failed' ? 'background: #fff5f5;' : ($n['status'] === 'sent_uncertain' ? 'background: #fffbf0;' : '') ?>">
                             <td style="padding: 10px; white-space: nowrap;"><?= $createdAt ?></td>
                             <td style="padding: 10px;">
                                 <?php if (!empty($n['tenant_name'])): ?>
