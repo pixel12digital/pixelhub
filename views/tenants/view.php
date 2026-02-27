@@ -2658,7 +2658,7 @@ function openInboxNewConversation(tenantId) {
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <div>
                     <h4 style="margin: 0 0 5px 0; color: #023A8D; font-size: 16px; font-weight: 600;">
-                        📋 Criar Tarefa Rápida
+                        Criar Tarefa Rápida
                     </h4>
                     <p style="margin: 0; color: #666; font-size: 13px;">
                         Precisa de um follow-up ou lembrete? Crie uma tarefa que aparecerá nas "Tarefas do Dia" da agenda.
