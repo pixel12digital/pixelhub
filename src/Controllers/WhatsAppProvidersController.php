@@ -58,13 +58,24 @@ class WhatsAppProvidersController extends Controller
      */
     public function saveMetaConfig(): void
     {
-        Auth::requireInternal();
+        error_log('[WhatsAppProvidersController::saveMetaConfig] INÍCIO - Método chamado');
+        error_log('[WhatsAppProvidersController::saveMetaConfig] POST data: ' . json_encode($_POST));
+        
+        try {
+            Auth::requireInternal();
+            error_log('[WhatsAppProvidersController::saveMetaConfig] Auth OK');
+        } catch (\Exception $e) {
+            error_log('[WhatsAppProvidersController::saveMetaConfig] ERRO Auth: ' . $e->getMessage());
+            throw $e;
+        }
 
         $phoneNumberId = trim($_POST['phone_number_id'] ?? '');
         $accessToken = trim($_POST['access_token'] ?? '');
         $businessAccountId = trim($_POST['business_account_id'] ?? '');
         $webhookVerifyToken = trim($_POST['webhook_verify_token'] ?? '');
         $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : true;
+        
+        error_log('[WhatsAppProvidersController::saveMetaConfig] Dados extraídos - phone_number_id: ' . $phoneNumberId . ', business_account_id: ' . $businessAccountId);
 
         // Validações
         if (empty($phoneNumberId) || empty($accessToken) || empty($businessAccountId)) {
@@ -86,7 +97,8 @@ class WhatsAppProvidersController extends Controller
             ");
             $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-            $userId = Auth::getUserId();
+            $user = Auth::user();
+            $userId = $user['id'] ?? null;
 
             if ($existing) {
                 // Atualiza existente
