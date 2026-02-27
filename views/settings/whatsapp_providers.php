@@ -128,7 +128,7 @@ ob_start();
             </p>
         </div>
         
-        <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/meta/save') ?>">
+        <form method="POST" action="<?= pixelhub_url('/save-meta-config.php') ?>">
             <div style="margin-bottom: 20px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">
                     Phone Number ID <span style="color: #dc3545;">*</span>
