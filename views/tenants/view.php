@@ -2652,6 +2652,41 @@ function openInboxNewConversation(tenantId) {
             </div>
         </div>
         <?php endif; ?>
+        
+        <!-- Seção: Criar Tarefa Rápida -->
+        <div style="margin-top: 30px; padding: 20px; background: #f0f7ff; border-radius: 8px; border: 1px solid #d0e4ff;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div>
+                    <h4 style="margin: 0 0 5px 0; color: #023A8D; font-size: 16px; font-weight: 600;">
+                        📋 Criar Tarefa Rápida
+                    </h4>
+                    <p style="margin: 0; color: #666; font-size: 13px;">
+                        Precisa de um follow-up ou lembrete? Crie uma tarefa que aparecerá nas "Tarefas do Dia" da agenda.
+                    </p>
+                </div>
+                <button type="button" 
+                        onclick="openCreateAndScheduleTaskModal(<?= $tenant['id'] ?>)"
+                        style="background: #023A8D; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 8px; transition: background 0.2s;"
+                        onmouseover="this.style.background='#012560'"
+                        onmouseout="this.style.background='#023A8D'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Nova Tarefa
+                </button>
+            </div>
+            
+            <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #023A8D;">
+                <p style="margin: 0; color: #333; font-size: 13px; line-height: 1.6;">
+                    <strong>Exemplos de uso:</strong><br>
+                    • Retornar contato do cliente em 7 dias<br>
+                    • Resolver pendência de cobrança<br>
+                    • Follow-up de proposta enviada<br>
+                    • Verificar status de ticket de suporte
+                </p>
+            </div>
+        </div>
     </div>
 
 <?php elseif ($activeTab === 'tasks'): ?>
