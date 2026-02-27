@@ -139,6 +139,8 @@ class WhatsAppProvidersController extends Controller
 
         } catch (\Exception $e) {
             error_log('[WhatsAppProvidersController] Erro ao salvar config Meta: ' . $e->getMessage());
+            error_log('[WhatsAppProvidersController] Stack trace: ' . $e->getTraceAsString());
+            error_log('[WhatsAppProvidersController] Dados recebidos: phone_number_id=' . $phoneNumberId . ', business_account_id=' . $businessAccountId);
             $this->redirect('/settings/whatsapp-providers?error=save_failed&message=' . urlencode($e->getMessage()));
         }
     }
