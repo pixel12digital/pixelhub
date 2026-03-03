@@ -189,13 +189,15 @@ class BillingSenderService
         }
 
         // ─── Monta mensagem (reutiliza WhatsAppBillingService) ───────
-        $invoice = $invoices[0]; // Para envio manual, sempre 1 fatura
-        $stage = WhatsAppBillingService::suggestStageForInvoice($invoice)['stage'];
+        // CORREÇÃO 03/03/2026: Usar buildMessageForMultipleInvoices para suportar múltiplas faturas
+        $firstInvoice = $invoices[0];
+        $stage = WhatsAppBillingService::suggestStageForInvoice($firstInvoice)['stage'];
         
         if ($messageOverride) {
             $messageBody = $messageOverride;
         } else {
-            $messageBody = WhatsAppBillingService::buildMessageForInvoice($tenant, $invoice, $stage);
+            // Usa novo método que suporta múltiplas faturas
+            $messageBody = WhatsAppBillingService::buildMessageForMultipleInvoices($tenant, $invoices, $stage);
         }
 
         // ─── Envia via WhatsApp Gateway ───────────────────────────
@@ -204,20 +206,22 @@ class BillingSenderService
             $gwResult = $client->sendText(self::WHATSAPP_SESSION, $phoneNormalized, $messageBody);
 
             if ($gwResult['success']) {
-                // Registra notificação bem-sucedida
-                $notificationId = self::recordSuccessNotification(
-                    $db,
-                    $tenantId,
-                    $invoice['id'],
-                    'whatsapp_inbox',
-                    $triggeredBy,
-                    $dispatchRuleId,
-                    $gwResult['message_id'] ?? null,
-                    $messageBody
-                );
+                // CORREÇÃO 03/03/2026: Registra notificação para TODAS as faturas
+                foreach ($invoices as $invoice) {
+                    $notificationId = self::recordSuccessNotification(
+                        $db,
+                        $tenantId,
+                        $invoice['id'],
+                        'whatsapp_inbox',
+                        $triggeredBy,
+                        $dispatchRuleId,
+                        $gwResult['message_id'] ?? null,
+                        $messageBody
+                    );
+                    $result['notification_ids'][] = $notificationId;
+                }
                 
                 $result['success'] = true;
-                $result['notification_ids'][] = $notificationId;
                 $result['gateway_message_id'] = $gwResult['message_id'] ?? null;
                 
                 // ─── Ingere evento no Inbox (cria conversa vinculada ao tenant) ───
@@ -247,7 +251,8 @@ class BillingSenderService
                         'message_id' => $gatewayMessageId,
                         'channel_id' => $normalizedChannelId,
                         'billing_auto_send' => true,
-                        'invoice_id' => $invoice['id'],
+                        'invoice_id' => $firstInvoice['id'], // Usa primeira fatura para referência
+                        'invoice_count' => count($invoices), // Adiciona contador de faturas
                         'explicit_tenant_selection' => true
                     ];
 
