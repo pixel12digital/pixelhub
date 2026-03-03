@@ -1525,17 +1525,34 @@ class CommunicationHubController extends Controller
                 $gatewayTimeout = in_array($messageType, ['audio', 'image', 'video', 'document']) ? 120 : 30;
                 error_log("[CommunicationHub::send] Timeout do gateway: {$gatewayTimeout}s (tipo: {$messageType})");
                 
-                // INTEGRAÇÃO MULTI-PROVIDER: Resolve provider WhatsApp (WPPConnect ou Meta Official API)
-                // GARANTIA: Sempre retorna WppConnectProvider como fallback (100% compatível)
-                // Passa conversationProviderType para garantir que resposta use o mesmo provider da mensagem original
-                $gateway = $this->resolveWhatsAppProvider($tenantId, $channelId, $conversationProviderType);
+                // INTEGRAÇÃO MULTI-PROVIDER: Detecta se deve usar Meta Official API ou WPPConnect
+                $useMetaAPI = false;
+                $metaProvider = null;
                 
-                // Aplica configurações específicas (timeout, request_id)
-                // Nota: Se o provider já foi criado com configurações, recria com as corretas
-                if ($baseUrl || $secret || $gatewayTimeout !== 30) {
-                    $gateway = new WhatsAppGatewayClient($baseUrl, $secret, $gatewayTimeout);
+                if ($conversationProviderType === 'meta_official') {
+                    error_log("[CommunicationHub::send] Conversa veio via Meta Official API - tentando usar Meta para responder");
+                    try {
+                        $metaProvider = WhatsAppProviderFactory::getProvider('meta_official', $tenantId);
+                        if ($metaProvider instanceof \PixelHub\Integrations\WhatsApp\MetaOfficialProvider) {
+                            $useMetaAPI = true;
+                            error_log("[CommunicationHub::send] ✅ Meta Official API provider obtido com sucesso");
+                        }
+                    } catch (\Exception $e) {
+                        error_log("[CommunicationHub::send] ❌ Erro ao obter Meta provider: " . $e->getMessage() . " - usando WPPConnect (fallback)");
+                    }
                 }
-                $gateway->setRequestId($requestId);
+                
+                // Se não vai usar Meta API, usa WPPConnect
+                $gateway = null;
+                if (!$useMetaAPI) {
+                    $gateway = $this->resolveWhatsAppProvider($tenantId, $channelId, $conversationProviderType);
+                    
+                    // Aplica configurações específicas (timeout, request_id)
+                    if ($baseUrl || $secret || $gatewayTimeout !== 30) {
+                        $gateway = new WhatsAppGatewayClient($baseUrl, $secret, $gatewayTimeout);
+                    }
+                    $gateway->setRequestId($requestId);
+                }
                 
                 // ===== LOG TEMPORÁRIO: Endpoint de verificação de status =====
                 // Usa o primeiro canal de targetChannels para o log (garantido que não está vazio)
@@ -1593,6 +1610,8 @@ class CommunicationHubController extends Controller
                     // CORREÇÃO: Verificação de status é apenas informativa (NÃO-BLOQUEANTE)
                     // Não bloqueia envio - deixa o gateway retornar o erro real se houver problema
                     // Isso evita falsos positivos quando o gateway está temporariamente indisponível
+                    // SKIP para Meta API (não usa gateway WPPConnect)
+                    if (!$useMetaAPI) {
                     try {
                         $channelInfo = $gateway->getChannel($targetChannelId);
                         
@@ -1650,6 +1669,7 @@ class CommunicationHubController extends Controller
                         // Se a verificação falhar por exceção, apenas loga e continua
                         error_log("[CommunicationHub::send] ⚠️ AVISO: Exceção ao verificar canal: " . $e->getMessage() . " - tentando enviar mesmo assim");
                     }
+                    } // Fecha if (!$useMetaAPI)
                     
                     // Envia via gateway usando valor CANÔNICO (case-sensitive)
                     if ($isDev) {
@@ -1892,10 +1912,21 @@ class CommunicationHubController extends Controller
                         
                     } else {
                         // ===== ENVIO DE TEXTO =====
-                        $result = $gateway->sendText($targetChannelId, $phoneNormalized, $message, [
-                            'sent_by' => Auth::user()['id'] ?? null,
-                            'sent_by_name' => Auth::user()['name'] ?? null
-                        ]);
+                        if ($useMetaAPI && $metaProvider) {
+                            // Envia via Meta Official API
+                            error_log("[CommunicationHub::send] 📤 Enviando via Meta Official API para {$phoneNormalized}");
+                            $result = $metaProvider->sendText($phoneNormalized, $message, [
+                                'sent_by' => Auth::user()['id'] ?? null,
+                                'sent_by_name' => Auth::user()['name'] ?? null
+                            ]);
+                            error_log("[CommunicationHub::send] Meta API response: " . json_encode($result));
+                        } else {
+                            // Envia via WPPConnect
+                            $result = $gateway->sendText($targetChannelId, $phoneNormalized, $message, [
+                                'sent_by' => Auth::user()['id'] ?? null,
+                                'sent_by_name' => Auth::user()['name'] ?? null
+                            ]);
+                        }
                     }
                     
                     // LOG DE DIAGNÓSTICO: Resposta do gateway
