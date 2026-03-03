@@ -307,7 +307,7 @@ class WhatsAppBillingService
 
             case 'overdue_15d':
                 $msg = "Oi {$clientName},\n\n" .
-                       "A cobrança abaixo permanece em aberto há mais de 15 dias:\n\n" .
+                       "A cobrança abaixo permanece em aberto:\n\n" .
                        "*Serviço:* {$serviceDescription}\n" .
                        "*Vencimento:* {$dueDateFormatted}\n" .
                        "*Valor:* {$amountFormatted}\n\n";
@@ -338,6 +338,143 @@ class WhatsAppBillingService
                 $msg .= "Qualquer dúvida, fico à disposição.";
                 return $msg;
         }
+    }
+
+    /**
+     * Constrói mensagem para MÚLTIPLAS faturas (novo método - 03/03/2026)
+     * 
+     * Implementa lógica de limite de 3 faturas:
+     * - Se <= 3 faturas: lista todas com detalhes
+     * - Se > 3 faturas: mostra resumo consolidado
+     * 
+     * @param array $tenant Dados do tenant
+     * @param array $invoices Array de faturas
+     * @param string $stage Estágio da cobrança
+     * @return string Mensagem formatada
+     */
+    public static function buildMessageForMultipleInvoices(array $tenant, array $invoices, string $stage): string
+    {
+        if (empty($invoices)) {
+            return self::buildMessageForInvoice($tenant, [], $stage);
+        }
+
+        // Se apenas 1 fatura, usa método original
+        if (count($invoices) === 1) {
+            return self::buildMessageForInvoice($tenant, $invoices[0], $stage);
+        }
+
+        // ─── Dados do cliente ───
+        $clientName = $tenant['name'] ?? 'Cliente';
+        if (($tenant['person_type'] ?? 'pf') === 'pj' && !empty($tenant['nome_fantasia'])) {
+            $clientName = $tenant['nome_fantasia'];
+        } elseif (($tenant['person_type'] ?? 'pf') === 'pj' && !empty($tenant['razao_social'])) {
+            $clientName = $tenant['razao_social'];
+        }
+
+        $invoiceCount = count($invoices);
+        $totalAmount = 0;
+        
+        // Calcular total
+        foreach ($invoices as $inv) {
+            $totalAmount += (float) ($inv['amount'] ?? 0);
+        }
+        
+        $totalFormatted = 'R$ ' . number_format($totalAmount, 2, ',', '.');
+
+        // ─── Informações de PIX ───
+        $pixInfo = "\n*PIX:* 29.714.777/0001-08\n*Favorecido:* Pixel12 Agência de Marketing Digital Ltda\n\nApós o pagamento, por favor envie o comprovante para baixarmos manualmente.";
+
+        // ─── Cabeçalho da mensagem ───
+        $msg = "Oi {$clientName},\n\n";
+        
+        if ($invoiceCount <= 3) {
+            // ═══ LISTA DETALHADA (até 3 faturas) ═══
+            $msg .= "Identificamos que existem *{$invoiceCount} cobranças* em aberto:\n\n";
+            
+            foreach ($invoices as $index => $invoice) {
+                $num = $index + 1;
+                $dueDate = $invoice['due_date'] ?? null;
+                $dueDateFormatted = 'N/A';
+                if ($dueDate) {
+                    try {
+                        $date = new \DateTime($dueDate);
+                        $dueDateFormatted = $date->format('d/m/Y');
+                    } catch (\Exception $e) {
+                        // mantém N/A
+                    }
+                }
+                
+                $amount = (float) ($invoice['amount'] ?? 0);
+                $amountFormatted = 'R$ ' . number_format($amount, 2, ',', '.');
+                $description = trim($invoice['description'] ?? '');
+                $serviceDescription = !empty($description) ? $description : 'Serviço Pixel12 Digital';
+                
+                $msg .= "*{$num}.* {$serviceDescription}\n";
+                $msg .= "   Vencimento: {$dueDateFormatted}\n";
+                $msg .= "   Valor: {$amountFormatted}\n\n";
+            }
+            
+            $msg .= "*Total:* {$totalFormatted}\n\n";
+            
+            // Link da primeira fatura (se houver)
+            $firstInvoiceLink = $invoices[0]['invoice_url'] ?? null;
+            if (!empty($firstInvoiceLink)) {
+                $msg .= "Link para pagamento:\n{$firstInvoiceLink}\n\n";
+            } else {
+                $msg .= $pixInfo . "\n\n";
+            }
+            
+        } else {
+            // ═══ RESUMO CONSOLIDADO (mais de 3 faturas) ═══
+            $msg .= "Identificamos que existem *{$invoiceCount} cobranças* em aberto, totalizando *{$totalFormatted}*.\n\n";
+            $msg .= "Para facilitar, segue o resumo:\n\n";
+            
+            foreach ($invoices as $index => $invoice) {
+                $num = $index + 1;
+                $dueDate = $invoice['due_date'] ?? null;
+                $dueDateFormatted = 'N/A';
+                if ($dueDate) {
+                    try {
+                        $date = new \DateTime($dueDate);
+                        $dueDateFormatted = $date->format('d/m/Y');
+                    } catch (\Exception $e) {
+                        // mantém N/A
+                    }
+                }
+                
+                $amount = (float) ($invoice['amount'] ?? 0);
+                $amountFormatted = 'R$ ' . number_format($amount, 2, ',', '.');
+                
+                $msg .= "{$num}. {$dueDateFormatted} - {$amountFormatted}\n";
+            }
+            
+            $msg .= "\n*Total geral:* {$totalFormatted}\n\n";
+            $msg .= $pixInfo . "\n\n";
+        }
+
+        // ─── Rodapé por estágio ───
+        switch ($stage) {
+            case 'pre_due':
+                $msg .= "Qualquer dúvida, fico à disposição.";
+                break;
+            case 'due_day':
+                $msg .= "Se já realizou o pagamento, pode desconsiderar esta mensagem.";
+                break;
+            case 'overdue_1d':
+            case 'overdue_3d':
+                $msg .= "Para garantir que todos os serviços continuem ativos, pedimos a gentileza de regularizar.\n\n" .
+                        "Se já pagou, pode desconsiderar. Qualquer dúvida, estamos à disposição.";
+                break;
+            case 'overdue_7d':
+            case 'overdue_15d':
+                $msg .= "Para garantir que todos os serviços continuem ativos, precisamos regularizar essa situação.\n\n" .
+                        "Caso esteja enfrentando alguma dificuldade ou necessite de negociação, por favor entre em contato conosco.";
+                break;
+            default:
+                $msg .= "Qualquer dúvida, fico à disposição.";
+        }
+
+        return $msg;
     }
 
     /**
