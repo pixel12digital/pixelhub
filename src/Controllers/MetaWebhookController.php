@@ -65,17 +65,22 @@ class MetaWebhookController extends Controller
                 exit;
             }
 
-            // Persiste payload bruto para auditoria
-            $this->persistRawPayload($payload);
+            // Persiste payload bruto para auditoria e obtém o ID
+            $webhookLogId = $this->persistRawPayload($payload);
 
             // Processa cada entrada do webhook
             $processed = 0;
             foreach ($payload['entry'] ?? [] as $entry) {
                 foreach ($entry['changes'] ?? [] as $change) {
-                    if ($this->processChange($change, $entry)) {
+                    if ($this->processChange($change, $entry, $webhookLogId)) {
                         $processed++;
                     }
                 }
+            }
+            
+            // Marca webhook como processado se houve sucesso
+            if ($processed > 0 && $webhookLogId) {
+                $this->markWebhookAsProcessed($webhookLogId);
             }
 
             // Responde 200 para o Meta
@@ -173,8 +178,9 @@ class MetaWebhookController extends Controller
 
     /**
      * Persiste payload bruto para auditoria
+     * @return int|null ID do webhook inserido
      */
-    private function persistRawPayload(array $payload): void
+    private function persistRawPayload(array $payload): ?int
     {
         try {
             $db = DB::getConnection();
@@ -189,8 +195,11 @@ class MetaWebhookController extends Controller
                 $payloadHash,
                 json_encode($payload, JSON_UNESCAPED_UNICODE)
             ]);
+            
+            return (int)$db->lastInsertId();
         } catch (\Exception $e) {
             error_log('[MetaWebhook] Erro ao persistir payload: ' . $e->getMessage());
+            return null;
         }
     }
 
@@ -215,7 +224,7 @@ class MetaWebhookController extends Controller
     /**
      * Processa uma mudança (change) do webhook
      */
-    private function processChange(array $change, array $entry): bool
+    private function processChange(array $change, array $entry, ?int $webhookLogId = null): bool
     {
         $field = $change['field'] ?? '';
         $value = $change['value'] ?? [];
@@ -238,6 +247,20 @@ class MetaWebhookController extends Controller
 
         error_log('[MetaWebhook] Campo não processado: ' . $field);
         return false;
+    }
+    
+    /**
+     * Marca webhook como processado
+     */
+    private function markWebhookAsProcessed(int $webhookLogId): void
+    {
+        try {
+            $db = DB::getConnection();
+            $db->prepare("UPDATE webhook_raw_logs SET processed = 1 WHERE id = ?")->execute([$webhookLogId]);
+            error_log('[MetaWebhook] Webhook ID ' . $webhookLogId . ' marcado como processado');
+        } catch (\Exception $e) {
+            error_log('[MetaWebhook] Erro ao marcar webhook como processado: ' . $e->getMessage());
+        }
     }
 
     /**
