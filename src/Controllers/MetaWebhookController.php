@@ -250,15 +250,19 @@ class MetaWebhookController extends Controller
         $messageId = $message['id'] ?? null;
         $timestamp = $message['timestamp'] ?? time();
 
-        error_log('[MetaWebhook] Mensagem inbound: from=' . $from . ', id=' . $messageId);
+        error_log('[MetaWebhook] Mensagem inbound: from=' . $from . ', id=' . $messageId . ', phone_number_id=' . $phoneNumberId);
 
-        // Resolve tenant pelo phone_number_id
+        // Tenta resolver tenant pelo phone_number_id, mas aceita NULL (configuração global)
         $tenantId = $this->resolveTenantByPhoneNumberId($phoneNumberId);
+        
+        if ($tenantId === null) {
+            error_log('[MetaWebhook] Tenant não encontrado para phone_number_id=' . $phoneNumberId . ', usando configuração global');
+        }
 
         // Normaliza payload para formato interno
         $normalizedPayload = $this->normalizeInboundMessage($message, $value, $entry);
 
-        // Ingere evento no sistema
+        // Ingere evento no sistema (aceita tenant_id NULL para configuração global)
         try {
             $eventId = EventIngestionService::ingest([
                 'event_type' => 'whatsapp.inbound.message',
@@ -273,10 +277,11 @@ class MetaWebhookController extends Controller
                 ]
             ]);
 
-            error_log('[MetaWebhook] Evento ingerido: event_id=' . $eventId);
+            error_log('[MetaWebhook] Evento ingerido com sucesso: event_id=' . $eventId);
 
         } catch (\Exception $e) {
             error_log('[MetaWebhook] Erro ao ingerir evento: ' . $e->getMessage());
+            error_log('[MetaWebhook] Stack trace: ' . $e->getTraceAsString());
         }
     }
 
