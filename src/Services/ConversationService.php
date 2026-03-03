@@ -1127,13 +1127,21 @@ class ConversationService
             ));
             
             // NOVA ARQUITETURA: Usa remote_key, contact_key, thread_key como identidade primária
+            // Detecta provider_type baseado no source_system do evento
+            $providerType = 'wppconnect'; // Default
+            if (isset($eventData['source_system'])) {
+                if ($eventData['source_system'] === 'meta_official') {
+                    $providerType = 'meta_official';
+                }
+            }
+            
             $stmt = $db->prepare("
                 INSERT INTO conversations 
-                (conversation_key, channel_type, channel_account_id, channel_id, session_id,
+                (conversation_key, channel_type, channel_account_id, channel_id, session_id, provider_type,
                  contact_external_id, remote_key, contact_key, thread_key,
                  contact_name, tenant_id, lead_id, is_incoming_lead, status, last_message_at, last_message_direction, 
                  message_count, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, 1, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, 1, ?, ?)
             ");
 
             $stmt->execute([
@@ -1142,6 +1150,7 @@ class ConversationService
                 $channelInfo['channel_account_id'],
                 $channelInfo['channel_id'] ?? null,
                 $channelInfo['channel_id'] ?? null, // session_id = channel_id para WhatsApp
+                $providerType, // Adiciona provider_type
                 $channelInfo['contact_external_id'], // Mantém para compatibilidade
                 $channelInfo['remote_key'] ?? null,
                 $channelInfo['contact_key'] ?? null,
