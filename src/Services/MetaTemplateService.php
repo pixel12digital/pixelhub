@@ -205,18 +205,34 @@ class MetaTemplateService
             ];
         }
         
-        // Busca configuração Meta do tenant
+        // Busca configuração Meta (global ou por tenant)
         $db = DB::getConnection();
+        
+        // Tenta buscar config global primeiro (is_global=TRUE, tenant_id=NULL)
         $stmt = $db->prepare("
             SELECT meta_business_account_id, meta_access_token 
             FROM whatsapp_provider_configs 
-            WHERE tenant_id = ? 
-            AND provider_type = 'meta_official' 
+            WHERE provider_type = 'meta_official' 
             AND is_active = 1
+            AND is_global = 1
             LIMIT 1
         ");
-        $stmt->execute([$template['tenant_id']]);
+        $stmt->execute();
         $config = $stmt->fetch();
+        
+        // Se não encontrou global, tenta buscar por tenant específico
+        if (!$config) {
+            $stmt = $db->prepare("
+                SELECT meta_business_account_id, meta_access_token 
+                FROM whatsapp_provider_configs 
+                WHERE tenant_id = ? 
+                AND provider_type = 'meta_official' 
+                AND is_active = 1
+                LIMIT 1
+            ");
+            $stmt->execute([$template['tenant_id']]);
+            $config = $stmt->fetch();
+        }
         
         if (!$config || empty($config['meta_business_account_id']) || empty($config['meta_access_token'])) {
             return [
