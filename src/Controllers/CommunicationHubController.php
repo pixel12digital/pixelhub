@@ -7852,7 +7852,16 @@ class CommunicationHubController extends Controller
         $phoneNumberId = $config['meta_phone_number_id'];
         
         // 4. Normaliza telefone para formato E.164
-        $normalizedPhone = \PixelHub\Services\PhoneNormalizer::normalize($to);
+        $normalizedPhone = \PixelHub\Services\PhoneNormalizer::toE164OrNull($to, 'BR', false);
+        
+        if (!$normalizedPhone) {
+            error_log("[CommunicationHub::sendViaMetaAPI] Erro ao normalizar telefone: {$to}");
+            return [
+                'success' => false,
+                'error' => 'Número de telefone inválido',
+                'request_id' => $requestId
+            ];
+        }
         
         error_log("[CommunicationHub::sendViaMetaAPI] Telefone normalizado: {$to} → {$normalizedPhone}");
         

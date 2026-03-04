@@ -30,6 +30,7 @@ if (session_status() === PHP_SESSION_NONE) {
 // Carrega autoload do Composer se existir, senão carrega manualmente
 if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
+    @file_put_contents('/home/pixel12digital/hub.pixel12digital.com.br/logs/debug_index.log', date('Y-m-d H:i:s') . ' AUTOLOAD OK' . "\n", FILE_APPEND);
 } else {
     // Autoload manual simples
     spl_autoload_register(function ($class) {
