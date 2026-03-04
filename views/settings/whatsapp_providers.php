@@ -335,31 +335,31 @@ ob_start();
                                 <div style="display: flex; gap: 4px; justify-content: center;">
                                     <a href="<?= pixelhub_url('/whatsapp/templates/view?id=' . $template['id']) ?>" 
                                        title="Visualizar"
-                                       style="background: #495057; color: white; padding: 6px 10px; border-radius: 4px; text-decoration: none; font-size: 12px;">
-                                        👁️
+                                       style="background: #495057; color: white; padding: 6px 10px; border-radius: 4px; text-decoration: none; font-size: 11px; font-weight: 500;">
+                                        Ver
                                     </a>
                                     
                                     <?php if ($template['status'] !== 'approved'): ?>
                                         <a href="<?= pixelhub_url('/whatsapp/templates/edit?id=' . $template['id']) ?>" 
                                            title="Editar"
-                                           style="background: #6c757d; color: white; padding: 6px 10px; border-radius: 4px; text-decoration: none; font-size: 12px;">
-                                            ✏️
+                                           style="background: #6c757d; color: white; padding: 6px 10px; border-radius: 4px; text-decoration: none; font-size: 11px; font-weight: 500;">
+                                            Editar
                                         </a>
                                     <?php endif; ?>
                                     
                                     <?php if ($template['status'] === 'draft'): ?>
                                         <button onclick="submitTemplate(<?= $template['id'] ?>)" 
                                                 title="Submeter para Aprovação"
-                                                style="background: #868e96; color: white; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                                            📤
+                                                style="background: #868e96; color: white; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500;">
+                                            Enviar
                                         </button>
                                     <?php endif; ?>
                                     
                                     <?php if ($template['status'] !== 'approved'): ?>
                                         <button onclick="deleteTemplate(<?= $template['id'] ?>)" 
                                                 title="Deletar"
-                                                style="background: #adb5bd; color: white; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                                            🗑️
+                                                style="background: #adb5bd; color: white; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500;">
+                                            Excluir
                                         </button>
                                     <?php endif; ?>
                                 </div>

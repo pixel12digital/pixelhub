@@ -182,8 +182,8 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
                                 </div>
                             <?php endif; ?>
                             
-                            <div style="white-space: pre-wrap; margin-bottom: 8px;">
-                                <?= htmlspecialchars($template['content']) ?>
+                            <div style="margin-bottom: 8px; line-height: 1.4;">
+                                <?= nl2br(htmlspecialchars($template['content'])) ?>
                             </div>
                             
                             <?php if (!empty($template['footer_text'])): ?>
