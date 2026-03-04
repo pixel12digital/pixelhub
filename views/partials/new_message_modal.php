@@ -267,12 +267,16 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         var templateSelect = document.getElementById('new-message-template');
         var messageTextarea = document.getElementById('new-message-text');
         var messageContainer = messageTextarea ? messageTextarea.closest('div[style*="margin-bottom"]') : null;
+        var toContainer = document.getElementById('new-message-to-container');
+        var toInput = document.getElementById('new-message-to');
         
         if (channelSelect && sessionContainer) {
             if (channelSelect.value === 'whatsapp') {
                 sessionContainer.style.display = 'block';
                 if (templateContainer) templateContainer.style.display = 'none';
                 if (messageContainer) messageContainer.style.display = 'block';
+                if (toContainer) toContainer.style.display = 'block';
+                if (toInput) toInput.required = true;
                 if (messageTextarea) {
                     messageTextarea.disabled = false;
                     messageTextarea.required = true;
@@ -286,6 +290,8 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 sessionContainer.style.display = 'none';
                 if (templateContainer) templateContainer.style.display = 'block';
                 if (messageContainer) messageContainer.style.display = 'none';
+                if (toContainer) toContainer.style.display = 'block';
+                if (toInput) toInput.required = true;
                 if (messageTextarea) {
                     messageTextarea.disabled = true;
                     messageTextarea.required = false;
@@ -301,6 +307,8 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 sessionContainer.style.display = 'none';
                 if (templateContainer) templateContainer.style.display = 'none';
                 if (messageContainer) messageContainer.style.display = 'block';
+                if (toContainer) toContainer.style.display = 'block';
+                if (toInput) toInput.required = false;
                 if (messageTextarea) {
                     messageTextarea.disabled = false;
                     messageTextarea.required = true;
