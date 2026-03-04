@@ -250,5 +250,25 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
 
 <?php
 $content = ob_get_clean();
+
+// Prepara dados para o modal Nova Mensagem
+use PixelHub\Core\DB;
+$db = DB::getConnection();
+
+// Busca tenants para o dropdown
+$stmt = $db->query("SELECT id, name, phone FROM tenants WHERE is_active = 1 ORDER BY name");
+$tenants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Busca sessões WhatsApp
+$stmt = $db->query("SELECT id, name, status FROM tenant_message_channels WHERE channel_type = 'whatsapp' ORDER BY name");
+$whatsapp_sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Inclui o modal
+ob_start();
+require __DIR__ . '/../partials/new_message_modal.php';
+$modal = ob_get_clean();
+
+$content .= $modal;
+
 require __DIR__ . '/../../layout/main.php';
 ?>
