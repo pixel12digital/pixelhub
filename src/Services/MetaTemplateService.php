@@ -91,6 +91,36 @@ class MetaTemplateService
     }
     
     /**
+     * Lista templates aprovados (para uso em envio de mensagens)
+     * 
+     * @return array Lista de templates aprovados
+     */
+    public static function getApprovedTemplates(): array
+    {
+        $db = DB::getConnection();
+        
+        $stmt = $db->prepare("
+            SELECT 
+                id,
+                template_name,
+                category,
+                language,
+                content,
+                header_type,
+                header_content,
+                footer_text,
+                buttons,
+                meta_template_id
+            FROM whatsapp_message_templates
+            WHERE status = 'approved'
+            ORDER BY template_name ASC
+        ");
+        
+        $stmt->execute();
+        return $stmt->fetchAll() ?: [];
+    }
+    
+    /**
      * Cria um novo template
      * 
      * @param array $data Dados do template

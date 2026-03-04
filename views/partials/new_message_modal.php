@@ -34,8 +34,18 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 <select name="channel" id="new-message-channel" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;" onchange="toggleNewMessageSessionField()">
                     <option value="">Selecione...</option>
                     <option value="whatsapp">WhatsApp</option>
+                    <option value="whatsapp_api">API - Pixel12Digital</option>
                     <option value="chat">Chat Interno</option>
                 </select>
+            </div>
+            
+            <!-- Container para Templates Meta API -->
+            <div id="new-message-template-container" style="margin-bottom: 20px; display: none;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Template Aprovado <span style="color: #dc3545;">*</span></label>
+                <select name="template_id" id="new-message-template" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="">Carregando templates...</option>
+                </select>
+                <small style="color: #666; font-size: 11px; display: block; margin-top: 4px;">Selecione um template aprovado pelo Meta para enviar</small>
             </div>
             
             <div id="new-message-session-container" style="margin-bottom: 20px; display: none;">
@@ -253,18 +263,60 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         var channelSelect = document.getElementById('new-message-channel');
         var sessionContainer = document.getElementById('new-message-session-container');
         var sessionSelect = document.getElementById('new-message-session');
+        var templateContainer = document.getElementById('new-message-template-container');
+        var templateSelect = document.getElementById('new-message-template');
+        
         if (channelSelect && sessionContainer) {
             if (channelSelect.value === 'whatsapp') {
                 sessionContainer.style.display = 'block';
+                if (templateContainer) templateContainer.style.display = 'none';
                 if (sessionSelect) {
                     sessionSelect.required = sessionSelect.options.length > 2;
                     if (sessionSelect.options.length === 2) sessionSelect.selectedIndex = 1;
                 }
+            } else if (channelSelect.value === 'whatsapp_api') {
+                sessionContainer.style.display = 'none';
+                if (templateContainer) templateContainer.style.display = 'block';
+                if (sessionSelect) sessionSelect.required = false;
+                if (templateSelect) templateSelect.required = true;
+                
+                // Carrega templates aprovados
+                loadApprovedTemplates();
             } else {
                 sessionContainer.style.display = 'none';
+                if (templateContainer) templateContainer.style.display = 'none';
                 if (sessionSelect) sessionSelect.required = false;
+                if (templateSelect) templateSelect.required = false;
             }
         }
+    };
+    
+    window.loadApprovedTemplates = function() {
+        var templateSelect = document.getElementById('new-message-template');
+        if (!templateSelect) return;
+        
+        templateSelect.innerHTML = '<option value="">Carregando templates...</option>';
+        
+        fetch('<?= htmlspecialchars(pixelhub_url('/api/whatsapp/templates/approved'), ENT_QUOTES) ?>')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.templates && data.templates.length > 0) {
+                    templateSelect.innerHTML = '<option value="">Selecione um template...</option>';
+                    data.templates.forEach(function(template) {
+                        var option = document.createElement('option');
+                        option.value = template.id;
+                        option.textContent = template.template_name + ' (' + template.category + ')';
+                        option.dataset.content = template.content || '';
+                        templateSelect.appendChild(option);
+                    });
+                } else {
+                    templateSelect.innerHTML = '<option value="">Nenhum template aprovado disponível</option>';
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao carregar templates:', error);
+                templateSelect.innerHTML = '<option value="">Erro ao carregar templates</option>';
+            });
     };
     
     window.onModalClienteSelect = function(phone) {

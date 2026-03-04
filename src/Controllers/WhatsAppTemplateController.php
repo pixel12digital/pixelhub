@@ -237,6 +237,35 @@ class WhatsAppTemplateController
     }
     
     /**
+     * Lista templates aprovados (API JSON)
+     * 
+     * GET /api/whatsapp/templates/approved
+     */
+    public function listApproved(): void
+    {
+        Auth::requireInternal();
+        
+        header('Content-Type: application/json');
+        
+        try {
+            $templates = MetaTemplateService::getApprovedTemplates();
+            
+            echo json_encode([
+                'success' => true,
+                'templates' => $templates
+            ]);
+            
+        } catch (\Exception $e) {
+            echo json_encode([
+                'success' => false,
+                'error' => $e->getMessage()
+            ]);
+        }
+        
+        exit;
+    }
+    
+    /**
      * Deleta template
      * 
      * POST /whatsapp/templates/delete
