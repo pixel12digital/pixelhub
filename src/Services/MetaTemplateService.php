@@ -244,7 +244,7 @@ class MetaTemplateService
         // Descriptografa token se necessário
         $accessToken = $config['meta_access_token'];
         if (strpos($accessToken, 'encrypted:') === 0) {
-            $accessToken = \PixelHub\Helpers\CryptoHelper::decrypt(substr($accessToken, 10));
+            $accessToken = \PixelHub\Core\CryptoHelper::decrypt(substr($accessToken, 10));
         }
         
         // Monta payload para API Meta
