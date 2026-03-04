@@ -1642,8 +1642,18 @@ body.communication-hub-page {
                                             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
                                         </svg>
                                         <span><?= htmlspecialchars($thread['contact'] ?? 'Número não identificado') ?></span>
-                                        <?php if (!empty($thread['channel_id'])): ?>
-                                            <span style="opacity: 0.6; font-size: 11px;">• <?= htmlspecialchars($thread['channel_id']) ?></span>
+                                        <?php 
+                                        // Exibe informação do canal de forma clara
+                                        $providerType = $thread['provider_type'] ?? null;
+                                        $channelId = $thread['channel_id'] ?? null;
+                                        
+                                        if ($providerType === 'meta_official' && !empty($channelId)):
+                                            // Para Meta Official API, mostra "API" + últimos 4 dígitos
+                                            $last4Digits = substr($channelId, -4);
+                                        ?>
+                                            <span style="opacity: 0.6; font-size: 11px;">• API <?= htmlspecialchars($last4Digits) ?></span>
+                                        <?php elseif (!empty($channelId)): ?>
+                                            <span style="opacity: 0.6; font-size: 11px;">• <?= htmlspecialchars($channelId) ?></span>
                                         <?php elseif (isset($thread['channel_type'])): ?>
                                             <span style="opacity: 0.7;">• <?= strtoupper($thread['channel_type']) ?></span>
                                         <?php endif; ?>

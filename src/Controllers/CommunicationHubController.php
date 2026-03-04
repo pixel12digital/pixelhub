@@ -2951,6 +2951,7 @@ class CommunicationHubController extends Controller
                     c.conversation_key,
                     c.channel_type,
                     c.channel_id,
+                    c.provider_type,
                     c.contact_external_id,
                     c.contact_name,
                     c.tenant_id,
