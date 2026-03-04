@@ -7994,20 +7994,20 @@ class CommunicationHubController extends Controller
         
         // 8. Registra evento de envio via EventIngestionService
         try {
-            $eventPayload = [
-                'message_id' => $messageId,
-                'to' => $normalizedPhone,
-                'template' => $template['template_name'],
-                'status' => 'sent',
-                'timestamp' => time()
+            $eventData = [
+                'event_type' => 'whatsapp.outbound.message',
+                'source_system' => 'meta_official',
+                'payload' => [
+                    'message_id' => $messageId,
+                    'to' => $normalizedPhone,
+                    'template' => $template['template_name'],
+                    'status' => 'sent',
+                    'timestamp' => time()
+                ],
+                'trace_id' => $requestId
             ];
             
-            EventIngestionService::ingest(
-                'whatsapp.outbound.message',
-                $eventPayload,
-                'meta_official',
-                $requestId
-            );
+            EventIngestionService::ingest($eventData);
             
             error_log("[CommunicationHub::sendViaMetaAPI] Evento registrado via EventIngestionService");
         } catch (\Exception $e) {
