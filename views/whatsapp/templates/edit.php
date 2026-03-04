@@ -393,9 +393,9 @@ $statusLabels = [
                             <i class="fas fa-save"></i> Salvar Alterações
                         </button>
                         
-                        <?php if ($template['status'] === 'draft'): ?>
+                        <?php if ($template['status'] === 'draft' || $template['status'] === 'rejected'): ?>
                             <button type="button" class="btn btn-action-success w-100 mb-2" onclick="submitTemplateToMeta()">
-                                <i class="fas fa-paper-plane"></i> Enviar para Meta
+                                <i class="fas fa-paper-plane"></i> <?= $template['status'] === 'rejected' ? 'Reenviar para Meta' : 'Enviar para Meta' ?>
                             </button>
                         <?php endif; ?>
                         
