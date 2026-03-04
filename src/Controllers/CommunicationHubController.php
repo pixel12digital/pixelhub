@@ -611,6 +611,10 @@ class CommunicationHubController extends Controller
      */
     public function send(): void
     {
+        // LOG FORÇADO PARA DEBUG - PRIMEIRA LINHA ABSOLUTA
+        error_log("========== SEND() CHAMADO - TIMESTAMP: " . date('Y-m-d H:i:s') . " ==========");
+        error_log("POST DATA: " . json_encode($_POST));
+        
         // ===== REQUEST_ID ÚNICO PARA CORRELAÇÃO DE LOGS =====
         // Gera UUID curto para correlacionar todos os logs do mesmo request
         $requestId = substr(str_replace('-', '', bin2hex(random_bytes(8))), 0, 16);
