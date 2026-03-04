@@ -34,8 +34,11 @@ ob_start();
     <button onclick="showTab('wppconnect')" id="tab-wppconnect" style="padding: 10px 20px; border: none; background: #023A8D; color: white; cursor: pointer; border-radius: 4px 4px 0 0; margin-right: 5px;">
         WPPConnect Gateway
     </button>
-    <button onclick="showTab('meta')" id="tab-meta" style="padding: 10px 20px; border: none; background: #6c757d; color: white; cursor: pointer; border-radius: 4px 4px 0 0;">
+    <button onclick="showTab('meta')" id="tab-meta" style="padding: 10px 20px; border: none; background: #6c757d; color: white; cursor: pointer; border-radius: 4px 4px 0 0; margin-right: 5px;">
         Meta Official API
+    </button>
+    <button onclick="showTab('templates')" id="tab-templates" style="padding: 10px 20px; border: none; background: #6c757d; color: white; cursor: pointer; border-radius: 4px 4px 0 0;">
+        Templates Meta
     </button>
 </div>
 
@@ -232,6 +235,161 @@ ob_start();
     </div>
 </div>
 
+<!-- Tab Templates -->
+<div id="content-templates" class="tab-content" style="display: none;">
+    <?php
+    // Carrega templates
+    require_once __DIR__ . '/../../src/Services/MetaTemplateService.php';
+    use PixelHub\Services\MetaTemplateService;
+    
+    $templates = MetaTemplateService::listTemplates();
+    
+    $statusColors = [
+        'draft' => 'secondary',
+        'pending' => 'warning',
+        'approved' => 'success',
+        'rejected' => 'danger'
+    ];
+    
+    $statusLabels = [
+        'draft' => 'Rascunho',
+        'pending' => 'Pendente',
+        'approved' => 'Aprovado',
+        'rejected' => 'Rejeitado'
+    ];
+    
+    $categoryLabels = [
+        'marketing' => 'Marketing',
+        'utility' => 'Utilidade',
+        'authentication' => 'Autenticação'
+    ];
+    ?>
+    
+    <div class="card" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div>
+                <h3 style="margin: 0;">Templates WhatsApp Business</h3>
+                <p style="color: #6c757d; margin: 4px 0 0 0;">Gerencie templates aprovados pelo Meta para envio em massa</p>
+            </div>
+            <a href="<?= pixelhub_url('/whatsapp/templates/create') ?>" 
+               style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; white-space: nowrap;">
+                + Novo Template
+            </a>
+        </div>
+    </div>
+
+    <?php if (empty($templates)): ?>
+        <div class="card" style="text-align: center; padding: 60px 20px;">
+            <div style="font-size: 48px; color: #dee2e6; margin-bottom: 16px;">💬</div>
+            <h4 style="color: #6c757d; margin-bottom: 8px;">Nenhum template encontrado</h4>
+            <p style="color: #adb5bd; margin-bottom: 24px;">Crie seu primeiro template para começar a enviar mensagens em massa</p>
+            <a href="<?= pixelhub_url('/whatsapp/templates/create') ?>" 
+               style="display: inline-block; background: #023A8D; color: white; padding: 12px 24px; border-radius: 4px; text-decoration: none; font-weight: 600;">
+                + Criar Template
+            </a>
+        </div>
+    <?php else: ?>
+        <div class="card">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #dee2e6;">
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Nome</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Categoria</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Status</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Criado em</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #495057; width: 180px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($templates as $template): ?>
+                        <tr style="border-bottom: 1px solid #dee2e6;">
+                            <td style="padding: 12px;">
+                                <strong><?= htmlspecialchars($template['template_name']) ?></strong>
+                                <?php if (!empty($template['meta_template_id'])): ?>
+                                    <br><small style="color: #6c757d;">ID Meta: <?= htmlspecialchars($template['meta_template_id']) ?></small>
+                                <?php endif; ?>
+                            </td>
+                            <td style="padding: 12px;">
+                                <span style="background: #17a2b8; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                                    <?= $categoryLabels[$template['category']] ?? $template['category'] ?>
+                                </span>
+                            </td>
+                            <td style="padding: 12px;">
+                                <?php
+                                $bgColor = match($template['status']) {
+                                    'draft' => '#6c757d',
+                                    'pending' => '#ffc107',
+                                    'approved' => '#28a745',
+                                    'rejected' => '#dc3545',
+                                    default => '#6c757d'
+                                };
+                                ?>
+                                <span style="background: <?= $bgColor ?>; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                                    <?= $statusLabels[$template['status']] ?? $template['status'] ?>
+                                </span>
+                            </td>
+                            <td style="padding: 12px;">
+                                <small style="color: #6c757d;"><?= date('d/m/Y H:i', strtotime($template['created_at'])) ?></small>
+                            </td>
+                            <td style="padding: 12px; text-align: center;">
+                                <div style="display: flex; gap: 4px; justify-content: center;">
+                                    <a href="<?= pixelhub_url('/whatsapp/templates/view?id=' . $template['id']) ?>" 
+                                       title="Visualizar"
+                                       style="background: #007bff; color: white; padding: 6px 10px; border-radius: 4px; text-decoration: none; font-size: 12px;">
+                                        👁️
+                                    </a>
+                                    
+                                    <?php if ($template['status'] !== 'approved'): ?>
+                                        <a href="<?= pixelhub_url('/whatsapp/templates/edit?id=' . $template['id']) ?>" 
+                                           title="Editar"
+                                           style="background: #6c757d; color: white; padding: 6px 10px; border-radius: 4px; text-decoration: none; font-size: 12px;">
+                                            ✏️
+                                        </a>
+                                    <?php endif; ?>
+                                    
+                                    <?php if ($template['status'] === 'draft'): ?>
+                                        <button onclick="submitTemplate(<?= $template['id'] ?>)" 
+                                                title="Submeter para Aprovação"
+                                                style="background: #28a745; color: white; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                            📤
+                                        </button>
+                                    <?php endif; ?>
+                                    
+                                    <?php if ($template['status'] !== 'approved'): ?>
+                                        <button onclick="deleteTemplate(<?= $template['id'] ?>)" 
+                                                title="Deletar"
+                                                style="background: #dc3545; color: white; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                            🗑️
+                                        </button>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+
+    <!-- Info Card -->
+    <div class="card" style="margin-top: 20px; background: #e7f3ff; border-left: 4px solid #0066cc;">
+        <h4>ℹ️ Sobre Templates WhatsApp Business</h4>
+        <p style="margin-bottom: 12px;"><strong>Status dos Templates:</strong></p>
+        <ul style="margin-bottom: 16px; padding-left: 20px;">
+            <li style="margin-bottom: 6px;"><strong>Rascunho:</strong> Template em edição, não enviado para aprovação</li>
+            <li style="margin-bottom: 6px;"><strong>Pendente:</strong> Aguardando aprovação do Meta (24-48h)</li>
+            <li style="margin-bottom: 6px;"><strong>Aprovado:</strong> Pronto para uso em campanhas</li>
+            <li style="margin-bottom: 6px;"><strong>Rejeitado:</strong> Não aprovado pelo Meta (verifique o motivo)</li>
+        </ul>
+        <p style="margin-bottom: 12px;"><strong>Categorias:</strong></p>
+        <ul style="padding-left: 20px;">
+            <li style="margin-bottom: 6px;"><strong>Marketing:</strong> Promoções, ofertas, novidades</li>
+            <li style="margin-bottom: 6px;"><strong>Utilidade:</strong> Confirmações, atualizações de pedido, lembretes</li>
+            <li style="margin-bottom: 6px;"><strong>Autenticação:</strong> Códigos de verificação, senhas temporárias</li>
+        </ul>
+    </div>
+</div>
+
 <script>
 function showTab(tab) {
     // Esconde todos os conteúdos
@@ -293,6 +451,44 @@ function testMetaConnection() {
         btn.disabled = false;
         btn.innerHTML = '🔍 Testar Conexão';
     });
+}
+
+function submitTemplate(id) {
+    if (!confirm('Deseja submeter este template para aprovação no Meta?\n\nO template será enviado para revisão e você receberá o resultado em 24-48h.')) {
+        return;
+    }
+    
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= pixelhub_url('/whatsapp/templates/submit') ?>';
+    
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'id';
+    input.value = id;
+    
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function deleteTemplate(id) {
+    if (!confirm('Deseja realmente deletar este template?\n\nEsta ação não pode ser desfeita.')) {
+        return;
+    }
+    
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= pixelhub_url('/whatsapp/templates/delete') ?>';
+    
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'id';
+    input.value = id;
+    
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
 }
 </script>
 
