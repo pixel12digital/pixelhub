@@ -103,7 +103,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             </div>
             
             <div style="margin-bottom: 20px;" id="new-message-to-container">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Para (Telefone/E-mail)</label>
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Para (Telefone/E-mail) <span id="to-required-indicator" style="color: #dc3545;">*</span></label>
                 <input type="text" name="to" id="new-message-to" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;" placeholder="5511999999999">
             </div>
             
@@ -476,6 +476,15 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         }
         var formData = new FormData(e.target);
         var data = Object.fromEntries(formData);
+        
+        // Validação customizada de telefone para whatsapp e whatsapp_api
+        if ((data.channel === 'whatsapp' || data.channel === 'whatsapp_api') && !data.to) {
+            alert('Por favor, preencha o telefone do destinatário.');
+            var toInput = document.getElementById('new-message-to');
+            if (toInput) toInput.focus();
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Enviar'; }
+            return;
+        }
         
         // Coleta variáveis do template se canal for whatsapp_api
         if (data.channel === 'whatsapp_api') {
