@@ -182,40 +182,209 @@ class MetaTemplateService
     }
     
     /**
-     * Submete template para aprovação no Meta
+     * Submete template para aprovação no Meta via API
      * 
      * @param int $templateId ID do template
-     * @return array ['success' => bool, 'message' => string, 'meta_template_id' => string|null]
+     * @return array Resultado da submissão
      */
-    public static function submitForApproval(int $templateId): array
+    public static function submitToMeta(int $templateId): array
     {
         $template = self::getById($templateId);
         
         if (!$template) {
-            return ['success' => false, 'message' => 'Template não encontrado'];
+            return [
+                'success' => false,
+                'message' => 'Template não encontrado'
+            ];
         }
         
         if ($template['status'] === 'approved') {
-            return ['success' => false, 'message' => 'Template já está aprovado'];
+            return [
+                'success' => false,
+                'message' => 'Template já está aprovado'
+            ];
         }
         
-        // TODO: Implementar integração com Meta Graph API para submeter template
-        // Por enquanto, apenas marca como pending
-        
+        // Busca configuração Meta do tenant
         $db = DB::getConnection();
         $stmt = $db->prepare("
-            UPDATE whatsapp_message_templates 
-            SET status = 'pending', submitted_at = NOW()
-            WHERE id = ?
+            SELECT meta_business_account_id, meta_access_token 
+            FROM whatsapp_provider_configs 
+            WHERE tenant_id = ? 
+            AND provider_type = 'meta_official' 
+            AND is_active = 1
+            LIMIT 1
         ");
+        $stmt->execute([$template['tenant_id']]);
+        $config = $stmt->fetch();
         
-        $stmt->execute([$templateId]);
+        if (!$config || empty($config['meta_business_account_id']) || empty($config['meta_access_token'])) {
+            return [
+                'success' => false,
+                'message' => 'Configuração Meta Official API não encontrada ou incompleta. Configure em Providers WhatsApp.'
+            ];
+        }
         
-        return [
-            'success' => true,
-            'message' => 'Template submetido para aprovação. Aguarde 24-48h para revisão do Meta.',
-            'meta_template_id' => null
+        // Descriptografa token se necessário
+        $accessToken = $config['meta_access_token'];
+        if (strpos($accessToken, 'encrypted:') === 0) {
+            $accessToken = \PixelHub\Helpers\CryptoHelper::decrypt(substr($accessToken, 10));
+        }
+        
+        // Monta payload para API Meta
+        $payload = self::buildMetaTemplatePayload($template);
+        
+        // Faz POST para Meta Graph API
+        $wabaId = $config['meta_business_account_id'];
+        $url = "https://graph.facebook.com/v18.0/{$wabaId}/message_templates";
+        
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $accessToken,
+                'Content-Type: application/json'
+            ],
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_TIMEOUT => 30
+        ]);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        if ($error) {
+            return [
+                'success' => false,
+                'message' => 'Erro ao conectar com Meta API: ' . $error
+            ];
+        }
+        
+        $result = json_decode($response, true);
+        
+        if ($httpCode >= 200 && $httpCode < 300 && isset($result['id'])) {
+            // Sucesso - atualiza template com ID do Meta
+            $stmt = $db->prepare("
+                UPDATE whatsapp_message_templates 
+                SET status = 'pending', 
+                    meta_template_id = ?,
+                    submitted_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$result['id'], $templateId]);
+            
+            return [
+                'success' => true,
+                'message' => 'Template submetido com sucesso! Aguarde aprovação do Meta (24-48h).',
+                'meta_template_id' => $result['id']
+            ];
+        } else {
+            // Erro da API Meta
+            $errorMessage = $result['error']['message'] ?? 'Erro desconhecido';
+            $errorCode = $result['error']['code'] ?? $httpCode;
+            
+            return [
+                'success' => false,
+                'message' => "Erro ao submeter template (código {$errorCode}): {$errorMessage}",
+                'meta_response' => $result
+            ];
+        }
+    }
+    
+    /**
+     * Monta payload no formato esperado pela Meta Graph API
+     * 
+     * @param array $template Template do banco
+     * @return array Payload para API Meta
+     */
+    private static function buildMetaTemplatePayload(array $template): array
+    {
+        $payload = [
+            'name' => $template['template_name'],
+            'language' => $template['language'],
+            'category' => strtoupper($template['category']),
+            'components' => []
         ];
+        
+        // Header
+        if (!empty($template['header_type']) && $template['header_type'] !== 'none') {
+            $headerComponent = [
+                'type' => 'HEADER'
+            ];
+            
+            if ($template['header_type'] === 'text') {
+                $headerComponent['format'] = 'TEXT';
+                $headerComponent['text'] = $template['header_content'];
+            } else {
+                $headerComponent['format'] = strtoupper($template['header_type']);
+                $headerComponent['example'] = [
+                    'header_handle' => [$template['header_content']]
+                ];
+            }
+            
+            $payload['components'][] = $headerComponent;
+        }
+        
+        // Body (obrigatório)
+        $payload['components'][] = [
+            'type' => 'BODY',
+            'text' => $template['content']
+        ];
+        
+        // Footer
+        if (!empty($template['footer_text'])) {
+            $payload['components'][] = [
+                'type' => 'FOOTER',
+                'text' => $template['footer_text']
+            ];
+        }
+        
+        // Buttons
+        if (!empty($template['buttons'])) {
+            $buttons = is_string($template['buttons']) ? json_decode($template['buttons'], true) : $template['buttons'];
+            
+            if (!empty($buttons)) {
+                $buttonComponent = [
+                    'type' => 'BUTTONS',
+                    'buttons' => []
+                ];
+                
+                foreach ($buttons as $button) {
+                    $metaButton = [];
+                    
+                    if ($button['type'] === 'quick_reply') {
+                        $metaButton = [
+                            'type' => 'QUICK_REPLY',
+                            'text' => $button['text']
+                        ];
+                    } elseif ($button['type'] === 'url') {
+                        $metaButton = [
+                            'type' => 'URL',
+                            'text' => $button['text'],
+                            'url' => $button['id'] ?? ''
+                        ];
+                    } elseif ($button['type'] === 'phone') {
+                        $metaButton = [
+                            'type' => 'PHONE_NUMBER',
+                            'text' => $button['text'],
+                            'phone_number' => $button['id'] ?? ''
+                        ];
+                    }
+                    
+                    if (!empty($metaButton)) {
+                        $buttonComponent['buttons'][] = $metaButton;
+                    }
+                }
+                
+                if (!empty($buttonComponent['buttons'])) {
+                    $payload['components'][] = $buttonComponent;
+                }
+            }
+        }
+        
+        return $payload;
     }
     
     /**

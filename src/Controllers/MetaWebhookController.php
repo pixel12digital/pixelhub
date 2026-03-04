@@ -246,6 +246,12 @@ class MetaWebhookController extends Controller
             }
             return true;
         }
+        
+        // Processa atualizações de status de templates
+        if ($field === 'message_template_status_update') {
+            $this->processTemplateStatusUpdate($value);
+            return true;
+        }
 
         error_log('[MetaWebhook] Campo não processado: ' . $field);
         return false;
@@ -589,5 +595,82 @@ class MetaWebhookController extends Controller
         ];
 
         return $normalized;
+    }
+    
+    /**
+     * Processa atualização de status de template
+     * 
+     * @param array $value Dados do webhook
+     */
+    private function processTemplateStatusUpdate(array $value): void
+    {
+        $event = $value['event'] ?? null;
+        $messageTemplateId = $value['message_template_id'] ?? null;
+        $messageTemplateName = $value['message_template_name'] ?? null;
+        $messageTemplateLanguage = $value['message_template_language'] ?? null;
+        $reason = $value['reason'] ?? null;
+        
+        error_log('[MetaWebhook] Template status update: ' . json_encode([
+            'event' => $event,
+            'template_id' => $messageTemplateId,
+            'template_name' => $messageTemplateName,
+            'language' => $messageTemplateLanguage,
+            'reason' => $reason
+        ]));
+        
+        if (!$messageTemplateId || !$event) {
+            error_log('[MetaWebhook] Template status update incompleto - ignorando');
+            return;
+        }
+        
+        // Busca template no banco pelo meta_template_id
+        $db = DB::getConnection();
+        $stmt = $db->prepare("
+            SELECT id, status 
+            FROM whatsapp_message_templates 
+            WHERE meta_template_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$messageTemplateId]);
+        $template = $stmt->fetch();
+        
+        if (!$template) {
+            error_log('[MetaWebhook] Template não encontrado no banco: meta_template_id=' . $messageTemplateId);
+            return;
+        }
+        
+        // Processa evento
+        switch ($event) {
+            case 'APPROVED':
+                \PixelHub\Services\MetaTemplateService::markAsApproved($template['id'], $messageTemplateId);
+                error_log('[MetaWebhook] Template ID ' . $template['id'] . ' aprovado pelo Meta');
+                break;
+                
+            case 'REJECTED':
+                $rejectionReason = $reason ?? 'Rejeitado pelo Meta sem motivo especificado';
+                \PixelHub\Services\MetaTemplateService::markAsRejected($template['id'], $rejectionReason);
+                error_log('[MetaWebhook] Template ID ' . $template['id'] . ' rejeitado: ' . $rejectionReason);
+                break;
+                
+            case 'PENDING':
+                // Template ainda em análise - não faz nada
+                error_log('[MetaWebhook] Template ID ' . $template['id'] . ' ainda em análise');
+                break;
+                
+            case 'DISABLED':
+                // Template foi desabilitado pelo Meta
+                $stmt = $db->prepare("
+                    UPDATE whatsapp_message_templates 
+                    SET status = 'rejected',
+                        rejection_reason = ?
+                    WHERE id = ?
+                ");
+                $stmt->execute(['Template desabilitado pelo Meta', $template['id']]);
+                error_log('[MetaWebhook] Template ID ' . $template['id'] . ' desabilitado pelo Meta');
+                break;
+                
+            default:
+                error_log('[MetaWebhook] Evento de template desconhecido: ' . $event);
+        }
     }
 }
