@@ -437,7 +437,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         var channel = (document.getElementById('new-message-channel') || {}).value;
         var toInput = document.getElementById('new-message-to');
         var toContainer = document.getElementById('new-message-to-container');
-        if (channel === 'whatsapp' && phone && toInput) {
+        if ((channel === 'whatsapp' || channel === 'whatsapp_api') && phone && toInput) {
             toInput.value = phone;
             if (toContainer) toContainer.style.display = 'block';
         }
@@ -449,7 +449,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             var channel = this.value;
             var toContainer = document.getElementById('new-message-to-container');
             toggleNewMessageSessionField();
-            if (channel === 'whatsapp') {
+            if (channel === 'whatsapp' || channel === 'whatsapp_api') {
                 if (toContainer) toContainer.style.display = 'block';
                 var hiddenInput = document.getElementById('modalClienteTenantId');
                 if (hiddenInput && hiddenInput.value) {
