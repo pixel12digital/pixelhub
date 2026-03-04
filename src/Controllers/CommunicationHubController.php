@@ -870,11 +870,15 @@ class CommunicationHubController extends Controller
                 }
                 
                 try {
+                    error_log("[CommunicationHub::send] Chamando sendViaMetaAPI com: templateId={$templateId}, to={$to}, tenantId={$tenantId}");
                     $result = $this->sendViaMetaAPI($templateId, $to, $tenantId, $requestId);
                     $this->json($result);
                     return;
                 } catch (\Exception $e) {
-                    error_log("[CommunicationHub::send] ❌ ERRO ao enviar via Meta API: " . $e->getMessage());
+                    error_log("[CommunicationHub::send] ❌ EXCEÇÃO CAPTURADA ao enviar via Meta API");
+                    error_log("[CommunicationHub::send] Mensagem: " . $e->getMessage());
+                    error_log("[CommunicationHub::send] Arquivo: " . $e->getFile() . ":" . $e->getLine());
+                    error_log("[CommunicationHub::send] Stack trace: " . $e->getTraceAsString());
                     $this->json(['success' => false, 'error' => 'Erro ao enviar mensagem: ' . $e->getMessage(), 'request_id' => $requestId], 500);
                     return;
                 }
@@ -7777,12 +7781,31 @@ class CommunicationHubController extends Controller
      */
     private function sendViaMetaAPI(int $templateId, string $to, int $tenantId, string $requestId): array
     {
-        error_log("[CommunicationHub::sendViaMetaAPI] Iniciando envio via Meta API - template_id={$templateId}, to={$to}, tenant_id={$tenantId}");
+        error_log("[CommunicationHub::sendViaMetaAPI] ===== INÍCIO =====");
+        error_log("[CommunicationHub::sendViaMetaAPI] Parâmetros recebidos:");
+        error_log("[CommunicationHub::sendViaMetaAPI]   template_id={$templateId}");
+        error_log("[CommunicationHub::sendViaMetaAPI]   to={$to}");
+        error_log("[CommunicationHub::sendViaMetaAPI]   tenant_id={$tenantId}");
+        error_log("[CommunicationHub::sendViaMetaAPI]   request_id={$requestId}");
         
-        $db = DB::getConnection();
+        try {
+            $db = DB::getConnection();
+            error_log("[CommunicationHub::sendViaMetaAPI] ✅ Conexão DB obtida");
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub::sendViaMetaAPI] ❌ ERRO ao obter conexão DB: " . $e->getMessage());
+            throw $e;
+        }
         
         // 1. Busca template aprovado
-        $template = \PixelHub\Services\MetaTemplateService::getById($templateId);
+        try {
+            error_log("[CommunicationHub::sendViaMetaAPI] Buscando template ID={$templateId}...");
+            $template = \PixelHub\Services\MetaTemplateService::getById($templateId);
+            error_log("[CommunicationHub::sendViaMetaAPI] ✅ Template retornado: " . ($template ? 'SIM' : 'NULL'));
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub::sendViaMetaAPI] ❌ EXCEÇÃO ao buscar template: " . $e->getMessage());
+            error_log("[CommunicationHub::sendViaMetaAPI] Stack trace: " . $e->getTraceAsString());
+            throw $e;
+        }
         
         if (!$template || $template['status'] !== 'approved') {
             error_log("[CommunicationHub::sendViaMetaAPI] Template não encontrado ou não aprovado");
@@ -7793,7 +7816,7 @@ class CommunicationHubController extends Controller
             ];
         }
         
-        error_log("[CommunicationHub::sendViaMetaAPI] Template encontrado: {$template['template_name']} (status: {$template['status']})");
+        error_log("[CommunicationHub::sendViaMetaAPI] ✅ Template encontrado: {$template['template_name']} (status: {$template['status']})");
         
         // 2. Busca configuração Meta API (global)
         $stmt = $db->prepare("
