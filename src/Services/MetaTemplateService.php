@@ -370,21 +370,27 @@ class MetaTemplateService
                 foreach ($buttons as $button) {
                     $metaButton = [];
                     
+                    // Valida comprimento do texto (máx 20 caracteres)
+                    $buttonText = $button['text'] ?? '';
+                    if (mb_strlen($buttonText, 'UTF-8') > 20) {
+                        $buttonText = mb_substr($buttonText, 0, 20, 'UTF-8');
+                    }
+                    
                     if ($button['type'] === 'quick_reply') {
                         $metaButton = [
                             'type' => 'QUICK_REPLY',
-                            'text' => $button['text']
+                            'text' => $buttonText
                         ];
                     } elseif ($button['type'] === 'url') {
                         $metaButton = [
                             'type' => 'URL',
-                            'text' => $button['text'],
+                            'text' => $buttonText,
                             'url' => $button['id'] ?? ''
                         ];
                     } elseif ($button['type'] === 'phone') {
                         $metaButton = [
                             'type' => 'PHONE_NUMBER',
-                            'text' => $button['text'],
+                            'text' => $buttonText,
                             'phone_number' => $button['id'] ?? ''
                         ];
                     }
