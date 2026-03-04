@@ -348,7 +348,7 @@ class MetaWebhookController extends Controller
         try {
             $db = DB::getConnection();
             $stmt = $db->prepare("
-                SELECT tenant_id 
+                SELECT tenant_id, is_global
                 FROM whatsapp_provider_configs 
                 WHERE provider_type = 'meta_official' 
                 AND meta_phone_number_id = ? 
@@ -358,7 +358,20 @@ class MetaWebhookController extends Controller
             $stmt->execute([$phoneNumberId]);
             $result = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-            return $result ? (int)$result['tenant_id'] : null;
+            // Se não encontrou nenhum registro, retorna null
+            if (!$result) {
+                error_log('[MetaWebhook] Phone Number ID não encontrado: ' . $phoneNumberId);
+                return null;
+            }
+
+            // Se é configuração global (tenant_id NULL), retorna null mas é válido
+            if ($result['tenant_id'] === null) {
+                error_log('[MetaWebhook] Configuração global encontrada para Phone Number ID: ' . $phoneNumberId);
+                return null; // null aqui significa "global", não "erro"
+            }
+
+            // Configuração específica de tenant
+            return (int)$result['tenant_id'];
 
         } catch (\Exception $e) {
             error_log('[MetaWebhook] Erro ao resolver tenant: ' . $e->getMessage());
@@ -393,6 +406,9 @@ class MetaWebhookController extends Controller
             }
             
             error_log('[MetaWebhook] Botão clicado: ' . $buttonId . ' por ' . $from);
+            
+            // DEBUG: Log detalhado dos parâmetros exatos
+            error_log('[MetaWebhook] DEBUG findByTrigger: triggerType=template_button buttonId=' . json_encode($buttonId) . ' tenantId=' . json_encode($tenantId) . ' strlen=' . strlen($buttonId));
             
             // Busca fluxo correspondente ao botão
             $flow = ChatbotFlowService::findByTrigger('template_button', $buttonId, $tenantId);
