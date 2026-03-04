@@ -99,7 +99,6 @@ $stats = [
     'rules_processed' => 0,
     'invoices_found' => 0,
     'enqueued' => 0,
-    'skipped_no_test' => 0,
     'skipped_recently_sent' => 0,
     'skipped_max_repeats' => 0,
     'skipped_channel_mismatch' => 0,
@@ -203,13 +202,6 @@ foreach ($rules as $rule) {
         $invoiceCount = count($group['invoices']);
         $stats['invoices_found'] += $invoiceCount;
 
-        // Guarda de teste
-        if ((int) $group['is_billing_test'] !== 1) {
-            echo "{$L}   SKIP [{$tenantLabel}]: não é tenant de teste\n";
-            $stats['skipped_no_test'] += $invoiceCount;
-            continue;
-        }
-
         // Verificação de canal
         $tenantChannel = $group['billing_auto_channel'] ?? 'whatsapp';
         $channelMatch = false;
@@ -289,7 +281,6 @@ echo "{$L} Regras processadas: {$stats['rules_processed']}\n";
 echo "{$L} Faturas encontradas: {$stats['invoices_found']}\n";
 echo "{$L} Enfileirados: {$stats['enqueued']}\n";
 echo "{$L} Já enfileirados (dedup): {$stats['skipped_already_queued']}\n";
-echo "{$L} Pulados (não teste): {$stats['skipped_no_test']}\n";
 echo "{$L} Pulados (já enviado): {$stats['skipped_recently_sent']}\n";
 echo "{$L} Pulados (max repeats): {$stats['skipped_max_repeats']}\n";
 echo "{$L} Pulados (canal): {$stats['skipped_channel_mismatch']}\n";
