@@ -7992,25 +7992,28 @@ class CommunicationHubController extends Controller
             error_log("[CommunicationHub::sendViaMetaAPI] Nova conversa criada: {$conversationId}");
         }
         
-        // 8. Salva mensagem no banco
-        $stmt = $db->prepare("
-            INSERT INTO messages (
-                conversation_id,
-                direction,
-                content,
-                message_type,
-                external_id,
-                status,
-                created_at
-            ) VALUES (?, 'outbound', ?, 'template', ?, 'sent', NOW())
-        ");
-        $stmt->execute([
-            $conversationId,
-            "Template: {$template['template_name']}",
-            $messageId
-        ]);
-        
-        error_log("[CommunicationHub::sendViaMetaAPI] Mensagem salva no banco");
+        // 8. Registra evento de envio via EventIngestionService
+        try {
+            $eventPayload = [
+                'message_id' => $messageId,
+                'to' => $normalizedPhone,
+                'template' => $template['template_name'],
+                'status' => 'sent',
+                'timestamp' => time()
+            ];
+            
+            EventIngestionService::ingest(
+                'whatsapp.outbound.message',
+                $eventPayload,
+                'meta_official',
+                $requestId
+            );
+            
+            error_log("[CommunicationHub::sendViaMetaAPI] Evento registrado via EventIngestionService");
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub::sendViaMetaAPI] Erro ao registrar evento: " . $e->getMessage());
+            // Não falha o envio se o registro falhar
+        }
         
         return [
             'success' => true,
