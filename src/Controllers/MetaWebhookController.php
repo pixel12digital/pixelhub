@@ -372,6 +372,9 @@ class MetaWebhookController extends Controller
     private function processInteractiveButton(array $message, string $from, ?int $tenantId, ?string $phoneNumberId): void
     {
         try {
+            // DEBUG: Log payload completo
+            error_log('[MetaWebhook] Payload do botão: ' . json_encode($message));
+            
             // Extrai ID do botão clicado
             $buttonId = null;
             
