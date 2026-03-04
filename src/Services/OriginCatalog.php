@@ -10,6 +10,7 @@ class OriginCatalog
 {
     /**
      * Retorna todas as origens/canais disponíveis
+     * Sincronizado com TrackingCodesService::getChannels()
      * 
      * @return array Lista de origens com key, label e group
      */
@@ -24,16 +25,26 @@ class OriginCatalog
             ],
             [
                 'key' => 'google_ads',
-                'label' => 'Google Ads',
+                'label' => 'Google Ads (Pago)',
                 'group' => 'Google'
             ],
             [
                 'key' => 'google_organic',
-                'label' => 'Google Orgânico',
+                'label' => 'Google Orgânico (SEO)',
+                'group' => 'Google'
+            ],
+            [
+                'key' => 'google_maps',
+                'label' => 'Google Maps',
                 'group' => 'Google'
             ],
             
             // Meta
+            [
+                'key' => 'meta_ads',
+                'label' => 'Meta Ads (Facebook/Instagram - Pago)',
+                'group' => 'Meta'
+            ],
             [
                 'key' => 'facebook',
                 'label' => 'Facebook',
@@ -54,11 +65,61 @@ class OriginCatalog
                 'label' => 'Instagram Ads',
                 'group' => 'Meta'
             ],
+            [
+                'key' => 'instagram_organic',
+                'label' => 'Instagram Orgânico',
+                'group' => 'Meta'
+            ],
+            [
+                'key' => 'facebook_organic',
+                'label' => 'Facebook Orgânico',
+                'group' => 'Meta'
+            ],
             
             // Social
             [
+                'key' => 'tiktok',
+                'label' => 'TikTok',
+                'group' => 'Social'
+            ],
+            [
+                'key' => 'tiktok_organic',
+                'label' => 'TikTok Orgânico',
+                'group' => 'Social'
+            ],
+            [
+                'key' => 'tiktok_ads',
+                'label' => 'TikTok Ads (Pago)',
+                'group' => 'Social'
+            ],
+            [
+                'key' => 'youtube',
+                'label' => 'YouTube',
+                'group' => 'Social'
+            ],
+            [
+                'key' => 'youtube_organic',
+                'label' => 'YouTube Orgânico',
+                'group' => 'Social'
+            ],
+            [
+                'key' => 'youtube_ads',
+                'label' => 'YouTube Ads (Pago)',
+                'group' => 'Social'
+            ],
+            [
                 'key' => 'linkedin',
                 'label' => 'LinkedIn',
+                'group' => 'Social'
+            ],
+            [
+                'key' => 'linkedin_organic',
+                'label' => 'LinkedIn Orgânico',
+                'group' => 'Social'
+            ],
+            [
+                'key' => 'linkedin_ads',
+                'label' => 'LinkedIn Ads (Pago)',
                 'group' => 'Social'
             ],
             [
@@ -67,25 +128,40 @@ class OriginCatalog
                 'group' => 'Social'
             ],
             [
-                'key' => 'tiktok',
-                'label' => 'TikTok',
+                'key' => 'twitter_organic',
+                'label' => 'Twitter/X Orgânico',
                 'group' => 'Social'
             ],
             [
-                'key' => 'youtube',
-                'label' => 'YouTube',
+                'key' => 'twitter_ads',
+                'label' => 'Twitter/X Ads (Pago)',
                 'group' => 'Social'
             ],
             
             // Direct
+            [
+                'key' => 'direct',
+                'label' => 'Acesso Direto',
+                'group' => 'Direct'
+            ],
             [
                 'key' => 'whatsapp',
                 'label' => 'WhatsApp',
                 'group' => 'Direct'
             ],
             [
+                'key' => 'whatsapp_direct',
+                'label' => 'WhatsApp Direto',
+                'group' => 'Direct'
+            ],
+            [
                 'key' => 'email',
                 'label' => 'Email',
+                'group' => 'Direct'
+            ],
+            [
+                'key' => 'email_direct',
+                'label' => 'E-mail Direto',
                 'group' => 'Direct'
             ],
             [
@@ -97,6 +173,23 @@ class OriginCatalog
                 'key' => 'presencial',
                 'label' => 'Presencial',
                 'group' => 'Direct'
+            ],
+            
+            // Referral
+            [
+                'key' => 'referral',
+                'label' => 'Referência (Outros Sites)',
+                'group' => 'Referral'
+            ],
+            [
+                'key' => 'partnership',
+                'label' => 'Parcerias',
+                'group' => 'Referral'
+            ],
+            [
+                'key' => 'influencer',
+                'label' => 'Influenciadores',
+                'group' => 'Referral'
             ],
             
             // Site/Web
@@ -164,6 +257,21 @@ class OriginCatalog
             [
                 'key' => 'outro',
                 'label' => 'Outro',
+                'group' => 'Outro'
+            ],
+            [
+                'key' => 'other',
+                'label' => 'Outro',
+                'group' => 'Outro'
+            ],
+            [
+                'key' => 'offline',
+                'label' => 'Offline',
+                'group' => 'Outro'
+            ],
+            [
+                'key' => 'unknown',
+                'label' => 'Não identificado',
                 'group' => 'Outro'
             ]
         ];

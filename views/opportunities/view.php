@@ -1721,14 +1721,18 @@ async function submitFollowup() {
                 <select id="edit-origin-select" style="width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
                     <option value="">Selecione uma origem...</option>
                     <?php
-                    // Usar catálogo unificado
-                    $origins = OriginCatalog::getForSelect($opp['origin'] ?? '');
-                    foreach ($origins as $key => $label):
-                        if ($key === '') continue; // Pular opção vazia
+                    // Usar catálogo unificado agrupado
+                    $originsGrouped = OriginCatalog::getGrouped();
+                    $currentOrigin = $opp['origin'] ?? '';
+                    foreach ($originsGrouped as $groupName => $origins):
                     ?>
-                        <option value="<?= htmlspecialchars($key) ?>" <?= ($key === ($opp['origin'] ?? '')) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($label) ?>
-                        </option>
+                        <optgroup label="<?= htmlspecialchars($groupName) ?>">
+                        <?php foreach ($origins as $origin): ?>
+                            <option value="<?= htmlspecialchars($origin['key']) ?>" <?= ($origin['key'] === $currentOrigin) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($origin['label']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                        </optgroup>
                     <?php endforeach; ?>
                 </select>
             </div>

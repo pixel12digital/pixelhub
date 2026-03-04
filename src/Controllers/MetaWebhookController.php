@@ -5,6 +5,8 @@ namespace PixelHub\Controllers;
 use PixelHub\Core\Controller;
 use PixelHub\Core\DB;
 use PixelHub\Services\EventIngestionService;
+use PixelHub\Services\ChatbotFlowService;
+use PixelHub\Services\ConversationService;
 
 /**
  * Controller para receber webhooks da Meta Official API
@@ -272,8 +274,9 @@ class MetaWebhookController extends Controller
         $from = $message['from'] ?? null;
         $messageId = $message['id'] ?? null;
         $timestamp = $message['timestamp'] ?? time();
+        $messageType = $message['type'] ?? 'text';
 
-        error_log('[MetaWebhook] Mensagem inbound: from=' . $from . ', id=' . $messageId . ', phone_number_id=' . $phoneNumberId);
+        error_log('[MetaWebhook] Mensagem inbound: from=' . $from . ', id=' . $messageId . ', type=' . $messageType . ', phone_number_id=' . $phoneNumberId);
 
         // Tenta resolver tenant pelo phone_number_id, mas aceita NULL (configuração global)
         $tenantId = $this->resolveTenantByPhoneNumberId($phoneNumberId);
@@ -301,6 +304,11 @@ class MetaWebhookController extends Controller
             ]);
 
             error_log('[MetaWebhook] Evento ingerido com sucesso: event_id=' . $eventId);
+
+            // Processa botão interativo se for o caso
+            if ($messageType === 'interactive' || $messageType === 'button') {
+                $this->processInteractiveButton($message, $from, $tenantId, $phoneNumberId);
+            }
 
         } catch (\Exception $e) {
             error_log('[MetaWebhook] Erro ao ingerir evento: ' . $e->getMessage());
@@ -353,6 +361,170 @@ class MetaWebhookController extends Controller
     }
 
     /**
+     * Processa clique em botão interativo e executa fluxo de chatbot
+     */
+    private function processInteractiveButton(array $message, string $from, ?int $tenantId, ?string $phoneNumberId): void
+    {
+        try {
+            // Extrai ID do botão clicado
+            $buttonId = null;
+            
+            // Formato Meta para quick_reply buttons
+            if (isset($message['interactive']['button_reply']['id'])) {
+                $buttonId = $message['interactive']['button_reply']['id'];
+            }
+            // Formato alternativo para buttons
+            elseif (isset($message['button']['payload'])) {
+                $buttonId = $message['button']['payload'];
+            }
+            
+            if (!$buttonId) {
+                error_log('[MetaWebhook] Botão interativo sem ID identificável');
+                return;
+            }
+            
+            error_log('[MetaWebhook] Botão clicado: ' . $buttonId . ' por ' . $from);
+            
+            // Busca fluxo correspondente ao botão
+            $flow = ChatbotFlowService::findByTrigger('template_button', $buttonId, $tenantId);
+            
+            if (!$flow) {
+                error_log('[MetaWebhook] Nenhum fluxo encontrado para botão: ' . $buttonId);
+                return;
+            }
+            
+            error_log('[MetaWebhook] Fluxo encontrado: ' . $flow['name'] . ' (ID: ' . $flow['id'] . ')');
+            
+            // Resolve ou cria conversa
+            $conversation = $this->resolveConversation($from, $tenantId, $phoneNumberId);
+            
+            if (!$conversation) {
+                error_log('[MetaWebhook] Não foi possível resolver conversa para ' . $from);
+                return;
+            }
+            
+            $conversationId = $conversation['id'];
+            
+            // Registra evento de clique no botão
+            ChatbotFlowService::logEvent($conversationId, 'button_clicked', [
+                'button_id' => $buttonId,
+                'flow_id' => $flow['id'],
+                'flow_name' => $flow['name']
+            ]);
+            
+            // Executa fluxo de chatbot
+            $result = ChatbotFlowService::executeFlow($flow['id'], $conversationId, [
+                'phone' => $from,
+                'button_id' => $buttonId
+            ]);
+            
+            if ($result['success']) {
+                error_log('[MetaWebhook] Fluxo executado com sucesso');
+                
+                // Envia resposta automática se houver
+                if (!empty($result['response']['content'])) {
+                    $this->sendAutomatedResponse($from, $result['response'], $phoneNumberId);
+                }
+            } else {
+                error_log('[MetaWebhook] Erro ao executar fluxo: ' . $result['message']);
+            }
+            
+        } catch (\Exception $e) {
+            error_log('[MetaWebhook] Erro ao processar botão interativo: ' . $e->getMessage());
+            error_log('[MetaWebhook] Stack trace: ' . $e->getTraceAsString());
+        }
+    }
+    
+    /**
+     * Resolve ou cria conversa para um contato
+     */
+    private function resolveConversation(string $from, ?int $tenantId, ?string $phoneNumberId): ?array
+    {
+        try {
+            // Formata contact_external_id no formato Meta
+            $contactExternalId = $from; // Já vem no formato correto (ex: 5511999999999)
+            
+            // Busca conversa existente
+            $db = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT * FROM conversations
+                WHERE contact_external_id = ?
+                AND channel_type = 'whatsapp'
+                AND provider_type = 'meta_official'
+                AND (tenant_id = ? OR (tenant_id IS NULL AND ? IS NULL))
+                ORDER BY last_message_at DESC
+                LIMIT 1
+            ");
+            
+            $stmt->execute([$contactExternalId, $tenantId, $tenantId]);
+            $conversation = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if ($conversation) {
+                return $conversation;
+            }
+            
+            // Cria nova conversa se não existir
+            $conversationKey = 'whatsapp_meta_' . $contactExternalId;
+            
+            $stmt = $db->prepare("
+                INSERT INTO conversations (
+                    conversation_key,
+                    channel_type,
+                    channel_id,
+                    provider_type,
+                    contact_external_id,
+                    contact_name,
+                    tenant_id,
+                    status,
+                    is_bot_active,
+                    created_at,
+                    last_message_at
+                ) VALUES (?, 'whatsapp', ?, 'meta_official', ?, NULL, ?, 'open', 1, NOW(), NOW())
+            ");
+            
+            $stmt->execute([
+                $conversationKey,
+                $phoneNumberId,
+                $contactExternalId,
+                $tenantId
+            ]);
+            
+            $conversationId = (int) $db->lastInsertId();
+            
+            error_log('[MetaWebhook] Nova conversa criada: ID=' . $conversationId);
+            
+            // Retorna conversa recém-criada
+            $stmt = $db->prepare("SELECT * FROM conversations WHERE id = ?");
+            $stmt->execute([$conversationId]);
+            return $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+        } catch (\Exception $e) {
+            error_log('[MetaWebhook] Erro ao resolver conversa: ' . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Envia resposta automática do chatbot
+     */
+    private function sendAutomatedResponse(string $to, array $response, ?string $phoneNumberId): void
+    {
+        try {
+            // TODO: Implementar envio via MetaOfficialProvider
+            // Por enquanto, apenas loga a resposta que seria enviada
+            
+            error_log('[MetaWebhook] Resposta automática a ser enviada para ' . $to . ': ' . substr($response['content'], 0, 100));
+            
+            // Exemplo de como seria o envio:
+            // $provider = WhatsAppProviderFactory::getProviderForPhoneNumberId($phoneNumberId);
+            // $provider->sendText($to, $response['content']);
+            
+        } catch (\Exception $e) {
+            error_log('[MetaWebhook] Erro ao enviar resposta automática: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Normaliza mensagem Meta para formato interno (compatível com WPPConnect)
      */
     private function normalizeInboundMessage(array $message, array $value, array $entry): array
@@ -397,6 +569,15 @@ class MetaWebhookController extends Controller
             case 'document':
                 $normalized['document'] = $message['document'] ?? [];
                 $normalized['caption'] = $message['document']['caption'] ?? null;
+                break;
+                
+            case 'interactive':
+            case 'button':
+                // Extrai informação do botão clicado
+                $buttonReply = $message['interactive']['button_reply'] ?? $message['button'] ?? [];
+                $normalized['text'] = $buttonReply['title'] ?? $buttonReply['text'] ?? 'Botão clicado';
+                $normalized['button_id'] = $buttonReply['id'] ?? $buttonReply['payload'] ?? null;
+                $normalized['message']['body'] = $normalized['text'];
                 break;
         }
 

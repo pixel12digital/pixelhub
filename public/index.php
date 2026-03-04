@@ -670,6 +670,39 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/settings/whatsapp-providers/toggle-status', 'WhatsAppProvidersController@toggleStatus');
     $router->post('/settings/whatsapp-providers/delete', 'WhatsAppProvidersController@delete');
     
+    // Templates WhatsApp Business API (Meta)
+    $router->get('/whatsapp/templates', 'WhatsAppTemplateController@index');
+    $router->get('/whatsapp/templates/create', 'WhatsAppTemplateController@create');
+    $router->post('/whatsapp/templates/create', 'WhatsAppTemplateController@store');
+    $router->get('/whatsapp/templates/edit', 'WhatsAppTemplateController@edit');
+    $router->post('/whatsapp/templates/update', 'WhatsAppTemplateController@update');
+    $router->get('/whatsapp/templates/view', 'WhatsAppTemplateController@view');
+    $router->post('/whatsapp/templates/submit', 'WhatsAppTemplateController@submit');
+    $router->post('/whatsapp/templates/delete', 'WhatsAppTemplateController@delete');
+    
+    // Fluxos de Chatbot
+    $router->get('/chatbot/flows', 'ChatbotController@index');
+    $router->get('/chatbot/flows/create', 'ChatbotController@create');
+    $router->post('/chatbot/flows/create', 'ChatbotController@store');
+    $router->get('/chatbot/flows/edit', 'ChatbotController@edit');
+    $router->post('/chatbot/flows/update', 'ChatbotController@update');
+    $router->get('/chatbot/flows/view', 'ChatbotController@view');
+    $router->post('/chatbot/flows/toggle', 'ChatbotController@toggle');
+    $router->post('/chatbot/flows/delete', 'ChatbotController@delete');
+    $router->post('/chatbot/flows/test', 'ChatbotController@test');
+    
+    // Campanhas de Templates
+    $router->get('/campaigns', 'TemplateCampaignController@index');
+    $router->get('/campaigns/create', 'TemplateCampaignController@create');
+    $router->post('/campaigns/create', 'TemplateCampaignController@store');
+    $router->get('/campaigns/view', 'TemplateCampaignController@view');
+    $router->post('/campaigns/start', 'TemplateCampaignController@start');
+    $router->post('/campaigns/pause', 'TemplateCampaignController@pause');
+    $router->post('/campaigns/resume', 'TemplateCampaignController@resume');
+    $router->post('/campaigns/delete', 'TemplateCampaignController@delete');
+    $router->get('/campaigns/metrics', 'TemplateCampaignController@metrics');
+    $router->post('/campaigns/process-batch', 'TemplateCampaignController@processBatch');
+    
     // Configurações do WhatsApp Gateway (WPPConnect)
     $router->get('/settings/whatsapp-gateway', 'WhatsAppGatewaySettingsController@index');
     $router->post('/settings/whatsapp-gateway', 'WhatsAppGatewaySettingsController@update');
