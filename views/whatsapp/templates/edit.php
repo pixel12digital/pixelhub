@@ -498,19 +498,65 @@ function submitTemplateToMeta() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('✅ ' + data.message);
-            window.location.href = '<?= pixelhub_url('/settings/whatsapp-providers') ?>';
+            // Mostra mensagem de sucesso
+            showSuccessMessage(data.message, data.meta_template_id);
+            
+            // Remove o botão "Enviar para Meta" (template agora está pending)
+            btn.closest('.mb-2').remove();
         } else {
-            alert('❌ Erro: ' + data.message);
+            showErrorMessage(data.message);
             btn.disabled = false;
             btn.innerHTML = originalText;
         }
     })
     .catch(error => {
-        alert('❌ Erro ao enviar template: ' + error.message);
+        showErrorMessage('Erro ao enviar template: ' + error.message);
         btn.disabled = false;
         btn.innerHTML = originalText;
     });
+}
+
+function showSuccessMessage(message, metaTemplateId) {
+    const alertHtml = `
+        <div class="alert alert-success alert-dismissible fade show" role="alert" style="position: fixed; top: 80px; right: 20px; z-index: 9999; min-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <h5 class="alert-heading"><i class="fas fa-check-circle"></i> Template Enviado!</h5>
+            <p class="mb-2">${message}</p>
+            ${metaTemplateId ? `<small class="text-muted">Meta Template ID: ${metaTemplateId}</small>` : ''}
+            <hr>
+            <p class="mb-0"><small><i class="fas fa-clock"></i> O Meta analisará seu template em 24-48h. Você receberá uma notificação quando for aprovado ou rejeitado.</small></p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', alertHtml);
+    
+    // Remove automaticamente após 10 segundos
+    setTimeout(() => {
+        const alert = document.querySelector('.alert-success');
+        if (alert) {
+            alert.remove();
+        }
+    }, 10000);
+}
+
+function showErrorMessage(message) {
+    const alertHtml = `
+        <div class="alert alert-danger alert-dismissible fade show" role="alert" style="position: fixed; top: 80px; right: 20px; z-index: 9999; min-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <h5 class="alert-heading"><i class="fas fa-exclamation-circle"></i> Erro ao Enviar</h5>
+            <p class="mb-0">${message}</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', alertHtml);
+    
+    // Remove automaticamente após 8 segundos
+    setTimeout(() => {
+        const alert = document.querySelector('.alert-danger');
+        if (alert) {
+            alert.remove();
+        }
+    }, 8000);
 }
 </script>
 
