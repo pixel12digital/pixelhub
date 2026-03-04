@@ -124,7 +124,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                     </div>
                     </div>
                 </div>
-                <textarea name="message" id="new-message-text" required rows="5" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; resize: vertical;"></textarea>
+                <textarea name="message" id="new-message-text" rows="5" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; resize: vertical;"></textarea>
             </div>
             
             <div style="display: flex; gap: 10px;">
@@ -265,11 +265,19 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         var sessionSelect = document.getElementById('new-message-session');
         var templateContainer = document.getElementById('new-message-template-container');
         var templateSelect = document.getElementById('new-message-template');
+        var messageTextarea = document.getElementById('new-message-text');
+        var messageContainer = messageTextarea ? messageTextarea.closest('div[style*="margin-bottom"]') : null;
         
         if (channelSelect && sessionContainer) {
             if (channelSelect.value === 'whatsapp') {
                 sessionContainer.style.display = 'block';
                 if (templateContainer) templateContainer.style.display = 'none';
+                if (messageContainer) messageContainer.style.display = 'block';
+                if (messageTextarea) {
+                    messageTextarea.disabled = false;
+                    messageTextarea.required = true;
+                    messageTextarea.placeholder = '';
+                }
                 if (sessionSelect) {
                     sessionSelect.required = sessionSelect.options.length > 2;
                     if (sessionSelect.options.length === 2) sessionSelect.selectedIndex = 1;
@@ -277,6 +285,13 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             } else if (channelSelect.value === 'whatsapp_api') {
                 sessionContainer.style.display = 'none';
                 if (templateContainer) templateContainer.style.display = 'block';
+                if (messageContainer) messageContainer.style.display = 'none';
+                if (messageTextarea) {
+                    messageTextarea.disabled = true;
+                    messageTextarea.required = false;
+                    messageTextarea.value = '';
+                    messageTextarea.placeholder = 'Mensagem não necessária - conteúdo vem do template';
+                }
                 if (sessionSelect) sessionSelect.required = false;
                 if (templateSelect) templateSelect.required = true;
                 
@@ -285,6 +300,12 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             } else {
                 sessionContainer.style.display = 'none';
                 if (templateContainer) templateContainer.style.display = 'none';
+                if (messageContainer) messageContainer.style.display = 'block';
+                if (messageTextarea) {
+                    messageTextarea.disabled = false;
+                    messageTextarea.required = true;
+                    messageTextarea.placeholder = '';
+                }
                 if (sessionSelect) sessionSelect.required = false;
                 if (templateSelect) templateSelect.required = false;
             }
