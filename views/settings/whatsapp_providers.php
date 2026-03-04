@@ -335,7 +335,7 @@ ob_start();
                                 <div style="display: flex; gap: 4px; justify-content: center;">
                                     <a href="<?= pixelhub_url('/whatsapp/templates/view?id=' . $template['id']) ?>" 
                                        title="Visualizar"
-                                       style="background: #007bff; color: white; padding: 6px 10px; border-radius: 4px; text-decoration: none; font-size: 12px;">
+                                       style="background: #495057; color: white; padding: 6px 10px; border-radius: 4px; text-decoration: none; font-size: 12px;">
                                         👁️
                                     </a>
                                     
@@ -350,7 +350,7 @@ ob_start();
                                     <?php if ($template['status'] === 'draft'): ?>
                                         <button onclick="submitTemplate(<?= $template['id'] ?>)" 
                                                 title="Submeter para Aprovação"
-                                                style="background: #28a745; color: white; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                                style="background: #868e96; color: white; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
                                             📤
                                         </button>
                                     <?php endif; ?>
@@ -358,7 +358,7 @@ ob_start();
                                     <?php if ($template['status'] !== 'approved'): ?>
                                         <button onclick="deleteTemplate(<?= $template['id'] ?>)" 
                                                 title="Deletar"
-                                                style="background: #dc3545; color: white; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                                style="background: #adb5bd; color: white; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
                                             🗑️
                                         </button>
                                     <?php endif; ?>
