@@ -42,10 +42,21 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             <!-- Container para Templates Meta API -->
             <div id="new-message-template-container" style="margin-bottom: 20px; display: none;">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">Template Aprovado <span style="color: #dc3545;">*</span></label>
-                <select name="template_id" id="new-message-template" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                <select name="template_id" id="new-message-template" onchange="handleTemplateChange()" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
                     <option value="">Carregando templates...</option>
                 </select>
                 <small style="color: #666; font-size: 11px; display: block; margin-top: 4px;">Selecione um template aprovado pelo Meta para enviar</small>
+            </div>
+            
+            <!-- Container para Variáveis do Template -->
+            <div id="new-message-template-vars-container" style="margin-bottom: 20px; display: none;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Personalização do Template</label>
+                <div id="new-message-template-vars-fields" style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Campos de variáveis serão inseridos aqui dinamicamente -->
+                </div>
+                <small style="color: #666; font-size: 11px; display: block; margin-top: 4px;">
+                    <i class="fas fa-info-circle"></i> Campos preenchidos automaticamente com dados do cliente. Você pode editá-los se necessário.
+                </small>
             </div>
             
             <div id="new-message-session-container" style="margin-bottom: 20px; display: none;">
@@ -336,6 +347,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                         option.value = template.id;
                         option.textContent = template.template_name + ' (' + template.category + ')';
                         option.dataset.content = template.content || '';
+                        option.dataset.variables = template.variables || '';
                         templateSelect.appendChild(option);
                     });
                 } else {
@@ -346,6 +358,79 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 console.error('Erro ao carregar templates:', error);
                 templateSelect.innerHTML = '<option value="">Erro ao carregar templates</option>';
             });
+    };
+    
+    window.handleTemplateChange = function() {
+        var templateSelect = document.getElementById('new-message-template');
+        var varsContainer = document.getElementById('new-message-template-vars-container');
+        var varsFields = document.getElementById('new-message-template-vars-fields');
+        
+        if (!templateSelect || !varsContainer || !varsFields) return;
+        
+        var selectedOption = templateSelect.options[templateSelect.selectedIndex];
+        
+        if (!selectedOption || !selectedOption.value) {
+            varsContainer.style.display = 'none';
+            varsFields.innerHTML = '';
+            return;
+        }
+        
+        var variablesJson = selectedOption.dataset.variables;
+        
+        if (!variablesJson || variablesJson === '' || variablesJson === 'null') {
+            varsContainer.style.display = 'none';
+            varsFields.innerHTML = '';
+            return;
+        }
+        
+        try {
+            var variables = JSON.parse(variablesJson);
+            
+            if (!Array.isArray(variables) || variables.length === 0) {
+                varsContainer.style.display = 'none';
+                varsFields.innerHTML = '';
+                return;
+            }
+            
+            // Busca nome do cliente selecionado
+            var clienteInput = document.getElementById('modalClienteSearchInput');
+            var clientName = clienteInput ? clienteInput.value : '';
+            
+            varsFields.innerHTML = '';
+            
+            variables.forEach(function(variable, index) {
+                var varName = variable.name || ('var' + (index + 1));
+                var varExample = variable.example || '';
+                
+                // Auto-preenche com nome do cliente se variável for "nome", "name" ou "cliente"
+                var defaultValue = varExample;
+                if ((varName === 'nome' || varName === 'name' || varName === 'cliente') && clientName) {
+                    defaultValue = clientName;
+                }
+                
+                var fieldHtml = '<div style="display: flex; flex-direction: column; gap: 4px;">' +
+                    '<label style="font-size: 12px; font-weight: 600; color: #333;">' +
+                    '<i class="fas fa-tag" style="color: #6f42c1; margin-right: 4px;"></i>' +
+                    varName.charAt(0).toUpperCase() + varName.slice(1) +
+                    '</label>' +
+                    '<input type="text" ' +
+                    'class="template-var-input" ' +
+                    'data-var-name="' + varName + '" ' +
+                    'value="' + (defaultValue || '').replace(/"/g, '&quot;') + '" ' +
+                    'placeholder="' + (varExample || 'Digite o valor').replace(/"/g, '&quot;') + '" ' +
+                    'style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">' +
+                    '</div>';
+                
+                varsFields.insertAdjacentHTML('beforeend', fieldHtml);
+            });
+            
+            varsContainer.style.display = 'block';
+            
+        } catch (e) {
+            console.error('Erro ao processar variáveis do template:', e);
+            varsContainer.style.display = 'none';
+            varsFields.innerHTML = '';
+        }
     };
     
     window.onModalClienteSelect = function(phone) {
@@ -391,6 +476,23 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         }
         var formData = new FormData(e.target);
         var data = Object.fromEntries(formData);
+        
+        // Coleta variáveis do template se canal for whatsapp_api
+        if (data.channel === 'whatsapp_api') {
+            var varInputs = document.querySelectorAll('.template-var-input');
+            if (varInputs.length > 0) {
+                var templateVars = {};
+                varInputs.forEach(function(input) {
+                    var varName = input.dataset.varName;
+                    var varValue = input.value.trim();
+                    if (varName && varValue) {
+                        templateVars[varName] = varValue;
+                    }
+                });
+                data.template_vars = JSON.stringify(templateVars);
+            }
+        }
+        
         if (data.channel === 'whatsapp') {
             var sessionSelect = document.getElementById('new-message-session');
             if (sessionSelect && sessionSelect.options.length > 2 && !data.channel_id) {

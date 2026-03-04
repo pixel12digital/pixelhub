@@ -7829,7 +7829,41 @@ class CommunicationHubController extends Controller
         
         error_log("[CommunicationHub::sendViaMetaAPI] Telefone normalizado: {$to} → {$normalizedPhone}");
         
-        // 5. Monta payload para Meta API
+        // 4.5. Busca dados do tenant para variáveis do template
+        $stmt = $db->prepare("SELECT name, phone, email FROM tenants WHERE id = ? LIMIT 1");
+        $stmt->execute([$tenantId]);
+        $tenant = $stmt->fetch();
+        
+        $clientName = $tenant ? $tenant['name'] : 'Cliente';
+        
+        // 5. Processa variáveis do template
+        $templateVariables = [];
+        if (!empty($template['variables'])) {
+            $variables = json_decode($template['variables'], true);
+            if (is_array($variables)) {
+                // Recebe variáveis do POST (se enviadas)
+                $customVars = isset($_POST['template_vars']) ? json_decode($_POST['template_vars'], true) : [];
+                
+                foreach ($variables as $index => $var) {
+                    $varName = $var['name'] ?? "var" . ($index + 1);
+                    
+                    // Prioridade: 1) Valor customizado do POST, 2) Auto-preenchimento, 3) Exemplo
+                    if (isset($customVars[$varName])) {
+                        $value = $customVars[$varName];
+                    } elseif ($varName === 'nome' || $varName === 'name' || $varName === 'cliente') {
+                        $value = $clientName;
+                    } else {
+                        $value = $var['example'] ?? '';
+                    }
+                    
+                    $templateVariables[] = ['type' => 'text', 'text' => $value];
+                }
+                
+                error_log("[CommunicationHub::sendViaMetaAPI] Variáveis processadas: " . json_encode($templateVariables));
+            }
+        }
+        
+        // 6. Monta payload para Meta API
         $payload = [
             'messaging_product' => 'whatsapp',
             'to' => $normalizedPhone,
@@ -7841,6 +7875,16 @@ class CommunicationHubController extends Controller
                 ]
             ]
         ];
+        
+        // Adiciona componentes se houver variáveis
+        if (!empty($templateVariables)) {
+            $payload['template']['components'] = [
+                [
+                    'type' => 'body',
+                    'parameters' => $templateVariables
+                ]
+            ];
+        }
         
         error_log("[CommunicationHub::sendViaMetaAPI] Payload montado: " . json_encode($payload));
         
