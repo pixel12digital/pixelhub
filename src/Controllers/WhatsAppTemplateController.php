@@ -196,7 +196,7 @@ class WhatsAppTemplateController
     }
     
     /**
-     * Submete template para aprovação no Meta
+     * Submete template para aprovação no Meta via API
      * 
      * POST /whatsapp/templates/submit
      */
@@ -204,23 +204,34 @@ class WhatsAppTemplateController
     {
         Auth::requireInternal();
         
+        header('Content-Type: application/json');
+        
         try {
-            $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
+            // Aceita JSON ou POST tradicional
+            $input = file_get_contents('php://input');
+            $data = json_decode($input, true);
             
-            $result = MetaTemplateService::submitForApproval($id);
+            $id = $data['id'] ?? $_POST['id'] ?? 0;
+            $id = (int) $id;
             
-            if ($result['success']) {
-                $_SESSION['success'] = $result['message'];
-            } else {
-                $_SESSION['error'] = $result['message'];
+            if (!$id) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'ID do template não fornecido'
+                ]);
+                exit;
             }
             
-            header('Location: ' . pixelhub_url('/whatsapp/templates?id=' . $id));
+            $result = MetaTemplateService::submitToMeta($id);
+            
+            echo json_encode($result);
             exit;
             
         } catch (\Exception $e) {
-            $_SESSION['error'] = 'Erro ao submeter template: ' . $e->getMessage();
-            header('Location: ' . pixelhub_url('/whatsapp/templates'));
+            echo json_encode([
+                'success' => false,
+                'message' => 'Erro ao submeter template: ' . $e->getMessage()
+            ]);
             exit;
         }
     }

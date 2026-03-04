@@ -28,26 +28,43 @@ if ($template['status'] === 'approved') {
 ob_start();
 
 $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true) : [];
+
+$statusColors = [
+    'draft' => '#6c757d',
+    'pending' => '#ffc107',
+    'approved' => '#28a745',
+    'rejected' => '#dc3545'
+];
+
+$statusLabels = [
+    'draft' => 'Rascunho',
+    'pending' => 'Pendente',
+    'approved' => 'Aprovado',
+    'rejected' => 'Rejeitado'
+];
 ?>
 
-<div class="container-fluid py-4">
-    <div class="row mb-4">
-        <div class="col-md-8">
-            <h1 class="h3 mb-0">
+<div class="container-fluid py-3">
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <h1 class="h4 mb-1">
                 <i class="fas fa-edit text-muted"></i>
                 Editar Template
             </h1>
-            <p class="text-muted mb-0">Modifique o template WhatsApp Business</p>
+            <p class="text-muted small mb-0"><?= htmlspecialchars($template['template_name']) ?></p>
         </div>
-        <div class="col-md-4 text-end">
-            <a href="<?= pixelhub_url('/settings/whatsapp-providers') ?>" class="btn btn-secondary">
-                <i class="fas fa-times"></i> Cancelar
+        <div class="col-md-6 text-end">
+            <span class="badge me-2" style="background: <?= $statusColors[$template['status']] ?>; font-size: 13px; padding: 6px 12px;">
+                <?= $statusLabels[$template['status']] ?>
+            </span>
+            <a href="<?= pixelhub_url('/settings/whatsapp-providers') ?>" class="btn btn-sm btn-secondary">
+                <i class="fas fa-arrow-left"></i> Voltar
             </a>
         </div>
     </div>
 
     <?php if (isset($_SESSION['error'])): ?>
-        <div class="alert alert-danger alert-dismissible fade show">
+        <div class="alert alert-danger alert-dismissible fade show py-2">
             <?= htmlspecialchars($_SESSION['error']) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -60,11 +77,11 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
         <div class="row">
             <div class="col-md-8">
                 <!-- Informações Básicas -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">Informações Básicas</h5>
+                <div class="card mb-3">
+                    <div class="card-body py-3">
+                        <h6 class="card-title mb-3">Informações Básicas</h6>
                         
-                        <div class="mb-3">
+                        <div class="mb-2">
                             <label class="form-label">Nome do Template <span class="text-danger">*</span></label>
                             <input type="text" name="template_name" class="form-control" 
                                    value="<?= htmlspecialchars($template['template_name']) ?>" required
@@ -74,7 +91,7 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
                         </div>
 
                         <div class="row">
-                            <div class="col-md-6 mb-3">
+                            <div class="col-md-6 mb-2">
                                 <label class="form-label">Categoria <span class="text-danger">*</span></label>
                                 <select name="category" class="form-select" required>
                                     <option value="marketing" <?= $template['category'] === 'marketing' ? 'selected' : '' ?>>Marketing</option>
@@ -95,12 +112,12 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
                 </div>
 
                 <!-- Cabeçalho -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">Cabeçalho (Opcional)</h5>
+                <div class="card mb-3">
+                    <div class="card-body py-3">
+                        <h6 class="card-title mb-3">Cabeçalho (Opcional)</h6>
                         
-                        <div class="mb-3">
-                            <label class="form-label">Tipo de Cabeçalho</label>
+                        <div class="mb-2">
+                            <label class="form-label small">Tipo de Cabeçalho</label>
                             <select name="header_type" id="headerType" class="form-select">
                                 <option value="none" <?= $template['header_type'] === 'none' ? 'selected' : '' ?>>Sem cabeçalho</option>
                                 <option value="text" <?= $template['header_type'] === 'text' ? 'selected' : '' ?>>Texto</option>
@@ -111,7 +128,7 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
                         </div>
 
                         <div id="headerContentDiv" style="display: <?= $template['header_type'] !== 'none' ? 'block' : 'none' ?>;">
-                            <div class="mb-3">
+                            <div class="mb-2">
                                 <label class="form-label">Conteúdo do Cabeçalho</label>
                                 <textarea name="header_content" id="headerContent" class="form-control" rows="2"><?= htmlspecialchars($template['header_content'] ?? '') ?></textarea>
                                 <small class="text-muted">Para texto: digite o conteúdo. Para mídia: URL da imagem/vídeo/documento</small>
@@ -121,12 +138,12 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
                 </div>
 
                 <!-- Corpo -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">Corpo da Mensagem <span class="text-danger">*</span></h5>
+                <div class="card mb-3">
+                    <div class="card-body py-3">
+                        <h6 class="card-title mb-3">Corpo da Mensagem <span class="text-danger">*</span></h6>
                         
-                        <div class="mb-3">
-                            <textarea name="content" class="form-control" rows="8" required><?= htmlspecialchars($template['content']) ?></textarea>
+                        <div class="mb-2">
+                            <textarea name="content" class="form-control" rows="6" required><?= htmlspecialchars($template['content']) ?></textarea>
                             <small class="text-muted">
                                 Use variáveis: {{1}}, {{2}}, etc. para personalização<br>
                                 Exemplo: Olá {{1}}, sua compra de {{2}} foi confirmada!
@@ -136,12 +153,12 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
                 </div>
 
                 <!-- Rodapé -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">Rodapé (Opcional)</h5>
+                <div class="card mb-3">
+                    <div class="card-body py-3">
+                        <h6 class="card-title mb-3">Rodapé (Opcional)</h6>
                         
-                        <div class="mb-3">
-                            <input type="text" name="footer_text" class="form-control" 
+                        <div class="mb-2">
+                            <input type="text" name="footer_text" class="form-control form-control-sm" 
                                    value="<?= htmlspecialchars($template['footer_text'] ?? '') ?>"
                                    maxlength="60">
                             <small class="text-muted">Texto curto no rodapé (máx. 60 caracteres)</small>
@@ -150,13 +167,13 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
                 </div>
 
                 <!-- Botões -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">Botões Interativos (Opcional)</h5>
+                <div class="card mb-3">
+                    <div class="card-body py-3">
+                        <h6 class="card-title mb-3">Botões Interativos (Opcional)</h6>
                         
                         <div id="buttonsContainer">
                             <?php foreach ($buttons as $index => $button): ?>
-                                <div class="button-item mb-3 p-3 border rounded">
+                                <div class="button-item mb-2 p-2 border rounded">
                                     <div class="row">
                                         <div class="col-md-4">
                                             <label class="form-label">Tipo</label>
@@ -196,20 +213,20 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
 
             <div class="col-md-4">
                 <!-- Ações -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">Ações</h5>
-                        <button type="submit" class="btn btn-primary w-100 mb-2">
+                <div class="card mb-3">
+                    <div class="card-body py-3">
+                        <h6 class="card-title mb-3">Ações</h6>
+                        <button type="submit" class="btn btn-primary btn-sm w-100 mb-2">
                             <i class="fas fa-save"></i> Salvar Alterações
                         </button>
                         
                         <?php if ($template['status'] === 'draft'): ?>
-                            <button type="button" class="btn btn-success w-100 mb-2" onclick="submitTemplateToMeta()">
+                            <button type="button" class="btn btn-success btn-sm w-100 mb-2" onclick="submitTemplateToMeta()">
                                 <i class="fas fa-paper-plane"></i> Enviar para Meta
                             </button>
                         <?php endif; ?>
                         
-                        <a href="<?= pixelhub_url('/whatsapp/templates/view?id=' . $template['id']) ?>" class="btn btn-secondary w-100">
+                        <a href="<?= pixelhub_url('/whatsapp/templates/view?id=' . $template['id']) ?>" class="btn btn-secondary btn-sm w-100">
                             <i class="fas fa-eye"></i> Visualizar
                         </a>
                     </div>
@@ -217,8 +234,8 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
 
                 <!-- Ajuda -->
                 <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Dicas</h5>
+                    <div class="card-body py-3">
+                        <h6 class="card-title mb-2">Dicas</h6>
                         <ul class="small mb-0">
                             <li>Templates aprovados não podem ser editados</li>
                             <li>Após editar, será necessário submeter novamente</li>
