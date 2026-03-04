@@ -202,6 +202,13 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
                         <button type="submit" class="btn btn-primary w-100 mb-2">
                             <i class="fas fa-save"></i> Salvar Alterações
                         </button>
+                        
+                        <?php if ($template['status'] === 'draft'): ?>
+                            <button type="button" class="btn btn-success w-100 mb-2" onclick="submitTemplateToMeta()">
+                                <i class="fas fa-paper-plane"></i> Enviar para Meta
+                            </button>
+                        <?php endif; ?>
+                        
                         <a href="<?= pixelhub_url('/whatsapp/templates/view?id=' . $template['id']) ?>" class="btn btn-secondary w-100">
                             <i class="fas fa-eye"></i> Visualizar
                         </a>
@@ -277,6 +284,43 @@ function addButton() {
 
 function removeButton(btn) {
     btn.closest('.button-item').remove();
+}
+
+function submitTemplateToMeta() {
+    if (!confirm('Deseja enviar este template para aprovação no Meta?\n\nApós o envio, o template será analisado em 24-48h.')) {
+        return;
+    }
+    
+    const templateId = <?= $template['id'] ?>;
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+    
+    fetch('<?= pixelhub_url('/whatsapp/templates/submit') ?>', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ id: templateId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ ' + data.message);
+            window.location.href = '<?= pixelhub_url('/settings/whatsapp-providers') ?>';
+        } else {
+            alert('❌ Erro: ' + data.message);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        alert('❌ Erro ao enviar template: ' + error.message);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
 }
 </script>
 
