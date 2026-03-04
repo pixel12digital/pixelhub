@@ -1,4 +1,6 @@
 <?php
+// DEBUG FORÇADO - PRIMEIRA LINHA ABSOLUTA
+@file_put_contents('/home/pixel12digital/hub.pixel12digital.com.br/logs/debug_index.log', date('Y-m-d H:i:s') . ' URI=' . ($_SERVER['REQUEST_URI'] ?? 'NULL') . ' METHOD=' . ($_SERVER['REQUEST_METHOD'] ?? 'NULL') . "\n", FILE_APPEND);
 
 /**
  * Bootstrap principal do Pixel Hub
