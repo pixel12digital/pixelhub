@@ -846,6 +846,40 @@ class CommunicationHubController extends Controller
             $this->json(['success' => false, 'error' => 'fileName é obrigatório para tipo documento', 'request_id' => $requestId], 400);
             return;
         }
+            if ($channel === 'whatsapp_api') {
+                error_log("[CommunicationHub::send] 📱 Canal: whatsapp_api (Meta Official API com templates)");
+                
+                $templateId = isset($_POST['template_id']) ? (int)$_POST['template_id'] : 0;
+                
+                if (empty($templateId)) {
+                    error_log("[CommunicationHub::send] ❌ ERRO 400: template_id é obrigatório para whatsapp_api");
+                    $this->json(['success' => false, 'error' => 'Template é obrigatório para envio via API Meta', 'request_id' => $requestId], 400);
+                    return;
+                }
+                
+                if (empty($to)) {
+                    error_log("[CommunicationHub::send] ❌ ERRO 400: Telefone vazio");
+                    $this->json(['success' => false, 'error' => 'Telefone é obrigatório', 'request_id' => $requestId], 400);
+                    return;
+                }
+                
+                if (empty($tenantId)) {
+                    error_log("[CommunicationHub::send] ❌ ERRO 400: tenant_id vazio");
+                    $this->json(['success' => false, 'error' => 'Cliente é obrigatório', 'request_id' => $requestId], 400);
+                    return;
+                }
+                
+                try {
+                    $result = $this->sendViaMetaAPI($templateId, $to, $tenantId, $requestId);
+                    $this->json($result);
+                    return;
+                } catch (\Exception $e) {
+                    error_log("[CommunicationHub::send] ❌ ERRO ao enviar via Meta API: " . $e->getMessage());
+                    $this->json(['success' => false, 'error' => 'Erro ao enviar mensagem: ' . $e->getMessage(), 'request_id' => $requestId], 500);
+                    return;
+                }
+            }
+            
             if ($channel === 'whatsapp') {
                 if (empty($to)) {
                     error_log("[CommunicationHub::send] ❌ ERRO 400: Telefone vazio");
@@ -7730,6 +7764,181 @@ class CommunicationHubController extends Controller
             error_log("[CommunicationHub] Erro ao obter status da transcrição: " . $e->getMessage());
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
+    }
+    
+    /**
+     * Envia mensagem via Meta API usando template aprovado
+     * 
+     * @param int $templateId ID do template aprovado
+     * @param string $to Telefone do destinatário (formato E.164)
+     * @param int $tenantId ID do tenant (cliente)
+     * @param string $requestId ID da requisição para logs
+     * @return array Resultado do envio
+     */
+    private function sendViaMetaAPI(int $templateId, string $to, int $tenantId, string $requestId): array
+    {
+        error_log("[CommunicationHub::sendViaMetaAPI] Iniciando envio via Meta API - template_id={$templateId}, to={$to}, tenant_id={$tenantId}");
+        
+        $db = DB::getConnection();
+        
+        // 1. Busca template aprovado
+        $template = \PixelHub\Services\MetaTemplateService::getById($templateId);
+        
+        if (!$template || $template['status'] !== 'approved') {
+            error_log("[CommunicationHub::sendViaMetaAPI] Template não encontrado ou não aprovado");
+            return [
+                'success' => false,
+                'error' => 'Template não encontrado ou não está aprovado',
+                'request_id' => $requestId
+            ];
+        }
+        
+        error_log("[CommunicationHub::sendViaMetaAPI] Template encontrado: {$template['template_name']} (status: {$template['status']})");
+        
+        // 2. Busca configuração Meta API (global)
+        $stmt = $db->prepare("
+            SELECT meta_business_account_id, meta_access_token, meta_phone_number_id
+            FROM whatsapp_provider_configs 
+            WHERE provider_type = 'meta_official' 
+            AND is_active = 1
+            AND is_global = 1
+            LIMIT 1
+        ");
+        $stmt->execute();
+        $config = $stmt->fetch();
+        
+        if (!$config) {
+            error_log("[CommunicationHub::sendViaMetaAPI] Configuração Meta não encontrada");
+            return [
+                'success' => false,
+                'error' => 'Configuração Meta API não encontrada',
+                'request_id' => $requestId
+            ];
+        }
+        
+        // 3. Descriptografa token
+        $accessToken = $config['meta_access_token'];
+        if (strpos($accessToken, 'encrypted:') === 0) {
+            $accessToken = \PixelHub\Core\CryptoHelper::decrypt(substr($accessToken, 10));
+        }
+        
+        $phoneNumberId = $config['meta_phone_number_id'];
+        
+        // 4. Normaliza telefone para formato E.164
+        $normalizedPhone = \PixelHub\Services\PhoneNormalizer::normalize($to);
+        
+        error_log("[CommunicationHub::sendViaMetaAPI] Telefone normalizado: {$to} → {$normalizedPhone}");
+        
+        // 5. Monta payload para Meta API
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $normalizedPhone,
+            'type' => 'template',
+            'template' => [
+                'name' => $template['template_name'],
+                'language' => [
+                    'code' => $template['language']
+                ]
+            ]
+        ];
+        
+        error_log("[CommunicationHub::sendViaMetaAPI] Payload montado: " . json_encode($payload));
+        
+        // 6. Envia para Meta API
+        $url = "https://graph.facebook.com/v18.0/{$phoneNumberId}/messages";
+        
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $accessToken,
+            'Content-Type: application/json'
+        ]);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        $result = json_decode($response, true);
+        
+        error_log("[CommunicationHub::sendViaMetaAPI] Resposta Meta API (HTTP {$httpCode}): " . $response);
+        
+        if ($httpCode !== 200 || !isset($result['messages'][0]['id'])) {
+            $errorMsg = $result['error']['message'] ?? 'Erro desconhecido';
+            error_log("[CommunicationHub::sendViaMetaAPI] Erro ao enviar: {$errorMsg}");
+            
+            return [
+                'success' => false,
+                'error' => "Erro ao enviar via Meta API: {$errorMsg}",
+                'request_id' => $requestId
+            ];
+        }
+        
+        $messageId = $result['messages'][0]['id'];
+        
+        error_log("[CommunicationHub::sendViaMetaAPI] Mensagem enviada com sucesso! message_id={$messageId}");
+        
+        // 7. Cria ou atualiza conversa no banco
+        $stmt = $db->prepare("
+            SELECT id FROM conversations 
+            WHERE contact_external_id = ? 
+            AND channel_type = 'whatsapp'
+            AND provider_type = 'meta_official'
+            LIMIT 1
+        ");
+        $stmt->execute([$normalizedPhone]);
+        $conversation = $stmt->fetch();
+        
+        if ($conversation) {
+            $conversationId = $conversation['id'];
+            error_log("[CommunicationHub::sendViaMetaAPI] Conversa existente encontrada: {$conversationId}");
+        } else {
+            // Cria nova conversa
+            $stmt = $db->prepare("
+                INSERT INTO conversations (
+                    tenant_id, 
+                    contact_external_id, 
+                    channel_type, 
+                    provider_type,
+                    status,
+                    created_at,
+                    updated_at
+                ) VALUES (?, ?, 'whatsapp', 'meta_official', 'active', NOW(), NOW())
+            ");
+            $stmt->execute([$tenantId, $normalizedPhone]);
+            $conversationId = (int) $db->lastInsertId();
+            
+            error_log("[CommunicationHub::sendViaMetaAPI] Nova conversa criada: {$conversationId}");
+        }
+        
+        // 8. Salva mensagem no banco
+        $stmt = $db->prepare("
+            INSERT INTO messages (
+                conversation_id,
+                direction,
+                content,
+                message_type,
+                external_id,
+                status,
+                created_at
+            ) VALUES (?, 'outbound', ?, 'template', ?, 'sent', NOW())
+        ");
+        $stmt->execute([
+            $conversationId,
+            "Template: {$template['template_name']}",
+            $messageId
+        ]);
+        
+        error_log("[CommunicationHub::sendViaMetaAPI] Mensagem salva no banco");
+        
+        return [
+            'success' => true,
+            'message' => 'Mensagem enviada com sucesso!',
+            'message_id' => $messageId,
+            'conversation_id' => $conversationId,
+            'request_id' => $requestId
+        ];
     }
 }
 
