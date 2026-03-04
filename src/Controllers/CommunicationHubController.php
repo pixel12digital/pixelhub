@@ -817,8 +817,8 @@ class CommunicationHubController extends Controller
             $this->json(['success' => false, 'error' => 'Canal é obrigatório', 'request_id' => $requestId], 400);
             return;
         }
-        // Texto: message obrigatório
-        if ($messageType === 'text' && empty($message)) {
+        // Texto: message obrigatório (exceto para whatsapp_api que usa templates)
+        if ($messageType === 'text' && empty($message) && $channel !== 'whatsapp_api') {
             error_log("[CommunicationHub::send] ❌ ERRO 400: Mensagem vazia (para tipo texto)");
             $this->json(['success' => false, 'error' => 'Mensagem é obrigatória para tipo texto', 'request_id' => $requestId], 400);
             return;
