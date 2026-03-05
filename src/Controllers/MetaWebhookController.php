@@ -535,17 +535,30 @@ class MetaWebhookController extends Controller
     private function sendAutomatedResponse(string $to, array $response, ?string $phoneNumberId): void
     {
         try {
-            // TODO: Implementar envio via MetaOfficialProvider
-            // Por enquanto, apenas loga a resposta que seria enviada
+            $content = $response['content'] ?? '';
             
-            error_log('[MetaWebhook] Resposta automática a ser enviada para ' . $to . ': ' . substr($response['content'], 0, 100));
+            if (empty($content)) {
+                error_log('[MetaWebhook] Resposta automática vazia, ignorando envio');
+                return;
+            }
             
-            // Exemplo de como seria o envio:
-            // $provider = WhatsAppProviderFactory::getProviderForPhoneNumberId($phoneNumberId);
-            // $provider->sendText($to, $response['content']);
+            error_log('[MetaWebhook] Enviando resposta automática para ' . $to . ': ' . substr($content, 0, 100));
+            
+            // Obtém provider Meta Official API
+            $provider = \PixelHub\Services\WhatsAppProviderFactory::getProvider('meta_official');
+            
+            // Envia mensagem de texto
+            $result = $provider->sendText($to, $content);
+            
+            if ($result['success']) {
+                error_log('[MetaWebhook] Resposta automática enviada com sucesso: message_id=' . ($result['message_id'] ?? 'N/A'));
+            } else {
+                error_log('[MetaWebhook] Falha ao enviar resposta automática: ' . ($result['error'] ?? 'Erro desconhecido'));
+            }
             
         } catch (\Exception $e) {
             error_log('[MetaWebhook] Erro ao enviar resposta automática: ' . $e->getMessage());
+            error_log('[MetaWebhook] Stack trace: ' . $e->getTraceAsString());
         }
     }
 
