@@ -329,17 +329,25 @@ function getOriginDisplay($origin) {
         <?php
             $isLead = ($opp['contact_type'] ?? 'lead') !== 'cliente';
             
-            // Busca telefone: prioriza phone da oportunidade, depois lead_phone, depois tenant_phone
-            $contactPhone = $opp['phone'] ?? '';
-            if (empty($contactPhone)) {
-                $contactPhone = $isLead
-                    ? ($opp['lead_phone'] ?? $opp['tenant_phone'] ?? '')
-                    : ($opp['tenant_phone'] ?? $opp['lead_phone'] ?? '');
+            if ($isLead) {
+                $rawLeadName  = $opp['lead_name']  ?? '';
+                $rawLeadPhone = $opp['lead_phone'] ?? '';
+                
+                // Detecta campos invertidos: se lead_phone não tem dígito mas lead_name tem, estão trocados
+                $phoneHasDigit = preg_match('/\d/', $rawLeadPhone);
+                $nameHasDigit  = preg_match('/\d/', $rawLeadName);
+                
+                if (!$phoneHasDigit && $nameHasDigit) {
+                    // Campos invertidos no banco: usa lead_name como telefone
+                    $contactPhone = $rawLeadName;
+                } else {
+                    $contactPhone = $rawLeadPhone ?: ($opp['tenant_phone'] ?? '');
+                }
+                $contactEmail = $opp['lead_email'] ?? $opp['tenant_email'] ?? '';
+            } else {
+                $contactPhone = $opp['tenant_phone'] ?? $opp['lead_phone'] ?? '';
+                $contactEmail = $opp['tenant_email'] ?? $opp['lead_email'] ?? '';
             }
-            
-            $contactEmail = $isLead
-                ? ($opp['lead_email'] ?? $opp['tenant_email'] ?? '')
-                : ($opp['tenant_email'] ?? $opp['lead_email'] ?? '');
             
             $hasPhone = !empty($contactPhone);
             $hasEmail = !empty($contactEmail);
@@ -716,7 +724,8 @@ async function openWhatsApp(phone) {
                         setTimeout(() => {
                             const leadId = <?= !empty($opp['lead_id']) ? (int) $opp['lead_id'] : 'null' ?>;
                             const leadName = <?= json_encode($opp['lead_name'] ?? null) ?>;
-                            const leadPhone = <?= json_encode($opp['lead_phone'] ?? null) ?>;
+                            // Usa $contactPhone (já resolvido com detecção de campos invertidos no banco)
+                            const leadPhone = <?= json_encode($contactPhone ?: null) ?>;
                             
                             if (leadId && typeof window.setNewMessageLeadContext === 'function') {
                                 window.setNewMessageLeadContext({ 
