@@ -331,6 +331,22 @@ class ChatbotFlowService
             'trigger_value' => $flow['trigger_value']
         ]);
         
+        // Atualiza status do lead se configurado
+        if (!empty($flow['update_lead_status'])) {
+            try {
+                $convStmt = $db->prepare("SELECT lead_id FROM conversations WHERE id = ? LIMIT 1");
+                $convStmt->execute([$conversationId]);
+                $convRow = $convStmt->fetch();
+                if (!empty($convRow['lead_id'])) {
+                    $db->prepare("UPDATE leads SET status = ?, updated_at = NOW() WHERE id = ?")
+                       ->execute([$flow['update_lead_status'], $convRow['lead_id']]);
+                    error_log('[ChatbotFlow] Lead ' . $convRow['lead_id'] . ' status atualizado para: ' . $flow['update_lead_status']);
+                }
+            } catch (\Exception $e) {
+                error_log('[ChatbotFlow] Erro ao atualizar status do lead: ' . $e->getMessage());
+            }
+        }
+
         // Encaminha para humano se configurado
         if ($flow['forward_to_human']) {
             $stmt = $db->prepare("

@@ -462,7 +462,7 @@ class MetaWebhookController extends Controller
                 
                 // Envia resposta automática se houver
                 if (!empty($result['response']['content'])) {
-                    $this->sendAutomatedResponse($from, $result['response'], $phoneNumberId);
+                    $this->sendAutomatedResponse($from, $result['response'], $phoneNumberId, $conversationId, $tenantId);
                 }
                 
                 // Cancela follow-up se lead clicou em "Quero conhecer" (demonstrou interesse)
@@ -557,9 +557,9 @@ class MetaWebhookController extends Controller
     }
     
     /**
-     * Envia resposta automática do chatbot
+     * Envia resposta automática do chatbot e registra no Inbox
      */
-    private function sendAutomatedResponse(string $to, array $response, ?string $phoneNumberId): void
+    private function sendAutomatedResponse(string $to, array $response, ?string $phoneNumberId, ?int $conversationId = null, ?int $tenantId = null): void
     {
         try {
             $content = $response['content'] ?? '';
@@ -585,9 +585,51 @@ class MetaWebhookController extends Controller
             }
             
             if ($result['success']) {
-                error_log('[MetaWebhook] Resposta automática enviada com sucesso: message_id=' . ($result['message_id'] ?? 'N/A'));
+                $messageId = $result['message_id'] ?? null;
+                error_log('[MetaWebhook] Resposta automática enviada com sucesso: message_id=' . ($messageId ?? 'N/A'));
+                
+                // Registra a resposta do bot no Inbox (communication_events)
+                try {
+                    $outboundPayload = [
+                        'id'       => $messageId,
+                        'to'       => preg_replace('/[^0-9]/', '', $to),
+                        'text'     => $content,
+                        'body'     => $content,
+                        'type'     => !empty($buttons) ? 'interactive' : 'text',
+                        'fromMe'   => true,
+                        'message'  => [
+                            'id'     => $messageId,
+                            'to'     => preg_replace('/[^0-9]/', '', $to),
+                            'body'   => $content,
+                            'fromMe' => true,
+                        ],
+                        '_meta'    => [
+                            'phone_number_id' => $phoneNumberId,
+                            'chatbot_response' => true,
+                        ],
+                    ];
+                    if (!empty($buttons)) {
+                        $outboundPayload['buttons'] = $buttons;
+                    }
+                    EventIngestionService::ingest([
+                        'event_type'         => 'whatsapp.outbound.message',
+                        'source_system'      => 'chatbot_flow',
+                        'payload'            => $outboundPayload,
+                        'tenant_id'          => $tenantId,
+                        'process_media_sync' => false,
+                        'metadata'           => [
+                            'phone_number_id' => $phoneNumberId,
+                            'provider_type'   => 'meta_official',
+                            'message_id'      => $messageId,
+                            'chatbot_flow'    => true,
+                        ],
+                    ]);
+                    error_log('[MetaWebhook] Resposta do bot registrada no Inbox');
+                } catch (\Exception $ingestEx) {
+                    error_log('[MetaWebhook] Erro ao registrar resposta do bot no Inbox: ' . $ingestEx->getMessage());
+                }
             } else {
-                error_log('[MetaWebhook] Falha ao enviar resposta automática: ' . ($result['error'] ?? 'Erro desconhecido'));
+                error_log('[MetaWebhook] Falha ao enviar resposta automática: ' . ($result['error'] ?? 'Erro desconhecido') . ' | http_code=' . ($result['http_code'] ?? 'N/A') . ' | raw=' . json_encode($result['raw'] ?? []));
             }
             
         } catch (\Exception $e) {
