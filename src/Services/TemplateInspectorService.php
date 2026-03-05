@@ -61,12 +61,13 @@ class TemplateInspectorService
         
         foreach ($buttons as $button) {
             $buttonId = $button['id'] ?? null;
+            $buttonText = $button['text'] ?? null;
             
-            if (!$buttonId) {
+            if (!$buttonId || !$buttonText) {
                 continue;
             }
             
-            // Busca fluxo correspondente ao botão
+            // Busca fluxo correspondente ao botão pelo TEXTO (trigger_value armazena o texto do botão)
             $stmt = $db->prepare("
                 SELECT 
                     f.*,
@@ -85,7 +86,7 @@ class TemplateInspectorService
                 LIMIT 1
             ");
             
-            $stmt->execute([$buttonId, $tenantId]);
+            $stmt->execute([$buttonText, $tenantId]);
             $flow = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($flow) {
@@ -246,14 +247,34 @@ class TemplateInspectorService
             return ['success' => false, 'message' => 'Template não encontrado'];
         }
         
-        // Busca fluxo correspondente
-        $flow = ChatbotFlowService::findByTrigger('template_button', $buttonId, $tenantId);
+        // Encontra o texto do botão pelo ID
+        $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true) : [];
+        $buttonText = null;
+        
+        foreach ($buttons as $button) {
+            if (($button['id'] ?? null) === $buttonId) {
+                $buttonText = $button['text'] ?? null;
+                break;
+            }
+        }
+        
+        if (!$buttonText) {
+            return [
+                'success' => false,
+                'message' => 'Botão não encontrado no template',
+                'button_id' => $buttonId
+            ];
+        }
+        
+        // Busca fluxo correspondente pelo TEXTO do botão (trigger_value armazena o texto)
+        $flow = ChatbotFlowService::findByTrigger('template_button', $buttonText, $tenantId);
         
         if (!$flow) {
             return [
                 'success' => false,
                 'message' => 'Nenhum fluxo configurado para este botão',
-                'button_id' => $buttonId
+                'button_id' => $buttonId,
+                'button_text' => $buttonText
             ];
         }
         
