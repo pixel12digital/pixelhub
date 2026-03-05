@@ -265,7 +265,7 @@ $whatsapp_sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Inclui o modal
 ob_start();
-require __DIR__ . '/../partials/new_message_modal.php';
+require __DIR__ . '/../../partials/new_message_modal.php';
 $modal = ob_get_clean();
 
 $content .= $modal;
