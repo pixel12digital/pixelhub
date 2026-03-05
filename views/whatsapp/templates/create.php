@@ -6,7 +6,7 @@ Auth::requireInternal();
 
 // Busca lista de tenants para seleção
 $db = DB::getConnection();
-$tenants = $db->query("SELECT id, name FROM tenants WHERE is_active = 1 ORDER BY name ASC")->fetchAll() ?: [];
+$tenants = $db->query("SELECT id, name FROM tenants WHERE status = 'active' ORDER BY name ASC")->fetchAll() ?: [];
 
 ob_start();
 ?>
