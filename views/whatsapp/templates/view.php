@@ -692,7 +692,7 @@ const TemplateInspector = {
                 
                 // Tags action
                 if (flow.add_tags) {
-                    const tags = JSON.parse(flow.add_tags);
+                    const tags = Array.isArray(flow.add_tags) ? flow.add_tags : [];
                     if (tags.length > 0) {
                         html += `
                             <div class="flow-action-item">
