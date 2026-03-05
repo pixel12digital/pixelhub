@@ -492,30 +492,36 @@ class ScheduledMessageService
     public static function scheduleProspectingFollowup(
         int $conversationId,
         string $phone,
-        string $triggerEvent = 'no_response_22h',
+        string $triggerEvent = 'no_response_23h',
         array $metadata = []
     ): int {
         $db = DB::getConnection();
         
-        // Calcula horário de envio: 22 horas a partir de agora
-        $scheduledAt = date('Y-m-d H:i:s', strtotime('+22 hours'));
+        // Calcula horário de envio: 23 horas a partir de agora (antes da janela de 24h da Meta)
+        $scheduledAt = date('Y-m-d H:i:s', strtotime('+23 hours'));
         
-        // Mensagem de follow-up
-        $message = "Olá! 😊\n\nVi que você demonstrou interesse em conhecer nossa estrutura para corretores.\n\nTeve tempo de dar uma olhada no material que enviei?\n\nSe tiver qualquer dúvida, estou aqui para ajudar!";
+        // Mensagem de follow-up conforme especificação
+        $message = "Olá! Só passando para confirmar se você conseguiu ver a mensagem que enviei sobre a estrutura que ajuda corretores a captar interessados em imóveis pelo WhatsApp.\n\nSe quiser, posso te mostrar rapidamente como funciona.\n\nhttps://imobsites.com.br/";
         
         // Busca lead_id da conversa
         $stmt = $db->prepare("SELECT lead_id FROM conversations WHERE id = ? LIMIT 1");
         $stmt->execute([$conversationId]);
         $leadId = $stmt->fetchColumn();
         
-        // Cria mensagem agendada
+        // Botões para o follow-up (mesmos do template inicial)
+        $buttons = [
+            ['id' => 'btn_quero_conhecer', 'text' => 'Quero conhecer'],
+            ['id' => 'btn_sem_interesse', 'text' => 'Sem interesse']
+        ];
+        
+        // Cria mensagem agendada com botões
         $stmt = $db->prepare("
             INSERT INTO scheduled_messages (
                 conversation_id, lead_id, phone,
-                message_type, message_content,
+                message_type, message_content, template_params,
                 scheduled_at, status, trigger_event, metadata,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, 'text', ?, ?, 'pending', ?, ?, NOW(), NOW())
+            ) VALUES (?, ?, ?, 'text', ?, ?, ?, 'pending', ?, ?, NOW(), NOW())
         ");
         
         $stmt->execute([
@@ -523,6 +529,7 @@ class ScheduledMessageService
             $leadId,
             $phone,
             $message,
+            json_encode(['buttons' => $buttons]),
             $scheduledAt,
             $triggerEvent,
             json_encode($metadata)
@@ -541,7 +548,7 @@ class ScheduledMessageService
      * @param int $conversationId ID da conversa
      * @param string $triggerEvent Tipo de follow-up a cancelar
      */
-    public static function cancelProspectingFollowup(int $conversationId, string $triggerEvent = 'no_response_22h'): void
+    public static function cancelProspectingFollowup(int $conversationId, string $triggerEvent = 'no_response_23h'): void
     {
         $db = DB::getConnection();
         

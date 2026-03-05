@@ -470,7 +470,7 @@ class MetaWebhookController extends Controller
                     try {
                         \PixelHub\Services\ScheduledMessageService::cancelProspectingFollowup(
                             $conversationId,
-                            'no_response_22h'
+                            'no_response_23h'
                         );
                         error_log('[MetaWebhook] Follow-up cancelado - lead demonstrou interesse (conversa: ' . $conversationId . ')');
                     } catch (\Exception $e) {
