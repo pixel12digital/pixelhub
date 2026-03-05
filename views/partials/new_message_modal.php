@@ -253,6 +253,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         var label = document.getElementById('new-message-contact-label');
         var clienteDropdown = document.getElementById('modalClienteDropdown');
         var tenantIdInput = document.getElementById('modalClienteTenantId');
+        var toField = document.getElementById('new-message-to');
 
         console.log('[NewMessage] Setando contexto de lead:', leadData);
 
@@ -264,6 +265,12 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         if (leadDisplay) leadDisplay.textContent = (leadName && String(leadName).trim() !== '') ? leadName : ('Lead: ' + (leadPhone || '#' + leadId));
         if (leadPhoneEl) leadPhoneEl.textContent = leadPhone ? leadPhone : '';
         if (leadContainer) leadContainer.style.display = 'block';
+        
+        // Preenche o campo "Para" com o telefone do lead
+        if (toField && leadPhone) {
+            toField.value = leadPhone;
+            console.log('[NewMessage] Campo "Para" preenchido com telefone do lead:', leadPhone);
+        }
         
         console.log('[NewMessage] Lead container exibido, select de clientes ocultado');
     };

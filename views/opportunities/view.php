@@ -705,37 +705,27 @@ async function openWhatsApp(phone) {
                         openNewMessageModal({ opportunity_id: <?= (int) $opp['id'] ?> });
                         
                         // Se esta oportunidade é Lead, define contexto no modal (esconde busca de cliente)
-                        try {
+                        // setNewMessageLeadContext já preenche: lead_id, telefone, nome
+                        setTimeout(() => {
                             const leadId = <?= !empty($opp['lead_id']) ? (int) $opp['lead_id'] : 'null' ?>;
                             const leadName = <?= json_encode($opp['lead_name'] ?? null) ?>;
                             const leadPhone = <?= json_encode($opp['lead_phone'] ?? null) ?>;
-                            if (leadId && typeof window.setNewMessageLeadContext === 'function') {
-                                window.setNewMessageLeadContext({ lead_id: leadId, lead_name: leadName, lead_phone: leadPhone || phone });
-                            }
-                        } catch (e) {
-                            // silencioso
-                        }
-
-                        // Pré-preenche o campo "Para" com o telefone
-                        setTimeout(() => {
-                            const toField = document.getElementById('new-message-to');
-                            if (toField) {
-                                toField.value = phone;
-                                toField.dispatchEvent(new Event('input', { bubbles: true }));
-                            }
                             
-                            // Preenche lead_id se for oportunidade de lead
-                            const leadId = <?= !empty($opp['lead_id']) ? (int) $opp['lead_id'] : 'null' ?>;
-                            if (leadId) {
-                                const leadIdField = document.getElementById('new-message-lead-id');
-                                if (leadIdField) {
-                                    leadIdField.value = leadId;
-                                    console.log('[Opp WhatsApp] lead_id preenchido:', leadId);
+                            if (leadId && typeof window.setNewMessageLeadContext === 'function') {
+                                window.setNewMessageLeadContext({ 
+                                    lead_id: leadId, 
+                                    lead_name: leadName, 
+                                    lead_phone: leadPhone || phone 
+                                });
+                                console.log('[Opp WhatsApp] Modal aberto com telefone e lead_id preenchidos. Selecione o canal desejado.');
+                            } else {
+                                // Se não é lead, preenche apenas o telefone
+                                const toField = document.getElementById('new-message-to');
+                                if (toField) {
+                                    toField.value = phone;
+                                    toField.dispatchEvent(new Event('input', { bubbles: true }));
                                 }
                             }
-                            
-                            // Não força canal - permite usuário escolher entre WhatsApp ou Meta API
-                            console.log('[Opp WhatsApp] Modal aberto com telefone e lead_id preenchidos. Selecione o canal desejado.');
                         }, 300);
                     }
                 }
