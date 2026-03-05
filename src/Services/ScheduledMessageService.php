@@ -108,52 +108,62 @@ class ScheduledMessageService
             return false;
         }
         
-        // Determina o telefone de destino
-        $phone = $message['lead_phone'] ?? $message['tenant_phone'] ?? null;
+        // Determina o telefone de destino: coluna phone (nova) > lead_phone > tenant_phone
+        $phone = $message['phone'] ?? $message['lead_phone'] ?? $message['tenant_phone'] ?? null;
         if (!$phone) {
             self::markAsFailed($messageId, 'Telefone não encontrado');
             return false;
         }
-        
+
         // Normaliza telefone para E.164
         $phone = preg_replace('/[^0-9]/', '', $phone);
         if (!str_starts_with($phone, '55')) {
             $phone = '55' . $phone;
         }
-        
+
+        // Detecta o provider da conversa
+        $db2 = DB::getConnection();
+        $providerType = 'wppconnect';
+        if (!empty($message['conversation_id'])) {
+            $pRow = $db2->prepare("SELECT provider_type FROM conversations WHERE id = ? LIMIT 1");
+            $pRow->execute([$message['conversation_id']]);
+            $providerType = $pRow->fetchColumn() ?: 'wppconnect';
+        }
+
+        $messageText = $message['message_content'] ?? $message['message_text'];
+
         try {
-            // Envia via WhatsAppGatewayClient (funciona em CLI)
-            require_once __DIR__ . '/../Integrations/WhatsAppGateway/WhatsAppGatewayClient.php';
-            require_once __DIR__ . '/../Services/GatewaySecret.php';
-            
-            $client = new \PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient();
-            
-            // Define request ID para rastreamento
-            $client->setRequestId('scheduled_msg_' . $messageId . '_' . time());
-            
-            // Envia mensagem
-            $result = $client->sendText(
-                $message['channel_id'] ?? 'pixel12digital',
-                $phone,
-                $message['message_text'],
-                ['source' => 'scheduled_message', 'message_id' => $messageId]
-            );
-            
+            if ($providerType === 'meta_official') {
+                // Envia via Meta Official API
+                $provider = \PixelHub\Services\WhatsAppProviderFactory::getProvider('meta_official');
+                $result   = $provider->sendText($phone, $messageText);
+            } else {
+                // Envia via WPPConnect
+                require_once __DIR__ . '/../Integrations/WhatsAppGateway/WhatsAppGatewayClient.php';
+                require_once __DIR__ . '/../Services/GatewaySecret.php';
+                $client = new \PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient();
+                $client->setRequestId('scheduled_msg_' . $messageId . '_' . time());
+                $result = $client->sendText(
+                    $message['channel_id'] ?? 'pixel12digital',
+                    $phone,
+                    $messageText,
+                    ['source' => 'scheduled_message', 'message_id' => $messageId]
+                );
+            }
+
             if ($result['success']) {
-                // Marca como enviada
                 self::markAsSent($messageId, $message['conversation_id']);
-                error_log("[ScheduledMessage] Mensagem ID {$messageId} enviada com sucesso. Message ID: " . ($result['message_id'] ?? 'N/A'));
+                error_log("[ScheduledMessage] Mensagem ID {$messageId} enviada via {$providerType}. MsgID: " . ($result['message_id'] ?? 'N/A'));
                 return true;
             } else {
-                // Marca como falha
-                $errorMsg = $result['error'] ?? 'Erro desconhecido no gateway';
+                $errorMsg = $result['error'] ?? 'Erro desconhecido';
                 self::markAsFailed($messageId, $errorMsg);
-                error_log("[ScheduledMessage] Erro ao enviar mensagem ID {$messageId}: {$errorMsg}");
+                error_log("[ScheduledMessage] Erro ao enviar ID {$messageId}: {$errorMsg}");
                 return false;
             }
-            
+
         } catch (\Exception $e) {
-            error_log("[ScheduledMessage] Erro ao enviar mensagem ID {$messageId}: " . $e->getMessage());
+            error_log("[ScheduledMessage] Exceção ao enviar ID {$messageId}: " . $e->getMessage());
             self::markAsFailed($messageId, $e->getMessage());
             return false;
         }
