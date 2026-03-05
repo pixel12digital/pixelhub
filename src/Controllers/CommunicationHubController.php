@@ -8047,16 +8047,16 @@ class CommunicationHubController extends Controller
         error_log("[CommunicationHub::sendViaMetaAPI] Mensagem enviada com sucesso! message_id={$messageId}");
         
         // 7. Cria ou atualiza conversa no banco
-        // Busca conversa existente por telefone + tenant + provider
+        // Gera conversation_key consistente para Meta API
+        $conversationKey = 'whatsapp_meta_' . $phoneNumberId . '_' . $normalizedPhone;
+        
+        // Busca conversa existente pela conversation_key (único e confiável)
         $stmt = $db->prepare("
             SELECT id FROM conversations 
-            WHERE contact_external_id = ? 
-            AND tenant_id = ?
-            AND channel_type = 'whatsapp'
-            AND provider_type = 'meta_official'
+            WHERE conversation_key = ?
             LIMIT 1
         ");
-        $stmt->execute([$normalizedPhone, $tenantId]);
+        $stmt->execute([$conversationKey]);
         $conversation = $stmt->fetch();
         
         if ($conversation) {
@@ -8073,6 +8073,7 @@ class CommunicationHubController extends Controller
             // Cria nova conversa
             $stmt = $db->prepare("
                 INSERT INTO conversations (
+                    conversation_key,
                     tenant_id, 
                     lead_id,
                     contact_external_id, 
@@ -8082,10 +8083,10 @@ class CommunicationHubController extends Controller
                     is_incoming_lead,
                     created_at,
                     updated_at
-                ) VALUES (?, ?, ?, 'whatsapp', 'meta_official', 'active', ?, NOW(), NOW())
+                ) VALUES (?, ?, ?, ?, 'whatsapp', 'meta_official', 'active', ?, NOW(), NOW())
             ");
             $isIncomingLead = $leadId ? 1 : 0;
-            $stmt->execute([$tenantId, $leadId, $normalizedPhone, $isIncomingLead]);
+            $stmt->execute([$conversationKey, $tenantId, $leadId, $normalizedPhone, $isIncomingLead]);
             $conversationId = (int) $db->lastInsertId();
             
             error_log("[CommunicationHub::sendViaMetaAPI] Nova conversa criada: {$conversationId}" . ($leadId ? " (lead_id={$leadId})" : ""));
