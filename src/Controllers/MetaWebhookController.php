@@ -479,16 +479,6 @@ class MetaWebhookController extends Controller
                     $this->sendAutomatedResponse($from, $result['response'], $phoneNumberId, $conversationId, $tenantId);
                 }
                 
-                // Cancela follow-up pendente se lead respondeu ao template (qualquer botão)
-                try {
-                    \PixelHub\Services\ScheduledMessageService::cancelProspectingFollowup(
-                        $conversationId,
-                        'no_response_23h'
-                    );
-                    error_log('[MetaWebhook] Follow-up cancelado - lead respondeu ao template (conversa: ' . $conversationId . ')');
-                } catch (\Exception $e) {
-                    error_log('[MetaWebhook] Erro ao cancelar follow-up: ' . $e->getMessage());
-                }
             } else {
                 error_log('[MetaWebhook] Erro ao executar fluxo: ' . $result['message']);
             }
