@@ -6868,6 +6868,13 @@ class CommunicationHubController extends Controller
             $deleteMediaStmt->execute([$conversationId]);
             $deletedMedia = $deleteMediaStmt->rowCount();
             
+            // 1b. Remove eventos do chatbot (chatbot_events)
+            try {
+                $db->prepare("DELETE FROM chatbot_events WHERE conversation_id = ?")->execute([$conversationId]);
+            } catch (\Exception $e) {
+                error_log("[CommunicationHub] Aviso: chatbot_events não deletados: " . $e->getMessage());
+            }
+
             // 2. Remove eventos associados por conversation_id
             $deleteEventsStmt = $db->prepare("DELETE FROM communication_events WHERE conversation_id = ?");
             $deleteEventsStmt->execute([$conversationId]);
@@ -8059,37 +8066,39 @@ class CommunicationHubController extends Controller
         error_log("[CommunicationHub::sendViaMetaAPI] Mensagem enviada com sucesso! message_id={$messageId}");
         
         // 7. Cria ou atualiza conversa no banco
-        // Gera conversation_key consistente para Meta API
-        $conversationKey = 'whatsapp_meta_' . $phoneNumberId . '_' . $normalizedPhone;
-        
-        // Busca conversa existente pela conversation_key (único e confiável)
+        // Usa o mesmo formato de key que ConversationService (whatsapp_shared_) para evitar duplicatas
+        $conversationKey = 'whatsapp_shared_' . $normalizedPhone;
+
+        // Busca conversa existente por contact_external_id + provider_type (tolerante a variações de key)
         $stmt = $db->prepare("
-            SELECT id FROM conversations 
-            WHERE conversation_key = ?
+            SELECT id FROM conversations
+            WHERE contact_external_id = ?
+              AND channel_type = 'whatsapp'
+              AND provider_type = 'meta_official'
+              AND (tenant_id = ? OR (tenant_id IS NULL AND ? IS NULL))
+            ORDER BY last_message_at DESC
             LIMIT 1
         ");
-        $stmt->execute([$conversationKey]);
+        $tenantIdForDb = ($tenantId && $tenantId > 0) ? $tenantId : null;
+        $stmt->execute([$normalizedPhone, $tenantIdForDb, $tenantIdForDb]);
         $conversation = $stmt->fetch();
-        
+
         if ($conversation) {
             $conversationId = $conversation['id'];
             error_log("[CommunicationHub::sendViaMetaAPI] Conversa existente encontrada: {$conversationId}");
-            
-            // Atualiza updated_at
             $stmt = $db->prepare("UPDATE conversations SET updated_at = NOW() WHERE id = ?");
             $stmt->execute([$conversationId]);
         } else {
             // Verifica se há lead_id no POST para vincular
             $leadId = isset($_POST['lead_id']) && $_POST['lead_id'] !== '' ? (int) $_POST['lead_id'] : null;
-            
-            // Cria nova conversa
+
             $stmt = $db->prepare("
                 INSERT INTO conversations (
                     conversation_key,
-                    tenant_id, 
+                    tenant_id,
                     lead_id,
-                    contact_external_id, 
-                    channel_type, 
+                    contact_external_id,
+                    channel_type,
                     provider_type,
                     status,
                     is_incoming_lead,
@@ -8098,11 +8107,9 @@ class CommunicationHubController extends Controller
                 ) VALUES (?, ?, ?, ?, 'whatsapp', 'meta_official', 'active', ?, NOW(), NOW())
             ");
             $isIncomingLead = $leadId ? 1 : 0;
-            // Usa null para tenant_id se não existe tenant válido (lead sem conta vinculada)
-            $tenantIdForDb = ($tenantId && $tenantId > 0) ? $tenantId : null;
             $stmt->execute([$conversationKey, $tenantIdForDb, $leadId, $normalizedPhone, $isIncomingLead]);
             $conversationId = (int) $db->lastInsertId();
-            
+
             error_log("[CommunicationHub::sendViaMetaAPI] Nova conversa criada: {$conversationId}" . ($leadId ? " (lead_id={$leadId})" : ""));
         }
         
