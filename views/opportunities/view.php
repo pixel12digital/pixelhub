@@ -734,12 +734,8 @@ async function openWhatsApp(phone) {
                                 }
                             }
                             
-                            // Seleciona canal WhatsApp
-                            const channelSelect = document.getElementById('new-message-channel');
-                            if (channelSelect) {
-                                channelSelect.value = 'whatsapp';
-                                channelSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                            }
+                            // Não força canal - permite usuário escolher entre WhatsApp ou Meta API
+                            console.log('[Opp WhatsApp] Modal aberto com telefone e lead_id preenchidos. Selecione o canal desejado.');
                         }, 300);
                     }
                 }
