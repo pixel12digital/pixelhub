@@ -892,10 +892,16 @@ class CommunicationHubController extends Controller
                     }
                 }
                 
+                // Permite envio para leads sem tenant vinculado (Meta config é global)
+                // Se ainda não resolveu tenant_id mas tem lead_id, continua com tenantId=0 (null no DB)
                 if (empty($tenantId)) {
-                    error_log("[CommunicationHub::send] ❌ ERRO 400: tenant_id vazio e não foi possível resolver");
-                    $this->json(['success' => false, 'error' => 'Tenant é obrigatório para envio via Meta API. Selecione o canal/conta a ser usado.', 'request_id' => $requestId], 400);
-                    return;
+                    $hasLeadId = isset($_POST['lead_id']) && $_POST['lead_id'] !== '';
+                    if (!$hasLeadId) {
+                        error_log("[CommunicationHub::send] ❌ ERRO 400: tenant_id vazio e não é lead");
+                        $this->json(['success' => false, 'error' => 'Tenant é obrigatório para envio via Meta API. Selecione o canal/conta a ser usado.', 'request_id' => $requestId], 400);
+                        return;
+                    }
+                    error_log("[CommunicationHub::send] ⚠️ Lead sem tenant vinculado - usando Meta config global");
                 }
                 
                 try {
@@ -7870,7 +7876,7 @@ class CommunicationHubController extends Controller
      * @param string $requestId ID da requisição para logs
      * @return array Resultado do envio
      */
-    private function sendViaMetaAPI(int $templateId, string $to, int $tenantId, string $requestId): array
+    private function sendViaMetaAPI(int $templateId, string $to, ?int $tenantId, string $requestId): array
     {
         error_log("[CommunicationHub::sendViaMetaAPI] ===== INÍCIO =====");
         error_log("[CommunicationHub::sendViaMetaAPI] Parâmetros recebidos:");
@@ -8086,7 +8092,9 @@ class CommunicationHubController extends Controller
                 ) VALUES (?, ?, ?, ?, 'whatsapp', 'meta_official', 'active', ?, NOW(), NOW())
             ");
             $isIncomingLead = $leadId ? 1 : 0;
-            $stmt->execute([$conversationKey, $tenantId, $leadId, $normalizedPhone, $isIncomingLead]);
+            // Usa null para tenant_id se não existe tenant válido (lead sem conta vinculada)
+            $tenantIdForDb = ($tenantId && $tenantId > 0) ? $tenantId : null;
+            $stmt->execute([$conversationKey, $tenantIdForDb, $leadId, $normalizedPhone, $isIncomingLead]);
             $conversationId = (int) $db->lastInsertId();
             
             error_log("[CommunicationHub::sendViaMetaAPI] Nova conversa criada: {$conversationId}" . ($leadId ? " (lead_id={$leadId})" : ""));
