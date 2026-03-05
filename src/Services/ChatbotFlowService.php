@@ -546,6 +546,10 @@ class ChatbotFlowService
             
             if ($existingOpp) {
                 error_log('[ChatbotFlow] Oportunidade já existe para este lead (ID: ' . $existingOpp['id'] . ')');
+                // Atualiza stage para 'contact' se ainda estiver em 'new'
+                $db->prepare("UPDATE opportunities SET stage = 'contact', updated_at = NOW() WHERE id = ? AND stage = 'new'")
+                   ->execute([$existingOpp['id']]);
+                self::createChatbotNotification($conversationId, $existingOpp['id'], $flow);
                 return $existingOpp['id'];
             }
             
@@ -567,12 +571,20 @@ class ChatbotFlowService
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             ");
             
-            $opportunityName = 'Corretor interessado via prospecção WhatsApp';
-            $stage = 'new'; // Etapa inicial: Novo Lead
+            $opportunityName = 'Corretor interessado via prospeção WhatsApp';
+            $stage = 'contact'; // Lead demonstrou interesse ativo
             $status = 'open';
             $serviceId = 2; // SaaS ImobSites
             $origin = 'prospecting_whatsapp';
-            $notes = "Oportunidade criada automaticamente após clique em 'Quero conhecer' no template de prospecção.\n\nFluxo: {$flow['name']}";
+            // Aplica add_tags ao notes
+            $tagsStr = '';
+            if (!empty($flow['add_tags'])) {
+                $tags = is_array($flow['add_tags']) ? $flow['add_tags'] : json_decode($flow['add_tags'], true);
+                if (!empty($tags)) {
+                    $tagsStr = "\n\nTags: " . implode(', ', $tags);
+                }
+            }
+            $notes = "Oportunidade criada automaticamente após clique em 'Quero conhecer' no template de prospecção.\n\nFluxo: {$flow['name']}{$tagsStr}";
             $createdBy = 1; // Sistema
             
             $stmt->execute([
@@ -599,12 +611,76 @@ class ChatbotFlowService
                 'service_id' => $serviceId,
                 'stage' => $stage
             ]);
+
+            // Cria notificação para consultor
+            self::createChatbotNotification($conversationId, (int)$opportunityId, $flow);
             
             return $opportunityId;
             
         } catch (\Exception $e) {
             error_log('[ChatbotFlow] Erro ao criar oportunidade: ' . $e->getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Cria notificação push para consultores quando lead demonstra interesse
+     */
+    private static function createChatbotNotification(int $conversationId, int $opportunityId, array $flow): void
+    {
+        try {
+            $db = DB::getConnection();
+
+            // Busca dados da conversa/lead para montar a notificação
+            $stmt = $db->prepare("
+                SELECT c.lead_id, c.contact_external_id, l.name as lead_name, l.phone as lead_phone,
+                       o.responsible_user_id
+                FROM conversations c
+                LEFT JOIN leads l ON c.lead_id = l.id
+                LEFT JOIN opportunities o ON o.id = ?
+                WHERE c.id = ?
+            ");
+            $stmt->execute([$opportunityId, $conversationId]);
+            $data = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            $leadName  = $data['lead_name'] ?? 'Lead desconhecido';
+            $leadPhone = $data['lead_phone'] ?? $data['contact_external_id'] ?? '';
+            $title     = "🔥 Lead interessado: {$leadName}";
+            $message   = "Clicou em 'Quero conhecer' no WhatsApp. Oportunidade #{$opportunityId} criada/atualizada. Etapa: Contato.";
+            $entityData = json_encode([
+                'opportunity_id'  => $opportunityId,
+                'conversation_id' => $conversationId,
+                'lead_id'         => $data['lead_id'] ?? null,
+                'phone'           => $leadPhone,
+                'flow_name'       => $flow['name'],
+            ]);
+
+            // Determina para quem notificar: responsável da opp OU todos os admins
+            $targetUsers = [];
+            if (!empty($data['responsible_user_id'])) {
+                $targetUsers[] = (int) $data['responsible_user_id'];
+            } else {
+                // Notifica todos os usuários ativos (admin/consultores)
+                $users = $db->query("SELECT id FROM users WHERE is_active = 1 OR is_active IS NULL")->fetchAll(\PDO::FETCH_COLUMN);
+                $targetUsers = array_map('intval', $users);
+            }
+
+            $insertStmt = $db->prepare("
+                INSERT INTO user_notifications
+                    (user_id, type, title, message, entity_type, entity_id, data, is_read, created_at)
+                VALUES
+                    (?, 'chatbot_lead_interest', ?, ?, 'opportunity', ?, ?, 0, NOW())
+            ");
+
+            foreach ($targetUsers as $userId) {
+                $insertStmt->execute([$userId, $title, $message, $opportunityId, $entityData]);
+            }
+
+            error_log('[ChatbotFlow] Notificação criada para ' . count($targetUsers) . ' usuário(s)');
+
+        } catch (\Exception $e) {
+            // Não falha silenciosamente para não bloquear o fluxo principal
+            error_log('[ChatbotFlow] Erro ao criar notificação: ' . $e->getMessage());
         }
     }
 }

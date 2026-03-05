@@ -180,6 +180,68 @@
             50% { opacity: 0.3; }
         }
         
+        /* ===== NOTIFICAÇÕES PUSH (sino no header) ===== */
+        .header-notif-btn {
+            position: relative;
+            background: transparent;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            margin-right: 6px;
+        }
+        .header-notif-btn:hover { background: rgba(255,255,255,0.12); }
+        .header-notif-badge {
+            position: absolute;
+            top: 0; right: 0;
+            min-width: 18px; height: 18px;
+            padding: 0 5px;
+            background: #ef4444;
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            border-radius: 9px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #023A8D;
+        }
+        .header-notif-badge.visible { display: flex; }
+        /* Toast push */
+        #notif-toast-container {
+            position: fixed;
+            top: 70px; right: 20px;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+        .notif-toast {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+            border-left: 4px solid #f59e0b;
+            padding: 14px 16px;
+            max-width: 340px;
+            pointer-events: all;
+            animation: toastSlideIn 0.3s ease;
+            cursor: pointer;
+        }
+        .notif-toast:hover { box-shadow: 0 6px 28px rgba(0,0,0,0.22); }
+        .notif-toast-title { font-weight: 700; font-size: 13px; color: #111827; margin-bottom: 4px; }
+        .notif-toast-msg { font-size: 12px; color: #6b7280; line-height: 1.4; }
+        .notif-toast-time { font-size: 10px; color: #9ca3af; margin-top: 6px; }
+        @keyframes toastSlideIn {
+            from { opacity: 0; transform: translateX(30px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+
         /* Badge de mensagens não lidas no ícone Comunicação (sidebar) */
         .sidebar-icon-comunicacao {
             position: relative;
@@ -1542,6 +1604,15 @@
             </button>
         </div>
         
+        <!-- Sino de Notificações -->
+        <button class="header-notif-btn" onclick="toggleNotifPanel()" title="Notificações" id="header-notif-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="header-notif-badge" id="header-notif-badge"></span>
+        </button>
+
         <!-- Menu de Usuário (estilo SaaS) -->
         <div class="header-user-menu">
             <?php 
@@ -7105,5 +7176,86 @@ async function linkConversationToLead(event) {
         </form>
     </div>
 </div>
+<!-- Toast container para notificações push -->
+<div id="notif-toast-container"></div>
+
+<script>
+(function() {
+    let _notifSeen = new Set();
+    let _notifOpen = false;
+
+    function _relativeTime(dateStr) {
+        const d = new Date(dateStr.replace(' ', 'T') + 'Z');
+        const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+        if (diff < 60) return 'agora';
+        if (diff < 3600) return Math.floor(diff/60) + 'min atrás';
+        if (diff < 86400) return Math.floor(diff/3600) + 'h atrás';
+        return Math.floor(diff/86400) + 'd atrás';
+    }
+
+    function _showToast(notif) {
+        if (_notifSeen.has(notif.id)) return;
+        _notifSeen.add(notif.id);
+        const container = document.getElementById('notif-toast-container');
+        if (!container) return;
+        const t = document.createElement('div');
+        t.className = 'notif-toast';
+        const data = notif.data || {};
+        const oppId = data.opportunity_id || notif.entity_id;
+        t.innerHTML = `
+            <div class="notif-toast-title">${notif.title}</div>
+            <div class="notif-toast-msg">${notif.message}</div>
+            <div class="notif-toast-time">${_relativeTime(notif.created_at)}</div>
+        `;
+        t.onclick = function() {
+            if (oppId) window.location.href = '/opportunities/view?id=' + oppId;
+            _markRead(notif.id);
+            t.remove();
+        };
+        container.appendChild(t);
+        setTimeout(() => { if (t.parentNode) t.remove(); }, 12000);
+    }
+
+    function _markRead(id) {
+        fetch('/api/notifications/read', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({id: id})
+        }).catch(() => {});
+    }
+
+    function _poll() {
+        fetch('/api/notifications/unread-count', {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) return;
+                const badge = document.getElementById('header-notif-badge');
+                if (badge) {
+                    if (data.unread_count > 0) {
+                        badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+                        badge.classList.add('visible');
+                    } else {
+                        badge.classList.remove('visible');
+                    }
+                }
+                // Mostrar toast para novas notificações
+                if (data.unread && Array.isArray(data.unread)) {
+                    data.unread.slice(0, 3).forEach(n => _showToast(n));
+                }
+            }).catch(() => {});
+    }
+
+    window.toggleNotifPanel = function() {
+        // Por enquanto redireciona para oportunidades; futuramente abre painel
+        _markRead(null); // não marca, apenas visita
+        window.location.href = '/opportunities';
+    };
+
+    // Primeira poll e depois a cada 30s
+    setTimeout(_poll, 3000);
+    setInterval(_poll, 30000);
+})();
+</script>
+
 </body>
 </html>

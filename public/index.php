@@ -497,7 +497,12 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Webhook do Meta Official API
     $router->get('/api/whatsapp/meta/webhook', 'MetaWebhookController@handle');
     $router->post('/api/whatsapp/meta/webhook', 'MetaWebhookController@handle');
-    
+
+    // Notificações de usuário (chatbot/CRM)
+    $router->get('/api/notifications', 'UserNotificationController@index');
+    $router->get('/api/notifications/unread-count', 'UserNotificationController@unreadCount');
+    $router->post('/api/notifications/read', 'UserNotificationController@markRead');
+
     // API de Eventos (para sistemas internos emitirem eventos)
     $router->post('/api/events', 'EventIngestionController@handle');
 
