@@ -20,7 +20,7 @@ foreach ($columns as $col) {
 echo "\n2. TEMPLATE 'prospeccao_sistema_corretores_v2':\n";
 echo str_repeat('-', 80) . "\n";
 $template = $db->query("
-    SELECT id, name, tenant_id, status, language
+    SELECT id, name, code, category, is_active
     FROM whatsapp_templates 
     WHERE name LIKE '%prospeccao_sistema_corretores%'
     LIMIT 5
@@ -30,10 +30,11 @@ if (count($template) > 0) {
     foreach ($template as $t) {
         echo "  ID: {$t['id']}\n";
         echo "  Nome: {$t['name']}\n";
-        echo "  tenant_id: " . ($t['tenant_id'] ?: 'NULL') . "\n";
-        echo "  Status: {$t['status']}\n";
-        echo "  Language: {$t['language']}\n\n";
+        echo "  Code: {$t['code']}\n";
+        echo "  Category: {$t['category']}\n";
+        echo "  is_active: {$t['is_active']}\n\n";
     }
+    echo "  ✅ Templates NÃO têm tenant_id - são globais\n";
 } else {
     echo "  Nenhum template encontrado\n";
 }
