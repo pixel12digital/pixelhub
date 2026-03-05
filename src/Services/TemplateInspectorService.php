@@ -298,7 +298,7 @@ class TemplateInspectorService
                 'media_url' => $flow['response_media_url'] ?? null,
                 'media_type' => $flow['response_media_type'] ?? null
             ],
-            'next_buttons' => $flow['next_buttons'] ?? [],
+            'next_buttons' => !empty($flow['next_buttons']) ? json_decode($flow['next_buttons'], true) : [],
             'actions' => []
         ];
         
