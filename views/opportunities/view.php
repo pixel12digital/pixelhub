@@ -336,6 +336,11 @@ function getOriginDisplay($origin) {
                 : ($opp['tenant_email'] ?? $opp['lead_email'] ?? '');
             $hasPhone = !empty($contactPhone);
             $hasEmail = !empty($contactEmail);
+            
+            // DEBUG: Log valores para troubleshooting
+            error_log("[Opp View] lead_phone: " . ($opp['lead_phone'] ?? 'NULL'));
+            error_log("[Opp View] tenant_phone: " . ($opp['tenant_phone'] ?? 'NULL'));
+            error_log("[Opp View] contactPhone final: " . $contactPhone);
         ?>
         <div class="card" style="margin-bottom: 20px;">
             <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #333;">Vínculo</h3>
