@@ -4,12 +4,11 @@ use PixelHub\Core\DB;
 
 Auth::requireInternal();
 
-$pageTitle = 'Novo Template WhatsApp';
-require_once __DIR__ . '/../../layouts/header.php';
-
 // Busca lista de tenants para seleção
 $db = DB::getConnection();
 $tenants = $db->query("SELECT id, name FROM tenants WHERE is_active = 1 ORDER BY name ASC")->fetchAll() ?: [];
+
+ob_start();
 ?>
 
 <style>
@@ -406,4 +405,7 @@ function removeButton(btn) {
 }
 </script>
 
-<?php require_once __DIR__ . '/../../layouts/footer.php'; ?>
+<?php
+$content = ob_get_clean();
+require __DIR__ . '/../../layout/main.php';
+?>
