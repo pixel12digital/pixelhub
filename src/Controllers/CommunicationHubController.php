@@ -2934,17 +2934,17 @@ class CommunicationHubController extends Controller
 
     /**
      * Busca threads de WhatsApp (via tabela conversations - fonte de verdade)
-     * OTIMIZADO: Remove verificação SHOW TABLES desnecessária
      * 
      * @param PDO $db Conexão com banco
      * @param int|null $tenantId Filtro por tenant
      * @param string $status Filtro por status
      * @param string|null $sessionId Filtro por sessão WhatsApp (channel_id)
+     * @param string|null $search Filtro de busca por nome ou telefone
      */
-    private function getWhatsAppThreads(PDO $db, ?int $tenantId, string $status, ?string $sessionId = null): array
+    private function getWhatsAppThreads(PDO $db, ?int $tenantId, string $status, ?string $sessionId = null, ?string $search = null): array
     {
         // Usa diretamente a tabela conversations (sempre existe)
-        return $this->getWhatsAppThreadsFromConversations($db, $tenantId, $status, $sessionId);
+        return $this->getWhatsAppThreadsFromConversations($db, $tenantId, $status, $sessionId, $search);
     }
 
     /**
@@ -2954,8 +2954,9 @@ class CommunicationHubController extends Controller
      * @param int|null $tenantId Filtro por tenant
      * @param string $status Filtro por status
      * @param string|null $sessionId Filtro por sessão WhatsApp (channel_id)
+     * @param string|null $search Filtro de busca por nome ou telefone
      */
-    private function getWhatsAppThreadsFromConversations(PDO $db, ?int $tenantId, string $status, ?string $sessionId = null): array
+    private function getWhatsAppThreadsFromConversations(PDO $db, ?int $tenantId, string $status, ?string $sessionId = null, ?string $search = null): array
     {
         $where = ["c.channel_type = 'whatsapp'"];
         $params = [];
@@ -2969,6 +2970,25 @@ class CommunicationHubController extends Controller
         if ($sessionId) {
             $where[] = "c.channel_id = ?";
             $params[] = $sessionId;
+        }
+        
+        // Filtro de busca por nome ou telefone
+        if ($search) {
+            $searchPattern = '%' . $search . '%';
+            $where[] = "(
+                c.contact_name LIKE ? OR
+                c.contact_external_id LIKE ? OR
+                t.name LIKE ? OR
+                t.phone LIKE ? OR
+                l.name LIKE ? OR
+                l.phone LIKE ?
+            )";
+            $params[] = $searchPattern;
+            $params[] = $searchPattern;
+            $params[] = $searchPattern;
+            $params[] = $searchPattern;
+            $params[] = $searchPattern;
+            $params[] = $searchPattern;
         }
 
         // Filtro de status
@@ -4764,12 +4784,13 @@ class CommunicationHubController extends Controller
         $status = $_GET['status'] ?? 'active';
         // FIX: Agora lê session_id do GET para manter consistência com os filtros da página
         $sessionId = isset($_GET['session_id']) && $_GET['session_id'] !== '' ? $_GET['session_id'] : null;
+        $search = isset($_GET['search']) && $_GET['search'] !== '' ? trim($_GET['search']) : null;
 
         $db = DB::getConnection();
 
         try {
-            // Busca threads de WhatsApp (agora com session_id)
-            $whatsappThreads = $this->getWhatsAppThreads($db, $tenantId, $status, $sessionId);
+            // Busca threads de WhatsApp (agora com session_id e search)
+            $whatsappThreads = $this->getWhatsAppThreads($db, $tenantId, $status, $sessionId, $search);
             
             // Busca threads de chat interno
             $chatThreads = $this->getChatThreads($db, $tenantId, $status);

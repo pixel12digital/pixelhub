@@ -2147,6 +2147,31 @@
                         <option value="ignored">Ignoradas</option>
                         <option value="all">Todas</option>
                     </select>
+                    <div style="position: relative; flex: 1; min-width: 150px; max-width: 250px;">
+                        <input 
+                            type="text" 
+                            id="inboxSearchInput" 
+                            placeholder="Buscar por nome ou telefone..." 
+                            style="width: 100%; padding: 8px 32px 8px 32px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;"
+                            oninput="onInboxSearchInput()"
+                        />
+                        <svg style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: #9ca3af; pointer-events: none;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        <button 
+                            type="button" 
+                            id="inboxSearchClear" 
+                            onclick="clearInboxSearch()" 
+                            style="display: none; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #9ca3af; cursor: pointer; padding: 2px; line-height: 1;"
+                            title="Limpar busca"
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
                     <button type="button" id="inboxBtnNovaConversa" class="inbox-btn-nova-conversa" onclick="openInboxNovaConversa()" title="Nova conversa">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -2858,6 +2883,53 @@
         // URL base – exposta globalmente para reutilizar em funções fora deste escopo
         // Remove barra final para evitar '//' ao concatenar endpoints
         window.INBOX_BASE_URL = window.INBOX_BASE_URL || '<?= rtrim(pixelhub_url(''), '/') ?>';
+        
+        // ===== CONTROLE DE BUSCA DO INBOX =====
+        let inboxSearchTimeout = null;
+        
+        window.onInboxSearchInput = function() {
+            const searchInput = document.getElementById('inboxSearchInput');
+            const clearBtn = document.getElementById('inboxSearchClear');
+            
+            if (!searchInput) return;
+            
+            const query = searchInput.value.trim();
+            
+            // Mostra/esconde botão de limpar
+            if (clearBtn) {
+                clearBtn.style.display = query.length > 0 ? 'block' : 'none';
+            }
+            
+            // Limpa timeout anterior
+            if (inboxSearchTimeout) {
+                clearTimeout(inboxSearchTimeout);
+            }
+            
+            // Se menos de 3 caracteres e não está vazio, não busca ainda
+            if (query.length > 0 && query.length < 3) {
+                return;
+            }
+            
+            // Debounce de 500ms
+            inboxSearchTimeout = setTimeout(() => {
+                loadInboxConversations();
+            }, 500);
+        };
+        
+        window.clearInboxSearch = function() {
+            const searchInput = document.getElementById('inboxSearchInput');
+            const clearBtn = document.getElementById('inboxSearchClear');
+            
+            if (searchInput) {
+                searchInput.value = '';
+            }
+            if (clearBtn) {
+                clearBtn.style.display = 'none';
+            }
+            
+            // Recarrega lista sem filtro
+            loadInboxConversations();
+        };
         
         // ===== ESTADO DE MÍDIA (Anexos) =====
         const InboxMediaState = {
@@ -5619,9 +5691,11 @@
                 const sessionId = (document.getElementById('inboxFilterSession') || {}).value || '';
                 const tenantId = (document.getElementById('inboxFilterTenant') || {}).value || '';
                 const status = filterStatus ? filterStatus.value : 'active';
+                const searchQuery = (document.getElementById('inboxSearchInput') || {}).value || '';
                 const params = new URLSearchParams({ channel, status });
                 if (sessionId) params.set('session_id', sessionId);
                 if (tenantId) params.set('tenant_id', tenantId);
+                if (searchQuery && searchQuery.length >= 3) params.set('search', searchQuery);
                 const url = INBOX_BASE_URL + '/communication-hub/conversations-list?' + params.toString();
                 const response = await fetch(url);
                 const result = await response.json();
