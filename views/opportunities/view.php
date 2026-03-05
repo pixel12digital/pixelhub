@@ -328,20 +328,20 @@ function getOriginDisplay($origin) {
         <!-- Vínculo -->
         <?php
             $isLead = ($opp['contact_type'] ?? 'lead') !== 'cliente';
-            $contactPhone = $isLead
-                ? ($opp['lead_phone'] ?? $opp['tenant_phone'] ?? '')
-                : ($opp['tenant_phone'] ?? $opp['lead_phone'] ?? '');
+            
+            // Busca telefone: prioriza phone da oportunidade, depois lead_phone, depois tenant_phone
+            $contactPhone = $opp['phone'] ?? '';
+            if (empty($contactPhone)) {
+                $contactPhone = $isLead
+                    ? ($opp['lead_phone'] ?? $opp['tenant_phone'] ?? '')
+                    : ($opp['tenant_phone'] ?? $opp['lead_phone'] ?? '');
+            }
+            
             $contactEmail = $isLead
                 ? ($opp['lead_email'] ?? $opp['tenant_email'] ?? '')
                 : ($opp['tenant_email'] ?? $opp['lead_email'] ?? '');
             
-            // CORREÇÃO: Se contactPhone não parece ser um telefone (contém letras), tenta buscar do phone direto
-            if (!empty($contactPhone) && !preg_match('/^\+?[\d\s\(\)\-]+$/', $contactPhone)) {
-                // contactPhone contém letras - provavelmente é nome. Tenta phone direto
-                $contactPhone = $opp['phone'] ?? '';
-            }
-            
-            $hasPhone = !empty($contactPhone) && preg_match('/\d/', $contactPhone);
+            $hasPhone = !empty($contactPhone);
             $hasEmail = !empty($contactEmail);
         ?>
         <div class="card" style="margin-bottom: 20px;">
