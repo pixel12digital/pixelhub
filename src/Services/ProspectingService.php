@@ -929,21 +929,21 @@ class ProspectingService
             $leadNotes = trim(
                 'Empresa encontrada via Prospecção Ativa (Minha Receita).' .
                 (!empty($cnpjFormatted) ? "\nCNPJ: " . $cnpjFormatted : '') .
-                (!empty($result['address']) ? "\nEndereço: " . $result['address'] : '')
+                (!empty($result['address_minhareceita']) ? "\nEndereço: " . $result['address_minhareceita'] : '')
             );
         } else {
             $leadSource = 'prospecting_google_maps';
             $leadNotes = trim(
                 'Empresa encontrada via Prospecção Ativa (Google Maps).' .
-                (!empty($result['address']) ? "\nEndereço: " . $result['address'] : '') .
-                (!empty($result['website']) ? "\nSite: " . $result['website'] : '') .
+                (!empty($result['address_google']) ? "\nEndereço: " . $result['address_google'] : '') .
+                (!empty($result['website_google']) ? "\nSite: " . $result['website_google'] : '') .
                 (!empty($result['rating']) ? "\nAvaliação Google: " . $result['rating'] . '/5' : '')
             );
         }
 
         // Cria o lead
-        // Prioriza phone_minhareceita (atualizado via CNPJ.ws ou Minha Receita), fallback para phone (Google Maps)
-        $phone = $result['phone_minhareceita'] ?? $result['phone'] ?? null;
+        // Prioriza phone_minhareceita (atualizado via CNPJ.ws ou Minha Receita), fallback para phone_google (Google Maps)
+        $phone = $result['phone_minhareceita'] ?? $result['phone_google'] ?? null;
         $email = $result['email'] ?? null;
         
         $leadId = LeadService::create([
