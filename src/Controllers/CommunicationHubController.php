@@ -878,6 +878,11 @@ class CommunicationHubController extends Controller
                     if ($leadId) {
                         error_log("[CommunicationHub::send] tenant_id vazio, tentando resolver a partir de lead_id: {$leadId}");
                         
+                        // Garante que $db está disponível ($db só é definido no bloco PATCH I quando há thread_id)
+                        if (!isset($db)) {
+                            $db = DB::getConnection();
+                        }
+                        
                         // Tenta resolver converted_tenant_id (se lead já foi convertido)
                         $leadStmt = $db->prepare("SELECT converted_tenant_id FROM leads WHERE id = ? LIMIT 1");
                         $leadStmt->execute([$leadId]);
