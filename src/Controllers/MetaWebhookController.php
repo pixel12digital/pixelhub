@@ -310,6 +310,20 @@ class MetaWebhookController extends Controller
             ]);
 
             error_log('[MetaWebhook] Evento ingerido com sucesso: event_id=' . $eventId);
+            
+            // Resolve conversa para cancelar follow-up se necessário
+            $conversation = $this->resolveConversation($from, $tenantId, $phoneNumberId);
+            if ($conversation) {
+                // Cancela follow-up pendente se lead responder antes das 22h
+                try {
+                    \PixelHub\Services\ScheduledMessageService::cancelProspectingFollowup(
+                        $conversation['id'],
+                        'vou_analisar_primeiro'
+                    );
+                } catch (\Exception $e) {
+                    error_log('[MetaWebhook] Erro ao cancelar follow-up: ' . $e->getMessage());
+                }
+            }
 
             // Processa botão interativo se for o caso
             if ($messageType === 'interactive' || $messageType === 'button') {
@@ -449,6 +463,25 @@ class MetaWebhookController extends Controller
                 // Envia resposta automática se houver
                 if (!empty($result['response']['content'])) {
                     $this->sendAutomatedResponse($from, $result['response'], $phoneNumberId);
+                }
+                
+                // Agenda follow-up em 22h se lead escolheu "Vou analisar primeiro"
+                if ($buttonId === 'Vou analisar primeiro') {
+                    try {
+                        \PixelHub\Services\ScheduledMessageService::scheduleProspectingFollowup(
+                            $conversationId,
+                            $from,
+                            'vou_analisar_primeiro',
+                            [
+                                'flow_id' => $flow['id'],
+                                'button_id' => $buttonId,
+                                'scheduled_by' => 'chatbot'
+                            ]
+                        );
+                        error_log('[MetaWebhook] Follow-up agendado para 22h (conversa: ' . $conversationId . ')');
+                    } catch (\Exception $e) {
+                        error_log('[MetaWebhook] Erro ao agendar follow-up: ' . $e->getMessage());
+                    }
                 }
             } else {
                 error_log('[MetaWebhook] Erro ao executar fluxo: ' . $result['message']);
