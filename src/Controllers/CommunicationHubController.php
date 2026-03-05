@@ -1507,10 +1507,18 @@ class CommunicationHubController extends Controller
                 error_log("[CommunicationHub::send] ===== VALIDAÇÃO FINAL =====");
                 error_log("[CommunicationHub::send] targetChannels antes da validação final: " . json_encode($targetChannels));
                 error_log("[CommunicationHub::send] targetChannels está vazio: " . (empty($targetChannels) ? 'SIM' : 'NÃO'));
+                error_log("[CommunicationHub::send] DEBUG STATE: channel={$channel}, channelId=" . ($channelId ?: 'NULL') . ", tenantId=" . ($tenantId ?: 'NULL') . ", threadId=" . ($threadId ?: 'NULL'));
                 
                 if (empty($targetChannels)) {
-                    error_log("[CommunicationHub::send] ❌ ERRO: Nenhum canal identificado para envio");
-                    $this->json(['success' => false, 'error' => 'Nenhum canal WhatsApp identificado para envio', 'request_id' => $requestId], 400);
+                    error_log("[CommunicationHub::send] ❌ ERRO 400: Nenhum canal identificado para envio");
+                    error_log("[CommunicationHub::send] ❌ DEBUG: channel={$channel}, channelId=" . ($channelId ?: 'NULL') . ", tenantId=" . ($tenantId ?: 'NULL'));
+                    error_log("[CommunicationHub::send] ❌ DEBUG: to={$to}, message=" . substr($message, 0, 50));
+                    
+                    // Log adicional: verifica se há canais no banco
+                    $allChannelsCheck = $db->query("SELECT COUNT(*) as total FROM tenant_message_channels WHERE provider = 'wpp_gateway' AND is_enabled = 1")->fetch();
+                    error_log("[CommunicationHub::send] ❌ DEBUG: Total de canais habilitados no banco: " . ($allChannelsCheck['total'] ?? 0));
+                    
+                    $this->json(['success' => false, 'error' => 'Nenhum canal WhatsApp identificado para envio', 'request_id' => $requestId, 'debug' => ['channel' => $channel, 'channel_id' => $channelId, 'tenant_id' => $tenantId]], 400);
                     return;
                 }
                 
