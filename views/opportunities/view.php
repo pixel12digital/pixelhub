@@ -334,13 +334,15 @@ function getOriginDisplay($origin) {
             $contactEmail = $isLead
                 ? ($opp['lead_email'] ?? $opp['tenant_email'] ?? '')
                 : ($opp['tenant_email'] ?? $opp['lead_email'] ?? '');
-            $hasPhone = !empty($contactPhone);
-            $hasEmail = !empty($contactEmail);
             
-            // DEBUG: Log valores para troubleshooting
-            error_log("[Opp View] lead_phone: " . ($opp['lead_phone'] ?? 'NULL'));
-            error_log("[Opp View] tenant_phone: " . ($opp['tenant_phone'] ?? 'NULL'));
-            error_log("[Opp View] contactPhone final: " . $contactPhone);
+            // CORREÇÃO: Se contactPhone não parece ser um telefone (contém letras), tenta buscar do phone direto
+            if (!empty($contactPhone) && !preg_match('/^\+?[\d\s\(\)\-]+$/', $contactPhone)) {
+                // contactPhone contém letras - provavelmente é nome. Tenta phone direto
+                $contactPhone = $opp['phone'] ?? '';
+            }
+            
+            $hasPhone = !empty($contactPhone) && preg_match('/\d/', $contactPhone);
+            $hasEmail = !empty($contactEmail);
         ?>
         <div class="card" style="margin-bottom: 20px;">
             <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #333;">Vínculo</h3>
