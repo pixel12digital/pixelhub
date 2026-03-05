@@ -631,7 +631,7 @@ class ProspectingService
 
                 $stmt = $db->prepare("
                     INSERT INTO prospecting_results
-                        (recipe_id, tenant_id, google_place_id, name, address, city, state, phone, website,
+                        (recipe_id, tenant_id, google_place_id, name, address_google, city, state, phone_google, website_google,
                          rating, user_ratings_total, lat, lng, google_types, source, status, found_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'google_maps', 'new', NOW(), NOW())
                 ");
