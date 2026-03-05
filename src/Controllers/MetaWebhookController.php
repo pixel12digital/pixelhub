@@ -465,22 +465,16 @@ class MetaWebhookController extends Controller
                     $this->sendAutomatedResponse($from, $result['response'], $phoneNumberId);
                 }
                 
-                // Agenda follow-up em 22h se lead escolheu "Vou analisar primeiro"
-                if ($buttonId === 'Vou analisar primeiro') {
+                // Cancela follow-up se lead clicou em "Quero conhecer" (demonstrou interesse)
+                if ($buttonId === 'Quero conhecer') {
                     try {
-                        \PixelHub\Services\ScheduledMessageService::scheduleProspectingFollowup(
+                        \PixelHub\Services\ScheduledMessageService::cancelProspectingFollowup(
                             $conversationId,
-                            $from,
-                            'vou_analisar_primeiro',
-                            [
-                                'flow_id' => $flow['id'],
-                                'button_id' => $buttonId,
-                                'scheduled_by' => 'chatbot'
-                            ]
+                            'no_response_22h'
                         );
-                        error_log('[MetaWebhook] Follow-up agendado para 22h (conversa: ' . $conversationId . ')');
+                        error_log('[MetaWebhook] Follow-up cancelado - lead demonstrou interesse (conversa: ' . $conversationId . ')');
                     } catch (\Exception $e) {
-                        error_log('[MetaWebhook] Erro ao agendar follow-up: ' . $e->getMessage());
+                        error_log('[MetaWebhook] Erro ao cancelar follow-up: ' . $e->getMessage());
                     }
                 }
             } else {
