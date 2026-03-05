@@ -151,7 +151,7 @@ if (($sourceFilter ?? null) === 'minhareceita') {
                     📊 Ver Prévia
                 </button>
                 <?php endif; ?>
-                <button onclick="openVolumeModal(<?= $recipe['id'] ?>, this)" <?= !$canRun ? 'disabled title="Configure a API Google Maps primeiro"' : '' ?>
+                <button onclick="<?= $recSrc === 'minhareceita' ? 'openVolumeModal(' . $recipe['id'] . ', this)' : 'runSearchGoogleMaps(' . $recipe['id'] . ', this)' ?>" <?= !$canRun ? 'disabled title="Configure a API Google Maps primeiro"' : '' ?>
                         style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;background:<?= $canRun ? '#023A8D' : '#94a3b8' ?>;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:<?= $canRun ? 'pointer' : 'not-allowed' ?>;">
                     🔍 Buscar Agora
                 </button>
@@ -765,6 +765,30 @@ function openVolumeModal(recipeId,btn){
         document.body.appendChild(div);
     }
 }
+function runSearchGoogleMaps(recipeId,btn){
+    const div=document.getElementById('search-result-'+recipeId);
+    if(btn){btn.disabled=true;var orig=btn.innerHTML;btn.innerHTML='⏳ Buscando...';}
+    div.style.display='block';
+    div.style.background='#eff6ff';div.style.border='1px solid #bfdbfe';div.style.color='#1e40af';
+    div.innerHTML='⏳ Buscando no Google Maps... <span style="font-size:11px;opacity:0.8;">(máximo ~60 resultados devido a limites da API)</span>';
+    fetch('<?= pixelhub_url('/prospecting/run') ?>',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'recipe_id='+recipeId+'&max_results=60'})
+    .then(r=>r.json())
+    .then(data=>{
+        div.style.display='block';
+        if(data.success){
+            const r=data.result;
+            div.style.background='#f0fdf4';div.style.border='1px solid #bbf7d0';div.style.color='#15803d';
+            div.innerHTML='✓ Busca concluída! <strong>'+r.found+'</strong> encontradas, <strong>'+r.new+'</strong> novas, <strong>'+r.duplicates+'</strong> já existentes.'
+                +(r.new>0?' <a href="<?= pixelhub_url('/prospecting/results?recipe_id=') ?>'+recipeId+'" style="color:#023A8D;font-weight:600;margin-left:8px;">Ver Resultados →</a>':'')
+                +(r.errors&&r.errors.length?' <span style="color:#dc2626;margin-left:8px;">'+r.errors.length+' erro(s)</span>':'');
+        }else{
+            div.style.background='#fef2f2';div.style.border='1px solid #fecaca';div.style.color='#dc2626';
+            div.innerHTML='✗ '+data.error;
+        }
+    })
+    .catch(()=>{div.style.display='block';div.style.background='#fef2f2';div.style.border='1px solid #fecaca';div.style.color='#dc2626';div.innerHTML='✗ Erro de comunicação.';})
+    .finally(()=>{if(btn){btn.disabled=false;btn.innerHTML=orig;}});
+}
 function runSearch(recipeId,btn,maxResults){
     maxResults=maxResults||100;
     const div=document.getElementById('search-result-'+recipeId);
@@ -788,7 +812,7 @@ function runSearch(recipeId,btn,maxResults){
         }
     })
     .catch(()=>{div.style.display='block';div.style.background='#fef2f2';div.style.border='1px solid #fecaca';div.style.color='#dc2626';div.innerHTML='✗ Erro de comunicação.';})
-    .finally(()=>{btn.disabled=false;btn.innerHTML=orig;});
+    .finally(()=>{if(btn){btn.disabled=false;btn.innerHTML=orig;}});
 }
 </script>
 
