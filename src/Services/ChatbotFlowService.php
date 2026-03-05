@@ -293,14 +293,6 @@ class ChatbotFlowService
         switch ($flow['response_type']) {
             case 'text':
                 $response['content'] = self::renderMessage($flow['response_message'], $context);
-                
-                // Adiciona botões específicos para fluxo de pergunta de perfil (ID 1)
-                if ($flowId === 1) {
-                    $response['buttons'] = [
-                        ['id' => 'Sou autônomo', 'title' => 'Sou autônomo'],
-                        ['id' => 'Trabalho em imobiliária', 'title' => 'Trabalho em imobiliária']
-                    ];
-                }
                 break;
                 
             case 'template':
@@ -365,6 +357,11 @@ class ChatbotFlowService
         // Criação automática de oportunidade para fluxo "Quero conhecer" (ID 1)
         if ($flowId === 1) {
             self::createOpportunityForProspecting($conversationId, $flow);
+        }
+
+        // Fluxo "Sem interesse" (ID 2): marca oportunidade existente como perdida
+        if ($flowId === 2) {
+            self::handleNoInterestFlow($conversationId);
         }
         
         return [
@@ -620,6 +617,56 @@ class ChatbotFlowService
         } catch (\Exception $e) {
             error_log('[ChatbotFlow] Erro ao criar oportunidade: ' . $e->getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Trata fluxo "Sem interesse": marca oportunidade existente como perdida.
+     * NÃO cria nova oportunidade — evita inflar o CRM com leads desinteressados.
+     */
+    private static function handleNoInterestFlow(int $conversationId): void
+    {
+        try {
+            $db = DB::getConnection();
+
+            $stmt = $db->prepare("SELECT lead_id FROM conversations WHERE id = ? LIMIT 1");
+            $stmt->execute([$conversationId]);
+            $conv = $stmt->fetch();
+
+            if (empty($conv['lead_id'])) return;
+
+            // Busca oportunidade aberta de prospecção para este lead
+            $stmt = $db->prepare("
+                SELECT id FROM opportunities
+                WHERE lead_id = ?
+                  AND origin = 'prospecting_whatsapp'
+                  AND status = 'open'
+                ORDER BY id DESC
+                LIMIT 1
+            ");
+            $stmt->execute([$conv['lead_id']]);
+            $opp = $stmt->fetch();
+
+            if ($opp) {
+                $db->prepare("
+                    UPDATE opportunities
+                    SET status = 'lost',
+                        stage  = 'lost',
+                        lost_reason = 'Lead informou não ter interesse via WhatsApp',
+                        lost_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = ?
+                ")->execute([$opp['id']]);
+                error_log('[ChatbotFlow] Oportunidade ' . $opp['id'] . ' marcada como perdida (Sem interesse)');
+
+                self::logEvent($conversationId, 'opportunity_lost', [
+                    'opportunity_id' => $opp['id'],
+                    'reason'         => 'no_interest_whatsapp',
+                ]);
+            }
+            // Se não existe oportunidade, não faz nada — lead nunca entrou no pipeline
+        } catch (\Exception $e) {
+            error_log('[ChatbotFlow] Erro ao processar Sem interesse: ' . $e->getMessage());
         }
     }
 
