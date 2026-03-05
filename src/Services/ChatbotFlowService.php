@@ -293,6 +293,14 @@ class ChatbotFlowService
         switch ($flow['response_type']) {
             case 'text':
                 $response['content'] = self::renderMessage($flow['response_message'], $context);
+                
+                // Adiciona botões específicos para fluxo de pergunta de perfil (ID 1)
+                if ($flowId === 1) {
+                    $response['buttons'] = [
+                        ['id' => 'Sou autônomo', 'title' => 'Sou autônomo'],
+                        ['id' => 'Trabalho em imobiliária', 'title' => 'Trabalho em imobiliária']
+                    ];
+                }
                 break;
                 
             case 'template':
