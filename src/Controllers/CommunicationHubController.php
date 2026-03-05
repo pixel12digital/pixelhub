@@ -870,14 +870,15 @@ class CommunicationHubController extends Controller
                     return;
                 }
                 
-                // Se tenant_id está vazio, tenta resolver a partir de lead_id
+                // NOVO: tenant_id pode vir do POST (prioridade) ou ser resolvido do lead
+                // Isso permite enviar via Meta API para leads usando o tenant do remetente (ex: Pixel12 Digital)
                 if (empty($tenantId)) {
                     $leadId = isset($_POST['lead_id']) && $_POST['lead_id'] !== '' ? (int) $_POST['lead_id'] : null;
                     
                     if ($leadId) {
                         error_log("[CommunicationHub::send] tenant_id vazio, tentando resolver a partir de lead_id: {$leadId}");
                         
-                        // CORREÇÃO: leads tem converted_tenant_id, não tenant_id
+                        // Tenta resolver converted_tenant_id (se lead já foi convertido)
                         $leadStmt = $db->prepare("SELECT converted_tenant_id FROM leads WHERE id = ? LIMIT 1");
                         $leadStmt->execute([$leadId]);
                         $lead = $leadStmt->fetch();
@@ -886,14 +887,14 @@ class CommunicationHubController extends Controller
                             $tenantId = (int) $lead['converted_tenant_id'];
                             error_log("[CommunicationHub::send] ✅ tenant_id resolvido do lead (converted_tenant_id): {$tenantId}");
                         } else {
-                            error_log("[CommunicationHub::send] ⚠️ Lead {$leadId} não tem converted_tenant_id associado");
+                            error_log("[CommunicationHub::send] ⚠️ Lead {$leadId} não tem converted_tenant_id - tenant_id deve vir do POST");
                         }
                     }
                 }
                 
                 if (empty($tenantId)) {
-                    error_log("[CommunicationHub::send] ❌ ERRO 400: tenant_id vazio e não foi possível resolver de lead_id");
-                    $this->json(['success' => false, 'error' => 'Cliente é obrigatório para envio via Meta API. O lead precisa estar vinculado a um cliente.', 'request_id' => $requestId], 400);
+                    error_log("[CommunicationHub::send] ❌ ERRO 400: tenant_id vazio e não foi possível resolver");
+                    $this->json(['success' => false, 'error' => 'Tenant é obrigatório para envio via Meta API. Selecione o canal/conta a ser usado.', 'request_id' => $requestId], 400);
                     return;
                 }
                 

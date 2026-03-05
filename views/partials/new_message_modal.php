@@ -500,6 +500,13 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 });
                 data.template_vars = JSON.stringify(templateVars);
             }
+            
+            // NOVO: Se enviando para lead (lead_id presente mas tenant_id vazio), 
+            // usa tenant_id=1 (Pixel12 Digital) como remetente
+            if (data.lead_id && !data.tenant_id) {
+                data.tenant_id = '1'; // Pixel12 Digital
+                console.log('[NewMessage] Meta API para lead: usando tenant_id=1 (Pixel12 Digital)');
+            }
         }
         
         if (data.channel === 'whatsapp') {
