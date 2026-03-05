@@ -854,20 +854,53 @@ const TemplateInspector = {
             
             if (result.success) {
                 let html = '<div class="test-result">';
-                html += '<div class="test-result-success"><i class="fas fa-check-circle"></i> Simulação Concluída</div>';
-                html += `<p><strong>Botão:</strong> ${buttonId}</p>`;
-                html += `<p><strong>Fluxo:</strong> ${result.flow.name}</p>`;
-                html += '<p><strong>Ações que seriam executadas:</strong></p>';
-                html += '<div class="flow-actions">';
+                html += '<div class="test-result-success"><i class="fas fa-check-circle"></i> Preview Completo do Fluxo</div>';
                 
-                result.actions.forEach(action => {
-                    html += `<div class="flow-action-item">`;
-                    html += `<i class="fas fa-check flow-action-icon"></i>`;
-                    html += `<span>${action.description}</span>`;
-                    html += `</div>`;
-                });
+                // Botão clicado
+                html += '<div style="margin-bottom: 20px;">';
+                html += `<p style="margin-bottom: 8px;"><strong>Botão clicado:</strong> "${result.button_text}"</p>`;
+                html += `<p style="margin-bottom: 0; color: #6c757d; font-size: 13px;">Fluxo: ${result.flow.name}</p>`;
+                html += '</div>';
                 
-                html += '</div></div>';
+                // Mensagem que será enviada
+                if (result.response && result.response.message) {
+                    html += '<div style="background: #f0f7ff; border-left: 4px solid #4a90e2; padding: 16px; border-radius: 6px; margin-bottom: 20px;">';
+                    html += '<p style="margin: 0 0 8px 0; font-weight: 600; color: #2c3e50;"><i class="fas fa-comment" style="color: #4a90e2; margin-right: 8px;"></i>Mensagem que será enviada:</p>';
+                    html += `<p style="margin: 0; white-space: pre-wrap; line-height: 1.6; color: #2c3e50;">${result.response.message}</p>`;
+                    html += '</div>';
+                }
+                
+                // Próximos botões
+                if (result.next_buttons && result.next_buttons.length > 0) {
+                    html += '<div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 16px; border-radius: 6px; margin-bottom: 20px;">';
+                    html += '<p style="margin: 0 0 12px 0; font-weight: 600; color: #2c3e50;"><i class="fas fa-hand-pointer" style="color: #ffc107; margin-right: 8px;"></i>Botões que aparecerão para o usuário:</p>';
+                    result.next_buttons.forEach(btn => {
+                        html += `<div style="background: white; border: 2px solid #ffc107; border-radius: 6px; padding: 10px; margin-bottom: 8px; font-weight: 500;">${btn.text}</div>`;
+                    });
+                    html += '</div>';
+                }
+                
+                // Ações internas
+                if (result.actions && result.actions.length > 0) {
+                    html += '<div style="background: #f8f9fa; border-left: 4px solid #6c757d; padding: 16px; border-radius: 6px;">';
+                    html += '<p style="margin: 0 0 12px 0; font-weight: 600; color: #2c3e50;"><i class="fas fa-cogs" style="color: #6c757d; margin-right: 8px;"></i>Ações internas do sistema:</p>';
+                    html += '<div class="flow-actions">';
+                    result.actions.forEach(action => {
+                        html += `<div class="flow-action-item">`;
+                        html += `<i class="fas fa-check-circle flow-action-icon"></i>`;
+                        html += `<span>${action.description}</span>`;
+                        if (action.tags) {
+                            html += `<span style="margin-left: 8px; color: #6c757d; font-size: 12px;">(${action.tags.join(', ')})</span>`;
+                        }
+                        if (action.new_status) {
+                            html += `<span style="margin-left: 8px; color: #6c757d; font-size: 12px;">(${action.new_status})</span>`;
+                        }
+                        html += `</div>`;
+                    });
+                    html += '</div></div>';
+                }
+                
+                html += '</div>';
                 resultContainer.innerHTML = html;
             } else {
                 resultContainer.innerHTML = `

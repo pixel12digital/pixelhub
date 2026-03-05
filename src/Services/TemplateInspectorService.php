@@ -281,14 +281,24 @@ class TemplateInspectorService
         // Simula execução (não executa de verdade, apenas mostra o que aconteceria)
         $simulation = [
             'success' => true,
-            'message' => 'Simulação concluída',
+            'message' => 'Simulação concluída - Preview completo do fluxo',
             'button_id' => $buttonId,
+            'button_text' => $buttonText,
             'flow' => [
                 'id' => $flow['id'],
                 'name' => $flow['name'],
                 'trigger_type' => $flow['trigger_type'],
                 'trigger_value' => $flow['trigger_value']
             ],
+            'response' => [
+                'type' => $flow['response_type'],
+                'message' => $flow['response_message'] ?? null,
+                'template_id' => $flow['response_template_id'] ?? null,
+                'template_name' => $flow['response_template_name'] ?? null,
+                'media_url' => $flow['response_media_url'] ?? null,
+                'media_type' => $flow['response_media_type'] ?? null
+            ],
+            'next_buttons' => $flow['next_buttons'] ?? [],
             'actions' => []
         ];
         
