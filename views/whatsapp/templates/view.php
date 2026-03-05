@@ -942,8 +942,8 @@ $content = ob_get_clean();
 use PixelHub\Core\DB;
 $db = DB::getConnection();
 
-// Busca tenants para o dropdown
-$stmt = $db->query("SELECT id, name, phone FROM tenants WHERE status = 'active' ORDER BY name");
+// Busca tenants para o dropdown (todos os leads e clientes, independente de status)
+$stmt = $db->query("SELECT id, name, phone FROM tenants WHERE 1=1 ORDER BY name");
 $tenants = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Busca sessões WhatsApp
