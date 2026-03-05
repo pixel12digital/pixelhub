@@ -800,12 +800,15 @@ class CommunicationHubController extends Controller
         
         // LOG INICIAL SEMPRE (para debug de erros 500)
         error_log("[CommunicationHub::send] ===== INÍCIO MÉTODO =====");
-        error_log("[CommunicationHub::send] channel: " . ($channel ?: 'NULL'));
-        error_log("[CommunicationHub::send] message: " . (empty($message) ? 'VAZIO' : 'PRESENTE (len=' . strlen($message) . ')'));
-        error_log("[CommunicationHub::send] to: " . ($to ?: 'NULL'));
-        error_log("[CommunicationHub::send] threadId: " . ($threadId ?: 'NULL'));
-        error_log("[CommunicationHub::send] channelId: " . ($channelId ?: 'NULL'));
-        error_log("[CommunicationHub::send] tenantId: " . ($tenantId ?: 'NULL'));
+        error_log("[CommunicationHub::send] PAYLOAD COMPLETO: " . json_encode([
+            'channel' => $channel,
+            'channel_id' => $channelId,
+            'tenant_id' => $tenantId,
+            'lead_id' => $_POST['lead_id'] ?? null,
+            'to' => $to,
+            'thread_id' => $threadId,
+            'template_id' => $_POST['template_id'] ?? null
+        ]));
         
         if ($isDev) {
             error_log("[CommunicationHub::send] ===== LOG INSTRUMENTADO (INÍCIO) =====");
