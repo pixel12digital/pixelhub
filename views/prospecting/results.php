@@ -559,7 +559,7 @@ function enrichWithGoogleMaps(resultId) {
                     <button onclick="closeEnrichModal()" style="padding:10px 20px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">
                         Cancelar
                     </button>
-                    <button onclick="applyEnrichment(${resultId}, ${JSON.stringify(d.google_maps).replace(/"/g, '&quot;')}, ${d.confidence})" 
+                    <button onclick="applyEnrichment(${resultId}, '${btoa(JSON.stringify(d.google_maps))}', ${d.confidence})" 
                             style="padding:10px 20px;background:#0369a1;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">
                         Aplicar Enriquecimento
                     </button>
@@ -595,11 +595,13 @@ function enrichWithGoogleMaps(resultId) {
     });
 }
 
-function applyEnrichment(resultId, googleData, confidence) {
+function applyEnrichment(resultId, googleDataBase64, confidence) {
     const btn = event.target;
     const orig = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;"></span> Aplicando...';
+    
+    const googleData = JSON.parse(atob(googleDataBase64));
     
     fetch('<?= pixelhub_url('/prospecting/apply-google-enrichment') ?>', {
         method: 'POST',
@@ -611,12 +613,12 @@ function applyEnrichment(resultId, googleData, confidence) {
         if (!data.success) {
             throw new Error(data.error || 'Erro ao aplicar enriquecimento');
         }
-        showToast('Dados atualizados com sucesso!', 'success');
+        showToast('✓ Dados atualizados com sucesso!', true);
         closeEnrichModal();
         setTimeout(() => location.reload(), 1000);
     })
     .catch(err => {
-        showToast(err.message, 'error');
+        showToast('✗ ' + err.message, false);
         btn.disabled = false;
         btn.innerHTML = orig;
     });
@@ -648,11 +650,11 @@ function updateWithCnpjWs(resultId) {
             ? `${data.updated_fields} campo(s) atualizado(s) com sucesso!`
             : 'Dados já estão atualizados';
         
-        showToast(msg, 'success');
+        showToast('✓ ' + msg, true);
         setTimeout(() => location.reload(), 1000);
     })
     .catch(err => {
-        showToast(err.message, 'error');
+        showToast('✗ ' + err.message, false);
         btn.disabled = false;
         btn.innerHTML = orig;
     });
