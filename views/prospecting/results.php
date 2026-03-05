@@ -140,7 +140,13 @@ ob_start();
                                 <span id="toggle-icon-<?= $result['id'] ?>">▶</span>
                             </button>
                             <?php endif; ?>
+                            <?php if ($result['source'] === 'google_maps' && !empty($result['google_place_id'])): ?>
+                            <a href="https://www.google.com/maps/place/?q=place_id:<?= urlencode($result['google_place_id']) ?>" target="_blank" style="font-weight:600;color:#023A8D;text-decoration:none;">
+                                <?= htmlspecialchars($result['name']) ?> 🔗
+                            </a>
+                            <?php else: ?>
                             <div style="font-weight:600;color:#1e293b;"><?= htmlspecialchars($result['name']) ?></div>
+                            <?php endif; ?>
                             <?php if (!empty($result['opcao_pelo_mei'])): ?>
                             <span style="padding:2px 6px;background:#dbeafe;color:#1e40af;border-radius:3px;font-size:10px;font-weight:700;">MEI</span>
                             <?php endif; ?>
@@ -158,8 +164,11 @@ ob_start();
                         <?php if (!empty($result['cnpj'])): ?>
                         <div style="font-size:11px;color:#64748b;margin-bottom:2px;">CNPJ: <?= htmlspecialchars($result['cnpj']) ?></div>
                         <?php endif; ?>
-                        <?php if (!empty($result['address'])): ?>
-                        <div style="font-size:12px;color:#64748b;"><?= htmlspecialchars($result['address']) ?></div>
+                        <?php 
+                        $address = $result['source'] === 'google_maps' ? ($result['address_google'] ?? '') : ($result['address_minhareceita'] ?? '');
+                        if (!empty($address)): 
+                        ?>
+                        <div style="font-size:12px;color:#64748b;"><?= htmlspecialchars($address) ?></div>
                         <?php endif; ?>
                         <?php if (!empty($result['porte']) || !empty($result['natureza_juridica'])): ?>
                         <div style="font-size:11px;color:#64748b;margin-top:2px;">
@@ -176,9 +185,12 @@ ob_start();
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>Fundada em <?= $dataInicio->format('Y') ?> (<?= $anos ?> anos)
                         </div>
                         <?php endif; ?>
-                        <?php if (!empty($result['website'])): ?>
-                        <a href="<?= htmlspecialchars($result['website']) ?>" target="_blank" style="font-size:11px;color:#023A8D;text-decoration:none;display:inline-block;margin-top:2px;">
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg><?= htmlspecialchars(parse_url($result['website'], PHP_URL_HOST) ?: $result['website']) ?>
+                        <?php 
+                        $website = $result['source'] === 'google_maps' ? ($result['website_google'] ?? '') : ($result['website_minhareceita'] ?? '');
+                        if (!empty($website)): 
+                        ?>
+                        <a href="<?= htmlspecialchars($website) ?>" target="_blank" style="font-size:11px;color:#023A8D;text-decoration:none;display:inline-block;margin-top:2px;">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg><?= htmlspecialchars(parse_url($website, PHP_URL_HOST) ?: $website) ?>
                         </a>
                         <?php endif; ?>
                         <?php if (!empty($result['lead_name'])): ?>
@@ -195,13 +207,17 @@ ob_start();
                     </td>
                     <!-- Coluna Telefone -->
                     <td style="padding:14px 16px;">
-                        <?php if (!empty($result['phone_minhareceita'])): ?>
-                        <div style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($result['phone_minhareceita']) ?></div>
+                        <?php 
+                        $phone = $result['source'] === 'google_maps' ? ($result['phone_google'] ?? '') : ($result['phone_minhareceita'] ?? '');
+                        $phoneSecundario = $result['telefone_secundario'] ?? '';
+                        ?>
+                        <?php if (!empty($phone)): ?>
+                        <div style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($phone) ?></div>
                         <?php endif; ?>
-                        <?php if (!empty($result['telefone_secundario'])): ?>
-                        <div style="font-size:11px;color:#64748b;margin-top:2px;"><?= htmlspecialchars($result['telefone_secundario']) ?></div>
+                        <?php if (!empty($phoneSecundario)): ?>
+                        <div style="font-size:11px;color:#64748b;margin-top:2px;"><?= htmlspecialchars($phoneSecundario) ?></div>
                         <?php endif; ?>
-                        <?php if (empty($result['phone_minhareceita']) && empty($result['telefone_secundario'])): ?>
+                        <?php if (empty($phone) && empty($phoneSecundario)): ?>
                         <span style="font-size:11px;color:#cbd5e1;">—</span>
                         <?php endif; ?>
                     </td>
