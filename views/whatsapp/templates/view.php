@@ -44,77 +44,340 @@ $categoryLabels = [
 $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true) : [];
 ?>
 
-<div class="container-fluid py-4">
-    <div class="row mb-4">
-        <div class="col-md-8">
-            <h1 class="h3 mb-0">
-                <i class="fas fa-eye text-muted"></i>
+<style>
+/* Cards profissionais e compactos */
+.template-view-card {
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+}
+
+.template-view-card .card-body {
+    padding: 20px;
+}
+
+.template-view-card .card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+/* Grid compacto para informações */
+.info-grid {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 12px 16px;
+    font-size: 14px;
+}
+
+.info-grid .label {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.info-grid .value {
+    color: #2c3e50;
+    font-weight: 400;
+}
+
+/* Conteúdo da mensagem formatado */
+.message-content {
+    background: #f8f9fa;
+    border-left: 4px solid #4a90e2;
+    padding: 16px;
+    border-radius: 6px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    font-size: 14px;
+    color: #2c3e50;
+}
+
+/* Botões interativos melhorados */
+.button-preview {
+    background: #ffffff;
+    border: 2px solid #4a90e2;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s ease;
+}
+
+.button-preview:hover {
+    background: #f0f7ff;
+    transform: translateY(-1px);
+}
+
+.button-preview .button-text {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 14px;
+}
+
+.button-preview .button-type {
+    font-size: 12px;
+    color: #6c757d;
+    background: #e9ecef;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+/* Preview WhatsApp compacto */
+.whatsapp-mock {
+    max-width: 380px;
+    margin: 0 auto;
+    background: #e5ddd5;
+    padding: 16px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.whatsapp-bubble {
+    background: #ffffff;
+    padding: 12px 14px;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    position: relative;
+}
+
+.whatsapp-bubble::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: -8px;
+    width: 0;
+    height: 0;
+    border-left: 8px solid #ffffff;
+    border-top: 8px solid transparent;
+}
+
+.whatsapp-header {
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #2c3e50;
+}
+
+.whatsapp-body {
+    margin-bottom: 8px;
+    line-height: 1.4;
+    font-size: 14px;
+    color: #2c3e50;
+}
+
+.whatsapp-footer {
+    font-size: 12px;
+    color: #667781;
+    margin-top: 8px;
+}
+
+.whatsapp-buttons {
+    margin-top: 12px;
+    border-top: 1px solid #e9ecef;
+    padding-top: 8px;
+}
+
+.whatsapp-button {
+    text-align: center;
+    padding: 10px;
+    color: #00a5f4;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 1px solid #e9ecef;
+    font-size: 14px;
+}
+
+.whatsapp-button:last-child {
+    border-bottom: none;
+}
+
+.whatsapp-button:hover {
+    background: #f0f7ff;
+}
+
+/* Metadados colapsáveis */
+.metadata-toggle {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.metadata-toggle:hover {
+    color: #4a90e2;
+}
+
+.metadata-content {
+    padding-top: 16px;
+    display: none;
+}
+
+.metadata-content.show {
+    display: block;
+}
+
+.metadata-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 13px;
+}
+
+.metadata-item:last-child {
+    border-bottom: none;
+}
+
+.metadata-item .label {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.metadata-item .value {
+    color: #2c3e50;
+}
+
+/* Ações rápidas */
+.quick-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+}
+
+.btn-action {
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-action-primary {
+    background: #4a90e2;
+    color: white;
+    border: none;
+}
+
+.btn-action-primary:hover {
+    background: #357abd;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(74, 144, 226, 0.3);
+}
+
+.btn-action-secondary {
+    background: transparent;
+    color: #6c757d;
+    border: 2px solid #6c757d;
+}
+
+.btn-action-secondary:hover {
+    background: #6c757d;
+    color: white;
+    transform: translateY(-1px);
+}
+
+/* Badges melhorados */
+.status-badge {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.category-badge {
+    background: #e7f3ff;
+    color: #2c5282;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-block;
+}
+</style>
+
+<div class="container-fluid py-3">
+    <!-- Cabeçalho com título e ações rápidas -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <h1 class="h4 mb-2">
+                <i class="fas fa-eye text-primary"></i>
                 <?= htmlspecialchars($template['template_name']) ?>
             </h1>
-            <p class="text-muted mb-0">Visualização do template WhatsApp Business</p>
-        </div>
-        <div class="col-md-4 text-end">
-            <a href="<?= pixelhub_url('/settings/whatsapp-providers') ?>" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> Voltar
-            </a>
-            <?php if ($template['status'] !== 'approved'): ?>
-                <a href="<?= pixelhub_url('/whatsapp/templates/edit?id=' . $template['id']) ?>" class="btn btn-primary">
-                    <i class="fas fa-edit"></i> Editar
+            <p class="text-muted small mb-3">Visualização do template WhatsApp Business</p>
+            
+            <div class="quick-actions">
+                <a href="<?= pixelhub_url('/settings/whatsapp-providers') ?>" class="btn-action btn-action-secondary">
+                    <i class="fas fa-arrow-left"></i> Voltar
                 </a>
-            <?php endif; ?>
+                <?php if ($template['status'] !== 'approved'): ?>
+                    <a href="<?= pixelhub_url('/whatsapp/templates/edit?id=' . $template['id']) ?>" class="btn-action btn-action-primary">
+                        <i class="fas fa-edit"></i> Editar Template
+                    </a>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
 
     <div class="row">
         <div class="col-md-8">
-            <!-- Informações Básicas -->
-            <div class="card mb-4">
+            <!-- Informações do Template -->
+            <div class="card template-view-card">
                 <div class="card-body">
-                    <h5 class="card-title">Informações Básicas</h5>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="text-muted small">Nome do Template</label>
-                            <div class="fw-bold"><?= htmlspecialchars($template['template_name']) ?></div>
+                    <h6 class="card-title">Informações do Template</h6>
+                    <div class="info-grid">
+                        <div class="label">Nome</div>
+                        <div class="value"><code><?= htmlspecialchars($template['template_name']) ?></code></div>
+                        
+                        <div class="label">Categoria</div>
+                        <div class="value">
+                            <span class="category-badge">
+                                <?= $categoryLabels[$template['category']] ?? $template['category'] ?>
+                            </span>
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="text-muted small">Categoria</label>
-                            <div>
-                                <span class="badge bg-info">
-                                    <?= $categoryLabels[$template['category']] ?? $template['category'] ?>
-                                </span>
-                            </div>
+                        
+                        <div class="label">Idioma</div>
+                        <div class="value"><?= htmlspecialchars($template['language']) ?></div>
+                        
+                        <div class="label">Status</div>
+                        <div class="value">
+                            <span class="status-badge" style="background: <?= $statusColors[$template['status']] ?>; color: white;">
+                                <?= $statusLabels[$template['status']] ?? $template['status'] ?>
+                            </span>
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="text-muted small">Idioma</label>
-                            <div class="fw-bold"><?= htmlspecialchars($template['language']) ?></div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="text-muted small">Status</label>
-                            <div>
-                                <span class="badge" style="background: <?= $statusColors[$template['status']] ?>;">
-                                    <?= $statusLabels[$template['status']] ?? $template['status'] ?>
-                                </span>
-                            </div>
-                        </div>
+                        
                         <?php if (!empty($template['meta_template_id'])): ?>
-                            <div class="col-md-6 mb-3">
-                                <label class="text-muted small">ID Meta</label>
-                                <div class="fw-bold font-monospace"><?= htmlspecialchars($template['meta_template_id']) ?></div>
-                            </div>
+                            <div class="label">ID Meta</div>
+                            <div class="value"><code><?= htmlspecialchars($template['meta_template_id']) ?></code></div>
                         <?php endif; ?>
                     </div>
                 </div>
             </div>
 
-            <!-- Conteúdo -->
-            <div class="card mb-4">
+            <!-- Conteúdo da Mensagem -->
+            <div class="card template-view-card">
                 <div class="card-body">
-                    <h5 class="card-title">Conteúdo da Mensagem</h5>
+                    <h6 class="card-title">Conteúdo da Mensagem</h6>
                     
                     <?php if (!empty($template['header_type']) && $template['header_type'] !== 'none'): ?>
                         <div class="mb-3">
-                            <label class="text-muted small">Cabeçalho (<?= ucfirst($template['header_type']) ?>)</label>
-                            <div class="p-3 bg-light rounded">
+                            <small class="text-muted d-block mb-2">Cabeçalho (<?= ucfirst($template['header_type']) ?>)</small>
+                            <div class="message-content">
                                 <?php if ($template['header_type'] === 'text'): ?>
                                     <?= nl2br(htmlspecialchars($template['header_content'] ?? '')) ?>
                                 <?php else: ?>
@@ -125,14 +388,14 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
                     <?php endif; ?>
 
                     <div class="mb-3">
-                        <label class="text-muted small">Corpo da Mensagem</label>
-                        <div class="p-3 bg-light rounded" style="white-space: pre-wrap;"><?= htmlspecialchars($template['content']) ?></div>
+                        <small class="text-muted d-block mb-2">Corpo da Mensagem</small>
+                        <div class="message-content"><?= htmlspecialchars($template['content']) ?></div>
                     </div>
 
                     <?php if (!empty($template['footer_text'])): ?>
-                        <div class="mb-3">
-                            <label class="text-muted small">Rodapé</label>
-                            <div class="p-2 bg-light rounded text-muted small">
+                        <div>
+                            <small class="text-muted d-block mb-2">Rodapé</small>
+                            <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; font-size: 13px; color: #6c757d;">
                                 <?= htmlspecialchars($template['footer_text']) ?>
                             </div>
                         </div>
@@ -140,62 +403,54 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
                 </div>
             </div>
 
-            <!-- Botões -->
+            <!-- Botões Interativos -->
             <?php if (!empty($buttons)): ?>
-                <div class="card mb-4">
+                <div class="card template-view-card">
                     <div class="card-body">
-                        <h5 class="card-title">Botões Interativos</h5>
-                        <div class="list-group">
-                            <?php foreach ($buttons as $button): ?>
-                                <div class="list-group-item">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <strong><?= htmlspecialchars($button['text']) ?></strong>
-                                            <br>
-                                            <small class="text-muted">
-                                                Tipo: <?= htmlspecialchars($button['type']) ?>
-                                                <?php if (!empty($button['id'])): ?>
-                                                    | ID: <code><?= htmlspecialchars($button['id']) ?></code>
-                                                <?php endif; ?>
-                                            </small>
-                                        </div>
-                                        <span class="badge bg-secondary"><?= ucfirst($button['type']) ?></span>
-                                    </div>
+                        <h6 class="card-title">Botões Interativos</h6>
+                        <?php foreach ($buttons as $button): ?>
+                            <div class="button-preview">
+                                <div>
+                                    <div class="button-text"><?= htmlspecialchars($button['text']) ?></div>
+                                    <?php if (!empty($button['id'])): ?>
+                                        <small class="text-muted" style="font-size: 11px;">ID: <code><?= htmlspecialchars($button['id']) ?></code></small>
+                                    <?php endif; ?>
                                 </div>
-                            <?php endforeach; ?>
-                        </div>
+                                <span class="button-type"><?= ucfirst($button['type']) ?></span>
+                            </div>
+                        <?php endforeach; ?>
                     </div>
                 </div>
             <?php endif; ?>
         </div>
 
         <div class="col-md-4">
-            <!-- Preview -->
-            <div class="card mb-4">
+            <!-- Preview WhatsApp -->
+            <div class="card template-view-card">
                 <div class="card-body">
-                    <h5 class="card-title">Preview WhatsApp</h5>
-                    <div class="whatsapp-preview" style="background: #e5ddd5; padding: 20px; border-radius: 8px;">
-                        <div style="background: white; padding: 12px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                    <h6 class="card-title">Preview WhatsApp</h6>
+                    <div class="whatsapp-mock">
+                        <div class="whatsapp-bubble">
                             <?php if (!empty($template['header_type']) && $template['header_type'] === 'text'): ?>
-                                <div style="font-weight: bold; margin-bottom: 8px;">
+                                <div class="whatsapp-header">
                                     <?= nl2br(htmlspecialchars($template['header_content'] ?? '')) ?>
                                 </div>
                             <?php endif; ?>
                             
-                            <div style="margin-bottom: 8px; line-height: 1.4;">
+                            <div class="whatsapp-body">
                                 <?= nl2br(htmlspecialchars($template['content'])) ?>
                             </div>
                             
                             <?php if (!empty($template['footer_text'])): ?>
-                                <div style="font-size: 12px; color: #667781; margin-top: 8px;">
+                                <div class="whatsapp-footer">
                                     <?= htmlspecialchars($template['footer_text']) ?>
                                 </div>
                             <?php endif; ?>
                             
                             <?php if (!empty($buttons)): ?>
-                                <div style="margin-top: 12px; border-top: 1px solid #e9ecef; padding-top: 8px;">
+                                <div class="whatsapp-buttons">
                                     <?php foreach ($buttons as $button): ?>
-                                        <div style="text-align: center; padding: 8px; color: #00a5f4; font-weight: 500; cursor: pointer;">
+                                        <div class="whatsapp-button">
                                             <?= htmlspecialchars($button['text']) ?>
                                         </div>
                                     <?php endforeach; ?>
@@ -206,47 +461,69 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
                 </div>
             </div>
 
-            <!-- Metadados -->
-            <div class="card">
+            <!-- Metadados Colapsáveis -->
+            <div class="card template-view-card">
                 <div class="card-body">
-                    <h5 class="card-title">Metadados</h5>
-                    <div class="mb-2">
-                        <small class="text-muted">Criado em</small>
-                        <div><?= date('d/m/Y H:i', strtotime($template['created_at'])) ?></div>
+                    <div class="metadata-toggle" onclick="toggleMetadata()">
+                        <h6 class="mb-0">Metadados</h6>
+                        <i class="fas fa-chevron-down" id="metadataIcon"></i>
                     </div>
-                    <div class="mb-2">
-                        <small class="text-muted">Atualizado em</small>
-                        <div><?= date('d/m/Y H:i', strtotime($template['updated_at'])) ?></div>
+                    <div class="metadata-content" id="metadataContent">
+                        <div class="metadata-item">
+                            <span class="label">Criado em</span>
+                            <span class="value"><?= date('d/m/Y H:i', strtotime($template['created_at'])) ?></span>
+                        </div>
+                        <div class="metadata-item">
+                            <span class="label">Atualizado em</span>
+                            <span class="value"><?= date('d/m/Y H:i', strtotime($template['updated_at'])) ?></span>
+                        </div>
+                        <?php if ($template['submitted_at']): ?>
+                            <div class="metadata-item">
+                                <span class="label">Submetido em</span>
+                                <span class="value"><?= date('d/m/Y H:i', strtotime($template['submitted_at'])) ?></span>
+                            </div>
+                        <?php endif; ?>
+                        <?php if ($template['approved_at']): ?>
+                            <div class="metadata-item">
+                                <span class="label">Aprovado em</span>
+                                <span class="value"><?= date('d/m/Y H:i', strtotime($template['approved_at'])) ?></span>
+                            </div>
+                        <?php endif; ?>
+                        <?php if ($template['rejected_at']): ?>
+                            <div class="metadata-item">
+                                <span class="label">Rejeitado em</span>
+                                <span class="value"><?= date('d/m/Y H:i', strtotime($template['rejected_at'])) ?></span>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (!empty($template['rejection_reason'])): ?>
+                            <div class="metadata-item">
+                                <span class="label">Motivo</span>
+                                <span class="value text-danger"><?= htmlspecialchars($template['rejection_reason']) ?></span>
+                            </div>
+                        <?php endif; ?>
                     </div>
-                    <?php if ($template['submitted_at']): ?>
-                        <div class="mb-2">
-                            <small class="text-muted">Submetido em</small>
-                            <div><?= date('d/m/Y H:i', strtotime($template['submitted_at'])) ?></div>
-                        </div>
-                    <?php endif; ?>
-                    <?php if ($template['approved_at']): ?>
-                        <div class="mb-2">
-                            <small class="text-muted">Aprovado em</small>
-                            <div><?= date('d/m/Y H:i', strtotime($template['approved_at'])) ?></div>
-                        </div>
-                    <?php endif; ?>
-                    <?php if ($template['rejected_at']): ?>
-                        <div class="mb-2">
-                            <small class="text-muted">Rejeitado em</small>
-                            <div><?= date('d/m/Y H:i', strtotime($template['rejected_at'])) ?></div>
-                        </div>
-                    <?php endif; ?>
-                    <?php if (!empty($template['rejection_reason'])): ?>
-                        <div class="mb-2">
-                            <small class="text-muted">Motivo da Rejeição</small>
-                            <div class="text-danger"><?= htmlspecialchars($template['rejection_reason']) ?></div>
-                        </div>
-                    <?php endif; ?>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+function toggleMetadata() {
+    const content = document.getElementById('metadataContent');
+    const icon = document.getElementById('metadataIcon');
+    
+    if (content.classList.contains('show')) {
+        content.classList.remove('show');
+        icon.classList.remove('fa-chevron-up');
+        icon.classList.add('fa-chevron-down');
+    } else {
+        content.classList.add('show');
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-up');
+    }
+}
+</script>
 
 <?php
 $content = ob_get_clean();
