@@ -7536,13 +7536,11 @@ class CommunicationHubController extends Controller
             $params[] = $sessionId; // Para comparação com REPLACE em ambos os lados
         }
         
-        // Filtra por tenant se fornecido
-        // IMPORTANTE: Se não encontrar com tenant_id específico, tenta sem filtro de tenant
-        // Isso permite usar canais compartilhados se o tenant não tiver canal próprio
-        if ($tenantId !== null) {
-            $where[] = "(tenant_id = ? OR tenant_id IS NULL)";
-            $params[] = $tenantId;
-        }
+        // CORREÇÃO: NÃO filtrar por tenant_id ao resolver canal
+        // O channel_id é identificador único suficiente
+        // Filtrar por tenant_id impede envio para leads (que não têm tenant_id)
+        // mas o canal existe e está habilitado
+        // Tenant é apenas contexto CRM, não requisito técnico para envio
         
         // PATCH H2: Seleciona apenas colunas que existem no schema atual
         $selectColumns = $sessionIdColumn === 'session_id' 
