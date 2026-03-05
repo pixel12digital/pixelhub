@@ -346,6 +346,11 @@ class ChatbotFlowService
             ]);
         }
         
+        // Criação automática de oportunidade para fluxo "Quero conhecer" (ID 1)
+        if ($flowId === 1) {
+            self::createOpportunityForProspecting($conversationId, $flow);
+        }
+        
         return [
             'success' => true,
             'message' => 'Fluxo executado com sucesso',
@@ -482,5 +487,108 @@ class ChatbotFlowService
         ");
         
         return $stmt->execute([$conversationId]);
+    }
+    
+    /**
+     * Cria oportunidade automaticamente para prospecção
+     * Chamado quando lead clica em "Quero conhecer"
+     * 
+     * @param int $conversationId ID da conversa
+     * @param array $flow Dados do fluxo executado
+     * @return int|null ID da oportunidade criada ou null se falhar
+     */
+    private static function createOpportunityForProspecting(int $conversationId, array $flow): ?int
+    {
+        try {
+            $db = DB::getConnection();
+            
+            // Busca dados da conversa e lead
+            $stmt = $db->prepare("
+                SELECT c.lead_id, c.tenant_id, c.contact_external_id, l.name as lead_name
+                FROM conversations c
+                LEFT JOIN leads l ON c.lead_id = l.id
+                WHERE c.id = ?
+            ");
+            $stmt->execute([$conversationId]);
+            $conv = $stmt->fetch();
+            
+            if (!$conv || !$conv['lead_id']) {
+                error_log('[ChatbotFlow] Não foi possível criar oportunidade: conversa sem lead associado');
+                return null;
+            }
+            
+            // Verifica se já existe oportunidade para este lead com origem prospecção
+            $stmt = $db->prepare("
+                SELECT id FROM opportunities 
+                WHERE lead_id = ? 
+                AND origin = 'prospecting_whatsapp'
+                AND status = 'open'
+                LIMIT 1
+            ");
+            $stmt->execute([$conv['lead_id']]);
+            $existingOpp = $stmt->fetch();
+            
+            if ($existingOpp) {
+                error_log('[ChatbotFlow] Oportunidade já existe para este lead (ID: ' . $existingOpp['id'] . ')');
+                return $existingOpp['id'];
+            }
+            
+            // Cria nova oportunidade
+            $stmt = $db->prepare("
+                INSERT INTO opportunities (
+                    name,
+                    stage,
+                    status,
+                    lead_id,
+                    tenant_id,
+                    service_id,
+                    conversation_id,
+                    origin,
+                    notes,
+                    created_by,
+                    created_at,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ");
+            
+            $opportunityName = 'Corretor interessado via prospecção WhatsApp';
+            $stage = 'new'; // Etapa inicial: Novo Lead
+            $status = 'open';
+            $serviceId = 2; // SaaS ImobSites
+            $origin = 'prospecting_whatsapp';
+            $notes = "Oportunidade criada automaticamente após clique em 'Quero conhecer' no template de prospecção.\n\nFluxo: {$flow['name']}";
+            $createdBy = 1; // Sistema
+            
+            $stmt->execute([
+                $opportunityName,
+                $stage,
+                $status,
+                $conv['lead_id'],
+                $conv['tenant_id'],
+                $serviceId,
+                $conversationId,
+                $origin,
+                $notes,
+                $createdBy
+            ]);
+            
+            $opportunityId = $db->lastInsertId();
+            
+            error_log('[ChatbotFlow] Oportunidade criada automaticamente (ID: ' . $opportunityId . ') para lead ' . $conv['lead_name']);
+            
+            // Registra evento de criação de oportunidade
+            self::logEvent($conversationId, 'opportunity_created', [
+                'opportunity_id' => $opportunityId,
+                'opportunity_name' => $opportunityName,
+                'service_id' => $serviceId,
+                'stage' => $stage
+            ]);
+            
+            return $opportunityId;
+            
+        } catch (\Exception $e) {
+            error_log('[ChatbotFlow] Erro ao criar oportunidade: ' . $e->getMessage());
+            return null;
+        }
     }
 }
