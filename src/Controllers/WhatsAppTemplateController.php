@@ -294,7 +294,7 @@ class WhatsAppTemplateController
     }
     
     /**
-     * Visualiza detalhes de um template
+     * Visualiza um template
      * 
      * GET /whatsapp/templates/view
      */
@@ -312,5 +312,60 @@ class WhatsAppTemplateController
         }
         
         require_once __DIR__ . '/../../views/whatsapp/templates/view.php';
+    }
+    
+    /**
+     * Retorna dados do Template Inspector (API JSON)
+     * 
+     * GET /api/templates/{id}/inspector-data
+     */
+    public function getInspectorData(): void
+    {
+        Auth::requireInternal();
+        
+        $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+        
+        if (!$id) {
+            http_response_code(400);
+            echo json_encode(['error' => 'ID do template não fornecido']);
+            exit;
+        }
+        
+        $data = \PixelHub\Services\TemplateInspectorService::getInspectorData($id);
+        
+        if (isset($data['error'])) {
+            http_response_code(404);
+            echo json_encode($data);
+            exit;
+        }
+        
+        header('Content-Type: application/json');
+        echo json_encode($data);
+    }
+    
+    /**
+     * Simula clique em botão (API JSON)
+     * 
+     * POST /api/templates/{id}/simulate-button
+     */
+    public function simulateButton(): void
+    {
+        Auth::requireInternal();
+        
+        $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+        $input = json_decode(file_get_contents('php://input'), true);
+        $buttonId = $input['button_id'] ?? null;
+        $tenantId = $input['tenant_id'] ?? null;
+        
+        if (!$id || !$buttonId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Parâmetros inválidos']);
+            exit;
+        }
+        
+        $result = \PixelHub\Services\TemplateInspectorService::simulateButtonClick($id, $buttonId, $tenantId);
+        
+        header('Content-Type: application/json');
+        echo json_encode($result);
     }
 }

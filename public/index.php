@@ -683,6 +683,8 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/whatsapp/templates/submit', 'WhatsAppTemplateController@submit');
     $router->post('/whatsapp/templates/delete', 'WhatsAppTemplateController@delete');
     $router->get('/api/whatsapp/templates/approved', 'WhatsAppTemplateController@listApproved');
+    $router->get('/api/templates/inspector-data', 'WhatsAppTemplateController@getInspectorData');
+    $router->post('/api/templates/simulate-button', 'WhatsAppTemplateController@simulateButton');
     
     // Fluxos de Chatbot
     $router->get('/chatbot/flows', 'ChatbotController@index');

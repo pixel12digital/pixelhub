@@ -45,20 +45,66 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
 ?>
 
 <style>
-/* Cards profissionais e compactos */
-.template-view-card {
+/* Tabs Navigation */
+.inspector-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid #e0e0e0;
+    margin-bottom: 24px;
+    background: #f8f9fa;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+}
+
+.inspector-tab {
+    padding: 14px 24px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: #6c757d;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    border-bottom: 3px solid transparent;
+    position: relative;
+}
+
+.inspector-tab:hover {
+    background: #e9ecef;
+    color: #2c3e50;
+}
+
+.inspector-tab.active {
+    background: #ffffff;
+    color: #4a90e2;
+    border-bottom-color: #4a90e2;
+}
+
+.inspector-tab-content {
+    display: none;
+}
+
+.inspector-tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Cards */
+.inspector-card {
     background: #ffffff;
     border: 1px solid #e0e0e0;
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     margin-bottom: 20px;
-}
-
-.template-view-card .card-body {
     padding: 20px;
 }
 
-.template-view-card .card-title {
+.inspector-card-title {
     font-size: 16px;
     font-weight: 600;
     color: #2c3e50;
@@ -67,187 +113,274 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
     border-bottom: 2px solid #f0f0f0;
 }
 
-/* Grid compacto para informações */
-.info-grid {
-    display: grid;
-    grid-template-columns: 140px 1fr;
-    gap: 12px 16px;
-    font-size: 14px;
-}
-
-.info-grid .label {
-    color: #6c757d;
-    font-weight: 500;
-}
-
-.info-grid .value {
-    color: #2c3e50;
-    font-weight: 400;
-}
-
-/* Conteúdo da mensagem formatado */
-.message-content {
+/* Flow Visualization */
+.flow-diagram {
+    padding: 20px;
     background: #f8f9fa;
-    border-left: 4px solid #4a90e2;
-    padding: 16px;
-    border-radius: 6px;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    font-size: 14px;
-    color: #2c3e50;
+    border-radius: 8px;
 }
 
-/* Botões interativos melhorados */
-.button-preview {
+.flow-node {
     background: #ffffff;
     border: 2px solid #4a90e2;
-    border-radius: 6px;
-    padding: 12px 16px;
-    margin-bottom: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: all 0.2s ease;
-}
-
-.button-preview:hover {
-    background: #f0f7ff;
-    transform: translateY(-1px);
-}
-
-.button-preview .button-text {
-    font-weight: 600;
-    color: #2c3e50;
-    font-size: 14px;
-}
-
-.button-preview .button-type {
-    font-size: 12px;
-    color: #6c757d;
-    background: #e9ecef;
-    padding: 4px 8px;
-    border-radius: 4px;
-}
-
-/* Preview WhatsApp compacto */
-.whatsapp-mock {
-    max-width: 380px;
-    margin: 0 auto;
-    background: #e5ddd5;
-    padding: 16px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-}
-
-.whatsapp-bubble {
-    background: #ffffff;
-    padding: 12px 14px;
     border-radius: 8px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    padding: 16px;
+    margin: 12px auto;
+    max-width: 500px;
     position: relative;
+    box-shadow: 0 2px 4px rgba(74, 144, 226, 0.2);
 }
 
-.whatsapp-bubble::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: -8px;
-    width: 0;
-    height: 0;
-    border-left: 8px solid #ffffff;
-    border-top: 8px solid transparent;
-}
-
-.whatsapp-header {
+.flow-node-title {
     font-weight: 600;
+    color: #2c3e50;
     margin-bottom: 8px;
     font-size: 14px;
-    color: #2c3e50;
 }
 
-.whatsapp-body {
-    margin-bottom: 8px;
-    line-height: 1.4;
-    font-size: 14px;
-    color: #2c3e50;
+.flow-node-content {
+    color: #6c757d;
+    font-size: 13px;
+    line-height: 1.5;
 }
 
-.whatsapp-footer {
-    font-size: 12px;
-    color: #667781;
-    margin-top: 8px;
-}
-
-.whatsapp-buttons {
-    margin-top: 12px;
-    border-top: 1px solid #e9ecef;
-    padding-top: 8px;
-}
-
-.whatsapp-button {
+.flow-arrow {
     text-align: center;
-    padding: 10px;
-    color: #00a5f4;
-    font-weight: 500;
-    cursor: pointer;
-    border-bottom: 1px solid #e9ecef;
-    font-size: 14px;
-}
-
-.whatsapp-button:last-child {
-    border-bottom: none;
-}
-
-.whatsapp-button:hover {
-    background: #f0f7ff;
-}
-
-/* Metadados colapsáveis */
-.metadata-toggle {
-    cursor: pointer;
-    user-select: none;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 0;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.metadata-toggle:hover {
     color: #4a90e2;
+    font-size: 24px;
+    margin: 8px 0;
 }
 
-.metadata-content {
-    padding-top: 16px;
-    display: none;
+.flow-actions {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #e9ecef;
 }
 
-.metadata-content.show {
-    display: block;
-}
-
-.metadata-item {
+.flow-action-item {
     display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid #f0f0f0;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    background: #f0f7ff;
+    border-radius: 6px;
+    margin-bottom: 8px;
     font-size: 13px;
 }
 
-.metadata-item:last-child {
-    border-bottom: none;
+.flow-action-icon {
+    color: #4a90e2;
+    font-size: 16px;
 }
 
-.metadata-item .label {
-    color: #6c757d;
-    font-weight: 500;
+/* Events Table */
+.events-table {
+    width: 100%;
+    border-collapse: collapse;
 }
 
-.metadata-item .value {
+.events-table th {
+    background: #f8f9fa;
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 13px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.events-table td {
+    padding: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 13px;
     color: #2c3e50;
 }
 
-/* Ações rápidas */
+.events-table tr:hover {
+    background: #f8f9fa;
+}
+
+.event-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.event-badge-button {
+    background: #e7f3ff;
+    color: #2c5282;
+}
+
+.event-badge-flow {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+/* Test Simulator */
+.test-simulator {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.test-button-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.test-button-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    background: #ffffff;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.test-button-option:hover {
+    border-color: #4a90e2;
+    background: #f0f7ff;
+}
+
+.test-button-option.selected {
+    border-color: #4a90e2;
+    background: #e7f3ff;
+}
+
+.test-result {
+    background: #ffffff;
+    border: 2px solid #28a745;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.test-result-success {
+    color: #28a745;
+    font-weight: 600;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.test-result-error {
+    color: #dc3545;
+    font-weight: 600;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Logs */
+.log-entry {
+    background: #ffffff;
+    border-left: 4px solid #4a90e2;
+    padding: 14px;
+    margin-bottom: 12px;
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.log-event-type {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 14px;
+}
+
+.log-timestamp {
+    color: #6c757d;
+    font-size: 12px;
+}
+
+.log-details {
+    color: #6c757d;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* Stats Cards */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+}
+
+.stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 13px;
+    opacity: 0.9;
+}
+
+/* Loading State */
+.loading-spinner {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+}
+
+.spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #4a90e2;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 16px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6c757d;
+}
+
+.empty-state-icon {
+    font-size: 48px;
+    color: #e0e0e0;
+    margin-bottom: 16px;
+}
+
+.empty-state-text {
+    font-size: 16px;
+    font-weight: 500;
+}
+
+/* Quick Actions */
 .quick-actions {
     display: flex;
     gap: 10px;
@@ -264,12 +397,13 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    border: none;
+    cursor: pointer;
 }
 
 .btn-action-primary {
     background: #4a90e2;
     color: white;
-    border: none;
 }
 
 .btn-action-primary:hover {
@@ -291,35 +425,32 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
     transform: translateY(-1px);
 }
 
-/* Badges melhorados */
-.status-badge {
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 600;
-    display: inline-block;
-}
-
-.category-badge {
-    background: #e7f3ff;
-    color: #2c5282;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 600;
-    display: inline-block;
+/* Responsive */
+@media (max-width: 768px) {
+    .inspector-tabs {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+    }
+    
+    .inspector-tab {
+        white-space: nowrap;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 
 <div class="container-fluid py-3">
-    <!-- Cabeçalho com título e ações rápidas -->
+    <!-- Header -->
     <div class="row mb-3">
         <div class="col-12">
             <h1 class="h4 mb-2">
-                <i class="fas fa-eye text-primary"></i>
-                <?= htmlspecialchars($template['template_name']) ?>
+                <i class="fas fa-microscope text-primary"></i>
+                Template Inspector: <?= htmlspecialchars($template['template_name']) ?>
             </h1>
-            <p class="text-muted small mb-3">Visualização do template WhatsApp Business</p>
+            <p class="text-muted small mb-3">Inspeção completa do template, fluxos, eventos e logs</p>
             
             <div class="quick-actions">
                 <a href="<?= pixelhub_url('/settings/whatsapp-providers') ?>" class="btn-action btn-action-secondary">
@@ -334,195 +465,474 @@ $buttons = !empty($template['buttons']) ? json_decode($template['buttons'], true
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-8">
-            <!-- Informações do Template -->
-            <div class="card template-view-card">
-                <div class="card-body">
-                    <h6 class="card-title">Informações do Template</h6>
-                    <div class="info-grid">
-                        <div class="label">Nome</div>
-                        <div class="value"><code><?= htmlspecialchars($template['template_name']) ?></code></div>
-                        
-                        <div class="label">Categoria</div>
-                        <div class="value">
-                            <span class="category-badge">
-                                <?= $categoryLabels[$template['category']] ?? $template['category'] ?>
-                            </span>
-                        </div>
-                        
-                        <div class="label">Idioma</div>
-                        <div class="value"><?= htmlspecialchars($template['language']) ?></div>
-                        
-                        <div class="label">Status</div>
-                        <div class="value">
-                            <span class="status-badge" style="background: <?= $statusColors[$template['status']] ?>; color: white;">
-                                <?= $statusLabels[$template['status']] ?? $template['status'] ?>
-                            </span>
-                        </div>
-                        
-                        <?php if (!empty($template['meta_template_id'])): ?>
-                            <div class="label">ID Meta</div>
-                            <div class="value"><code><?= htmlspecialchars($template['meta_template_id']) ?></code></div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
+    <!-- Tabs Navigation -->
+    <div class="inspector-tabs">
+        <button class="inspector-tab active" data-tab="template">
+            <i class="fas fa-file-alt"></i> Template
+        </button>
+        <button class="inspector-tab" data-tab="flow">
+            <i class="fas fa-project-diagram"></i> Fluxo
+        </button>
+        <button class="inspector-tab" data-tab="events">
+            <i class="fas fa-bolt"></i> Eventos
+        </button>
+        <button class="inspector-tab" data-tab="test">
+            <i class="fas fa-flask"></i> Testar
+        </button>
+        <button class="inspector-tab" data-tab="logs">
+            <i class="fas fa-history"></i> Logs
+        </button>
+    </div>
 
-            <!-- Conteúdo da Mensagem -->
-            <div class="card template-view-card">
-                <div class="card-body">
-                    <h6 class="card-title">Conteúdo da Mensagem</h6>
-                    
-                    <?php if (!empty($template['header_type']) && $template['header_type'] !== 'none'): ?>
-                        <div class="mb-3">
-                            <small class="text-muted d-block mb-2">Cabeçalho (<?= ucfirst($template['header_type']) ?>)</small>
-                            <div class="message-content">
-                                <?php if ($template['header_type'] === 'text'): ?>
-                                    <?= nl2br(htmlspecialchars($template['header_content'] ?? '')) ?>
-                                <?php else: ?>
-                                    <em>Mídia: <?= htmlspecialchars($template['header_content'] ?? 'URL da mídia') ?></em>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    <?php endif; ?>
+    <!-- Tab: Template (Conteúdo Estático) -->
+    <div class="inspector-tab-content active" id="tab-template">
+        <?php require __DIR__ . '/view_inspector_tab_template.php'; ?>
+    </div>
 
-                    <div class="mb-3">
-                        <small class="text-muted d-block mb-2">Corpo da Mensagem</small>
-                        <div class="message-content"><?= htmlspecialchars($template['content']) ?></div>
-                    </div>
-
-                    <?php if (!empty($template['footer_text'])): ?>
-                        <div>
-                            <small class="text-muted d-block mb-2">Rodapé</small>
-                            <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; font-size: 13px; color: #6c757d;">
-                                <?= htmlspecialchars($template['footer_text']) ?>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Botões Interativos -->
-            <?php if (!empty($buttons)): ?>
-                <div class="card template-view-card">
-                    <div class="card-body">
-                        <h6 class="card-title">Botões Interativos</h6>
-                        <?php foreach ($buttons as $button): ?>
-                            <div class="button-preview">
-                                <div>
-                                    <div class="button-text"><?= htmlspecialchars($button['text']) ?></div>
-                                    <?php if (!empty($button['id'])): ?>
-                                        <small class="text-muted" style="font-size: 11px;">ID: <code><?= htmlspecialchars($button['id']) ?></code></small>
-                                    <?php endif; ?>
-                                </div>
-                                <span class="button-type"><?= ucfirst($button['type']) ?></span>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-            <?php endif; ?>
+    <!-- Tab: Fluxo (Visual) -->
+    <div class="inspector-tab-content" id="tab-flow">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Carregando fluxo do template...</p>
         </div>
+    </div>
 
-        <div class="col-md-4">
-            <!-- Preview WhatsApp -->
-            <div class="card template-view-card">
-                <div class="card-body">
-                    <h6 class="card-title">Preview WhatsApp</h6>
-                    <div class="whatsapp-mock">
-                        <div class="whatsapp-bubble">
-                            <?php if (!empty($template['header_type']) && $template['header_type'] === 'text'): ?>
-                                <div class="whatsapp-header">
-                                    <?= nl2br(htmlspecialchars($template['header_content'] ?? '')) ?>
-                                </div>
-                            <?php endif; ?>
-                            
-                            <div class="whatsapp-body">
-                                <?= nl2br(htmlspecialchars($template['content'])) ?>
-                            </div>
-                            
-                            <?php if (!empty($template['footer_text'])): ?>
-                                <div class="whatsapp-footer">
-                                    <?= htmlspecialchars($template['footer_text']) ?>
-                                </div>
-                            <?php endif; ?>
-                            
-                            <?php if (!empty($buttons)): ?>
-                                <div class="whatsapp-buttons">
-                                    <?php foreach ($buttons as $button): ?>
-                                        <div class="whatsapp-button">
-                                            <?= htmlspecialchars($button['text']) ?>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <!-- Tab: Eventos -->
+    <div class="inspector-tab-content" id="tab-events">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Carregando eventos...</p>
+        </div>
+    </div>
 
-            <!-- Metadados Colapsáveis -->
-            <div class="card template-view-card">
-                <div class="card-body">
-                    <div class="metadata-toggle" onclick="toggleMetadata()">
-                        <h6 class="mb-0">Metadados</h6>
-                        <i class="fas fa-chevron-down" id="metadataIcon"></i>
-                    </div>
-                    <div class="metadata-content" id="metadataContent">
-                        <div class="metadata-item">
-                            <span class="label">Criado em</span>
-                            <span class="value"><?= date('d/m/Y H:i', strtotime($template['created_at'])) ?></span>
-                        </div>
-                        <div class="metadata-item">
-                            <span class="label">Atualizado em</span>
-                            <span class="value"><?= date('d/m/Y H:i', strtotime($template['updated_at'])) ?></span>
-                        </div>
-                        <?php if ($template['submitted_at']): ?>
-                            <div class="metadata-item">
-                                <span class="label">Submetido em</span>
-                                <span class="value"><?= date('d/m/Y H:i', strtotime($template['submitted_at'])) ?></span>
-                            </div>
-                        <?php endif; ?>
-                        <?php if ($template['approved_at']): ?>
-                            <div class="metadata-item">
-                                <span class="label">Aprovado em</span>
-                                <span class="value"><?= date('d/m/Y H:i', strtotime($template['approved_at'])) ?></span>
-                            </div>
-                        <?php endif; ?>
-                        <?php if ($template['rejected_at']): ?>
-                            <div class="metadata-item">
-                                <span class="label">Rejeitado em</span>
-                                <span class="value"><?= date('d/m/Y H:i', strtotime($template['rejected_at'])) ?></span>
-                            </div>
-                        <?php endif; ?>
-                        <?php if (!empty($template['rejection_reason'])): ?>
-                            <div class="metadata-item">
-                                <span class="label">Motivo</span>
-                                <span class="value text-danger"><?= htmlspecialchars($template['rejection_reason']) ?></span>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
+    <!-- Tab: Testar -->
+    <div class="inspector-tab-content" id="tab-test">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Preparando simulador...</p>
+        </div>
+    </div>
+
+    <!-- Tab: Logs -->
+    <div class="inspector-tab-content" id="tab-logs">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Carregando logs...</p>
         </div>
     </div>
 </div>
 
 <script>
-function toggleMetadata() {
-    const content = document.getElementById('metadataContent');
-    const icon = document.getElementById('metadataIcon');
+// Template Inspector JavaScript
+const TemplateInspector = {
+    templateId: <?= $templateId ?>,
+    data: null,
     
-    if (content.classList.contains('show')) {
-        content.classList.remove('show');
-        icon.classList.remove('fa-chevron-up');
-        icon.classList.add('fa-chevron-down');
-    } else {
-        content.classList.add('show');
-        icon.classList.remove('fa-chevron-down');
-        icon.classList.add('fa-chevron-up');
+    init() {
+        this.setupTabs();
+        this.loadInspectorData();
+    },
+    
+    setupTabs() {
+        document.querySelectorAll('.inspector-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const tabName = e.currentTarget.dataset.tab;
+                this.switchTab(tabName);
+            });
+        });
+    },
+    
+    switchTab(tabName) {
+        // Update tab buttons
+        document.querySelectorAll('.inspector-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        
+        // Update tab content
+        document.querySelectorAll('.inspector-tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+        
+        // Load tab data if not loaded yet
+        if (tabName !== 'template' && !this.data) {
+            this.loadInspectorData();
+        } else if (this.data) {
+            this.renderTab(tabName);
+        }
+    },
+    
+    async loadInspectorData() {
+        try {
+            const response = await fetch(`<?= pixelhub_url('/api/templates/inspector-data') ?>?id=${this.templateId}`);
+            this.data = await response.json();
+            
+            if (this.data.error) {
+                console.error('Erro ao carregar dados:', this.data.error);
+                return;
+            }
+            
+            // Render current active tab
+            const activeTab = document.querySelector('.inspector-tab.active').dataset.tab;
+            if (activeTab !== 'template') {
+                this.renderTab(activeTab);
+            }
+            
+        } catch (error) {
+            console.error('Erro ao carregar inspector data:', error);
+        }
+    },
+    
+    renderTab(tabName) {
+        switch(tabName) {
+            case 'flow':
+                this.renderFlowTab();
+                break;
+            case 'events':
+                this.renderEventsTab();
+                break;
+            case 'test':
+                this.renderTestTab();
+                break;
+            case 'logs':
+                this.renderLogsTab();
+                break;
+        }
+    },
+    
+    renderFlowTab() {
+        const container = document.getElementById('tab-flow');
+        
+        if (!this.data.buttons || this.data.buttons.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="fas fa-project-diagram"></i></div>
+                    <div class="empty-state-text">Este template não possui botões interativos</div>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="inspector-card">';
+        html += '<h6 class="inspector-card-title">Fluxo de Automação</h6>';
+        
+        // Stats
+        if (this.data.stats) {
+            html += '<div class="stats-grid">';
+            html += `<div class="stat-card">
+                <div class="stat-value">${this.data.stats.total_sent}</div>
+                <div class="stat-label">Templates Enviados</div>
+            </div>`;
+            html += `<div class="stat-card">
+                <div class="stat-value">${this.data.stats.total_clicks}</div>
+                <div class="stat-label">Cliques em Botões</div>
+            </div>`;
+            html += `<div class="stat-card">
+                <div class="stat-value">${this.data.stats.click_through_rate}%</div>
+                <div class="stat-label">Taxa de Clique (CTR)</div>
+            </div>`;
+            html += '</div>';
+        }
+        
+        html += '<div class="flow-diagram">';
+        
+        // Node 1: Template Sent
+        html += `
+            <div class="flow-node">
+                <div class="flow-node-title">📤 Template Enviado</div>
+                <div class="flow-node-content">
+                    Template: <strong>${this.data.template.template_name}</strong><br>
+                    Categoria: ${this.data.template.category}
+                </div>
+            </div>
+            <div class="flow-arrow">▼</div>
+        `;
+        
+        // Node 2: User Receives
+        html += `
+            <div class="flow-node">
+                <div class="flow-node-title">📱 Usuário Recebe Mensagem</div>
+                <div class="flow-node-content">
+                    Mensagem exibida no WhatsApp com botões interativos
+                </div>
+            </div>
+            <div class="flow-arrow">▼</div>
+        `;
+        
+        // Node 3: Buttons
+        this.data.buttons.forEach((button, index) => {
+            const flow = this.data.flows[button.id];
+            
+            html += `
+                <div class="flow-node">
+                    <div class="flow-node-title">🔘 Botão: ${button.text}</div>
+                    <div class="flow-node-content">
+                        Tipo: ${button.type}<br>
+                        ID: <code>${button.id}</code>
+                    </div>
+            `;
+            
+            if (flow) {
+                html += '<div class="flow-arrow">▼</div>';
+                html += `
+                    <div class="flow-node-title">⚙️ Fluxo: ${flow.name}</div>
+                    <div class="flow-actions">
+                `;
+                
+                // Response action
+                if (flow.response_type === 'text' && flow.response_message) {
+                    html += `
+                        <div class="flow-action-item">
+                            <i class="fas fa-comment flow-action-icon"></i>
+                            <span>Enviar mensagem: "${flow.response_message.substring(0, 50)}..."</span>
+                        </div>
+                    `;
+                }
+                
+                // Tags action
+                if (flow.add_tags) {
+                    const tags = JSON.parse(flow.add_tags);
+                    if (tags.length > 0) {
+                        html += `
+                            <div class="flow-action-item">
+                                <i class="fas fa-tags flow-action-icon"></i>
+                                <span>Adicionar tags: ${tags.join(', ')}</span>
+                            </div>
+                        `;
+                    }
+                }
+                
+                // Lead status action
+                if (flow.update_lead_status) {
+                    html += `
+                        <div class="flow-action-item">
+                            <i class="fas fa-user-check flow-action-icon"></i>
+                            <span>Atualizar status do lead: ${flow.update_lead_status}</span>
+                        </div>
+                    `;
+                }
+                
+                // Forward to human
+                if (flow.forward_to_human) {
+                    html += `
+                        <div class="flow-action-item">
+                            <i class="fas fa-user-headset flow-action-icon"></i>
+                            <span>Encaminhar para atendimento humano</span>
+                        </div>
+                    `;
+                }
+                
+                html += '</div>';
+            } else {
+                html += `
+                    <div class="flow-node-content" style="color: #dc3545; margin-top: 12px;">
+                        ⚠️ Nenhum fluxo configurado para este botão
+                    </div>
+                `;
+            }
+            
+            html += '</div>';
+            
+            if (index < this.data.buttons.length - 1) {
+                html += '<div class="flow-arrow">▼</div>';
+            }
+        });
+        
+        html += '</div></div>';
+        
+        container.innerHTML = html;
+    },
+    
+    renderEventsTab() {
+        const container = document.getElementById('tab-events');
+        
+        if (!this.data.buttons || this.data.buttons.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="fas fa-bolt"></i></div>
+                    <div class="empty-state-text">Nenhum evento configurado</div>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="inspector-card">';
+        html += '<h6 class="inspector-card-title">Mapeamento de Eventos</h6>';
+        html += '<table class="events-table">';
+        html += '<thead><tr><th>Evento</th><th>Origem</th><th>Ação</th><th>Status</th></tr></thead>';
+        html += '<tbody>';
+        
+        this.data.buttons.forEach(button => {
+            const flow = this.data.flows[button.id];
+            const hasFlow = flow !== null && flow !== undefined;
+            
+            html += `
+                <tr>
+                    <td><code>${button.id}</code></td>
+                    <td><span class="event-badge event-badge-button">${button.type}</span></td>
+                    <td>${hasFlow ? flow.name : '<em>Nenhuma ação configurada</em>'}</td>
+                    <td>${hasFlow ? '<span class="event-badge event-badge-flow">✓ Ativo</span>' : '<span style="color: #dc3545;">✗ Sem fluxo</span>'}</td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table></div>';
+        
+        container.innerHTML = html;
+    },
+    
+    renderTestTab() {
+        const container = document.getElementById('tab-test');
+        
+        if (!this.data.buttons || this.data.buttons.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="fas fa-flask"></i></div>
+                    <div class="empty-state-text">Nenhum botão disponível para testar</div>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="inspector-card">';
+        html += '<h6 class="inspector-card-title">Simulador de Eventos</h6>';
+        html += '<p style="color: #6c757d; margin-bottom: 20px;">Simule o clique em um botão para ver o que aconteceria</p>';
+        
+        html += '<div class="test-button-list">';
+        this.data.buttons.forEach((button, index) => {
+            html += `
+                <div class="test-button-option" data-button-id="${button.id}" onclick="TemplateInspector.selectTestButton('${button.id}')">
+                    <input type="radio" name="test-button" value="${button.id}" id="test-btn-${index}">
+                    <label for="test-btn-${index}" style="cursor: pointer; margin: 0;">
+                        <strong>${button.text}</strong><br>
+                        <small style="color: #6c757d;">Tipo: ${button.type} | ID: ${button.id}</small>
+                    </label>
+                </div>
+            `;
+        });
+        html += '</div>';
+        
+        html += '<button class="btn-action btn-action-primary" onclick="TemplateInspector.runSimulation()">▶ Executar Simulação</button>';
+        html += '<div id="test-result-container"></div>';
+        html += '</div>';
+        
+        container.innerHTML = html;
+    },
+    
+    selectTestButton(buttonId) {
+        document.querySelectorAll('.test-button-option').forEach(opt => {
+            opt.classList.remove('selected');
+        });
+        document.querySelector(`[data-button-id="${buttonId}"]`).classList.add('selected');
+    },
+    
+    async runSimulation() {
+        const selectedButton = document.querySelector('input[name="test-button"]:checked');
+        
+        if (!selectedButton) {
+            alert('Selecione um botão para simular');
+            return;
+        }
+        
+        const buttonId = selectedButton.value;
+        const resultContainer = document.getElementById('test-result-container');
+        
+        resultContainer.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Executando simulação...</p></div>';
+        
+        try {
+            const response = await fetch(`<?= pixelhub_url('/api/templates/simulate-button') ?>?id=${this.templateId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    button_id: buttonId,
+                    tenant_id: <?= $template['tenant_id'] ?? 'null' ?>
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                let html = '<div class="test-result">';
+                html += '<div class="test-result-success"><i class="fas fa-check-circle"></i> Simulação Concluída</div>';
+                html += `<p><strong>Botão:</strong> ${buttonId}</p>`;
+                html += `<p><strong>Fluxo:</strong> ${result.flow.name}</p>`;
+                html += '<p><strong>Ações que seriam executadas:</strong></p>';
+                html += '<div class="flow-actions">';
+                
+                result.actions.forEach(action => {
+                    html += `<div class="flow-action-item">`;
+                    html += `<i class="fas fa-check flow-action-icon"></i>`;
+                    html += `<span>${action.description}</span>`;
+                    html += `</div>`;
+                });
+                
+                html += '</div></div>';
+                resultContainer.innerHTML = html;
+            } else {
+                resultContainer.innerHTML = `
+                    <div class="test-result" style="border-color: #dc3545;">
+                        <div class="test-result-error"><i class="fas fa-exclamation-circle"></i> ${result.message}</div>
+                    </div>
+                `;
+            }
+            
+        } catch (error) {
+            resultContainer.innerHTML = `
+                <div class="test-result" style="border-color: #dc3545;">
+                    <div class="test-result-error"><i class="fas fa-exclamation-circle"></i> Erro ao executar simulação</div>
+                </div>
+            `;
+        }
+    },
+    
+    renderLogsTab() {
+        const container = document.getElementById('tab-logs');
+        
+        if (!this.data.logs || this.data.logs.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="fas fa-history"></i></div>
+                    <div class="empty-state-text">Nenhum log de execução encontrado</div>
+                    <p style="margin-top: 12px; font-size: 14px;">Os logs aparecerão aqui quando o template for usado</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="inspector-card">';
+        html += '<h6 class="inspector-card-title">Histórico de Execuções</h6>';
+        
+        this.data.logs.forEach(log => {
+            const eventData = log.event_data || {};
+            const date = new Date(log.created_at);
+            
+            html += `
+                <div class="log-entry">
+                    <div class="log-header">
+                        <span class="log-event-type">${log.event_type}</span>
+                        <span class="log-timestamp">${date.toLocaleString('pt-BR')}</span>
+                    </div>
+                    <div class="log-details">
+                        ${log.lead_name ? `Lead: <strong>${log.lead_name}</strong><br>` : ''}
+                        ${log.phone_number ? `Telefone: ${log.phone_number}<br>` : ''}
+                        ${log.flow_name ? `Fluxo: ${log.flow_name}<br>` : ''}
+                        ${eventData.button_id ? `Botão: <code>${eventData.button_id}</code>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        
+        container.innerHTML = html;
     }
-}
+};
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    TemplateInspector.init();
+});
 </script>
 
 <?php
