@@ -640,7 +640,7 @@ const TemplateInspector = {
         // Node 1: Template Sent
         html += `
             <div class="flow-node">
-                <div class="flow-node-title">📤 Template Enviado</div>
+                <div class="flow-node-title"><i class="fas fa-paper-plane" style="color: #6c757d;"></i> Template Enviado</div>
                 <div class="flow-node-content">
                     Template: <strong>${this.data.template.template_name}</strong><br>
                     Categoria: ${this.data.template.category}
@@ -652,7 +652,7 @@ const TemplateInspector = {
         // Node 2: User Receives
         html += `
             <div class="flow-node">
-                <div class="flow-node-title">📱 Usuário Recebe Mensagem</div>
+                <div class="flow-node-title"><i class="fas fa-mobile-alt" style="color: #6c757d;"></i> Usuário Recebe Mensagem</div>
                 <div class="flow-node-content">
                     Mensagem exibida no WhatsApp com botões interativos
                 </div>
@@ -666,7 +666,7 @@ const TemplateInspector = {
             
             html += `
                 <div class="flow-node">
-                    <div class="flow-node-title">🔘 Botão: ${button.text}</div>
+                    <div class="flow-node-title"><i class="fas fa-hand-pointer" style="color: #6c757d;"></i> Botão: ${button.text}</div>
                     <div class="flow-node-content">
                         Tipo: ${button.type}<br>
                         ID: <code>${button.id}</code>
@@ -676,7 +676,7 @@ const TemplateInspector = {
             if (flow) {
                 html += '<div class="flow-arrow">▼</div>';
                 html += `
-                    <div class="flow-node-title">⚙️ Fluxo: ${flow.name}</div>
+                    <div class="flow-node-title"><i class="fas fa-cogs" style="color: #6c757d;"></i> Fluxo: ${flow.name}</div>
                     <div class="flow-actions">
                 `;
                 
@@ -727,7 +727,7 @@ const TemplateInspector = {
             } else {
                 html += `
                     <div class="flow-node-content" style="color: #dc3545; margin-top: 12px;">
-                        ⚠️ Nenhum fluxo configurado para este botão
+                        <i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i> Nenhum fluxo configurado para este botão
                     </div>
                 `;
             }
@@ -772,7 +772,7 @@ const TemplateInspector = {
                     <td><code>${button.id}</code></td>
                     <td><span class="event-badge event-badge-button">${button.type}</span></td>
                     <td>${hasFlow ? flow.name : '<em>Nenhuma ação configurada</em>'}</td>
-                    <td>${hasFlow ? '<span class="event-badge event-badge-flow">✓ Ativo</span>' : '<span style="color: #dc3545;">✗ Sem fluxo</span>'}</td>
+                    <td>${hasFlow ? '<span class="event-badge event-badge-flow"><i class="fas fa-check"></i> Ativo</span>' : '<span style="color: #dc3545;"><i class="fas fa-times"></i> Sem fluxo</span>'}</td>
                 </tr>
             `;
         });
@@ -813,7 +813,7 @@ const TemplateInspector = {
         });
         html += '</div>';
         
-        html += '<button class="btn-action btn-action-primary" onclick="TemplateInspector.runSimulation()">▶ Executar Simulação</button>';
+        html += '<button class="btn-action btn-action-primary" onclick="TemplateInspector.runSimulation()"><i class="fas fa-play"></i> Executar Simulação</button>';
         html += '<div id="test-result-container"></div>';
         html += '</div>';
         
