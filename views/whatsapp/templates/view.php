@@ -260,7 +260,7 @@ $stmt = $db->query("SELECT id, name, phone FROM tenants WHERE status = 'active' 
 $tenants = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Busca sessões WhatsApp
-$stmt = $db->query("SELECT id, name, status FROM tenant_message_channels WHERE channel_type = 'whatsapp' ORDER BY name");
+$stmt = $db->query("SELECT id, channel_id, is_enabled FROM tenant_message_channels WHERE provider = 'wpp_gateway' ORDER BY channel_id");
 $whatsapp_sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Inclui o modal
