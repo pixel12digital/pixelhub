@@ -310,14 +310,25 @@ class MetaWebhookController extends Controller
             ]);
 
             error_log('[MetaWebhook] Evento ingerido com sucesso: event_id=' . $eventId);
-            
-            // Resolve conversa para cancelar follow-up se necessário
-            $conversation = $this->resolveConversation($from, $tenantId, $phoneNumberId);
-            if ($conversation) {
-                // Cancela follow-up pendente se lead responder antes das 22h
+
+            // Recupera o conversation_id resolvido pelo EventIngestionService
+            // para evitar criar uma conversa duplicada com key diferente
+            $resolvedConversationId = null;
+            try {
+                $db = DB::getConnection();
+                $convStmt = $db->prepare('SELECT conversation_id FROM communication_events WHERE event_id = ? LIMIT 1');
+                $convStmt->execute([$eventId]);
+                $convRow = $convStmt->fetch(\PDO::FETCH_ASSOC);
+                $resolvedConversationId = $convRow['conversation_id'] ?? null;
+            } catch (\Exception $e) {
+                error_log('[MetaWebhook] Erro ao recuperar conversation_id do evento: ' . $e->getMessage());
+            }
+
+            // Cancela follow-up se lead respondeu
+            if ($resolvedConversationId) {
                 try {
                     \PixelHub\Services\ScheduledMessageService::cancelProspectingFollowup(
-                        $conversation['id'],
+                        (int) $resolvedConversationId,
                         'vou_analisar_primeiro'
                     );
                 } catch (\Exception $e) {
@@ -327,7 +338,7 @@ class MetaWebhookController extends Controller
 
             // Processa botão interativo se for o caso
             if ($messageType === 'interactive' || $messageType === 'button') {
-                $this->processInteractiveButton($message, $from, $tenantId, $phoneNumberId);
+                $this->processInteractiveButton($message, $from, $tenantId, $phoneNumberId, $resolvedConversationId);
             }
 
         } catch (\Exception $e) {
@@ -396,7 +407,7 @@ class MetaWebhookController extends Controller
     /**
      * Processa clique em botão interativo e executa fluxo de chatbot
      */
-    private function processInteractiveButton(array $message, string $from, ?int $tenantId, ?string $phoneNumberId): void
+    private function processInteractiveButton(array $message, string $from, ?int $tenantId, ?string $phoneNumberId, ?int $preResolvedConversationId = null): void
     {
         try {
             // DEBUG: Log payload completo
@@ -434,15 +445,18 @@ class MetaWebhookController extends Controller
             
             error_log('[MetaWebhook] Fluxo encontrado: ' . $flow['name'] . ' (ID: ' . $flow['id'] . ')');
             
-            // Resolve ou cria conversa
-            $conversation = $this->resolveConversation($from, $tenantId, $phoneNumberId);
-            
-            if (!$conversation) {
-                error_log('[MetaWebhook] Não foi possível resolver conversa para ' . $from);
-                return;
+            // Usa conversa já resolvida pelo EventIngestionService (evita duplicata)
+            // Fallback: resolve novamente se não veio do ingest
+            if ($preResolvedConversationId) {
+                $conversationId = $preResolvedConversationId;
+            } else {
+                $conversation = $this->resolveConversation($from, $tenantId, $phoneNumberId);
+                if (!$conversation) {
+                    error_log('[MetaWebhook] Não foi possível resolver conversa para ' . $from);
+                    return;
+                }
+                $conversationId = $conversation['id'];
             }
-            
-            $conversationId = $conversation['id'];
             
             // Registra evento de clique no botão
             ChatbotFlowService::logEvent($conversationId, 'button_clicked', [

@@ -444,8 +444,8 @@ class MetaOfficialProvider implements WhatsAppProviderInterface
             $formattedButtons[] = [
                 'type' => 'reply',
                 'reply' => [
-                    'id' => $button['id'] ?? substr(md5($button['title']), 0, 20),
-                    'title' => substr($button['title'], 0, 20) // Limite de 20 caracteres
+                    'id'    => mb_substr($button['id'] ?? md5($button['title']), 0, 256, 'UTF-8'),
+                    'title' => mb_substr($button['title'], 0, 20, 'UTF-8') // Limite de 20 caracteres
                 ]
             ];
         }
