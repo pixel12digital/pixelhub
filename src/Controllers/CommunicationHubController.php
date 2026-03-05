@@ -2462,6 +2462,41 @@ class CommunicationHubController extends Controller
                                 if ($ev && !empty($ev['conversation_id'])) {
                                     $payload['thread_id'] = 'whatsapp_' . $ev['conversation_id'];
 
+                                    // ===== AGENDAMENTO AUTOMÁTICO DE FOLLOW-UP (PROSPECÇÃO) =====
+                                    // Agenda follow-up de 23h para leads que não responderem
+                                    // Apenas para templates de prospecção (canal WhatsApp + nova conversa)
+                                    if ($channel === 'whatsapp' && empty($threadId)) {
+                                        try {
+                                            $convId = (int) $ev['conversation_id'];
+                                            
+                                            // Busca telefone da conversa
+                                            $phoneStmt = $db->prepare("SELECT contact_external_id FROM conversations WHERE id = ? LIMIT 1");
+                                            $phoneStmt->execute([$convId]);
+                                            $convData = $phoneStmt->fetch();
+                                            
+                                            if ($convData && !empty($convData['contact_external_id'])) {
+                                                $phone = preg_replace('/@.*$/', '', $convData['contact_external_id']);
+                                                
+                                                // Agenda follow-up automático
+                                                \PixelHub\Services\ScheduledMessageService::scheduleProspectingFollowup(
+                                                    $convId,
+                                                    $phone,
+                                                    'no_response_23h',
+                                                    [
+                                                        'template_sent' => true,
+                                                        'scheduled_by' => 'system',
+                                                        'user_id' => Auth::user()['id'] ?? null
+                                                    ]
+                                                );
+                                                
+                                                error_log("[CommunicationHub::send] ✅ Follow-up de 23h agendado automaticamente (conversa: {$convId})");
+                                            }
+                                        } catch (\Exception $followupEx) {
+                                            // Não quebra envio se falhar agendamento
+                                            error_log("[CommunicationHub::send] ⚠️ Erro ao agendar follow-up: " . $followupEx->getMessage());
+                                        }
+                                    }
+
                                     // ===== HISTÓRICO DA OPORTUNIDADE (enxuto) =====
                                     // Registra somente em caso de conversa vinculada a uma oportunidade
                                     try {
