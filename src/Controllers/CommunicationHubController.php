@@ -874,15 +874,16 @@ class CommunicationHubController extends Controller
                     if ($leadId) {
                         error_log("[CommunicationHub::send] tenant_id vazio, tentando resolver a partir de lead_id: {$leadId}");
                         
-                        $leadStmt = $db->prepare("SELECT tenant_id FROM leads WHERE id = ? LIMIT 1");
+                        // CORREÇÃO: leads tem converted_tenant_id, não tenant_id
+                        $leadStmt = $db->prepare("SELECT converted_tenant_id FROM leads WHERE id = ? LIMIT 1");
                         $leadStmt->execute([$leadId]);
                         $lead = $leadStmt->fetch();
                         
-                        if ($lead && !empty($lead['tenant_id'])) {
-                            $tenantId = (int) $lead['tenant_id'];
-                            error_log("[CommunicationHub::send] ✅ tenant_id resolvido do lead: {$tenantId}");
+                        if ($lead && !empty($lead['converted_tenant_id'])) {
+                            $tenantId = (int) $lead['converted_tenant_id'];
+                            error_log("[CommunicationHub::send] ✅ tenant_id resolvido do lead (converted_tenant_id): {$tenantId}");
                         } else {
-                            error_log("[CommunicationHub::send] ⚠️ Lead {$leadId} não tem tenant_id associado");
+                            error_log("[CommunicationHub::send] ⚠️ Lead {$leadId} não tem converted_tenant_id associado");
                         }
                     }
                 }
