@@ -569,6 +569,7 @@ class MetaWebhookController extends Controller
     {
         try {
             $content = $response['content'] ?? '';
+            $buttons = $response['buttons'] ?? [];
             
             if (empty($content)) {
                 error_log('[MetaWebhook] Resposta automática vazia, ignorando envio');
@@ -580,8 +581,14 @@ class MetaWebhookController extends Controller
             // Obtém provider Meta Official API
             $provider = \PixelHub\Services\WhatsAppProviderFactory::getProvider('meta_official');
             
-            // Envia mensagem de texto
-            $result = $provider->sendText($to, $content);
+            // Se tem botões, envia mensagem interativa
+            if (!empty($buttons) && method_exists($provider, 'sendInteractiveButtons')) {
+                error_log('[MetaWebhook] Enviando mensagem interativa com ' . count($buttons) . ' botões');
+                $result = $provider->sendInteractiveButtons($to, $content, $buttons);
+            } else {
+                // Senão, envia mensagem de texto simples
+                $result = $provider->sendText($to, $content);
+            }
             
             if ($result['success']) {
                 error_log('[MetaWebhook] Resposta automática enviada com sucesso: message_id=' . ($result['message_id'] ?? 'N/A'));

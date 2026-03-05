@@ -412,4 +412,60 @@ class MetaOfficialProvider implements WhatsAppProviderInterface
 
         return $this->sendRequest('/messages', $payload, null);
     }
+    
+    /**
+     * Envia mensagem interativa com botões (reply buttons)
+     * 
+     * @param string $to Número de destino (E.164)
+     * @param string $text Texto da mensagem
+     * @param array $buttons Array de botões [['id' => 'btn_1', 'title' => 'Botão 1'], ...]
+     * @param array|null $metadata Metadados opcionais
+     * @return array Resposta normalizada
+     */
+    public function sendInteractiveButtons(string $to, string $text, array $buttons, ?array $metadata = null): array
+    {
+        $validation = $this->validateConfiguration();
+        if (!$validation['valid']) {
+            return [
+                'success' => false,
+                'error' => 'Configuração Meta inválida: ' . implode(', ', $validation['errors']),
+                'provider' => 'meta_official'
+            ];
+        }
+
+        $to = preg_replace('/[^0-9]/', '', $to);
+        
+        // Limita a 3 botões (limite do Meta API)
+        $buttons = array_slice($buttons, 0, 3);
+        
+        // Formata botões para o formato Meta
+        $formattedButtons = [];
+        foreach ($buttons as $button) {
+            $formattedButtons[] = [
+                'type' => 'reply',
+                'reply' => [
+                    'id' => $button['id'] ?? substr(md5($button['title']), 0, 20),
+                    'title' => substr($button['title'], 0, 20) // Limite de 20 caracteres
+                ]
+            ];
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $to,
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'button',
+                'body' => [
+                    'text' => $text
+                ],
+                'action' => [
+                    'buttons' => $formattedButtons
+                ]
+            ]
+        ];
+
+        return $this->sendRequest('/messages', $payload, $metadata);
+    }
 }
