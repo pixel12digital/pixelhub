@@ -909,8 +909,9 @@ class CommunicationHubController extends Controller
                     $result = $this->sendViaMetaAPI($templateId, $to, $tenantId, $requestId);
                     $this->json($result);
                     return;
-                } catch (\Exception $e) {
-                    error_log("[CommunicationHub::send] ❌ EXCEÇÃO CAPTURADA ao enviar via Meta API");
+                } catch (\Throwable $e) {
+                    error_log("[CommunicationHub::send] ❌ THROWABLE CAPTURADO ao enviar via Meta API");
+                    error_log("[CommunicationHub::send] Classe: " . get_class($e));
                     error_log("[CommunicationHub::send] Mensagem: " . $e->getMessage());
                     error_log("[CommunicationHub::send] Arquivo: " . $e->getFile() . ":" . $e->getLine());
                     error_log("[CommunicationHub::send] Stack trace: " . $e->getTraceAsString());
