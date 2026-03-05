@@ -100,6 +100,16 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                         <?php endforeach; ?>
                     </div>
                 </div>
+
+                <div id="new-message-meta-info" style="display: none; padding: 12px; background: #e3f2fd; border: 1px solid #90caf9; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <i class="fas fa-info-circle" style="color: #1976d2;"></i>
+                        <strong style="color: #1565c0;">Número Meta Official API</strong>
+                    </div>
+                    <div style="font-size: 13px; color: #424242;">
+                        Será usado o número WhatsApp Business configurado da <strong>Pixel12 Digital</strong>
+                    </div>
+                </div>
             </div>
             
             <div style="margin-bottom: 20px;" id="new-message-to-container">
@@ -244,6 +254,8 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         var clienteDropdown = document.getElementById('modalClienteDropdown');
         var tenantIdInput = document.getElementById('modalClienteTenantId');
 
+        console.log('[NewMessage] Setando contexto de lead:', leadData);
+
         if (label) label.textContent = 'Lead';
         if (clienteDropdown) clienteDropdown.style.display = 'none';
         if (tenantIdInput) tenantIdInput.value = '';
@@ -252,6 +264,8 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         if (leadDisplay) leadDisplay.textContent = (leadName && String(leadName).trim() !== '') ? leadName : ('Lead: ' + (leadPhone || '#' + leadId));
         if (leadPhoneEl) leadPhoneEl.textContent = leadPhone ? leadPhone : '';
         if (leadContainer) leadContainer.style.display = 'block';
+        
+        console.log('[NewMessage] Lead container exibido, select de clientes ocultado');
     };
 
     window.resetNewMessageLeadContext = function() {
@@ -262,12 +276,16 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         var label = document.getElementById('new-message-contact-label');
         var clienteDropdown = document.getElementById('modalClienteDropdown');
 
+        console.log('[NewMessage] Resetando contexto de lead');
+
         if (leadIdInput) leadIdInput.value = '';
         if (leadDisplay) leadDisplay.textContent = '';
         if (leadPhoneEl) leadPhoneEl.textContent = '';
         if (leadContainer) leadContainer.style.display = 'none';
-        if (clienteDropdown) clienteDropdown.style.display = '';
+        if (clienteDropdown) clienteDropdown.style.display = 'block';
         if (label) label.textContent = 'Cliente';
+        
+        console.log('[NewMessage] Lead container ocultado, select de clientes exibido');
     };
     
     window.toggleNewMessageSessionField = function() {
@@ -297,6 +315,16 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                     sessionSelect.required = sessionSelect.options.length > 2;
                     if (sessionSelect.options.length === 2) sessionSelect.selectedIndex = 1;
                 }
+                
+                // WhatsApp: Ocultar info Meta e mostrar select de clientes (se não for lead)
+                var metaInfoContainer = document.getElementById('new-message-meta-info');
+                var clienteDropdown = document.getElementById('modalClienteDropdown');
+                var leadContainer = document.getElementById('new-message-lead-container');
+                
+                if (metaInfoContainer) metaInfoContainer.style.display = 'none';
+                if (leadContainer && leadContainer.style.display !== 'block') {
+                    if (clienteDropdown) clienteDropdown.style.display = 'block';
+                }
             } else if (channelSelect.value === 'whatsapp_api') {
                 sessionContainer.style.display = 'none';
                 if (templateContainer) templateContainer.style.display = 'block';
@@ -311,6 +339,17 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 }
                 if (sessionSelect) sessionSelect.required = false;
                 if (templateSelect) templateSelect.required = true;
+                
+                // Meta API: Ocultar select de clientes (não faz sentido - conta Meta é da Pixel12)
+                var clienteDropdown = document.getElementById('modalClienteDropdown');
+                var metaInfoContainer = document.getElementById('new-message-meta-info');
+                var leadContainer = document.getElementById('new-message-lead-container');
+                
+                // Se não é contexto de lead, oculta select e mostra info Meta
+                if (leadContainer && leadContainer.style.display !== 'block') {
+                    if (clienteDropdown) clienteDropdown.style.display = 'none';
+                    if (metaInfoContainer) metaInfoContainer.style.display = 'block';
+                }
                 
                 // Carrega templates aprovados
                 loadApprovedTemplates();
@@ -327,6 +366,16 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 }
                 if (sessionSelect) sessionSelect.required = false;
                 if (templateSelect) templateSelect.required = false;
+                
+                // Outros canais: Ocultar info Meta e mostrar select de clientes (se não for lead)
+                var metaInfoContainer = document.getElementById('new-message-meta-info');
+                var clienteDropdown = document.getElementById('modalClienteDropdown');
+                var leadContainer = document.getElementById('new-message-lead-container');
+                
+                if (metaInfoContainer) metaInfoContainer.style.display = 'none';
+                if (leadContainer && leadContainer.style.display !== 'block') {
+                    if (clienteDropdown) clienteDropdown.style.display = 'block';
+                }
             }
         }
     };
