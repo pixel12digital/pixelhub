@@ -867,9 +867,29 @@ class CommunicationHubController extends Controller
                     return;
                 }
                 
+                // Se tenant_id está vazio, tenta resolver a partir de lead_id
                 if (empty($tenantId)) {
-                    error_log("[CommunicationHub::send] ❌ ERRO 400: tenant_id vazio");
-                    $this->json(['success' => false, 'error' => 'Cliente é obrigatório', 'request_id' => $requestId], 400);
+                    $leadId = isset($_POST['lead_id']) && $_POST['lead_id'] !== '' ? (int) $_POST['lead_id'] : null;
+                    
+                    if ($leadId) {
+                        error_log("[CommunicationHub::send] tenant_id vazio, tentando resolver a partir de lead_id: {$leadId}");
+                        
+                        $leadStmt = $db->prepare("SELECT tenant_id FROM leads WHERE id = ? LIMIT 1");
+                        $leadStmt->execute([$leadId]);
+                        $lead = $leadStmt->fetch();
+                        
+                        if ($lead && !empty($lead['tenant_id'])) {
+                            $tenantId = (int) $lead['tenant_id'];
+                            error_log("[CommunicationHub::send] ✅ tenant_id resolvido do lead: {$tenantId}");
+                        } else {
+                            error_log("[CommunicationHub::send] ⚠️ Lead {$leadId} não tem tenant_id associado");
+                        }
+                    }
+                }
+                
+                if (empty($tenantId)) {
+                    error_log("[CommunicationHub::send] ❌ ERRO 400: tenant_id vazio e não foi possível resolver de lead_id");
+                    $this->json(['success' => false, 'error' => 'Cliente é obrigatório para envio via Meta API. O lead precisa estar vinculado a um cliente.', 'request_id' => $requestId], 400);
                     return;
                 }
                 

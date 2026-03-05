@@ -724,24 +724,21 @@ async function openWhatsApp(phone) {
                                 toField.dispatchEvent(new Event('input', { bubbles: true }));
                             }
                             
-                            // Seleciona canal WhatsApp (gateway, não API)
-                            // IMPORTANTE: Para LEADs, sempre usar gateway (whatsapp), nunca API (whatsapp_api)
-                            // API Meta exige tenant_id, que LEADs não possuem
+                            // Preenche lead_id se for oportunidade de lead
+                            const leadId = <?= !empty($opp['lead_id']) ? (int) $opp['lead_id'] : 'null' ?>;
+                            if (leadId) {
+                                const leadIdField = document.getElementById('new-message-lead-id');
+                                if (leadIdField) {
+                                    leadIdField.value = leadId;
+                                    console.log('[Opp WhatsApp] lead_id preenchido:', leadId);
+                                }
+                            }
+                            
+                            // Seleciona canal WhatsApp
                             const channelSelect = document.getElementById('new-message-channel');
                             if (channelSelect) {
                                 channelSelect.value = 'whatsapp';
                                 channelSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                                
-                                // Desabilita opção "API - Pixel12Digital" para LEADs
-                                const isLead = <?= !empty($opp['lead_id']) ? 'true' : 'false' ?>;
-                                if (isLead) {
-                                    const apiOption = channelSelect.querySelector('option[value="whatsapp_api"]');
-                                    if (apiOption) {
-                                        apiOption.disabled = true;
-                                        apiOption.textContent = 'API - Pixel12Digital (apenas para clientes)';
-                                    }
-                                    console.log('[Opp WhatsApp] Canal API desabilitado - esta é uma oportunidade de LEAD');
-                                }
                             }
                         }, 300);
                     }
