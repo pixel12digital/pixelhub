@@ -479,4 +479,87 @@ class ScheduledMessageService
         ");
         $updateStmt->execute([$messageId]);
     }
+    
+    /**
+     * Agenda follow-up de prospecção em 22h (dentro da janela gratuita de 24h do Meta)
+     * 
+     * @param int $conversationId ID da conversa
+     * @param string $phone Telefone do lead
+     * @param string $triggerEvent Evento que gerou o agendamento (ex: 'vou_analisar_primeiro')
+     * @param array $metadata Metadados adicionais
+     * @return int ID da mensagem agendada
+     */
+    public static function scheduleProspectingFollowup(
+        int $conversationId,
+        string $phone,
+        string $triggerEvent = 'no_response_22h',
+        array $metadata = []
+    ): int {
+        $db = DB::getConnection();
+        
+        // Calcula horário de envio: 22 horas a partir de agora
+        $scheduledAt = date('Y-m-d H:i:s', strtotime('+22 hours'));
+        
+        // Mensagem de follow-up
+        $message = "Olá! 😊\n\nVi que você demonstrou interesse em conhecer nossa estrutura para corretores.\n\nTeve tempo de dar uma olhada no material que enviei?\n\nSe tiver qualquer dúvida, estou aqui para ajudar!";
+        
+        // Busca lead_id da conversa
+        $stmt = $db->prepare("SELECT lead_id FROM conversations WHERE id = ? LIMIT 1");
+        $stmt->execute([$conversationId]);
+        $leadId = $stmt->fetchColumn();
+        
+        // Cria mensagem agendada
+        $stmt = $db->prepare("
+            INSERT INTO scheduled_messages (
+                conversation_id, lead_id, phone,
+                message_type, message_content,
+                scheduled_at, status, trigger_event, metadata,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, 'text', ?, ?, 'pending', ?, ?, NOW(), NOW())
+        ");
+        
+        $stmt->execute([
+            $conversationId,
+            $leadId,
+            $phone,
+            $message,
+            $scheduledAt,
+            $triggerEvent,
+            json_encode($metadata)
+        ]);
+        
+        $messageId = (int)$db->lastInsertId();
+        
+        error_log("[ScheduledMessage] Follow-up de prospecção agendado para {$scheduledAt} (ID: {$messageId}, conversa: {$conversationId})");
+        
+        return $messageId;
+    }
+    
+    /**
+     * Cancela follow-up agendado se lead responder antes
+     * 
+     * @param int $conversationId ID da conversa
+     * @param string $triggerEvent Tipo de follow-up a cancelar
+     */
+    public static function cancelProspectingFollowup(int $conversationId, string $triggerEvent = 'no_response_22h'): void
+    {
+        $db = DB::getConnection();
+        
+        $stmt = $db->prepare("
+            UPDATE scheduled_messages 
+            SET status = 'cancelled',
+                updated_at = NOW()
+            WHERE conversation_id = ?
+            AND trigger_event = ?
+            AND status = 'pending'
+        ");
+        
+        $stmt->execute([$conversationId, $triggerEvent]);
+        
+        $cancelledCount = $stmt->rowCount();
+        
+        if ($cancelledCount > 0) {
+            error_log("[ScheduledMessage] {$cancelledCount} follow-up(s) cancelado(s) para conversa {$conversationId} (lead respondeu)");
+        }
+    }
 }
