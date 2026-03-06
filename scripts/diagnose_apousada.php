@@ -18,7 +18,7 @@ $asaasId = 'cus_000087736349';
 echo "=== DIAGNÓSTICO A POUSADA ({$asaasId}) ===\n\n";
 
 // ─── 1. Encontra o tenant ────────────────────────────────────────
-$stmt = $db->prepare("SELECT id, name, phone, billing_auto_send, billing_auto_channel, is_billing_test FROM tenants WHERE asaas_id = ?");
+$stmt = $db->prepare("SELECT id, name, phone, billing_auto_send, billing_auto_channel, is_billing_test FROM tenants WHERE asaas_customer_id = ?");
 $stmt->execute([$asaasId]);
 $tenant = $stmt->fetch(PDO::FETCH_ASSOC);
 
