@@ -2164,6 +2164,9 @@
                             <a href="<?= pixelhub_url('/settings/google-maps') ?>" class="sub-item <?= (strpos($currentUri, '/settings/google-maps') !== false) ? 'active' : '' ?>">
                                 <span class="sidebar-text">Google Maps API</span>
                             </a>
+                            <a href="<?= pixelhub_url('/settings/apify') ?>" class="sub-item <?= (strpos($currentUri, '/settings/apify') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">Apify (Instagram)</span>
+                            </a>
                             <a href="<?= pixelhub_url('/settings/whatsapp-providers') ?>" class="sub-item <?= (strpos($currentUri, '/settings/whatsapp-providers') !== false) ? 'active' : '' ?>">
                                 <span class="sidebar-text">WhatsApp API Oficial</span>
                             </a>
