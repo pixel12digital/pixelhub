@@ -3046,7 +3046,8 @@
             lastUpdateTs: null,
             lastMessageTs: null,
             lastMessageId: null,
-            filterOptionsLoaded: false
+            filterOptionsLoaded: false,
+            threadCache: {}
         };
         
         // URL base – exposta globalmente para reutilizar em funções fora deste escopo
@@ -6260,7 +6261,15 @@
                 chat.style.display = 'flex';
                 requestAnimationFrame(() => { chat.offsetHeight; });
             }
-            if (messages) messages.innerHTML = '<div class="inbox-drawer-loading">Carregando...</div>';
+            
+            // Cache check: renderiza instantaneamente se dados em cache (TTL 60s)
+            const _THREAD_CACHE_TTL = 60000;
+            const _cachedThread = InboxState.threadCache[threadId];
+            const _cacheHit = _cachedThread && (Date.now() - _cachedThread.cachedAt) < _THREAD_CACHE_TTL;
+            
+            if (!_cacheHit) {
+                if (messages) messages.innerHTML = '<div class="inbox-drawer-loading">Carregando...</div>';
+            }
             
             // Reseta campo de mensagem e visibilidade mic/enviar ao trocar conversa
             const input = document.getElementById('inboxMessageInput');
@@ -6273,6 +6282,38 @@
             // Mobile: abre painel de chat
             const drawer = document.getElementById('inboxDrawer');
             if (drawer) drawer.classList.add('chat-open');
+            
+            // Cache hit: renderiza imediatamente sem aguardar servidor
+            if (_cacheHit) {
+                const _cr = _cachedThread.data;
+                if (_cr.success && _cr.thread) {
+                    renderInboxHeader(_cr.thread);
+                    renderInboxMessages(_cr.messages || []);
+                    const _ct = _cr.thread;
+                    sessionStorage.setItem('inbox_selected_phone', _ct.contact || _ct.contact_external_id || _ct.phone || _ct.to || '');
+                    sessionStorage.setItem('inbox_selected_tenant_id', _ct.tenant_id || '');
+                    sessionStorage.setItem('inbox_selected_channel_id', _ct.channel_id || '');
+                    window._currentInboxThread = _ct;
+                    window._currentInboxMessages = _cr.messages || [];
+                    window._currentInboxConversationId = _ct.conversation_id || _ct.id || String(threadId).replace('whatsapp_', '');
+                    const _cms = _cr.messages || [];
+                    if (_cms.length > 0) {
+                        const _lm = _cms[_cms.length - 1];
+                        InboxState.lastMessageTs = _lm.timestamp || _lm.created_at;
+                        InboxState.lastMessageId = _lm.id || _lm.event_id;
+                    } else {
+                        InboxState.lastMessageTs = null;
+                        InboxState.lastMessageId = null;
+                    }
+                    const _convEl = document.querySelector(`.inbox-drawer-conversation[data-thread-id="${threadId}"]`);
+                    if (_convEl) { const _b = _convEl.querySelector('.conv-unread'); if (_b) _b.remove(); }
+                    const _zo = (arr) => { if (arr) { const it = arr.find(c => c.thread_id === threadId); if (it) it.unread_count = 0; } };
+                    _zo(InboxState.conversations);
+                    _zo(InboxState.incomingLeads);
+                    updateInboxBadge();
+                    return;
+                }
+            }
             
             try {
                 const url = INBOX_BASE_URL + '/communication-hub/thread-data?thread_id=' + threadId + '&channel=' + channel;
@@ -6636,6 +6677,9 @@
                     if (timeEl) timeEl.textContent = 'agora';
                 }
                 
+                // Invalida cache da conversa (mensagem enviada - cache desatualizado)
+                if (InboxState.currentThreadId) delete InboxState.threadCache[InboxState.currentThreadId];
+                
             } catch (error) {
                 console.error('[Inbox] Erro ao enviar:', error);
                 if (optimisticEl && optimisticEl.parentNode) {
@@ -6763,6 +6807,9 @@
                 if (result.success && result.messages && result.messages.length > 0) {
                     console.log('[Inbox] Novas mensagens:', result.messages.length);
                     appendInboxMessages(result.messages);
+                    
+                    // Invalida cache da conversa ativa (novas mensagens chegaram)
+                    if (InboxState.currentThreadId) delete InboxState.threadCache[InboxState.currentThreadId];
                     
                     // Atualiza marcadores
                     const lastMsg = result.messages[result.messages.length - 1];
@@ -6952,6 +6999,59 @@
             div.textContent = str;
             return div.innerHTML;
         }
+        
+        // ===== PRÉ-CARREGAMENTO DE THREADS (CACHE) =====
+        async function preloadInboxThreadsBackground() {
+            const threads = InboxState.conversations || [];
+            const leads = InboxState.incomingLeads || [];
+            const allItems = [...leads.slice(0, 3), ...threads.slice(0, 10)];
+            for (const t of allItems) {
+                if (!t.thread_id) continue;
+                if (!InboxState.threadCache[t.thread_id]) {
+                    await prefetchInboxThread(t.thread_id, t.channel || 'whatsapp');
+                }
+                await new Promise(r => setTimeout(r, 120));
+            }
+        }
+        
+        async function prefetchInboxThread(threadId, channel) {
+            if (InboxState.threadCache[threadId]) return;
+            try {
+                const url = INBOX_BASE_URL + '/communication-hub/thread-data?thread_id=' + encodeURIComponent(threadId) + '&channel=' + encodeURIComponent(channel || 'whatsapp');
+                const response = await fetch(url);
+                if (!response.ok) return;
+                const result = await response.json();
+                if (result.success && result.thread) {
+                    InboxState.threadCache[threadId] = { data: result, cachedAt: Date.now() };
+                }
+            } catch (e) {
+                // Silencioso - pré-fetch é best-effort
+            }
+        }
+        
+        // ===== AUTO-INICIALIZAÇÃO: Inbox abre minimizado ao carregar página =====
+        document.addEventListener('DOMContentLoaded', function() {
+            const drawer = document.getElementById('inboxDrawer');
+            if (!drawer) return;
+            
+            // Aplica estado minimizado sem animação de slide-in
+            drawer.style.transition = 'none';
+            drawer.classList.add('open', 'inbox--minimized');
+            document.body.classList.add('inbox-minimized');
+            requestAnimationFrame(() => requestAnimationFrame(() => { drawer.style.transition = ''; }));
+            
+            InboxState.isOpen = true;
+            const handle = document.getElementById('inboxChevronHandle');
+            if (handle) handle.setAttribute('title', 'Expandir');
+            
+            // Pré-carrega filtros, lista de conversas e threads em background
+            onInboxChannelChange();
+            loadInboxFilterOptions();
+            loadInboxConversations().then(function() {
+                preloadInboxThreadsBackground();
+            });
+            startInboxPolling();
+        });
     })();
     </script>
 
