@@ -157,5 +157,5 @@ function testApiKey() {
 <?php
 $content = ob_get_clean();
 $pageTitle = 'Configurações — Apify';
-include __DIR__ . '/../layout.php';
+include __DIR__ . '/../layout/main.php';
 ?>
