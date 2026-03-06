@@ -324,18 +324,6 @@ class MetaWebhookController extends Controller
                 error_log('[MetaWebhook] Erro ao recuperar conversation_id do evento: ' . $e->getMessage());
             }
 
-            // Cancela follow-up se lead respondeu
-            if ($resolvedConversationId) {
-                try {
-                    \PixelHub\Services\ScheduledMessageService::cancelProspectingFollowup(
-                        (int) $resolvedConversationId,
-                        'vou_analisar_primeiro'
-                    );
-                } catch (\Exception $e) {
-                    error_log('[MetaWebhook] Erro ao cancelar follow-up: ' . $e->getMessage());
-                }
-            }
-
             // Processa botão interativo se for o caso
             if ($messageType === 'interactive' || $messageType === 'button') {
                 $this->processInteractiveButton($message, $from, $tenantId, $phoneNumberId, $resolvedConversationId);
