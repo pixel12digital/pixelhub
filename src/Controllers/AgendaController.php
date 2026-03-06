@@ -2020,75 +2020,115 @@ class AgendaController extends Controller
     }
     
     /**
-     * Cria uma tarefa rápida e vincula ao bloco
+     * Cria uma tarefa rápida e vincula ao bloco.
+     * Se project_id não informado, usa/cria projeto "Atividades Internas" (sem tenant).
      */
     public function createQuickTask(): void
     {
         Auth::requireInternal();
-        
-        $blockId = isset($_POST['block_id']) ? (int)$_POST['block_id'] : 0;
+
+        $blockId   = isset($_POST['block_id'])   ? (int)$_POST['block_id']   : 0;
         $projectId = isset($_POST['project_id']) ? (int)$_POST['project_id'] : 0;
-        $titulo = trim($_POST['titulo'] ?? '');
-        $descricao = trim($_POST['descricao'] ?? '');
-        
-        if ($blockId <= 0 || $projectId <= 0 || empty($titulo)) {
-            $this->json(['error' => 'Dados inválidos'], 400);
+        $titulo    = trim($_POST['title']   ?? $_POST['titulo']   ?? '');
+        $descricao = trim($_POST['description'] ?? $_POST['descricao'] ?? '');
+        $status    = trim($_POST['status'] ?? 'backlog');
+        $checklistItems = isset($_POST['checklist_items']) && is_array($_POST['checklist_items'])
+            ? $_POST['checklist_items'] : [];
+
+        if (empty($titulo)) {
+            $this->json(['error' => 'Título é obrigatório'], 400);
             return;
         }
-        
+
         try {
-            // Busca o bloco para pegar o projeto foco se não foi informado
-            $bloco = AgendaService::getBlockById($blockId);
-            if (!$bloco) {
-                $this->json(['error' => 'Bloco não encontrado'], 404);
-                return;
+            $db = \PixelHub\Core\DB::getConnection();
+
+            // Se não veio project_id, tenta herdar do bloco ou usa projeto interno padrão
+            if ($projectId <= 0 && $blockId > 0) {
+                $bloco = AgendaService::getBlockById($blockId);
+                if ($bloco && !empty($bloco['projeto_foco_id'])) {
+                    $projectId = (int)$bloco['projeto_foco_id'];
+                }
             }
-            
-            // Se não informou project_id, usa o projeto foco do bloco
-            if ($projectId <= 0 && $bloco['projeto_foco_id']) {
-                $projectId = (int)$bloco['projeto_foco_id'];
-            }
-            
             if ($projectId <= 0) {
-                $this->json(['error' => 'Projeto é obrigatório'], 400);
-                return;
+                $projectId = $this->getOrCreateInternalProject($db);
             }
-            
-            // Cria a tarefa usando TaskService
+
+            $user = Auth::user();
+            $allowedStatuses = ['backlog', 'em_andamento', 'aguardando_cliente', 'concluida'];
             $taskId = \PixelHub\Services\TaskService::createTask([
-                'project_id' => $projectId,
-                'title' => $titulo,
-                'description' => $descricao,
-                'status' => 'backlog',
-                'task_type' => 'internal',
+                'project_id'  => $projectId,
+                'title'       => $titulo,
+                'description' => $descricao ?: null,
+                'status'      => in_array($status, $allowedStatuses) ? $status : 'backlog',
+                'task_type'   => 'internal',
+                'created_by'  => $user['id'] ?? null,
             ]);
-            
+
+            // Checklist
+            foreach ($checklistItems as $item) {
+                $item = trim($item);
+                if ($item !== '') {
+                    $db->prepare("INSERT INTO task_checklists (task_id, label, is_done, created_at) VALUES (?, ?, 0, NOW())")
+                       ->execute([$taskId, $item]);
+                }
+            }
+
             // Vincula ao bloco
-            AgendaService::attachTaskToBlock($blockId, $taskId);
-            
+            if ($blockId > 0) {
+                AgendaService::attachTaskToBlock($blockId, $taskId);
+            }
+
             // Opcional: define como tarefa foco
-            if (isset($_POST['set_as_focus']) && $_POST['set_as_focus'] === '1') {
+            if ($blockId > 0 && isset($_POST['set_as_focus']) && $_POST['set_as_focus'] === '1') {
                 AgendaService::setFocusTaskForBlock($blockId, $taskId);
             }
-            
-            // Se for requisição AJAX, retorna JSON
-            $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+            $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH'])
+                && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
             if ($isAjax) {
                 $this->json([
-                    'success' => true,
-                    'task_id' => $taskId,
+                    'success'  => true,
+                    'task_id'  => $taskId,
+                    'id'       => $taskId,
                     'block_id' => $blockId,
-                    'message' => 'Tarefa criada e vinculada ao bloco com sucesso'
+                    'message'  => 'Tarefa criada e vinculada ao bloco com sucesso',
                 ]);
                 return;
             }
-            
+
             header('Location: ' . pixelhub_url('/agenda/bloco?id=' . $blockId));
             exit;
+        } catch (\InvalidArgumentException $e) {
+            $this->json(['error' => $e->getMessage()], 400);
         } catch (\Exception $e) {
             error_log("Erro ao criar tarefa rápida: " . $e->getMessage());
             $this->json(['error' => 'Erro ao criar tarefa: ' . $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Busca ou cria o projeto interno padrão "Atividades Internas" (sem tenant).
+     */
+    private function getOrCreateInternalProject(\PDO $db): int
+    {
+        $stmt = $db->prepare("
+            SELECT id FROM projects
+            WHERE name = 'Atividades Internas'
+              AND (tenant_id IS NULL OR tenant_id = 0)
+              AND status = 'ativo'
+            LIMIT 1
+        ");
+        $stmt->execute();
+        $row = $stmt->fetch();
+        if ($row) {
+            return (int)$row['id'];
+        }
+        $db->prepare("
+            INSERT INTO projects (name, description, status, created_at)
+            VALUES ('Atividades Internas', 'Tarefas internas sem projeto específico', 'ativo', NOW())
+        ")->execute();
+        return (int)$db->lastInsertId();
     }
     
     /**

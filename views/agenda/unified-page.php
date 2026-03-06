@@ -542,7 +542,7 @@ if (!empty($dailyTasks)):
                 $taskUrl = !empty($bloco['focus_task_id']) && !empty($bloco['focus_task_project_id']) ? pixelhub_url('/projects/board?project_id=' . (int)$bloco['focus_task_project_id'] . '&task_id=' . (int)$bloco['focus_task_id']) : (!empty($bloco['focus_task_id']) && !empty($bloco['projeto_foco_id']) ? pixelhub_url('/projects/board?project_id=' . (int)$bloco['projeto_foco_id'] . '&task_id=' . (int)$bloco['focus_task_id']) : null);
                 $ticketUrl = !empty($bloco['ticket_id']) ? pixelhub_url('/tickets/show?id=' . (int)$bloco['ticket_id']) : null;
             ?>
-            <?php $hasSubitems = (int)($bloco['tarefas_count'] ?? 0) > 0 || !empty($bloco['projeto_foco_id']); ?>
+            <?php $hasSubitems = true; ?>
             <tr class="block-row <?= $isCurrent ? 'current' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" data-projeto-foco-id="<?= (int)($bloco['projeto_foco_id'] ?? 0) ?>" data-tarefas-count="<?= (int)($bloco['tarefas_count'] ?? 0) ?>" data-hora-inicio="<?= htmlspecialchars($horaInicioFmt) ?>" data-hora-fim="<?= htmlspecialchars($horaFimFmt) ?>">
                 <td class="col-item" style="border-left: 4px solid <?= $corBorda ?>;">
                     <div class="block-item-cell">
@@ -561,7 +561,7 @@ if (!empty($dailyTasks)):
                                 <?php if ($taskUrl): ?><a href="<?= $taskUrl ?>" class="block-task-link" onclick="event.stopPropagation()">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></a><?php else: ?><span class="block-task">↳ <?= htmlspecialchars($bloco['focus_task_title']) ?></span><?php endif; ?>
                             <?php endif; ?>
                         </div>
-                        <?php if (!empty($bloco['projeto_foco_id'])): ?><span class="block-add-task-btn-wrap" data-block-id="<?= (int)$bloco['id'] ?>"></span><?php endif; ?>
+                        <span class="block-add-task-btn-wrap" data-block-id="<?= (int)$bloco['id'] ?>"></span>
                     </div>
                 </td>
                 <td class="col-cliente"><?php
@@ -663,10 +663,10 @@ if (!empty($dailyTasks)):
             <input type="hidden" id="atm-container-ref" value="">
 
             <div class="atm-form-group">
-                <label for="atm-project-id">Projeto *</label>
+                <label for="atm-project-id">Projeto <span style="font-size:11px;color:#6b7280;font-weight:400;">(opcional — se vazio, usa Atividades Internas)</span></label>
                 <div style="display: flex; gap: 8px; align-items: flex-start;">
-                    <select name="project_id" id="atm-project-id" required style="flex: 1;" onchange="if(this.value==='__create_new__'){this.value='';atmOpenCreateProject();}">
-                        <option value="">Selecione...</option>
+                    <select name="project_id" id="atm-project-id" style="flex: 1;" onchange="if(this.value==='__create_new__'){this.value='';atmOpenCreateProject();}">
+                        <option value="" style="color:#6b7280;font-style:italic;">(automático — Atividades Internas)</option>
                         <?php
                         $atmProjects = $projetos ?? [];
                         foreach ($atmProjects as $project):
@@ -965,7 +965,7 @@ document.getElementById('agendaTaskModal').addEventListener('click', function(e)
     if (e.target === this) atmCloseModal();
 });
 
-// Submit do formulário: cria tarefa via /tasks/store e vincula ao bloco
+// Submit do formulário: cria tarefa e vincula ao bloco em uma única chamada
 document.getElementById('agendaTaskForm').addEventListener('submit', function(e) {
     e.preventDefault();
     var submitBtn = this.querySelector('button[type="submit"]');
@@ -973,6 +973,7 @@ document.getElementById('agendaTaskForm').addEventListener('submit', function(e)
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Salvando...'; }
 
     var formData = new FormData(this);
+    formData.set('block_id', _atmBlockId || 0);
 
     // Coleta checklist items
     var checklistItems = document.querySelectorAll('#atm-checklist-items .atm-checklist-item');
@@ -981,8 +982,7 @@ document.getElementById('agendaTaskForm').addEventListener('submit', function(e)
         if (label) formData.append('checklist_items[]', label);
     });
 
-    // 1. Cria a tarefa via /tasks/store
-    fetch('<?= pixelhub_url('/tasks/store') ?>', {
+    fetch('<?= pixelhub_url('/agenda/bloco/create-quick-task') ?>', {
         method: 'POST',
         body: formData,
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -994,42 +994,10 @@ document.getElementById('agendaTaskForm').addEventListener('submit', function(e)
             if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
             return;
         }
-        var taskId = data.id || data.task_id;
-        if (!taskId) {
-            alert('Tarefa criada, mas não foi possível obter o ID.');
-            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
-            atmCloseModal();
-            return;
-        }
-
-        // 2. Vincula ao bloco
-        var blockId = _atmBlockId;
-        if (blockId > 0) {
-            var fd2 = new FormData();
-            fd2.append('block_id', blockId);
-            fd2.append('task_id', taskId);
-            fetch('<?= pixelhub_url('/agenda/bloco/attach-task') ?>', {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: fd2
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                atmCloseModal();
-                // Recarrega conteúdo do bloco
-                if (_atmContainer) {
-                    loadBlockContent(blockId, _atmContainer);
-                } else {
-                    location.reload();
-                }
-            })
-            .catch(function() {
-                alert('Tarefa criada, mas erro ao vincular ao bloco.');
-                atmCloseModal();
-                location.reload();
-            });
+        atmCloseModal();
+        if (_atmBlockId > 0 && _atmContainer) {
+            loadBlockContent(_atmBlockId, _atmContainer);
         } else {
-            atmCloseModal();
             location.reload();
         }
     })
@@ -1586,8 +1554,7 @@ function toggleBlockExpand(blockId) {
     const blockRow = el.previousElementSibling;
     const tarefasCount = blockRow && blockRow.dataset.tarefasCount ? parseInt(blockRow.dataset.tarefasCount, 10) : 0;
     const projectId = blockRow && blockRow.dataset.projetoFocoId ? parseInt(blockRow.dataset.projetoFocoId, 10) : 0;
-    const hasSubitems = tarefasCount > 0 || projectId > 0;
-    if (!hasSubitems) return;
+    const hasSubitems = true;
     const isOpen = el.classList.contains('show');
     document.querySelectorAll('.block-expand.show').forEach(e => {
         e.classList.remove('show');
@@ -1699,17 +1666,17 @@ function loadBlockContent(blockId, container) {
                 html += '<ul class="block-linked-tasks"><li style="color:#94a3b8;font-style:italic;">Nenhuma tarefa vinculada a este bloco.</li></ul>';
             }
 
+            html += '<div class="block-add-task-section" id="block-add-task-form-' + blockId + '" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">';
+            html += '<label style="font-size:12px;color:#64748b;display:block;margin-bottom:6px;">Adicionar tarefa a este bloco</label>';
+            html += '<div class="block-add-task-row">';
             if (projectId > 0) {
-                html += '<div class="block-add-task-section" id="block-add-task-form-' + blockId + '" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">';
-                html += '<label style="font-size:12px;color:#64748b;display:block;margin-bottom:6px;">Adicionar tarefa a este bloco</label>';
-                html += '<div class="block-add-task-row">';
                 html += '<select id="block-add-task-select-' + blockId + '"><option value="">Selecionar tarefa…</option></select>';
                 html += '<button type="button" class="btn-add-task-to-block" data-block-id="' + blockId + '">Vincular</button>';
                 html += '<span style="color:#cbd5e1;margin:0 4px;">|</span>';
-                html += '<button type="button" class="btn-open-create-task-modal" data-block-id="' + blockId + '" data-project-id="' + projectId + '" style="background:#023A8D;color:#fff;border:1px solid #023A8D;padding:6px 12px;border-radius:4px;font-size:12px;cursor:pointer;white-space:nowrap;" title="Criar nova tarefa e vincular a este bloco">+ Criar Nova</button>';
-                html += '<button type="button" class="block-add-task-close" data-block-id="' + blockId + '" title="Fechar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
-                html += '</div></div>';
             }
+            html += '<button type="button" class="btn-open-create-task-modal" data-block-id="' + blockId + '" data-project-id="' + projectId + '" style="background:#023A8D;color:#fff;border:1px solid #023A8D;padding:6px 12px;border-radius:4px;font-size:12px;cursor:pointer;white-space:nowrap;" title="Criar nova tarefa e vincular a este bloco">+ Criar Nova</button>';
+            html += '<button type="button" class="block-add-task-close" data-block-id="' + blockId + '" title="Fechar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
+            html += '</div></div>';
             container.innerHTML = html;
 
             // Atualiza FIM do bloco na linha principal (sem refresh)
@@ -1831,54 +1798,58 @@ function loadBlockContent(blockId, container) {
                 });
             }
 
+            // Botão "+" na linha principal — sempre mostrar
+            if (addBtnWrap) {
+                addBtnWrap.innerHTML = '';
+                const plusBtn = document.createElement('button');
+                plusBtn.type = 'button';
+                plusBtn.className = 'block-add-task-btn';
+                plusBtn.title = 'Criar / adicionar tarefa a este bloco';
+                plusBtn.textContent = '+';
+                const formSectionRef = container.querySelector('.block-add-task-section');
+                plusBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    if (formSectionRef) {
+                        formSectionRef.style.display = formSectionRef.style.display === 'block' ? 'none' : 'block';
+                    }
+                });
+                addBtnWrap.appendChild(plusBtn);
+            }
+
+            // Botão "Criar Nova" — abre modal completo de criação de tarefa (sempre)
+            container.querySelector('.btn-open-create-task-modal')?.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const bid = parseInt(this.dataset.blockId, 10);
+                const pid = parseInt(this.dataset.projectId, 10) || 0;
+                openAgendaCreateTaskModal(bid, pid, container);
+            });
+
+            // Botão fechar secção
+            container.querySelector('.block-add-task-close')?.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const fs = container.querySelector('.block-add-task-section');
+                if (fs) fs.style.display = 'none';
+            });
+
             if (projectId > 0) {
                 fetch('<?= pixelhub_url('/agenda/tasks-by-project') ?>?project_id=' + projectId)
                     .then(r => r.json())
                     .then(projData => {
                         const allTasks = projData.tasks || [];
-                        const formSection = container.querySelector('.block-add-task-section');
                         const sel = document.getElementById('block-add-task-select-' + blockId);
 
                         if (addBtnWrap) {
-                            // Calcula tarefas disponíveis (não vinculadas a ESTE bloco) para controlar o botão +
                             const linkedIdsForBtn = new Set(linkedTasks.map(function(t) { return t.id; }));
                             const hasAvailable = allTasks.some(function(t) { return !linkedIdsForBtn.has(t.id); });
-                            addBtnWrap.innerHTML = '';
-                            if (hasAvailable) {
-                                const plusBtn = document.createElement('button');
-                                plusBtn.type = 'button';
-                                plusBtn.className = 'block-add-task-btn';
-                                plusBtn.title = 'Adicionar tarefa a este bloco';
-                                plusBtn.textContent = '+';
-                                plusBtn.addEventListener('click', function(e) {
-                                    e.stopPropagation();
-                                    if (formSection) {
-                                        const isVisible = formSection.style.display === 'block';
-                                        formSection.style.display = isVisible ? 'none' : 'block';
-                                    }
-                                });
-                                addBtnWrap.appendChild(plusBtn);
-                            } else {
-                                const plusBtn = document.createElement('button');
-                                plusBtn.type = 'button';
-                                plusBtn.className = 'block-add-task-btn disabled';
-                                plusBtn.title = 'Sem tarefas para vincular';
-                                plusBtn.disabled = true;
-                                plusBtn.textContent = '+';
-                                addBtnWrap.appendChild(plusBtn);
+                            const btn = addBtnWrap.querySelector('.block-add-task-btn');
+                            if (btn && !hasAvailable) {
+                                btn.className = 'block-add-task-btn disabled';
+                                btn.title = 'Sem tarefas existentes para vincular — use + Criar Nova';
+                                btn.disabled = false;
                             }
                         }
 
-                        const closeForm = () => {
-                            if (formSection) formSection.style.display = 'none';
-                        };
-                        container.querySelector('.block-add-task-close')?.addEventListener('click', function(e) {
-                            e.stopPropagation();
-                            closeForm();
-                        });
-
                         if (sel) {
-                            // Exclui tarefas já vinculadas a ESTE bloco (pode estar em outros blocos)
                             const linkedIds = new Set(linkedTasks.map(function(t) { return t.id; }));
                             const availableTasks = allTasks.filter(function(t) { return !linkedIds.has(t.id); });
                             availableTasks.forEach(t => {
@@ -1890,7 +1861,7 @@ function loadBlockContent(blockId, container) {
                             if (availableTasks.length === 0 && sel.options.length === 1) {
                                 const opt = document.createElement('option');
                                 opt.value = '';
-                                opt.textContent = 'Nenhuma tarefa disponível (todas já vinculadas a este bloco)';
+                                opt.textContent = 'Nenhuma tarefa disponível (todas já vinculadas)';
                                 opt.disabled = true;
                                 sel.appendChild(opt);
                             }
@@ -1922,14 +1893,6 @@ function loadBlockContent(blockId, container) {
                                 }
                             })
                             .catch(() => { alert('Erro ao vincular'); btn.disabled = false; btn.textContent = 'Vincular'; });
-                        });
-
-                        // Botão "Criar Nova" — abre modal completo de criação de tarefa
-                        container.querySelector('.btn-open-create-task-modal')?.addEventListener('click', function(e) {
-                            e.stopPropagation();
-                            const bid = parseInt(this.dataset.blockId, 10);
-                            const pid = parseInt(this.dataset.projectId, 10);
-                            openAgendaCreateTaskModal(bid, pid, container);
                         });
                     })
                     .catch(() => {});
