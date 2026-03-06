@@ -738,6 +738,39 @@ class ProspectingService
     }
 
     // =========================================================================
+    // SALVAR TELEFONE MANUAL
+    // =========================================================================
+
+    public static function savePhone(int $resultId, string $phone): array
+    {
+        $result = self::findResultById($resultId);
+        if (!$result) {
+            throw new \InvalidArgumentException('Resultado não encontrado');
+        }
+
+        $phone = trim($phone);
+        if (empty($phone)) {
+            throw new \InvalidArgumentException('Telefone inválido');
+        }
+
+        $db = DB::getConnection();
+
+        $source = $result['source'] ?? '';
+        if ($source === 'instagram') {
+            $col = 'phone_instagram';
+        } elseif ($source === 'google_maps') {
+            $col = 'phone_google';
+        } else {
+            $col = 'phone_minhareceita';
+        }
+
+        $db->prepare("UPDATE prospecting_results SET {$col} = ?, updated_at = NOW() WHERE id = ?")
+           ->execute([$phone, $resultId]);
+
+        return ['success' => true, 'phone' => $phone, 'column' => $col];
+    }
+
+    // =========================================================================
     // CHAVE APIFY
     // =========================================================================
 

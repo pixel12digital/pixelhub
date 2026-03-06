@@ -820,6 +820,8 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/prospecting/apply-google-enrichment', 'ProspectingController@applyGoogleEnrichment');
     $router->post('/prospecting/enrich-cnpjws', 'ProspectingController@enrichWithCnpjWs');
     $router->post('/prospecting/enrich-apify-phone', 'ProspectingController@enrichWithApifyPhone');
+    $router->post('/prospecting/save-phone', 'ProspectingController@savePhone');
+    $router->get('/prospecting/whatsapp-sessions', 'ProspectingController@whatsappSessions');
     $router->post('/prospecting/convert-to-lead', 'ProspectingController@convertToLead');
 
     // Configurações — Catálogo de Produtos por Conta

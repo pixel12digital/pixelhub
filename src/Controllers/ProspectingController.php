@@ -661,6 +661,56 @@ class ProspectingController extends Controller
     }
 
     /**
+     * POST /prospecting/save-phone  (AJAX)
+     * Salva telefone inserido manualmente para um resultado
+     */
+    public function savePhone(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $resultId = (int) ($_POST['result_id'] ?? 0);
+        $phone    = trim($_POST['phone'] ?? '');
+
+        if (!$resultId || empty($phone)) {
+            $this->json(['success' => false, 'error' => 'Parâmetros inválidos'], 400);
+            return;
+        }
+
+        try {
+            $result = ProspectingService::savePhone($resultId, $phone);
+            $this->json($result);
+        } catch (\Exception $e) {
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * GET /prospecting/whatsapp-sessions  (AJAX)
+     * Retorna sessões WhatsApp disponíveis para o modal de envio
+     */
+    public function whatsappSessions(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        try {
+            $db   = \PixelHub\Core\DB::getConnection();
+            $col  = $db->query("SHOW COLUMNS FROM tenant_message_channels LIKE 'session_id'")->fetch() ? 'session_id' : 'channel_id';
+            $stmt = $db->query("SELECT DISTINCT {$col} as session_id, channel_id FROM tenant_message_channels WHERE provider = 'wpp_gateway' AND is_enabled = 1 ORDER BY channel_id");
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            $sessions = [];
+            foreach ($rows as $r) {
+                $id = $r['session_id'] ?: $r['channel_id'];
+                if ($id) $sessions[] = ['id' => $id, 'name' => $r['channel_id']];
+            }
+            $this->json(['success' => true, 'sessions' => $sessions]);
+        } catch (\Exception $e) {
+            $this->json(['success' => false, 'sessions' => [], 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
      * POST /prospecting/convert-to-lead  (AJAX)
      */
     public function convertToLead(): void

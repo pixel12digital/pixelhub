@@ -280,15 +280,31 @@ ob_start();
                         <?php if ($result['source'] === 'instagram'): ?>
                         <?php $instaPhone = $result['phone_instagram'] ?? ''; ?>
                         <?php if (!empty($instaPhone)): ?>
-                        <div style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($instaPhone) ?></div>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <div style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($instaPhone) ?></div>
+                            <button onclick="openWAModal(<?= $result['id'] ?>, '<?= htmlspecialchars($instaPhone) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>')" title="Enviar WhatsApp"
+                                    style="padding:2px 6px;background:#25d366;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;">WA</button>
+                        </div>
                         <?php if (!empty($result['apify_phone_enriched_at'])): ?>
                         <div style="font-size:10px;color:#94a3b8;margin-top:2px;">✓ enriquecido</div>
                         <?php endif; ?>
                         <?php elseif (!empty($result['apify_phone_enriched_at'])): ?>
-                        <span style="font-size:11px;color:#94a3b8;">Sem telefone público</span>
+                        <div style="display:flex;align-items:center;gap:5px;">
+                            <span style="font-size:11px;color:#94a3b8;">Sem telefone público</span>
+                            <button onclick="showPhoneInput(<?= $result['id'] ?>)" title="Digitar manualmente"
+                                    style="padding:2px 5px;background:#f1f5f9;border:1px solid #d1d5db;border-radius:4px;font-size:11px;cursor:pointer;color:#64748b;">✏️</button>
+                        </div>
+                        <div id="phone-input-wrap-<?= $result['id'] ?>" style="display:none;margin-top:4px;display:none;">
+                            <input type="text" id="phone-input-<?= $result['id'] ?>" placeholder="Ex: 11999999999"
+                                   style="width:110px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;">
+                            <button onclick="saveManualPhone(<?= $result['id'] ?>, this)" title="Salvar"
+                                    style="padding:3px 7px;background:#16a34a;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;margin-left:3px;">✓</button>
+                        </div>
                         <?php else: ?>
                         <button onclick="enrichApifyPhone(<?= $result['id'] ?>, this)"
-                                style="padding:5px 10px;background:#e1306c;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                                id="buscar-tel-<?= $result['id'] ?>"
+                                style="padding:5px 10px;background:#e1306c;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;">
+                            <span id="buscar-tel-spin-<?= $result['id'] ?>" style="display:none;width:10px;height:10px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;"></span>
                             📞 Buscar Telefone
                         </button>
                         <?php endif; ?>
@@ -298,7 +314,11 @@ ob_start();
                         $phoneSecundario = $result['telefone_secundario'] ?? '';
                         ?>
                         <?php if (!empty($phone)): ?>
-                        <div style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($phone) ?></div>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <div style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($phone) ?></div>
+                            <button onclick="openWAModal(<?= $result['id'] ?>, '<?= htmlspecialchars($phone) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>')" title="Enviar WhatsApp"
+                                    style="padding:2px 6px;background:#25d366;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;">WA</button>
+                        </div>
                         <?php endif; ?>
                         <?php if (!empty($phoneSecundario)): ?>
                         <div style="font-size:11px;color:#64748b;margin-top:2px;"><?= htmlspecialchars($phoneSecundario) ?></div>
@@ -319,16 +339,29 @@ ob_start();
                     </td>
                     <td style="padding:14px 16px;text-align:center;">
                         <div style="display:flex;gap:4px;justify-content:center;align-items:center;flex-wrap:wrap;">
-                            <?php if ($result['source'] === 'instagram'): ?>
-                            <!-- Instagram: Buscar Telefone via Apify (se ainda não enriquecido) -->
-                            <?php if (empty($result['apify_phone_enriched_at'])): ?>
+                            <?php
+                            $phoneForWA = '';
+                            if ($result['source'] === 'instagram') $phoneForWA = $result['phone_instagram'] ?? '';
+                            elseif ($result['source'] === 'google_maps') $phoneForWA = $result['phone_google'] ?? '';
+                            else $phoneForWA = $result['phone_minhareceita'] ?? '';
+                            ?>
+                            <!-- WhatsApp: sempre que tiver telefone -->
+                            <?php if (!empty($phoneForWA)): ?>
+                            <button onclick="openWAModal(<?= $result['id'] ?>, '<?= htmlspecialchars($phoneForWA) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>')"
+                                    id="wa-btn-<?= $result['id'] ?>"
+                                    style="padding:6px;background:#25d366;color:#fff;border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"
+                                    title="Enviar mensagem WhatsApp">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+                            </button>
+                            <?php endif; ?>
+                            <?php if ($result['source'] === 'instagram' && empty($result['apify_phone_enriched_at'])): ?>
+                            <!-- Instagram: Buscar Telefone via Apify -->
                             <button onclick="enrichApifyPhone(<?= $result['id'] ?>, this)"
                                     id="enrich-btn-<?= $result['id'] ?>"
                                     style="padding:6px;background:#e1306c;color:#fff;border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"
                                     title="Buscar telefone business via Apify">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 14 19.79 19.79 0 0 1 1.63 5.4 2 2 0 0 1 3.6 3.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.09a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 17.42z"></path></svg>
                             </button>
-                            <?php endif; ?>
                             <?php endif; ?>
 
                             <?php if ($result['source'] === 'minhareceita' && !empty($result['cnpj'])): ?>
@@ -746,7 +779,16 @@ function closeEnrichModal() {
 // Enriquecer telefone business Instagram via Apify (Fase 2)
 function enrichApifyPhone(resultId, btn) {
     const orig = btn ? btn.innerHTML : '';
-    if (btn) { btn.disabled = true; btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;"></span>'; }
+    if (btn) {
+        btn.disabled = true;
+        // Show spinner element if it exists (new button design), else replace text
+        const spinEl = document.getElementById('buscar-tel-spin-' + resultId);
+        if (spinEl) {
+            spinEl.style.display = 'inline-block';
+        } else {
+            btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;"></span>';
+        }
+    }
 
     const cell = document.getElementById('phone-cell-' + resultId);
 
@@ -781,6 +823,153 @@ function enrichApifyPhone(resultId, btn) {
         if (btn) { btn.disabled = false; btn.innerHTML = orig; }
     });
 }
+
+// ===================== TELEFONE MANUAL =====================
+
+function showPhoneInput(resultId) {
+    const wrap = document.getElementById('phone-input-wrap-' + resultId);
+    if (wrap) { wrap.style.display = 'block'; document.getElementById('phone-input-' + resultId)?.focus(); }
+}
+
+function saveManualPhone(resultId, btn) {
+    const input = document.getElementById('phone-input-' + resultId);
+    const phone = input ? input.value.trim() : '';
+    if (!phone) { showToast('✗ Digite o telefone', false); return; }
+
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '...';
+
+    fetch('<?= pixelhub_url('/prospecting/save-phone') ?>', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'result_id=' + resultId + '&phone=' + encodeURIComponent(phone)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) throw new Error(data.error || 'Erro ao salvar');
+        const cell = document.getElementById('phone-cell-' + resultId);
+        if (cell) {
+            cell.innerHTML =
+                '<div style="display:flex;align-items:center;gap:6px;">' +
+                '<div style="font-size:12px;color:#374151;font-weight:500;">' + phone + '</div>' +
+                '<button onclick="openWAModal(' + resultId + ', \'' + phone.replace(/'/g, "\\'") + '\', \'\')" title="Enviar WhatsApp" ' +
+                'style="padding:2px 6px;background:#25d366;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;">WA</button>' +
+                '</div>' +
+                '<div style="font-size:10px;color:#94a3b8;margin-top:2px;">✓ manual</div>';
+        }
+        // Adiciona botão WA nas ações
+        const actWA = document.getElementById('wa-btn-' + resultId);
+        if (!actWA) {
+            const enrichBtn = document.getElementById('enrich-btn-' + resultId);
+            const actionsDiv = enrichBtn ? enrichBtn.closest('div') : null;
+            if (actionsDiv) {
+                const waBtn = document.createElement('button');
+                waBtn.id = 'wa-btn-' + resultId;
+                waBtn.title = 'Enviar mensagem WhatsApp';
+                waBtn.style.cssText = 'padding:6px;background:#25d366;color:#fff;border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;';
+                waBtn.onclick = function() { openWAModal(resultId, phone, ''); };
+                waBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/></svg>';
+                actionsDiv.insertBefore(waBtn, actionsDiv.firstChild);
+            }
+        }
+        showToast('✓ Telefone salvo: ' + phone, true);
+    })
+    .catch(err => {
+        btn.disabled = false; btn.innerHTML = orig;
+        showToast('✗ ' + err.message, false);
+    });
+}
+
+// ===================== MODAL WHATSAPP =====================
+
+let _waSessions = null;
+
+function openWAModal(resultId, phone, name) {
+    document.getElementById('wa-result-id').value = resultId;
+    document.getElementById('wa-prospect-name').value = name || '';
+    document.getElementById('wa-prospect-phone').value = phone || '';
+    document.getElementById('wa-prospect-message').value = '';
+
+    const modal = document.getElementById('wa-prospect-modal');
+    modal.style.display = 'flex';
+
+    if (_waSessions === null) {
+        fetch('<?= pixelhub_url('/prospecting/whatsapp-sessions') ?>')
+            .then(r => r.json())
+            .then(data => {
+                _waSessions = data.sessions || [];
+                const sel = document.getElementById('wa-prospect-session');
+                sel.innerHTML = '<option value="">Selecione a sessão...</option>';
+                _waSessions.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = s.name || s.id;
+                    sel.appendChild(opt);
+                });
+                if (_waSessions.length === 1) sel.value = _waSessions[0].id;
+            });
+    }
+}
+
+function closeWAModal() {
+    document.getElementById('wa-prospect-modal').style.display = 'none';
+}
+
+function sendProspectWA() {
+    const resultId = document.getElementById('wa-result-id').value;
+    const phone    = document.getElementById('wa-prospect-phone').value.trim();
+    const session  = document.getElementById('wa-prospect-session').value;
+    const message  = document.getElementById('wa-prospect-message').value.trim();
+
+    if (!phone)   { showToast('✗ Informe o telefone', false); return; }
+    if (!session) { showToast('✗ Selecione a sessão WhatsApp', false); return; }
+    if (!message) { showToast('✗ Digite a mensagem', false); return; }
+
+    const btn = document.getElementById('wa-send-btn');
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Enviando...';
+
+    const body = new URLSearchParams({
+        channel:    'whatsapp',
+        channel_id: session,
+        to:         phone,
+        message:    message
+    });
+
+    fetch('<?= pixelhub_url('/communication-hub/send') ?>', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: body.toString()
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false; btn.innerHTML = orig;
+        if (!data.success) throw new Error(data.error || 'Erro ao enviar');
+
+        closeWAModal();
+        showToast('✓ Mensagem enviada!', true);
+
+        if (resultId) {
+            const sel = document.querySelector('tr[data-id="' + resultId + '"] select') ||
+                        document.querySelector('[data-result-id="' + resultId + '"] select');
+            if (!sel) {
+                fetch('<?= pixelhub_url('/prospecting/update-result-status') ?>', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'result_id=' + resultId + '&status=contacted'
+                });
+            }
+        }
+    })
+    .catch(err => {
+        btn.disabled = false; btn.innerHTML = orig;
+        showToast('✗ ' + err.message, false);
+    });
+}
+
+// ===================== ENRIQUECIMENTO EM LOTE =====================
 
 // Enriquecimento em lote — todos os perfis Instagram sem telefone
 async function enrichAllApifyPhones(btn) {
@@ -865,6 +1054,50 @@ function updateWithCnpjWs(resultId) {
 <div id="enrichModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:8px;max-width:900px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
         <div id="enrichContent"></div>
+    </div>
+</div>
+
+<!-- Modal WhatsApp Prospecção -->
+<div id="wa-prospect-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;width:480px;max-width:95vw;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <h3 style="margin:0;font-size:16px;color:#1e293b;display:flex;align-items:center;gap:8px;">
+                <span style="color:#25d366;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+                </span>
+                Enviar WhatsApp
+            </h3>
+            <button onclick="closeWAModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;line-height:1;">&times;</button>
+        </div>
+        <input type="hidden" id="wa-result-id" value="">
+        <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Para</label>
+            <input type="text" id="wa-prospect-name" readonly style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;background:#f8fafc;box-sizing:border-box;color:#64748b;">
+        </div>
+        <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Telefone <span style="color:#dc2626;">*</span></label>
+            <input type="text" id="wa-prospect-phone" placeholder="Ex: 5511999999999" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+            <div style="font-size:11px;color:#94a3b8;margin-top:3px;">Com código do país (55 para Brasil) e DDD, sem espaços ou traços.</div>
+        </div>
+        <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Sessão WhatsApp <span style="color:#dc2626;">*</span></label>
+            <select id="wa-prospect-session" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                <option value="">Carregando...</option>
+            </select>
+        </div>
+        <div style="margin-bottom:18px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Mensagem <span style="color:#dc2626;">*</span></label>
+            <textarea id="wa-prospect-message" rows="4" placeholder="Olá! Vi seu perfil e gostaria de conversar..." style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;resize:vertical;font-family:inherit;"></textarea>
+        </div>
+        <div style="display:flex;gap:10px;">
+            <button onclick="sendProspectWA()" id="wa-send-btn"
+                    style="flex:1;padding:10px;background:#25d366;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">
+                Enviar
+            </button>
+            <button onclick="closeWAModal()" style="padding:10px 18px;background:#f1f5f9;color:#64748b;border:none;border-radius:6px;font-size:14px;cursor:pointer;">
+                Cancelar
+            </button>
+        </div>
     </div>
 </div>
 
