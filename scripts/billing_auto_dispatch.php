@@ -137,13 +137,15 @@ foreach ($rules as $rule) {
         ");
         $stmt->execute([$absDays]);
     } elseif ($daysOffset === 0) {
+        // Lookback de 2 dias para cobrir vencimentos em fim de semana (sáb/dom)
+        // capturados na segunda-feira seguinte. countSentForRule evita redisparo.
         $stmt = $db->prepare("
             SELECT bi.*, t.name AS tenant_name, t.phone, t.billing_auto_send, t.billing_auto_channel, t.is_billing_test
             FROM billing_invoices bi
             JOIN tenants t ON t.id = bi.tenant_id
             WHERE bi.status IN ('pending', 'overdue')
               AND (bi.is_deleted IS NULL OR bi.is_deleted = 0)
-              AND bi.due_date = CURDATE()
+              AND bi.due_date BETWEEN DATE_SUB(CURDATE(), INTERVAL 2 DAY) AND CURDATE()
               AND t.billing_auto_send = 1
             ORDER BY t.id, bi.due_date
         ");
@@ -163,17 +165,19 @@ foreach ($rules as $rule) {
             ");
             $stmt->execute([$daysOffset, $daysOffset, $repeatIntervalDays]);
         } else {
+            // Janela de +2 dias para cobrir regras que cairiam em fim de semana.
+            // wasRecentlySent (por template_key) e countSentForRule evitam redisparo.
             $stmt = $db->prepare("
                 SELECT bi.*, t.name AS tenant_name, t.phone, t.billing_auto_send, t.billing_auto_channel, t.is_billing_test
                 FROM billing_invoices bi
                 JOIN tenants t ON t.id = bi.tenant_id
                 WHERE bi.status = 'overdue'
                   AND (bi.is_deleted IS NULL OR bi.is_deleted = 0)
-                  AND DATEDIFF(CURDATE(), bi.due_date) = ?
+                  AND DATEDIFF(CURDATE(), bi.due_date) BETWEEN ? AND ? + 2
                   AND t.billing_auto_send = 1
                 ORDER BY t.id, bi.due_date
             ");
-            $stmt->execute([$daysOffset]);
+            $stmt->execute([$daysOffset, $daysOffset]);
         }
     }
 

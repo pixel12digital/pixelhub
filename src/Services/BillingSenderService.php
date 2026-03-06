@@ -663,7 +663,16 @@ class BillingSenderService
     public static function wasRecentlySent(\PDO $db, int $invoiceId, int $ruleId, int $hoursThreshold = 20, ?string $channel = null): bool
     {
         try {
-            // Verifica na billing_dispatch_log se há envio recente para esta fatura
+            // Resolve template_key da regra para filtrar apenas envios da mesma regra
+            // (evita que o envio de uma regra bloqueie uma regra diferente no mesmo dia)
+            $templateKey = null;
+            if ($ruleId > 0) {
+                $stmtTpl = $db->prepare("SELECT template_key FROM billing_dispatch_rules WHERE id = ? LIMIT 1");
+                $stmtTpl->execute([$ruleId]);
+                $templateKey = $stmtTpl->fetchColumn() ?: null;
+            }
+
+            // Verifica na billing_dispatch_log se há envio recente para esta fatura E mesma regra
             $sql = "
                 SELECT COUNT(*) 
                 FROM billing_dispatch_log 
@@ -672,6 +681,10 @@ class BillingSenderService
                   AND sent_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
             ";
             $params = [$invoiceId, $hoursThreshold];
+            if ($templateKey) {
+                $sql .= " AND template_key = ?";
+                $params[] = $templateKey;
+            }
             if ($channel) {
                 $sql .= " AND channel = ?";
                 $params[] = $channel;
