@@ -295,6 +295,7 @@ class MetaWebhookController extends Controller
         $normalizedPayload = $this->normalizeInboundMessage($message, $value, $entry);
 
         // Ingere evento no sistema (aceita tenant_id NULL para configuração global)
+        $resolvedConversationId = null;
         try {
             $eventId = EventIngestionService::ingest([
                 'event_type' => 'whatsapp.inbound.message',
@@ -313,7 +314,6 @@ class MetaWebhookController extends Controller
 
             // Recupera o conversation_id resolvido pelo EventIngestionService
             // para evitar criar uma conversa duplicada com key diferente
-            $resolvedConversationId = null;
             try {
                 $db = DB::getConnection();
                 $convStmt = $db->prepare('SELECT conversation_id FROM communication_events WHERE event_id = ? LIMIT 1');
@@ -324,14 +324,16 @@ class MetaWebhookController extends Controller
                 error_log('[MetaWebhook] Erro ao recuperar conversation_id do evento: ' . $e->getMessage());
             }
 
-            // Processa botão interativo se for o caso
-            if ($messageType === 'interactive' || $messageType === 'button') {
-                $this->processInteractiveButton($message, $from, $tenantId, $phoneNumberId, $resolvedConversationId);
-            }
-
         } catch (\Exception $e) {
             error_log('[MetaWebhook] Erro ao ingerir evento: ' . $e->getMessage());
             error_log('[MetaWebhook] Stack trace: ' . $e->getTraceAsString());
+        }
+
+        // Processa botão interativo SEMPRE, independente do resultado do ingest
+        // Se ingest falhou, $resolvedConversationId=null e processInteractiveButton
+        // usará resolveConversation() como fallback para encontrar a conversa
+        if ($messageType === 'interactive' || $messageType === 'button') {
+            $this->processInteractiveButton($message, $from, $tenantId, $phoneNumberId, $resolvedConversationId);
         }
     }
 
