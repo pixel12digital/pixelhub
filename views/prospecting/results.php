@@ -14,9 +14,17 @@ ob_start();
             · <strong><?= $total ?></strong> empresa(s) encontrada(s)
         </p>
     </div>
-    <div style="display:flex;gap:10px;">
-        <button onclick="runSearch(<?= $recipe['id'] ?>, this)" <?= !$hasKey ? 'disabled title="Configure a API primeiro"' : '' ?>
-                style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:<?= $hasKey ? '#023A8D' : '#94a3b8' ?>;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:<?= $hasKey ? 'pointer' : 'not-allowed' ?>;">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <?php if (($recipe['source'] ?? '') === 'instagram' && ($hasApifyKey ?? false)): ?>
+        <button onclick="enrichAllApifyPhones(this)"
+                id="enrich-all-btn"
+                style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#e1306c;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
+            📞 Buscar Todos os Telefones
+        </button>
+        <?php endif; ?>
+        <button onclick="<?= ($recipe['source'] ?? '') === 'instagram' ? 'runSearchInstagram(' . $recipe['id'] . ', this)' : 'runSearch(' . $recipe['id'] . ', this)' ?>"
+                <?= (($recipe['source'] ?? '') !== 'instagram' && !$hasKey) ? 'disabled title="Configure a API primeiro"' : '' ?>
+                style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:<?= (($recipe['source'] ?? '') === 'instagram') ? '#e1306c' : ($hasKey ? '#023A8D' : '#94a3b8') ?>;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>Buscar Mais
         </button>
     </div>
@@ -758,6 +766,52 @@ function enrichApifyPhone(resultId, btn) {
         showToast('✗ ' + err.message, false);
         if (btn) { btn.disabled = false; btn.innerHTML = orig; }
     });
+}
+
+// Enriquecimento em lote — todos os perfis Instagram sem telefone
+async function enrichAllApifyPhones(btn) {
+    const buttons = document.querySelectorAll('[id^="enrich-btn-"]');
+    if (!buttons.length) {
+        showToast('ℹ Todos os perfis já foram verificados.', true);
+        return;
+    }
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Buscando... 0/' + buttons.length;
+
+    let found = 0, empty = 0, errors = 0, done = 0;
+
+    for (const b of buttons) {
+        const id = b.id.replace('enrich-btn-', '');
+        try {
+            const resp = await fetch('<?= pixelhub_url('/prospecting/enrich-apify-phone') ?>', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'result_id=' + id
+            });
+            const data = await resp.json();
+            if (data.success) {
+                const cell = document.getElementById('phone-cell-' + id);
+                if (data.found && data.phone) {
+                    found++;
+                    if (cell) cell.innerHTML = '<div style="font-size:12px;color:#374151;font-weight:500;">' + data.phone + '</div><div style="font-size:10px;color:#94a3b8;margin-top:2px;">✓ enriquecido</div>';
+                } else {
+                    empty++;
+                    if (cell) cell.innerHTML = '<span style="font-size:11px;color:#94a3b8;">Sem telefone</span>';
+                }
+                b.remove();
+            } else { errors++; }
+        } catch(e) { errors++; }
+
+        done++;
+        btn.innerHTML = '⏳ Buscando... ' + done + '/' + buttons.length;
+        // Pequeno delay para não sobrecarregar a API
+        await new Promise(r => setTimeout(r, 800));
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = orig;
+    showToast('✓ Concluído: ' + found + ' telefone(s) encontrado(s), ' + empty + ' sem telefone público, ' + errors + ' erro(s).', found > 0);
 }
 
 // Atualizar dados via CNPJ.ws (fonte da verdade)

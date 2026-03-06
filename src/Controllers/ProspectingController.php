@@ -504,22 +504,24 @@ class ProspectingController extends Controller
         $offset  = (int) ($_GET['page'] ?? 0) * $limit;
         $results = ProspectingService::listResults($recipeId, $filters, $limit, $offset);
         $total   = ProspectingService::countResults($recipeId, $filters);
-        $hasKey  = ProspectingService::hasApiKey();
+        $hasKey      = ProspectingService::hasApiKey();
+        $hasApifyKey = ApifyClient::hasApiKey();
 
         $db = DB::getConnection();
         $users    = $db->query("SELECT id, name FROM users WHERE is_internal = 1 ORDER BY name ASC")->fetchAll() ?: [];
         $products = OpportunityProductService::listActive();
 
         $this->view('prospecting.results', [
-            'recipe'   => $recipe,
-            'results'  => $results,
-            'total'    => $total,
-            'filters'  => $filters,
-            'hasKey'   => $hasKey,
-            'page'     => (int) ($_GET['page'] ?? 0),
-            'limit'    => $limit,
-            'users'    => $users,
-            'products' => $products,
+            'recipe'      => $recipe,
+            'results'     => $results,
+            'total'       => $total,
+            'filters'     => $filters,
+            'hasKey'      => $hasKey,
+            'hasApifyKey' => $hasApifyKey,
+            'page'        => (int) ($_GET['page'] ?? 0),
+            'limit'       => $limit,
+            'users'       => $users,
+            'products'    => $products,
         ]);
     }
 
