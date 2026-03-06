@@ -5879,6 +5879,7 @@
                     InboxState.lastUpdateTs = result.latest_update_ts || null;
                     renderInboxList(threads, incomingLeads, incomingLeadsCount);
                     updateInboxBadge();
+                    _saveInboxConvsToStorage();
                 }
             } catch (error) {
                 console.error('[Inbox] Erro ao carregar conversas:', error);
@@ -6678,7 +6679,10 @@
                 }
                 
                 // Invalida cache da conversa (mensagem enviada - cache desatualizado)
-                if (InboxState.currentThreadId) delete InboxState.threadCache[InboxState.currentThreadId];
+                if (InboxState.currentThreadId) {
+                    _removeInboxThreadFromStorage(InboxState.currentThreadId);
+                    delete InboxState.threadCache[InboxState.currentThreadId];
+                }
                 
             } catch (error) {
                 console.error('[Inbox] Erro ao enviar:', error);
@@ -6809,7 +6813,10 @@
                     appendInboxMessages(result.messages);
                     
                     // Invalida cache da conversa ativa (novas mensagens chegaram)
-                    if (InboxState.currentThreadId) delete InboxState.threadCache[InboxState.currentThreadId];
+                    if (InboxState.currentThreadId) {
+                        _removeInboxThreadFromStorage(InboxState.currentThreadId);
+                        delete InboxState.threadCache[InboxState.currentThreadId];
+                    }
                     
                     // Atualiza marcadores
                     const lastMsg = result.messages[result.messages.length - 1];
@@ -7000,6 +7007,76 @@
             return div.innerHTML;
         }
         
+        // ===== PERSISTÊNCIA ENTRE PÁGINAS (localStorage) =====
+        function _restoreInboxFromStorage() {
+            try {
+                const MAX_AGE_MS = 5 * 60 * 1000;
+                const rawConvs = localStorage.getItem('inbox_convs_cache');
+                if (rawConvs) {
+                    const parsed = JSON.parse(rawConvs);
+                    if (parsed && parsed.cachedAt && (Date.now() - parsed.cachedAt) < MAX_AGE_MS) {
+                        const threads = parsed.threads || [];
+                        const leads = parsed.incomingLeads || [];
+                        InboxState.conversations = threads;
+                        InboxState.incomingLeads = leads;
+                        InboxState.lastUpdateTs = parsed.lastUpdateTs || null;
+                        if (threads.length > 0 || leads.length > 0) {
+                            renderInboxList(threads, leads, parsed.incomingLeadsCount || leads.length);
+                            updateInboxBadge();
+                        }
+                    }
+                }
+                const rawThreads = localStorage.getItem('inbox_thread_cache');
+                if (rawThreads) {
+                    const parsed = JSON.parse(rawThreads);
+                    if (parsed) {
+                        const MAX_THREAD_AGE = 5 * 60 * 1000;
+                        Object.keys(parsed).forEach(function(key) {
+                            var val = parsed[key];
+                            if (val && val.cachedAt && (Date.now() - val.cachedAt) < MAX_THREAD_AGE) {
+                                InboxState.threadCache[key] = val;
+                            }
+                        });
+                    }
+                }
+            } catch(e) {}
+        }
+        
+        function _saveInboxConvsToStorage() {
+            try {
+                localStorage.setItem('inbox_convs_cache', JSON.stringify({
+                    threads: InboxState.conversations || [],
+                    incomingLeads: InboxState.incomingLeads || [],
+                    incomingLeadsCount: (InboxState.incomingLeads || []).length,
+                    lastUpdateTs: InboxState.lastUpdateTs,
+                    cachedAt: Date.now()
+                }));
+            } catch(e) {}
+        }
+        
+        function _saveInboxThreadToStorage(threadId, entry) {
+            try {
+                var raw = localStorage.getItem('inbox_thread_cache') || '{}';
+                var cache = JSON.parse(raw);
+                cache[threadId] = entry;
+                var keys = Object.keys(cache);
+                if (keys.length > 15) {
+                    keys.sort(function(a, b) { return (cache[a].cachedAt || 0) - (cache[b].cachedAt || 0); });
+                    delete cache[keys[0]];
+                }
+                localStorage.setItem('inbox_thread_cache', JSON.stringify(cache));
+            } catch(e) {}
+        }
+        
+        function _removeInboxThreadFromStorage(threadId) {
+            try {
+                var raw = localStorage.getItem('inbox_thread_cache') || '{}';
+                var cache = JSON.parse(raw);
+                delete cache[threadId];
+                localStorage.setItem('inbox_thread_cache', JSON.stringify(cache));
+            } catch(e) {}
+        }
+        
         // ===== PRÉ-CARREGAMENTO DE THREADS (CACHE) =====
         async function preloadInboxThreadsBackground() {
             const threads = InboxState.conversations || [];
@@ -7023,6 +7100,7 @@
                 const result = await response.json();
                 if (result.success && result.thread) {
                     InboxState.threadCache[threadId] = { data: result, cachedAt: Date.now() };
+                    _saveInboxThreadToStorage(threadId, InboxState.threadCache[threadId]);
                 }
             } catch (e) {
                 // Silencioso - pré-fetch é best-effort
@@ -7043,6 +7121,9 @@
             InboxState.isOpen = true;
             const handle = document.getElementById('inboxChevronHandle');
             if (handle) handle.setAttribute('title', 'Expandir');
+            
+            // Restaura estado do localStorage imediatamente (sem esperar servidor)
+            _restoreInboxFromStorage();
             
             // Pré-carrega filtros, lista de conversas e threads em background
             onInboxChannelChange();
