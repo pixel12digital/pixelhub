@@ -3617,38 +3617,45 @@ class CommunicationHubController extends Controller
             ORDER BY ce.created_at ASC
             LIMIT 500
         ");
-        $stmt->execute($paramsWithTenant);
-        $filteredEvents = $stmt->fetchAll();
-
-        // CORREÇÃO: Se não encontrou eventos, tenta buscar sem filtro de tenant_id/channel_id
-        // Isso resolve casos onde:
-        // 1. A conversa tem tenant_id NULL (não vinculada) mas os eventos têm tenant_id
-        // 2. A conversa tem tenant_id incorreto mas os eventos têm tenant_id diferente (e não há channel_id)
-        // IMPORTANTE: Se há channel_id, a query inicial já não filtra por tenant_id, então esta busca
-        // só será executada quando não houver channel_id ou quando os filtros de contato não encontrarem nada
-        if (empty($filteredEvents)) {
-            // Reconstrói WHERE apenas com filtros de contato (sem tenant_id e sem channel_id)
-            // Isso permite encontrar mensagens mesmo quando não há vínculo de tenant ou channel
-            $whereWithoutFilters = $where;
-            $paramsWithoutFilters = $params;
-            
-            $whereClauseWithoutFilters = "WHERE " . implode(" AND ", $whereWithoutFilters);
-            
-            $stmt = $db->prepare("
-                SELECT 
-                    ce.event_id,
-                    ce.event_type,
-                    ce.created_at,
-                    ce.payload,
-                    ce.metadata,
-                    ce.tenant_id
-                FROM communication_events ce
-                {$whereClauseWithoutFilters}
-                ORDER BY ce.created_at ASC
-                LIMIT 500
-            ");
-            $stmt->execute($paramsWithoutFilters);
+        // OTIMIZAÇÃO CRÍTICA: Pula Fase 2 (full table scan via JSON_EXTRACT+LIKE) quando
+        // Fase 1 já encontrou eventos vinculados por conversation_id. Fase 2 só é necessária
+        // para conversas muito antigas cujos eventos não têm conversation_id no banco.
+        if (!empty($phase1Events)) {
+            $filteredEvents = [];
+        } else {
+            $stmt->execute($paramsWithTenant);
             $filteredEvents = $stmt->fetchAll();
+
+            // CORREÇÃO: Se não encontrou eventos, tenta buscar sem filtro de tenant_id/channel_id
+            // Isso resolve casos onde:
+            // 1. A conversa tem tenant_id NULL (não vinculada) mas os eventos têm tenant_id
+            // 2. A conversa tem tenant_id incorreto mas os eventos têm tenant_id diferente (e não há channel_id)
+            // IMPORTANTE: Se há channel_id, a query inicial já não filtra por tenant_id, então esta busca
+            // só será executada quando não houver channel_id ou quando os filtros de contato não encontrarem nada
+            if (empty($filteredEvents)) {
+                // Reconstrói WHERE apenas com filtros de contato (sem tenant_id e sem channel_id)
+                // Isso permite encontrar mensagens mesmo quando não há vínculo de tenant ou channel
+                $whereWithoutFilters = $where;
+                $paramsWithoutFilters = $params;
+                
+                $whereClauseWithoutFilters = "WHERE " . implode(" AND ", $whereWithoutFilters);
+                
+                $stmt = $db->prepare("
+                    SELECT 
+                        ce.event_id,
+                        ce.event_type,
+                        ce.created_at,
+                        ce.payload,
+                        ce.metadata,
+                        ce.tenant_id
+                    FROM communication_events ce
+                    {$whereClauseWithoutFilters}
+                    ORDER BY ce.created_at ASC
+                    LIMIT 500
+                ");
+                $stmt->execute($paramsWithoutFilters);
+                $filteredEvents = $stmt->fetchAll();
+            }
         }
 
         // Combina Fase 1 (por conversation_id) + Fase 2 (por padrão de contato)
@@ -3701,7 +3708,40 @@ class CommunicationHubController extends Controller
                 }
             }
         }
-        
+
+        // OTIMIZAÇÃO: Pré-carrega mapeamentos lid↔phone em batch antes do loop
+        // Elimina N+1 queries (antes: até 3 queries por mensagem × 500 msgs = 1500+ queries)
+        $lidBatchCache = []; // [businessId => phoneNumber]
+        $batchLidIds = [];
+        if (strpos($conversationRemoteKey ?? '', 'lid:') === 0) {
+            $batchLidIds[] = substr($conversationRemoteKey, 4) . '@lid';
+        }
+        foreach ($filteredEvents as $_bev) {
+            $_bp = json_decode($_bev['payload'], true);
+            foreach (['from', 'to'] as $_bf) {
+                $_bj = $_bp[$_bf] ?? $_bp['message'][$_bf] ?? null;
+                if ($_bj && preg_match('/^([0-9]+)@lid$/', $_bj, $_bm)) {
+                    $batchLidIds[] = $_bm[1] . '@lid';
+                }
+            }
+        }
+        if (!empty($batchLidIds)) {
+            $batchLidIds = array_unique($batchLidIds);
+            try {
+                $_lph = implode(',', array_fill(0, count($batchLidIds), '?'));
+                $_lst = $db->prepare("SELECT business_id, phone_number FROM whatsapp_business_ids WHERE business_id IN ({$_lph})");
+                $_lst->execute($batchLidIds);
+                foreach ($_lst->fetchAll(\PDO::FETCH_ASSOC) as $_lr) {
+                    $lidBatchCache[$_lr['business_id']] = $_lr['phone_number'];
+                }
+            } catch (\Exception $_le) { /* ignora */ }
+        }
+        // Pré-resolve phone do @lid da conversa (CASO 2) — mesmo valor para TODOS os eventos
+        $conversationPhoneFromLidPre = null;
+        if (strpos($conversationRemoteKey ?? '', 'lid:') === 0) {
+            $conversationPhoneFromLidPre = $lidBatchCache[substr($conversationRemoteKey, 4) . '@lid'] ?? null;
+        }
+
         foreach ($filteredEvents as $event) {
             $payload = json_decode($event['payload'], true);
             $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
@@ -3735,12 +3775,7 @@ class CommunicationHubController extends Controller
                     if ($eventFromKey && strpos($eventFromKey, 'lid:') === 0) {
                         $lidId = substr($eventFromKey, 4);
                         $lidBusinessId = $lidId . '@lid';
-                        $checkLidStmt = $db->prepare("
-                            SELECT phone_number FROM whatsapp_business_ids 
-                            WHERE business_id = ? AND phone_number = ? LIMIT 1
-                        ");
-                        $checkLidStmt->execute([$lidBusinessId, $conversationPhone]);
-                        if ($checkLidStmt->fetchColumn()) {
+                        if (($lidBatchCache[$lidBusinessId] ?? null) === $conversationPhone) {
                             $isFromThisContact = true;
                         }
                     }
@@ -3748,12 +3783,7 @@ class CommunicationHubController extends Controller
                     if ($eventToKey && strpos($eventToKey, 'lid:') === 0) {
                         $lidId = substr($eventToKey, 4);
                         $lidBusinessId = $lidId . '@lid';
-                        $checkLidStmt = $db->prepare("
-                            SELECT phone_number FROM whatsapp_business_ids 
-                            WHERE business_id = ? AND phone_number = ? LIMIT 1
-                        ");
-                        $checkLidStmt->execute([$lidBusinessId, $conversationPhone]);
-                        if ($checkLidStmt->fetchColumn()) {
+                        if (($lidBatchCache[$lidBusinessId] ?? null) === $conversationPhone) {
                             $isToThisContact = true;
                         }
                     }
@@ -3762,16 +3792,8 @@ class CommunicationHubController extends Controller
                 // CASO 2: Conversa tem lid:, evento tem tel: (conversa usa @lid, evento outbound usa número)
                 // Este é o caso do Luiz: conversa tem lid:103066917425370, evento outbound tem to=5511988427530
                 if (strpos($conversationRemoteKey, 'lid:') === 0) {
-                    $conversationLidId = substr($conversationRemoteKey, 4);
-                    $conversationLidBusinessId = $conversationLidId . '@lid';
-                    
-                    // Busca o número mapeado para este @lid
-                    $getLidPhoneStmt = $db->prepare("
-                        SELECT phone_number FROM whatsapp_business_ids 
-                        WHERE business_id = ? LIMIT 1
-                    ");
-                    $getLidPhoneStmt->execute([$conversationLidBusinessId]);
-                    $conversationPhoneFromLid = $getLidPhoneStmt->fetchColumn();
+                    // Usa valor pré-carregado (evita query por mensagem)
+                    $conversationPhoneFromLid = $conversationPhoneFromLidPre;
                     
                     if ($conversationPhoneFromLid) {
                         // Verifica se eventFromKey (tel:xxx) bate com o telefone do @lid
