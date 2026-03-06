@@ -2783,6 +2783,9 @@ class CommunicationHubController extends Controller
         // IMPORTANTE: Exclui conversas com status='ignored' e 'archived' da lista de ativas
         if ($status === 'active') {
             $where[] = "c.status NOT IN ('closed', 'archived', 'ignored')";
+        } elseif ($status === 'unread') {
+            $where[] = "c.status NOT IN ('closed', 'archived', 'ignored')";
+            $where[] = "c.unread_count > 0";
         } elseif ($status === 'archived') {
             $where[] = "c.status = 'archived'";
         } elseif ($status === 'ignored') {
@@ -2931,16 +2934,6 @@ class CommunicationHubController extends Controller
                         if ($lidId) {
                             // Busca número real no mapa pré-carregado (cache wa_pnlid_cache)
                             $realPhone = $lidPhoneMap[$lidId] ?? null;
-                            
-                            if ($realPhone) {
-                                error_log(sprintf(
-                                    '[LID_RESOLVE] conversation_id=%d, contact_external_id=%s, lidId=%s, resolved_phone=%s',
-                                    $conv['id'] ?? 0,
-                                    $contactId,
-                                    $lidId,
-                                    $realPhone
-                                ));
-                            }
                         }
                     }
                     

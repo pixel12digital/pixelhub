@@ -2214,6 +2214,7 @@
                     </select>
                     <select id="inboxFilterStatus" onchange="loadInboxConversations()" title="Status">
                         <option value="active">Ativas</option>
+                        <option value="unread">Não Lidas</option>
                         <option value="archived">Arquivadas</option>
                         <option value="ignored">Ignoradas</option>
                         <option value="all">Todas</option>
@@ -6227,6 +6228,11 @@
                         const badge = convEl.querySelector('.conv-unread');
                         if (badge) badge.remove();
                     }
+                    // Zera unread_count no estado em memória e atualiza badge do header (sidebar)
+                    const _zeroUnread = (arr) => { if (arr) { const it = arr.find(c => c.thread_id === threadId); if (it) it.unread_count = 0; } };
+                    _zeroUnread(InboxState.conversations);
+                    _zeroUnread(InboxState.incomingLeads);
+                    updateInboxBadge();
                 } else {
                     throw new Error(result.error || 'Erro ao carregar');
                 }
