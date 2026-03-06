@@ -433,10 +433,7 @@ class CommunicationHubController extends Controller
         $threadId = $_GET['thread_id'] ?? null;
         $channel = $_GET['channel'] ?? 'whatsapp';
 
-        error_log("[CommunicationHub::getThreadData] Iniciado - thread_id={$threadId}, channel={$channel}");
-
         if (empty($threadId)) {
-            error_log("[CommunicationHub::getThreadData] ERRO: thread_id vazio");
             $this->json(['success' => false, 'error' => 'thread_id é obrigatório'], 400);
             return;
         }
@@ -445,39 +442,23 @@ class CommunicationHubController extends Controller
 
         try {
             if ($channel === 'whatsapp') {
-                // Busca mensagens WhatsApp via eventos
-                error_log("[CommunicationHub::getThreadData] Buscando mensagens WhatsApp para thread_id={$threadId}");
                 $messages = $this->getWhatsAppMessages($db, $threadId);
-                error_log("[CommunicationHub::getThreadData] Mensagens encontradas: " . count($messages));
-                
-                error_log("[CommunicationHub::getThreadData] Buscando thread info para thread_id={$threadId}");
                 $thread = $this->getWhatsAppThreadInfo($db, $threadId);
-                
-                if ($thread) {
-                    error_log("[CommunicationHub::getThreadData] Thread encontrado - conversation_id={$thread['conversation_id']}, tenant_id=" . ($thread['tenant_id'] ?? 'NULL') . ", contact={$thread['contact']}");
-                } else {
-                    error_log("[CommunicationHub::getThreadData] AVISO: Thread NÃO encontrado para thread_id={$threadId}");
-                }
-                
-                // Marca conversa como lida ao abrir (mark as read)
+
                 if ($thread && isset($thread['conversation_id'])) {
                     $this->markConversationAsRead($db, (int) $thread['conversation_id']);
-                    $thread['unread_count'] = 0; // Resposta já reflete "lida" para o frontend zerar o badge
+                    $thread['unread_count'] = 0;
                 }
             } else {
-                // Busca mensagens de chat interno
-                error_log("[CommunicationHub::getThreadData] Buscando mensagens de chat interno para thread_id={$threadId}");
                 $messages = $this->getChatMessages($db, $threadId);
                 $thread = $this->getChatThreadInfo($db, $threadId);
             }
 
             if (!$thread) {
-                error_log("[CommunicationHub::getThreadData] ERRO: Thread não encontrado - thread_id={$threadId}");
                 $this->json(['success' => false, 'error' => 'Conversa não encontrada'], 404);
                 return;
             }
 
-            error_log("[CommunicationHub::getThreadData] SUCESSO - Retornando dados da conversa");
             $this->json([
                 'success' => true,
                 'thread' => $thread,
@@ -485,8 +466,7 @@ class CommunicationHubController extends Controller
                 'channel' => $channel
             ]);
         } catch (\Exception $e) {
-            error_log("[CommunicationHub::getThreadData] EXCEÇÃO: " . $e->getMessage());
-            error_log("[CommunicationHub::getThreadData] Stack trace: " . $e->getTraceAsString());
+            error_log("[CommunicationHub::getThreadData] Erro: " . $e->getMessage());
             $this->json(['success' => false, 'error' => 'Erro ao carregar conversa: ' . $e->getMessage()], 500);
         }
     }
@@ -3294,7 +3274,6 @@ class CommunicationHubController extends Controller
         $resolvePnLidViaProvider = function($sessionId, $pnLid) use ($normalizePhoneE164) {
             $baseUrl = Env::get('WPP_GATEWAY_BASE_URL', 'https://wpp.pixel12digital.com.br');
             if (!$baseUrl) {
-                error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: baseUrl vazio. sessionId=%s, pnLid=%s', $sessionId, $pnLid));
                 return null;
             }
             
@@ -3302,18 +3281,14 @@ class CommunicationHubController extends Controller
             try {
                 $secret = \PixelHub\Services\GatewaySecret::getDecrypted();
             } catch (\Exception $e) {
-                error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Erro ao obter secret. sessionId=%s, pnLid=%s, error=%s', $sessionId, $pnLid, $e->getMessage()));
                 return null;
             }
-            
+
             if (empty($secret)) {
-                error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Secret vazio. sessionId=%s, pnLid=%s', $sessionId, $pnLid));
                 return null;
             }
             
             $url = rtrim($baseUrl, '/') . "/api/" . rawurlencode($sessionId) . "/contact/pn-lid/" . rawurlencode($pnLid);
-            error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Chamando API. URL=%s', $url));
-            
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
@@ -3327,28 +3302,17 @@ class CommunicationHubController extends Controller
             ]);
             $raw = curl_exec($ch);
             $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
             curl_close($ch);
-            
-            error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Resposta. HTTP_CODE=%d, curl_error=%s, raw_response=%s', 
-                $code, 
-                $curlError ?: 'NONE',
-                substr($raw ?: 'NULL', 0, 200)
-            ));
-            
+
             if ($code < 200 || $code >= 300 || !$raw) {
-                error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: FALHA HTTP. code=%d', $code));
                 return null;
             }
             
             $j = json_decode($raw, true);
             if (!is_array($j)) {
-                error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: JSON inválido. raw=%s', substr($raw, 0, 200)));
                 return null;
             }
-            
-            error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: JSON parseado. keys=%s', implode(', ', array_keys($j))));
-            
+
             // Tenta extrair telefone em campos comuns
             $candidates = [
                 $j['phone'] ?? null,
@@ -3362,11 +3326,10 @@ class CommunicationHubController extends Controller
                 $j['data']['number'] ?? null,
             ];
             
-            foreach ($candidates as $idx => $cand) {
+            foreach ($candidates as $cand) {
                 if ($cand) {
                     $e164 = $normalizePhoneE164($cand);
                     if ($e164) {
-                        error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Telefone encontrado no campo index %d. valor=%s, e164=%s', $idx, $cand, $e164));
                         return $e164;
                     }
                 }
@@ -3376,12 +3339,10 @@ class CommunicationHubController extends Controller
             if (!empty($j['jid'])) {
                 $e164 = $normalizePhoneE164($j['jid']);
                 if ($e164) {
-                    error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Telefone encontrado em jid. jid=%s, e164=%s', $j['jid'], $e164));
                     return $e164;
                 }
             }
-            
-            error_log(sprintf('[PNLID_RESOLVE] resolvePnLidViaProvider: Nenhum telefone encontrado no JSON. json=%s', json_encode($j, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
+
             return null;
         };
 
@@ -3449,9 +3410,6 @@ class CommunicationHubController extends Controller
             $lidMappings = $lidStmt->fetchAll(PDO::FETCH_COLUMN);
             $lidBusinessIds = $lidMappings ?: [];
             
-            if (!empty($lidBusinessIds)) {
-                error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - LID MAPPINGS: contact=' . $contactExternalId . ', lids=' . implode(', ', $lidBusinessIds));
-            }
         }
         // CORREÇÃO: Se contact_external_id é @lid, busca phone_number mapeado para esse business_id
         // Eventos podem ter from/to como número (557187799910@c.us) em vez de @lid
@@ -3464,9 +3422,6 @@ class CommunicationHubController extends Controller
             $lidPhoneStmt->execute([$contactExternalId]);
             $lidPhones = $lidPhoneStmt->fetchAll(PDO::FETCH_COLUMN);
             $lidResolvedPhones = array_filter($lidPhones ?: []);
-            if (!empty($lidResolvedPhones)) {
-                error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - LID->PHONE: contact=' . $contactExternalId . ', phones=' . implode(', ', $lidResolvedPhones));
-            }
         }
         
         // NOVA ARQUITETURA: Usa remote_key da conversa como identidade primária
@@ -3488,14 +3443,8 @@ class CommunicationHubController extends Controller
         // Normaliza contact_external_id para E.164 (já deve estar em E.164, mas garante)
         $normalizedContactExternalId = $normalizePhoneE164($contactExternalId);
         
-        // [LOG TEMPORARIO] Normalização
-        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - NORMALIZACAO: contact_external_id_original=' . ($contactExternalId ?: 'NULL') . ', normalized=' . ($normalizedContactExternalId ?: 'NULL'));
-
-        // CORREÇÃO: Se normalizedContactExternalId está vazio mas temos @lid, ainda podemos buscar
-        // Isso permite encontrar eventos mesmo quando o número não pode ser normalizado
         if (empty($normalizedContactExternalId) && strpos($contactExternalId, '@lid') === false) {
-            error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - ERRO: normalizedContactExternalId está vazio e não é @lid');
-            return []; // Não pode buscar sem contato válido
+            return [];
         }
 
         // CORREÇÃO: Filtra no SQL ao invés de buscar todos os eventos
@@ -3532,9 +3481,7 @@ class CommunicationHubController extends Controller
         // IMPORTANTE: Se contact_external_id tem @lid, adiciona padrão COM @lid primeiro
         // Isso garante que eventos com @lid sejam encontrados mesmo quando o número normalizado não bate
         if (strpos($contactExternalId, '@lid') !== false) {
-            // Adiciona padrão com @lid (ex: "56083800395891@lid")
             $contactPatterns[] = "%{$contactExternalId}%";
-            error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - ADICIONADO PADRAO COM @lid: ' . $contactExternalId);
         }
         
         // CORREÇÃO: Adiciona números resolvidos a partir de @lid (eventos usam número em from/to)
@@ -3550,9 +3497,6 @@ class CommunicationHubController extends Controller
                 }
             }
         }
-        if (!empty($lidResolvedPhones)) {
-            error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - ADICIONADOS PADROES LID->PHONE: ' . implode(', ', $lidResolvedPhones));
-        }
         
         // Sempre adiciona número normalizado (pode ser usado como fallback)
         if ($normalizedContactExternalId) {
@@ -3562,16 +3506,12 @@ class CommunicationHubController extends Controller
         // Se for número BR (começa com 55), adiciona variação com/sem 9º dígito
         if ($normalizedContactExternalId && strlen($normalizedContactExternalId) >= 12 && substr($normalizedContactExternalId, 0, 2) === '55') {
             // Tenta adicionar 9º dígito (se não tiver)
-            if (strlen($normalizedContactExternalId) === 13) { // 55 + DDD + 9 dígitos
-                // Remove 9º dígito para buscar variação sem ele
+            if (strlen($normalizedContactExternalId) === 13) {
                 $without9th = substr($normalizedContactExternalId, 0, 4) . substr($normalizedContactExternalId, 5);
                 $contactPatterns[] = "%{$without9th}%";
-                error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - ADICIONADO PADRAO: without9th=' . $without9th);
-            } elseif (strlen($normalizedContactExternalId) === 12) { // 55 + DDD + 8 dígitos
-                // Adiciona 9º dígito para buscar variação com ele
+            } elseif (strlen($normalizedContactExternalId) === 12) {
                 $with9th = substr($normalizedContactExternalId, 0, 4) . '9' . substr($normalizedContactExternalId, 4);
                 $contactPatterns[] = "%{$with9th}%";
-                error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - ADICIONADO PADRAO: with9th=' . $with9th);
             }
         }
         
@@ -3580,11 +3520,7 @@ class CommunicationHubController extends Controller
             foreach ($lidBusinessIds as $lid) {
                 $contactPatterns[] = "%{$lid}%";
             }
-            error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - ADICIONADOS PADROES LID: ' . implode(', ', $lidBusinessIds));
         }
-        
-        // [LOG TEMPORARIO] Padrões de busca
-        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - PADROES DE BUSCA: count=' . count($contactPatterns) . ', patterns=' . implode(', ', $contactPatterns));
         
         // Monta condições OR para cada padrão
         // CORREÇÃO: Usa JSON_UNQUOTE para remover aspas do JSON_EXTRACT antes de fazer LIKE
@@ -3675,10 +3611,6 @@ class CommunicationHubController extends Controller
 
         $whereClause = "WHERE ce.deleted_at IS NULL AND " . implode(" AND ", $whereWithTenant);
 
-        // Busca eventos filtrados (limitado para performance)
-        // [LOG TEMPORARIO] Query do thread
-        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - EXECUTANDO QUERY: conversation_id=' . $conversationId . ', contact=' . $normalizedContactExternalId . ', tenant_id=' . ($tenantId ?: 'NULL') . ', channel_id=' . ($sessionId ?: 'NULL'));
-        
         $stmt = $db->prepare("
             SELECT 
                 ce.event_id,
@@ -3694,10 +3626,7 @@ class CommunicationHubController extends Controller
         ");
         $stmt->execute($paramsWithTenant);
         $filteredEvents = $stmt->fetchAll();
-        
-        // [LOG TEMPORARIO] Resultado da query
-        error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - QUERY RETORNOU: events_count=' . count($filteredEvents));
-        
+
         // CORREÇÃO: Se não encontrou eventos, tenta buscar sem filtro de tenant_id/channel_id
         // Isso resolve casos onde:
         // 1. A conversa tem tenant_id NULL (não vinculada) mas os eventos têm tenant_id
@@ -3705,8 +3634,6 @@ class CommunicationHubController extends Controller
         // IMPORTANTE: Se há channel_id, a query inicial já não filtra por tenant_id, então esta busca
         // só será executada quando não houver channel_id ou quando os filtros de contato não encontrarem nada
         if (empty($filteredEvents)) {
-            error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - NENHUM EVENTO ENCONTRADO, TENTANDO BUSCA MAIS AMPLA: tenant_id=' . ($tenantId ?: 'NULL') . ', channel_id=' . ($sessionId ?: 'NULL'));
-            
             // Reconstrói WHERE apenas com filtros de contato (sem tenant_id e sem channel_id)
             // Isso permite encontrar mensagens mesmo quando não há vínculo de tenant ou channel
             $whereWithoutFilters = $where;
@@ -3729,8 +3656,6 @@ class CommunicationHubController extends Controller
             ");
             $stmt->execute($paramsWithoutFilters);
             $filteredEvents = $stmt->fetchAll();
-            
-            error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - QUERY SEM FILTROS DE TENANT/CHANNEL RETORNOU: events_count=' . count($filteredEvents));
         }
 
         // Validação final em PHP (garantir que mensagem pertence à conversa)
@@ -3763,7 +3688,6 @@ class CommunicationHubController extends Controller
                         $media['url'] = $mediaUrl;
                         $mediaCache[$media['event_id']] = $media;
                     }
-                    error_log("[CommunicationHub] OTIMIZAÇÃO: Batch query carregou " . count($allMedia) . " mídias em 1 query (eventos: " . count($eventIds) . ")");
                 } catch (\Exception $e) {
                     error_log("[CommunicationHub] Erro no batch query de mídias: " . $e->getMessage());
                 }
