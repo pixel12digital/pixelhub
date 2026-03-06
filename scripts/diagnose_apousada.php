@@ -94,7 +94,7 @@ if (empty($queue)) {
 // ─── 5. Log de despacho para este tenant ────────────────────────
 echo "--- BILLING_DISPATCH_LOG (tenant_id={$tenantId}, últimos 30 dias) ---\n";
 $stmt = $db->prepare("
-    SELECT id, invoice_id, channel, status, sent_at, dispatch_rule_id, queue_job_id
+    SELECT id, invoice_id, channel, template_key, status, sent_at, trigger_source, message_id, error_message
     FROM billing_dispatch_log
     WHERE tenant_id = ?
       AND sent_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
@@ -107,7 +107,8 @@ if (empty($logs)) {
     echo "  Nenhum log de despacho nos últimos 30 dias.\n\n";
 } else {
     foreach ($logs as $l) {
-        echo "  log#{$l['id']} | inv={$l['invoice_id']} | rule={$l['dispatch_rule_id']} | status={$l['status']} | channel={$l['channel']} | sent={$l['sent_at']} | job={$l['queue_job_id']}\n";
+        echo "  log#{$l['id']} | inv={$l['invoice_id']} | tpl={$l['template_key']} | status={$l['status']} | channel={$l['channel']} | sent={$l['sent_at']} | src={$l['trigger_source']} | msg_id={$l['message_id']}\n";
+        if ($l['error_message']) echo "    ERROR: {$l['error_message']}\n";
     }
     echo "\n";
 }
@@ -115,7 +116,7 @@ if (empty($logs)) {
 // ─── 6. Notificações registradas ─────────────────────────────────
 echo "--- BILLING_NOTIFICATIONS (tenant_id={$tenantId}, últimos 30 dias) ---\n";
 $stmt = $db->prepare("
-    SELECT id, invoice_id, channel, status, sent_at, template, dispatch_rule_id
+    SELECT id, invoice_id, channel, template, status, sent_at, triggered_by, dispatch_rule_id
     FROM billing_notifications
     WHERE tenant_id = ?
       AND sent_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
@@ -128,7 +129,7 @@ if (empty($notifs)) {
     echo "  Nenhuma notificação nos últimos 30 dias.\n\n";
 } else {
     foreach ($notifs as $n) {
-        echo "  notif#{$n['id']} | inv={$n['invoice_id']} | rule={$n['dispatch_rule_id']} | status={$n['status']} | template={$n['template']} | channel={$n['channel']} | sent={$n['sent_at']}\n";
+        echo "  notif#{$n['id']} | inv={$n['invoice_id']} | rule={$n['dispatch_rule_id']} | status={$n['status']} | tpl={$n['template']} | channel={$n['channel']} | by={$n['triggered_by']} | sent={$n['sent_at']}\n";
     }
     echo "\n";
 }
