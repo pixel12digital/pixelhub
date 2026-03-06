@@ -1898,7 +1898,9 @@ class CommunicationHubController extends Controller
                                     
                                     if (!is_dir($mediaDir)) mkdir($mediaDir, 0755, true);
                                     
-                                    $mediaFileName = bin2hex(random_bytes(16)) . '.ogg';
+                                    $audioMime = $audioOptions['audio_mime'] ?? 'audio/ogg';
+                                    $audioExt  = (strpos($audioMime, 'webm') !== false) ? '.webm' : '.ogg';
+                                    $mediaFileName = bin2hex(random_bytes(16)) . $audioExt;
                                     $storedPath = 'whatsapp-media/' . ($tenantId ? "tenant-{$tenantId}/" : '') . $subDir . '/' . $mediaFileName;
                                     $fullPath = $mediaDir . DIRECTORY_SEPARATOR . $mediaFileName;
                                     
@@ -1908,10 +1910,10 @@ class CommunicationHubController extends Controller
                                         $mediaStmt = $db->prepare("
                                             INSERT INTO communication_media 
                                             (event_id, media_id, media_type, mime_type, stored_path, file_name, file_size, created_at, updated_at)
-                                            VALUES (?, ?, 'audio', 'audio/ogg', ?, ?, ?, NOW(), NOW())
+                                            VALUES (?, ?, 'audio', ?, ?, ?, ?, NOW(), NOW())
                                         ");
-                                        $mediaStmt->execute([$eventId, $result['message_id'] ?? $eventId, $storedPath, $mediaFileName, $fileSize]);
-                                        error_log("[CommunicationHub::send] ✅ Mídia de áudio outbound salva: event_id={$eventId}, path={$storedPath}");
+                                        $mediaStmt->execute([$eventId, $result['message_id'] ?? $eventId, $audioMime, $storedPath, $mediaFileName, $fileSize]);
+                                        error_log("[CommunicationHub::send] ✅ Mídia de áudio outbound salva: event_id={$eventId}, mime={$audioMime}, path={$storedPath}");
                                     }
                                 }
                             } catch (\Exception $audioSaveEx) {
