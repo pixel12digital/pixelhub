@@ -38,7 +38,7 @@ echo "  is_billing_test:    {$tenant['is_billing_test']}\n\n";
 // ─── 2. Faturas do período (fev/mar 2026) ───────────────────────
 echo "--- FATURAS (jan–mar 2026) ---\n";
 $stmt = $db->prepare("
-    SELECT id, asaas_id, due_date, amount, status, invoice_url, is_deleted
+    SELECT id, asaas_payment_id, due_date, amount, status, invoice_url, is_deleted
     FROM billing_invoices
     WHERE tenant_id = ?
       AND due_date BETWEEN '2026-01-01' AND '2026-03-31'
@@ -50,7 +50,7 @@ if (empty($invoices)) {
     echo "  Nenhuma fatura encontrada.\n\n";
 } else {
     foreach ($invoices as $inv) {
-        echo "  id={$inv['id']} | due={$inv['due_date']} | status={$inv['status']} | amount={$inv['amount']} | deleted={$inv['is_deleted']} | url=" . ($inv['invoice_url'] ? substr($inv['invoice_url'], -20) : 'NULL') . "\n";
+        echo "  id={$inv['id']} | asaas={$inv['asaas_payment_id']} | due={$inv['due_date']} | status={$inv['status']} | amount={$inv['amount']} | deleted={$inv['is_deleted']} | url=" . ($inv['invoice_url'] ? substr($inv['invoice_url'], -20) : 'NULL') . "\n";
     }
     echo "\n";
 }
