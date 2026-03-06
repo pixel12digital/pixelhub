@@ -244,10 +244,11 @@ if (($sourceFilter ?? null) === 'minhareceita') {
                     <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Nome da receita *</label>
                     <input type="text" name="name" id="recipeName" required placeholder="Ex: Imobiliárias em Curitiba" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 80px;gap:12px;">
+                <?php $cityRequired = ($sourceFilter ?? 'google_maps') !== 'instagram'; ?>
+                <div style="display:grid;grid-template-columns:1fr 80px;gap:12px;<?= ($sourceFilter ?? '') === 'instagram' ? 'display:none!important;' : '' ?>" id="cityStateRow">
                     <div style="position:relative;">
-                        <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Cidade *</label>
-                        <input type="text" name="city" id="recipeCity" required autocomplete="off" placeholder="Ex: Curitiba" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                        <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Cidade <?= $cityRequired ? '*' : '' ?></label>
+                        <input type="text" name="city" id="recipeCity" <?= $cityRequired ? 'required' : '' ?> autocomplete="off" placeholder="Ex: Curitiba" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
                         <input type="hidden" name="ibge_code" id="recipeIbgeCode">
                         <div id="cityDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300;max-height:200px;overflow-y:auto;"></div>
                     </div>
