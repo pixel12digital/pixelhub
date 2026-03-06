@@ -1867,6 +1867,9 @@
                         <a href="<?= pixelhub_url('/prospecting?source=minhareceita') ?>" class="sub-item <?= (strpos($currentUri, 'source=minhareceita') !== false) ? 'active' : '' ?>">
                             <span class="sidebar-text">Minha Receita (CNAE)</span>
                         </a>
+                        <a href="<?= pixelhub_url('/prospecting?source=instagram') ?>" class="sub-item <?= (strpos($currentUri, 'source=instagram') !== false) ? 'active' : '' ?>">
+                            <span class="sidebar-text">Instagram</span>
+                        </a>
                     </div>
                 </div>
             </div>
