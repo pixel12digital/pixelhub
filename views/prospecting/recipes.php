@@ -18,6 +18,9 @@ $sourceParam = isset($sourceFilter) && $sourceFilter ? '&source=' . $sourceFilte
 if (($sourceFilter ?? null) === 'minhareceita') {
     $pageTitle    = 'Prospecção Ativa — Minha Receita';
     $pageSubtitle = 'Busque empresas por CNAE e região via dados abertos da Receita Federal (gratuito, sem chave).';
+} elseif (($sourceFilter ?? null) === 'instagram') {
+    $pageTitle    = 'Prospecção Ativa — Instagram';
+    $pageSubtitle = 'Busque perfis business no Instagram por hashtag e obtenha telefone, bio e categoria via Apify.';
 } else {
     $pageTitle    = 'Prospecção Ativa — Google Maps';
     $pageSubtitle = 'Busque empresas no Google Maps por segmento e cidade, e converta em leads.';
@@ -29,15 +32,37 @@ if (($sourceFilter ?? null) === 'minhareceita') {
         <p style="margin:0;font-size:13px;color:#64748b;"><?= $pageSubtitle ?></p>
     </div>
     <div style="display:flex;gap:10px;align-items:center;">
-        <?php if (($sourceFilter ?? null) !== 'minhareceita' && !$hasKey): ?>
+        <?php if (($sourceFilter ?? null) !== 'minhareceita' && ($sourceFilter ?? null) !== 'instagram' && !$hasKey): ?>
         <a href="<?= pixelhub_url('/settings/google-maps') ?>" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">
             ⚠ Configurar API Google Maps
+        </a>
+        <?php endif; ?>
+        <?php if (($sourceFilter ?? null) === 'instagram' && !($hasApifyKey ?? false)): ?>
+        <a href="<?= pixelhub_url('/settings/apify') ?>" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">
+            ⚠ Configurar API Apify
         </a>
         <?php endif; ?>
         <button onclick="openCreateModal()" style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
             + Nova Receita de Busca
         </button>
     </div>
+</div>
+
+<!-- Seletor de Fonte -->
+<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-right:4px;">Fonte:</span>
+    <a href="<?= pixelhub_url('/prospecting') ?><?= $tenantFilter > 0 ? '?tenant_id='.$tenantFilter : ($tenantFilter === null ? '?tenant_id=own' : '') ?>"
+       style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;text-decoration:none;<?= ($sourceFilter ?? 'google_maps') === 'google_maps' ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
+        📍 Google Maps
+    </a>
+    <a href="<?= pixelhub_url('/prospecting?source=minhareceita') ?><?= $tenantFilter > 0 ? '&tenant_id='.$tenantFilter : ($tenantFilter === null ? '&tenant_id=own' : '') ?>"
+       style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;text-decoration:none;<?= ($sourceFilter ?? '') === 'minhareceita' ? 'background:#023A8D;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
+        🏛 Minha Receita
+    </a>
+    <a href="<?= pixelhub_url('/prospecting?source=instagram') ?><?= $tenantFilter > 0 ? '&tenant_id='.$tenantFilter : ($tenantFilter === null ? '&tenant_id=own' : '') ?>"
+       style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;text-decoration:none;<?= ($sourceFilter ?? '') === 'instagram' ? 'background:#e1306c;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
+        📸 Instagram
+    </a>
 </div>
 
 <!-- Seletor de Conta -->
@@ -116,12 +141,17 @@ if (($sourceFilter ?? null) === 'minhareceita') {
                     <?php endif; ?>
                 </div>
                 <div style="font-size:12px;color:#64748b;display:flex;gap:16px;flex-wrap:wrap;">
-                    <?php if (($recipe['source'] ?? 'google_maps') === 'minhareceita'): ?>
+                    <?php $recSrcBadge = $recipe['source'] ?? 'google_maps'; ?>
+                    <?php if ($recSrcBadge === 'minhareceita'): ?>
                     <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#f0fdf4;color:#15803d;">🏛 Minha Receita</span>
+                    <?php elseif ($recSrcBadge === 'instagram'): ?>
+                    <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fce7f3;color:#9d174d;">📸 Instagram</span>
                     <?php else: ?>
                     <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;">📍 Google Maps</span>
                     <?php endif; ?>
-                    <span>�📍 <?= htmlspecialchars($recipe['city']) ?><?= !empty($recipe['state']) ? ' - ' . $recipe['state'] : '' ?></span>
+                    <?php if ($recSrcBadge !== 'instagram' || !empty($recipe['city'])): ?>
+                    <span>📍 <?= htmlspecialchars($recipe['city']) ?><?= !empty($recipe['state']) ? ' - ' . $recipe['state'] : '' ?></span>
+                    <?php endif; ?>
                     <?php if (($recipe['source'] ?? 'google_maps') === 'minhareceita' && !empty($recipe['cnae_code'])): ?>
                     <span>🏭 CNAE <?= htmlspecialchars($recipe['cnae_code']) ?><?= !empty($recipe['cnae_description']) ? ' — ' . htmlspecialchars($recipe['cnae_description']) : '' ?></span>
                     <?php endif; ?>
@@ -145,15 +175,26 @@ if (($sourceFilter ?? null) === 'minhareceita') {
                 <?php if ((int)($recipe['results_count'] ?? 0) > 0): ?>
                 <a href="<?= pixelhub_url('/prospecting/results?recipe_id=' . $recipe['id']) ?>" style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">Ver Resultados</a>
                 <?php endif; ?>
-                <?php $recSrc = $recipe['source'] ?? 'google_maps'; $canRun = ($recSrc === 'minhareceita') || $hasKey; ?>
+                <?php
+                    $recSrc = $recipe['source'] ?? 'google_maps';
+                    $canRun = ($recSrc === 'minhareceita') || ($recSrc === 'instagram' && ($hasApifyKey ?? false)) || ($recSrc === 'google_maps' && $hasKey);
+                    $runTitle = !$canRun ? ('Configure a API ' . ($recSrc === 'instagram' ? 'Apify' : 'Google Maps') . ' primeiro') : '';
+                    if ($recSrc === 'minhareceita') {
+                        $runFn = 'openVolumeModal(' . $recipe['id'] . ', this)';
+                    } elseif ($recSrc === 'instagram') {
+                        $runFn = 'runSearchInstagram(' . $recipe['id'] . ', this)';
+                    } else {
+                        $runFn = 'runSearchGoogleMaps(' . $recipe['id'] . ', this)';
+                    }
+                ?>
                 <?php if ($recSrc === 'minhareceita'): ?>
                 <button onclick="showPreview(<?= $recipe['id'] ?>, this)" style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;background:#f8fafc;color:#023A8D;border:1px solid #023A8D;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
                     📊 Ver Prévia
                 </button>
                 <?php endif; ?>
-                <button onclick="<?= $recSrc === 'minhareceita' ? 'openVolumeModal(' . $recipe['id'] . ', this)' : 'runSearchGoogleMaps(' . $recipe['id'] . ', this)' ?>" <?= !$canRun ? 'disabled title="Configure a API Google Maps primeiro"' : '' ?>
-                        style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;background:<?= $canRun ? '#023A8D' : '#94a3b8' ?>;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:<?= $canRun ? 'pointer' : 'not-allowed' ?>;">
-                    🔍 Buscar Agora
+                <button onclick="<?= $runFn ?>" <?= !$canRun ? 'disabled title="' . htmlspecialchars($runTitle) . '"' : '' ?>
+                        style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;background:<?= $canRun ? ($recSrc === 'instagram' ? '#e1306c' : '#023A8D') : '#94a3b8' ?>;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:<?= $canRun ? 'pointer' : 'not-allowed' ?>;">
+                    <?= $recSrc === 'instagram' ? '📸' : '🔍' ?> Buscar Agora
                 </button>
                 <div style="position:relative;" class="dropdown-wrap">
                     <button onclick="toggleDropdown(this)" style="padding:7px 10px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;">⋮</button>
@@ -181,7 +222,12 @@ if (($sourceFilter ?? null) === 'minhareceita') {
         </div>
         <form id="recipeForm" method="POST" action="<?= pixelhub_url('/prospecting/store') ?>" style="padding:24px;">
             <input type="hidden" name="id" id="recipeId">
-            <input type="hidden" name="source" id="recipeSource" value="<?= ($sourceFilter ?? '') === 'minhareceita' ? 'minhareceita' : 'google_maps' ?>">
+            <?php
+            if (($sourceFilter ?? '') === 'minhareceita') $defaultSrc = 'minhareceita';
+            elseif (($sourceFilter ?? '') === 'instagram') $defaultSrc = 'instagram';
+            else $defaultSrc = 'google_maps';
+            ?>
+            <input type="hidden" name="source" id="recipeSource" value="<?= $defaultSrc ?>">
             <div style="display:grid;gap:14px;">
                 <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 14px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#0369a1;margin-bottom:6px;">📁 Conta (cliente da agência)</label>
@@ -229,6 +275,33 @@ if (($sourceFilter ?? null) === 'minhareceita') {
                 </div>
                 <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 12px;font-size:12px;color:#166534;">
                     Minha Receita — gratuito, sem chave. Busca por CNAE + UF (+ cidade opcional via IBGE).
+                </div>
+                <?php elseif (($sourceFilter ?? '') === 'instagram'): ?>
+                <!-- CAMPOS INSTAGRAM (Apify) -->
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">
+                        Hashtags * <span style="font-weight:400;color:#9ca3af;">(separadas por vírgula, sem #)</span>
+                    </label>
+                    <input type="text" name="keywords_raw" id="recipeKeywords" required
+                           placeholder="imobiliaria, corretordeimoveis, lancamento"
+                           style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                    <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">
+                        Perfis únicos que publicaram com essas hashtags serão coletados. Ex: <code>imobiliaria, lancamento, corretor</code>
+                    </p>
+                </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Limite de perfis por busca</label>
+                    <select name="radius_meters" id="recipeRadius" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                        <option value="100">100 perfis (rápido ~2 min)</option>
+                        <option value="200" selected>200 perfis (recomendado ~4 min)</option>
+                        <option value="500">500 perfis (médio ~8 min)</option>
+                    </select>
+                </div>
+                <div style="background:#fce7f3;border:1px solid #fbcfe8;border-radius:6px;padding:10px 12px;font-size:12px;color:#9d174d;">
+                    📸 Instagram via Apify — fase 1 coleta perfis; telefone business é enriquecido sob demanda nos resultados.
+                    <?php if (!($hasApifyKey ?? false)): ?>
+                    <a href="<?= pixelhub_url('/settings/apify') ?>" target="_blank" style="color:#9d174d;font-weight:700;display:block;margin-top:6px;">⚠ Configure a chave Apify antes de buscar →</a>
+                    <?php endif; ?>
                 </div>
                 <?php else: ?>
                 <!-- CAMPOS GOOGLE MAPS -->
@@ -779,6 +852,30 @@ function runSearchGoogleMaps(recipeId,btn){
             const r=data.result;
             div.style.background='#f0fdf4';div.style.border='1px solid #bbf7d0';div.style.color='#15803d';
             div.innerHTML='✓ Busca concluída! <strong>'+r.found+'</strong> encontradas, <strong>'+r.new+'</strong> novas, <strong>'+r.duplicates+'</strong> já existentes.'
+                +(r.new>0?' <a href="<?= pixelhub_url('/prospecting/results?recipe_id=') ?>'+recipeId+'" style="color:#023A8D;font-weight:600;margin-left:8px;">Ver Resultados →</a>':'')
+                +(r.errors&&r.errors.length?' <span style="color:#dc2626;margin-left:8px;">'+r.errors.length+' erro(s)</span>':'');
+        }else{
+            div.style.background='#fef2f2';div.style.border='1px solid #fecaca';div.style.color='#dc2626';
+            div.innerHTML='✗ '+data.error;
+        }
+    })
+    .catch(()=>{div.style.display='block';div.style.background='#fef2f2';div.style.border='1px solid #fecaca';div.style.color='#dc2626';div.innerHTML='✗ Erro de comunicação.';})
+    .finally(()=>{if(btn){btn.disabled=false;btn.innerHTML=orig;}});
+}
+function runSearchInstagram(recipeId,btn){
+    const div=document.getElementById('search-result-'+recipeId);
+    if(btn){btn.disabled=true;var orig=btn.innerHTML;btn.innerHTML='⏳ Buscando...';}
+    div.style.display='block';
+    div.style.background='#fce7f3';div.style.border='1px solid #fbcfe8';div.style.color='#9d174d';
+    div.innerHTML='📸 Buscando perfis Instagram via Apify... Isso pode demorar 2-5 minutos. Não feche a aba.';
+    fetch('<?= pixelhub_url('/prospecting/run') ?>',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'recipe_id='+recipeId+'&max_results=200'})
+    .then(r=>r.json())
+    .then(data=>{
+        div.style.display='block';
+        if(data.success){
+            const r=data.result;
+            div.style.background='#f0fdf4';div.style.border='1px solid #bbf7d0';div.style.color='#15803d';
+            div.innerHTML='✓ Busca concluída! <strong>'+r.found+'</strong> perfis encontrados, <strong>'+r.new+'</strong> novos, <strong>'+r.duplicates+'</strong> já existentes. Agora clique em "Ver Resultados" para enriquecer com telefones.'
                 +(r.new>0?' <a href="<?= pixelhub_url('/prospecting/results?recipe_id=') ?>'+recipeId+'" style="color:#023A8D;font-weight:600;margin-left:8px;">Ver Resultados →</a>':'')
                 +(r.errors&&r.errors.length?' <span style="color:#dc2626;margin-left:8px;">'+r.errors.length+' erro(s)</span>':'');
         }else{

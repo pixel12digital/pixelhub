@@ -819,6 +819,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/prospecting/enrich-google-maps', 'ProspectingController@enrichWithGoogleMaps');
     $router->post('/prospecting/apply-google-enrichment', 'ProspectingController@applyGoogleEnrichment');
     $router->post('/prospecting/enrich-cnpjws', 'ProspectingController@enrichWithCnpjWs');
+    $router->post('/prospecting/enrich-apify-phone', 'ProspectingController@enrichWithApifyPhone');
     $router->post('/prospecting/convert-to-lead', 'ProspectingController@convertToLead');
 
     // Configurações — Catálogo de Produtos por Conta
@@ -833,6 +834,11 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/settings/google-maps', 'ProspectingController@settingsIndex');
     $router->post('/settings/google-maps/save', 'ProspectingController@settingsSave');
     $router->post('/settings/google-maps/test', 'ProspectingController@settingsTest');
+
+    // Configurações — Apify API (prospecção Instagram)
+    $router->get('/settings/apify', 'ProspectingController@settingsApify');
+    $router->post('/settings/apify/save', 'ProspectingController@settingsApifySave');
+    $router->post('/settings/apify/test', 'ProspectingController@settingsApifyTest');
 
     // Rotas de Oportunidades / CRM (apenas internos)
     $router->get('/opportunities', 'OpportunitiesController@index');

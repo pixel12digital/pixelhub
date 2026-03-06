@@ -5,6 +5,7 @@ namespace PixelHub\Services;
 use PixelHub\Core\DB;
 use PixelHub\Core\CryptoHelper;
 use PixelHub\Services\MinhaReceitaClient;
+use PixelHub\Services\ApifyClient;
 
 /**
  * Service para Prospecção Ativa
@@ -176,7 +177,7 @@ class ProspectingService
         $db = DB::getConnection();
 
         $name        = trim($data['name'] ?? '');
-        $source      = in_array($data['source'] ?? '', ['google_maps', 'minhareceita']) ? $data['source'] : 'google_maps';
+        $source      = in_array($data['source'] ?? '', ['google_maps', 'minhareceita', 'instagram']) ? $data['source'] : 'google_maps';
         $city        = trim($data['city'] ?? '');
         $state       = strtoupper(trim($data['state'] ?? ''));
         $productId   = !empty($data['product_id']) ? (int) $data['product_id'] : null;
@@ -201,6 +202,9 @@ class ProspectingService
         }
         if ($source === 'minhareceita' && empty($state)) {
             throw new \InvalidArgumentException('Estado (UF) é obrigatório para a fonte Minha Receita');
+        }
+        if ($source === 'instagram' && empty($keywords)) {
+            throw new \InvalidArgumentException('Informe ao menos uma hashtag para prospecção no Instagram.');
         }
 
         $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
@@ -239,7 +243,7 @@ class ProspectingService
 
         $keywords = self::normalizeKeywords($data['keywords'] ?? []);
         $state    = strtoupper(trim($data['state'] ?? ''));
-        $source   = in_array($data['source'] ?? '', ['google_maps', 'minhareceita']) ? $data['source'] : 'google_maps';
+        $source   = in_array($data['source'] ?? '', ['google_maps', 'minhareceita', 'instagram']) ? $data['source'] : 'google_maps';
 
         $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
 
@@ -326,6 +330,10 @@ class ProspectingService
 
         if ($source === 'minhareceita') {
             return self::runSearchMinhaReceita($recipe, $recipeId, $maxResults);
+        }
+
+        if ($source === 'instagram') {
+            return self::runSearchInstagram($recipe, $recipeId, $maxResults);
         }
 
         return self::runSearchGoogleMaps($recipe, $recipeId, $maxResults);
@@ -580,6 +588,189 @@ class ProspectingService
             'duplicates' => $duplicates,
             'errors'     => $errors,
         ];
+    }
+
+    // =========================================================================
+    // EXECUÇÃO DA BUSCA (Instagram via Apify)
+    // =========================================================================
+
+    /**
+     * Executa busca de perfis Instagram por hashtag via Apify (Fase 1)
+     * Telefone é enriquecido sob demanda via enrichWithApifyPhone()
+     */
+    private static function runSearchInstagram(array $recipe, int $recipeId, int $maxResults): array
+    {
+        $keywords = is_array($recipe['keywords'])
+            ? $recipe['keywords']
+            : (json_decode($recipe['keywords'] ?? '[]', true) ?: []);
+
+        if (empty($keywords)) {
+            throw new \InvalidArgumentException('Informe ao menos uma hashtag para busca no Instagram.');
+        }
+
+        $client   = new ApifyClient();
+        $profiles = $client->scrapeByHashtags($keywords, $maxResults);
+
+        $found      = count($profiles);
+        $new        = 0;
+        $duplicates = 0;
+        $errors     = [];
+
+        $db = DB::getConnection();
+
+        foreach ($profiles as $profile) {
+            $username = $profile['instagram_username'] ?? '';
+            if (empty($username)) {
+                continue;
+            }
+
+            try {
+                $check = $db->prepare("SELECT id FROM prospecting_results WHERE instagram_username = ? LIMIT 1");
+                $check->execute([$username]);
+                if ($check->fetch()) {
+                    $duplicates++;
+                    continue;
+                }
+
+                $stmt = $db->prepare("
+                    INSERT INTO prospecting_results
+                        (recipe_id, tenant_id, name, source, instagram_username, instagram_followers,
+                         instagram_is_business, instagram_category, instagram_bio, instagram_profile_pic,
+                         phone_instagram, email_instagram, website_instagram, instagram_city, status, found_at, updated_at)
+                    VALUES (?, ?, ?, 'instagram', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', NOW(), NOW())
+                ");
+                $stmt->execute([
+                    $recipeId,
+                    $recipe['tenant_id'] ?? null,
+                    $profile['name'] ?: $username,
+                    $username,
+                    $profile['instagram_followers'],
+                    $profile['instagram_is_business'],
+                    $profile['instagram_category'],
+                    $profile['instagram_bio'],
+                    $profile['instagram_profile_pic'],
+                    $profile['phone_instagram'],
+                    $profile['email_instagram'],
+                    $profile['website_instagram'],
+                    $profile['instagram_city'],
+                ]);
+                $new++;
+            } catch (\Exception $e) {
+                $errors[] = 'Erro ao salvar @' . $username . ': ' . $e->getMessage();
+            }
+        }
+
+        self::updateRecipeStats($recipeId);
+
+        return [
+            'found'      => $found,
+            'new'        => $new,
+            'duplicates' => $duplicates,
+            'errors'     => $errors,
+        ];
+    }
+
+    /**
+     * Enriquece telefone business de um resultado Instagram via Apify (Fase 2)
+     */
+    public static function enrichWithApifyPhone(int $resultId): array
+    {
+        $result = self::findResultById($resultId);
+
+        if (!$result) {
+            throw new \InvalidArgumentException('Resultado não encontrado');
+        }
+
+        $username = $result['instagram_username'] ?? '';
+        if (empty($username)) {
+            throw new \InvalidArgumentException('Este resultado não possui username Instagram.');
+        }
+
+        $client   = new ApifyClient();
+        $profiles = $client->scrapeProfiles([$username]);
+
+        $db->prepare("UPDATE prospecting_results SET apify_phone_enriched_at = NOW(), updated_at = NOW() WHERE id = ?")
+           ->execute([$resultId]);
+
+        if (empty($profiles)) {
+            return ['success' => true, 'found' => false, 'message' => 'Perfil não encontrado no Instagram.'];
+        }
+
+        $profile = $profiles[0];
+
+        $db->prepare("
+            UPDATE prospecting_results SET
+                name                    = COALESCE(NULLIF(?, ''), name),
+                instagram_followers     = COALESCE(?, instagram_followers),
+                instagram_is_business   = COALESCE(?, instagram_is_business),
+                instagram_category      = COALESCE(?, instagram_category),
+                instagram_bio           = COALESCE(?, instagram_bio),
+                instagram_profile_pic   = COALESCE(?, instagram_profile_pic),
+                phone_instagram         = ?,
+                email_instagram         = COALESCE(?, email_instagram),
+                website_instagram       = COALESCE(?, website_instagram),
+                instagram_city          = COALESCE(?, instagram_city),
+                apify_phone_enriched_at = NOW(),
+                updated_at              = NOW()
+            WHERE id = ?
+        ")->execute([
+            $profile['name'],
+            $profile['instagram_followers'],
+            $profile['instagram_is_business'],
+            $profile['instagram_category'],
+            $profile['instagram_bio'],
+            $profile['instagram_profile_pic'],
+            $profile['phone_instagram'],
+            $profile['email_instagram'],
+            $profile['website_instagram'],
+            $profile['instagram_city'],
+            $resultId,
+        ]);
+
+        return [
+            'success' => true,
+            'found'   => true,
+            'phone'   => $profile['phone_instagram'],
+            'email'   => $profile['email_instagram'],
+            'data'    => $profile,
+        ];
+    }
+
+    // =========================================================================
+    // CHAVE APIFY
+    // =========================================================================
+
+    public static function saveApifyApiKey(string $apiKey, int $userId): void
+    {
+        $db        = DB::getConnection();
+        $encrypted = CryptoHelper::encrypt($apiKey);
+
+        $stmt = $db->prepare("
+            INSERT INTO integration_settings (integration_key, integration_value, is_encrypted, label, updated_by, created_at, updated_at)
+            VALUES ('apify_api_key', ?, 1, 'Apify API Key', ?, NOW(), NOW())
+            ON DUPLICATE KEY UPDATE
+                integration_value = VALUES(integration_value),
+                is_encrypted = 1,
+                updated_by = VALUES(updated_by),
+                updated_at = NOW()
+        ");
+        $stmt->execute([$encrypted, $userId]);
+    }
+
+    public static function hasApifyApiKey(): bool
+    {
+        return ApifyClient::hasApiKey();
+    }
+
+    public static function getMaskedApifyApiKey(): ?string
+    {
+        try {
+            $key = ApifyClient::resolveApiKey();
+            if (strlen($key) <= 8) return str_repeat('*', strlen($key));
+            return substr($key, 0, 6) . str_repeat('*', strlen($key) - 10) . substr($key, -4);
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     /**
@@ -931,6 +1122,14 @@ class ProspectingService
                 (!empty($cnpjFormatted) ? "\nCNPJ: " . $cnpjFormatted : '') .
                 (!empty($result['address_minhareceita']) ? "\nEndereço: " . $result['address_minhareceita'] : '')
             );
+        } elseif ($recipeSource === 'instagram') {
+            $leadSource = 'prospecting_instagram';
+            $leadNotes = trim(
+                'Perfil encontrado via Prospecção Ativa (Instagram).' .
+                (!empty($result['instagram_username']) ? "\nInstagram: @" . $result['instagram_username'] : '') .
+                (!empty($result['instagram_bio']) ? "\nBio: " . $result['instagram_bio'] : '') .
+                (!empty($result['instagram_category']) ? "\nCategoria: " . $result['instagram_category'] : '')
+            );
         } else {
             $leadSource = 'prospecting_google_maps';
             $leadNotes = trim(
@@ -942,8 +1141,8 @@ class ProspectingService
         }
 
         // Cria o lead
-        // Prioriza phone_minhareceita (atualizado via CNPJ.ws ou Minha Receita), fallback para phone_google (Google Maps)
-        $phone = $result['phone_minhareceita'] ?? $result['phone_google'] ?? null;
+        // Prioriza phone_instagram, depois phone_minhareceita, fallback phone_google
+        $phone = $result['phone_instagram'] ?? $result['phone_minhareceita'] ?? $result['phone_google'] ?? null;
         $email = $result['email'] ?? null;
         
         $leadId = LeadService::create([

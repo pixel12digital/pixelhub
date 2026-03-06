@@ -120,7 +120,7 @@ ob_start();
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead>
                 <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
-                    <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Empresa</th>
+                    <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;"><?= ($recipe['source'] ?? '') === 'instagram' ? 'Perfil' : 'Empresa' ?></th>
                     <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Email</th>
                     <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Telefone</th>
                     <th style="padding:12px 16px;text-align:center;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Status</th>
@@ -134,6 +134,50 @@ ob_start();
                 ?>
                 <tr style="border-bottom:1px solid #f1f5f9;<?= $st === 'discarded' ? 'opacity:.4;background:#f8fafc;filter:grayscale(.5);' : '' ?>" id="row-<?= $result['id'] ?>">
                     <td style="padding:14px 16px;">
+                        <?php if ($result['source'] === 'instagram'): ?>
+                        <!-- INSTAGRAM: foto + username + bio + seguidores + categoria -->
+                        <div style="display:flex;gap:10px;align-items:flex-start;">
+                            <?php if (!empty($result['instagram_profile_pic'])): ?>
+                            <a href="https://instagram.com/<?= urlencode($result['instagram_username']) ?>" target="_blank">
+                                <img src="<?= htmlspecialchars($result['instagram_profile_pic']) ?>" alt="" width="42" height="42" style="border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid #fbcfe8;" onerror="this.style.display='none'">
+                            </a>
+                            <?php endif; ?>
+                            <div style="min-width:0;">
+                                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px;">
+                                    <a href="https://instagram.com/<?= urlencode($result['instagram_username']) ?>" target="_blank" style="font-weight:600;color:#e1306c;text-decoration:none;">
+                                        @<?= htmlspecialchars($result['instagram_username']) ?>
+                                    </a>
+                                    <?php if ($result['instagram_is_business']): ?>
+                                    <span style="padding:1px 6px;background:#fce7f3;color:#9d174d;border-radius:3px;font-size:10px;font-weight:700;">BUSINESS</span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($result['instagram_category'])): ?>
+                                    <span style="padding:1px 6px;background:#f8fafc;color:#64748b;border-radius:3px;font-size:10px;"><?= htmlspecialchars($result['instagram_category']) ?></span>
+                                    <?php endif; ?>
+                                </div>
+                                <?php if ($result['name'] && $result['name'] !== $result['instagram_username']): ?>
+                                <div style="font-size:12px;color:#1e293b;font-weight:500;margin-bottom:2px;"><?= htmlspecialchars($result['name']) ?></div>
+                                <?php endif; ?>
+                                <?php if (!empty($result['instagram_followers'])): ?>
+                                <div style="font-size:11px;color:#64748b;margin-bottom:3px;">👥 <?= number_format($result['instagram_followers']) ?> seguidores</div>
+                                <?php endif; ?>
+                                <?php if (!empty($result['instagram_bio'])): ?>
+                                <div style="font-size:11px;color:#64748b;white-space:pre-line;max-width:350px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;"><?= htmlspecialchars($result['instagram_bio']) ?></div>
+                                <?php endif; ?>
+                                <?php if (!empty($result['instagram_city'])): ?>
+                                <div style="font-size:11px;color:#64748b;margin-top:2px;">📍 <?= htmlspecialchars($result['instagram_city']) ?></div>
+                                <?php endif; ?>
+                                <?php if (!empty($result['website_instagram'])): ?>
+                                <a href="<?= htmlspecialchars($result['website_instagram']) ?>" target="_blank" style="font-size:11px;color:#023A8D;text-decoration:none;margin-top:2px;display:inline-block;">
+                                    🔗 <?= htmlspecialchars(parse_url($result['website_instagram'], PHP_URL_HOST) ?: $result['website_instagram']) ?>
+                                </a>
+                                <?php endif; ?>
+                                <?php if (!empty($result['lead_name'])): ?>
+                                <div style="margin-top:4px;"><a href="<?= pixelhub_url('/opportunities/view-by-lead?lead_id=' . $result['lead_id']) ?>" style="font-size:11px;color:#16a34a;font-weight:600;text-decoration:none;">✓ Lead: <?= htmlspecialchars($result['lead_name']) ?></a></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php else: ?>
+                        <!-- GOOGLE MAPS / MINHA RECEITA: layout original -->
                         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;">
                             <?php if ($result['source'] === 'minhareceita'): ?>
                             <button onclick="toggleDetails(<?= $result['id'] ?>)" style="background:none;border:none;cursor:pointer;padding:0;color:#64748b;font-size:16px;line-height:1;" title="Ver todos os dados">
@@ -196,17 +240,37 @@ ob_start();
                         <?php if (!empty($result['lead_name'])): ?>
                         <div style="margin-top:4px;"><a href="<?= pixelhub_url('/opportunities/view-by-lead?lead_id=' . $result['lead_id']) ?>" style="font-size:11px;color:#16a34a;font-weight:600;text-decoration:none;">✓ Lead: <?= htmlspecialchars($result['lead_name']) ?></a></div>
                         <?php endif; ?>
+                        <?php endif; ?>
                     </td>
                     <!-- Coluna Email -->
                     <td style="padding:14px 16px;">
-                        <?php if (!empty($result['email'])): ?>
-                        <div style="font-size:12px;color:#374151;"><?= htmlspecialchars($result['email']) ?></div>
+                        <?php
+                        $emailVal = $result['source'] === 'instagram' ? ($result['email_instagram'] ?? '') : ($result['email'] ?? '');
+                        ?>
+                        <?php if (!empty($emailVal)): ?>
+                        <div style="font-size:12px;color:#374151;"><?= htmlspecialchars($emailVal) ?></div>
                         <?php else: ?>
                         <span style="font-size:11px;color:#cbd5e1;">—</span>
                         <?php endif; ?>
                     </td>
                     <!-- Coluna Telefone -->
-                    <td style="padding:14px 16px;">
+                    <td style="padding:14px 16px;" id="phone-cell-<?= $result['id'] ?>">
+                        <?php if ($result['source'] === 'instagram'): ?>
+                        <?php $instaPhone = $result['phone_instagram'] ?? ''; ?>
+                        <?php if (!empty($instaPhone)): ?>
+                        <div style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($instaPhone) ?></div>
+                        <?php if (!empty($result['apify_phone_enriched_at'])): ?>
+                        <div style="font-size:10px;color:#94a3b8;margin-top:2px;">✓ enriquecido</div>
+                        <?php endif; ?>
+                        <?php elseif (!empty($result['apify_phone_enriched_at'])): ?>
+                        <span style="font-size:11px;color:#94a3b8;">Sem telefone público</span>
+                        <?php else: ?>
+                        <button onclick="enrichApifyPhone(<?= $result['id'] ?>, this)"
+                                style="padding:5px 10px;background:#e1306c;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                            📞 Buscar Telefone
+                        </button>
+                        <?php endif; ?>
+                        <?php else: ?>
                         <?php 
                         $phone = $result['source'] === 'google_maps' ? ($result['phone_google'] ?? '') : ($result['phone_minhareceita'] ?? '');
                         $phoneSecundario = $result['telefone_secundario'] ?? '';
@@ -220,6 +284,7 @@ ob_start();
                         <?php if (empty($phone) && empty($phoneSecundario)): ?>
                         <span style="font-size:11px;color:#cbd5e1;">—</span>
                         <?php endif; ?>
+                        <?php endif; ?>
                     </td>
                     <td style="padding:14px 16px;text-align:center;">
                         <select onchange="updateStatus(<?= $result['id'] ?>, this.value)"
@@ -231,7 +296,19 @@ ob_start();
                         </select>
                     </td>
                     <td style="padding:14px 16px;text-align:center;">
-                        <div style="display:flex;gap:4px;justify-content:center;align-items:center;">
+                        <div style="display:flex;gap:4px;justify-content:center;align-items:center;flex-wrap:wrap;">
+                            <?php if ($result['source'] === 'instagram'): ?>
+                            <!-- Instagram: Buscar Telefone via Apify (se ainda não enriquecido) -->
+                            <?php if (empty($result['apify_phone_enriched_at'])): ?>
+                            <button onclick="enrichApifyPhone(<?= $result['id'] ?>, this)"
+                                    id="enrich-btn-<?= $result['id'] ?>"
+                                    style="padding:6px;background:#e1306c;color:#fff;border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"
+                                    title="Buscar telefone business via Apify">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 14 19.79 19.79 0 0 1 1.63 5.4 2 2 0 0 1 3.6 3.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.09a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 17.42z"></path></svg>
+                            </button>
+                            <?php endif; ?>
+                            <?php endif; ?>
+
                             <?php if ($result['source'] === 'minhareceita' && !empty($result['cnpj'])): ?>
                             <!-- Atualizar Dados CNPJ.ws -->
                             <button onclick="updateWithCnpjWs(<?= $result['id'] ?>)" 
@@ -642,6 +719,45 @@ function applyEnrichment(resultId, googleDataBase64, confidence) {
 
 function closeEnrichModal() {
     document.getElementById('enrichModal').style.display = 'none';
+}
+
+// Enriquecer telefone business Instagram via Apify (Fase 2)
+function enrichApifyPhone(resultId, btn) {
+    const orig = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;"></span>'; }
+
+    const cell = document.getElementById('phone-cell-' + resultId);
+
+    fetch('<?= pixelhub_url('/prospecting/enrich-apify-phone') ?>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'result_id=' + resultId
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) throw new Error(data.error || 'Erro ao enriquecer');
+
+        if (data.found && data.phone) {
+            if (cell) {
+                cell.innerHTML = '<div style="font-size:12px;color:#374151;font-weight:500;">' + data.phone + '</div><div style="font-size:10px;color:#94a3b8;margin-top:2px;">✓ enriquecido</div>';
+            }
+            // Remove o botão de enriquecer do Ações
+            const enrichBtn = document.getElementById('enrich-btn-' + resultId);
+            if (enrichBtn) enrichBtn.remove();
+            showToast('✓ Telefone encontrado: ' + data.phone, true);
+        } else {
+            if (cell) {
+                cell.innerHTML = '<span style="font-size:11px;color:#94a3b8;">Sem telefone público</span>';
+            }
+            const enrichBtn = document.getElementById('enrich-btn-' + resultId);
+            if (enrichBtn) enrichBtn.remove();
+            showToast('ℹ Perfil sem telefone público no Instagram.', true);
+        }
+    })
+    .catch(err => {
+        showToast('✗ ' + err.message, false);
+        if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    });
 }
 
 // Atualizar dados via CNPJ.ws (fonte da verdade)

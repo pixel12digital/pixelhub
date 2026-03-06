@@ -8,6 +8,7 @@ use PixelHub\Core\DB;
 use PixelHub\Services\ProspectingService;
 use PixelHub\Services\OpportunityProductService;
 use PixelHub\Services\GooglePlacesClient;
+use PixelHub\Services\ApifyClient;
 use PixelHub\Core\CryptoHelper;
 
 /**
@@ -92,6 +93,75 @@ class ProspectingController extends Controller
     }
 
     // =========================================================================
+    // CONFIGURAÇÕES APIFY (Configurações > Integrações > Apify)
+    // =========================================================================
+
+    /**
+     * GET /settings/apify
+     */
+    public function settingsApify(): void
+    {
+        Auth::requireInternal();
+
+        $hasKey    = ProspectingService::hasApifyApiKey();
+        $maskedKey = ProspectingService::getMaskedApifyApiKey();
+
+        $this->view('settings.apify', [
+            'hasKey'    => $hasKey,
+            'maskedKey' => $maskedKey,
+        ]);
+    }
+
+    /**
+     * POST /settings/apify/save
+     */
+    public function settingsApifySave(): void
+    {
+        Auth::requireInternal();
+
+        $apiKey = trim($_POST['api_key'] ?? '');
+
+        if (empty($apiKey)) {
+            $this->redirect('/settings/apify?error=empty_key&message=' . urlencode('Informe a chave de API Apify.'));
+            return;
+        }
+
+        try {
+            $userId = Auth::user()['id'] ?? 0;
+            ProspectingService::saveApifyApiKey($apiKey, $userId);
+
+            $client = new ApifyClient();
+            $test   = $client->testApiKey($apiKey);
+
+            if ($test['success']) {
+                $this->redirect('/settings/apify?success=saved&message=' . urlencode('Chave Apify salva e validada com sucesso!'));
+            } else {
+                $this->redirect('/settings/apify?warning=saved_not_validated&message=' . urlencode('Chave salva, mas não foi possível validar: ' . $test['message']));
+            }
+        } catch (\Exception $e) {
+            $this->redirect('/settings/apify?error=save_failed&message=' . urlencode($e->getMessage()));
+        }
+    }
+
+    /**
+     * POST /settings/apify/test  (AJAX)
+     */
+    public function settingsApifyTest(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        try {
+            $apiKey = ApifyClient::resolveApiKey();
+            $client = new ApifyClient();
+            $result = $client->testApiKey($apiKey);
+            $this->json($result);
+        } catch (\Exception $e) {
+            $this->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    // =========================================================================
     // RECEITAS DE BUSCA
     // =========================================================================
 
@@ -140,18 +210,20 @@ class ProspectingController extends Controller
             : 0;
 
         // Sem ?source= → default google_maps (cada fonte tem sua própria listagem)
-        $sourceFilter = (isset($_GET['source']) && in_array($_GET['source'], ['google_maps', 'minhareceita']))
+        $sourceFilter = (isset($_GET['source']) && in_array($_GET['source'], ['google_maps', 'minhareceita', 'instagram']))
             ? $_GET['source']
             : 'google_maps';
 
-        $recipes         = ProspectingService::listRecipes($tenantFilter, $sourceFilter);
-        $hasKey          = ProspectingService::hasApiKey();
-        $products        = OpportunityProductService::listActive();
-        $tenants         = ProspectingService::listTenants($sourceFilter);
+        $recipes      = ProspectingService::listRecipes($tenantFilter, $sourceFilter);
+        $hasKey       = ProspectingService::hasApiKey();
+        $hasApifyKey  = ProspectingService::hasApifyApiKey();
+        $products     = OpportunityProductService::listActive();
+        $tenants      = ProspectingService::listTenants($sourceFilter);
 
         $this->view('prospecting.recipes', [
             'recipes'      => $recipes,
             'hasKey'       => $hasKey,
+            'hasApifyKey'  => $hasApifyKey,
             'products'     => $products,
             'tenants'      => $tenants,
             'tenantFilter' => $tenantFilter,
@@ -200,7 +272,7 @@ class ProspectingController extends Controller
 
             $id = ProspectingService::createRecipe($data, $userId);
             $source      = $_POST['source'] ?? 'google_maps';
-            $sourceParam = in_array($source, ['google_maps','minhareceita']) ? '&source=' . $source : '';
+            $sourceParam = in_array($source, ['google_maps','minhareceita','instagram']) ? '&source=' . $source : '';
             $this->redirect('/prospecting?success=created&message=' . urlencode('Receita criada com sucesso!') . $sourceParam);
         } catch (\Exception $e) {
             error_log('[ProspectingController] Erro ao criar receita: ' . $e->getMessage());
@@ -252,7 +324,7 @@ class ProspectingController extends Controller
 
             ProspectingService::updateRecipe($id, $data);
             $source      = $_POST['source'] ?? 'google_maps';
-            $sourceParam = in_array($source, ['google_maps','minhareceita']) ? '&source=' . $source : '';
+            $sourceParam = in_array($source, ['google_maps','minhareceita','instagram']) ? '&source=' . $source : '';
             $this->redirect('/prospecting?success=updated&message=' . urlencode('Receita atualizada com sucesso!') . $sourceParam);
         } catch (\Exception $e) {
             error_log('[ProspectingController] Erro ao atualizar receita: ' . $e->getMessage());
@@ -368,13 +440,20 @@ class ProspectingController extends Controller
             return;
         }
 
-        // Verifica API key apenas para receitas Google Maps
+        // Verifica API key conforme a fonte da receita
         $recipe = ProspectingService::findRecipeById($recipeId);
         $recipeSource = $recipe['source'] ?? 'google_maps';
         if ($recipe && $recipeSource === 'google_maps' && !ProspectingService::hasApiKey()) {
             $this->json([
                 'success' => false,
                 'error'   => 'Chave da Google Maps API não configurada. Acesse Configurações > Integrações > Google Maps.',
+            ], 400);
+            return;
+        }
+        if ($recipe && $recipeSource === 'instagram' && !ProspectingService::hasApifyApiKey()) {
+            $this->json([
+                'success' => false,
+                'error'   => 'Chave da API Apify não configurada. Acesse Configurações > Integrações > Apify.',
             ], 400);
             return;
         }
@@ -549,6 +628,30 @@ class ProspectingController extends Controller
             ProspectingService::updateResultStatus($id, $status, $notes, $userId);
             $this->json(['success' => true]);
         } catch (\Exception $e) {
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * POST /prospecting/enrich-apify-phone  (AJAX)
+     * Busca telefone business do perfil Instagram via Apify (Fase 2)
+     */
+    public function enrichWithApifyPhone(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $resultId = (int) ($_POST['result_id'] ?? 0);
+        if (!$resultId) {
+            $this->json(['success' => false, 'error' => 'ID inválido'], 400);
+            return;
+        }
+
+        try {
+            $result = ProspectingService::enrichWithApifyPhone($resultId);
+            $this->json($result);
+        } catch (\Exception $e) {
+            error_log('[ProspectingController] Erro ao enriquecer phone Apify: ' . $e->getMessage());
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
