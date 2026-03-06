@@ -2856,14 +2856,6 @@ class CommunicationHubController extends Controller
                         // Se começa com 55 e tem 12-13 dígitos, é E.164 brasileiro, não pnlid
                         if (!(strlen($digits) <= 13 && substr($digits, 0, 2) === '55')) {
                             $isLid = true;
-                            
-                            // LOG TEMPORÁRIO: Detectou pnlid sem @lid
-                            error_log(sprintf(
-                                '[LID_DETECT] conversation_id=%d, contact_external_id=%s, detected_as_lid=YES (digits-only, len=%d)',
-                                $conv['id'] ?? 0,
-                                $contactId,
-                                strlen($digits)
-                            ));
                         }
                     }
                 }
@@ -3447,11 +3439,30 @@ class CommunicationHubController extends Controller
             return [];
         }
 
-        // CORREÇÃO: Filtra no SQL ao invés de buscar todos os eventos
-        // Usa LIKE para pegar variações do telefone (com @c.us, @lid, etc)
-        // CORREÇÃO: Também busca por conversation_id para pegar eventos outbound que têm o conversation_id correto
+        // FASE 1 (indexada): busca eventos vinculados diretamente por conversation_id
+        // Usa índice idx_conversation_id — O(log n) em vez de full table scan
+        $phase1Events = [];
+        try {
+            $p1Stmt = $db->prepare("
+                SELECT ce.event_id, ce.event_type, ce.created_at, ce.payload, ce.metadata, ce.tenant_id
+                FROM communication_events ce
+                WHERE ce.conversation_id = ?
+                  AND ce.deleted_at IS NULL
+                  AND ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')
+                ORDER BY ce.created_at ASC
+                LIMIT 500
+            ");
+            $p1Stmt->execute([$conversationId]);
+            $phase1Events = $p1Stmt->fetchAll() ?: [];
+        } catch (\Exception $e) {
+            // Ignora: fallback para busca por padrão de contato
+        }
+
+        // FASE 2: busca por padrão de contato — cobre eventos antigos sem conversation_id
+        // Restringe a ce.conversation_id IS NULL para não rescanear o que a Fase 1 já encontrou
         $where = [
             "ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')",
+            "ce.conversation_id IS NULL",
             // FILTRO: Exclui eventos técnicos que não são mensagens reais
             "(
                 JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.type')) NOT IN ('e2e_notification', 'notification_template', 'ciphertext')
@@ -3467,12 +3478,6 @@ class CommunicationHubController extends Controller
             )"
         ];
         $params = [];
-        
-        // CORREÇÃO: Adiciona busca por conversation_id (mais confiável que busca por número)
-        // Isso garante que eventos outbound com conversation_id sejam encontrados
-        // independentemente do formato do número (com/sem 9º dígito, etc)
-        $conversationIdCondition = "ce.conversation_id = ?";
-        $conversationIdParam = $conversationId;
 
         // CORREÇÃO: Filtro mais robusto que pega variações do telefone
         // Usa múltiplos padrões para pegar: número puro, com @c.us, com 9º dígito, etc
@@ -3564,11 +3569,6 @@ class CommunicationHubController extends Controller
             $contactConditions[] = $condition;
         }
         
-        // CORREÇÃO: Adiciona conversation_id como condição OR (mais confiável para eventos outbound)
-        // Eventos outbound que têm conversation_id serão encontrados independente do formato do número
-        $contactConditions[] = $conversationIdCondition;
-        $params[] = $conversationIdParam;
-        
         $where[] = "(" . implode(" OR ", $contactConditions) . ")";
 
         // PATCH K: Filtro estrito por tenant_id (após PATCH J, todos eventos têm tenant_id)
@@ -3658,6 +3658,21 @@ class CommunicationHubController extends Controller
             $filteredEvents = $stmt->fetchAll();
         }
 
+        // Combina Fase 1 (por conversation_id) + Fase 2 (por padrão de contato)
+        // Deduplicao por event_id — Fase 1 tem prioridade (dados mais diretos)
+        if (!empty($phase1Events)) {
+            $merged = array_column($phase1Events, null, 'event_id');
+            foreach ($filteredEvents as $ev) {
+                if (!isset($merged[$ev['event_id']])) {
+                    $merged[$ev['event_id']] = $ev;
+                }
+            }
+            $filteredEvents = array_values($merged);
+            if (count($filteredEvents) > 1) {
+                usort($filteredEvents, fn($a, $b) => strcmp($a['created_at'], $b['created_at']));
+            }
+        }
+
         // Validação final em PHP (garantir que mensagem pertence à conversa)
         // A query SQL já filtra a maioria, mas validação final garante precisão
         $messages = [];
@@ -3734,7 +3749,6 @@ class CommunicationHubController extends Controller
                         $checkLidStmt->execute([$lidBusinessId, $conversationPhone]);
                         if ($checkLidStmt->fetchColumn()) {
                             $isFromThisContact = true;
-                            error_log('[LOG TEMPORARIO] MATCH VIA LID->TEL: eventFromKey=' . $eventFromKey . ', conversationRemoteKey=' . $conversationRemoteKey);
                         }
                     }
                     
@@ -3748,7 +3762,6 @@ class CommunicationHubController extends Controller
                         $checkLidStmt->execute([$lidBusinessId, $conversationPhone]);
                         if ($checkLidStmt->fetchColumn()) {
                             $isToThisContact = true;
-                            error_log('[LOG TEMPORARIO] MATCH VIA LID->TEL: eventToKey=' . $eventToKey . ', conversationRemoteKey=' . $conversationRemoteKey);
                         }
                     }
                 }
@@ -3775,7 +3788,6 @@ class CommunicationHubController extends Controller
                             if ($eventFromPhone === $conversationPhoneFromLid ||
                                 self::normalizePhone($eventFromPhone) === self::normalizePhone($conversationPhoneFromLid)) {
                                 $isFromThisContact = true;
-                                error_log('[LOG TEMPORARIO] MATCH VIA TEL->LID: eventFromKey=' . $eventFromKey . ', conversationPhoneFromLid=' . $conversationPhoneFromLid);
                             }
                         }
                         
@@ -3786,7 +3798,6 @@ class CommunicationHubController extends Controller
                             if ($eventToPhone === $conversationPhoneFromLid ||
                                 self::normalizePhone($eventToPhone) === self::normalizePhone($conversationPhoneFromLid)) {
                                 $isToThisContact = true;
-                                error_log('[LOG TEMPORARIO] MATCH VIA TEL->LID: eventToKey=' . $eventToKey . ', conversationPhoneFromLid=' . $conversationPhoneFromLid);
                             }
                         }
                     }
@@ -3801,23 +3812,8 @@ class CommunicationHubController extends Controller
                 $isToThisContact = !empty($normalizedTo) && $normalizedTo === $normalizedContactExternalId;
             }
             
-            // LOG TEMPORÁRIO: Valores críticos para debug
-            error_log(sprintf('[MATCH_DEBUG] conversation_id=%d, eventFrom=%s, eventFromKey=%s, eventTo=%s, eventToKey=%s, conversationRemoteKey=%s, sessionId=%s',
-                $conversationId,
-                $eventFrom ?: 'NULL',
-                $eventFromKey ?: 'NULL',
-                $eventTo ?: 'NULL',
-                $eventToKey ?: 'NULL',
-                $conversationRemoteKey ?: 'NULL',
-                $sessionId ?: 'NULL'
-            ));
-            
-            error_log(sprintf('[MATCH_DEBUG] isFromThisContact=%s, isToThisContact=%s', $isFromThisContact ? 'true' : 'false', $isToThisContact ? 'true' : 'false'));
-            
             if (!$isFromThisContact && !$isToThisContact) {
                 $excludedCount++;
-                // [LOG TEMPORARIO] Evento excluído por normalização
-                error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - EVENTO EXCLUIDO: event_id=' . ($event['event_id'] ?? 'N/A') . ', from_original=' . ($eventFrom ?: 'NULL') . ', from_normalized=' . ($normalizedFrom ?: 'NULL') . ', to_original=' . ($eventTo ?: 'NULL') . ', to_normalized=' . ($normalizedTo ?: 'NULL') . ', expected=' . $normalizedContactExternalId);
                 continue;
             }
             
@@ -3828,10 +3824,7 @@ class CommunicationHubController extends Controller
                 // Se não há channel_id ou o channel_id não garante isolamento, rejeita
                 // Se há channel_id, aceita mesmo com tenant_id diferente (pode ser erro de mapeamento)
                 if (empty($sessionId)) {
-                    error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - EVENTO REJEITADO POR TENANT_ID: event_id=' . ($event['event_id'] ?? 'N/A') . ', event_tenant_id=' . $event['tenant_id'] . ', conversation_tenant_id=' . $tenantId . ' (sem channel_id para isolamento)');
                     continue;
-                } else {
-                    error_log('[LOG TEMPORARIO] CommunicationHub::getWhatsAppMessagesFromConversation() - EVENTO ACEITO COM TENANT_ID DIFERENTE: event_id=' . ($event['event_id'] ?? 'N/A') . ', event_tenant_id=' . $event['tenant_id'] . ', conversation_tenant_id=' . $tenantId . ' (channel_id=' . $sessionId . ' garante isolamento)');
                 }
             }
             
@@ -3870,14 +3863,12 @@ class CommunicationHubController extends Controller
                 $mediaData = $payload['message']['media'] ?? [];
                 
                 if ($mediaUrl) {
-                    // Mídia já processada e URL disponível no payload
                     $mediaInfo = [
                         'url' => $mediaUrl,
                         'media_type' => $payloadType === 'ptt' ? 'audio' : ($mediaData['type'] ?? $payloadType),
                         'mime_type' => $mediaData['mimetype'] ?? ($payloadType === 'ptt' || $payloadType === 'audio' ? 'audio/ogg' : null),
                         'file_size' => $mediaData['size'] ?? null,
                     ];
-                    error_log("[CommunicationHub] Mídia extraída do payload: event_id={$event['event_id']}, type={$mediaInfo['media_type']}, url=" . substr($mediaUrl, 0, 50));
                 } else {
                     // Tenta processar mídia sob demanda
                     try {
