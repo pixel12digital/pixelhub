@@ -689,6 +689,7 @@ class ProspectingService
         $client   = new ApifyClient();
         $profiles = $client->scrapeProfiles([$username]);
 
+        $db = DB::getConnection();
         $db->prepare("UPDATE prospecting_results SET apify_phone_enriched_at = NOW(), updated_at = NOW() WHERE id = ?")
            ->execute([$resultId]);
 
