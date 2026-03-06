@@ -491,13 +491,15 @@ class ProspectingController extends Controller
         }
 
         $filters = [
-            'status'        => $_GET['status'] ?? null,
-            'search'        => $_GET['search'] ?? null,
-            'situacao'      => $_GET['situacao'] ?? null,
-            'porte'         => $_GET['porte'] ?? null,
-            'mei'           => $_GET['mei'] ?? null,
-            'simples'       => $_GET['simples'] ?? null,
-            'matriz_filial' => $_GET['matriz_filial'] ?? null,
+            'status'           => $_GET['status'] ?? null,
+            'search'           => $_GET['search'] ?? null,
+            'situacao'         => $_GET['situacao'] ?? null,
+            'porte'            => $_GET['porte'] ?? null,
+            'mei'              => $_GET['mei'] ?? null,
+            'simples'          => $_GET['simples'] ?? null,
+            'matriz_filial'    => $_GET['matriz_filial'] ?? null,
+            'tem_contato'      => $_GET['tem_contato'] ?? null,
+            'google_enrichment'=> $_GET['google_enrichment'] ?? null,
         ];
 
         $limit   = 100;

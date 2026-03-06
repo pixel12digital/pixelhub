@@ -50,6 +50,20 @@ ob_start();
             </select>
         </div>
         
+        <!-- Linha 2: Filtros Avançados Instagram -->
+        <?php if (($recipe['source'] ?? '') === 'instagram'): ?>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:12px;border-top:1px solid #f1f5f9;">
+            <select name="tem_contato" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:200px;">
+                <option value="">Todos os perfis</option>
+                <option value="any" <?= ($filters['tem_contato'] ?? '') === 'any' ? 'selected' : '' ?>>✓ Com telefone OU email</option>
+                <option value="phone" <?= ($filters['tem_contato'] ?? '') === 'phone' ? 'selected' : '' ?>>📞 Com telefone</option>
+                <option value="email" <?= ($filters['tem_contato'] ?? '') === 'email' ? 'selected' : '' ?>>✉ Com email</option>
+                <option value="not_enriched" <?= ($filters['tem_contato'] ?? '') === 'not_enriched' ? 'selected' : '' ?>>○ Ainda não enriquecidos</option>
+            </select>
+            <button type="submit" style="padding:8px 16px;background:#e1306c;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Filtrar</button>
+        </div>
+        <?php endif; ?>
+
         <!-- Linha 2: Filtros Avançados (Minha Receita) -->
         <?php if (($recipe['source'] ?? 'google_maps') === 'minhareceita'): ?>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:12px;border-top:1px solid #f1f5f9;">
@@ -251,7 +265,7 @@ ob_start();
                         <?php endif; ?>
                     </td>
                     <!-- Coluna Email -->
-                    <td style="padding:14px 16px;">
+                    <td style="padding:14px 16px;" id="email-cell-<?= $result['id'] ?>">
                         <?php
                         $emailVal = $result['source'] === 'instagram' ? ($result['email_instagram'] ?? '') : ($result['email'] ?? '');
                         ?>

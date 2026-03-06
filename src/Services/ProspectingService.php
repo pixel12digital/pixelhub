@@ -967,6 +967,19 @@ class ProspectingService
             $params[] = (int) $filters['matriz_filial'];
         }
 
+        // Filtros Instagram: telefone / email
+        if (!empty($filters['tem_contato'])) {
+            if ($filters['tem_contato'] === 'phone') {
+                $where[] = "(pr.phone_instagram IS NOT NULL AND pr.phone_instagram != '')";
+            } elseif ($filters['tem_contato'] === 'email') {
+                $where[] = "(pr.email_instagram IS NOT NULL AND pr.email_instagram != '')";
+            } elseif ($filters['tem_contato'] === 'any') {
+                $where[] = "((pr.phone_instagram IS NOT NULL AND pr.phone_instagram != '') OR (pr.email_instagram IS NOT NULL AND pr.email_instagram != ''))";
+            } elseif ($filters['tem_contato'] === 'not_enriched') {
+                $where[] = 'pr.apify_phone_enriched_at IS NULL';
+            }
+        }
+
         // Filtro de enriquecimento Google Maps
         if (!empty($filters['google_enrichment'])) {
             if ($filters['google_enrichment'] === 'enriched') {
@@ -1049,6 +1062,19 @@ class ProspectingService
         if (!empty($filters['matriz_filial'])) {
             $where[]  = 'identificador_matriz_filial = ?';
             $params[] = (int) $filters['matriz_filial'];
+        }
+
+        // Filtros Instagram: telefone / email
+        if (!empty($filters['tem_contato'])) {
+            if ($filters['tem_contato'] === 'phone') {
+                $where[] = "(phone_instagram IS NOT NULL AND phone_instagram != '')";
+            } elseif ($filters['tem_contato'] === 'email') {
+                $where[] = "(email_instagram IS NOT NULL AND email_instagram != '')";
+            } elseif ($filters['tem_contato'] === 'any') {
+                $where[] = "((phone_instagram IS NOT NULL AND phone_instagram != '') OR (email_instagram IS NOT NULL AND email_instagram != ''))";
+            } elseif ($filters['tem_contato'] === 'not_enriched') {
+                $where[] = 'apify_phone_enriched_at IS NULL';
+            }
         }
 
         // Filtro de enriquecimento Google Maps
