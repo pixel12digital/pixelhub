@@ -45,6 +45,7 @@ if ($tenantId) {
         <p style="color: #155724; margin: 0;">
             <?php
             if ($_GET['success'] === 'lead_updated') echo 'Lead atualizado com sucesso!';
+            elseif ($_GET['success'] === 'lead_created') echo 'Lead criado com sucesso!';
             ?>
         </p>
     </div>

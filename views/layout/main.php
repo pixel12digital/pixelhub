@@ -1827,8 +1827,8 @@
             
             <!-- CRM / Comercial -->
             <?php
-            $crmActive = $isActive(['/opportunities', '/prospecting']);
-            $crmExpanded = $shouldExpand(['/opportunities', '/prospecting']);
+            $crmActive = $isActive(['/opportunities', '/prospecting', '/leads']);
+            $crmExpanded = $shouldExpand(['/opportunities', '/prospecting', '/leads']);
             ?>
             <div class="sidebar-module" data-module="crm">
                 <div class="sidebar-module-header <?= $crmActive ? 'active' : '' ?> <?= $crmExpanded ? 'is-open' : '' ?>" data-title="CRM / Comercial">
@@ -1847,6 +1847,9 @@
                     </span>
                 </div>
                 <div class="sidebar-module-content <?= $crmExpanded ? 'is-open' : '' ?>">
+                    <a href="<?= pixelhub_url('/leads') ?>" class="sub-item <?= (strpos($currentUri, '/leads') !== false) ? 'active' : '' ?>">
+                        <span class="sidebar-text">Leads</span>
+                    </a>
                     <a href="<?= pixelhub_url('/opportunities') ?>" class="sub-item <?= (strpos($currentUri, '/opportunities') !== false) ? 'active' : '' ?>">
                         <span class="sidebar-text">Oportunidades</span>
                     </a>

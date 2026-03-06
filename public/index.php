@@ -863,7 +863,9 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/contacts/search', 'ContactsController@search');
     $router->get('/contacts/check-duplicate', 'ContactsController@checkDuplicate');
     
-    // Rotas de Leads (tabela leads legada)
+    // Rotas de Leads
+    $router->get('/leads', 'LeadsController@index');
+    $router->post('/leads/store', 'LeadsController@store');
     $router->get('/leads/edit', 'LeadsController@edit');
     $router->post('/leads/update', 'LeadsController@update');
     $router->post('/leads/delete', 'LeadsController@delete');
