@@ -584,6 +584,7 @@ class BillingSenderService
             FROM billing_invoices
             WHERE tenant_id = ?
               AND status IN ('pending', 'overdue')
+              AND due_date <= CURDATE()
               AND (is_deleted IS NULL OR is_deleted = 0)
               AND id NOT IN ({$placeholders})
             ORDER BY due_date ASC
