@@ -7189,6 +7189,7 @@ async function linkConversationToLead(event) {
 (function() {
     let _notifSeen = new Set();
     let _notifOpen = false;
+    let _lastUnreadOppId = null;
 
     function _relativeTime(dateStr) {
         const d = new Date(dateStr.replace(' ', 'T') + 'Z');
@@ -7244,17 +7245,24 @@ async function linkConversationToLead(event) {
                         badge.classList.remove('visible');
                     }
                 }
-                // Mostrar toast para novas notificações
+                // Mostrar toast para novas notificações e guardar última opp não lida
                 if (data.unread && Array.isArray(data.unread)) {
                     data.unread.slice(0, 3).forEach(n => _showToast(n));
+                    const oppNotif = data.unread.find(n => n.entity_type === 'opportunity' && n.entity_id);
+                    if (oppNotif) {
+                        const d = oppNotif.data || {};
+                        _lastUnreadOppId = d.opportunity_id || oppNotif.entity_id;
+                    }
                 }
             }).catch(() => {});
     }
 
     window.toggleNotifPanel = function() {
-        // Por enquanto redireciona para oportunidades; futuramente abre painel
-        _markRead(null); // não marca, apenas visita
-        window.location.href = '/opportunities';
+        if (_lastUnreadOppId) {
+            window.location.href = '/opportunities/view?id=' + _lastUnreadOppId;
+        } else {
+            window.location.href = '/opportunities';
+        }
     };
 
     // Primeira poll e depois a cada 30s

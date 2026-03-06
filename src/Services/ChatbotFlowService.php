@@ -4,6 +4,7 @@ namespace PixelHub\Services;
 
 use PDO;
 use PixelHub\Core\DB;
+use PixelHub\Services\OpportunityService;
 
 /**
  * Service para gerenciar fluxos de automação do chatbot
@@ -530,12 +531,12 @@ class ChatbotFlowService
                 return null;
             }
             
-            // Verifica se já existe oportunidade para este lead com origem prospecção
+            // Verifica se já existe qualquer oportunidade aberta para este lead
             $stmt = $db->prepare("
-                SELECT id FROM opportunities 
+                SELECT id, stage FROM opportunities 
                 WHERE lead_id = ? 
-                AND origin = 'prospecting_whatsapp'
                 AND status = 'open'
+                ORDER BY created_at DESC
                 LIMIT 1
             ");
             $stmt->execute([$conv['lead_id']]);
@@ -543,9 +544,16 @@ class ChatbotFlowService
             
             if ($existingOpp) {
                 error_log('[ChatbotFlow] Oportunidade já existe para este lead (ID: ' . $existingOpp['id'] . ')');
-                // Atualiza stage para 'contact' se ainda estiver em 'new'
-                $db->prepare("UPDATE opportunities SET stage = 'contact', updated_at = NOW() WHERE id = ? AND stage = 'new'")
-                   ->execute([$existingOpp['id']]);
+                // Atualiza stage para 'contact' se ainda não estiver em etapa avançada
+                $earlyStages = ['new', 'contact'];
+                if (in_array($existingOpp['stage'], $earlyStages)) {
+                    $db->prepare("UPDATE opportunities SET stage = 'contact', updated_at = NOW() WHERE id = ?")
+                       ->execute([$existingOpp['id']]);
+                }
+                OpportunityService::addInteractionHistory(
+                    $existingOpp['id'],
+                    "Clicou em 'Quero conhecer' via WhatsApp — Fluxo: {$flow['name']}"
+                );
                 self::createChatbotNotification($conversationId, $existingOpp['id'], $flow);
                 return $existingOpp['id'];
             }
@@ -608,6 +616,12 @@ class ChatbotFlowService
                 'service_id' => $serviceId,
                 'stage' => $stage
             ]);
+
+            // Adiciona evento no pipeline (Eventos do Pipeline na view da opp)
+            OpportunityService::addInteractionHistory(
+                (int)$opportunityId,
+                "Clicou em 'Quero conhecer' via WhatsApp — Fluxo: {$flow['name']}"
+            );
 
             // Cria notificação para consultor
             self::createChatbotNotification($conversationId, (int)$opportunityId, $flow);
