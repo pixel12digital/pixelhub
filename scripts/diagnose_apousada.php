@@ -72,7 +72,7 @@ echo "\n";
 // ─── 4. Fila de despacho para este tenant ────────────────────────
 echo "--- BILLING_DISPATCH_QUEUE (tenant_id={$tenantId}, últimos 30 dias) ---\n";
 $stmt = $db->prepare("
-    SELECT id, invoice_ids, dispatch_rule_id, channel, status, scheduled_at, attempts, created_at, sent_at, last_error
+    SELECT id, invoice_ids, dispatch_rule_id, channel, status, scheduled_at, attempts, created_at, sent_at, error_message
     FROM billing_dispatch_queue
     WHERE tenant_id = ?
       AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
@@ -86,7 +86,7 @@ if (empty($queue)) {
 } else {
     foreach ($queue as $q) {
         echo "  job#{$q['id']} | rule={$q['dispatch_rule_id']} | status={$q['status']} | inv={$q['invoice_ids']} | scheduled={$q['scheduled_at']} | sent={$q['sent_at']} | attempts={$q['attempts']} | created={$q['created_at']}\n";
-        if ($q['last_error']) echo "    ERROR: {$q['last_error']}\n";
+        if ($q['error_message']) echo "    ERROR: {$q['error_message']}\n";
     }
     echo "\n";
 }
