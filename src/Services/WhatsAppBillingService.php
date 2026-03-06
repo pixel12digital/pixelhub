@@ -724,5 +724,52 @@ class WhatsAppBillingService
         
         return $message;
     }
+
+    /**
+     * Constrói bloco de faturas adicionais pendentes para appending na mensagem principal.
+     * Chamado quando o tenant tem outras faturas além das que dispararam a regra.
+     *
+     * @param array $invoices Faturas pendentes não inclusas no gatilho (ordenadas por due_date)
+     * @return string Bloco formatado pronto para concatenar
+     */
+    public static function buildOtherInvoicesBlock(array $invoices): string
+    {
+        if (empty($invoices)) {
+            return '';
+        }
+
+        $count = count($invoices);
+        $total = 0;
+        $lines = [];
+
+        foreach ($invoices as $inv) {
+            $dueDate = $inv['due_date'] ?? null;
+            $dueDateFormatted = 'N/A';
+            if ($dueDate) {
+                try {
+                    $dueDateFormatted = (new \DateTime($dueDate))->format('d/m/Y');
+                } catch (\Exception $e) {}
+            }
+            $amount  = (float) ($inv['amount'] ?? 0);
+            $total  += $amount;
+            $amountFormatted = 'R$ ' . number_format($amount, 2, ',', '.');
+            $link = trim($inv['invoice_url'] ?? '');
+
+            $line = "• {$dueDateFormatted} – {$amountFormatted}";
+            if ($link) {
+                $line .= "\n  {$link}";
+            }
+            $lines[] = $line;
+        }
+
+        $totalFormatted = 'R$ ' . number_format($total, 2, ',', '.');
+        $label = $count === 1 ? 'outra fatura em aberto' : 'outras faturas em aberto';
+
+        $block  = "⚠️ *Você também possui {$count} {$label}:*\n\n";
+        $block .= implode("\n\n", $lines);
+        $block .= "\n\n*Total dessas pendências: {$totalFormatted}*";
+
+        return $block;
+    }
 }
 

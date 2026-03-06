@@ -198,6 +198,13 @@ class BillingSenderService
         } else {
             // Usa novo método que suporta múltiplas faturas
             $messageBody = WhatsAppBillingService::buildMessageForMultipleInvoices($tenant, $invoices, $stage);
+
+            // ─── Appenda faturas adicionais pendentes (não inclusas no gatilho) ─
+            $triggerIds  = array_column($invoices, 'id');
+            $otherPending = self::getOtherPendingInvoices($db, $tenantId, $triggerIds);
+            if (!empty($otherPending)) {
+                $messageBody .= "\n\n" . WhatsAppBillingService::buildOtherInvoicesBlock($otherPending);
+            }
         }
 
         // ─── Envia via WhatsApp Gateway ───────────────────────────
@@ -426,6 +433,13 @@ class BillingSenderService
             $emailData = BillingTemplateRegistry::buildEmailForInvoice($tenant, $invoice, $stage);
             $messageBody = $emailData['body'];
             $subject = $emailData['subject'];
+
+            // ─── Appenda faturas adicionais pendentes (não inclusas no gatilho) ─
+            $triggerIds   = array_column($invoices, 'id');
+            $otherPending = self::getOtherPendingInvoices($db, $tenantId, $triggerIds);
+            if (!empty($otherPending)) {
+                $messageBody .= "\n\n" . WhatsAppBillingService::buildOtherInvoicesBlock($otherPending);
+            }
         }
         
         // Converte quebras de linha para HTML
@@ -552,6 +566,29 @@ class BillingSenderService
         
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Retorna faturas pending/overdue do tenant excluindo as já inclusas no gatilho.
+     * Usado para compor o bloco de "outras faturas em aberto" na mensagem.
+     */
+    private static function getOtherPendingInvoices(\PDO $db, int $tenantId, array $excludeIds): array
+    {
+        if (empty($excludeIds)) {
+            return [];
+        }
+        $placeholders = str_repeat('?,', count($excludeIds) - 1) . '?';
+        $stmt = $db->prepare("
+            SELECT id, due_date, amount, description, invoice_url
+            FROM billing_invoices
+            WHERE tenant_id = ?
+              AND status IN ('pending', 'overdue')
+              AND (is_deleted IS NULL OR is_deleted = 0)
+              AND id NOT IN ({$placeholders})
+            ORDER BY due_date ASC
+        ");
+        $stmt->execute(array_merge([$tenantId], $excludeIds));
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
