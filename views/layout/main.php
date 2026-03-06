@@ -241,6 +241,103 @@
             from { opacity: 0; transform: translateX(30px); }
             to   { opacity: 1; transform: translateX(0); }
         }
+        /* Painel lateral de notificações */
+        #notif-panel {
+            position: fixed;
+            top: 60px; right: 0;
+            width: 360px;
+            max-width: 96vw;
+            height: calc(100vh - 60px);
+            background: white;
+            box-shadow: -4px 0 24px rgba(0,0,0,0.15);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            transform: translateX(100%);
+            transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+        }
+        #notif-panel.open { transform: translateX(0); }
+        #notif-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 18px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f9fafb;
+        }
+        #notif-panel-header h3 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 700;
+            color: #111827;
+        }
+        #notif-panel-mark-all {
+            background: none;
+            border: none;
+            font-size: 11px;
+            color: #023A8D;
+            cursor: pointer;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        #notif-panel-mark-all:hover { background: #eff6ff; }
+        #notif-panel-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: #6b7280;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            line-height: 1;
+        }
+        #notif-panel-close:hover { background: #f3f4f6; color: #111; }
+        #notif-panel-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+        .notif-panel-item {
+            display: flex;
+            flex-direction: column;
+            padding: 14px 18px;
+            border-bottom: 1px solid #f3f4f6;
+            cursor: pointer;
+            transition: background 0.15s;
+            position: relative;
+        }
+        .notif-panel-item:hover { background: #f9fafb; }
+        .notif-panel-item-title {
+            font-weight: 700;
+            font-size: 13px;
+            color: #111827;
+            margin-bottom: 4px;
+        }
+        .notif-panel-item-msg {
+            font-size: 12px;
+            color: #6b7280;
+            line-height: 1.5;
+        }
+        .notif-panel-item-time {
+            font-size: 10px;
+            color: #9ca3af;
+            margin-top: 6px;
+        }
+        .notif-panel-empty {
+            text-align: center;
+            color: #9ca3af;
+            font-size: 13px;
+            padding: 40px 20px;
+        }
+        #notif-panel-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9998;
+            background: transparent;
+        }
+        #notif-panel-overlay.open { display: block; }
 
         /* Badge de mensagens não lidas no ícone Comunicação (sidebar) */
         .sidebar-icon-comunicacao {
@@ -7185,11 +7282,24 @@ async function linkConversationToLead(event) {
 <!-- Toast container para notificações push -->
 <div id="notif-toast-container"></div>
 
+<!-- Painel lateral de notificações -->
+<div id="notif-panel-overlay" onclick="closeNotifPanel()"></div>
+<div id="notif-panel">
+    <div id="notif-panel-header">
+        <h3>&#128276; Notificações</h3>
+        <div style="display:flex;gap:6px;align-items:center;">
+            <button id="notif-panel-mark-all" onclick="markAllNotifRead()">Marcar todas como lidas</button>
+            <button id="notif-panel-close" onclick="closeNotifPanel()">&times;</button>
+        </div>
+    </div>
+    <div id="notif-panel-body"></div>
+</div>
+
 <script>
 (function() {
     let _notifSeen = new Set();
-    let _notifOpen = false;
-    let _lastUnreadOppId = null;
+    let _panelOpen = false;
+    let _allUnread = [];
 
     function _relativeTime(dateStr) {
         const d = new Date(dateStr.replace(' ', 'T') + 'Z');
@@ -7200,24 +7310,63 @@ async function linkConversationToLead(event) {
         return Math.floor(diff/86400) + 'd atrás';
     }
 
+    function _updateBadge(count) {
+        const badge = document.getElementById('header-notif-badge');
+        if (!badge) return;
+        if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.classList.add('visible');
+        } else {
+            badge.classList.remove('visible');
+        }
+    }
+
+    function _renderPanel() {
+        const body = document.getElementById('notif-panel-body');
+        if (!body) return;
+        if (_allUnread.length === 0) {
+            body.innerHTML = '<div class="notif-panel-empty">Nenhuma notificação não lida</div>';
+            return;
+        }
+        body.innerHTML = '';
+        _allUnread.forEach(function(n) {
+            const data = n.data || {};
+            const oppId = data.opportunity_id || n.entity_id;
+            const item = document.createElement('div');
+            item.className = 'notif-panel-item';
+            item.innerHTML = `<div class="notif-panel-item-title">${n.title}</div>
+                <div class="notif-panel-item-msg">${n.message}</div>
+                <div class="notif-panel-item-time">${_relativeTime(n.created_at)}</div>`;
+            item.onclick = function() {
+                _markRead(n.id);
+                _allUnread = _allUnread.filter(x => x.id !== n.id);
+                _updateBadge(_allUnread.length);
+                _renderPanel();
+                if (oppId) window.location.href = '/opportunities/view?id=' + oppId;
+            };
+            body.appendChild(item);
+        });
+    }
+
     function _showToast(notif) {
         if (_notifSeen.has(notif.id)) return;
         _notifSeen.add(notif.id);
         const container = document.getElementById('notif-toast-container');
         if (!container) return;
-        const t = document.createElement('div');
-        t.className = 'notif-toast';
         const data = notif.data || {};
         const oppId = data.opportunity_id || notif.entity_id;
-        t.innerHTML = `
-            <div class="notif-toast-title">${notif.title}</div>
+        const t = document.createElement('div');
+        t.className = 'notif-toast';
+        t.innerHTML = `<div class="notif-toast-title">${notif.title}</div>
             <div class="notif-toast-msg">${notif.message}</div>
-            <div class="notif-toast-time">${_relativeTime(notif.created_at)}</div>
-        `;
+            <div class="notif-toast-time">${_relativeTime(notif.created_at)}</div>`;
         t.onclick = function() {
-            if (oppId) window.location.href = '/opportunities/view?id=' + oppId;
             _markRead(notif.id);
+            _allUnread = _allUnread.filter(x => x.id !== notif.id);
+            _updateBadge(_allUnread.length);
+            _renderPanel();
             t.remove();
+            if (oppId) window.location.href = '/opportunities/view?id=' + oppId;
         };
         container.appendChild(t);
         setTimeout(() => { if (t.parentNode) t.remove(); }, 12000);
@@ -7231,38 +7380,72 @@ async function linkConversationToLead(event) {
         }).catch(() => {});
     }
 
+    function _fetchAndOpenPanel() {
+        fetch('/api/notifications', {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) return;
+                _allUnread = (data.notifications || []).filter(n => !n.is_read);
+                _updateBadge(_allUnread.length);
+                _renderPanel();
+            }).catch(() => {});
+    }
+
     function _poll() {
         fetch('/api/notifications/unread-count', {headers: {'X-Requested-With': 'XMLHttpRequest'}})
             .then(r => r.json())
             .then(data => {
                 if (!data.success) return;
-                const badge = document.getElementById('header-notif-badge');
-                if (badge) {
-                    if (data.unread_count > 0) {
-                        badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
-                        badge.classList.add('visible');
-                    } else {
-                        badge.classList.remove('visible');
-                    }
-                }
-                // Mostrar toast para novas notificações e guardar última opp não lida
+                _updateBadge(data.unread_count);
                 if (data.unread && Array.isArray(data.unread)) {
-                    data.unread.slice(0, 3).forEach(n => _showToast(n));
-                    const oppNotif = data.unread.find(n => n.entity_type === 'opportunity' && n.entity_id);
-                    if (oppNotif) {
-                        const d = oppNotif.data || {};
-                        _lastUnreadOppId = d.opportunity_id || oppNotif.entity_id;
-                    }
+                    // Atualiza lista interna
+                    data.unread.forEach(n => {
+                        if (!_allUnread.find(x => x.id === n.id)) {
+                            _allUnread.push(n);
+                        }
+                    });
+                    // Mostra toast para notificações novas (não vistas ainda)
+                    data.unread.forEach(n => _showToast(n));
+                    // Atualiza painel se estiver aberto
+                    if (_panelOpen) _renderPanel();
                 }
             }).catch(() => {});
     }
 
     window.toggleNotifPanel = function() {
-        if (_lastUnreadOppId) {
-            window.location.href = '/opportunities/view?id=' + _lastUnreadOppId;
+        const panel = document.getElementById('notif-panel');
+        const overlay = document.getElementById('notif-panel-overlay');
+        if (!panel) return;
+        if (_panelOpen) {
+            panel.classList.remove('open');
+            overlay.classList.remove('open');
+            _panelOpen = false;
         } else {
-            window.location.href = '/opportunities';
+            _fetchAndOpenPanel();
+            panel.classList.add('open');
+            overlay.classList.add('open');
+            _panelOpen = true;
         }
+    };
+
+    window.closeNotifPanel = function() {
+        const panel = document.getElementById('notif-panel');
+        const overlay = document.getElementById('notif-panel-overlay');
+        if (panel) panel.classList.remove('open');
+        if (overlay) overlay.classList.remove('open');
+        _panelOpen = false;
+    };
+
+    window.markAllNotifRead = function() {
+        fetch('/api/notifications/read', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({all: true})
+        }).then(() => {
+            _allUnread = [];
+            _updateBadge(0);
+            _renderPanel();
+        }).catch(() => {});
     };
 
     // Primeira poll e depois a cada 30s
