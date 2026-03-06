@@ -656,7 +656,7 @@ class BillingSenderService
                 SELECT COUNT(*) 
                 FROM billing_dispatch_queue 
                 WHERE JSON_CONTAINS(invoice_ids, ?) 
-                  AND status IN ('pending', 'scheduled', 'sent')
+                  AND status IN ('queued', 'processing', 'sent')
                   AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
             ";
             $params2 = [json_encode($invoiceId), $hoursThreshold];
@@ -700,15 +700,17 @@ class BillingSenderService
     public static function countSentForRule(\PDO $db, int $invoiceId, int $ruleId): int
     {
         try {
-            // Conta envios no log para esta fatura (independente da regra, 
-            // pois o log pode não ter rule_id para envios manuais)
+            // Conta envios na fila para esta fatura E esta regra específica
+            // Usar billing_dispatch_queue que tem dispatch_rule_id, evitando
+            // que envios de uma regra bloqueiem outras regras diferentes
             $stmt = $db->prepare("
                 SELECT COUNT(*) 
-                FROM billing_dispatch_log 
-                WHERE invoice_id = ? 
+                FROM billing_dispatch_queue 
+                WHERE dispatch_rule_id = ?
+                  AND JSON_CONTAINS(invoice_ids, ?)
                   AND status = 'sent'
             ");
-            $stmt->execute([$invoiceId]);
+            $stmt->execute([$ruleId, json_encode($invoiceId)]);
             $count = (int) $stmt->fetchColumn();
 
             error_log(sprintf(

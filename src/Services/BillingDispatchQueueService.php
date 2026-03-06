@@ -100,6 +100,15 @@ class BillingDispatchQueueService
             return [];
         }
 
+        // Recovery: jobs presos em 'processing' há mais de 15 min (worker morreu/travou) voltam para 'queued'
+        $db->exec("
+            UPDATE billing_dispatch_queue
+            SET status = 'queued', updated_at = NOW()
+            WHERE status = 'processing'
+              AND last_attempt_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+              AND attempts < max_attempts
+        ");
+
         $stmt = $db->prepare("
             SELECT *
             FROM billing_dispatch_queue
