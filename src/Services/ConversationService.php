@@ -30,21 +30,9 @@ class ConversationService
      */
     public static function resolveConversation(array $eventData): ?array
     {
-        // 🔍 LOG TEMPORÁRIO: Entrada no método
-        $payload = $eventData['payload'] ?? [];
-        $from = $payload['from'] ?? $payload['message']['from'] ?? 'NULL';
-        $to = $payload['to'] ?? $payload['message']['to'] ?? 'NULL';
-        error_log(sprintf(
-            '[DIAGNOSTICO] ConversationService::resolveConversation() - INICIADO: event_type=%s, from=%s, to=%s',
-            $eventData['event_type'] ?? 'NULL',
-            $from,
-            $to
-        ));
-        
         // Apenas eventos de mensagem geram conversas
         $eventType = $eventData['event_type'] ?? null;
         if (!$eventType || !self::isMessageEvent($eventType)) {
-            error_log('[DIAGNOSTICO] ConversationService::resolveConversation() - EARLY RETURN: não é evento de mensagem');
             return null;
         }
 
@@ -53,13 +41,7 @@ class ConversationService
         // Extrai informações do evento
         $channelInfo = self::extractChannelInfo($eventData);
         if (!$channelInfo) {
-            error_log('[CONVERSATION UPSERT] ERRO: extractChannelInfo retornou NULL. Event data: ' . json_encode([
-                'event_type' => $eventData['event_type'] ?? null,
-                'source_system' => $eventData['source_system'] ?? null,
-                'has_payload' => isset($eventData['payload']),
-                'payload_keys' => isset($eventData['payload']) ? array_keys($eventData['payload']) : [],
-            ], JSON_UNESCAPED_UNICODE));
-            return null; // Não é possível identificar canal
+            return null;
         }
 
         // Gera chave única da conversa
@@ -69,79 +51,17 @@ class ConversationService
             $channelInfo['contact_external_id']
         );
 
-        // 🔍 PASSO 2: LOG DE RESOLUÇÃO DE CONVERSA
-        error_log('[CONVERSATION UPSERT] Iniciando resolução de conversa: ' . json_encode([
-            'conversation_key' => $conversationKey,
-            'channel_type' => $channelInfo['channel_type'],
-            'channel_id' => $channelInfo['channel_id'] ?? null,
-            'channel_account_id' => $channelInfo['channel_account_id'] ?? null,
-            'contact_external_id' => $channelInfo['contact_external_id'],
-            'tenant_id' => $eventData['tenant_id'] ?? null,
-        ], JSON_UNESCAPED_UNICODE));
-        
-        // Log específico sobre resolução do canal
-        if (!empty($channelInfo['channel_id'])) {
-            error_log('[HUB_CHANNEL_RESOLUTION] channel_id resolvido: ' . $channelInfo['channel_id'] . ' -> channel_account_id: ' . ($channelInfo['channel_account_id'] ?? 'NULL'));
-        } else {
-            error_log('[HUB_CHANNEL_RESOLUTION] AVISO: channel_id não fornecido - usando fallback para primeiro canal');
-        }
-
-        // 🔍 PASSO 4: MATCH DE CONVERSA - Log detalhado da query
-        $queryParams = [
-            'conversation_key' => $conversationKey,
-            'channel_type' => $channelInfo['channel_type'],
-            'channel_id' => $channelInfo['channel_id'] ?? null,
-            'contact_external_id' => $channelInfo['contact_external_id'],
-            'tenant_id' => $eventData['tenant_id'] ?? null,
-        ];
-        error_log('[HUB_CONV_MATCH] Query: findByKey conversation_key=' . $conversationKey . ' channel_type=' . $channelInfo['channel_type'] . ' contact=' . $channelInfo['contact_external_id'] . ' tenant_id=' . ($eventData['tenant_id'] ?? 'NULL'));
-
         // Busca conversa existente (por chave exata)
         $existing = self::findByKey($conversationKey);
         
         if ($existing) {
-            error_log('[HUB_CONV_MATCH] FOUND_CONVERSATION id=' . $existing['id'] . ' conversation_key=' . $conversationKey);
-            
-            // 🔍 LOG: Thread afetada antes de atualizar
-            $existingChannelId = $existing['channel_id'] ?? null;
-            $newChannelId = $channelInfo['channel_id'] ?? null;
-            error_log(sprintf(
-                '[HUB_THREAD_UPDATE] thread_id=%d | channel_id_atual=%s | channel_id_novo=%s | from=%s',
-                $existing['id'],
-                $existingChannelId ?: 'NULL',
-                $newChannelId ?: 'NULL',
-                $channelInfo['contact_external_id'] ?? 'NULL'
-            ));
-            
-            // 🔍 LOG TEMPORÁRIO: Antes de atualizar
-            error_log(sprintf(
-                '[DIAGNOSTICO] ConversationService::resolveConversation() - ANTES updateConversationMetadata: conversation_id=%d, last_message_at=%s, unread_count=%d',
-                $existing['id'],
-                $existing['last_message_at'] ?? 'NULL',
-                $existing['unread_count'] ?? 0
-            ));
-            // Atualiza metadados básicos
             self::updateConversationMetadata($existing['id'], $eventData, $channelInfo);
-            // 🔍 LOG TEMPORÁRIO: Depois de atualizar (busca novamente para ver se mudou)
-            $afterUpdate = self::findById($existing['id']);
-            if ($afterUpdate) {
-                error_log(sprintf(
-                    '[DIAGNOSTICO] ConversationService::resolveConversation() - DEPOIS updateConversationMetadata: conversation_id=%d, last_message_at=%s, unread_count=%d',
-                    $afterUpdate['id'],
-                    $afterUpdate['last_message_at'] ?? 'NULL',
-                    $afterUpdate['unread_count'] ?? 0
-                ));
-            }
             return $existing;
         }
 
-        // Se não encontrou por chave exata, tenta encontrar conversa equivalente
-        // (para evitar duplicidade por variação do 9º dígito em números BR)
-        error_log('[HUB_CONV_MATCH] Query: findEquivalentConversation contact=' . $channelInfo['contact_external_id']);
+        // Tenta encontrar conversa equivalente (variação do 9º dígito em números BR)
         $equivalent = self::findEquivalentConversation($channelInfo, $channelInfo['contact_external_id']);
         if ($equivalent) {
-            // Encontrou conversa equivalente - atualiza ao invés de criar nova
-            error_log('[HUB_CONV_MATCH] FOUND_EQUIVALENT_CONVERSATION id=' . $equivalent['id'] . ' original_contact=' . $equivalent['contact_external_id'] . ' new_contact=' . $channelInfo['contact_external_id'] . ' reason=9th_digit_variation');
             self::updateConversationMetadata($equivalent['id'], $eventData, $channelInfo);
             return $equivalent;
         }

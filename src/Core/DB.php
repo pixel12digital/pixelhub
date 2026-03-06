@@ -44,9 +44,7 @@ class DB
                 $config['password'],
                 $options
             );
-            
-            error_log("Conexão com banco de dados estabelecida: {$config['database']}");
-            
+
             return self::$connection;
         } catch (PDOException $e) {
             error_log("Erro ao conectar ao banco de dados: " . $e->getMessage());
