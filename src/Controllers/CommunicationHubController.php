@@ -7708,7 +7708,7 @@ class CommunicationHubController extends Controller
         }
 
         // Monta body legível para exibição no Inbox
-        $templateBodyText = $template['body_text'] ?? $template['body'] ?? '';
+        $templateBodyText = $template['content'] ?? $template['body_text'] ?? $template['body'] ?? '';
         if (!empty($templateBodyText) && !empty($templateVariables)) {
             foreach ($templateVariables as $i => $var) {
                 $templateBodyText = str_replace('{{' . ($i + 1) . '}}', $var['text'] ?? '', $templateBodyText);
