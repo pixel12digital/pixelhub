@@ -551,9 +551,10 @@ class ChatbotFlowService
                     } else {
                         // Resolve nome: 1º contact_name da conversa, 2º prospecting_results, 3º nulo
                         $prospectName = $conv['contact_name'] ?? null;
+                        $prospectSource = null;
                         if (empty($prospectName)) {
                             $pStmt = $db->prepare("
-                                SELECT name FROM prospecting_results
+                                SELECT name, source FROM prospecting_results
                                 WHERE REPLACE(REPLACE(REPLACE(phone_minhareceita, ' ', ''), '-', ''), '(', '') = ?
                                    OR REPLACE(REPLACE(REPLACE(phone_google,       ' ', ''), '-', ''), '(', '') = ?
                                    OR REPLACE(REPLACE(REPLACE(phone_instagram,    ' ', ''), '-', ''), '(', '') = ?
@@ -565,7 +566,13 @@ class ChatbotFlowService
                             if (!empty($pr['name'])) {
                                 $prospectName = $pr['name'];
                             }
+                            if (!empty($pr['source'])) {
+                                $prospectSource = $pr['source'];
+                            }
                         }
+
+                        // Resolve tracking code pelo source do prospect
+                        $trackingCode = self::resolveTrackingCodeForSource($db, $prospectSource);
 
                         // Cria novo lead com o telefone (e nome se disponível)
                         $leadId = LeadService::create([
@@ -575,7 +582,13 @@ class ChatbotFlowService
                             'notes'      => 'Lead criado automaticamente via clique em \'Quero conhecer\' no WhatsApp de prospecção.',
                             'created_by' => 1,
                         ]);
-                        error_log('[ChatbotFlow] Novo lead criado (ID: ' . $leadId . ', nome: ' . ($prospectName ?: 'sem nome') . ') para ' . $phone);
+                        error_log('[ChatbotFlow] Novo lead criado (ID: ' . $leadId . ', nome: ' . ($prospectName ?: 'sem nome') . ', tracking: ' . ($trackingCode ?: 'none') . ') para ' . $phone);
+
+                        // Vincula tracking code ao lead
+                        if ($trackingCode) {
+                            $db->prepare("UPDATE leads SET tracking_code = ?, tracking_auto_detected = 1 WHERE id = ?")
+                               ->execute([$trackingCode, $leadId]);
+                        }
                     }
 
                     // Vincula o lead à conversa
@@ -583,8 +596,10 @@ class ChatbotFlowService
                        ->execute([$leadId, $conversationId]);
 
                     // Atualiza $conv para continuar o fluxo normalmente
-                    $conv['lead_id']   = $leadId;
-                    $conv['lead_name'] = $conv['lead_name'] ?? null;
+                    $conv['lead_id']      = $leadId;
+                    $conv['lead_name']    = $conv['lead_name'] ?? null;
+                    $conv['_tracking']    = $trackingCode ?? null;
+                    $conv['_pr_source']   = $prospectSource ?? null;
                 } else {
                     error_log('[ChatbotFlow] Conversa sem lead e sem telefone — notificando sem criar oportunidade');
                     self::createChatbotNotification($conversationId, 0, $flow);
@@ -611,6 +626,14 @@ class ChatbotFlowService
                     $db->prepare("UPDATE opportunities SET stage = 'contact', updated_at = NOW() WHERE id = ?")
                        ->execute([$existingOpp['id']]);
                 }
+                // Aplica tracking na oportunidade existente se ainda não tiver
+                $existingTrack = $conv['_tracking'] ?? self::resolveTrackingCodeForSourceFromConv($db, $conv['lead_id']);
+                if ($existingTrack) {
+                    $db->prepare("UPDATE opportunities SET tracking_code = ?, tracking_auto_detected = 1 WHERE id = ? AND (tracking_code IS NULL OR tracking_code = '')")
+                       ->execute([$existingTrack, $existingOpp['id']]);
+                    $db->prepare("UPDATE leads SET tracking_code = ?, tracking_auto_detected = 1 WHERE id = ? AND (tracking_code IS NULL OR tracking_code = '')")
+                       ->execute([$existingTrack, $conv['lead_id']]);
+                }
                 OpportunityService::addInteractionHistory(
                     $existingOpp['id'],
                     "Clicou em 'Quero conhecer' via WhatsApp — Fluxo: {$flow['name']}"
@@ -632,9 +655,11 @@ class ChatbotFlowService
                     origin,
                     notes,
                     created_by,
+                    tracking_code,
+                    tracking_auto_detected,
                     created_at,
                     updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())
             ");
             
             $opportunityName = 'Interesse no ImobSites — prospecção WhatsApp';
@@ -642,6 +667,7 @@ class ChatbotFlowService
             $status = 'open';
             $serviceId = 2; // SaaS ImobSites
             $origin = 'prospecting_whatsapp';
+            $opportunityTracking = $conv['_tracking'] ?? self::resolveTrackingCodeForSourceFromConv($db, $conv['lead_id']);
             // Aplica add_tags ao notes
             $tagsStr = '';
             if (!empty($flow['add_tags'])) {
@@ -663,7 +689,8 @@ class ChatbotFlowService
                 $conversationId,
                 $origin,
                 $notes,
-                $createdBy
+                $createdBy,
+                $opportunityTracking,
             ]);
             
             $opportunityId = $db->lastInsertId();
@@ -805,6 +832,71 @@ class ChatbotFlowService
         } catch (\Exception $e) {
             // Não falha silenciosamente para não bloquear o fluxo principal
             error_log('[ChatbotFlow] Erro ao criar notificação: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Resolve o tracking code ativo para um source de prospecção.
+     * Mapeia: instagram → prospecting_instagram, google_maps → prospecting_google_maps, minhareceita → prospecting_cnae
+     *
+     * @param \PDO        $db
+     * @param string|null $source  Valor do campo `source` em prospecting_results
+     * @return string|null         Código (ex: INSTA_ACTIVE_PROSPECTING) ou null
+     */
+    private static function resolveTrackingCodeForSource(\PDO $db, ?string $source): ?string
+    {
+        if (empty($source)) return null;
+
+        $channelMap = [
+            'instagram'   => 'prospecting_instagram',
+            'google_maps' => 'prospecting_google_maps',
+            'minhareceita'=> 'prospecting_cnae',
+        ];
+
+        $channel = $channelMap[$source] ?? null;
+        if (!$channel) return null;
+
+        $stmt = $db->prepare("SELECT code FROM tracking_codes WHERE channel = ? AND is_active = 1 ORDER BY id ASC LIMIT 1");
+        $stmt->execute([$channel]);
+        $row = $stmt->fetch();
+
+        return $row ? $row['code'] : null;
+    }
+
+    /**
+     * Resolução de tracking a partir de um lead já existente:
+     * busca o source do prospect via telefone do lead e delega a resolveTrackingCodeForSource.
+     *
+     * @param \PDO $db
+     * @param int  $leadId
+     * @return string|null
+     */
+    private static function resolveTrackingCodeForSourceFromConv(\PDO $db, int $leadId): ?string
+    {
+        try {
+            // Pega o telefone do lead
+            $lStmt = $db->prepare("SELECT phone FROM leads WHERE id = ? LIMIT 1");
+            $lStmt->execute([$leadId]);
+            $lead = $lStmt->fetch();
+            if (empty($lead['phone'])) return null;
+
+            $short = ltrim(preg_replace('/\D/', '', $lead['phone']), '0');
+            $tail  = substr($short, -9);
+
+            // Busca source em prospecting_results
+            $pStmt = $db->prepare("
+                SELECT source FROM prospecting_results
+                WHERE REPLACE(REPLACE(REPLACE(phone_minhareceita, ' ', ''), '-', ''), '(', '') = ?
+                   OR REPLACE(REPLACE(REPLACE(phone_google,       ' ', ''), '-', ''), '(', '') = ?
+                   OR REPLACE(REPLACE(REPLACE(phone_instagram,    ' ', ''), '-', ''), '(', '') = ?
+                LIMIT 1
+            ");
+            $pStmt->execute([$short, $short, $tail]);
+            $pr = $pStmt->fetch();
+
+            return self::resolveTrackingCodeForSource($db, $pr['source'] ?? null);
+        } catch (\Exception $e) {
+            return null;
         }
     }
 }
