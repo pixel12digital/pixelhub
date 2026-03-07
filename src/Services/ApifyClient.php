@@ -184,7 +184,12 @@ class ApifyClient
             'instagram_category'    => $item['businessCategoryName'] ?? $item['business_category_name'] ?? null,
             'instagram_bio'         => $item['biography'] ?? null,
             'instagram_profile_pic' => $item['profilePicUrl'] ?? $item['profile_pic_url'] ?? null,
-            'phone_instagram'       => $this->normalizePhone($item['businessPhoneNumber'] ?? $item['business_phone_number'] ?? null),
+            'phone_instagram'       => $this->normalizePhone(
+                $item['businessPhoneNumber'] ?? $item['business_phone_number'] ??
+                $this->extractPhoneFromWaMe($item['biography'] ?? '') ??
+                $this->extractPhoneFromWaMe($item['externalUrl'] ?? $item['external_url'] ?? '') ??
+                null
+            ),
             'email_instagram'       => $item['businessEmail'] ?? $item['business_email'] ?? null,
             'website_instagram'     => $item['externalUrl'] ?? $item['external_url'] ?? null,
             'instagram_city'        => $item['cityName'] ?? $item['city_name'] ?? null,
@@ -284,6 +289,18 @@ class ApifyClient
     // =========================================================================
     // HELPERS
     // =========================================================================
+
+    /**
+     * Extrai número de telefone de links wa.me/PHONE na bio ou URL
+     */
+    private function extractPhoneFromWaMe(?string $text): ?string
+    {
+        if (empty($text)) return null;
+        if (preg_match('/wa\.me\/([\d]+)/i', $text, $m)) {
+            return $m[1];
+        }
+        return null;
+    }
 
     /**
      * Normaliza telefone para E.164 brasileiro se possível
