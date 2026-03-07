@@ -280,10 +280,12 @@ ob_start();
                         <?php if ($result['source'] === 'instagram'): ?>
                         <?php $instaPhone = $result['phone_instagram'] ?? ''; ?>
                         <?php if (!empty($instaPhone)): ?>
-                        <div style="display:flex;align-items:center;gap:6px;">
-                            <div style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($instaPhone) ?></div>
-                            <button onclick="openWAModal(<?= $result['id'] ?>, '<?= htmlspecialchars($instaPhone) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>')" title="Enviar WhatsApp"
-                                    style="padding:2px 6px;background:#25d366;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;">WA</button>
+                        <div style="display:flex;align-items:center;gap:5px;">
+                            <div id="phone-display-<?= $result['id'] ?>" style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($instaPhone) ?></div>
+                            <button onclick="openProspectWA('<?= htmlspecialchars($instaPhone) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>')" title="Enviar WhatsApp"
+                                    style="padding:2px 5px;background:#25d366;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;">WA</button>
+                            <button onclick="showPhoneInput(<?= $result['id'] ?>, '<?= htmlspecialchars(addslashes($instaPhone)) ?>')" title="Editar telefone"
+                                    style="padding:2px 4px;background:#f1f5f9;border:1px solid #d1d5db;border-radius:4px;font-size:10px;cursor:pointer;color:#64748b;">✏️</button>
                         </div>
                         <?php if (!empty($result['apify_phone_enriched_at'])): ?>
                         <div style="font-size:10px;color:#94a3b8;margin-top:2px;">✓ enriquecido</div>
@@ -314,10 +316,12 @@ ob_start();
                         $phoneSecundario = $result['telefone_secundario'] ?? '';
                         ?>
                         <?php if (!empty($phone)): ?>
-                        <div style="display:flex;align-items:center;gap:6px;">
-                            <div style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($phone) ?></div>
-                            <button onclick="openWAModal(<?= $result['id'] ?>, '<?= htmlspecialchars($phone) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>')" title="Enviar WhatsApp"
-                                    style="padding:2px 6px;background:#25d366;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;">WA</button>
+                        <div style="display:flex;align-items:center;gap:5px;">
+                            <div id="phone-display-<?= $result['id'] ?>" style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($phone) ?></div>
+                            <button onclick="openProspectWA('<?= htmlspecialchars($phone) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>')" title="Enviar WhatsApp"
+                                    style="padding:2px 5px;background:#25d366;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;">WA</button>
+                            <button onclick="showPhoneInput(<?= $result['id'] ?>, '<?= htmlspecialchars(addslashes($phone)) ?>')" title="Editar telefone"
+                                    style="padding:2px 4px;background:#f1f5f9;border:1px solid #d1d5db;border-radius:4px;font-size:10px;cursor:pointer;color:#64748b;">✏️</button>
                         </div>
                         <?php endif; ?>
                         <?php if (!empty($phoneSecundario)): ?>
@@ -347,7 +351,7 @@ ob_start();
                             ?>
                             <!-- WhatsApp: sempre que tiver telefone -->
                             <?php if (!empty($phoneForWA)): ?>
-                            <button onclick="openWAModal(<?= $result['id'] ?>, '<?= htmlspecialchars($phoneForWA) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>')"
+                            <button onclick="openProspectWA('<?= htmlspecialchars($phoneForWA) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>')"
                                     id="wa-btn-<?= $result['id'] ?>"
                                     style="padding:6px;background:#25d366;color:#fff;border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"
                                     title="Enviar mensagem WhatsApp">
@@ -803,15 +807,50 @@ function enrichApifyPhone(resultId, btn) {
 
         if (data.found && data.phone) {
             if (cell) {
-                cell.innerHTML = '<div style="font-size:12px;color:#374151;font-weight:500;">' + data.phone + '</div><div style="font-size:10px;color:#94a3b8;margin-top:2px;">✓ enriquecido</div>';
+                const ph = data.phone;
+                const phSafe = ph.replace(/'/g, "\\'");
+                cell.innerHTML =
+                    '<div style="display:flex;align-items:center;gap:5px;">' +
+                    '<div id="phone-display-' + resultId + '" style="font-size:12px;color:#374151;font-weight:500;">' + ph + '</div>' +
+                    '<button onclick="openProspectWA(\'' + phSafe + '\', \'\')" title="Enviar WhatsApp" ' +
+                    'style="padding:2px 5px;background:#25d366;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;">WA</button>' +
+                    '<button onclick="showPhoneInput(' + resultId + ', \'' + phSafe + '\')" title="Editar telefone" ' +
+                    'style="padding:2px 4px;background:#f1f5f9;border:1px solid #d1d5db;border-radius:4px;font-size:10px;cursor:pointer;color:#64748b;">✏️</button>' +
+                    '</div>' +
+                    '<div id="phone-input-wrap-' + resultId + '" style="display:none;margin-top:4px;">' +
+                    '<input type="text" id="phone-input-' + resultId + '" value="' + ph + '" placeholder="Ex: 11999999999" style="width:110px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;">' +
+                    '<button onclick="saveManualPhone(' + resultId + ', this)" style="padding:3px 7px;background:#16a34a;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;margin-left:3px;">✓</button>' +
+                    '</div>' +
+                    '<div style="font-size:10px;color:#94a3b8;margin-top:2px;">✓ enriquecido</div>';
             }
-            // Remove o botão de enriquecer do Ações
+            // Troca enrich-btn por WA btn nas ações
             const enrichBtn = document.getElementById('enrich-btn-' + resultId);
-            if (enrichBtn) enrichBtn.remove();
+            if (enrichBtn) {
+                const actionsDiv = enrichBtn.closest('div');
+                enrichBtn.remove();
+                if (actionsDiv && !document.getElementById('wa-btn-' + resultId)) {
+                    const waBtn = document.createElement('button');
+                    waBtn.id = 'wa-btn-' + resultId;
+                    waBtn.title = 'Enviar mensagem WhatsApp';
+                    waBtn.style.cssText = 'padding:6px;background:#25d366;color:#fff;border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;';
+                    waBtn.onclick = function() { openProspectWA(data.phone, ''); };
+                    waBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/></svg>';
+                    actionsDiv.insertBefore(waBtn, actionsDiv.firstChild);
+                }
+            }
             showToast('✓ Telefone encontrado: ' + data.phone, true);
         } else {
             if (cell) {
-                cell.innerHTML = '<span style="font-size:11px;color:#94a3b8;">Sem telefone público</span>';
+                cell.innerHTML =
+                    '<div style="display:flex;align-items:center;gap:5px;">' +
+                    '<span style="font-size:11px;color:#94a3b8;">Sem telefone público</span>' +
+                    '<button onclick="showPhoneInput(' + resultId + ')" title="Digitar manualmente" ' +
+                    'style="padding:2px 5px;background:#f1f5f9;border:1px solid #d1d5db;border-radius:4px;font-size:11px;cursor:pointer;color:#64748b;">✏️</button>' +
+                    '</div>' +
+                    '<div id="phone-input-wrap-' + resultId + '" style="display:none;margin-top:4px;">' +
+                    '<input type="text" id="phone-input-' + resultId + '" placeholder="Ex: 11999999999" style="width:110px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;">' +
+                    '<button onclick="saveManualPhone(' + resultId + ', this)" style="padding:3px 7px;background:#16a34a;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;margin-left:3px;">✓</button>' +
+                    '</div>';
             }
             const enrichBtn = document.getElementById('enrich-btn-' + resultId);
             if (enrichBtn) enrichBtn.remove();
@@ -826,9 +865,12 @@ function enrichApifyPhone(resultId, btn) {
 
 // ===================== TELEFONE MANUAL =====================
 
-function showPhoneInput(resultId) {
+function showPhoneInput(resultId, currentVal) {
     const wrap = document.getElementById('phone-input-wrap-' + resultId);
-    if (wrap) { wrap.style.display = 'block'; document.getElementById('phone-input-' + resultId)?.focus(); }
+    if (!wrap) return;
+    wrap.style.display = 'block';
+    const inp = document.getElementById('phone-input-' + resultId);
+    if (inp) { if (currentVal) inp.value = currentVal; inp.focus(); inp.select(); }
 }
 
 function saveManualPhone(resultId, btn) {
@@ -850,17 +892,28 @@ function saveManualPhone(resultId, btn) {
         if (!data.success) throw new Error(data.error || 'Erro ao salvar');
         const cell = document.getElementById('phone-cell-' + resultId);
         if (cell) {
+            const phoneSafe = phone.replace(/'/g, "\\'");
             cell.innerHTML =
-                '<div style="display:flex;align-items:center;gap:6px;">' +
-                '<div style="font-size:12px;color:#374151;font-weight:500;">' + phone + '</div>' +
-                '<button onclick="openWAModal(' + resultId + ', \'' + phone.replace(/'/g, "\\'") + '\', \'\')" title="Enviar WhatsApp" ' +
-                'style="padding:2px 6px;background:#25d366;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;">WA</button>' +
+                '<div style="display:flex;align-items:center;gap:5px;">' +
+                '<div id="phone-display-' + resultId + '" style="font-size:12px;color:#374151;font-weight:500;">' + phone + '</div>' +
+                '<button onclick="openProspectWA(\'' + phoneSafe + '\', \'\')" title="Enviar WhatsApp" ' +
+                'style="padding:2px 5px;background:#25d366;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;">WA</button>' +
+                '<button onclick="showPhoneInput(' + resultId + ', \'' + phoneSafe + '\')" title="Editar telefone" ' +
+                'style="padding:2px 4px;background:#f1f5f9;border:1px solid #d1d5db;border-radius:4px;font-size:10px;cursor:pointer;color:#64748b;">✏️</button>' +
+                '</div>' +
+                '<div id="phone-input-wrap-' + resultId + '" style="display:none;margin-top:4px;">' +
+                '<input type="text" id="phone-input-' + resultId + '" value="' + phone + '" placeholder="Ex: 11999999999" ' +
+                'style="width:110px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;">' +
+                '<button onclick="saveManualPhone(' + resultId + ', this)" title="Salvar" ' +
+                'style="padding:3px 7px;background:#16a34a;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;margin-left:3px;">✓</button>' +
                 '</div>' +
                 '<div style="font-size:10px;color:#94a3b8;margin-top:2px;">✓ manual</div>';
         }
-        // Adiciona botão WA nas ações
+        // Atualiza botão WA nas ações
         const actWA = document.getElementById('wa-btn-' + resultId);
-        if (!actWA) {
+        if (actWA) {
+            actWA.onclick = function() { openProspectWA(phone, ''); };
+        } else {
             const enrichBtn = document.getElementById('enrich-btn-' + resultId);
             const actionsDiv = enrichBtn ? enrichBtn.closest('div') : null;
             if (actionsDiv) {
@@ -868,7 +921,7 @@ function saveManualPhone(resultId, btn) {
                 waBtn.id = 'wa-btn-' + resultId;
                 waBtn.title = 'Enviar mensagem WhatsApp';
                 waBtn.style.cssText = 'padding:6px;background:#25d366;color:#fff;border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;';
-                waBtn.onclick = function() { openWAModal(resultId, phone, ''); };
+                waBtn.onclick = function() { openProspectWA(phone, ''); };
                 waBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/></svg>';
                 actionsDiv.insertBefore(waBtn, actionsDiv.firstChild);
             }
@@ -881,92 +934,15 @@ function saveManualPhone(resultId, btn) {
     });
 }
 
-// ===================== MODAL WHATSAPP =====================
+// ===================== MODAL WHATSAPP (reutiliza new_message_modal global) =====================
 
-let _waSessions = null;
-
-function openWAModal(resultId, phone, name) {
-    document.getElementById('wa-result-id').value = resultId;
-    document.getElementById('wa-prospect-name').value = name || '';
-    document.getElementById('wa-prospect-phone').value = phone || '';
-    document.getElementById('wa-prospect-message').value = '';
-
-    const modal = document.getElementById('wa-prospect-modal');
-    modal.style.display = 'flex';
-
-    if (_waSessions === null) {
-        fetch('<?= pixelhub_url('/prospecting/whatsapp-sessions') ?>')
-            .then(r => r.json())
-            .then(data => {
-                _waSessions = data.sessions || [];
-                const sel = document.getElementById('wa-prospect-session');
-                sel.innerHTML = '<option value="">Selecione a sessão...</option>';
-                _waSessions.forEach(s => {
-                    const opt = document.createElement('option');
-                    opt.value = s.id;
-                    opt.textContent = s.name || s.id;
-                    sel.appendChild(opt);
-                });
-                if (_waSessions.length === 1) sel.value = _waSessions[0].id;
-            });
+function openProspectWA(phone, name) {
+    if (typeof setNewMessageLeadContext === 'function') {
+        setNewMessageLeadContext({ lead_id: '', lead_name: name || phone, lead_phone: phone });
     }
-}
-
-function closeWAModal() {
-    document.getElementById('wa-prospect-modal').style.display = 'none';
-}
-
-function sendProspectWA() {
-    const resultId = document.getElementById('wa-result-id').value;
-    const phone    = document.getElementById('wa-prospect-phone').value.trim();
-    const session  = document.getElementById('wa-prospect-session').value;
-    const message  = document.getElementById('wa-prospect-message').value.trim();
-
-    if (!phone)   { showToast('✗ Informe o telefone', false); return; }
-    if (!session) { showToast('✗ Selecione a sessão WhatsApp', false); return; }
-    if (!message) { showToast('✗ Digite a mensagem', false); return; }
-
-    const btn = document.getElementById('wa-send-btn');
-    const orig = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '⏳ Enviando...';
-
-    const body = new URLSearchParams({
-        channel:    'whatsapp',
-        channel_id: session,
-        to:         phone,
-        message:    message
-    });
-
-    fetch('<?= pixelhub_url('/communication-hub/send') ?>', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: body.toString()
-    })
-    .then(r => r.json())
-    .then(data => {
-        btn.disabled = false; btn.innerHTML = orig;
-        if (!data.success) throw new Error(data.error || 'Erro ao enviar');
-
-        closeWAModal();
-        showToast('✓ Mensagem enviada!', true);
-
-        if (resultId) {
-            const sel = document.querySelector('tr[data-id="' + resultId + '"] select') ||
-                        document.querySelector('[data-result-id="' + resultId + '"] select');
-            if (!sel) {
-                fetch('<?= pixelhub_url('/prospecting/update-result-status') ?>', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: 'result_id=' + resultId + '&status=contacted'
-                });
-            }
-        }
-    })
-    .catch(err => {
-        btn.disabled = false; btn.innerHTML = orig;
-        showToast('✗ ' + err.message, false);
-    });
+    if (typeof openNewMessageModal === 'function') {
+        openNewMessageModal();
+    }
 }
 
 // ===================== ENRIQUECIMENTO EM LOTE =====================
@@ -997,10 +973,31 @@ async function enrichAllApifyPhones(btn) {
                 const cell = document.getElementById('phone-cell-' + id);
                 if (data.found && data.phone) {
                     found++;
-                    if (cell) cell.innerHTML = '<div style="font-size:12px;color:#374151;font-weight:500;">' + data.phone + '</div><div style="font-size:10px;color:#94a3b8;margin-top:2px;">✓ enriquecido</div>';
+                    if (cell) {
+                        const ph = data.phone; const phS = ph.replace(/'/g,"\\'");
+                        cell.innerHTML =
+                            '<div style="display:flex;align-items:center;gap:5px;">' +
+                            '<div style="font-size:12px;color:#374151;font-weight:500;">' + ph + '</div>' +
+                            '<button onclick="openProspectWA(\'' + phS + '\',\'\')" title="Enviar WhatsApp" style="padding:2px 5px;background:#25d366;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;">WA</button>' +
+                            '<button onclick="showPhoneInput(' + id + ',\'' + phS + '\')" title="Editar" style="padding:2px 4px;background:#f1f5f9;border:1px solid #d1d5db;border-radius:4px;font-size:10px;cursor:pointer;color:#64748b;">✏️</button>' +
+                            '</div>' +
+                            '<div id="phone-input-wrap-' + id + '" style="display:none;margin-top:4px;">' +
+                            '<input type="text" id="phone-input-' + id + '" value="' + ph + '" style="width:110px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;">' +
+                            '<button onclick="saveManualPhone(' + id + ',this)" style="padding:3px 7px;background:#16a34a;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;margin-left:3px;">✓</button>' +
+                            '</div>' +
+                            '<div style="font-size:10px;color:#94a3b8;margin-top:2px;">✓ enriquecido</div>';
+                    }
                 } else {
                     empty++;
-                    if (cell) cell.innerHTML = '<span style="font-size:11px;color:#94a3b8;">Sem telefone</span>';
+                    if (cell) cell.innerHTML =
+                        '<div style="display:flex;align-items:center;gap:5px;">' +
+                        '<span style="font-size:11px;color:#94a3b8;">Sem telefone</span>' +
+                        '<button onclick="showPhoneInput(' + id + ')" style="padding:2px 5px;background:#f1f5f9;border:1px solid #d1d5db;border-radius:4px;font-size:11px;cursor:pointer;color:#64748b;">✏️</button>' +
+                        '</div>' +
+                        '<div id="phone-input-wrap-' + id + '" style="display:none;margin-top:4px;">' +
+                        '<input type="text" id="phone-input-' + id + '" placeholder="Ex: 11999999999" style="width:110px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;">' +
+                        '<button onclick="saveManualPhone(' + id + ',this)" style="padding:3px 7px;background:#16a34a;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;margin-left:3px;">✓</button>' +
+                        '</div>';
                 }
                 b.remove();
             } else { errors++; }
@@ -1057,49 +1054,6 @@ function updateWithCnpjWs(resultId) {
     </div>
 </div>
 
-<!-- Modal WhatsApp Prospecção -->
-<div id="wa-prospect-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9000;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:12px;width:480px;max-width:95vw;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
-            <h3 style="margin:0;font-size:16px;color:#1e293b;display:flex;align-items:center;gap:8px;">
-                <span style="color:#25d366;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
-                </span>
-                Enviar WhatsApp
-            </h3>
-            <button onclick="closeWAModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;line-height:1;">&times;</button>
-        </div>
-        <input type="hidden" id="wa-result-id" value="">
-        <div style="margin-bottom:14px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Para</label>
-            <input type="text" id="wa-prospect-name" readonly style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;background:#f8fafc;box-sizing:border-box;color:#64748b;">
-        </div>
-        <div style="margin-bottom:14px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Telefone <span style="color:#dc2626;">*</span></label>
-            <input type="text" id="wa-prospect-phone" placeholder="Ex: 5511999999999" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
-            <div style="font-size:11px;color:#94a3b8;margin-top:3px;">Com código do país (55 para Brasil) e DDD, sem espaços ou traços.</div>
-        </div>
-        <div style="margin-bottom:14px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Sessão WhatsApp <span style="color:#dc2626;">*</span></label>
-            <select id="wa-prospect-session" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
-                <option value="">Carregando...</option>
-            </select>
-        </div>
-        <div style="margin-bottom:18px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Mensagem <span style="color:#dc2626;">*</span></label>
-            <textarea id="wa-prospect-message" rows="4" placeholder="Olá! Vi seu perfil e gostaria de conversar..." style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;resize:vertical;font-family:inherit;"></textarea>
-        </div>
-        <div style="display:flex;gap:10px;">
-            <button onclick="sendProspectWA()" id="wa-send-btn"
-                    style="flex:1;padding:10px;background:#25d366;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">
-                Enviar
-            </button>
-            <button onclick="closeWAModal()" style="padding:10px 18px;background:#f1f5f9;color:#64748b;border:none;border-radius:6px;font-size:14px;cursor:pointer;">
-                Cancelar
-            </button>
-        </div>
-    </div>
-</div>
 
 <style>
 @keyframes spin {
