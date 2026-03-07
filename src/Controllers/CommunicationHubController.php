@@ -730,21 +730,8 @@ class CommunicationHubController extends Controller
                     }
                 }
 
-                if (empty($tenantId)) {
-                    // Fallback: busca o primeiro tenant com Meta API ativo (ex: envios de prospecção sem lead vinculado)
-                    if (!isset($db)) $db = \PixelHub\Core\DB::getConnection();
-                    $metaStmt = $db->prepare("SELECT tenant_id FROM whatsapp_provider_configs WHERE provider_type = 'meta_official' AND is_active = 1 ORDER BY id ASC LIMIT 1");
-                    $metaStmt->execute();
-                    $metaRow = $metaStmt->fetch(\PDO::FETCH_ASSOC);
-                    if ($metaRow) {
-                        $tenantId = (int) $metaRow['tenant_id'];
-                    }
-                }
-
-                if (empty($tenantId)) {
-                    $this->json(['success' => false, 'error' => 'Tenant é obrigatório para envio via Meta API. Selecione o canal/conta a ser usado.', 'request_id' => $requestId], 400);
-                    return;
-                }
+                // tenant_id é opcional para Meta API: credenciais são buscadas via config global (is_global=1)
+                // Se não resolvido via lead, segue com null (sendViaMetaAPI usa 'Cliente' como fallback de nome)
 
                 try {
                     $result = $this->sendViaMetaAPI($templateId, $to, $tenantId, $requestId);
