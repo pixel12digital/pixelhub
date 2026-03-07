@@ -526,10 +526,49 @@ class ChatbotFlowService
             $stmt->execute([$conversationId]);
             $conv = $stmt->fetch();
             
-            if (!$conv || !$conv['lead_id']) {
-                error_log('[ChatbotFlow] Conversa sem lead associado — notificando consultores sem criar oportunidade');
-                self::createChatbotNotification($conversationId, 0, $flow);
+            if (!$conv) {
+                error_log('[ChatbotFlow] Conversa não encontrada: ' . $conversationId);
                 return null;
+            }
+
+            // Se não há lead vinculado, cria/localiza pelo telefone e vincula à conversa
+            if (empty($conv['lead_id'])) {
+                $phone = $conv['contact_external_id'] ?? null;
+                $leadId = null;
+
+                if ($phone) {
+                    // Tenta localizar lead existente pelo telefone
+                    $lStmt = $db->prepare("SELECT id FROM leads WHERE phone = ? OR phone = ? LIMIT 1");
+                    $normalized = ltrim(preg_replace('/\D/', '', $phone), '0');
+                    $lStmt->execute([$phone, '+' . $normalized]);
+                    $existingLead = $lStmt->fetch();
+
+                    if ($existingLead) {
+                        $leadId = (int) $existingLead['id'];
+                        error_log('[ChatbotFlow] Lead existente encontrado (ID: ' . $leadId . ') para ' . $phone);
+                    } else {
+                        // Cria novo lead com o telefone
+                        $leadId = LeadService::create([
+                            'phone'      => $phone,
+                            'source'     => 'prospecting_whatsapp',
+                            'notes'      => 'Lead criado automaticamente via clique em \'Quero conhecer\' no WhatsApp de prospecção.',
+                            'created_by' => 1,
+                        ]);
+                        error_log('[ChatbotFlow] Novo lead criado (ID: ' . $leadId . ') para ' . $phone);
+                    }
+
+                    // Vincula o lead à conversa
+                    $db->prepare("UPDATE conversations SET lead_id = ?, updated_at = NOW() WHERE id = ?")
+                       ->execute([$leadId, $conversationId]);
+
+                    // Atualiza $conv para continuar o fluxo normalmente
+                    $conv['lead_id']   = $leadId;
+                    $conv['lead_name'] = $conv['lead_name'] ?? null;
+                } else {
+                    error_log('[ChatbotFlow] Conversa sem lead e sem telefone — notificando sem criar oportunidade');
+                    self::createChatbotNotification($conversationId, 0, $flow);
+                    return null;
+                }
             }
             
             // Verifica se já existe qualquer oportunidade aberta para este lead
