@@ -518,7 +518,8 @@ class ChatbotFlowService
             
             // Busca dados da conversa e lead
             $stmt = $db->prepare("
-                SELECT c.lead_id, c.tenant_id, c.contact_external_id, l.name as lead_name
+                SELECT c.lead_id, c.tenant_id, c.contact_external_id, c.contact_name,
+                       l.name as lead_name
                 FROM conversations c
                 LEFT JOIN leads l ON c.lead_id = l.id
                 WHERE c.id = ?
@@ -538,23 +539,43 @@ class ChatbotFlowService
 
                 if ($phone) {
                     // Tenta localizar lead existente pelo telefone
-                    $lStmt = $db->prepare("SELECT id FROM leads WHERE phone = ? OR phone = ? LIMIT 1");
-                    $normalized = ltrim(preg_replace('/\D/', '', $phone), '0');
-                    $lStmt->execute([$phone, '+' . $normalized]);
+                    $digits    = preg_replace('/\D/', '', $phone);
+                    $short     = ltrim($digits, '0');
+                    $lStmt = $db->prepare("SELECT id FROM leads WHERE phone = ? OR phone = ? OR phone = ? LIMIT 1");
+                    $lStmt->execute([$phone, '+' . $short, $short]);
                     $existingLead = $lStmt->fetch();
 
                     if ($existingLead) {
                         $leadId = (int) $existingLead['id'];
                         error_log('[ChatbotFlow] Lead existente encontrado (ID: ' . $leadId . ') para ' . $phone);
                     } else {
-                        // Cria novo lead com o telefone
+                        // Resolve nome: 1º contact_name da conversa, 2º prospecting_results, 3º nulo
+                        $prospectName = $conv['contact_name'] ?? null;
+                        if (empty($prospectName)) {
+                            $pStmt = $db->prepare("
+                                SELECT name FROM prospecting_results
+                                WHERE REPLACE(REPLACE(REPLACE(phone_minhareceita, ' ', ''), '-', ''), '(', '') = ?
+                                   OR REPLACE(REPLACE(REPLACE(phone_google,       ' ', ''), '-', ''), '(', '') = ?
+                                   OR REPLACE(REPLACE(REPLACE(phone_instagram,    ' ', ''), '-', ''), '(', '') = ?
+                                LIMIT 1
+                            ");
+                            $tail = substr($short, -9); // últimos 9 dígitos para matching flexível
+                            $pStmt->execute([$short, $short, $tail]);
+                            $pr = $pStmt->fetch();
+                            if (!empty($pr['name'])) {
+                                $prospectName = $pr['name'];
+                            }
+                        }
+
+                        // Cria novo lead com o telefone (e nome se disponível)
                         $leadId = LeadService::create([
+                            'name'       => $prospectName ?: null,
                             'phone'      => $phone,
                             'source'     => 'prospecting_whatsapp',
                             'notes'      => 'Lead criado automaticamente via clique em \'Quero conhecer\' no WhatsApp de prospecção.',
                             'created_by' => 1,
                         ]);
-                        error_log('[ChatbotFlow] Novo lead criado (ID: ' . $leadId . ') para ' . $phone);
+                        error_log('[ChatbotFlow] Novo lead criado (ID: ' . $leadId . ', nome: ' . ($prospectName ?: 'sem nome') . ') para ' . $phone);
                     }
 
                     // Vincula o lead à conversa
