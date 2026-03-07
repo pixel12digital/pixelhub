@@ -608,7 +608,16 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                         credentials: 'same-origin',
                         body: 'result_id=' + encodeURIComponent(prospResultId)
-                    }).catch(function() {});
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function() {
+                        // Notifica a página de prospecção para atualizar o DOM imediatamente
+                        window.dispatchEvent(new CustomEvent('prospectWaSent', { detail: { resultId: prospResultId } }));
+                    })
+                    .catch(function() {
+                        // Mesmo com erro no mark, dispara o evento para atualizar a UI
+                        window.dispatchEvent(new CustomEvent('prospectWaSent', { detail: { resultId: prospResultId } }));
+                    });
                 }
                 alert('Mensagem enviada com sucesso!');
                 closeNewMessageModal();

@@ -1148,31 +1148,44 @@ if ($totalPages > 1):
             if (!data.success) return;
             Object.keys(data.results).forEach(function(id) {
                 var r = data.results[id];
-                var sel = document.getElementById('status-sel-' + id);
-                var badge = document.getElementById('wa-badge-' + id);
-                var row = document.getElementById('row-' + id);
-
-                if (sel && sel.value !== r.status) {
-                    sel.value = r.status;
-                    var st = _statusStyles[r.status] || _statusStyles['new'];
-                    sel.style.background = st.bg;
-                    sel.style.color = st.color;
-                    if (row) {
-                        row.dataset.status = r.status;
-                        row.style.opacity = r.status === 'discarded' ? '0.4' : '';
-                        row.style.filter = r.status === 'discarded' ? 'grayscale(0.5)' : '';
-                        row.style.background = r.status === 'discarded' ? '#f8fafc' : '';
-                    }
-                }
-
-                if (badge && r.whatsapp_sent_at && badge.style.display === 'none') {
-                    badge.style.display = 'flex';
-                    badge.title = 'WA enviado em ' + r.whatsapp_sent_at;
-                }
+                _applyUpdate(id, r.status, r.whatsapp_sent_at);
             });
         })
         .catch(function() {});
     }
+
+    // Atualiza uma linha específica no DOM imediatamente
+    function _applyUpdate(id, status, waSentAt) {
+        var sel   = document.getElementById('status-sel-' + id);
+        var badge = document.getElementById('wa-badge-' + id);
+        var row   = document.getElementById('row-' + id);
+
+        if (sel && sel.value !== status) {
+            sel.value = status;
+            var st = _statusStyles[status] || _statusStyles['new'];
+            sel.style.background = st.bg;
+            sel.style.color      = st.color;
+            if (row) {
+                row.dataset.status  = status;
+                row.style.opacity   = status === 'discarded' ? '0.4' : '';
+                row.style.filter    = status === 'discarded' ? 'grayscale(0.5)' : '';
+                row.style.background = status === 'discarded' ? '#f8fafc' : '';
+            }
+        }
+
+        if (badge && waSentAt && badge.style.display === 'none') {
+            badge.style.display = 'flex';
+            badge.title = 'WA enviado';
+        }
+    }
+
+    // Escuta o evento disparado pelo modal de envio para atualizar imediatamente
+    window.addEventListener('prospectWaSent', function(e) {
+        var id = e.detail && e.detail.resultId;
+        if (!id) return;
+        // Atualiza imediatamente para "qualified" + badge visível
+        _applyUpdate(id, 'qualified', true);
+    });
 
     // Primeira poll após 15s, depois a cada 30s
     setTimeout(_poll, 15000);
