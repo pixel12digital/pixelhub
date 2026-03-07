@@ -7645,5 +7645,72 @@ async function linkConversationToLead(event) {
 })();
 </script>
 
+<!-- Modal: Editar Nome do Contato (disponível globalmente para o inbox drawer) -->
+<div id="edit-contact-name-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 99999; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 450px; width: 90%;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Editar Nome do Contato</h2>
+            <button onclick="closeEditContactNameModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        </div>
+        <div style="margin-bottom: 15px; padding: 12px; background: #f0f2f5; border-radius: 6px;">
+            <div style="font-size: 12px; color: #667781; margin-bottom: 4px;">Nome atual:</div>
+            <div style="font-weight: 600; color: #111b21;" id="edit-contact-current-name"></div>
+        </div>
+        <form onsubmit="updateContactName(event)">
+            <input type="hidden" id="edit-contact-conversation-id" value="">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Novo nome *</label>
+                <input type="text" id="edit-contact-new-name" placeholder="Digite o nome do contato..." maxlength="255" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                <div style="font-size: 11px; color: #667781; margin-top: 4px;">Este é o nome exibido na lista de conversas. Não altera o cliente vinculado.</div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="flex: 1; padding: 12px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Salvar</button>
+                <button type="button" onclick="closeEditContactNameModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+function openEditContactNameModal(conversationId, currentName) {
+    var modal = document.getElementById('edit-contact-name-modal');
+    if (!modal) return;
+    document.getElementById('edit-contact-conversation-id').value = conversationId;
+    document.getElementById('edit-contact-current-name').textContent = currentName || 'Contato Desconhecido';
+    document.getElementById('edit-contact-new-name').value = currentName || '';
+    modal.style.display = 'flex';
+    setTimeout(function() {
+        var inp = document.getElementById('edit-contact-new-name');
+        if (inp) { inp.focus(); inp.select(); }
+    }, 100);
+}
+function closeEditContactNameModal() {
+    var modal = document.getElementById('edit-contact-name-modal');
+    if (modal) modal.style.display = 'none';
+}
+async function updateContactName(event) {
+    event.preventDefault();
+    var conversationId = document.getElementById('edit-contact-conversation-id').value;
+    var newName = document.getElementById('edit-contact-new-name').value.trim();
+    if (!newName) { alert('Nome é obrigatório'); return; }
+    try {
+        var response = await fetch('/communication-hub/conversation/update-contact-name', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({conversation_id: parseInt(conversationId), contact_name: newName})
+        });
+        var result = await response.json();
+        if (result.success) {
+            closeEditContactNameModal();
+            alert('Nome atualizado com sucesso!');
+            setTimeout(function() { location.reload(); }, 300);
+        } else {
+            alert('Erro ao atualizar nome: ' + (result.error || 'Erro desconhecido'));
+        }
+    } catch(e) {
+        alert('Erro ao atualizar nome do contato');
+    }
+}
+</script>
 </body>
 </html>
