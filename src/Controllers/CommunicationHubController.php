@@ -3860,6 +3860,7 @@ class CommunicationHubController extends Controller
                 ?? $payload['message']['caption']
                 ?? $payload['raw']['payload']['caption']  // WPPConnect image/video caption
                 ?? '';
+            $content = $this->resolveTemplateBody($db, $content);
             
             // OTIMIZAÇÃO: Usa cache de mídia (batch query) em vez de queries individuais
             // Antes: processMediaFromEvent + getMediaByEventId = 2 queries por mensagem (N*2 queries)
@@ -4032,6 +4033,7 @@ class CommunicationHubController extends Controller
                 ?? $payload['message']['caption']
                 ?? $payload['raw']['payload']['caption']  // WPPConnect image/video caption
                 ?? '';
+            $content = $this->resolveTemplateBody($db, $content);
             
             // Processa mídia base64 se ainda não foi processada (áudio OGG, imagens JPEG/PNG)
             try {
@@ -5047,6 +5049,7 @@ class CommunicationHubController extends Controller
                 ?? $payload['message']['caption']
                 ?? $payload['raw']['payload']['caption']  // WPPConnect image/video caption
                 ?? '';
+            $content = $this->resolveTemplateBody($db, $content);
             
             if (empty($content)) {
                 if (isset($payload['type']) || isset($payload['message']['type'])) {
@@ -5300,6 +5303,7 @@ class CommunicationHubController extends Controller
                 ?? $payload['message']['caption']
                 ?? $payload['raw']['payload']['caption']  // WPPConnect image/video caption
                 ?? '';
+            $content = $this->resolveTemplateBody($db, $content);
             
             // Processa mídia base64 se ainda não foi processada (áudio OGG, imagens JPEG/PNG)
             // Isso garante que mídias em base64 sejam processadas e salvas em communication_media
@@ -7749,6 +7753,29 @@ class CommunicationHubController extends Controller
             'conversation_id' => $conversationId,
             'request_id' => $requestId
         ];
+    }
+
+    /**
+     * Se o conteúdo for um placeholder "[Template: nome]", resolve para o texto real do template.
+     */
+    private function resolveTemplateBody(PDO $db, string $content): string
+    {
+        if (!preg_match('/^\[Template: (.+)\]$/', $content, $m)) {
+            return $content;
+        }
+        try {
+            $stmt = $db->prepare(
+                "SELECT content FROM whatsapp_message_templates WHERE template_name = ? AND status = 'approved' LIMIT 1"
+            );
+            $stmt->execute([$m[1]]);
+            $row = $stmt->fetch();
+            if ($row && !empty($row['content'])) {
+                return $row['content'];
+            }
+        } catch (\Throwable $e) {
+            // silencioso: fallback para placeholder original
+        }
+        return $content;
     }
 }
 
