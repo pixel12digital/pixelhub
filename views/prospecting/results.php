@@ -286,13 +286,21 @@ ob_start();
                         <?php if (!empty($instaPhone)): ?>
                         <div style="display:flex;align-items:center;gap:5px;">
                             <div id="phone-display-<?= $result['id'] ?>" style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($instaPhone) ?></div>
-                            <button onclick="openProspectWA('<?= htmlspecialchars($instaPhone) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>')" title="Enviar WhatsApp"
+                            <button onclick="openProspectWA('<?= htmlspecialchars($instaPhone) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>', <?= $result['id'] ?>)" title="Enviar WhatsApp"
                                     style="padding:2px 5px;background:#25d366;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;">WA</button>
                             <button onclick="showPhoneInput(<?= $result['id'] ?>, '<?= htmlspecialchars(addslashes($instaPhone)) ?>')" title="Editar telefone"
                                     style="padding:2px 4px;background:#f1f5f9;border:1px solid #d1d5db;border-radius:4px;font-size:10px;cursor:pointer;color:#64748b;">✏️</button>
                         </div>
+                        <div id="phone-input-wrap-<?= $result['id'] ?>" style="display:none;margin-top:4px;">
+                            <input type="text" id="phone-input-<?= $result['id'] ?>" value="<?= htmlspecialchars(addslashes($instaPhone)) ?>" placeholder="Ex: 11999999999"
+                                   style="width:110px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;">
+                            <button onclick="saveManualPhone(<?= $result['id'] ?>, this)" title="Salvar"
+                                    style="padding:3px 7px;background:#16a34a;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;margin-left:3px;">✓</button>
+                        </div>
                         <?php if (!empty($result['apify_phone_enriched_at'])): ?>
                         <div style="font-size:10px;color:#94a3b8;margin-top:2px;">✓ enriquecido</div>
+                        <?php else: ?>
+                        <div style="font-size:10px;color:#94a3b8;margin-top:2px;">✓ manual</div>
                         <?php endif; ?>
                         <?php elseif (!empty($result['apify_phone_enriched_at'])): ?>
                         <div style="display:flex;align-items:center;gap:5px;">
@@ -326,10 +334,16 @@ ob_start();
                         <?php if (!empty($phone)): ?>
                         <div style="display:flex;align-items:center;gap:5px;">
                             <div id="phone-display-<?= $result['id'] ?>" style="font-size:12px;color:#374151;font-weight:500;"><?= htmlspecialchars($phone) ?></div>
-                            <button onclick="openProspectWA('<?= htmlspecialchars($phone) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>')" title="Enviar WhatsApp"
+                            <button onclick="openProspectWA('<?= htmlspecialchars($phone) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>', <?= $result['id'] ?>)" title="Enviar WhatsApp"
                                     style="padding:2px 5px;background:#25d366;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;">WA</button>
                             <button onclick="showPhoneInput(<?= $result['id'] ?>, '<?= htmlspecialchars(addslashes($phone)) ?>')" title="Editar telefone"
                                     style="padding:2px 4px;background:#f1f5f9;border:1px solid #d1d5db;border-radius:4px;font-size:10px;cursor:pointer;color:#64748b;">✏️</button>
+                        </div>
+                        <div id="phone-input-wrap-<?= $result['id'] ?>" style="display:none;margin-top:4px;">
+                            <input type="text" id="phone-input-<?= $result['id'] ?>" value="<?= htmlspecialchars(addslashes($phone)) ?>" placeholder="Ex: 11999999999"
+                                   style="width:110px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;">
+                            <button onclick="saveManualPhone(<?= $result['id'] ?>, this)" title="Salvar"
+                                    style="padding:3px 7px;background:#16a34a;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;margin-left:3px;">✓</button>
                         </div>
                         <?php endif; ?>
                         <?php if (!empty($phoneSecundario)): ?>
