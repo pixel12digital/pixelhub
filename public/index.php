@@ -824,6 +824,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/prospecting/whatsapp-sessions', 'ProspectingController@whatsappSessions');
     $router->post('/prospecting/convert-to-lead', 'ProspectingController@convertToLead');
     $router->post('/prospecting/mark-wa-sent', 'ProspectingController@markWaSent');
+    $router->get('/prospecting/poll-status', 'ProspectingController@pollStatus');
 
     // Configurações — Catálogo de Produtos por Conta
     $router->get('/settings/tenant-products', 'TenantProductsController@index');

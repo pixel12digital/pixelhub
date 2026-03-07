@@ -637,7 +637,7 @@ class ChatbotFlowService
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             ");
             
-            $opportunityName = 'Corretor interessado via prospeção WhatsApp';
+            $opportunityName = 'Interesse no ImobSites — prospecção WhatsApp';
             $stage = 'contact'; // Lead demonstrou interesse ativo
             $status = 'open';
             $serviceId = 2; // SaaS ImobSites

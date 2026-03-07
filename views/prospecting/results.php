@@ -342,15 +342,13 @@ ob_start();
                     </td>
                     <td style="padding:14px 16px;text-align:center;">
                         <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-                        <select onchange="updateStatus(<?= $result['id'] ?>, this.value)"
+                        <select id="status-sel-<?= $result['id'] ?>" onchange="updateStatus(<?= $result['id'] ?>, this.value)"
                                 style="padding:4px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;font-weight:600;background:<?= $stStyle['bg'] ?>;color:<?= $stStyle['color'] ?>;cursor:pointer;">
                             <option value="new" <?= $st==='new'?'selected':'' ?> style="background:#fff;color:#374151;">Nova</option>
                             <option value="qualified" <?= $st==='qualified'?'selected':'' ?> style="background:#fff;color:#374151;">Qualificada</option>
                             <option value="discarded" <?= $st==='discarded'?'selected':'' ?> style="background:#fff;color:#374151;">Descartada</option>
                         </select>
-                        <?php if (!empty($result['whatsapp_sent_at'])): ?>
-                        <span title="WA enviado em <?= date('d/m/Y H:i', strtotime($result['whatsapp_sent_at'])) ?>" style="font-size:10px;color:#15803d;font-weight:600;display:flex;align-items:center;gap:2px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/></svg> WA enviado</span>
-                        <?php endif; ?>
+                        <span id="wa-badge-<?= $result['id'] ?>" style="font-size:10px;color:#15803d;font-weight:600;display:<?= !empty($result['whatsapp_sent_at']) ? 'flex' : 'none' ?>;align-items:center;gap:2px;" title="WA enviado<?= !empty($result['whatsapp_sent_at']) ? ' em '.date('d/m/Y H:i',strtotime($result['whatsapp_sent_at'])) : '' ?>"><svg width="10" height="10" viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/></svg> WA enviado</span>
                         </div>
                     </td>
                     <td style="padding:14px 16px;text-align:center;">
@@ -1121,6 +1119,66 @@ if ($totalPages > 1):
     </div>
 </div>
 <?php endif; ?>
+
+<script>
+(function() {
+    var _recipeId = <?= (int)$recipe['id'] ?>;
+    var _statusStyles = {
+        'new':       {bg:'#eff6ff', color:'#1d4ed8'},
+        'qualified': {bg:'#f0fdf4', color:'#15803d'},
+        'discarded': {bg:'#f1f5f9', color:'#64748b'}
+    };
+
+    function _collectIds() {
+        var ids = [];
+        document.querySelectorAll('tr[id^="row-"]').forEach(function(tr) {
+            ids.push(tr.id.replace('row-', ''));
+        });
+        return ids;
+    }
+
+    function _poll() {
+        var ids = _collectIds();
+        if (!ids.length) return;
+        fetch('/prospecting/poll-status?recipe_id=' + _recipeId + '&ids[]=' + ids.join('&ids[]='), {
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            Object.keys(data.results).forEach(function(id) {
+                var r = data.results[id];
+                var sel = document.getElementById('status-sel-' + id);
+                var badge = document.getElementById('wa-badge-' + id);
+                var row = document.getElementById('row-' + id);
+
+                if (sel && sel.value !== r.status) {
+                    sel.value = r.status;
+                    var st = _statusStyles[r.status] || _statusStyles['new'];
+                    sel.style.background = st.bg;
+                    sel.style.color = st.color;
+                    if (row) {
+                        row.dataset.status = r.status;
+                        row.style.opacity = r.status === 'discarded' ? '0.4' : '';
+                        row.style.filter = r.status === 'discarded' ? 'grayscale(0.5)' : '';
+                        row.style.background = r.status === 'discarded' ? '#f8fafc' : '';
+                    }
+                }
+
+                if (badge && r.whatsapp_sent_at && badge.style.display === 'none') {
+                    badge.style.display = 'flex';
+                    badge.title = 'WA enviado em ' + r.whatsapp_sent_at;
+                }
+            });
+        })
+        .catch(function() {});
+    }
+
+    // Primeira poll após 15s, depois a cada 30s
+    setTimeout(_poll, 15000);
+    setInterval(_poll, 30000);
+})();
+</script>
 
 <?php
 $content = ob_get_clean();

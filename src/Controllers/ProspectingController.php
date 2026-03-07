@@ -832,4 +832,45 @@ class ProspectingController extends Controller
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * GET /prospecting/poll-status
+     * Retorna status atual e whatsapp_sent_at para uma lista de IDs de resultados.
+     * Usado pelo polling JS da página de resultados para atualizar sem recarregar.
+     */
+    public function pollStatus(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+
+        try {
+            $ids = array_filter(array_map('intval', (array)($_GET['ids'] ?? [])));
+            if (empty($ids)) {
+                $this->json(['success' => true, 'results' => []]);
+                return;
+            }
+
+            $db = DB::getConnection();
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = $db->prepare("
+                SELECT id, status, whatsapp_sent_at
+                FROM prospecting_results
+                WHERE id IN ({$placeholders})
+            ");
+            $stmt->execute($ids);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            $results = [];
+            foreach ($rows as $row) {
+                $results[(string)$row['id']] = [
+                    'status'          => $row['status'],
+                    'whatsapp_sent_at' => $row['whatsapp_sent_at'],
+                ];
+            }
+
+            $this->json(['success' => true, 'results' => $results]);
+        } catch (\Exception $e) {
+            $this->json(['success' => false, 'results' => []], 500);
+        }
+    }
 }
