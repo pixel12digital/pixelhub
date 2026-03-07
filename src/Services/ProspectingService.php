@@ -1180,7 +1180,7 @@ class ProspectingService
         $db->prepare("
             UPDATE prospecting_results
             SET whatsapp_sent_at = COALESCE(whatsapp_sent_at, NOW()),
-                status = CASE WHEN status = 'new' THEN 'qualified' ELSE status END,
+                status = CASE WHEN status != 'discarded' THEN 'qualified' ELSE 'discarded' END,
                 updated_by = ?,
                 updated_at = NOW()
             WHERE id = ?
