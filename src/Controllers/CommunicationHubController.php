@@ -2814,6 +2814,7 @@ class CommunicationHubController extends Controller
                     c.message_count,
                     c.unread_count,
                     c.created_at,
+                    c.source,
                     COALESCE(t.name, 'Sem tenant') as tenant_name,
                     t.phone as tenant_phone,
                     l.name as lead_name,
@@ -7649,53 +7650,72 @@ class CommunicationHubController extends Controller
         error_log("[CommunicationHub::sendViaMetaAPI] Mensagem enviada com sucesso! message_id={$messageId}");
         
         // 7. Cria ou atualiza conversa no banco
-        // Usa o mesmo formato de key que ConversationService (whatsapp_shared_) para evitar duplicatas
         $conversationKey = 'whatsapp_shared_' . $normalizedPhone;
+        $contactName = trim($_POST['contact_name'] ?? '');
+        $conversationSource = trim($_POST['conversation_source'] ?? '');
+        $leadId = isset($_POST['lead_id']) && $_POST['lead_id'] !== '' ? (int) $_POST['lead_id'] : null;
 
-        // Busca conversa existente por contact_external_id + provider_type (tolerante a variações de key)
+        // Busca conversa existente por contact_external_id + provider_type
         $stmt = $db->prepare("
-            SELECT id FROM conversations
+            SELECT id, contact_name, channel_id FROM conversations
             WHERE contact_external_id = ?
               AND channel_type = 'whatsapp'
               AND provider_type = 'meta_official'
-              AND (tenant_id = ? OR (tenant_id IS NULL AND ? IS NULL))
             ORDER BY last_message_at DESC
             LIMIT 1
         ");
         $tenantIdForDb = ($tenantId && $tenantId > 0) ? $tenantId : null;
-        $stmt->execute([$normalizedPhone, $tenantIdForDb, $tenantIdForDb]);
+        $stmt->execute([$normalizedPhone]);
         $conversation = $stmt->fetch();
 
         if ($conversation) {
             $conversationId = $conversation['id'];
             error_log("[CommunicationHub::sendViaMetaAPI] Conversa existente encontrada: {$conversationId}");
-            $stmt = $db->prepare("UPDATE conversations SET updated_at = NOW() WHERE id = ?");
-            $stmt->execute([$conversationId]);
+            $updateContactName = (!empty($contactName) && empty($conversation['contact_name'])) ? $contactName : null;
+            $updateChannelId   = empty($conversation['channel_id']) ? $phoneNumberId : null;
+            $stmt = $db->prepare("
+                UPDATE conversations
+                SET updated_at = NOW()
+                    " . ($updateContactName ? ", contact_name = ?" : "") . "
+                    " . ($updateChannelId   ? ", channel_id = ?"   : "") . "
+                WHERE id = ?
+            ");
+            $params = [];
+            if ($updateContactName) $params[] = $updateContactName;
+            if ($updateChannelId)   $params[] = $updateChannelId;
+            $params[] = $conversationId;
+            $stmt->execute($params);
         } else {
-            // Verifica se há lead_id no POST para vincular
-            $leadId = isset($_POST['lead_id']) && $_POST['lead_id'] !== '' ? (int) $_POST['lead_id'] : null;
-
             $stmt = $db->prepare("
                 INSERT INTO conversations (
-                    conversation_key,
-                    tenant_id,
-                    lead_id,
-                    contact_external_id,
-                    channel_type,
-                    provider_type,
-                    status,
-                    is_incoming_lead,
-                    created_at,
-                    updated_at
-                ) VALUES (?, ?, ?, ?, 'whatsapp', 'meta_official', 'active', ?, NOW(), NOW())
+                    conversation_key, tenant_id, lead_id,
+                    contact_name, contact_external_id,
+                    channel_type, channel_id, provider_type,
+                    source, status, is_incoming_lead,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, 'whatsapp', ?, 'meta_official', ?, 'active', ?, NOW(), NOW())
             ");
             $isIncomingLead = $leadId ? 1 : 0;
-            $stmt->execute([$conversationKey, $tenantIdForDb, $leadId, $normalizedPhone, $isIncomingLead]);
+            $stmt->execute([
+                $conversationKey, $tenantIdForDb, $leadId,
+                $contactName ?: null, $normalizedPhone,
+                $phoneNumberId,
+                $conversationSource ?: null,
+                $isIncomingLead
+            ]);
             $conversationId = (int) $db->lastInsertId();
-
-            error_log("[CommunicationHub::sendViaMetaAPI] Nova conversa criada: {$conversationId}" . ($leadId ? " (lead_id={$leadId})" : ""));
+            error_log("[CommunicationHub::sendViaMetaAPI] Nova conversa criada: {$conversationId}" . ($leadId ? " (lead_id={$leadId})" : "") . ($conversationSource ? " (source={$conversationSource})" : ""));
         }
-        
+
+        // Monta body legível para exibição no Inbox
+        $templateBodyText = $template['body_text'] ?? $template['body'] ?? '';
+        if (!empty($templateBodyText) && !empty($templateVariables)) {
+            foreach ($templateVariables as $i => $var) {
+                $templateBodyText = str_replace('{{' . ($i + 1) . '}}', $var['text'] ?? '', $templateBodyText);
+            }
+        }
+        $messageBody = $templateBodyText ?: '[Template: ' . $template['template_name'] . ']';
+
         // 8. Registra evento de envio via EventIngestionService
         try {
             $eventData = [
@@ -7704,6 +7724,9 @@ class CommunicationHubController extends Controller
                 'payload' => [
                     'message_id' => $messageId,
                     'to' => $normalizedPhone,
+                    'body' => $messageBody,
+                    'type' => 'template',
+                    'from_me' => true,
                     'template' => $template['template_name'],
                     'status' => 'sent',
                     'timestamp' => time()

@@ -1672,6 +1672,8 @@ body.communication-hub-page {
                                            title="Clique para ver detalhes do cliente">• <?= htmlspecialchars($thread['tenant_name']) ?></a>
                                     <?php elseif (!empty($thread['lead_id'])): ?>
                                         <span style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px;" title="Lead vinculado">• Lead<?= !empty($thread['lead_name']) ? ': ' . htmlspecialchars($thread['lead_name']) : (!empty($thread['lead_phone']) ? ' (' . htmlspecialchars($thread['lead_phone']) . ')' : '') ?></span>
+                                    <?php elseif (($thread['source'] ?? '') === 'prospecting'): ?>
+                                        <span style="background:#0d6efd;color:#fff;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;letter-spacing:.3px;">Prospecção</span>
                                     <?php elseif (!isset($thread['tenant_name']) || $thread['tenant_id'] === null): ?>
                                         <span style="opacity: 0.7; font-size: 10px;">• Novo contato</span>
                                     <?php endif; ?>

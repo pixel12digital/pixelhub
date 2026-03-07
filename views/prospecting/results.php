@@ -946,7 +946,7 @@ function openProspectWA(phone, name, resultId) {
         if (row && row.dataset.name) name = row.dataset.name;
     }
     if (typeof setNewMessageLeadContext === 'function') {
-        setNewMessageLeadContext({ lead_id: '', lead_name: name || '', lead_phone: phone });
+        setNewMessageLeadContext({ lead_id: '', lead_name: name || '', lead_phone: phone, source: 'prospecting' });
     }
     if (typeof openNewMessageModal === 'function') {
         openNewMessageModal();

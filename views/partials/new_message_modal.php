@@ -85,6 +85,8 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                         </div>
                     </div>
                     <input type="hidden" name="lead_id" id="new-message-lead-id" value="">
+                    <input type="hidden" name="contact_name" id="new-message-contact-name" value="">
+                    <input type="hidden" name="conversation_source" id="new-message-source" value="">
                 </div>
 
                 <div class="searchable-dropdown" id="modalClienteDropdown">
@@ -254,6 +256,9 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         var clienteDropdown = document.getElementById('modalClienteDropdown');
         var tenantIdInput = document.getElementById('modalClienteTenantId');
         var toField = document.getElementById('new-message-to');
+        var contactNameInput = document.getElementById('new-message-contact-name');
+        var sourceInput = document.getElementById('new-message-source');
+        var leadSource = leadData.source || '';
 
         console.log('[NewMessage] Setando contexto de lead:', leadData);
 
@@ -262,6 +267,8 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         if (tenantIdInput) tenantIdInput.value = '';
 
         if (leadIdInput) leadIdInput.value = leadId;
+        if (contactNameInput) contactNameInput.value = leadName || '';
+        if (sourceInput) sourceInput.value = leadSource;
         if (leadDisplay) leadDisplay.textContent = (leadName && String(leadName).trim() !== '') ? leadName : ('Lead: ' + (leadPhone || '#' + leadId));
         if (leadPhoneEl) leadPhoneEl.textContent = leadPhone ? leadPhone : '';
         if (leadContainer) leadContainer.style.display = 'block';
@@ -285,7 +292,11 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
 
         console.log('[NewMessage] Resetando contexto de lead');
 
+        var contactNameInput = document.getElementById('new-message-contact-name');
+        var sourceInput = document.getElementById('new-message-source');
         if (leadIdInput) leadIdInput.value = '';
+        if (contactNameInput) contactNameInput.value = '';
+        if (sourceInput) sourceInput.value = '';
         if (leadDisplay) leadDisplay.textContent = '';
         if (leadPhoneEl) leadPhoneEl.textContent = '';
         if (leadContainer) leadContainer.style.display = 'none';
