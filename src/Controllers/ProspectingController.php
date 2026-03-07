@@ -500,6 +500,7 @@ class ProspectingController extends Controller
             'matriz_filial'    => $_GET['matriz_filial'] ?? null,
             'tem_contato'      => $_GET['tem_contato'] ?? null,
             'google_enrichment'=> $_GET['google_enrichment'] ?? null,
+            'wa_sent'          => $_GET['wa_sent'] ?? null,
         ];
 
         $limit   = 100;
@@ -621,7 +622,7 @@ class ProspectingController extends Controller
         $status = trim($_POST['status'] ?? '');
         $notes  = trim($_POST['notes'] ?? '') ?: null;
 
-        $validStatuses = ['new', 'contacted', 'qualified', 'discarded'];
+        $validStatuses = ['new', 'qualified', 'discarded'];
         if (!$id || !in_array($status, $validStatuses)) {
             $this->json(['success' => false, 'error' => 'Parâmetros inválidos'], 400);
             return;
@@ -630,6 +631,30 @@ class ProspectingController extends Controller
         try {
             $userId = Auth::user()['id'] ?? null;
             ProspectingService::updateResultStatus($id, $status, $notes, $userId);
+            $this->json(['success' => true]);
+        } catch (\Exception $e) {
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * POST /prospecting/mark-wa-sent  (AJAX)
+     * Marca resultado como mensagem WA enviada e faz upgrade de status para 'qualified' se ainda for 'new'
+     */
+    public function markWaSent(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $id = (int) ($_POST['result_id'] ?? 0);
+        if (!$id) {
+            $this->json(['success' => false, 'error' => 'ID inválido'], 400);
+            return;
+        }
+
+        try {
+            $userId = Auth::user()['id'] ?? null;
+            ProspectingService::markWaSent($id, $userId);
             $this->json(['success' => true]);
         } catch (\Exception $e) {
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);

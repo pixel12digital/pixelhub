@@ -44,9 +44,13 @@ ob_start();
             <select name="status" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:140px;">
                 <option value="">Todos os status</option>
                 <option value="new" <?= ($filters['status'] ?? '') === 'new' ? 'selected' : '' ?>>Novas</option>
-                <option value="contacted" <?= ($filters['status'] ?? '') === 'contacted' ? 'selected' : '' ?>>Cadastradas</option>
                 <option value="qualified" <?= ($filters['status'] ?? '') === 'qualified' ? 'selected' : '' ?>>Qualificadas</option>
                 <option value="discarded" <?= ($filters['status'] ?? '') === 'discarded' ? 'selected' : '' ?>>Descartadas</option>
+            </select>
+            <select name="wa_sent" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:170px;">
+                <option value="">WA: Todos</option>
+                <option value="sent" <?= ($filters['wa_sent'] ?? '') === 'sent' ? 'selected' : '' ?>>✓ Mensagem enviada</option>
+                <option value="not_sent" <?= ($filters['wa_sent'] ?? '') === 'not_sent' ? 'selected' : '' ?>>○ Sem mensagem</option>
             </select>
         </div>
         
@@ -110,7 +114,7 @@ ob_start();
 <!-- Legenda de status -->
 <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
     <?php
-    $statusLabels = ['new'=>['label'=>'Nova','bg'=>'#eff6ff','color'=>'#1d4ed8'],'contacted'=>['label'=>'Cadastrada','bg'=>'#fef3c7','color'=>'#92400e'],'qualified'=>['label'=>'Qualificada','bg'=>'#f0fdf4','color'=>'#15803d'],'discarded'=>['label'=>'Descartada','bg'=>'#f1f5f9','color'=>'#64748b']];
+    $statusLabels = ['new'=>['label'=>'Nova','bg'=>'#eff6ff','color'=>'#1d4ed8'],'qualified'=>['label'=>'Qualificada','bg'=>'#f0fdf4','color'=>'#15803d'],'discarded'=>['label'=>'Descartada','bg'=>'#f1f5f9','color'=>'#64748b']];
     foreach ($statusLabels as $sk => $sv):
     ?>
     <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:<?= $sv['bg'] ?>;color:<?= $sv['color'] ?>;"><?= $sv['label'] ?></span>
@@ -337,13 +341,17 @@ ob_start();
                         <?php endif; ?>
                     </td>
                     <td style="padding:14px 16px;text-align:center;">
+                        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
                         <select onchange="updateStatus(<?= $result['id'] ?>, this.value)"
                                 style="padding:4px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;font-weight:600;background:<?= $stStyle['bg'] ?>;color:<?= $stStyle['color'] ?>;cursor:pointer;">
                             <option value="new" <?= $st==='new'?'selected':'' ?> style="background:#fff;color:#374151;">Nova</option>
-                            <option value="contacted" <?= $st==='contacted'?'selected':'' ?> style="background:#fff;color:#374151;">Cadastrada</option>
                             <option value="qualified" <?= $st==='qualified'?'selected':'' ?> style="background:#fff;color:#374151;">Qualificada</option>
                             <option value="discarded" <?= $st==='discarded'?'selected':'' ?> style="background:#fff;color:#374151;">Descartada</option>
                         </select>
+                        <?php if (!empty($result['whatsapp_sent_at'])): ?>
+                        <span title="WA enviado em <?= date('d/m/Y H:i', strtotime($result['whatsapp_sent_at'])) ?>" style="font-size:10px;color:#15803d;font-weight:600;display:flex;align-items:center;gap:2px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/></svg> WA enviado</span>
+                        <?php endif; ?>
+                        </div>
                     </td>
                     <td style="padding:14px 16px;text-align:center;">
                         <div style="display:flex;gap:4px;justify-content:center;align-items:center;flex-wrap:wrap;">
@@ -355,10 +363,10 @@ ob_start();
                             ?>
                             <!-- WhatsApp: sempre que tiver telefone -->
                             <?php if (!empty($phoneForWA)): ?>
-                            <button onclick="openProspectWA('<?= htmlspecialchars($phoneForWA) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>')"
+                            <button onclick="openProspectWA('<?= htmlspecialchars($phoneForWA) ?>', '<?= htmlspecialchars(addslashes($result['name'])) ?>', <?= $result['id'] ?>)"
                                     id="wa-btn-<?= $result['id'] ?>"
-                                    style="padding:6px;background:#25d366;color:#fff;border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"
-                                    title="Enviar mensagem WhatsApp">
+                                    style="padding:6px;background:<?= !empty($result['whatsapp_sent_at']) ? '#15803d' : '#25d366' ?>;color:#fff;border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"
+                                    title="<?= !empty($result['whatsapp_sent_at']) ? 'WA enviado em ' . date('d/m/Y', strtotime($result['whatsapp_sent_at'])) . ' — Enviar novamente' : 'Enviar mensagem WhatsApp' ?>">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
                             </button>
                             <?php endif; ?>
@@ -946,7 +954,7 @@ function openProspectWA(phone, name, resultId) {
         if (row && row.dataset.name) name = row.dataset.name;
     }
     if (typeof setNewMessageLeadContext === 'function') {
-        setNewMessageLeadContext({ lead_id: '', lead_name: name || '', lead_phone: phone, source: 'prospecting' });
+        setNewMessageLeadContext({ lead_id: '', lead_name: name || '', lead_phone: phone, source: 'prospecting', prospecting_result_id: resultId || '' });
     }
     if (typeof openNewMessageModal === 'function') {
         openNewMessageModal();

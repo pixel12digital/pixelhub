@@ -87,6 +87,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                     <input type="hidden" name="lead_id" id="new-message-lead-id" value="">
                     <input type="hidden" name="contact_name" id="new-message-contact-name" value="">
                     <input type="hidden" name="conversation_source" id="new-message-source" value="">
+                    <input type="hidden" id="new-message-prospecting-result-id" value="">
                 </div>
 
                 <div class="searchable-dropdown" id="modalClienteDropdown">
@@ -258,6 +259,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         var toField = document.getElementById('new-message-to');
         var contactNameInput = document.getElementById('new-message-contact-name');
         var sourceInput = document.getElementById('new-message-source');
+        var prospectingResultInput = document.getElementById('new-message-prospecting-result-id');
         var leadSource = leadData.source || '';
 
         console.log('[NewMessage] Setando contexto de lead:', leadData);
@@ -269,6 +271,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         if (leadIdInput) leadIdInput.value = leadId;
         if (contactNameInput) contactNameInput.value = leadName || '';
         if (sourceInput) sourceInput.value = leadSource;
+        if (prospectingResultInput) prospectingResultInput.value = leadData.prospecting_result_id || '';
         if (leadDisplay) leadDisplay.textContent = (leadName && String(leadName).trim() !== '') ? leadName : ('Lead: ' + (leadPhone || '#' + leadId));
         if (leadPhoneEl) leadPhoneEl.textContent = leadPhone ? leadPhone : '';
         if (leadContainer) leadContainer.style.display = 'block';
@@ -294,9 +297,11 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
 
         var contactNameInput = document.getElementById('new-message-contact-name');
         var sourceInput = document.getElementById('new-message-source');
+        var prospectingResultInput = document.getElementById('new-message-prospecting-result-id');
         if (leadIdInput) leadIdInput.value = '';
         if (contactNameInput) contactNameInput.value = '';
         if (sourceInput) sourceInput.value = '';
+        if (prospectingResultInput) prospectingResultInput.value = '';
         if (leadDisplay) leadDisplay.textContent = '';
         if (leadPhoneEl) leadPhoneEl.textContent = '';
         if (leadContainer) leadContainer.style.display = 'none';
@@ -595,6 +600,16 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             }
             if (result.success) {
                 if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Enviar'; }
+                // Marca WA enviado na prospecção (atualiza status para Qualificado se Nova)
+                var prospResultId = (document.getElementById('new-message-prospecting-result-id') || {}).value;
+                if (prospResultId) {
+                    fetch('<?= htmlspecialchars(pixelhub_url('/prospecting/mark-wa-sent'), ENT_QUOTES) ?>', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                        credentials: 'same-origin',
+                        body: 'result_id=' + encodeURIComponent(prospResultId)
+                    }).catch(function() {});
+                }
                 alert('Mensagem enviada com sucesso!');
                 closeNewMessageModal();
                 // Este modal só existe fora do /communication-hub (board, projetos, etc.)

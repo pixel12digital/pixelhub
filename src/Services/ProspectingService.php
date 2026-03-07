@@ -1028,6 +1028,15 @@ class ProspectingService
             }
         }
 
+        // Filtro de mensagem WA enviada
+        if (!empty($filters['wa_sent'])) {
+            if ($filters['wa_sent'] === 'sent') {
+                $where[] = 'pr.whatsapp_sent_at IS NOT NULL';
+            } elseif ($filters['wa_sent'] === 'not_sent') {
+                $where[] = 'pr.whatsapp_sent_at IS NULL';
+            }
+        }
+
         $whereStr = implode(' AND ', $where);
 
         $stmt = $db->prepare("
@@ -1122,6 +1131,15 @@ class ProspectingService
             }
         }
 
+        // Filtro de mensagem WA enviada
+        if (!empty($filters['wa_sent'])) {
+            if ($filters['wa_sent'] === 'sent') {
+                $where[] = 'whatsapp_sent_at IS NOT NULL';
+            } elseif ($filters['wa_sent'] === 'not_sent') {
+                $where[] = 'whatsapp_sent_at IS NULL';
+            }
+        }
+
         $whereStr = implode(' AND ', $where);
         $stmt = $db->prepare("SELECT COUNT(*) FROM prospecting_results WHERE {$whereStr}");
         $stmt->execute($params);
@@ -1151,6 +1169,22 @@ class ProspectingService
             SET status = ?, notes = COALESCE(?, notes), updated_by = ?, updated_at = NOW()
             WHERE id = ?
         ")->execute([$status, $notes, $userId, $id]);
+    }
+
+    /**
+     * Marca resultado como mensagem WA enviada e faz upgrade para 'qualified' se status for 'new'
+     */
+    public static function markWaSent(int $id, ?int $userId = null): void
+    {
+        $db = DB::getConnection();
+        $db->prepare("
+            UPDATE prospecting_results
+            SET whatsapp_sent_at = COALESCE(whatsapp_sent_at, NOW()),
+                status = CASE WHEN status = 'new' THEN 'qualified' ELSE status END,
+                updated_by = ?,
+                updated_at = NOW()
+            WHERE id = ?
+        ")->execute([$userId, $id]);
     }
 
     /**
