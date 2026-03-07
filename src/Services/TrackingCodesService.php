@@ -52,6 +52,9 @@ class TrackingCodesService
             ],
             'prospecting' => [
                 'prospecting_google_maps' => 'Prospecção Ativa (Google Maps)',
+                'prospecting_cnae'        => 'Prospecção Ativa (CNAE)',
+                'prospecting_instagram'   => 'Prospecção Ativa (Instagram)',
+                'prospecting_linkedin'    => 'Prospecção Ativa (LinkedIn)',
             ]
         ];
     }
