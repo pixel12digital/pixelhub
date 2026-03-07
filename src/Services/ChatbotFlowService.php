@@ -527,7 +527,8 @@ class ChatbotFlowService
             $conv = $stmt->fetch();
             
             if (!$conv || !$conv['lead_id']) {
-                error_log('[ChatbotFlow] Não foi possível criar oportunidade: conversa sem lead associado');
+                error_log('[ChatbotFlow] Conversa sem lead associado — notificando consultores sem criar oportunidade');
+                self::createChatbotNotification($conversationId, 0, $flow);
                 return null;
             }
             
@@ -704,10 +705,12 @@ class ChatbotFlowService
             $stmt->execute([$opportunityId, $conversationId]);
             $data = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-            $leadName  = $data['lead_name'] ?? 'Lead desconhecido';
+            $leadName  = $data['lead_name'] ?? $data['contact_external_id'] ?? 'Prospect desconhecido';
             $leadPhone = $data['lead_phone'] ?? $data['contact_external_id'] ?? '';
-            $title     = "🔥 Lead interessado: {$leadName}";
-            $message   = "Clicou em 'Quero conhecer' no WhatsApp. Oportunidade #{$opportunityId} criada/atualizada. Etapa: Contato.";
+            $title     = "🔥 Prospect interessado: {$leadName}";
+            $message   = $opportunityId > 0
+                ? "Clicou em 'Quero conhecer' no WhatsApp. Oportunidade #{$opportunityId} criada/atualizada. Etapa: Contato."
+                : "Clicou em 'Quero conhecer' no WhatsApp. Telefone: {$leadPhone}. Verifique o Inbox e crie a oportunidade.";
             $entityData = json_encode([
                 'opportunity_id'  => $opportunityId,
                 'conversation_id' => $conversationId,
