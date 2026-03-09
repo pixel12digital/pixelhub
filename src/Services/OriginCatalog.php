@@ -248,11 +248,6 @@ class OriginCatalog
                 'group' => 'CRM'
             ],
             [
-                'key' => 'prospecting_whatsapp',
-                'label' => 'Prospecção Ativa (WhatsApp)',
-                'group' => 'CRM'
-            ],
-            [
                 'key' => 'prospecting_instagram',
                 'label' => 'Prospecção Ativa (Instagram)',
                 'group' => 'CRM'

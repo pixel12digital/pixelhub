@@ -1843,34 +1843,16 @@ document.getElementById('edit-origin-select').addEventListener('change', functio
     fetch('/settings/tracking-codes/by-channel?channel=' + encodeURIComponent(channel))
         .then(r => r.json())
         .then(data => {
-            // Se não há códigos para o canal específico, carrega todos os ativos como fallback
             if (!data.success || !data.codes || data.codes.length === 0) {
-                return fetch('/settings/tracking-codes/by-channel?channel=all')
-                    .then(r2 => r2.json())
-                    .then(data2 => {
-                        if (!data2.success || !data2.codes || data2.codes.length === 0) {
-                            section.style.display = 'none';
-                            _trackingCodesLoaded = [];
-                            return;
-                        }
-                        data = data2;
-                        renderTrackingCodesList(data.codes, section, list);
-                    });
+                section.style.display = 'none';
+                _trackingCodesLoaded = [];
+                return;
             }
-            renderTrackingCodesList(data.codes, section, list);
-        })
-        .catch(function() {
-            section.style.display = 'none';
-        });
-});
-
-function renderTrackingCodesList(codes, section, list) {
-            _trackingCodesLoaded = codes;
-            document.getElementById('tracking-codes-count').textContent = codes.length;
+            _trackingCodesLoaded = data.codes;
+            document.getElementById('tracking-codes-count').textContent = data.codes.length;
 
             let html = '';
-            codes.forEach(function(c) {
-                const codeJson = escHtml(JSON.stringify(c));
+            data.codes.forEach(function(c) {
                 html += '<div onclick="selectTrackingCode(' + escHtml(JSON.stringify(c.code)) + ', ' + escHtml(JSON.stringify(c.description || c.code)) + ', this)"'
                     + ' data-code="' + escHtml(c.code) + '"'
                     + ' style="padding: 8px 12px; border-bottom: 1px solid #eef0ff; font-size: 12px; cursor: pointer; transition: background 0.15s;"'
@@ -1883,7 +1865,11 @@ function renderTrackingCodesList(codes, section, list) {
             });
             list.innerHTML = html;
             section.style.display = 'block';
-}
+        })
+        .catch(function() {
+            section.style.display = 'none';
+        });
+});
 
 function selectTrackingCode(code, label, el) {
     _selectedTrackingCode = code;
