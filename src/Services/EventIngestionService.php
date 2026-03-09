@@ -141,29 +141,11 @@ class EventIngestionService
             $direction = 'received'; // Default para webhook
         }
         
-        error_log(sprintf(
-            '[HUB_MSG_DIRECTION] computed=%s source=%s event_type=%s',
-            $direction,
-            $sourceSystem === 'wpp_gateway' ? 'webhook' : 'send_api',
-            $eventType
-        ));
-
-        // 🔍 PASSO 7: PERSISTÊNCIA - Log antes e depois do insert
         $messageId = $eventData['payload']['id'] 
             ?? $eventData['payload']['messageId'] 
             ?? $eventData['payload']['message_id'] 
             ?? $eventData['payload']['message']['id'] ?? null;
         $channelId = $eventData['metadata']['channel_id'] ?? null;
-        
-        error_log(sprintf(
-            '[HUB_MSG_SAVE] INSERT_ATTEMPT event_id=%s message_id=%s event_type=%s tenant_id=%s channel_id=%s direction=%s',
-            $eventId,
-            $messageId ?: 'NULL',
-            $eventType,
-            $tenantId ?: 'NULL',
-            $channelId ?: 'NULL',
-            $direction
-        ));
         
         // Insere evento
         try {
@@ -186,24 +168,6 @@ class EventIngestionService
                 $metadataJson
             ]);
             
-            // Busca ID (PK) criado para log completo
-            $stmt = $db->prepare("SELECT id, created_at FROM communication_events WHERE event_id = ? LIMIT 1");
-            $stmt->execute([$eventId]);
-            $createdEvent = $stmt->fetch();
-            $idPk = $createdEvent ? $createdEvent['id'] : 'NULL';
-            $createdAt = $createdEvent ? $createdEvent['created_at'] : 'NULL';
-            
-            // 🔍 PASSO 7: PERSISTÊNCIA - Log de sucesso
-            error_log(sprintf(
-                '[HUB_MSG_SAVE_OK] event_id=%s id_pk=%s message_id=%s conversation_id=verificar_no_resolve channel_id=%s created_at=%s direction=%s',
-                $eventId,
-                $idPk,
-                $messageId ?: 'NULL',
-                $channelId ?: 'NULL',
-                $createdAt,
-                $direction
-            ));
-            
         } catch (\PDOException $e) {
             // 🔍 PASSO 7: PERSISTÊNCIA - Log de erro (sem engolir)
             error_log(sprintf(
@@ -225,28 +189,11 @@ class EventIngestionService
             );
         }
 
-        // Log
-        if (function_exists('pixelhub_log')) {
-            pixelhub_log(sprintf(
-                '[EventIngestion] Evento ingerido: %s (event_id: %s, trace_id: %s, tenant_id: %s)',
-                $eventType,
-                $eventId,
-                $traceId,
-                $tenantId ?: 'NULL'
-            ));
-        }
-
         // Regra #1: Só criar/atualizar conversation quando for "mensagem"
         // Eventos técnicos (connection.update, status-find, etc.) não devem criar conversations
         $shouldCreateConversation = self::shouldCreateConversation($eventType, $payload);
         
         if (!$shouldCreateConversation) {
-            // Evento técnico - marca como processado sem conversation
-            error_log(sprintf(
-                '[EventIngestion] Evento técnico processado sem conversation: event_type=%s, event_id=%s',
-                $eventType,
-                $eventId
-            ));
             self::updateStatus($eventId, 'processed');
             return $eventId;
         }
@@ -267,15 +214,7 @@ class EventIngestionService
             }
         }
         
-        // Etapa 1: Resolve conversa (incremental, não quebra se falhar)
-        // 🔍 LOG TEMPORÁRIO: Rastreamento de chamada
-        error_log(sprintf(
-            '[DIAGNOSTICO] EventIngestion::ingest() - CHAMANDO resolveConversation: event_id=%s, event_type=%s, tenant_id=%s',
-            $eventId,
-            $eventType,
-            $tenantId ?: 'NULL'
-        ));
-        
+        // Etapa 1: Resolve conversa
         try {
             $conversation = \PixelHub\Services\ConversationService::resolveConversation([
                 'event_type' => $eventType,
@@ -285,40 +224,12 @@ class EventIngestionService
                 'metadata' => !empty($eventData['metadata']) ? $eventData['metadata'] : null,
             ]);
             
-            // 🔍 LOG TEMPORÁRIO: Resultado da chamada
             if ($conversation) {
-                error_log(sprintf(
-                    '[DIAGNOSTICO] EventIngestion::ingest() - resolveConversation RETORNOU: conversation_id=%d, conversation_key=%s',
-                    $conversation['id'],
-                    $conversation['conversation_key'] ?? 'NULL'
-                ));
-            } else {
-                error_log(sprintf(
-                    '[DIAGNOSTICO] EventIngestion::ingest() - resolveConversation RETORNOU NULL para event_id=%s',
-                    $eventId
-                ));
-            }
-
-            if ($conversation) {
-                // 🔍 PASSO 7: PERSISTÊNCIA - Atualiza log com conversation_id
-                error_log(sprintf(
-                    '[HUB_MSG_SAVE_OK] conversation_id=%d event_id=%s message_id=%s',
-                    $conversation['id'],
-                    $eventId,
-                    $messageId ?: 'NULL'
-                ));
-                
-                // CORREÇÃO: Atualiza evento com conversation_id
                 try {
                     $updateConvStmt = $db->prepare("UPDATE communication_events SET conversation_id = ? WHERE event_id = ?");
                     $updateConvStmt->execute([$conversation['id'], $eventId]);
-                    error_log(sprintf(
-                        '[EventIngestion] Evento atualizado com conversation_id=%d, event_id=%s',
-                        $conversation['id'],
-                        $eventId
-                    ));
                 } catch (\Exception $e) {
-                    error_log("[EventIngestion] Erro ao atualizar conversation_id (não crítico): " . $e->getMessage());
+                    error_log("[EventIngestion] Erro ao atualizar conversation_id: " . $e->getMessage());
                 }
 
                 // ===== HISTÓRICO DA OPORTUNIDADE (custo zero, inbound) =====

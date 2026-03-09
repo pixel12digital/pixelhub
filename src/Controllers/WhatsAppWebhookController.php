@@ -107,53 +107,6 @@ class WhatsAppWebhookController extends Controller
                 ?? $payload['trace_id'] 
                 ?? $payload['traceId'] ?? null;
             
-            // Normaliza from para log (antes da normalização completa)
-            $normalizedFrom = null;
-            if ($from) {
-                // Remove sufixos @c.us, @s.whatsapp.net, etc. para log
-                $fromForLog = preg_replace('/@.*$/', '', $from);
-                $normalizedFrom = \PixelHub\Services\PhoneNormalizer::toE164OrNull($fromForLog);
-            }
-            
-            $payloadHashShort = substr($payloadHash, 0, 8);
-            
-            // Log padrão HUB_WEBHOOK_IN
-            error_log(sprintf(
-                '[HUB_WEBHOOK_IN] eventType=%s channel_id=%s tenant_id=%s from=%s normalized_from=%s message_id=%s timestamp=%s correlationId=%s payload_hash=%s',
-                $eventType ?: 'NULL',
-                $channelId ?: 'NULL',
-                $tenantId ?: 'NULL',
-                $from ?: 'NULL',
-                $normalizedFrom ?: 'NULL',
-                $messageId ?: 'NULL',
-                $timestamp ?: 'NULL',
-                $correlationId ?: 'NULL',
-                $payloadHashShort
-            ));
-            
-            // Log detalhado do payload e headers (mantido para debug)
-            $headers = [];
-            foreach ($_SERVER as $key => $value) {
-                if (strpos($key, 'HTTP_') === 0) {
-                    $headerName = str_replace(' ', '-', ucwords(str_replace('_', ' ', strtolower(substr($key, 5)))));
-                    $headers[$headerName] = $value;
-                }
-            }
-            
-            error_log('[WHATSAPP INBOUND RAW] Payload recebido: ' . json_encode([
-                'event' => $eventType,
-                'from' => $from,
-                'session_id' => $channelId,
-                'channel' => $channelId,
-                'payload_keys' => array_keys($payload),
-                'has_message' => isset($payload['message']),
-                'has_data' => isset($payload['data']),
-                'has_session' => isset($payload['session']),
-            ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-            
-            error_log('[WHATSAPP INBOUND RAW] Headers: ' . json_encode($headers, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-            error_log('[WHATSAPP INBOUND RAW] Payload completo (primeiros 2000 chars): ' . substr($rawPayload, 0, 2000));
-
             // Valida secret se configurado
             $expectedSecret = Env::get('PIXELHUB_WHATSAPP_WEBHOOK_SECRET');
             if (!empty($expectedSecret)) {
