@@ -4781,12 +4781,10 @@ class CommunicationHubController extends Controller
 
     /**
      * Verifica se há novas mensagens (check leve, otimizado)
-     * 
-     * GET /communication-hub/messages/check?thread_id=X&after_timestamp=Y&after_event_id=Z
-     * 
-     * Retorna apenas {has_new: bool} para verificação rápida
-     * 
-     * OTIMIZADO: Não carrega payloads JSON, apenas verifica existência
+     *
+     * GET /communication-hub/messages/check?thread_id=X&after_timestamp=Y
+     *
+     * OTIMIZADO: Usa apenas conversations.last_message_at (lookup por PK — sem JSON_EXTRACT)
      */
     public function checkNewMessages(): void
     {
@@ -4795,117 +4793,49 @@ class CommunicationHubController extends Controller
 
         $threadId = $_GET['thread_id'] ?? null;
         $afterTimestamp = $_GET['after_timestamp'] ?? null;
-        $afterEventId = $_GET['after_event_id'] ?? null;
 
         if (empty($threadId)) {
             $this->json(['success' => false, 'error' => 'thread_id é obrigatório'], 400);
             return;
         }
 
+        // Extrai conversation_id do thread_id (formato: whatsapp_{id} ou chat_{id})
+        $conversationId = null;
+        if (preg_match('/^(?:whatsapp|chat)_(\d+)$/', $threadId, $m)) {
+            $conversationId = (int) $m[1];
+        }
+
+        if (!$conversationId) {
+            $this->json(['success' => true, 'has_new' => false]);
+            return;
+        }
+
         $db = DB::getConnection();
 
         try {
-            // Resolve thread para pegar dados da conversa
-            $conversationData = $this->resolveThreadToConversation($db, $threadId);
-            if (!$conversationData) {
+            $stmt = $db->prepare("
+                SELECT last_message_at, message_count
+                FROM conversations
+                WHERE id = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$conversationId]);
+            $conv = $stmt->fetch();
+
+            if (!$conv) {
                 $this->json(['success' => false, 'error' => 'Thread não encontrado'], 404);
                 return;
             }
 
-            $contactExternalId = $conversationData['contact_external_id'];
-            $tenantId = $conversationData['tenant_id'];
-
-            $normalizeContact = function($contact) {
-                if (empty($contact)) return null;
-                $cleaned = preg_replace('/@.*$/', '', (string) $contact);
-                $digitsOnly = preg_replace('/[^0-9]/', '', $cleaned);
-                if (strlen($digitsOnly) >= 12 && substr($digitsOnly, 0, 2) === '55') {
-                    return $digitsOnly;
-                }
-                return $digitsOnly;
-            };
-            $normalizedContact = $normalizeContact($contactExternalId);
-
-            if (empty($normalizedContact)) {
-                $this->json(['success' => true, 'has_new' => false]);
-                return;
-            }
-
-            $where = [
-                "ce.event_type IN ('whatsapp.inbound.message', 'whatsapp.outbound.message')"
-            ];
-            $params = [];
-
-            $contactPatterns = ["%{$normalizedContact}%"];
-
-            if (strlen($normalizedContact) >= 12 && substr($normalizedContact, 0, 2) === '55') {
-                if (strlen($normalizedContact) === 13) {
-                    $without9th = substr($normalizedContact, 0, 4) . substr($normalizedContact, 5);
-                    $contactPatterns[] = "%{$without9th}%";
-                } elseif (strlen($normalizedContact) === 12) {
-                    $with9th = substr($normalizedContact, 0, 4) . '9' . substr($normalizedContact, 4);
-                    $contactPatterns[] = "%{$with9th}%";
-                }
-            }
-
-            $contactConditions = [];
-            foreach ($contactPatterns as $pattern) {
-                $contactConditions[] = "(
-                    JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.from')) LIKE ?
-                    OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.from')) LIKE ?
-                    OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.to')) LIKE ?
-                    OR JSON_UNQUOTE(JSON_EXTRACT(ce.payload, '$.message.to')) LIKE ?
-                )";
-                $params[] = $pattern;
-                $params[] = $pattern;
-                $params[] = $pattern;
-                $params[] = $pattern;
-            }
-            $where[] = "(" . implode(" OR ", $contactConditions) . ")";
-
-            if ($tenantId) {
-                $where[] = "(ce.tenant_id = ? OR ce.tenant_id IS NULL)";
-                $params[] = $tenantId;
-            }
-
-            if ($afterTimestamp) {
-                $where[] = "(ce.created_at > ? OR (ce.created_at = ? AND ce.event_id > ?))";
-                $params[] = $afterTimestamp;
-                $params[] = $afterTimestamp;
-                $params[] = $afterEventId ?? '';
-            }
-
-            $whereClause = "WHERE " . implode(" AND ", $where);
-
-            $stmt = $db->prepare("
-                SELECT ce.event_id, ce.payload
-                FROM communication_events ce
-                {$whereClause}
-                ORDER BY ce.created_at ASC, ce.event_id ASC
-                LIMIT 20
-            ");
-            $stmt->execute($params);
-            $events = $stmt->fetchAll();
-
             $hasNew = false;
-            foreach ($events as $event) {
-                $payload = json_decode($event['payload'], true);
-                $eventFrom = $payload['from'] ?? $payload['message']['from'] ?? null;
-                $eventTo = $payload['to'] ?? $payload['message']['to'] ?? null;
-
-                $normalizedFrom = $eventFrom ? $normalizeContact($eventFrom) : null;
-                $normalizedTo = $eventTo ? $normalizeContact($eventTo) : null;
-
-                if ((!empty($normalizedFrom) && $normalizedFrom === $normalizedContact)
-                    || (!empty($normalizedTo) && $normalizedTo === $normalizedContact)) {
-                    $hasNew = true;
-                    break;
-                }
+            if ($afterTimestamp && !empty($conv['last_message_at'])) {
+                $hasNew = strtotime($conv['last_message_at']) > strtotime($afterTimestamp);
             }
 
             $this->json([
                 'success' => true,
-                'has_new' => $hasNew
+                'has_new' => $hasNew,
+                'last_message_at' => $conv['last_message_at']
             ]);
         } catch (\Exception $e) {
             error_log("[CommunicationHub] Erro ao verificar novas mensagens: " . $e->getMessage());
