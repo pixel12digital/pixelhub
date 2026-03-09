@@ -91,16 +91,11 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 </div>
 
                 <div class="searchable-dropdown" id="modalClienteDropdown">
-                    <input type="text" class="searchable-dropdown-input" id="modalClienteSearchInput" placeholder="Buscar cliente..." autocomplete="off" style="height: 42px; font-size: 14px;">
+                    <input type="text" class="searchable-dropdown-input" id="modalClienteSearchInput" placeholder="Buscar cliente ou lead..." autocomplete="off" style="height: 42px; font-size: 14px;">
                     <input type="hidden" name="tenant_id" id="modalClienteTenantId" value="">
                     <span class="searchable-dropdown-arrow">▼</span>
-                    <div class="searchable-dropdown-list" id="modalClienteDropdownList" style="max-height: 200px;">
-                        <?php foreach ($tenants as $tenant): ?>
-                            <div class="searchable-dropdown-item" data-value="<?= $tenant['id'] ?>" data-name="<?= htmlspecialchars($tenant['name']) ?>" data-phone="<?= htmlspecialchars($tenant['phone'] ?? '') ?>" data-search="<?= htmlspecialchars(strtolower($tenant['name'] . ' ' . ($tenant['phone'] ?? ''))) ?>">
-                                <div class="searchable-dropdown-item-name"><?= htmlspecialchars($tenant['name']) ?></div>
-                                <div class="searchable-dropdown-item-detail"><?= htmlspecialchars($tenant['phone'] ?? 'Sem telefone') ?></div>
-                            </div>
-                        <?php endforeach; ?>
+                    <div class="searchable-dropdown-list" id="modalClienteDropdownList" style="max-height: 220px;">
+                        <div style="padding:10px 12px; color:#aaa; font-size:12px; text-align:center;">Digite o nome, telefone ou e-mail...</div>
                     </div>
                 </div>
 
@@ -524,12 +519,17 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
             if (channel === 'whatsapp' || channel === 'whatsapp_api') {
                 if (toContainer) toContainer.style.display = 'block';
                 var hiddenInput = document.getElementById('modalClienteTenantId');
-                if (hiddenInput && hiddenInput.value) {
+                var searchInput = document.getElementById('modalClienteSearchInput');
+                var storedPhone = searchInput ? (searchInput.dataset.selectedPhone || '') : '';
+                if (storedPhone) {
+                    var toInput = document.getElementById('new-message-to');
+                    if (toInput) toInput.value = storedPhone;
+                } else if (hiddenInput && hiddenInput.value) {
                     var list = document.getElementById('modalClienteDropdownList');
                     var selectedItem = list ? list.querySelector('[data-value="' + hiddenInput.value + '"]') : null;
                     if (selectedItem && selectedItem.dataset.phone) {
-                        var toInput = document.getElementById('new-message-to');
-                        if (toInput) toInput.value = selectedItem.dataset.phone;
+                        var toInput2 = document.getElementById('new-message-to');
+                        if (toInput2) toInput2.value = selectedItem.dataset.phone;
                     }
                 }
             } else {
@@ -654,51 +654,119 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
         });
     }
     
-    // Dropdown pesquisável de Cliente no modal
+    // Dropdown pesquisável UNIFICADO (Clientes + Leads) no modal
     var dropdown = document.getElementById('modalClienteDropdown');
     if (dropdown) {
         var input = document.getElementById('modalClienteSearchInput');
-        var hiddenInput = document.getElementById('modalClienteTenantId');
+        var hiddenTenantInput = document.getElementById('modalClienteTenantId');
+        var hiddenLeadInput = document.getElementById('new-message-lead-id');
         var list = document.getElementById('modalClienteDropdownList');
-        var items = list ? list.querySelectorAll('.searchable-dropdown-item') : [];
-        var isOpen = false, selectedValue = '';
-        
+        var isOpen = false;
+        var _searchTimer = null;
+        var _contactBaseUrl = '<?= rtrim(pixelhub_url(""), "/") ?>';
+
         function openDropdown() { if (list) { list.classList.add('show'); isOpen = true; } }
         function closeDropdown() { if (list) { list.classList.remove('show'); isOpen = false; } }
-        
-        function selectItem(item) {
-            selectedValue = item.dataset.value || '';
-            if (hiddenInput) hiddenInput.value = selectedValue;
-            if (input) input.value = item.dataset.name || '';
-            items.forEach(function(i) { i.classList.remove('selected'); });
-            item.classList.add('selected');
-            if (typeof onModalClienteSelect === 'function') onModalClienteSelect(item.dataset.phone || '');
+
+        function escAttr(s) {
+            return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
-        
-        if (input) {
-            input.addEventListener('click', function(e) { e.stopPropagation(); isOpen ? closeDropdown() : openDropdown(); });
-            input.addEventListener('focus', function() { if (!isOpen) { openDropdown(); this.select(); } });
-            input.addEventListener('input', function() {
-                var q = this.value.toLowerCase().trim();
-                items.forEach(function(item) {
-                    var match = !q || (item.dataset.name || '').toLowerCase().includes(q) || (item.dataset.search || '').includes(q);
-                    item.style.display = match ? '' : 'none';
+
+        function renderContactResults(clients, leads) {
+            if (!list) return;
+            var html = '';
+            if (!clients.length && !leads.length) {
+                list.innerHTML = '<div style="padding:10px 12px; color:#aaa; font-size:12px; text-align:center;">Nenhum resultado encontrado</div>';
+                return;
+            }
+            if (clients.length) {
+                html += '<div style="padding:3px 10px; font-size:10px; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:0.4px; background:#f8f9fa; border-bottom:1px solid #eee;">Clientes</div>';
+                clients.forEach(function(c) {
+                    html += '<div class="searchable-dropdown-item" data-value="' + escAttr(c.id) + '" data-name="' + escAttr(c.name) + '" data-phone="' + escAttr(c.phone || '') + '" data-type="tenant">' +
+                        '<div class="searchable-dropdown-item-name"><span style="background:#1565c0;color:white;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:600;margin-right:5px;vertical-align:middle;">Cliente</span>' + escAttr(c.name) + '</div>' +
+                        '<div class="searchable-dropdown-item-detail">' + escAttr(c.phone || 'Sem telefone') + '</div>' +
+                        '</div>';
                 });
-                if (!isOpen) openDropdown();
+            }
+            if (leads.length) {
+                html += '<div style="padding:3px 10px; font-size:10px; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:0.4px; background:#f8f9fa; border-bottom:1px solid #eee;' + (clients.length ? 'border-top:1px solid #eee;' : '') + '">Leads</div>';
+                leads.forEach(function(l) {
+                    html += '<div class="searchable-dropdown-item" data-value="' + escAttr(l.id) + '" data-name="' + escAttr(l.name) + '" data-phone="' + escAttr(l.phone || '') + '" data-type="lead">' +
+                        '<div class="searchable-dropdown-item-name"><span style="background:#e65100;color:white;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:600;margin-right:5px;vertical-align:middle;">Lead</span>' + escAttr(l.name) + '</div>' +
+                        '<div class="searchable-dropdown-item-detail">' + escAttr(l.phone || 'Sem telefone') + (l.company ? ' &middot; ' + escAttr(l.company) : '') + '</div>' +
+                        '</div>';
+                });
+            }
+            list.innerHTML = html;
+            list.querySelectorAll('.searchable-dropdown-item').forEach(function(item) {
+                item.addEventListener('click', function(e) { e.stopPropagation(); selectContactItem(this); closeDropdown(); });
             });
         }
-        items.forEach(function(item) {
-            item.addEventListener('click', function(e) { e.stopPropagation(); selectItem(this); closeDropdown(); });
-        });
+
+        function selectContactItem(item) {
+            var type = item.dataset.type || 'tenant';
+            var id = item.dataset.value || '';
+            var name = item.dataset.name || '';
+            var phone = item.dataset.phone || '';
+            if (input) {
+                input.value = name;
+                input.dataset.selectedPhone = phone;
+                input.dataset.selectedType = type;
+            }
+            if (type === 'lead') {
+                if (hiddenLeadInput) hiddenLeadInput.value = id;
+                if (hiddenTenantInput) hiddenTenantInput.value = '';
+            } else {
+                if (hiddenTenantInput) hiddenTenantInput.value = id;
+                if (hiddenLeadInput) hiddenLeadInput.value = '';
+            }
+            if (typeof onModalClienteSelect === 'function') onModalClienteSelect(phone);
+        }
+
+        function doContactSearch(q) {
+            if (!list) return;
+            if (q.length < 2) {
+                list.innerHTML = '<div style="padding:10px 12px; color:#aaa; font-size:12px; text-align:center;">Digite ao menos 2 caracteres...</div>';
+                return;
+            }
+            list.innerHTML = '<div style="padding:10px 12px; color:#aaa; font-size:12px; text-align:center;">Buscando...</div>';
+            var clientsResult = [], leadsResult = [];
+            var clientsDone = false, leadsDone = false;
+            function tryRender() { if (clientsDone && leadsDone) renderContactResults(clientsResult, leadsResult); }
+            fetch(_contactBaseUrl + '/tenants/search-opp?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(d) { clientsResult = (d.success && d.tenants) ? d.tenants : []; clientsDone = true; tryRender(); })
+                .catch(function() { clientsDone = true; tryRender(); });
+            if (q.length >= 3) {
+                fetch(_contactBaseUrl + '/leads/search-ajax?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) { leadsResult = (d.success && d.leads) ? d.leads : []; leadsDone = true; tryRender(); })
+                    .catch(function() { leadsDone = true; tryRender(); });
+            } else {
+                leadsDone = true;
+            }
+        }
+
+        if (input) {
+            input.addEventListener('click', function(e) { e.stopPropagation(); openDropdown(); });
+            input.addEventListener('focus', function() { if (!isOpen) openDropdown(); });
+            input.addEventListener('input', function() {
+                var q = this.value.trim();
+                if (_searchTimer) clearTimeout(_searchTimer);
+                if (!isOpen) openDropdown();
+                _searchTimer = setTimeout(function() { doContactSearch(q); }, 300);
+            });
+        }
         document.addEventListener('click', function(e) {
             if (dropdown && !dropdown.contains(e.target)) closeDropdown();
         });
-        
+
         window.resetModalClienteDropdown = function() {
-            selectedValue = '';
-            if (hiddenInput) hiddenInput.value = '';
-            if (input) input.value = '';
-            items.forEach(function(i) { i.classList.remove('selected'); i.style.display = ''; });
+            if (hiddenTenantInput) hiddenTenantInput.value = '';
+            if (hiddenLeadInput) hiddenLeadInput.value = '';
+            if (input) { input.value = ''; input.dataset.selectedPhone = ''; input.dataset.selectedType = ''; }
+            if (list) list.innerHTML = '<div style="padding:10px 12px; color:#aaa; font-size:12px; text-align:center;">Digite o nome, telefone ou e-mail...</div>';
+            closeDropdown();
         };
     }
 
