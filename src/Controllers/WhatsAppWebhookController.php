@@ -857,27 +857,10 @@ class WhatsAppWebhookController extends Controller
     private function resolveTenantByChannel(?string $channelId): ?int
     {
         if (empty($channelId)) {
-            error_log('[WHATSAPP INBOUND RAW] resolveTenantByChannel: channelId está vazio');
             return null;
         }
 
-        error_log('[WHATSAPP INBOUND RAW] resolveTenantByChannel: buscando tenant_id para channel_id=' . $channelId);
-
         $db = DB::getConnection();
-        
-        // Log: lista todos os channels disponíveis para debug
-        $debugStmt = $db->query("
-            SELECT id, tenant_id, provider, channel_id, is_enabled 
-            FROM tenant_message_channels 
-            WHERE provider = 'wpp_gateway'
-        ");
-        $allChannels = $debugStmt->fetchAll();
-        error_log('[WHATSAPP INBOUND RAW] Channels disponíveis no banco: ' . json_encode($allChannels, JSON_UNESCAPED_UNICODE));
-        
-        // CORREÇÃO: ORDER BY id ASC garante ordem determinística
-        // Prioriza registro mais antigo (tenant original) se houver duplicidade futura
-        // CORREÇÃO: Busca case-insensitive e ignora espaços para resolver diferenças
-        // entre "Pixel12 Digital" (banco) e "pixel12digital" (gateway)
         $normalizedChannelId = strtolower(str_replace(' ', '', $channelId));
         
         $stmt = $db->prepare("
@@ -892,10 +875,7 @@ class WhatsAppWebhookController extends Controller
         $stmt->execute([$normalizedChannelId]);
         $result = $stmt->fetch();
 
-        $tenantId = $result ? (int) $result['tenant_id'] : null;
-        error_log('[WHATSAPP INBOUND RAW] resolveTenantByChannel: resultado tenant_id=' . ($tenantId ?: 'NULL') . ' (channelId=' . $channelId . ', normalized=' . $normalizedChannelId . ')');
-        
-        return $tenantId;
+        return $result ? (int) $result['tenant_id'] : null;
     }
 }
 
