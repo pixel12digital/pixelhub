@@ -555,9 +555,9 @@ class ChatbotFlowService
                         if (empty($prospectName)) {
                             $pStmt = $db->prepare("
                                 SELECT name, source FROM prospecting_results
-                                WHERE REPLACE(REPLACE(REPLACE(phone_minhareceita, ' ', ''), '-', ''), '(', '') = ?
-                                   OR REPLACE(REPLACE(REPLACE(phone_google,       ' ', ''), '-', ''), '(', '') = ?
-                                   OR REPLACE(REPLACE(REPLACE(phone_instagram,    ' ', ''), '-', ''), '(', '') = ?
+                                WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone_minhareceita, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') = ?
+                                   OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone_google,       ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') = ?
+                                   OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone_instagram,    ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') = ?
                                 LIMIT 1
                             ");
                             $tail = substr($short, -9); // últimos 9 dígitos para matching flexível
@@ -860,7 +860,9 @@ class ChatbotFlowService
         $stmt->execute([$channel]);
         $row = $stmt->fetch();
 
-        return $row ? $row['code'] : null;
+        // Se não existe registro cadastrado para o canal, usa o próprio channel como código
+        // Isso garante que a oportunidade sempre terá um tracking_code registrado
+        return $row ? $row['code'] : $channel;
     }
 
     /**
@@ -886,9 +888,9 @@ class ChatbotFlowService
             // Busca source em prospecting_results
             $pStmt = $db->prepare("
                 SELECT source FROM prospecting_results
-                WHERE REPLACE(REPLACE(REPLACE(phone_minhareceita, ' ', ''), '-', ''), '(', '') = ?
-                   OR REPLACE(REPLACE(REPLACE(phone_google,       ' ', ''), '-', ''), '(', '') = ?
-                   OR REPLACE(REPLACE(REPLACE(phone_instagram,    ' ', ''), '-', ''), '(', '') = ?
+                WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone_minhareceita, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') = ?
+                   OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone_google,       ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') = ?
+                   OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone_instagram,    ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') = ?
                 LIMIT 1
             ");
             $pStmt->execute([$short, $short, $tail]);

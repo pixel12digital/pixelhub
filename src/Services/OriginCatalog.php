@@ -247,6 +247,21 @@ class OriginCatalog
                 'label' => 'Prospecção Ativa (CNAE/CNPJ.ws)',
                 'group' => 'CRM'
             ],
+            [
+                'key' => 'prospecting_whatsapp',
+                'label' => 'Prospecção Ativa (WhatsApp)',
+                'group' => 'CRM'
+            ],
+            [
+                'key' => 'prospecting_instagram',
+                'label' => 'Prospecção Ativa (Instagram)',
+                'group' => 'CRM'
+            ],
+            [
+                'key' => 'prospecting_cnae',
+                'label' => 'Prospecção Ativa (CNAE)',
+                'group' => 'CRM'
+            ],
             
             // Outros
             [
