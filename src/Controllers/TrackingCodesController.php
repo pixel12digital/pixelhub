@@ -151,7 +151,11 @@ class TrackingCodesController extends Controller
         }
 
         try {
-            $codes = TrackingCodesService::listByChannel($channel);
+            if ($channel === 'all') {
+                $codes = TrackingCodesService::listAll(['is_active' => 1]);
+            } else {
+                $codes = TrackingCodesService::listByChannel($channel);
+            }
             $this->json(['success' => true, 'codes' => $codes]);
         } catch (\Exception $e) {
             $this->json(['success' => false, 'error' => 'Erro interno'], 500);

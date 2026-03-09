@@ -1843,16 +1843,33 @@ document.getElementById('edit-origin-select').addEventListener('change', functio
     fetch('/settings/tracking-codes/by-channel?channel=' + encodeURIComponent(channel))
         .then(r => r.json())
         .then(data => {
+            // Se não há códigos para o canal específico, carrega todos os ativos como fallback
             if (!data.success || !data.codes || data.codes.length === 0) {
-                section.style.display = 'none';
-                _trackingCodesLoaded = [];
-                return;
+                return fetch('/settings/tracking-codes/by-channel?channel=all')
+                    .then(r2 => r2.json())
+                    .then(data2 => {
+                        if (!data2.success || !data2.codes || data2.codes.length === 0) {
+                            section.style.display = 'none';
+                            _trackingCodesLoaded = [];
+                            return;
+                        }
+                        data = data2;
+                        renderTrackingCodesList(data.codes, section, list);
+                    });
             }
-            _trackingCodesLoaded = data.codes;
-            document.getElementById('tracking-codes-count').textContent = data.codes.length;
+            renderTrackingCodesList(data.codes, section, list);
+        })
+        .catch(function() {
+            section.style.display = 'none';
+        });
+});
+
+function renderTrackingCodesList(codes, section, list) {
+            _trackingCodesLoaded = codes;
+            document.getElementById('tracking-codes-count').textContent = codes.length;
 
             let html = '';
-            data.codes.forEach(function(c) {
+            codes.forEach(function(c) {
                 const codeJson = escHtml(JSON.stringify(c));
                 html += '<div onclick="selectTrackingCode(' + escHtml(JSON.stringify(c.code)) + ', ' + escHtml(JSON.stringify(c.description || c.code)) + ', this)"'
                     + ' data-code="' + escHtml(c.code) + '"'
@@ -1866,11 +1883,7 @@ document.getElementById('edit-origin-select').addEventListener('change', functio
             });
             list.innerHTML = html;
             section.style.display = 'block';
-        })
-        .catch(function() {
-            section.style.display = 'none';
-        });
-});
+}
 
 function selectTrackingCode(code, label, el) {
     _selectedTrackingCode = code;
