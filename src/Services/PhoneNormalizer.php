@@ -31,7 +31,7 @@ class PhoneNormalizer
      * @param bool $logEnabled Se true, loga antes/depois (padrão: true)
      * @return string|null Telefone normalizado (ex: 554796164699) ou null se inválido
      */
-    public static function toE164OrNull(?string $raw, string $country = 'BR', bool $logEnabled = true): ?string
+    public static function toE164OrNull(?string $raw, string $country = 'BR', bool $logEnabled = false): ?string
     {
         $rawForLog = $raw;
         $rawThreadIdCandidate = $raw;
