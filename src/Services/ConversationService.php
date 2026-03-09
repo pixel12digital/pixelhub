@@ -70,10 +70,8 @@ class ConversationService
         // Isso previne criação de conversas duplicadas quando o mesmo contato aparece
         // com identificadores diferentes (ex: 169183207809126@lid vs 169183207809126)
         if (!empty($channelInfo['remote_key'])) {
-            error_log('[HUB_CONV_MATCH] Query: findDuplicateByRemoteKey remote_key=' . $channelInfo['remote_key']);
             $duplicateByRemoteKey = self::findDuplicateByRemoteKey($channelInfo);
             if ($duplicateByRemoteKey) {
-                error_log('[HUB_CONV_MATCH] FOUND_DUPLICATE_BY_REMOTE_KEY id=' . $duplicateByRemoteKey['id'] . ' remote_key=' . $channelInfo['remote_key'] . ' reason=prevent_duplication');
                 // Atualiza a conversa existente ao invés de criar nova
                 self::updateConversationMetadata($duplicateByRemoteKey['id'], $eventData, $channelInfo);
                 return $duplicateByRemoteKey;
@@ -92,16 +90,10 @@ class ConversationService
                     $conversationByName['contact_external_id'],
                     $eventData['tenant_id'] ?? null
                 )) {
-                    error_log('[HUB_CONV_MATCH] FOUND_BY_CONTACT_NAME id=' . $conversationByName['id'] .
-                        ' contact_external_id=' . $conversationByName['contact_external_id'] .
-                        ' new_contact=' . $channelInfo['contact_external_id'] . ' reason=same_contact_verified');
                     self::createLidPhoneMapping($channelInfo['contact_external_id'], $conversationByName['contact_external_id'], $eventData['tenant_id'] ?? null);
                     self::updateConversationMetadata($conversationByName['id'], $eventData, $channelInfo);
                     return $conversationByName;
                 }
-                error_log('[HUB_CONV_MATCH] REJECTED_BY_CONTACT_NAME: external_ids diferentes - new=' .
-                    $channelInfo['contact_external_id'] . ' existing=' . $conversationByName['contact_external_id'] .
-                    ' - criando nova conversa (nunca mergear por nome quando IDs diferentes)');
             }
         }
 
@@ -109,53 +101,14 @@ class ConversationService
         // Isso previne duplicidade quando o mesmo contato aparece via @lid e via número E.164
         $conversationByLidPhone = self::findConversationByLidPhoneMapping($channelInfo);
         if ($conversationByLidPhone) {
-            error_log('[HUB_CONV_MATCH] FOUND_BY_LID_PHONE_MAPPING id=' . $conversationByLidPhone['id'] . 
-                ' contact_external_id=' . $conversationByLidPhone['contact_external_id'] . 
-                ' new_contact=' . $channelInfo['contact_external_id'] . ' reason=lid_phone_mapping');
             self::updateConversationMetadata($conversationByLidPhone['id'], $eventData, $channelInfo);
             return $conversationByLidPhone;
-        }
-        
-        // VALIDAÇÃO EXTRA: Alerta sobre potencial duplicidade @lid vs E.164 não resolvida
-        // Isso ajuda a identificar casos onde o mapeamento dinâmico pode ser necessário
-        if (strpos($channelInfo['contact_external_id'], '@lid') !== false) {
-            // É @lid - verifica se existe conversa com número E.164 similar
-            $numericPart = preg_replace('/[^0-9]/', '', $channelInfo['contact_external_id']);
-            if (strlen($numericPart) >= 10) {
-                $db = DB::getConnection();
-                $checkStmt = $db->prepare("
-                    SELECT id, contact_external_id, contact_name, last_message_at
-                    FROM conversations 
-                    WHERE channel_type = 'whatsapp' 
-                    AND contact_external_id LIKE ?
-                    AND contact_external_id NOT LIKE '%@lid'
-                    AND (tenant_id IS NULL OR tenant_id = ?)
-                    ORDER BY last_message_at DESC
-                    LIMIT 3
-                ");
-                $likePattern = '%' . substr($numericPart, -8);
-                $checkStmt->execute([$likePattern, $channelInfo['tenant_id'] ?? null]);
-                $potentialMatches = $checkStmt->fetchAll(\PDO::FETCH_ASSOC);
-                
-                if (!empty($potentialMatches)) {
-                    error_log('[LID_PHONE_MAPPING] ALERTA_POTENCIAL_DUPLICIDADE: @lid ' . $channelInfo['contact_external_id'] . 
-                        ' pode corresponder a ' . count($potentialMatches) . ' conversas E.164:');
-                    foreach ($potentialMatches as $match) {
-                        error_log('[LID_PHONE_MAPPING]   - ID=' . $match['id'] . 
-                            ' external_id=' . $match['contact_external_id'] . 
-                            ' name=' . ($match['contact_name'] ?? 'NULL') . 
-                            ' last=' . $match['last_message_at']);
-                    }
-                }
-            }
         }
 
         // CORREÇÃO CRÍTICA: Busca por contact_external_id + channel_id ANTES de criar nova conversa
         // Isso garante que conversas existentes sejam sempre encontradas, mesmo que o channel_account_id seja diferente
         // (o que pode acontecer em mensagens outbound quando o tenant que envia não é o dono da conversa)
         if (!empty($channelInfo['contact_external_id']) && !empty($channelInfo['channel_id'])) {
-            error_log('[HUB_CONV_MATCH] Query: findByContactAndChannel contact=' . $channelInfo['contact_external_id'] . ' channel=' . $channelInfo['channel_id']);
-            
             $db = DB::getConnection();
             $stmt = $db->prepare("
                 SELECT * FROM conversations
@@ -176,11 +129,6 @@ class ConversationService
             $existingByContactAndChannel = $stmt->fetch(\PDO::FETCH_ASSOC);
             
             if ($existingByContactAndChannel) {
-                error_log('[HUB_CONV_MATCH] FOUND_BY_CONTACT_AND_CHANNEL id=' . $existingByContactAndChannel['id'] . 
-                    ' contact=' . $channelInfo['contact_external_id'] . 
-                    ' channel=' . $channelInfo['channel_id'] . 
-                    ' reason=prevent_duplicate_conversation');
-                
                 // Atualiza a conversa existente ao invés de criar nova
                 self::updateConversationMetadata($existingByContactAndChannel['id'], $eventData, $channelInfo);
                 return $existingByContactAndChannel;
@@ -189,13 +137,11 @@ class ConversationService
         
         // Se ainda não encontrou, tenta encontrar conversa com mesmo contato mas channel_account_id diferente
         // (ex.: conversa "shared" vs conversa com tenant específico)
-        error_log('[HUB_CONV_MATCH] Query: findConversationByContactOnly contact=' . $channelInfo['contact_external_id']);
         $equivalentByContact = self::findConversationByContactOnly($channelInfo);
         if ($equivalentByContact) {
             // Se a conversa encontrada é "shared" (sem channel_account_id) e temos um channel_account_id,
             // atualiza ela ao invés de criar nova
             if (empty($equivalentByContact['channel_account_id']) && $channelInfo['channel_account_id']) {
-                error_log('[HUB_CONV_MATCH] FOUND_SHARED_CONVERSATION id=' . $equivalentByContact['id'] . ' reason=updating_shared_with_channel_account_id');
                 // Atualiza a conversa existente
                 self::updateConversationMetadata($equivalentByContact['id'], $eventData, $channelInfo);
                 // Atualiza channel_account_id e conversation_key
@@ -204,16 +150,9 @@ class ConversationService
                 return self::findById($equivalentByContact['id']);
             } elseif ($equivalentByContact['channel_account_id'] && $channelInfo['channel_account_id'] && 
                       $equivalentByContact['channel_account_id'] == $channelInfo['channel_account_id']) {
-                // Mesma conversa com mesmo channel_account_id - apenas atualiza
-                error_log('[HUB_CONV_MATCH] FOUND_CONVERSATION id=' . $equivalentByContact['id'] . ' reason=same_contact_and_channel_account_id');
                 self::updateConversationMetadata($equivalentByContact['id'], $eventData, $channelInfo);
                 return $equivalentByContact;
             } elseif (!empty($equivalentByContact['channel_account_id']) && empty($channelInfo['channel_account_id'])) {
-                // CORREÇÃO: Nova mensagem não tem channel_account_id, mas conversa existente tem
-                // Isso acontece quando mensagem chega via "shared" mas já existe conversa vinculada
-                // Ex: Robson já tem conversa 8 com channel_account_id=4, mas nova msg vem sem channel_account_id
-                // Usa a conversa existente ao invés de criar nova
-                error_log('[HUB_CONV_MATCH] FOUND_EXISTING_WITH_ACCOUNT id=' . $equivalentByContact['id'] . ' reason=use_existing_vinculada_instead_of_creating_shared');
                 self::updateConversationMetadata($equivalentByContact['id'], $eventData, $channelInfo);
                 return $equivalentByContact;
             }
@@ -221,12 +160,9 @@ class ConversationService
         }
 
         // Cria nova conversa
-        error_log('[HUB_CONV_MATCH] CREATED_CONVERSATION conversation_key=' . $conversationKey . ' channel_type=' . $channelInfo['channel_type'] . ' contact=' . $channelInfo['contact_external_id'] . ' channel_id=' . ($channelInfo['channel_id'] ?? 'NULL') . ' channel_account_id=' . ($channelInfo['channel_account_id'] ?? 'NULL'));
         $newConversation = self::createConversation($conversationKey, $eventData, $channelInfo);
-        if ($newConversation) {
-            error_log('[HUB_CONV_MATCH] CREATED_CONVERSATION id=' . $newConversation['id'] . ' conversation_key=' . $conversationKey . ' channel_id=' . ($newConversation['channel_id'] ?? 'NULL'));
-        } else {
-            error_log('[HUB_CONV_MATCH] ERROR: Falha ao criar nova conversa conversation_key=' . $conversationKey);
+        if (!$newConversation) {
+            error_log('[ConversationService] Falha ao criar conversa: ' . $conversationKey);
         }
         return $newConversation;
     }
@@ -334,13 +270,9 @@ class ConversationService
                     ?? $payload['raw']['payload']['chatId']
                     ?? null;
                 
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: OUTBOUND extraction - to/remoteJid result: ' . ($rawFrom ?: 'NULL'));
-                
                 // OUTBOUND: não usar notifyName/sender (representam a sessão nossa) para contact_name
                 $contactName = null;
             }
-            
-            error_log('[CONVERSATION UPSERT] extractChannelInfo: WhatsApp ' . $direction . ' - rawFrom: ' . ($rawFrom ?: 'NULL'));
             
             // Regra #2: Tratar grupos (@g.us)
             // Se o from termina com @g.us, é um grupo - precisa usar author/participant
@@ -349,8 +281,6 @@ class ConversationService
             if ($rawFrom && strpos($rawFrom, '@g.us') !== false) {
                 $isGroup = true;
                 $groupJid = $rawFrom;
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: Detectado GRUPO - groupJid: ' . $groupJid);
-                
                 // Tenta extrair participant/author (remetente dentro do grupo)
                 $rawFrom = $payload['raw']['payload']['author'] 
                     ?? $payload['raw']['payload']['participant'] 
@@ -358,10 +288,8 @@ class ConversationService
                     ?? $payload['data']['participant']
                     ?? $payload['data']['author'] ?? null;
                 
-                if ($rawFrom) {
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Participant extraído do grupo: ' . $rawFrom);
-                } else {
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: ERRO - Grupo sem participant/author. GroupJid: ' . $groupJid);
+                if (!$rawFrom) {
+                    error_log('[ConversationService] Grupo sem participant/author: ' . $groupJid);
                     // Retorna erro específico para grupo sem participant
                     return null; // Será tratado como failed_missing_participant
                 }
@@ -370,23 +298,18 @@ class ConversationService
             // Se ainda não encontrou, tenta extrair de mensagens encaminhadas
             if (!$rawFrom && isset($payload['message']['forwardedFrom'])) {
                 $rawFrom = $payload['message']['forwardedFrom'];
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando forwardedFrom: ' . $rawFrom);
             }
             
             // ÚLTIMA TENTATIVA: Busca recursivamente campos que podem conter o número
             // Alguns gateways/envios podem ter estrutura diferente
             if (!$rawFrom) {
                 $rawFrom = self::findPhoneOrJidRecursively($payload);
-                if ($rawFrom) {
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Encontrado via busca recursiva: ' . $rawFrom);
-                }
             }
             
             // Se não tem from válido, retorna erro específico
             if (!$rawFrom) {
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: ERRO - Payload sem from válido. Payload keys: ' . implode(', ', array_keys($payload)));
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: Payload completo (primeiros 800 chars): ' . substr(json_encode($payload, JSON_UNESCAPED_UNICODE), 0, 800));
-                return null; // Será tratado como failed_missing_from
+                error_log('[ConversationService] Payload sem from válido. Keys: ' . implode(', ', array_keys($payload)));
+                return null;
             }
             
             $contactExternalId = $rawFrom;
@@ -404,22 +327,13 @@ class ConversationService
                 if (strlen($digitsOnly) >= 10) {
                     // Normaliza para E.164
                     $contactExternalId = PhoneNormalizer::toE164OrNull($digitsOnly);
-                    if ($contactExternalId) {
-                        error_log('[CONVERSATION UPSERT] extractChannelInfo: JID numérico extraído e normalizado: ' . $contactExternalId . ' (original: ' . $rawFrom . ')');
-                    } else {
-                        error_log('[CONVERSATION UPSERT] extractChannelInfo: Falha ao normalizar JID numérico: ' . $digitsOnly);
-                        // Continua tentando mapeamento @lid se necessário
                     }
-                } else {
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: JID numérico com poucos dígitos: ' . $digitsOnly);
-                }
             }
             
             // Se não foi JID numérico, verifica se é @lid
             $isLidId = false;
             if (!$isNumericJid && strpos($rawFrom, '@lid') !== false) {
                 $isLidId = true;
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: Detectado @lid - business_id: ' . $rawFrom);
                 
                 // Consulta mapeamento whatsapp_business_ids
                 $db = \PixelHub\Core\DB::getConnection();
@@ -434,10 +348,6 @@ class ConversationService
                 
                 if ($mapping && !empty($mapping['phone_number'])) {
                     $contactExternalId = $mapping['phone_number'];
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Mapeamento @lid encontrado - phone_number: ' . $contactExternalId);
-                } else {
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Mapeamento @lid NÃO encontrado para business_id: ' . $rawFrom);
-                    // Continua tentando fallback
                 }
             }
             
@@ -449,22 +359,17 @@ class ConversationService
                 
                 if (strlen($digitsOnly) >= 10) {
                     $contactExternalId = PhoneNormalizer::toE164OrNull($digitsOnly);
-                    if ($contactExternalId) {
-                        error_log('[CONVERSATION UPSERT] extractChannelInfo: Fallback final - extraído: ' . $contactExternalId . ' (original: ' . $originalContactId . ')');
-                    }
                 }
             }
             
             // CORREÇÃO: Se for @lid e não encontrou mapeamento, usa o @lid como contact_external_id
             // Isso permite criar conversa mesmo sem mapeamento (arquitetura remote_key)
             if (!$contactExternalId && $rawFrom && strpos($rawFrom, '@lid') !== false) {
-                $contactExternalId = $rawFrom; // Usa @lid direto se não conseguiu mapear
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando @lid como contact_external_id (sem mapeamento): ' . $contactExternalId);
+                $contactExternalId = $rawFrom;
             }
             
             // Validação final: só retorna NULL se realmente não tem nenhum identificador
             if (!$contactExternalId && !$rawFrom) {
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: ERRO - Não foi possível extrair contact_external_id válido. RawFrom: ' . ($rawFrom ?: 'NULL') . ', IsGroup: ' . ($isGroup ? 'SIM' : 'NÃO'));
                 return null;
             }
             
@@ -480,20 +385,14 @@ class ConversationService
                     $normalized = PhoneNormalizer::toE164OrNull($rawForNorm);
                     if ($normalized) {
                         $contactExternalId = $normalized;
-                        error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando rawFrom NORMALIZADO como contact_external_id: ' . $contactExternalId . ' (original: ' . $rawFrom . ')');
                     } else {
-                        // Se não conseguiu normalizar, usa o rawFrom original (pode ser @lid ou formato não-brasileiro)
                         $contactExternalId = $rawFrom;
-                        error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando rawFrom ORIGINAL como contact_external_id (falha normalização): ' . $contactExternalId);
                     }
                 } else {
-                    // Poucos dígitos, usa original
                     $contactExternalId = $rawFrom;
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando rawFrom como contact_external_id (poucos dígitos): ' . $contactExternalId);
                 }
             }
             
-            error_log('[CONVERSATION UPSERT] extractChannelInfo: contact_external_id final: ' . $contactExternalId . ' (tipo: ' . ($isLidId ? '@lid' : ($isNumericJid ? 'JID numérico' : 'outro')) . ')');
         } elseif ($channelType === 'email') {
             $direction = strpos($eventType, 'inbound') !== false ? 'inbound' : 'outbound';
             if ($direction === 'inbound') {
@@ -519,7 +418,6 @@ class ConversationService
             
             // Só usa fallback quando temos channel_id - evita contaminação entre canais
             if ($notifyName && $tenantId && $fallbackChannelId) {
-                error_log('[CONVERSATION UPSERT] extractChannelInfo: Tentando fallback por nome - notifyName: ' . $notifyName . ', tenant_id: ' . $tenantId . ', channel_id: ' . ($fallbackChannelId ?: 'NULL'));
                 
                 $db = \PixelHub\Core\DB::getConnection();
                 // CORREÇÃO: Filtra por channel_id - só usa conversa do MESMO canal (evita 47 vs 11 entre canais)
@@ -538,15 +436,11 @@ class ConversationService
                 
                 if ($existing && !empty($existing['contact_external_id'])) {
                     $contactExternalId = $existing['contact_external_id'];
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Fallback encontrou conversa existente (mesmo canal) - contact_external_id: ' . $contactExternalId);
-                } else {
-                    error_log('[CONVERSATION UPSERT] extractChannelInfo: Fallback NÃO encontrou conversa existente para nome: ' . $notifyName . ' no canal: ' . ($fallbackChannelId ?: 'NULL'));
                 }
             }
         }
         
         if (!$contactExternalId) {
-            error_log('[CONVERSATION UPSERT] ERRO: contactExternalId é NULL após extração. Channel type: ' . ($channelType ?: 'NULL') . ', Direction: ' . ($direction ?? 'NULL'));
             return null;
         }
 
@@ -646,9 +540,7 @@ class ConversationService
         // Se rawContactId é @lid mas contactExternalId foi mapeado para número,
         // usa rawContactId para remote_key (mantém identidade original)
         if ($rawContactId && strpos($rawContactId, '@lid') !== false && $contactExternalId && strpos($contactExternalId, '@lid') === false) {
-            // Tem @lid original mas contactExternalId foi mapeado - usa @lid para remote_key
             $remoteIdRaw = $rawContactId;
-            error_log('[CONVERSATION UPSERT] extractChannelInfo: Usando @lid original para remote_key (rawContactId) ao invés de número mapeado: ' . $rawContactId);
         }
         $remoteKeyValue = $remoteKey($remoteIdRaw);
         
@@ -778,30 +670,7 @@ class ConversationService
             $source = 'payload.metadata.channel_id';
         }
         
-        if ($channelId) {
-            // ImobSites é sessão válida no gateway; aceitar quando vindo de payload ou metadata.
-            error_log(sprintf(
-                '[CONVERSATION UPSERT] extractChannelIdFromPayload: channel_id=%s | source=%s',
-                $channelId,
-                $source
-            ));
-            return $channelId;
-        }
-        
-        // NÃO permite fallback - retorna NULL e loga erro
-        error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: INBOUND_MISSING_CHANNEL_ID - Nenhum sessionId/channelId encontrado');
-        error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: payload_keys=' . implode(', ', array_keys($payload)));
-        if (isset($payload['session'])) {
-            error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: payload[session]_keys=' . implode(', ', array_keys($payload['session'])));
-        }
-        if (isset($payload['data'])) {
-            error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: payload[data]_keys=' . implode(', ', array_keys($payload['data'])));
-        }
-        if (isset($payload['metadata'])) {
-            error_log('[CONVERSATION UPSERT] extractChannelIdFromPayload: payload[metadata]_keys=' . implode(', ', array_keys($payload['metadata'])));
-        }
-        
-        return null;
+        return $channelId ?: null;
     }
 
     /**
@@ -829,10 +698,7 @@ class ConversationService
         }
 
         try {
-            // CORREÇÃO: Se channel_id foi fornecido, usa ele para buscar o canal específico
             if (!empty($channelId)) {
-                error_log('[CONVERSATION UPSERT] resolveChannelAccountId: buscando canal com channel_id=' . $channelId . ' para tenant_id=' . $tenantId);
-                
                 $stmt = $db->prepare("
                     SELECT id 
                     FROM tenant_message_channels 
@@ -844,23 +710,13 @@ class ConversationService
                 ");
                 $stmt->execute([$tenantId, $provider, $channelId]);
                 $result = $stmt->fetch();
-                
                 if ($result) {
-                    $channelAccountId = (int) $result['id'];
-                    error_log('[CONVERSATION UPSERT] resolveChannelAccountId: canal encontrado! id=' . $channelAccountId . ' para channel_id=' . $channelId);
-                    return $channelAccountId;
-                } else {
-                    error_log('[CONVERSATION UPSERT] resolveChannelAccountId: canal NÃO encontrado para channel_id=' . $channelId . ' tenant_id=' . $tenantId . ' (channel não mapeado ou desabilitado)');
-                    // NÃO faz fallback para primeiro canal - retorna null se não encontrou
-                    // Isso força erro explícito ao invés de usar canal errado
-                    return null;
+                    return (int) $result['id'];
                 }
+                return null;
             }
             
             // Fallback: Se channel_id não foi fornecido, busca qualquer canal habilitado
-            // (mantido para compatibilidade, mas deve ser evitado)
-            error_log('[CONVERSATION UPSERT] resolveChannelAccountId: channel_id não fornecido, usando fallback (primeiro canal habilitado)');
-            
             $stmt = $db->prepare("
                 SELECT id 
                 FROM tenant_message_channels 
@@ -871,15 +727,7 @@ class ConversationService
             ");
             $stmt->execute([$tenantId, $provider]);
             $result = $stmt->fetch();
-            
-            $channelAccountId = $result ? (int) $result['id'] : null;
-            if ($channelAccountId) {
-                error_log('[CONVERSATION UPSERT] resolveChannelAccountId: fallback encontrou canal id=' . $channelAccountId);
-            } else {
-                error_log('[CONVERSATION UPSERT] resolveChannelAccountId: fallback NÃO encontrou nenhum canal');
-            }
-            
-            return $channelAccountId;
+            return $result ? (int) $result['id'] : null;
         } catch (\Exception $e) {
             error_log("[ConversationService] Erro ao resolver channel_account_id: " . $e->getMessage());
             return null;
