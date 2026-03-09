@@ -194,8 +194,6 @@ class ConversationService
         $metadata = $eventData['metadata'] ?? [];
         $tenantId = $eventData['tenant_id'] ?? null;
 
-        error_log('[CONVERSATION UPSERT] extractChannelInfo: INICIANDO - event_type=' . $eventType . ', has_payload=' . (isset($eventData['payload']) ? 'SIM' : 'NÃO'));
-
         // Detecta tipo de canal
         $channelType = null;
         if (strpos($eventType, 'whatsapp.') === 0) {
@@ -206,10 +204,7 @@ class ConversationService
             $channelType = 'webchat';
         }
 
-        error_log('[CONVERSATION UPSERT] extractChannelInfo: channelType detectado=' . ($channelType ?: 'NULL'));
-
         if (!$channelType) {
-            error_log('[CONVERSATION UPSERT] extractChannelInfo: ERRO - channelType é NULL, retornando null');
             return null;
         }
 
@@ -569,8 +564,6 @@ class ConversationService
             }
         }
         
-        error_log('[CONVERSATION UPSERT] extractChannelInfo: remote_id_raw=' . ($remoteIdRaw ?: 'NULL') . ', remote_key=' . ($remoteKeyValue ?: 'NULL') . ', contact_key=' . ($contactKey ?: 'NULL') . ', phone_e164=' . ($phoneE164 ?: 'NULL'));
-
         // Sanitiza contact_name para evitar gravar o nome da sessão (ex: pixel12digital)
         if (!empty($contactName)) {
             $sessionIdNormalized = $channelId ? mb_strtolower(str_replace(' ', '', (string) $channelId), 'UTF-8') : null;
@@ -759,7 +752,6 @@ class ConversationService
             $stmt->execute([$normalized, $channelId]);
             $row = $stmt->fetch();
             if ($row) {
-                error_log('[CONVERSATION UPSERT] resolveChannelAccountIdByChannelOnly: canal encontrado id=' . $row['id'] . ' para channel_id=' . $channelId);
                 return (int) $row['id'];
             }
             return null;
@@ -1035,24 +1027,7 @@ class ConversationService
         $messageTimestamp = self::extractMessageTimestamp($eventData);
         $now = date('Y-m-d H:i:s'); // Para updated_at sempre usa NOW()
 
-        error_log('[CONVERSATION UPSERT] updateConversationMetadata: conversation_id=' . $conversationId . ', direction=' . $direction . ', contact=' . ($channelInfo['contact_external_id'] ?? 'NULL') . ', message_timestamp=' . $messageTimestamp . ', has_content=' . ($hasContent ? 'true' : 'false'));
-
         try {
-            // 🔍 LOG TEMPORÁRIO: Antes do UPDATE SQL
-            error_log(sprintf(
-                '[DIAGNOSTICO] ConversationService::updateConversationMetadata() - EXECUTANDO UPDATE: conversation_id=%d, direction=%s, message_timestamp=%s, now=%s, has_content=%s',
-                $conversationId,
-                $direction,
-                $messageTimestamp,
-                $now,
-                $hasContent ? 'true' : 'false'
-            ));
-            
-            // CORREÇÃO: Busca unread_count atual antes de atualizar para log
-            $currentUnreadStmt = $db->prepare("SELECT unread_count FROM conversations WHERE id = ?");
-            $currentUnreadStmt->execute([$conversationId]);
-            $currentUnread = $currentUnreadStmt->fetchColumn() ?: 0;
-            
             // Atualiza última mensagem e contador
             // CORREÇÃO: Incrementa message_count apenas se a mensagem tem conteúdo real
             // CORREÇÃO: Garante que unread_count seja incrementado para inbound
@@ -1084,26 +1059,7 @@ class ConversationService
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$messageTimestamp, $direction, $hasContent ? 1 : 0, $direction, $direction, $now, $conversationId]);
-            $rowsAffected = $stmt->rowCount();
-            
-            // CORREÇÃO: Busca unread_count após atualização para confirmar incremento
-            $afterUnreadStmt = $db->prepare("SELECT unread_count FROM conversations WHERE id = ?");
-            $afterUnreadStmt->execute([$conversationId]);
-            $afterUnread = $afterUnreadStmt->fetchColumn() ?: 0;
-            
-            // 🔍 LOG TEMPORÁRIO: Resultado do UPDATE com unread_count
-            error_log(sprintf(
-                '[DIAGNOSTICO] ConversationService::updateConversationMetadata() - UPDATE EXECUTADO: success=%s, rows_affected=%d, direction=%s, unread_count: %d -> %d, last_message_at=%s',
-                $result ? 'true' : 'false',
-                $rowsAffected,
-                $direction,
-                $currentUnread,
-                $afterUnread,
-                $messageTimestamp
-            ));
-            
-            error_log('[CONVERSATION UPSERT] updateConversationMetadata: last_message_at atualizado para ' . $messageTimestamp);
+            $stmt->execute([$messageTimestamp, $direction, $hasContent ? 1 : 0, $direction, $direction, $now, $conversationId]);
 
             // Atualiza contato name se fornecido e ainda não existe
             if (!empty($channelInfo['contact_name'])) {
@@ -1209,60 +1165,13 @@ class ConversationService
             $channelId = $channelInfo['channel_id'] ?? null;
             $direction = $channelInfo['direction'] ?? 'inbound';
             
-            if ($direction === 'inbound') {
-                // Busca channel_id atual da thread antes de atualizar (para log de comparação)
-                $currentChannelIdStmt = $db->prepare("SELECT channel_id FROM conversations WHERE id = ?");
-                $currentChannelIdStmt->execute([$conversationId]);
-                $currentChannelId = $currentChannelIdStmt->fetchColumn() ?: null;
-                
-                if ($channelId) {
-                    // ImobSites é sessão válida no gateway; não rejeitar por nome.
-                    // Sempre atualiza, mesmo se já existir (garante que está correto)
-                    // Isso cura threads "nascidas erradas"
-                    $updateChannelIdStmt = $db->prepare("
-                        UPDATE conversations 
-                        SET channel_id = ? 
-                        WHERE id = ?
-                    ");
-                    $updateChannelIdStmt->execute([$channelId, $conversationId]);
-                    
-                    $rowsUpdated = $updateChannelIdStmt->rowCount();
-                    if ($currentChannelId && $currentChannelId !== $channelId) {
-                        // Log quando channel_id foi corrigido (thread "curada")
-                        error_log(sprintf(
-                            '[CONVERSATION UPSERT] updateConversationMetadata: THREAD_CURED conversation_id=%d | channel_id_antigo=%s | channel_id_novo=%s | from=%s | source=%s',
-                            $conversationId,
-                            $currentChannelId,
-                            $channelId,
-                            $channelInfo['contact_external_id'] ?? 'NULL',
-                            $channelInfo['channel_id_source'] ?? 'unknown'
-                        ));
-                    } elseif ($rowsUpdated > 0) {
-                        // Log quando channel_id foi definido pela primeira vez
-                        error_log(sprintf(
-                            '[CONVERSATION UPSERT] updateConversationMetadata: channel_id_definido conversation_id=%d | channel_id=%s | from=%s',
-                            $conversationId,
-                            $channelId,
-                            $channelInfo['contact_external_id'] ?? 'NULL'
-                        ));
-                    } else {
-                        // Log quando channel_id já estava correto
-                        error_log(sprintf(
-                            '[CONVERSATION UPSERT] updateConversationMetadata: channel_id_ok conversation_id=%d | channel_id=%s | from=%s',
-                            $conversationId,
-                            $channelId,
-                            $channelInfo['contact_external_id'] ?? 'NULL'
-                        ));
-                    }
-                } else {
-                    // Log de aviso quando evento inbound não trouxe channel_id
-                    error_log(sprintf(
-                        '[CONVERSATION UPSERT] updateConversationMetadata: INBOUND_MISSING_CHANNEL_ID conversation_id=%d | from=%s | current_channel_id=%s',
-                        $conversationId,
-                        $channelInfo['contact_external_id'] ?? 'NULL',
-                        $currentChannelId ?: 'NULL'
-                    ));
-                }
+            if ($direction === 'inbound' && $channelId) {
+                $updateChannelIdStmt = $db->prepare("
+                    UPDATE conversations 
+                    SET channel_id = ? 
+                    WHERE id = ?
+                ");
+                $updateChannelIdStmt->execute([$channelId, $conversationId]);
             }
 
             // Atualiza remote_key, contact_key, thread_key se fornecidos (arquitetura nova)
@@ -1283,7 +1192,6 @@ class ConversationService
                     $channelInfo['channel_id'] ?? null, // session_id
                     $conversationId
                 ]);
-                error_log('[CONVERSATION UPSERT] updateConversationMetadata: remote_key/contact_key/thread_key atualizados para conversation_id=' . $conversationId . ', remote_key=' . ($channelInfo['remote_key'] ?: 'NULL'));
             }
         } catch (\Exception $e) {
             error_log("[ConversationService] Erro ao atualizar conversa: " . $e->getMessage());
