@@ -4678,6 +4678,55 @@ class CommunicationHubController extends Controller
     }
 
     /**
+     * Retorna lista de sessões WhatsApp disponíveis para o modal Nova Mensagem
+     * GET /communication-hub/sessions
+     */
+    public function getSessions(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $db = DB::getConnection();
+        $sessions = [];
+
+        try {
+            $stmt = $db->query("
+                SELECT DISTINCT channel_id
+                FROM conversations
+                WHERE channel_type = 'whatsapp'
+                  AND channel_id IS NOT NULL AND channel_id != ''
+                ORDER BY channel_id
+            ");
+            foreach ($stmt->fetchAll() ?: [] as $row) {
+                $id = $row['channel_id'];
+                $sessions[] = ['id' => $id, 'name' => ucwords(str_replace(['_', '-'], ' ', $id))];
+            }
+
+            if (empty($sessions)) {
+                $stmt = $db->query("
+                    SELECT DISTINCT COALESCE(NULLIF(TRIM(session_id),''), channel_id) AS sid
+                    FROM tenant_message_channels
+                    WHERE provider = 'wpp_gateway'
+                      AND is_enabled = 1
+                      AND channel_id IS NOT NULL AND channel_id != ''
+                    ORDER BY sid
+                ");
+                foreach ($stmt->fetchAll() ?: [] as $row) {
+                    $id = trim($row['sid'] ?? '');
+                    if ($id) {
+                        $sessions[] = ['id' => $id, 'name' => ucwords(str_replace(['_', '-'], ' ', $id))];
+                    }
+                }
+            }
+
+            $this->json(['success' => true, 'sessions' => $sessions]);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao buscar sessions: " . $e->getMessage());
+            $this->json(['success' => false, 'sessions' => []], 500);
+        }
+    }
+
+    /**
      * Verifica se há novas mensagens ou atualizações na lista de conversas
      * 
      * GET /communication-hub/check-updates?after_timestamp=Y

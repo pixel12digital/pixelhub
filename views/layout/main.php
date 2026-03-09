@@ -2726,47 +2726,46 @@
     
     <?php
     // Modal "Nova Mensagem" para Inbox (quando não está no Communication Hub)
+    // Sessões são carregadas via AJAX na primeira abertura do modal (lazy-load)
     $currentUri = $_SERVER['REQUEST_URI'] ?? '';
     if (strpos($currentUri, '/communication-hub') === false):
-        $modalTenants = [];
-        $modalSessions = [];
-        try {
-            $db = \PixelHub\Core\DB::getConnection();
-            $stmt = $db->query("SELECT id, name, COALESCE(phone,'') as phone FROM tenants WHERE (is_archived IS NULL OR is_archived = 0) ORDER BY name LIMIT 100");
-            if ($stmt) $modalTenants = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-            // 1) Sessões de conversas existentes
-            $stmt = $db->query("SELECT DISTINCT channel_id FROM conversations WHERE channel_type = 'whatsapp' AND channel_id IS NOT NULL AND channel_id != '' ORDER BY channel_id");
-            if ($stmt) {
-                foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $row) {
-                    $id = $row['channel_id'];
-                    $modalSessions[] = ['id' => $id, 'name' => ucwords(str_replace(['_','-'], ' ', $id)), 'status' => 'connected'];
-                }
-            }
-            // 2) Fallback: canais habilitados em tenant_message_channels (para Nova Conversa sem histórico)
-            if (empty($modalSessions)) {
-                $selectCol = 'channel_id';
-                try {
-                    $chk = $db->query("SHOW COLUMNS FROM tenant_message_channels LIKE 'session_id'");
-                    if ($chk && $chk->rowCount() > 0) {
-                        $selectCol = "COALESCE(NULLIF(TRIM(session_id),''), channel_id)";
-                    }
-                } catch (\Throwable $e) { /* usa channel_id */ }
-                $stmt = $db->query("SELECT DISTINCT {$selectCol} as sid FROM tenant_message_channels WHERE provider = 'wpp_gateway' AND is_enabled = 1 AND (channel_id IS NOT NULL AND channel_id != '') ORDER BY sid");
-                if ($stmt) {
-                    foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $row) {
-                        $id = trim($row['sid'] ?? '');
-                        if ($id && !in_array($id, array_column($modalSessions, 'id'))) {
-                            $modalSessions[] = ['id' => $id, 'name' => ucwords(str_replace(['_','-'], ' ', $id)), 'status' => 'connected'];
-                        }
-                    }
-                }
-            }
-        } catch (\Throwable $e) { /* silencioso */ }
-        $tenants = $modalTenants;
-        $whatsapp_sessions = $modalSessions;
+        $tenants = [];
+        $whatsapp_sessions = [];
         require __DIR__ . '/../partials/new_message_modal.php';
     endif;
     ?>
+    <script>
+    (function() {
+        var _sessionsLoaded = false;
+        var _origOpenInboxNovaConversa = window.openInboxNovaConversa;
+        window.openInboxNovaConversa = function() {
+            if (!_sessionsLoaded) {
+                _sessionsLoaded = true;
+                fetch('/communication-hub/sessions')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (!data.success || !data.sessions) return;
+                        var sel = document.getElementById('new-message-session');
+                        if (!sel) return;
+                        sel.innerHTML = '<option value="">Selecione a sessão...</option>';
+                        data.sessions.forEach(function(s) {
+                            var opt = document.createElement('option');
+                            opt.value = s.id;
+                            opt.textContent = s.name + ' (conectada)';
+                            opt.dataset.connected = 'true';
+                            sel.appendChild(opt);
+                        });
+                    })
+                    .catch(function() {});
+            }
+            if (typeof openNewMessageModal === 'function') {
+                openNewMessageModal();
+            } else {
+                window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+            }
+        };
+    })();
+    </script>
     
     <!-- Toggle para mobile -->
     <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">

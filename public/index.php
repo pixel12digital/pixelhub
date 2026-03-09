@@ -740,6 +740,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/communication-hub/conversations-list', 'CommunicationHubController@getConversationsList');
     $router->get('/communication-hub/find-tenant-conversation', 'CommunicationHubController@findTenantConversation');
     $router->get('/communication-hub/unread-count', 'CommunicationHubController@getUnreadCount');
+    $router->get('/communication-hub/sessions', 'CommunicationHubController@getSessions');
     $router->get('/communication-hub/check-updates', 'CommunicationHubController@checkUpdates');
     $router->get('/communication-hub/messages/check', 'CommunicationHubController@checkNewMessages');
     $router->get('/communication-hub/messages/new', 'CommunicationHubController@getNewMessages');
