@@ -77,54 +77,28 @@ class CommunicationHubController extends Controller
     {
         // PRIORIDADE 1: Se conversa tem provider_type definido, usa o mesmo provider para responder
         // Isso garante que respostas usem o mesmo canal da mensagem original
-        if (!empty($conversationProviderType)) {
-            if ($conversationProviderType === 'meta_official') {
-                error_log("[CommunicationHub] Conversa veio via Meta Official API, usando Meta para responder");
-                try {
-                    $provider = WhatsAppProviderFactory::getProvider('meta_official', $tenantId);
-                    // Meta Official API retorna WhatsAppGatewayClient compatível via wrapper
-                    if ($provider instanceof \PixelHub\Integrations\WhatsApp\MetaOfficialProvider) {
-                        // Por enquanto, Meta não está totalmente integrado ao fluxo de envio
-                        // TODO: Implementar wrapper que converte MetaOfficialProvider em WhatsAppGatewayClient
-                        error_log("[CommunicationHub] Meta provider detectado, mas ainda não suportado no envio - usando WPPConnect temporariamente");
-                    }
-                } catch (\Exception $e) {
-                    error_log("[CommunicationHub] Erro ao obter Meta provider: " . $e->getMessage() . " - usando WPPConnect (fallback)");
-                }
-            }
-        }
-        
         // Se não tem tenant_id, usa WPPConnect padrão
         if (empty($tenantId)) {
-            error_log("[CommunicationHub] Sem tenant_id, usando WPPConnect padrão");
             $provider = new WppConnectProvider(['channel_id' => $channelId]);
             return $provider->getUnderlyingClient();
         }
 
         try {
-            // Tenta obter provider via Factory
             $provider = WhatsAppProviderFactory::getProviderForTenant($tenantId);
             
-            // Se for WppConnectProvider, retorna o client subjacente (compatibilidade total)
             if ($provider instanceof WppConnectProvider) {
-                error_log("[CommunicationHub] Tenant {$tenantId}: usando WPPConnect");
-                // Atualiza channel_id se fornecido
                 if ($channelId) {
                     $provider = new WppConnectProvider(['channel_id' => $channelId, 'tenant_id' => $tenantId]);
                 }
                 return $provider->getUnderlyingClient();
             }
             
-            // Se for Meta ou outro provider, cria wrapper compatível
-            // NOTA: Por enquanto, Meta não é usado aqui pois o código atual espera WhatsAppGatewayClient
-            // Quando Meta estiver pronto, este código será expandido
-            error_log("[CommunicationHub] Tenant {$tenantId}: provider={$provider->getProviderInfo()['provider_type']}, usando WPPConnect como fallback");
+            // Fallback para WPPConnect se provider não suportado ainda
             $fallbackProvider = new WppConnectProvider(['channel_id' => $channelId, 'tenant_id' => $tenantId]);
             return $fallbackProvider->getUnderlyingClient();
             
         } catch (\Exception $e) {
-            // FALLBACK TOTAL: Em caso de qualquer erro, usa WPPConnect
-            error_log("[CommunicationHub] Erro ao resolver provider para tenant {$tenantId}: " . $e->getMessage() . " - usando WPPConnect (fallback)");
+            error_log("[CommunicationHub] Erro ao resolver provider para tenant {$tenantId}: " . $e->getMessage());
             $fallbackProvider = new WppConnectProvider(['channel_id' => $channelId, 'tenant_id' => $tenantId]);
             return $fallbackProvider->getUnderlyingClient();
         }
