@@ -358,17 +358,18 @@ class BillingSenderService
                             'phone' => $phoneNormalized
                         ]);
                         
-                        // Marca como sucesso parcial (mensagem provavelmente foi enviada)
-                        $result['success'] = true;
-                        $result['notification_ids'][] = $notificationId;
-                        $result['uncertain'] = true;
-                        
                     } catch (\Exception $ingestEx) {
                         self::logDispatch('INBOX_EVENT_TIMEOUT_FAIL', 'Erro ao criar evento de timeout: ' . $ingestEx->getMessage(), [
                             'tenant_id' => $tenantId,
                             'invoice_id' => $invoice['id']
                         ]);
                     }
+
+                    // Marca como sucesso independente do resultado do Inbox —
+                    // a mensagem já foi enviada ao gateway, não deve ser reenfileirada.
+                    $result['success'] = true;
+                    $result['notification_ids'][] = $notificationId;
+                    $result['uncertain'] = true;
                 } else {
                     // Erro real (não timeout) - registra como falha
                     $result['error'] = $error;
