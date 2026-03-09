@@ -6948,14 +6948,21 @@
         
         async function fetchUnreadCount() {
             try {
-                const url = INBOX_BASE_URL + '/communication-hub/conversations-list?status=active';
+                const url = INBOX_BASE_URL + '/communication-hub/unread-count';
                 const response = await fetch(url);
                 const result = await response.json();
                 
                 if (result.success) {
-                    InboxState.conversations = result.threads || [];
-                    InboxState.incomingLeads = result.incoming_leads || [];
-                    updateInboxBadge();
+                    const badge = document.getElementById('inboxBadge');
+                    if (badge) {
+                        const n = result.total_unread || 0;
+                        if (n > 0) {
+                            badge.textContent = n > 99 ? '99+' : n;
+                            badge.style.display = 'flex';
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
                 }
             } catch (error) {
                 // Silencioso

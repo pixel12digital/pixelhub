@@ -1,6 +1,4 @@
 <?php
-// DEBUG FORÇADO - PRIMEIRA LINHA ABSOLUTA
-@file_put_contents('/home/pixel12digital/hub.pixel12digital.com.br/logs/debug_index.log', date('Y-m-d H:i:s') . ' URI=' . ($_SERVER['REQUEST_URI'] ?? 'NULL') . ' METHOD=' . ($_SERVER['REQUEST_METHOD'] ?? 'NULL') . "\n", FILE_APPEND);
 
 /**
  * Bootstrap principal do Pixel Hub
@@ -30,7 +28,6 @@ if (session_status() === PHP_SESSION_NONE) {
 // Carrega autoload do Composer se existir, senão carrega manualmente
 if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
-    @file_put_contents('/home/pixel12digital/hub.pixel12digital.com.br/logs/debug_index.log', date('Y-m-d H:i:s') . ' AUTOLOAD OK' . "\n", FILE_APPEND);
 } else {
     // Autoload manual simples
     spl_autoload_register(function ($class) {
@@ -170,8 +167,6 @@ if (!function_exists('pixelhub_log')) {
     }
 }
 
-pixelhub_log("BASE_PATH definido como: '" . BASE_PATH . "' (scriptDir: '{$scriptDir}')");
-error_log("BASE_PATH definido como: '" . BASE_PATH . "' (scriptDir: '{$scriptDir}')");
 
 // CORREÇÃO CRÍTICA: O path deve ser calculado SEMPRE a partir da URI original
 // Não importa se o arquivo existe ou não, sempre usamos REQUEST_URI
@@ -236,8 +231,6 @@ if (strpos($uri, '/screen-recordings/share') !== false) {
 }
 
 // Log para debug
-pixelhub_log("Path calculado - REQUEST_URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A') . ", URI: {$uri}, BASE_PATH: " . (defined('BASE_PATH') ? BASE_PATH : 'N/A') . ", scriptDir: {$scriptDir}, SCRIPT_NAME: " . ($_SERVER['SCRIPT_NAME'] ?? 'N/A') . ", path final: {$path}");
-error_log("Path calculado - REQUEST_URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A') . ", URI: {$uri}, BASE_PATH: " . (defined('BASE_PATH') ? BASE_PATH : 'N/A') . ", scriptDir: {$scriptDir}, SCRIPT_NAME: " . ($_SERVER['SCRIPT_NAME'] ?? 'N/A') . ", path final: {$path}");
 
 // Normaliza o path (remove barras duplicadas e barra final)
 $path = '/' . trim($path, '/');
@@ -256,9 +249,6 @@ $path = rtrim($path, '/') ?: '/';
 $isShareRoute = ($path === '/screen-recordings/share' || strpos($path, '/screen-recordings/share?') === 0) ||
                 (strpos($uri, '/screen-recordings/share') !== false && strpos($uri, '/screen-recordings/debug-share.php') === false);
 
-// Log sempre para debug
-pixelhub_log('[Bypass Check] URI: ' . $uri . ', Path: ' . $path . ', isShareRoute: ' . ($isShareRoute ? 'SIM' : 'NÃO'));
-error_log('[Bypass Check] URI: ' . $uri . ', Path: ' . $path . ', isShareRoute: ' . ($isShareRoute ? 'SIM' : 'NÃO'));
 
 if ($isShareRoute) {
     $shareFile = __DIR__ . '/screen-recordings/share.php';
@@ -322,28 +312,6 @@ if ($isShareRoute) {
     }
 }
 
-// Debug: log dos valores
-error_log("=== Router Debug ===");
-error_log("REQUEST_URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
-error_log("SCRIPT_NAME: " . ($_SERVER['SCRIPT_NAME'] ?? 'N/A'));
-error_log("scriptDir: " . $scriptDir);
-error_log("path calculado: " . $path);
-error_log("REQUEST_METHOD: " . ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
-
-// LOG ESPECIAL: Captura TODAS as requisições POST (para debug)
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
-    error_log("=== 🔍 POST REQUEST DETECTADO ===");
-    error_log("Path: {$path}");
-    error_log("REQUEST_URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
-    error_log("POST data: " . json_encode($_POST, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-    error_log("Content-Type: " . ($_SERVER['CONTENT_TYPE'] ?? 'N/A'));
-    error_log("Content-Length: " . ($_SERVER['CONTENT_LENGTH'] ?? 'N/A'));
-    
-    // Log especial para communication-hub/send
-    if (strpos($path, 'communication-hub/send') !== false) {
-        error_log("=== 🔍🔍 POST /communication-hub/send ESPECÍFICO DETECTADO 🔍🔍 ===");
-    }
-}
 
 // Cria router e define rotas
 $router = new Router();
@@ -397,8 +365,6 @@ $router->get('/screen-recordings/share', function() {
     }
     exit;
 });
-pixelhub_log('[Router Setup] Rota /screen-recordings/share registrada');
-error_log('[Router Setup] Rota /screen-recordings/share registrada');
 
 // Rota raiz: redireciona para login se não autenticado, senão vai para dashboard
 use PixelHub\Core\Auth;
@@ -773,6 +739,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/communication-hub/filter-options', 'CommunicationHubController@getFilterOptions');
     $router->get('/communication-hub/conversations-list', 'CommunicationHubController@getConversationsList');
     $router->get('/communication-hub/find-tenant-conversation', 'CommunicationHubController@findTenantConversation');
+    $router->get('/communication-hub/unread-count', 'CommunicationHubController@getUnreadCount');
     $router->get('/communication-hub/check-updates', 'CommunicationHubController@checkUpdates');
     $router->get('/communication-hub/messages/check', 'CommunicationHubController@checkNewMessages');
     $router->get('/communication-hub/messages/new', 'CommunicationHubController@getNewMessages');

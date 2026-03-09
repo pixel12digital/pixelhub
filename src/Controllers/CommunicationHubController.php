@@ -4669,6 +4669,41 @@ class CommunicationHubController extends Controller
     }
 
     /**
+     * Retorna apenas a contagem de mensagens não lidas (endpoint leve para badge no header)
+     *
+     * GET /communication-hub/unread-count
+     *
+     * Retorna {success: bool, total_unread: int} sem fazer JOIN ou resolução de @lid
+     */
+    public function getUnreadCount(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $db = DB::getConnection();
+
+        try {
+            $stmt = $db->prepare("
+                SELECT
+                    COALESCE(SUM(c.unread_count), 0) AS total_unread
+                FROM conversations c
+                WHERE c.channel_type = 'whatsapp'
+                  AND c.status NOT IN ('closed', 'archived', 'ignored')
+            ");
+            $stmt->execute();
+            $row = $stmt->fetch();
+
+            $this->json([
+                'success' => true,
+                'total_unread' => (int) ($row['total_unread'] ?? 0)
+            ]);
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao buscar unread-count: " . $e->getMessage());
+            $this->json(['success' => false, 'total_unread' => 0], 500);
+        }
+    }
+
+    /**
      * Verifica se há novas mensagens ou atualizações na lista de conversas
      * 
      * GET /communication-hub/check-updates?after_timestamp=Y
