@@ -333,6 +333,7 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                     sessionSelect.required = sessionSelect.options.length > 2;
                     if (sessionSelect.options.length === 2) sessionSelect.selectedIndex = 1;
                 }
+                if (templateSelect) templateSelect.required = false;
                 
                 // WhatsApp: Ocultar info Meta e mostrar select de clientes (se não for lead)
                 var metaInfoContainer = document.getElementById('new-message-meta-info');
