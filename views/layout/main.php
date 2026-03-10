@@ -5125,13 +5125,13 @@
             }
         };
         window.inboxOpenCreateTenantModal = function(convId, name, contact) {
-            // Se existir função do Hub na página, usa; senão, abre modal local
-            if (typeof openCreateTenantModal === 'function') { 
-                openCreateTenantModal(convId, name, contact); 
-                return; 
-            }
-            // Implementação local fallback - abre Communication Hub em nova aba
-            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+            const modal = document.getElementById('create-tenant-modal');
+            if (!modal) { console.error('Modal create-tenant-modal não encontrado'); return; }
+            document.getElementById('create-tenant-conversation-id').value = convId;
+            document.getElementById('create-tenant-name').value = name || '';
+            document.getElementById('create-tenant-phone').value = contact || '';
+            document.getElementById('create-tenant-email').value = '';
+            modal.style.display = 'flex';
         };
         window.inboxOpenCreateLeadModal = function(convId, name, contact) {
             const modal = document.getElementById('create-lead-modal');
@@ -5209,9 +5209,24 @@
             `;
             document.body.appendChild(modal);
         };
-        window.inboxIgnoreConversation = function(convId, name) {
-            if (typeof ignoreConversation === 'function') { ignoreConversation(convId, name); return; }
-            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+        window.inboxIgnoreConversation = async function(convId, name) {
+            if (!confirm(`Ignorar conversa com "${name}"?\n\nA conversa será movida para "Ignoradas".`)) return;
+            try {
+                const res = await fetch(INBOX_BASE_URL + '/communication-hub/conversation/update-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ conversation_id: convId, status: 'ignored' })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    if (typeof loadInboxConversations === 'function') loadInboxConversations();
+                } else {
+                    alert(result.error || 'Erro ao ignorar conversa');
+                }
+            } catch (e) {
+                console.error('[Inbox] Erro ao ignorar:', e);
+                alert('Erro ao ignorar conversa. Tente novamente.');
+            }
         };
         window.inboxDeleteConversation = async function(convId, name) {
             if (typeof deleteConversation === 'function') { deleteConversation(convId, name); return; }
@@ -7165,6 +7180,37 @@
 
 <!-- Funções JS do Hub reutilizadas no Inbox -->
 <script>
+function closeCreateTenantModal() {
+    const modal = document.getElementById('create-tenant-modal');
+    if (modal) modal.style.display = 'none';
+}
+async function createTenantFromIncomingLead(event) {
+    event && event.preventDefault();
+    const conversationId = document.getElementById('create-tenant-conversation-id').value;
+    const name = document.getElementById('create-tenant-name').value.trim();
+    const phone = document.getElementById('create-tenant-phone').value.trim();
+    const email = document.getElementById('create-tenant-email').value.trim();
+    if (!name) { alert('Nome é obrigatório'); return; }
+    try {
+        const res = await fetch(INBOX_BASE_URL + '/communication-hub/incoming-lead/create-tenant', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversation_id: parseInt(conversationId), name, phone, email, force_create: false })
+        });
+        const result = await res.json();
+        if (result.success) {
+            closeCreateTenantModal();
+            if (typeof loadInboxConversations === 'function') loadInboxConversations();
+        } else if (result.code === 'DUPLICATE_PHONE') {
+            alert('Já existe um cliente com este telefone. Verifique e tente novamente.');
+        } else {
+            alert('Erro: ' + (result.error || result.message || 'Erro desconhecido'));
+        }
+    } catch (e) {
+        console.error('[Inbox] Erro ao criar cliente:', e);
+        alert('Erro ao criar cliente. Tente novamente.');
+    }
+}
 function closeCreateLeadModal() {
     const modal = document.getElementById('create-lead-modal');
     if (modal) modal.style.display = 'none';
@@ -7378,6 +7424,34 @@ async function linkConversationToLead(event) {
 </script>
 
 <!-- Modais do Communication Hub reutilizados no Inbox -->
+<!-- Modal: Criar Cliente -->
+<div id="create-tenant-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Criar Novo Cliente</h2>
+            <button onclick="closeCreateTenantModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        </div>
+        <form onsubmit="createTenantFromIncomingLead(event)">
+            <input type="hidden" id="create-tenant-conversation-id" value="">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Nome *</label>
+                <input type="text" id="create-tenant-name" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Telefone</label>
+                <input type="text" id="create-tenant-phone" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="5511999999999">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">E-mail</label>
+                <input type="email" id="create-tenant-email" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="cliente@exemplo.com">
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="flex: 1; padding: 12px; background: #023A8D; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Criar Cliente</button>
+                <button type="button" onclick="closeCreateTenantModal()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
 <!-- Modal: Criar Lead -->
 <div id="create-lead-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
     <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
