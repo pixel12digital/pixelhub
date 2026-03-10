@@ -2753,7 +2753,8 @@ class CommunicationHubController extends Controller
 
         // Conversas não vinculadas (is_incoming_lead=1) só aparecem se houver pelo menos 1 mensagem inbound
         // Isso evita que disparos de prospecção sem resposta poluam a seção "Não Vinculadas"
-        $where[] = "(c.is_incoming_lead = 0 OR EXISTS (SELECT 1 FROM communication_events ce_inb WHERE ce_inb.conversation_id = c.id AND ce_inb.direction = 'inbound'))";
+        // IMPORTANTE: COALESCE trata NULL como 0 — conversas sem is_incoming_lead definido passam normalmente
+        $where[] = "(COALESCE(c.is_incoming_lead, 0) != 1 OR EXISTS (SELECT 1 FROM communication_events ce_inb WHERE ce_inb.conversation_id = c.id AND ce_inb.direction = 'inbound'))";
 
         // Filtro de status
         // IMPORTANTE: Exclui conversas com status='ignored' e 'archived' da lista de ativas
