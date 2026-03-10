@@ -48,17 +48,18 @@ class BillingDispatchQueueService
         $db = DB::getConnection();
 
         // Idempotência: verifica se já existe job para este tenant+regra hoje
+        // Inclui 'sent' para evitar re-enfileiramento mesmo após envio concluído
         $today = (new \DateTime())->format('Y-m-d');
         $stmt = $db->prepare("
             SELECT id FROM billing_dispatch_queue
             WHERE tenant_id = ?
               AND dispatch_rule_id <=> ?
               AND DATE(created_at) = ?
-              AND status IN ('queued', 'processing')
+              AND status IN ('queued', 'processing', 'sent')
         ");
         $stmt->execute([$tenantId, $dispatchRuleId, $today]);
         if ($stmt->fetch()) {
-            return null; // Já enfileirado hoje
+            return null; // Já enfileirado/enviado hoje
         }
 
         $stmt = $db->prepare("
@@ -124,6 +125,8 @@ class BillingDispatchQueueService
 
     /**
      * Marca job como em processamento (lock otimista).
+     * Só faz lock se status = 'queued' para evitar que dois workers
+     * paralelos processem o mesmo job simultaneamente.
      * 
      * @param int $jobId
      * @return bool true se conseguiu o lock
@@ -134,7 +137,7 @@ class BillingDispatchQueueService
         $stmt = $db->prepare("
             UPDATE billing_dispatch_queue
             SET status = 'processing', attempts = attempts + 1, last_attempt_at = NOW(), updated_at = NOW()
-            WHERE id = ? AND status IN ('queued', 'processing')
+            WHERE id = ? AND status = 'queued'
         ");
         $stmt->execute([$jobId]);
         return $stmt->rowCount() > 0;
@@ -168,6 +171,15 @@ class BillingDispatchQueueService
         // Registra log para cada fatura
         if ($queue) {
             $invoiceIds = json_decode($queue['invoice_ids'], true);
+
+            // Resolve template_key real da regra de disparo (anti-spam depende disso)
+            $templateKey = 'manual';
+            if (!empty($queue['dispatch_rule_id'])) {
+                $stmtTpl = $db->prepare("SELECT template_key FROM billing_dispatch_rules WHERE id = ? LIMIT 1");
+                $stmtTpl->execute([$queue['dispatch_rule_id']]);
+                $templateKey = $stmtTpl->fetchColumn() ?: 'manual';
+            }
+
             foreach ($invoiceIds as $invoiceId) {
                 $logStmt = $db->prepare("
                     INSERT INTO billing_dispatch_log (
@@ -180,11 +192,11 @@ class BillingDispatchQueueService
                     $queue['tenant_id'],
                     $invoiceId,
                     $queue['channel'],
-                    'manual', // Template key padrão para envios manuais
-                    $queue['trigger_source'],
-                    $queue['triggered_by_user_id'],
-                    $queue['is_forced'],
-                    $queue['force_reason'],
+                    $templateKey,
+                    $queue['trigger_source'] ?? 'automatic',
+                    $queue['triggered_by_user_id'] ?? null,
+                    $queue['is_forced'] ?? 0,
+                    $queue['force_reason'] ?? null,
                     $messageId
                 ]);
             }
