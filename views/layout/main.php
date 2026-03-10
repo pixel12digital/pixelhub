@@ -2737,31 +2737,42 @@
     <script>
     (function() {
         var _sessionsLoaded = false;
-        var _origOpenInboxNovaConversa = window.openInboxNovaConversa;
+
+        function _loadSessions() {
+            if (_sessionsLoaded) return;
+            _sessionsLoaded = true;
+            fetch('/communication-hub/sessions')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!data.success || !data.sessions) return;
+                    var sel = document.getElementById('new-message-session');
+                    if (!sel) return;
+                    sel.innerHTML = '<option value="">Selecione a sessão...</option>';
+                    data.sessions.forEach(function(s) {
+                        var opt = document.createElement('option');
+                        opt.value = s.id;
+                        opt.textContent = s.name + ' (conectada)';
+                        opt.dataset.connected = 'true';
+                        sel.appendChild(opt);
+                    });
+                })
+                .catch(function() {});
+        }
+
         window.openInboxNovaConversa = function() {
-            if (!_sessionsLoaded) {
-                _sessionsLoaded = true;
-                fetch('/communication-hub/sessions')
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        if (!data.success || !data.sessions) return;
-                        var sel = document.getElementById('new-message-session');
-                        if (!sel) return;
-                        sel.innerHTML = '<option value="">Selecione a sessão...</option>';
-                        data.sessions.forEach(function(s) {
-                            var opt = document.createElement('option');
-                            opt.value = s.id;
-                            opt.textContent = s.name + ' (conectada)';
-                            opt.dataset.connected = 'true';
-                            sel.appendChild(opt);
-                        });
-                    })
-                    .catch(function() {});
-            }
+            _loadSessions();
             if (typeof openNewMessageModal === 'function') {
                 openNewMessageModal();
             } else {
                 window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+            }
+        };
+
+        var _origOpenNewMessageModal = window.openNewMessageModal;
+        window.openNewMessageModal = function(options) {
+            _loadSessions();
+            if (typeof _origOpenNewMessageModal === 'function') {
+                _origOpenNewMessageModal(options);
             }
         };
     })();
