@@ -2935,7 +2935,9 @@ class CommunicationHubController extends Controller
                         'unread_count' => (int) $conv['unread_count'],
                         'assigned_to' => $conv['assigned_to'],
                         'assigned_to_name' => $conv['assigned_to_name'],
-                        'is_incoming_lead' => (bool) ($conv['is_incoming_lead'] ?? 0) // Flag de incoming lead
+                        'is_incoming_lead' => (bool) ($conv['is_incoming_lead'] ?? 0), // Flag de incoming lead
+                        'source' => $conv['source'] ?? '',
+                        'last_message_direction' => $conv['last_message_direction'] ?? ''
                     ];
         }
 
