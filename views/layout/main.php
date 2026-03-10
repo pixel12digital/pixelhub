@@ -5210,7 +5210,7 @@
             document.body.appendChild(modal);
         };
         window.inboxIgnoreConversation = async function(convId, name) {
-            if (!confirm(`Ignorar conversa com "${name}"?\n\nA conversa será movida para "Ignoradas".`)) return;
+            if (!confirm(`Silenciar conversa com "${name}"?\n\nA conversa ficará oculta e voltará automaticamente quando o contato responder.`)) return;
             try {
                 const res = await fetch(INBOX_BASE_URL + '/communication-hub/conversation/update-status', {
                     method: 'POST',
@@ -5221,11 +5221,11 @@
                 if (result.success) {
                     if (typeof loadInboxConversations === 'function') loadInboxConversations();
                 } else {
-                    alert(result.error || 'Erro ao ignorar conversa');
+                    alert(result.error || 'Erro ao silenciar conversa');
                 }
             } catch (e) {
-                console.error('[Inbox] Erro ao ignorar:', e);
-                alert('Erro ao ignorar conversa. Tente novamente.');
+                console.error('[Inbox] Erro ao silenciar:', e);
+                alert('Erro ao silenciar conversa. Tente novamente.');
             }
         };
         window.inboxDeleteConversation = async function(convId, name) {
@@ -5968,7 +5968,7 @@
                     const contact = escapeInboxHtml(lead.contact || 'Número não identificado');
                     const channelId = lead.channel_id ? ` <span style="opacity: 0.6; font-size: 11px;">• ${escapeInboxHtml(lead.channel_id)}</span>` : '';
                     const convId = lead.conversation_id || 0;
-                    const ignoreBtn = showIgnoreInMenu ? `<button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); inboxIgnoreConversation(${convId}, '${contactName}'); closeIncomingLeadMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>Ignorar</button>` : '';
+                    const ignoreBtn = showIgnoreInMenu ? `<button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); inboxIgnoreConversation(${convId}, '${contactName}'); closeIncomingLeadMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>Silenciar</button>` : '';
                     html += `
                         <div class="inbox-drawer-conversation ${isActive ? 'active' : ''}" 
                              data-thread-id="${escapeInboxHtml(lead.thread_id || '')}" 

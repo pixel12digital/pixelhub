@@ -1574,7 +1574,7 @@ body.communication-hub-page {
                                             <?php if (($filters['status'] ?? '') !== 'ignored'): ?>
                                             <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); ignoreConversation(<?= $lead['conversation_id'] ?? 0 ?>, '<?= htmlspecialchars($lead['contact_name'] ?? 'Contato', ENT_QUOTES) ?>'); closeIncomingLeadMenu(this);">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                                                Ignorar
+                                                Silenciar
                                             </button>
                                             <?php endif; ?>
                                             <button type="button" class="incoming-lead-menu-item danger" onclick="event.stopPropagation(); deleteConversation(<?= $lead['conversation_id'] ?? 0 ?>, '<?= htmlspecialchars($lead['contact_name'] ?? 'Contato', ENT_QUOTES) ?>'); closeIncomingLeadMenu(this);">
@@ -1712,7 +1712,7 @@ body.communication-hub-page {
                                                 </button>
                                                 <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); ignoreConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                                                    Ignorar
+                                                    Silenciar
                                                 </button>
                                             <?php elseif ($currentStatus === 'archived'): ?>
                                                 <!-- ARQUIVADA: Desarquivar e Ignorar -->
@@ -1722,7 +1722,7 @@ body.communication-hub-page {
                                                 </button>
                                                 <button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); ignoreConversation(<?= $conversationId ?>, '<?= $contactName ?>'); closeConversationMenu(this);">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                                                    Ignorar
+                                                    Silenciar
                                                 </button>
                                             <?php elseif ($currentStatus === 'ignored'): ?>
                                                 <!-- IGNORADA: Ativar e Arquivar -->
@@ -2419,7 +2419,7 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                                     <?php if (($filters['status'] ?? '') !== 'ignored'): ?>
                                     <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); ignoreConversation(${conversationId}, '${escapeHtml(contactName)}'); closeIncomingLeadMenu(this);">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                                        Ignorar
+                                        Silenciar
                                     </button>
                                     <?php endif; ?>
                                     <button type="button" class="incoming-lead-menu-item danger" onclick="event.stopPropagation(); deleteConversation(${conversationId}, '${escapeHtml(contactName)}'); closeIncomingLeadMenu(this);">
@@ -5851,7 +5851,7 @@ async function archiveConversation(conversationId, contactName) {
  * Ignora uma conversa
  */
 async function ignoreConversation(conversationId, contactName) {
-    if (!confirm(`Ignorar conversa com "${contactName}"?\n\nA conversa será movida para "Ignoradas".`)) {
+    if (!confirm(`Silenciar conversa com "${contactName}"?\n\nA conversa ficará oculta e voltará automaticamente quando o contato responder.`)) {
         return;
     }
     

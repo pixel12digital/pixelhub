@@ -1042,15 +1042,17 @@ class ConversationService
                         ELSE message_count 
                     END,
                     unread_count = CASE 
+                        WHEN status = 'ignored' AND ? = 'inbound' THEN 1
                         WHEN status = 'ignored' THEN unread_count
                         WHEN ? = 'inbound' THEN unread_count + 1 
                         ELSE unread_count 
                     END,
                     ignored_unread_count = CASE 
-                        WHEN status = 'ignored' AND ? = 'inbound' THEN ignored_unread_count + 1
+                        WHEN status = 'ignored' AND ? = 'inbound' THEN 0
                         ELSE ignored_unread_count
                     END,
                     status = CASE 
+                        WHEN status = 'ignored' AND ? = 'inbound' THEN 'active'
                         WHEN status = 'ignored' THEN 'ignored'
                         WHEN status = 'closed' THEN 'open'
                         ELSE status
@@ -1059,7 +1061,7 @@ class ConversationService
                 WHERE id = ?
             ");
 
-            $stmt->execute([$messageTimestamp, $direction, $hasContent ? 1 : 0, $direction, $direction, $now, $conversationId]);
+            $stmt->execute([$messageTimestamp, $direction, $hasContent ? 1 : 0, $direction, $direction, $direction, $direction, $now, $conversationId]);
 
             // Atualiza contato name se fornecido e ainda não existe
             if (!empty($channelInfo['contact_name'])) {
