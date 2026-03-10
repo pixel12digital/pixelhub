@@ -199,6 +199,10 @@ class CommunicationHubController extends Controller
             // Separa incoming leads
             foreach ($allThreads as $thread) {
                 if (!empty($thread['is_incoming_lead'])) {
+                    // Oculta prospecções sem resposta (source=prospecting + última mensagem outbound)
+                    if (($thread['source'] ?? '') === 'prospecting' && ($thread['last_message_direction'] ?? '') === 'outbound') {
+                        continue;
+                    }
                     $incomingLeads[] = $thread;
                 } else {
                     $normalThreads[] = $thread;
@@ -4539,6 +4543,10 @@ class CommunicationHubController extends Controller
                 // Separa incoming leads das conversas normais
                 foreach ($allThreads as $thread) {
                     if (!empty($thread['is_incoming_lead'])) {
+                        // Oculta prospecções sem resposta (source=prospecting + última mensagem outbound)
+                        if (($thread['source'] ?? '') === 'prospecting' && ($thread['last_message_direction'] ?? '') === 'outbound') {
+                            continue;
+                        }
                         $incomingLeads[] = $thread;
                     } else {
                         $normalThreads[] = $thread;
