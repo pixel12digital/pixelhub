@@ -235,6 +235,7 @@ class CommunicationHubController extends Controller
                 WHERE c.channel_type = 'whatsapp'
                   AND c.is_incoming_lead = 1
                   AND (c.status IS NULL OR c.status NOT IN ('closed', 'archived', 'ignored'))
+                  AND NOT (COALESCE(c.source,'') = 'prospecting' AND COALESCE(c.last_message_direction,'') = 'outbound')
             ");
             $countStmt->execute();
             $countResult = $countStmt->fetch();
@@ -4566,6 +4567,7 @@ class CommunicationHubController extends Controller
                     WHERE c.channel_type = 'whatsapp'
                       AND c.is_incoming_lead = 1
                       AND (c.status IS NULL OR c.status NOT IN ('closed', 'archived', 'ignored'))
+                      AND NOT (COALESCE(c.source,'') = 'prospecting' AND COALESCE(c.last_message_direction,'') = 'outbound')
                 ");
                 $countStmt->execute();
                 $countResult = $countStmt->fetch();
