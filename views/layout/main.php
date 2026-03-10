@@ -2322,7 +2322,7 @@
                         <option value="active">Ativas</option>
                         <option value="unread">Não Lidas</option>
                         <option value="archived">Arquivadas</option>
-                        <option value="ignored">Ignoradas</option>
+                        <option value="ignored">Silenciadas</option>
                         <option value="all">Todas</option>
                     </select>
                     <div style="position: relative; flex: 1; min-width: 150px; max-width: 250px;">
