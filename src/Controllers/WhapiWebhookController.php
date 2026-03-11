@@ -55,15 +55,31 @@ class WhapiWebhookController extends Controller
             }
 
             // Identifica tipo de evento Whapi.Cloud
-            $eventType = $payload['event']['type'] ?? null;
-            $eventAction = $payload['event']['event'] ?? null;
+            $eventType    = $payload['event']['type'] ?? null;
+            $eventAction  = $payload['event']['event'] ?? null;
             $whapiChannelId = $payload['channel_id'] ?? null;
 
+            // ── Responde 200 IMEDIATAMENTE antes de qualquer processamento ──────
+            // Whapi tem timeout de 15s; qualquer DB call antes disso causa ETIMEDOUT
+            ignore_user_abort(true);
+            http_response_code(200);
+            echo json_encode(['success' => true, 'code' => 'RECEIVED'], JSON_UNESCAPED_UNICODE);
+
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            } else {
+                $len = ob_get_length();
+                if ($len !== false) {
+                    header('Content-Length: ' . $len);
+                }
+                while (ob_get_level() > 0) ob_end_flush();
+                flush();
+            }
+            // ── Whapi já recebeu o 200, processamento continua em background ────
+
             error_log(sprintf(
-                '[WhapiWebhook] Received: event_type=%s, event_action=%s, channel_id=%s',
-                $eventType ?? 'NULL',
-                $eventAction ?? 'NULL',
-                $whapiChannelId ?? 'NULL'
+                '[WhapiWebhook] Received: event_type=%s event_action=%s channel_id=%s',
+                $eventType ?? 'NULL', $eventAction ?? 'NULL', $whapiChannelId ?? 'NULL'
             ));
 
             // Persiste payload bruto para auditoria
@@ -75,44 +91,23 @@ class WhapiWebhookController extends Controller
                     VALUES (?, ?, ?, 0)
                 ")->execute(["whapi_{$eventType}_{$eventAction}", $payloadHash, $rawPayload]);
             } catch (\Throwable $e) {
-                error_log("[WhapiWebhook] Erro ao persistir webhook_raw_logs (não crítico): " . $e->getMessage());
+                error_log("[WhapiWebhook] Erro ao persistir webhook_raw_logs: " . $e->getMessage());
             }
 
-            // SHORT-CIRCUIT: Eventos de status (read, delivered, etc.)
+            // Ignora eventos de status
             if ($eventType === 'statuses') {
-                http_response_code(200);
-                echo json_encode(['success' => true, 'code' => 'STATUS_SKIPPED', 'message' => 'Status events not processed']);
                 exit;
             }
 
             // Processa apenas mensagens
             if ($eventType !== 'messages' || empty($payload['messages'])) {
-                http_response_code(200);
-                echo json_encode(['success' => true, 'code' => 'EVENT_NOT_HANDLED', 'message' => "Event type '{$eventType}' not handled"]);
                 exit;
             }
 
-            // Processa cada mensagem no array
+            // Processa cada mensagem
             $results = [];
             foreach ($payload['messages'] as $message) {
-                $result = $this->processMessage($message, $whapiChannelId, $rawPayload);
-                $results[] = $result;
-            }
-
-            $hasSuccess = !empty(array_filter($results, fn($r) => $r['saved'] ?? false));
-
-            http_response_code(200);
-            echo json_encode([
-                'success' => true,
-                'code' => $hasSuccess ? 'SUCCESS' : 'PROCESSED_WITH_WARNINGS',
-                'results' => $results
-            ], JSON_UNESCAPED_UNICODE);
-
-            if (function_exists('fastcgi_finish_request')) {
-                fastcgi_finish_request();
-            } else {
-                if (ob_get_level()) ob_end_flush();
-                flush();
+                $results[] = $this->processMessage($message, $whapiChannelId, $rawPayload);
             }
 
             // Enfileira mídia para processamento async
@@ -131,13 +126,7 @@ class WhapiWebhookController extends Controller
         } catch (\Throwable $e) {
             error_log("[WhapiWebhook] Exception: " . $e->getMessage());
             error_log("[WhapiWebhook] Stack: " . $e->getTraceAsString());
-
-            http_response_code(200); // Responde 200 para não causar retry
-            echo json_encode([
-                'success' => true,
-                'code' => 'PROCESSED_WITH_ERRORS',
-                'error' => $e->getMessage()
-            ], JSON_UNESCAPED_UNICODE);
+            // Resposta já foi enviada acima — apenas loga
             exit;
         }
     }
