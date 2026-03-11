@@ -31,17 +31,11 @@ class WhapiWebhookController extends Controller
      */
     public function handle(): void
     {
-        // Limpa output anterior
-        while (ob_get_level() > 0) {
-            @ob_end_clean();
-        }
-
-        header('Content-Type: application/json; charset=utf-8');
-
+        // NÃO limpa buffers antes — isso impede Content-Length de ser calculado
+        // Configura execution time
         $currentLimit = ini_get('max_execution_time');
         if ($currentLimit != 0 && $currentLimit < 60) {
             set_time_limit(60);
-            ini_set('max_execution_time', 60);
         }
 
         try {
@@ -60,20 +54,20 @@ class WhapiWebhookController extends Controller
             $whapiChannelId = $payload['channel_id'] ?? null;
 
             // ── Responde 200 IMEDIATAMENTE antes de qualquer processamento ──────
-            // Whapi tem timeout de 15s; qualquer DB call antes disso causa ETIMEDOUT
+            // Headers + Content-Length + Connection:close ANTES do echo para que
+            // Apache/nginx/LiteSpeed envie a resposta sem esperar o script terminar
             ignore_user_abort(true);
+            $responseBody = json_encode(['success' => true, 'code' => 'RECEIVED'], JSON_UNESCAPED_UNICODE);
+            while (ob_get_level() > 0) @ob_end_clean(); // limpa apenas agora (pós-leitura de input)
             http_response_code(200);
-            echo json_encode(['success' => true, 'code' => 'RECEIVED'], JSON_UNESCAPED_UNICODE);
-
+            header('Content-Type: application/json; charset=utf-8');
+            header('Content-Length: ' . strlen($responseBody));
+            header('Connection: close');
+            echo $responseBody;
+            if (ob_get_level() > 0) ob_end_flush();
+            flush();
             if (function_exists('fastcgi_finish_request')) {
                 fastcgi_finish_request();
-            } else {
-                $len = ob_get_length();
-                if ($len !== false) {
-                    header('Content-Length: ' . $len);
-                }
-                while (ob_get_level() > 0) ob_end_flush();
-                flush();
             }
             // ── Whapi já recebeu o 200, processamento continua em background ────
 
