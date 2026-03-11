@@ -23,3 +23,19 @@ RewriteCond %{REQUEST_FILENAME} -d
 RewriteCond %{REQUEST_URI} !^/$
 RewriteRule ^(.*)$ index.php [QSA,L]
 
+# ── Webhook Whapi: desabilita buffering para garantir resposta 200 imediata ──
+# Evita ETIMEDOUT: Apache/mod_deflate pode segurar a resposta até o PHP terminar
+<IfModule mod_headers.c>
+    <If "%{REQUEST_URI} =~ m|/api/whatsapp/whapi/webhook|">
+        Header set X-Accel-Buffering "no"
+        Header set Cache-Control "no-store, no-cache"
+    </If>
+</IfModule>
+<IfModule mod_deflate.c>
+    <If "%{REQUEST_URI} =~ m|/api/whatsapp/whapi/webhook|">
+        SetEnv no-gzip 1
+        SetEnv dont-vary 1
+    </If>
+</IfModule>
+php_value output_buffering Off
+
