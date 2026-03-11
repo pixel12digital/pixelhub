@@ -83,7 +83,8 @@ class WhatsAppProvidersController extends Controller
                     SET is_active = ?, updated_by = ?, updated_at = NOW()
                     WHERE provider_type = 'whapi' AND is_global = TRUE
                 ");
-                $stmt->execute([$isActive ? 1 : 0, Auth::getUserId()]);
+                $userId = Auth::user()['id'] ?? null;
+                $stmt->execute([$isActive ? 1 : 0, $userId]);
                 $this->redirect('/settings/whatsapp-providers?success=1&message=' . urlencode('Status Whapi atualizado'));
             } catch (\Exception $e) {
                 $this->redirect('/settings/whatsapp-providers?error=save_failed&message=' . urlencode($e->getMessage()));
@@ -98,7 +99,7 @@ class WhatsAppProvidersController extends Controller
 
         try {
             $db = DB::getConnection();
-            $userId = Auth::getUserId();
+            $userId = Auth::user()['id'] ?? null;
 
             // Criptografa token
             $encryptedToken = 'encrypted:' . CryptoHelper::encrypt($apiToken);
@@ -411,7 +412,7 @@ class WhatsAppProvidersController extends Controller
                     updated_at = NOW()
                 WHERE id = ?
             ");
-            $stmt->execute([Auth::getUserId(), $configId]);
+            $stmt->execute([Auth::user()['id'] ?? null, $configId]);
 
             $this->redirect('/settings/whatsapp-providers?success=1&message=' . urlencode('Status atualizado'));
 
