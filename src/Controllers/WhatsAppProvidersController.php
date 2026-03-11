@@ -74,7 +74,7 @@ class WhatsAppProvidersController extends Controller
         $apiToken = trim($_POST['whapi_api_token'] ?? '');
         $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : false;
 
-        if (empty($apiToken) || str_contains($apiToken, '\u25cf')) {
+        if (empty($apiToken) || strpos($apiToken, "\xE2\x97\x8F") !== false) {
             // Token not changed (masked) - just toggle is_active
             try {
                 $db = DB::getConnection();
