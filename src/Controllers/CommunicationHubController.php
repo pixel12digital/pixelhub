@@ -2642,7 +2642,7 @@ class CommunicationHubController extends Controller
         // 2. Meta Official API — número ativo em whatsapp_provider_configs
         try {
             $stmt = $db->query("
-                SELECT meta_phone_number_id
+                SELECT meta_phone_number_id, config_metadata
                 FROM whatsapp_provider_configs
                 WHERE provider_type = 'meta_official'
                   AND is_global = TRUE
@@ -2651,10 +2651,12 @@ class CommunicationHubController extends Controller
             ");
             $meta = $stmt->fetch(\PDO::FETCH_ASSOC);
             if ($meta && !empty($meta['meta_phone_number_id'])) {
-                $phoneId = $meta['meta_phone_number_id'];
+                $phoneId   = $meta['meta_phone_number_id'];
+                $metadata  = json_decode($meta['config_metadata'] ?? '{}', true);
+                $displayPhone = !empty($metadata['display_phone']) ? $metadata['display_phone'] : null;
                 $sessions[] = [
                     'id'     => $phoneId,
-                    'name'   => 'Meta API (' . $phoneId . ')',
+                    'name'   => 'Meta: ' . ($displayPhone ?: $phoneId),
                     'status' => 'connected',
                     'source' => 'meta_official',
                 ];

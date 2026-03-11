@@ -241,6 +241,21 @@ ob_start();
 
             <div style="margin-bottom: 20px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">
+                    Número de Telefone (exibição)
+                </label>
+                <?php
+                    $metaCfgMeta = json_decode($metaConfig['config_metadata'] ?? '{}', true);
+                    $currentDisplayPhone = $metaCfgMeta['display_phone'] ?? '';
+                ?>
+                <input type="text" name="display_phone"
+                       value="<?= htmlspecialchars($currentDisplayPhone) ?>"
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;"
+                       placeholder="Ex: +55 47 99303-9525">
+                <small style="color: #666;">Número legível exibido nos filtros do Inbox em vez do Phone Number ID</small>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">
                     Webhook Verify Token
                 </label>
                 <input type="text" name="webhook_verify_token" 

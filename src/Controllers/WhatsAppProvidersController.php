@@ -211,10 +211,11 @@ class WhatsAppProvidersController extends Controller
             throw $e;
         }
 
-        $phoneNumberId = trim($_POST['phone_number_id'] ?? '');
-        $accessToken = trim($_POST['access_token'] ?? '');
+        $phoneNumberId    = trim($_POST['phone_number_id'] ?? '');
+        $accessToken      = trim($_POST['access_token'] ?? '');
         $businessAccountId = trim($_POST['business_account_id'] ?? '');
         $webhookVerifyToken = trim($_POST['webhook_verify_token'] ?? '');
+        $displayPhone     = trim($_POST['display_phone'] ?? '');
         $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : true;
         
         error_log('[WhatsAppProvidersController::saveMetaConfig] Dados extraídos - phone_number_id: ' . $phoneNumberId . ', business_account_id: ' . $businessAccountId);
@@ -242,6 +243,15 @@ class WhatsAppProvidersController extends Controller
             $user = Auth::user();
             $userId = $user['id'] ?? null;
 
+            // config_metadata: preserva campos existentes, atualiza display_phone
+            $existingMeta = [];
+            if ($existing) {
+                $metaRow = $db->query("SELECT config_metadata FROM whatsapp_provider_configs WHERE id = {$existing['id']} LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
+                $existingMeta = json_decode($metaRow['config_metadata'] ?? '{}', true) ?: [];
+            }
+            if (!empty($displayPhone)) $existingMeta['display_phone'] = $displayPhone;
+            $configMetadataJson = json_encode($existingMeta, JSON_UNESCAPED_UNICODE);
+
             if ($existing) {
                 // Atualiza existente
                 $updateStmt = $db->prepare("
@@ -250,6 +260,7 @@ class WhatsAppProvidersController extends Controller
                         meta_access_token = ?,
                         meta_business_account_id = ?,
                         meta_webhook_verify_token = ?,
+                        config_metadata = ?,
                         is_active = ?,
                         updated_by = ?,
                         updated_at = NOW()
@@ -260,6 +271,7 @@ class WhatsAppProvidersController extends Controller
                     $encryptedToken,
                     $businessAccountId,
                     $webhookVerifyToken,
+                    $configMetadataJson,
                     $isActive ? 1 : 0,
                     $userId,
                     $existing['id']
