@@ -39,7 +39,8 @@ class WhapiWebhookController extends Controller
         }
 
         try {
-            $rawPayload = file_get_contents('php://input');
+            // Input foi lido no early-response do index.php (antes do bootstrap)
+            $rawPayload = $GLOBALS['_WHAPI_RAW_INPUT'] ?? file_get_contents('php://input');
             $payload = json_decode($rawPayload, true);
 
             if (json_last_error() !== JSON_ERROR_NONE || !is_array($payload)) {

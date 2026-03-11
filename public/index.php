@@ -4,6 +4,36 @@
  * Bootstrap principal do Pixel Hub
  */
 
+// ── Early-response para webhook Whapi ANTES de qualquer bootstrap ───────────
+// O bootstrap (session_start + autoloader + Env::load) pode demorar >15s no
+// hosting compartilhado. O Whapi tem timeout de 15s, causando ETIMEDOUT.
+// Solução: responde 200 imediatamente, processa em background.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' &&
+    strpos(($_SERVER['REQUEST_URI'] ?? ''), '/api/whatsapp/whapi/webhook') !== false) {
+
+    // Lê o input AGORA (antes do bootstrap consumir php://input)
+    $GLOBALS['_WHAPI_RAW_INPUT'] = file_get_contents('php://input');
+
+    // Envia 200 imediatamente para o Whapi
+    ignore_user_abort(true);
+    $earlyBody = '{"success":true,"code":"RECEIVED"}';
+    http_response_code(200);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Content-Length: ' . strlen($earlyBody));
+    header('Connection: close');
+    echo $earlyBody;
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } else {
+        while (ob_get_level() > 0) @ob_end_flush();
+        flush();
+    }
+    // Continua o bootstrap e processamento abaixo (em background)
+    set_time_limit(120);
+    ini_set('max_execution_time', 120);
+}
+// ── fim early-response Whapi ─────────────────────────────────────────────────
+
 // Diagnóstico: agenda-trace força exibição de erros
 if (isset($_SERVER['SCRIPT_NAME']) && strpos($_SERVER['SCRIPT_NAME'], 'agenda-trace') !== false) {
     ini_set('display_errors', '1');
