@@ -2614,81 +2614,55 @@ class CommunicationHubController extends Controller
      */
     private function getWhatsAppSessions(PDO $db): array
     {
-        // OTIMIZAÇÃO: Cache de sessões por 60 segundos (evita chamada ao gateway a cada page load)
-        $cacheKey = 'whatsapp_sessions_cache';
-        $cacheFile = sys_get_temp_dir() . '/pixelhub_' . $cacheKey . '.json';
-        $cacheTTL = 60; // segundos
-        
-        // Verifica cache
-        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $cacheTTL) {
-            $cached = @json_decode(file_get_contents($cacheFile), true);
-            if (!empty($cached)) {
-                return $cached;
-            }
-        }
-        
         $sessions = [];
-        $sessionIds = [];
-        
-        // 1. Busca sessões do banco PRIMEIRO (rápido, sempre funciona)
+
+        // 1. Whapi.Cloud — canais ativos em tenant_message_channels
         try {
             $stmt = $db->query("
-                SELECT DISTINCT channel_id 
-                FROM conversations 
-                WHERE channel_type = 'whatsapp' 
-                  AND channel_id IS NOT NULL 
-                  AND channel_id != ''
+                SELECT channel_id, provider
+                FROM tenant_message_channels
+                WHERE provider = 'whapi'
+                  AND is_enabled = 1
                 ORDER BY channel_id
             ");
-            $dbSessions = $stmt->fetchAll();
-            
-            foreach ($dbSessions as $row) {
-                $sessionId = $row['channel_id'];
-                if ($sessionId && !in_array($sessionId, $sessionIds)) {
-                    $sessionIds[] = $sessionId;
-                    $sessions[] = [
-                        'id' => $sessionId,
-                        'name' => ucwords(str_replace(['_', '-'], ' ', $sessionId)),
-                        'status' => 'connected', // Assume conectado se tem conversas
-                        'source' => 'database'
-                    ];
-                }
+            foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+                $id = $row['channel_id'];
+                if (!$id) continue;
+                $sessions[] = [
+                    'id'     => $id,
+                    'name'   => ucwords(str_replace(['_', '-'], ' ', $id)),
+                    'status' => 'connected',
+                    'source' => 'whapi',
+                ];
             }
         } catch (\Exception $e) {
-            error_log("[CommunicationHub] Erro ao buscar sessões do banco: " . $e->getMessage());
+            error_log("[CommunicationHub] Erro ao buscar canais Whapi: " . $e->getMessage());
         }
-        
-        // 2. Tenta buscar do gateway em background (para status atualizado)
-        // Só faz a chamada se não tiver sessões do banco (fallback)
-        if (empty($sessions)) {
-            try {
-                $gateway = new WhatsAppGatewayClient();
-                $result = $gateway->listChannels();
-                
-                if (!empty($result['success']) && !empty($result['raw']['channels'])) {
-                    foreach ($result['raw']['channels'] as $channel) {
-                        $sessionId = $channel['session'] ?? $channel['id'] ?? $channel['channel'] ?? null;
-                        if ($sessionId && !in_array($sessionId, $sessionIds)) {
-                            $sessionIds[] = $sessionId;
-                            $sessions[] = [
-                                'id' => $sessionId,
-                                'name' => ucwords(str_replace(['_', '-'], ' ', $sessionId)),
-                                'status' => $channel['status'] ?? 'connected',
-                                'source' => 'gateway'
-                            ];
-                        }
-                    }
-                }
-            } catch (\Exception $e) {
-                // Silencioso em produção - não bloqueia se gateway estiver lento
+
+        // 2. Meta Official API — número ativo em whatsapp_provider_configs
+        try {
+            $stmt = $db->query("
+                SELECT meta_phone_number_id
+                FROM whatsapp_provider_configs
+                WHERE provider_type = 'meta_official'
+                  AND is_global = TRUE
+                  AND is_active = 1
+                LIMIT 1
+            ");
+            $meta = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if ($meta && !empty($meta['meta_phone_number_id'])) {
+                $phoneId = $meta['meta_phone_number_id'];
+                $sessions[] = [
+                    'id'     => $phoneId,
+                    'name'   => 'Meta API (' . $phoneId . ')',
+                    'status' => 'connected',
+                    'source' => 'meta_official',
+                ];
             }
+        } catch (\Exception $e) {
+            error_log("[CommunicationHub] Erro ao buscar config Meta: " . $e->getMessage());
         }
-        
-        // Salva no cache
-        if (!empty($sessions)) {
-            @file_put_contents($cacheFile, json_encode($sessions));
-        }
-        
+
         return $sessions;
     }
 
