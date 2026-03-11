@@ -115,6 +115,26 @@ ob_start();
         <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/whapi/save') ?>">
             <div style="margin-bottom: 20px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">
+                    URL da API <span style="color: #dc3545;">*</span>
+                </label>
+                <?php
+                $savedApiUrl = 'https://gate.whapi.cloud';
+                if (!empty($whapiConfig['config_metadata'])) {
+                    $whapiMeta = json_decode($whapiConfig['config_metadata'], true);
+                    if (!empty($whapiMeta['whapi_base_url'])) {
+                        $savedApiUrl = $whapiMeta['whapi_base_url'];
+                    }
+                }
+                ?>
+                <input type="url" name="whapi_api_url"
+                       value="<?= htmlspecialchars($savedApiUrl) ?>"
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;"
+                       placeholder="https://gate.whapi.cloud">
+                <small style="color: #666;">URL base da API Whapi.Cloud (padrão: <code>https://gate.whapi.cloud</code>)</small>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">
                     API Token <span style="color: #dc3545;">*</span>
                 </label>
                 <input type="text" name="whapi_api_token" required

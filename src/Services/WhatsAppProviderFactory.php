@@ -78,7 +78,7 @@ class WhatsAppProviderFactory
         try {
             $db = DB::getConnection();
             $stmt = $db->query("
-                SELECT whapi_api_token, whapi_channel_id
+                SELECT whapi_api_token, whapi_channel_id, config_metadata
                 FROM whatsapp_provider_configs
                 WHERE provider_type = 'whapi' 
                   AND is_global = TRUE 
@@ -88,7 +88,14 @@ class WhatsAppProviderFactory
             $config = $stmt->fetch(\PDO::FETCH_ASSOC);
             
             if ($config && !empty($config['whapi_api_token'])) {
-                error_log("[WhatsAppProviderFactory] Config Whapi global encontrada");
+                // Extrai whapi_base_url do config_metadata JSON
+                if (!empty($config['config_metadata'])) {
+                    $meta = json_decode($config['config_metadata'], true);
+                    if (!empty($meta['whapi_base_url'])) {
+                        $config['whapi_base_url'] = rtrim($meta['whapi_base_url'], '/');
+                    }
+                }
+                error_log("[WhatsAppProviderFactory] Config Whapi global encontrada (base_url=" . ($config['whapi_base_url'] ?? 'default') . ")");
                 return $config;
             }
             
