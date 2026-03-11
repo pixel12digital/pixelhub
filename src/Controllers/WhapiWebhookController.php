@@ -71,9 +71,10 @@ class WhapiWebhookController extends Controller
             }
             // ── Whapi já recebeu o 200, processamento continua em background ────
 
+            $remoteIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown';
             error_log(sprintf(
-                '[WhapiWebhook] Received: event_type=%s event_action=%s channel_id=%s',
-                $eventType ?? 'NULL', $eventAction ?? 'NULL', $whapiChannelId ?? 'NULL'
+                '[WhapiWebhook] Received from IP=%s event_type=%s event_action=%s channel_id=%s',
+                $remoteIp, $eventType ?? 'NULL', $eventAction ?? 'NULL', $whapiChannelId ?? 'NULL'
             ));
 
             // Persiste payload bruto para auditoria
