@@ -7981,6 +7981,40 @@ window.filterLinkLeadOptions = function(searchTerm) {
 
 console.log('✅ Função definitiva sobrescrita com sucesso!');
 console.log('✅ Busca sem acento 100% funcional!');
+
+// ── Whapi auto-poll ─────────────────────────────────────────────────────────
+// Busca novas mensagens do Whapi a cada 30s enquanto o Inbox está aberto.
+// Substitui webhook (que falha por ETIMEDOUT) sem precisar de cron no servidor.
+(function initWhapiPoll() {
+    var POLL_INTERVAL = 30000; // 30 segundos
+    var POLL_URL = '/api/cron/whapi-poll';
+    var pollTimer = null;
+
+    function runPoll() {
+        fetch(POLL_URL, { method: 'GET', credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data && data.processed > 0) {
+                    console.log('[WhapiPoll] Novas mensagens: ' + data.processed + '. Atualizando lista...');
+                    // Dispara refresh da lista de conversas se a função existir
+                    if (typeof window.loadConversations === 'function') window.loadConversations();
+                    else if (typeof window.refreshInbox === 'function') window.refreshInbox();
+                    else if (typeof window.loadInboxFilterOptions === 'function') window.loadInboxFilterOptions();
+                }
+            })
+            .catch(function(e) { /* silencioso — não interrompe a UI */ });
+    }
+
+    // Executa imediatamente ao abrir o Inbox
+    runPoll();
+
+    // Continua a cada 30s
+    pollTimer = setInterval(runPoll, POLL_INTERVAL);
+
+    // Para o poll quando a página é fechada/sai
+    window.addEventListener('beforeunload', function() { clearInterval(pollTimer); });
+})();
+// ── fim Whapi auto-poll ──────────────────────────────────────────────────────
 </script>
 
 </body>
