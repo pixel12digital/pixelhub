@@ -193,6 +193,7 @@ class ConversationService
         $payload = $eventData['payload'] ?? [];
         $metadata = $eventData['metadata'] ?? [];
         $tenantId = $eventData['tenant_id'] ?? null;
+        $sourceSystem = $eventData['source_system'] ?? null;
 
         // Detecta tipo de canal
         $channelType = null;
@@ -540,7 +541,7 @@ class ConversationService
         $remoteKeyValue = $remoteKey($remoteIdRaw);
         
         // Calcula contact_key e thread_key
-        $provider = 'wpp_gateway'; // ou extrair de source_system se necessário
+        $provider = in_array($sourceSystem ?? '', ['whapi_cloud'], true) ? 'whapi' : 'wpp_gateway';
         $sessionIdForKeys = $channelId ?: ($metadata['channel_id'] ?? null);
         $contactKey = null;
         $threadKey = null;
@@ -685,7 +686,7 @@ class ConversationService
 
         $db = DB::getConnection();
         
-        $provider = 'wpp_gateway'; // Por enquanto só WhatsApp
+        $provider = 'wpp_gateway';
         if ($channelType !== 'whatsapp') {
             return null; // Outros canais ainda não mapeados
         }
@@ -744,7 +745,7 @@ class ConversationService
         try {
             $stmt = $db->prepare("
                 SELECT id FROM tenant_message_channels
-                WHERE provider = 'wpp_gateway'
+                WHERE provider IN ('wpp_gateway', 'whapi')
                 AND is_enabled = 1
                 AND (LOWER(REPLACE(TRIM(channel_id), ' ', '')) = ? OR channel_id = ?)
                 LIMIT 1
@@ -1892,7 +1893,7 @@ private static function extractMessageTimestamp(array $eventData): string
         $stmt = $db->prepare("
             SELECT tenant_id 
             FROM tenant_message_channels 
-            WHERE provider = 'wpp_gateway' 
+            WHERE provider IN ('wpp_gateway', 'whapi') 
             AND is_enabled = 1
             AND (
                 channel_id = ?
@@ -1911,7 +1912,7 @@ private static function extractMessageTimestamp(array $eventData): string
         $stmt2 = $db->prepare("
             SELECT tenant_id 
             FROM tenant_message_channels 
-            WHERE provider = 'wpp_gateway' 
+            WHERE provider IN ('wpp_gateway', 'whapi') 
             AND is_enabled = 1
             AND LOWER(REPLACE(channel_id, ' ', '')) = ?
             LIMIT 1

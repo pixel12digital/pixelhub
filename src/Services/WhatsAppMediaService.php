@@ -4,7 +4,7 @@ namespace PixelHub\Services;
 
 use PixelHub\Core\DB;
 use PixelHub\Core\Storage;
-use PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient;
+use PixelHub\Core\CryptoHelper;
 use PDO;
 
 /**
@@ -284,17 +284,29 @@ class WhatsAppMediaService
         // Extrai channel_id para baixar mídia (mesma prioridade do WhatsAppWebhookController)
         $channelId = self::extractChannelIdFromEvent($event, $payload);
         
-        if (!$channelId) {
-            error_log("[WhatsAppMediaService] Channel ID não encontrado para evento {$event['event_id']}. metadata=" . substr($event['metadata'] ?? '{}', 0, 150));
-            // Salva registro sem arquivo para não reprocessar
+        // Para Whapi, verifica se há URL de mídia direta (não precisa de channelId)
+        $mediaUrl = $payload['media']['link'] ?? $payload['mediaUrl'] ?? $payload['message']['mediaUrl'] ?? null;
+        $isWhapi  = ($event['source_system'] ?? null) === 'whapi_cloud';
+
+        if (!$channelId && !($isWhapi && $mediaUrl)) {
+            error_log("[WhatsAppMediaService] Channel ID não encontrado e sem URL Whapi para evento {$event['event_id']}. metadata=" . substr($event['metadata'] ?? '{}', 0, 150));
             return self::saveMediaRecord($event['event_id'], $mediaId, $mediaType, $mimeType, null, null, null);
         }
         
-        // Baixa mídia do WhatsApp Gateway
+        // Baixa mídia - Whapi.Cloud ou WPPConnect (legado)
         try {
-            error_log("[WhatsAppMediaService] Iniciando download de mídia - channelId: {$channelId}, mediaId: {$mediaId}");
-            $client = new WhatsAppGatewayClient();
-            $downloadResult = $client->downloadMedia($channelId, $mediaId);
+            $sourceSystem = $event['source_system'] ?? null;
+            $mediaUrl = $payload['media']['link'] ?? $payload['mediaUrl'] ?? $payload['message']['mediaUrl'] ?? null;
+
+            if ($sourceSystem === 'whapi_cloud' && $mediaUrl) {
+                // Whapi.Cloud: baixa via URL com Bearer token
+                error_log("[WhatsAppMediaService] Whapi: baixando mídia via URL: " . substr($mediaUrl, 0, 80));
+                $downloadResult = self::downloadWhapiMedia($mediaUrl);
+            } else {
+                // Sem URL disponível para baixar
+                error_log("[WhatsAppMediaService] Sem URL de mídia disponível para source={$sourceSystem}, event={$event['event_id']}");
+                return self::saveMediaRecord($event['event_id'], $mediaId, $mediaType, $mimeType, null, null, null);
+            }
             
             if (!$downloadResult['success'] || empty($downloadResult['data'])) {
                 $errorMsg = $downloadResult['error'] ?? 'Dados vazios ou download falhou';
@@ -389,6 +401,72 @@ class WhatsAppMediaService
 
         $channelId = $channelId !== null && $channelId !== '' ? (string) $channelId : null;
         return $channelId ?: null;
+    }
+
+    /**
+     * Baixa mídia do Whapi.Cloud via URL autenticada com Bearer token
+     * 
+     * @param string $url URL da mídia (ex: https://store.whapi.cloud/...media...)
+     * @return array ['success' => bool, 'data' => string|null, 'mime_type' => string|null, 'error' => string|null]
+     */
+    private static function downloadWhapiMedia(string $url): array
+    {
+        try {
+            // Busca token Whapi do banco
+            $db = DB::getConnection();
+            $stmt = $db->query("
+                SELECT whapi_api_token FROM whatsapp_provider_configs
+                WHERE provider_type = 'whapi' AND is_global = TRUE AND is_active = 1 LIMIT 1
+            ");
+            $config = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $token = '';
+            if ($config && !empty($config['whapi_api_token'])) {
+                $rawToken = $config['whapi_api_token'];
+                if (strpos($rawToken, 'encrypted:') === 0) {
+                    $token = CryptoHelper::decrypt(substr($rawToken, 10));
+                } else {
+                    $token = $rawToken;
+                }
+            }
+
+            $ch = curl_init($url);
+            $headers = ['Accept: */*'];
+            if (!empty($token)) {
+                $headers[] = "Authorization: Bearer {$token}";
+            }
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS      => 3,
+                CURLOPT_HTTPHEADER     => $headers,
+            ]);
+
+            $data     = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $mimeType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+            $curlErr  = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlErr) {
+                return ['success' => false, 'data' => null, 'mime_type' => null, 'error' => "cURL error: {$curlErr}"];
+            }
+
+            if ($httpCode < 200 || $httpCode >= 300 || empty($data)) {
+                return ['success' => false, 'data' => null, 'mime_type' => null, 'error' => "HTTP {$httpCode}"];
+            }
+
+            return [
+                'success'   => true,
+                'data'      => $data,
+                'mime_type' => $mimeType ? strtok($mimeType, ';') : null,
+                'error'     => null,
+            ];
+
+        } catch (\Exception $e) {
+            return ['success' => false, 'data' => null, 'mime_type' => null, 'error' => $e->getMessage()];
+        }
     }
 
     /**

@@ -1,7 +1,7 @@
 <?php
 /**
  * Configurações de Providers WhatsApp
- * WPPConnect Gateway + Meta Official API
+ * Whapi.Cloud + Meta Official API
  */
 ob_start();
 ?>
@@ -9,7 +9,7 @@ ob_start();
 <div class="content-header">
     <div>
         <h2>Providers WhatsApp</h2>
-        <p>Configure os providers de WhatsApp disponíveis (WPPConnect e Meta Official API)</p>
+        <p>Configure os providers de WhatsApp disponíveis (Whapi.Cloud e Meta Official API)</p>
     </div>
 </div>
 
@@ -31,8 +31,8 @@ ob_start();
 
 <!-- Tabs -->
 <div style="border-bottom: 2px solid #dee2e6; margin-bottom: 20px;">
-    <button onclick="showTab('wppconnect')" id="tab-wppconnect" style="padding: 10px 20px; border: none; background: #023A8D; color: white; cursor: pointer; border-radius: 4px 4px 0 0; margin-right: 5px;">
-        WPPConnect Gateway
+    <button onclick="showTab('whapi')" id="tab-whapi" style="padding: 10px 20px; border: none; background: #023A8D; color: white; cursor: pointer; border-radius: 4px 4px 0 0; margin-right: 5px;">
+        Whapi.Cloud
     </button>
     <button onclick="showTab('meta')" id="tab-meta" style="padding: 10px 20px; border: none; background: #6c757d; color: white; cursor: pointer; border-radius: 4px 4px 0 0; margin-right: 5px;">
         Meta Official API
@@ -42,34 +42,112 @@ ob_start();
     </button>
 </div>
 
-<!-- Tab WPPConnect -->
-<div id="content-wppconnect" class="tab-content">
-    <div class="card">
+<!-- Tab Whapi.Cloud -->
+<div id="content-whapi" class="tab-content">
+    <?php
+    $whapiIsActive = !empty($whapiConfig) && !empty($whapiConfig['is_active']);
+    $whapiHasToken = !empty($whapiConfig) && !empty($whapiConfig['whapi_api_token']);
+    ?>
+
+    <!-- Status card -->
+    <div class="card" style="margin-bottom: 20px; border-left: 4px solid <?= $whapiIsActive ? '#28a745' : '#ffc107' ?>;">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
-            <h3 style="margin: 0;">WPPConnect Gateway</h3>
-            <span style="background: #28a745; color: white; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; line-height: 1.4;">● Ativo</span>
+            <h3 style="margin: 0;">Whapi.Cloud</h3>
+            <?php if ($whapiIsActive): ?>
+                <span style="background: #28a745; color: white; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; line-height: 1.4;">● Ativo</span>
+            <?php elseif ($whapiHasToken): ?>
+                <span style="background: #ffc107; color: #000; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; line-height: 1.4;">○ Inativo</span>
+            <?php else: ?>
+                <span style="background: #dc3545; color: white; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; line-height: 1.4;">⚠ Não configurado</span>
+            <?php endif; ?>
         </div>
-        <p style="color: #6c757d; margin-bottom: 20px;">Gateway próprio rodando na VPS Hostinger — provider padrão do sistema.</p>
+        <p style="color: #6c757d; margin-bottom: 16px;">WhatsApp API gerenciada — substitui o WPPConnect Gateway. Sem necessidade de VPS.</p>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
             <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 14px 16px;">
-                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">&#9679; Status</div>
-                <div style="font-weight: 600; color: #28a745;">Operacional</div>
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">● Status</div>
+                <div style="font-weight: 600; color: <?= $whapiIsActive ? '#28a745' : '#dc3545' ?>;">
+                    <?= $whapiIsActive ? 'Ativo e operacional' : ($whapiHasToken ? 'Token configurado, inativo' : 'Sem configuração') ?>
+                </div>
             </div>
             <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 14px 16px;">
-                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">&#128279; Endpoint Webhook</div>
-                <code style="font-size: 13px; color: #333;">/api/whatsapp/webhook</code>
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">🔗 Endpoint Webhook</div>
+                <code style="font-size: 12px; color: #333;">/api/whatsapp/whapi/webhook</code>
             </div>
             <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 14px 16px;">
-                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">&#9881; Provider</div>
-                <div style="font-weight: 600; color: #333;">WPPConnect</div>
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">⚙ Provider</div>
+                <div style="font-weight: 600; color: #333;">Whapi.Cloud</div>
             </div>
         </div>
 
-        <a href="<?= pixelhub_url('/settings/whatsapp-gateway') ?>"
-           style="display: inline-block; background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px;">
-            &#9881; Gerenciar WPPConnect
-        </a>
+        <?php if ($whapiIsActive): ?>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button onclick="testWhapiConnection()" style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                🔍 Testar Conexão
+            </button>
+            <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/toggle-status') ?>" style="display: inline;">
+                <input type="hidden" name="config_id" value="<?= $whapiConfig['id'] ?>">
+                <button type="submit" style="background: #ffc107; color: #000; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Desativar</button>
+            </form>
+        </div>
+        <?php elseif ($whapiHasToken): ?>
+        <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/toggle-status') ?>" style="display: inline;">
+            <input type="hidden" name="config_id" value="<?= $whapiConfig['id'] ?>">
+            <button type="submit" style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">✓ Ativar</button>
+        </form>
+        <?php endif; ?>
+        <div id="whapiTestResult" style="margin-top: 15px; padding: 12px; border-radius: 4px; display: none;"></div>
+    </div>
+
+    <!-- Formulário de configuração Whapi -->
+    <div class="card" id="whapi-form">
+        <h3 style="margin-top: 0;">Configurar Whapi.Cloud</h3>
+
+        <div style="background: #e7f3ff; border-left: 4px solid #0066cc; padding: 12px; margin-bottom: 20px;">
+            <strong>ℹ️ Como obter o API Token</strong>
+            <ol style="margin: 8px 0 0 0; padding-left: 20px; font-size: 14px;">
+                <li>Acesse <strong>app.whapi.cloud</strong> e faça login</li>
+                <li>Vá em <strong>Channels → seu canal (pixel12digital)</strong></li>
+                <li>Copie o <strong>Token</strong> exibido no painel</li>
+            </ol>
+        </div>
+
+        <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/whapi/save') ?>">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">
+                    API Token <span style="color: #dc3545;">*</span>
+                </label>
+                <input type="text" name="whapi_api_token" required
+                       value="<?= $whapiHasToken ? '●●●●●●●●●●●●●●●●●●●●' : '' ?>"
+                       onfocus="if(this.value.includes('●')) this.value=''"
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;"
+                       placeholder="Cole o API Token do Whapi.Cloud aqui...">
+                <small style="color: #666;">Token do canal encontrado no painel Whapi.Cloud</small>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="is_active" value="1" <?= $whapiIsActive ? 'checked' : '' ?>>
+                    <span>Ativar imediatamente após salvar</span>
+                </label>
+            </div>
+
+            <button type="submit" style="background: #023A8D; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                Salvar Configuração Whapi
+            </button>
+        </form>
+    </div>
+
+    <!-- Instruções webhook -->
+    <div class="card" style="margin-top: 20px; background: #e7f3ff; border-left: 4px solid #0066cc;">
+        <h4>📋 Configuração do Webhook no Whapi.Cloud</h4>
+        <ol style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8;">
+            <li>Acesse <strong>app.whapi.cloud → Channels → seu canal → Settings → Webhooks</strong></li>
+            <li>Cole a URL: <code style="background: #fff; padding: 2px 6px; border-radius: 3px;"><?= pixelhub_url('/api/whatsapp/whapi/webhook') ?></code></li>
+            <li>Em <strong>Events</strong>, ative: <code>messages</code></li>
+            <li>Em <strong>Media</strong>, ative Auto Download para: <strong>Image, Audio, Voice, Video, Document</strong></li>
+            <li>Clique em <strong>Save</strong></li>
+        </ol>
     </div>
 </div>
 
@@ -79,8 +157,8 @@ ob_start();
     <!-- Card de visão geral Meta -->
     <div class="card" style="margin-bottom: 20px;">
         <?php
-            $activeMetaCount = count(array_filter($metaConfigs ?? [], fn($c) => $c['is_active']));
-            $totalMetaCount  = count($metaConfigs ?? []);
+            $activeMetaCount = (!empty($metaConfig) && $metaConfig['is_active']) ? 1 : 0;
+            $totalMetaCount  = !empty($metaConfig) ? 1 : 0;
         ?>
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
             <h3 style="margin: 0;">Meta Official API</h3>
@@ -392,19 +470,43 @@ ob_start();
 
 <script>
 function showTab(tab) {
-    // Esconde todos os conteúdos
     document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-    
-    // Remove estilo ativo de todos os botões
-    document.querySelectorAll('[id^="tab-"]').forEach(btn => {
-        btn.style.background = '#6c757d';
-    });
-    
-    // Mostra conteúdo selecionado
+    document.querySelectorAll('[id^="tab-"]').forEach(btn => { btn.style.background = '#6c757d'; });
     document.getElementById('content-' + tab).style.display = 'block';
-    
-    // Ativa botão selecionado
     document.getElementById('tab-' + tab).style.background = '#023A8D';
+}
+
+function testWhapiConnection() {
+    const resultDiv = document.getElementById('whapiTestResult');
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Testando...';
+    resultDiv.style.display = 'block';
+    resultDiv.style.background = '#e7f3ff';
+    resultDiv.style.border = '1px solid #0066cc';
+    resultDiv.innerHTML = '⏳ Testando conexão com Whapi.Cloud...';
+    fetch('<?= pixelhub_url('/settings/whatsapp-providers/whapi/test') ?>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.style.background = '#d4edda';
+            resultDiv.style.border = '1px solid #28a745';
+            resultDiv.innerHTML = '✅ <strong>Conexão bem-sucedida!</strong><br>' + (data.message || 'Whapi.Cloud está respondendo.');
+        } else {
+            resultDiv.style.background = '#f8d7da';
+            resultDiv.style.border = '1px solid #dc3545';
+            resultDiv.innerHTML = '❌ <strong>Erro:</strong><br>' + (data.error || 'Não foi possível conectar.');
+        }
+    })
+    .catch(err => {
+        resultDiv.style.background = '#f8d7da';
+        resultDiv.style.border = '1px solid #dc3545';
+        resultDiv.innerHTML = '❌ <strong>Erro:</strong> ' + err.message;
+    })
+    .finally(() => { btn.disabled = false; btn.innerHTML = '🔍 Testar Conexão'; });
 }
 
 function testMetaConnection() {

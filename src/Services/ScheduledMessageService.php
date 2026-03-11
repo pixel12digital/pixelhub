@@ -133,23 +133,10 @@ class ScheduledMessageService
         $messageText = $message['message_content'] ?? $message['message_text'];
 
         try {
-            if ($providerType === 'meta_official') {
-                // Envia via Meta Official API
-                $provider = \PixelHub\Services\WhatsAppProviderFactory::getProvider('meta_official');
-                $result   = $provider->sendText($phone, $messageText);
-            } else {
-                // Envia via WPPConnect
-                require_once __DIR__ . '/../Integrations/WhatsAppGateway/WhatsAppGatewayClient.php';
-                require_once __DIR__ . '/../Services/GatewaySecret.php';
-                $client = new \PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient();
-                $client->setRequestId('scheduled_msg_' . $messageId . '_' . time());
-                $result = $client->sendText(
-                    $message['channel_id'] ?? 'pixel12digital',
-                    $phone,
-                    $messageText,
-                    ['source' => 'scheduled_message', 'message_id' => $messageId]
-                );
-            }
+            // Usa provider correto baseado no tipo da conversa
+            $choice = ($providerType === 'meta_official') ? 'meta_official' : null;
+            $provider = \PixelHub\Services\WhatsAppProviderFactory::getProvider($choice);
+            $result   = $provider->sendText($phone, $messageText);
 
             if ($result['success']) {
                 self::markAsSent($messageId, $message['conversation_id']);

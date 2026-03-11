@@ -4,27 +4,27 @@ namespace PixelHub\Services;
 
 use PixelHub\Core\DB;
 use PixelHub\Integrations\WhatsApp\WhatsAppProviderInterface;
-use PixelHub\Integrations\WhatsApp\WppConnectProvider;
 use PixelHub\Integrations\WhatsApp\MetaOfficialProvider;
+use PixelHub\Integrations\WhatsApp\WhapiCloudProvider;
 
 /**
  * Factory para criar instâncias de providers WhatsApp
  * 
  * ARQUITETURA:
+ * - Whapi.Cloud: Provider padrão não-oficial - config GLOBAL
  * - Meta Official API: 1 config GLOBAL (is_global=TRUE) para TODOS os clientes
- * - WPPConnect: 1 config por tenant/sessão (is_global=FALSE)
  * 
- * GARANTIA DE COMPATIBILIDADE:
- * - Fallback automático para WPPConnect em caso de erro
- * - WPPConnect continua funcionando 100% igual
+ * PRIORIDADE:
+ * 1. Meta Official API (se selecionado explicitamente)
+ * 2. Whapi.Cloud (padrão)
  */
 class WhatsAppProviderFactory
 {
     /**
      * Obtém provider baseado em escolha explícita ou fallback
      * 
-     * @param string|null $providerChoice 'meta_official' ou 'wppconnect' ou null (auto)
-     * @param int|null $tenantId ID do tenant (para WPPConnect)
+     * @param string|null $providerChoice 'meta_official', 'whapi' ou null (auto)
+     * @param int|null $tenantId ID do tenant (para contexto)
      * @return WhatsAppProviderInterface Provider configurado
      */
     public static function getProvider(?string $providerChoice = null, ?int $tenantId = null): WhatsAppProviderInterface
@@ -36,14 +36,11 @@ class WhatsAppProviderFactory
                 error_log("[WhatsAppProviderFactory] Usando Meta Official API (escolha explícita)");
                 return new MetaOfficialProvider($metaConfig);
             }
-            // Se não tem config Meta, fallback para WPPConnect
-            error_log("[WhatsAppProviderFactory] Meta escolhido mas não configurado, usando WPPConnect (fallback)");
-            return self::createWppConnectProvider($tenantId);
+            error_log("[WhatsAppProviderFactory] Meta escolhido mas não configurado, usando Whapi (fallback)");
         }
 
-        // Se escolheu explicitamente WPPConnect ou não escolheu nada
-        error_log("[WhatsAppProviderFactory] Usando WPPConnect" . ($tenantId ? " (tenant {$tenantId})" : ""));
-        return self::createWppConnectProvider($tenantId);
+        // Padrão e fallback: Whapi.Cloud
+        return self::createWhapiProvider();
     }
 
     /**
@@ -57,44 +54,48 @@ class WhatsAppProviderFactory
     }
 
     /**
-     * Cria provider WPPConnect para um tenant
-     * 
-     * @param int $tenantId ID do tenant
-     * @return WppConnectProvider Provider WPPConnect configurado
+     * Cria provider Whapi.Cloud (provider padrão)
      */
-    private static function createWppConnectProvider(int $tenantId): WppConnectProvider
+    private static function createWhapiProvider(): WhapiCloudProvider
     {
-        $db = DB::getConnection();
+        $whapiConfig = self::getGlobalWhapiConfig();
+        if ($whapiConfig) {
+            error_log("[WhatsAppProviderFactory] Usando Whapi.Cloud");
+            return new WhapiCloudProvider($whapiConfig);
+        }
+        // Retorna instância sem config (validação falhará ao tentar enviar)
+        error_log("[WhatsAppProviderFactory] AVISO: Whapi.Cloud não configurado. Configure o token em Configurações → WhatsApp");
+        return new WhapiCloudProvider([]);
+    }
 
-        // Busca channel_id do tenant (tabela tenant_message_channels)
+    /**
+     * Obtém configuração GLOBAL do Whapi.Cloud
+     * 
+     * @return array|null Configuração Whapi global ou null se não encontrada
+     */
+    private static function getGlobalWhapiConfig(): ?array
+    {
         try {
-            $stmt = $db->prepare("
-                SELECT channel_id, session_id
-                FROM tenant_message_channels
-                WHERE tenant_id = ? 
-                AND provider = 'wpp_gateway'
-                AND is_enabled = 1
-                ORDER BY id ASC
+            $db = DB::getConnection();
+            $stmt = $db->query("
+                SELECT whapi_api_token, whapi_channel_id
+                FROM whatsapp_provider_configs
+                WHERE provider_type = 'whapi' 
+                  AND is_global = TRUE 
+                  AND is_active = 1
                 LIMIT 1
             ");
-            $stmt->execute([$tenantId]);
-            $channel = $stmt->fetch(\PDO::FETCH_ASSOC);
-
-            $channelId = null;
-            if ($channel) {
-                // Prioriza session_id se existir, senão usa channel_id
-                $channelId = !empty($channel['session_id']) ? $channel['session_id'] : $channel['channel_id'];
+            $config = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if ($config && !empty($config['whapi_api_token'])) {
+                error_log("[WhatsAppProviderFactory] Config Whapi global encontrada");
+                return $config;
             }
-
-            return new WppConnectProvider([
-                'channel_id' => $channelId,
-                'tenant_id' => $tenantId
-            ]);
-
+            
+            return null;
         } catch (\Exception $e) {
-            error_log("[WhatsAppProviderFactory] Erro ao buscar channel WPPConnect tenant {$tenantId}: " . $e->getMessage());
-            // Retorna provider sem channel_id (será necessário passar via metadata)
-            return new WppConnectProvider(['tenant_id' => $tenantId]);
+            error_log("[WhatsAppProviderFactory] Erro ao buscar config Whapi global: " . $e->getMessage());
+            return null;
         }
     }
 
@@ -150,16 +151,15 @@ class WhatsAppProviderFactory
             $lead = $stmt->fetch(\PDO::FETCH_ASSOC);
 
             if (!$lead || empty($lead['tenant_id'])) {
-                // Lead sem tenant → usa WPPConnect padrão
-                error_log("[WhatsAppProviderFactory] Lead {$leadId}: sem tenant, usando WPPConnect (padrão)");
-                return new WppConnectProvider([]);
+                error_log("[WhatsAppProviderFactory] Lead {$leadId}: sem tenant, usando Whapi (padrão)");
+                return self::createWhapiProvider();
             }
 
             return self::getProviderForTenant((int)$lead['tenant_id']);
 
         } catch (\Exception $e) {
             error_log("[WhatsAppProviderFactory] Erro ao buscar provider para lead {$leadId}: " . $e->getMessage());
-            return new WppConnectProvider([]);
+            return self::createWhapiProvider();
         }
     }
 
@@ -180,16 +180,15 @@ class WhatsAppProviderFactory
             $conversation = $stmt->fetch(\PDO::FETCH_ASSOC);
 
             if (!$conversation || empty($conversation['tenant_id'])) {
-                // Conversa sem tenant → usa WPPConnect padrão
-                error_log("[WhatsAppProviderFactory] Conversa {$conversationId}: sem tenant, usando WPPConnect (padrão)");
-                return new WppConnectProvider([]);
+                error_log("[WhatsAppProviderFactory] Conversa {$conversationId}: sem tenant, usando Whapi (padrão)");
+                return self::createWhapiProvider();
             }
 
             return self::getProviderForTenant((int)$conversation['tenant_id']);
 
         } catch (\Exception $e) {
             error_log("[WhatsAppProviderFactory] Erro ao buscar provider para conversa {$conversationId}: " . $e->getMessage());
-            return new WppConnectProvider([]);
+            return self::createWhapiProvider();
         }
     }
 
@@ -216,14 +215,28 @@ class WhatsAppProviderFactory
             // Ignora erro
         }
         
+        // Verifica se Whapi está configurado
+        $whapiConfigured = false;
+        try {
+            $stmt2 = $db->query("
+                SELECT COUNT(*) as total 
+                FROM whatsapp_provider_configs 
+                WHERE provider_type = 'whapi' AND is_global = TRUE AND is_active = 1
+            ");
+            $result2 = $stmt2->fetch(\PDO::FETCH_ASSOC);
+            $whapiConfigured = ($result2['total'] ?? 0) > 0;
+        } catch (\Exception $e) {
+            // Ignora erro
+        }
+
         return [
             [
-                'type' => 'wppconnect',
-                'name' => 'WPPConnect Gateway',
-                'description' => 'Gateway próprio rodando na VPS (atual)',
-                'is_default' => true,
-                'is_configured' => true,
-                'is_global' => false,
+                'type' => 'whapi',
+                'name' => 'Whapi.Cloud',
+                'description' => 'WhatsApp API gerenciada - substitui WPPConnect (recomendado)',
+                'is_default' => $whapiConfigured,
+                'is_configured' => $whapiConfigured,
+                'is_global' => true,
                 'supports_base64' => true,
                 'supports_templates' => false,
             ],

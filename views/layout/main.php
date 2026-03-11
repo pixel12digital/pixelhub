@@ -2060,7 +2060,7 @@
             $diagnosticoOpen = $shouldExpand(['/diagnostic/financial', '/diagnostic/communication']);
             $empresaOpen = $shouldExpand(['/settings/company', '/settings/users']);
             $financeiroConfigOpen = $shouldExpand(['/billing/service-types', '/billing/templates', '/settings/asaas']);
-            $integracoesOpen = $shouldExpand(['/settings/whatsapp-gateway', '/settings/smtp', '/settings/ai', '/settings/ai-contexts', '/settings/google-maps', '/settings/whatsapp-providers']);
+            $integracoesOpen = $shouldExpand(['/settings/whatsapp-providers', '/settings/smtp', '/settings/ai', '/settings/ai-contexts', '/settings/google-maps']);
             $produtosOpen = $shouldExpand(['/settings/tenant-products']);
             $mensagensOpen = $shouldExpand(['/settings/whatsapp-templates', '/settings/communication-events']);
             $contratosOpen = $shouldExpand(['/settings/contract-clauses']);
@@ -2152,11 +2152,8 @@
                             </svg>
                         </div>
                         <div class="sidebar-subgroup-content <?= $integracoesOpen ? 'is-open' : '' ?>">
-                            <a href="<?= pixelhub_url('/settings/whatsapp-gateway') ?>" class="sub-item <?= (strpos($currentUri, '/settings/whatsapp-gateway') !== false && strpos($currentUri, '/settings/whatsapp-gateway/test') === false) ? 'active' : '' ?>">
-                                <span class="sidebar-text">WhatsApp Gateway</span>
-                            </a>
-                            <a href="<?= pixelhub_url('/settings/whatsapp-gateway/test') ?>" class="sub-item level-3 <?= (strpos($currentUri, '/settings/whatsapp-gateway/test') !== false) ? 'active' : '' ?>">
-                                <span class="sidebar-text">Testes & Logs</span>
+                            <a href="<?= pixelhub_url('/settings/whatsapp-providers') ?>" class="sub-item <?= (strpos($currentUri, '/settings/whatsapp-providers') !== false) ? 'active' : '' ?>">
+                                <span class="sidebar-text">WhatsApp (Whapi)</span>
                             </a>
                             <a href="<?= pixelhub_url('/settings/smtp') ?>" class="sub-item <?= (strpos($currentUri, '/settings/smtp') !== false) ? 'active' : '' ?>">
                                 <span class="sidebar-text">Configurações SMTP</span>

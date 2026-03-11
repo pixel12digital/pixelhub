@@ -457,8 +457,11 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     // Webhook do Asaas
     $router->post('/webhook/asaas', 'AsaasWebhookController@handle');
     
-    // Webhook do WhatsApp Gateway (WPPConnect)
+    // Webhook do WhatsApp Gateway (WPPConnect) - legado
     $router->post('/api/whatsapp/webhook', 'WhatsAppWebhookController@handle');
+    
+    // Webhook do Whapi.Cloud (substitui WPPConnect)
+    $router->post('/api/whatsapp/whapi/webhook', 'WhapiWebhookController@handle');
     
     // Webhook do Meta Official API
     $router->get('/api/whatsapp/meta/webhook', 'MetaWebhookController@handle');
@@ -680,17 +683,10 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/campaigns/metrics', 'TemplateCampaignController@metrics');
     $router->post('/campaigns/process-batch', 'TemplateCampaignController@processBatch');
     
-    // Configurações do WhatsApp Gateway (WPPConnect)
-    $router->get('/settings/whatsapp-gateway', 'WhatsAppGatewaySettingsController@index');
-    $router->post('/settings/whatsapp-gateway', 'WhatsAppGatewaySettingsController@update');
-    $router->post('/settings/whatsapp-gateway/test-connection', 'WhatsAppGatewaySettingsController@testConnection');
-    $router->get('/settings/whatsapp-gateway/check', 'WhatsAppGatewaySettingsController@checkProduction');
-    // Sessões WhatsApp (listar, criar, reconectar)
-    $router->get('/settings/whatsapp-gateway/available-sessions', 'WhatsAppGatewaySettingsController@availableSessions');
-    $router->get('/settings/whatsapp-gateway/sessions', 'WhatsAppGatewaySettingsController@sessionsList');
-    $router->post('/settings/whatsapp-gateway/sessions/create', 'WhatsAppGatewaySettingsController@sessionsCreate');
-    $router->post('/settings/whatsapp-gateway/sessions/reconnect', 'WhatsAppGatewaySettingsController@sessionsReconnect');
-    $router->post('/settings/whatsapp-gateway/sessions/disconnect', 'WhatsAppGatewaySettingsController@sessionsDisconnect');
+    // Redireciona URLs antigas do Gateway WPPConnect para a página de providers
+    $router->get('/settings/whatsapp-gateway', function() { header('Location: /settings/whatsapp-providers'); exit; });
+    $router->get('/settings/whatsapp-gateway/test', function() { header('Location: /settings/whatsapp-providers'); exit; });
+    $router->get('/settings/whatsapp-gateway/diagnostic', function() { header('Location: /settings/whatsapp-providers'); exit; });
 
     // IA Assistente de Respostas
     $router->get('/api/ai/contexts', 'AISuggestController@contexts');
@@ -709,23 +705,9 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/settings/users/toggle-status', 'UsersController@toggleStatus');
     $router->get('/settings/users/get', 'UsersController@get');
 
-    // Testes do WhatsApp Gateway
-    $router->get('/settings/whatsapp-gateway/test', 'WhatsAppGatewayTestController@index');
-    $router->post('/settings/whatsapp-gateway/test/send', 'WhatsAppGatewayTestController@sendTest');
-    $router->get('/settings/whatsapp-gateway/test/channels', 'WhatsAppGatewayTestController@listChannels');
-    $router->get('/settings/whatsapp-gateway/test/events', 'WhatsAppGatewayTestController@getEvents');
-    $router->get('/settings/whatsapp-gateway/test/logs', 'WhatsAppGatewayTestController@getLogs');
-    $router->post('/settings/whatsapp-gateway/test/webhook', 'WhatsAppGatewayTestController@simulateWebhook');
-    
-    // Diagnóstico do WhatsApp Gateway
-    $router->get('/settings/whatsapp-gateway/diagnostic', 'WhatsAppGatewayDiagnosticController@index');
-    $router->get('/settings/whatsapp-gateway/diagnostic/messages', 'WhatsAppGatewayDiagnosticController@getMessages');
-    $router->get('/settings/whatsapp-gateway/diagnostic/logs', 'WhatsAppGatewayDiagnosticController@getLogs');
-    $router->get('/settings/whatsapp-gateway/diagnostic/check-logs', 'WhatsAppGatewayDiagnosticController@checkWebhookLogs');
-    $router->get('/settings/whatsapp-gateway/diagnostic/check-servpro-logs', 'WhatsAppGatewayDiagnosticController@checkServproLogs');
-    $router->post('/settings/whatsapp-gateway/diagnostic/simulate-webhook', 'WhatsAppGatewayDiagnosticController@simulateWebhook');
-    $router->post('/settings/whatsapp-gateway/diagnostic/checklist-capture', 'WhatsAppGatewayDiagnosticController@checklistCapture');
-    $router->post('/settings/whatsapp-gateway/diagnostic/qr', 'WhatsAppGatewayDiagnosticController@diagnoseQr');
+    // Whapi.Cloud config routes
+    $router->post('/settings/whatsapp-providers/whapi/save', 'WhatsAppProvidersController@saveWhapiConfig');
+    $router->post('/settings/whatsapp-providers/whapi/test', 'WhatsAppProvidersController@testWhapiConnection');
     
     // Rotas de Central de Eventos de Comunicação
     $router->get('/settings/communication-events', 'CommunicationEventsController@index');

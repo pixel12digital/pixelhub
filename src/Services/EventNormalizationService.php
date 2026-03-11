@@ -58,7 +58,7 @@ class EventNormalizationService
         $eventType = $event['event_type'];
 
         // WhatsApp: tenta pelo channel_id
-        if ($sourceSystem === 'wpp_gateway' && isset($payload['channel'])) {
+        if (in_array($sourceSystem, ['wpp_gateway', 'whapi_cloud'], true) && isset($payload['channel'])) {
             return self::resolveTenantByChannel($payload['channel']);
         }
 
@@ -92,7 +92,7 @@ class EventNormalizationService
         $stmt = $db->prepare("
             SELECT tenant_id 
             FROM tenant_message_channels 
-            WHERE provider = 'wpp_gateway' 
+            WHERE provider IN ('wpp_gateway', 'whapi') 
             AND channel_id = ? 
             AND is_enabled = 1
             LIMIT 1

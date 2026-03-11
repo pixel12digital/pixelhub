@@ -16,6 +16,7 @@ use PixelHub\Services\WhatsAppBillingService;
 use PixelHub\Services\GatewaySecret;
 use PixelHub\Services\WhatsAppProviderFactory;
 use PixelHub\Integrations\WhatsApp\WppConnectProvider;
+use PixelHub\Integrations\WhatsApp\WhapiCloudProvider;
 use PDO;
 
 /**
@@ -1329,10 +1330,13 @@ class CommunicationHubController extends Controller
                 $gatewayTimeout = in_array($messageType, ['audio', 'image', 'video', 'document']) ? 120 : 30;
                 error_log("[CommunicationHub::send] Timeout do gateway: {$gatewayTimeout}s (tipo: {$messageType})");
                 
-                // INTEGRAÇÃO MULTI-PROVIDER: Detecta se deve usar Meta Official API ou WPPConnect
+                // INTEGRAÇÃO MULTI-PROVIDER: Detecta qual provider usar
                 $useMetaAPI = false;
                 $metaProvider = null;
+                $useWhapiAPI = false;
+                $whapiProvider = null;
                 
+                // PRIORIDADE 1: Se conversa veio via Meta Official API, responde pelo mesmo canal
                 if ($conversationProviderType === 'meta_official') {
                     error_log("[CommunicationHub::send] Conversa veio via Meta Official API - tentando usar Meta para responder");
                     try {
@@ -1342,13 +1346,27 @@ class CommunicationHubController extends Controller
                             error_log("[CommunicationHub::send] ✅ Meta Official API provider obtido com sucesso");
                         }
                     } catch (\Exception $e) {
-                        error_log("[CommunicationHub::send] ❌ Erro ao obter Meta provider: " . $e->getMessage() . " - usando WPPConnect (fallback)");
+                        error_log("[CommunicationHub::send] ❌ Erro ao obter Meta provider: " . $e->getMessage() . " - usando fallback");
                     }
                 }
                 
-                // Se não vai usar Meta API, usa WPPConnect
-                $gateway = null;
+                // PRIORIDADE 2: Se não é Meta, verifica se Whapi.Cloud é o provider padrão
                 if (!$useMetaAPI) {
+                    try {
+                        $defaultProvider = WhatsAppProviderFactory::getProvider(null, $tenantId);
+                        if ($defaultProvider instanceof WhapiCloudProvider) {
+                            $useWhapiAPI = true;
+                            $whapiProvider = $defaultProvider;
+                            error_log("[CommunicationHub::send] ✅ Usando Whapi.Cloud como provider padrão");
+                        }
+                    } catch (\Exception $e) {
+                        error_log("[CommunicationHub::send] Erro ao obter provider padrão: " . $e->getMessage());
+                    }
+                }
+                
+                // PRIORIDADE 3: Fallback para WPPConnect (legado)
+                $gateway = null;
+                if (!$useMetaAPI && !$useWhapiAPI) {
                     $gateway = $this->resolveWhatsAppProvider($tenantId, $channelId, $conversationProviderType);
                     
                     // Aplica configurações específicas (timeout, request_id)
@@ -1414,8 +1432,8 @@ class CommunicationHubController extends Controller
                     // CORREÇÃO: Verificação de status é apenas informativa (NÃO-BLOQUEANTE)
                     // Não bloqueia envio - deixa o gateway retornar o erro real se houver problema
                     // Isso evita falsos positivos quando o gateway está temporariamente indisponível
-                    // SKIP para Meta API (não usa gateway WPPConnect)
-                    if (!$useMetaAPI) {
+                    // SKIP para Meta API e Whapi.Cloud (não usam gateway WPPConnect)
+                    if (!$useMetaAPI && !$useWhapiAPI) {
                     try {
                         $channelInfo = $gateway->getChannel($targetChannelId);
                         
@@ -1480,15 +1498,70 @@ class CommunicationHubController extends Controller
                         error_log("[CommunicationHub::send] Enviando para gateway com sessionId (canônico): {$targetChannelId}, type: {$messageType}");
                     }
                     
-                    // Switch entre texto e áudio
+                    // ===== DISPATCH: Roteia para o provider correto =====
                     $audioOptions = [];
-                    if ($messageType === 'audio') {
+
+                    if ($useWhapiAPI && $whapiProvider) {
+                        // ─── WHAPI.CLOUD: Todos os tipos de mensagem ───────────────────────
+                        // Whapi aceita base64 diretamente e auto-converte áudio para OGG/Opus
+                        error_log("[CommunicationHub::send] 📱 Enviando via Whapi.Cloud type={$messageType} to={$phoneNormalized}");
+
+                        if ($messageType === 'audio') {
+                            $b64 = $base64Ptt;
+                            $pos = stripos($b64, 'base64,');
+                            if ($pos !== false) $b64 = substr($b64, $pos + 7);
+                            $b64 = trim($b64);
+                            $bin = base64_decode($b64, true);
+                            if ($bin === false || strlen($bin) < 2000) {
+                                $sendResults[] = ['channel_id' => $targetChannelId, 'success' => false, 'error' => 'Áudio inválido ou muito pequeno'];
+                                $errors[] = "{$targetChannelId}: Áudio inválido";
+                                continue;
+                            }
+                            // Whapi auto-converte WebM→OGG/Opus, envia base64 diretamente
+                            $result = $whapiProvider->sendAudio($phoneNormalized, $b64);
+                            error_log("[CommunicationHub::send] Whapi audio response: success=" . ($result['success'] ? 'true' : 'false'));
+
+                        } elseif ($messageType === 'image') {
+                            $b64Img = $base64Image;
+                            $pos = stripos($b64Img, 'base64,');
+                            if ($pos !== false) $b64Img = substr($b64Img, $pos + 7);
+                            $b64Img = trim($b64Img);
+                            $binImg = base64_decode($b64Img, true);
+                            if ($binImg === false || strlen($binImg) < 1000) {
+                                $sendResults[] = ['channel_id' => $targetChannelId, 'success' => false, 'error' => 'Imagem inválida'];
+                                continue;
+                            }
+                            $result = $whapiProvider->sendImage($phoneNormalized, $b64Img, $caption ?: null);
+                            $sentMediaData = ['type' => 'image', 'binary' => $binImg, 'mimeType' => 'image/jpeg', 'caption' => $caption];
+                            error_log("[CommunicationHub::send] Whapi image response: success=" . ($result['success'] ? 'true' : 'false'));
+
+                        } elseif ($messageType === 'document') {
+                            $b64Doc = $base64Document;
+                            $pos = stripos($b64Doc, 'base64,');
+                            if ($pos !== false) $b64Doc = substr($b64Doc, $pos + 7);
+                            $b64Doc = trim($b64Doc);
+                            $binDoc = base64_decode($b64Doc, true);
+                            if ($binDoc === false || strlen($binDoc) < 100) {
+                                $sendResults[] = ['channel_id' => $targetChannelId, 'success' => false, 'error' => 'Documento inválido'];
+                                continue;
+                            }
+                            $result = $whapiProvider->sendDocument($phoneNormalized, $b64Doc, $fileName, $caption ?: null);
+                            $sentMediaData = ['type' => 'document', 'binary' => $binDoc, 'mimeType' => 'application/octet-stream', 'fileName' => $fileName, 'caption' => $caption];
+                            error_log("[CommunicationHub::send] Whapi document response: success=" . ($result['success'] ? 'true' : 'false'));
+
+                        } else {
+                            // Texto
+                            $result = $whapiProvider->sendText($phoneNormalized, $message);
+                            error_log("[CommunicationHub::send] Whapi text response: success=" . ($result['success'] ? 'true' : 'false'));
+                        }
+
+                    } elseif ($messageType === 'audio') {
+                        // ─── WPPCONNECT: Áudio ────────────────────────────────────────────
                         $audioStartTime = microtime(true);
                         error_log("[CommunicationHub::send] ===== INÍCIO PROCESSAMENTO DE ÁUDIO ======");
                         error_log("[CommunicationHub::send] Timestamp: " . date('Y-m-d H:i:s.u'));
                         error_log("[CommunicationHub::send] channel_id: {$targetChannelId}, to: {$phoneNormalized}");
                         
-                        // Validação adicional para áudio
                         $b64 = $base64Ptt;
                         $b64OriginalLength = strlen($b64);
                         error_log("[CommunicationHub::send] Base64 original length: {$b64OriginalLength} bytes");
@@ -1500,7 +1573,6 @@ class CommunicationHubController extends Controller
                         }
                         $b64 = trim($b64);
                         
-                        // Validação mínima (evita "T2dnUw==" sozinho)
                         $decodeStartTime = microtime(true);
                         $bin = base64_decode($b64, true);
                         $decodeTime = (microtime(true) - $decodeStartTime) * 1000;
@@ -1521,55 +1593,26 @@ class CommunicationHubController extends Controller
                         $binSizeKB = round($binSize / 1024, 2);
                         error_log("[CommunicationHub::send] Áudio binário válido: {$binSize} bytes ({$binSizeKB} KB)");
                         
-                        // Valida formato do áudio (aceita tanto OGG/Opus quanto WebM/Opus)
                         $opusCheckStartTime = microtime(true);
                         $hasOpusHead = strpos($bin, 'OpusHead') !== false;
                         $isWebM = strpos($bin, 'webm') !== false || strpos($bin, 'matroska') !== false;
-                        $isOGG = strpos($bin, 'OggS') === 0; // OGG sempre começa com "OggS"
+                        $isOGG = strpos($bin, 'OggS') === 0;
                         $opusCheckTime = (microtime(true) - $opusCheckStartTime) * 1000;
                         
-                        // Detecta formato exato
                         $detectedFormat = 'DESCONHECIDO';
-                        if ($isOGG && $hasOpusHead) {
-                            $detectedFormat = 'OGG/Opus';
-                        } elseif ($isWebM && $hasOpusHead) {
-                            $detectedFormat = 'WebM/Opus';
-                        } elseif ($isWebM) {
-                            $detectedFormat = 'WebM (sem OpusHead detectado)';
-                        } elseif ($isOGG) {
-                            $detectedFormat = 'OGG (sem OpusHead detectado)';
-                        } elseif ($hasOpusHead) {
-                            $detectedFormat = 'Opus (container desconhecido)';
-                        }
+                        if ($isOGG && $hasOpusHead) $detectedFormat = 'OGG/Opus';
+                        elseif ($isWebM && $hasOpusHead) $detectedFormat = 'WebM/Opus';
+                        elseif ($isWebM) $detectedFormat = 'WebM (sem OpusHead detectado)';
+                        elseif ($isOGG) $detectedFormat = 'OGG (sem OpusHead detectado)';
+                        elseif ($hasOpusHead) $detectedFormat = 'Opus (container desconhecido)';
                         
                         error_log("{$logPrefix} bytes_input=" . strlen($bin) . " mime_detected=" . $detectedFormat);
-                        error_log("[CommunicationHub::send] Verificação de formato concluída em {$opusCheckTime}ms:");
-                        error_log("[CommunicationHub::send] - Formato detectado: {$detectedFormat}");
-                        error_log("[CommunicationHub::send] - OpusHead encontrado: " . ($hasOpusHead ? 'SIM' : 'NÃO'));
-                        error_log("[CommunicationHub::send] - WebM detectado: " . ($isWebM ? 'SIM' : 'NÃO'));
-                        error_log("[CommunicationHub::send] - OGG detectado (OggS header): " . ($isOGG ? 'SIM' : 'NÃO'));
-                        
-                        // Log dos primeiros bytes para debug
-                        $firstBytes = bin2hex(substr($bin, 0, 16));
-                        error_log("[CommunicationHub::send] - Primeiros 16 bytes (hex): {$firstBytes}");
+                        error_log("[CommunicationHub::send] Formato detectado: {$detectedFormat}");
                         
                         if (function_exists('pixelhub_log')) {
                             pixelhub_log("[CommunicationHub::send] Formato de áudio detectado: {$detectedFormat}, tamanho: {$binSizeKB} KB");
                         }
                         
-                        // Aceita WebM/Opus (comum em navegadores modernos) mesmo sem OpusHead explícito
-                        // O gateway pode aceitar WebM, então tentamos enviar
-                        if (!$hasOpusHead && !$isWebM) {
-                            error_log("[CommunicationHub::send] ⚠️ AVISO: Áudio não parece ser OGG/Opus nem WebM/Opus");
-                            error_log("[CommunicationHub::send] Tentando enviar mesmo assim (pode funcionar dependendo do gateway)");
-                            // Não bloqueia, apenas loga aviso
-                        } else if ($isWebM) {
-                            error_log("[CommunicationHub::send] ✅ WebM/Opus detectado - convertendo para OGG/Opus (WhatsApp exige OGG)");
-                        } else {
-                            error_log("[CommunicationHub::send] ✅ OGG/Opus detectado - formato ideal");
-                        }
-                        
-                        // WhatsApp exige OGG/Opus para voice. Tenta Hostmidia primeiro; fallback: envia WebM ao gateway (VPS converte).
                         $audioOptions = [];
                         if ($isWebM) {
                             $conv = $this->convertWebMToOggBase64($bin, $targetChannelId);
@@ -1582,7 +1625,6 @@ class CommunicationHubController extends Controller
                                 if (in_array($conv['reason'] ?? '', $fallbackReasons, true)) {
                                     error_log("[CommunicationHub::send] Conversão Hostmidia falhou ({$conv['reason']}), fallback: enviando WebM ao gateway para conversão na VPS");
                                     $audioOptions = ['audio_mime' => 'audio/webm', 'is_voice' => true];
-                                    // $b64 continua o WebM original
                                 } else {
                                     $errMsg = 'Áudio em WebM. Servidor não converteu (' . ($conv['reason'] ?? 'UNKNOWN') . ').';
                                     if (!empty($conv['stderr_preview'])) {
@@ -1605,7 +1647,6 @@ class CommunicationHubController extends Controller
                         
                         error_log("[CommunicationHub::send] ✅ Validações passadas, chamando gateway->sendAudioBase64Ptt()");
                         $gatewayCallStartTime = microtime(true);
-                        error_log("[CommunicationHub::send] Timestamp antes da chamada ao gateway: " . date('Y-m-d H:i:s.u'));
                         
                         $result = $gateway->sendAudioBase64Ptt(
                             $targetChannelId,
@@ -1622,102 +1663,57 @@ class CommunicationHubController extends Controller
                         $totalAudioTime = (microtime(true) - $audioStartTime) * 1000;
                         error_log("[CommunicationHub::send] Chamada ao gateway concluída em {$gatewayCallTime}ms");
                         error_log("[CommunicationHub::send] Tempo total de processamento de áudio: {$totalAudioTime}ms");
-                        error_log("[CommunicationHub::send] Timestamp após chamada ao gateway: " . date('Y-m-d H:i:s.u'));
                         error_log("[CommunicationHub::send] ===== FIM PROCESSAMENTO DE ÁUDIO ======");
+
                     } elseif ($messageType === 'image') {
-                        // ===== ENVIO DE IMAGEM =====
+                        // ─── WPPCONNECT: Imagem ───────────────────────────────────────────
                         error_log("[CommunicationHub::send] 🖼️ Enviando imagem para {$targetChannelId}");
                         
-                        // Remove prefixo data:image/...;base64, se existir
                         $b64Img = $base64Image;
                         $pos = stripos($b64Img, 'base64,');
-                        if ($pos !== false) {
-                            $b64Img = substr($b64Img, $pos + 7);
-                        }
+                        if ($pos !== false) $b64Img = substr($b64Img, $pos + 7);
                         $b64Img = trim($b64Img);
                         
-                        // Valida tamanho mínimo (evita imagens corrompidas)
                         $binImg = base64_decode($b64Img, true);
                         if ($binImg === false || strlen($binImg) < 1000) {
                             error_log("[CommunicationHub::send] ❌ Imagem inválida ou muito pequena");
-                            $sendResults[] = [
-                                'channel_id' => $targetChannelId,
-                                'success' => false,
-                                'error' => 'Imagem inválida ou muito pequena',
-                            ];
+                            $sendResults[] = ['channel_id' => $targetChannelId, 'success' => false, 'error' => 'Imagem inválida ou muito pequena'];
                             continue;
                         }
                         
-                        $result = $gateway->sendImage(
-                            $targetChannelId,
-                            $phoneNormalized,
-                            $b64Img,
-                            null, // url (não usado quando tem base64)
-                            $caption, // caption (opcional)
-                            [
-                                'sent_by' => Auth::user()['id'] ?? null,
-                                'sent_by_name' => Auth::user()['name'] ?? null
-                            ]
-                        );
+                        $result = $gateway->sendImage($targetChannelId, $phoneNormalized, $b64Img, null, $caption, [
+                            'sent_by' => Auth::user()['id'] ?? null,
+                            'sent_by_name' => Auth::user()['name'] ?? null
+                        ]);
                         
-                        // Guarda dados da imagem para salvar depois
-                        $sentMediaData = [
-                            'type' => 'image',
-                            'binary' => $binImg,
-                            'mimeType' => 'image/jpeg', // Padrão, gateway pode detectar automaticamente
-                            'caption' => $caption
-                        ];
+                        $sentMediaData = ['type' => 'image', 'binary' => $binImg, 'mimeType' => 'image/jpeg', 'caption' => $caption];
                         
                     } elseif ($messageType === 'document') {
-                        // ===== ENVIO DE DOCUMENTO =====
+                        // ─── WPPCONNECT: Documento ────────────────────────────────────────
                         error_log("[CommunicationHub::send] 📄 Enviando documento para {$targetChannelId}");
                         
-                        // Remove prefixo data:...;base64, se existir
                         $b64Doc = $base64Document;
                         $pos = stripos($b64Doc, 'base64,');
-                        if ($pos !== false) {
-                            $b64Doc = substr($b64Doc, $pos + 7);
-                        }
+                        if ($pos !== false) $b64Doc = substr($b64Doc, $pos + 7);
                         $b64Doc = trim($b64Doc);
                         
-                        // Valida tamanho mínimo
                         $binDoc = base64_decode($b64Doc, true);
                         if ($binDoc === false || strlen($binDoc) < 100) {
                             error_log("[CommunicationHub::send] ❌ Documento inválido ou muito pequeno");
-                            $sendResults[] = [
-                                'channel_id' => $targetChannelId,
-                                'success' => false,
-                                'error' => 'Documento inválido ou muito pequeno',
-                            ];
+                            $sendResults[] = ['channel_id' => $targetChannelId, 'success' => false, 'error' => 'Documento inválido ou muito pequeno'];
                             continue;
                         }
                         
-                        $result = $gateway->sendDocument(
-                            $targetChannelId,
-                            $phoneNormalized,
-                            $b64Doc,
-                            null, // url (não usado quando tem base64)
-                            $fileName,
-                            $caption, // caption (opcional)
-                            [
-                                'sent_by' => Auth::user()['id'] ?? null,
-                                'sent_by_name' => Auth::user()['name'] ?? null
-                            ]
-                        );
+                        $result = $gateway->sendDocument($targetChannelId, $phoneNormalized, $b64Doc, null, $fileName, $caption, [
+                            'sent_by' => Auth::user()['id'] ?? null,
+                            'sent_by_name' => Auth::user()['name'] ?? null
+                        ]);
                         
-                        // Guarda dados do documento para salvar depois
-                        $sentMediaData = [
-                            'type' => 'document',
-                            'binary' => $binDoc,
-                            'mimeType' => 'application/octet-stream',
-                            'fileName' => $fileName,
-                            'caption' => $caption
-                        ];
+                        $sentMediaData = ['type' => 'document', 'binary' => $binDoc, 'mimeType' => 'application/octet-stream', 'fileName' => $fileName, 'caption' => $caption];
                         
                     } else {
-                        // ===== ENVIO DE TEXTO =====
+                        // ─── TEXTO: Meta Official API ou WPPConnect ───────────────────────
                         if ($useMetaAPI && $metaProvider) {
-                            // Envia via Meta Official API
                             error_log("[CommunicationHub::send] 📤 Enviando via Meta Official API para {$phoneNormalized}");
                             $result = $metaProvider->sendText($phoneNormalized, $message, [
                                 'sent_by' => Auth::user()['id'] ?? null,
@@ -1725,7 +1721,7 @@ class CommunicationHubController extends Controller
                             ]);
                             error_log("[CommunicationHub::send] Meta API response: " . json_encode($result));
                         } else {
-                            // Envia via WPPConnect
+                            // WPPConnect
                             $result = $gateway->sendText($targetChannelId, $phoneNormalized, $message, [
                                 'sent_by' => Auth::user()['id'] ?? null,
                                 'sent_by_name' => Auth::user()['name'] ?? null

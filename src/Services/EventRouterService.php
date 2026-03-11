@@ -3,7 +3,7 @@
 namespace PixelHub\Services;
 
 use PixelHub\Core\DB;
-use PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient;
+use PixelHub\Services\WhatsAppProviderFactory;
 use PixelHub\Services\WhatsAppBillingService;
 
 /**
@@ -154,13 +154,9 @@ class EventRouterService
             return ['success' => false, 'error' => 'Telefone inválido'];
         }
 
-        // Envia via gateway
-        $gateway = new WhatsAppGatewayClient();
-        $result = $gateway->sendText($channel['channel_id'], $toNormalized, $text, [
-            'event_id' => $normalizedEvent['event_id'],
-            'trace_id' => $normalizedEvent['trace_id'],
-            'template' => $rule['template'] ?? null
-        ]);
+        // Envia via Whapi.Cloud
+        $provider = WhatsAppProviderFactory::getProvider(null, null);
+        $result = $provider->sendText($toNormalized, $text);
 
         if ($result['success']) {
             // Registra em billing_notifications se for evento de cobrança
@@ -225,7 +221,7 @@ class EventRouterService
         $stmt = $db->prepare("
             SELECT * FROM tenant_message_channels 
             WHERE tenant_id = ? 
-            AND provider = 'wpp_gateway' 
+            AND provider IN ('wpp_gateway', 'whapi') 
             AND is_enabled = 1
             LIMIT 1
         ");

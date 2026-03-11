@@ -3,7 +3,7 @@
 namespace PixelHub\Services;
 
 use PixelHub\Core\DB;
-use PixelHub\Integrations\WhatsAppGateway\WhatsAppGatewayClient;
+use PixelHub\Services\WhatsAppProviderFactory;
 use PixelHub\Services\EventIngestionService;
 
 /**
@@ -207,10 +207,10 @@ class BillingSenderService
             }
         }
 
-        // ─── Envia via WhatsApp Gateway ───────────────────────────
+        // ─── Envia via Whapi.Cloud ──────────
         try {
-            $client = new WhatsAppGatewayClient();
-            $gwResult = $client->sendText(self::WHATSAPP_SESSION, $phoneNormalized, $messageBody);
+            $provider = WhatsAppProviderFactory::getProvider(null, $tenantId ?? null);
+            $gwResult = $provider->sendText($phoneNormalized, $messageBody);
 
             if ($gwResult['success']) {
                 // CORREÇÃO 03/03/2026: Registra notificação para TODAS as faturas

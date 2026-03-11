@@ -137,7 +137,7 @@ class EventIngestionService
         }
         
         // Se veio do webhook do WhatsApp, default = received (a menos que seja explicitamente outbound)
-        if ($sourceSystem === 'wpp_gateway' && $direction === 'unknown') {
+        if (in_array($sourceSystem, ['wpp_gateway', 'whapi_cloud'], true) && $direction === 'unknown') {
             $direction = 'received'; // Default para webhook
         }
         
@@ -201,7 +201,7 @@ class EventIngestionService
         // Processa mídia se houver (apenas para mensagens do WhatsApp)
         // process_media_sync=false: permite responder ao webhook antes (evita timeout no WPPConnect)
         $processMediaSync = $eventData['process_media_sync'] ?? true;
-        if ($processMediaSync && $sourceSystem === 'wpp_gateway' && $eventType === 'whatsapp.inbound.message') {
+        if ($processMediaSync && in_array($sourceSystem, ['wpp_gateway', 'whapi_cloud'], true) && $eventType === 'whatsapp.inbound.message') {
             try {
                 // Busca evento completo para processar mídia
                 $fullEvent = self::findByEventId($eventId);

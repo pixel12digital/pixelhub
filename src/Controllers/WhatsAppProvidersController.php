@@ -10,7 +10,7 @@ use PixelHub\Services\WhatsAppProviderFactory;
 
 /**
  * Controller para gerenciar configurações de providers WhatsApp
- * (WPPConnect e Meta Official API)
+ * (Whapi.Cloud e Meta Official API)
  */
 class WhatsAppProvidersController extends Controller
 {
@@ -25,8 +25,20 @@ class WhatsAppProvidersController extends Controller
 
         $db = DB::getConnection();
 
-        // Lista providers disponíveis
         $availableProviders = WhatsAppProviderFactory::getAvailableProviders();
+
+        // Busca configuração Whapi.Cloud GLOBAL
+        $whapiConfig = null;
+        try {
+            $stmt = $db->query("
+                SELECT * FROM whatsapp_provider_configs
+                WHERE provider_type = 'whapi' AND is_global = TRUE
+                LIMIT 1
+            ");
+            $whapiConfig = $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+        } catch (\Exception $e) {
+            $error = 'Erro ao carregar config Whapi: ' . $e->getMessage();
+        }
 
         // Busca configuração Meta GLOBAL (apenas 1)
         $metaConfig = null;
@@ -44,9 +56,138 @@ class WhatsAppProvidersController extends Controller
 
         $this->view('settings.whatsapp_providers', [
             'availableProviders' => $availableProviders,
+            'whapiConfig' => $whapiConfig,
             'metaConfig' => $metaConfig,
             'error' => $error ?? null
         ]);
+    }
+
+    /**
+     * Salva configuração do Whapi.Cloud
+     * 
+     * POST /settings/whatsapp-providers/whapi/save
+     */
+    public function saveWhapiConfig(): void
+    {
+        Auth::requireInternal();
+
+        $apiToken = trim($_POST['whapi_api_token'] ?? '');
+        $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : false;
+
+        if (empty($apiToken) || str_contains($apiToken, '\u25cf')) {
+            // Token not changed (masked) - just toggle is_active
+            try {
+                $db = DB::getConnection();
+                $stmt = $db->prepare("
+                    UPDATE whatsapp_provider_configs
+                    SET is_active = ?, updated_by = ?, updated_at = NOW()
+                    WHERE provider_type = 'whapi' AND is_global = TRUE
+                ");
+                $stmt->execute([$isActive ? 1 : 0, Auth::getUserId()]);
+                $this->redirect('/settings/whatsapp-providers?success=1&message=' . urlencode('Status Whapi atualizado'));
+            } catch (\Exception $e) {
+                $this->redirect('/settings/whatsapp-providers?error=save_failed&message=' . urlencode($e->getMessage()));
+            }
+            return;
+        }
+
+        if (empty($apiToken)) {
+            $this->redirect('/settings/whatsapp-providers?error=missing_token');
+            return;
+        }
+
+        try {
+            $db = DB::getConnection();
+            $userId = Auth::getUserId();
+
+            // Criptografa token
+            $encryptedToken = 'encrypted:' . CryptoHelper::encrypt($apiToken);
+
+            // Verifica se já existe
+            $stmt = $db->query("
+                SELECT id FROM whatsapp_provider_configs
+                WHERE provider_type = 'whapi' AND is_global = TRUE LIMIT 1
+            ");
+            $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($existing) {
+                $db->prepare("
+                    UPDATE whatsapp_provider_configs
+                    SET whapi_api_token = ?, is_active = ?, updated_by = ?, updated_at = NOW()
+                    WHERE id = ?
+                ")->execute([$encryptedToken, $isActive ? 1 : 0, $userId, $existing['id']]);
+                $message = 'Token Whapi.Cloud atualizado com sucesso';
+            } else {
+                $db->prepare("
+                    INSERT INTO whatsapp_provider_configs
+                    (tenant_id, provider_type, is_global, whapi_api_token, is_active, created_by, updated_by)
+                    VALUES (NULL, 'whapi', TRUE, ?, ?, ?, ?)
+                ")->execute([$encryptedToken, $isActive ? 1 : 0, $userId, $userId]);
+                $message = 'Configuração Whapi.Cloud criada com sucesso';
+            }
+
+            $this->redirect('/settings/whatsapp-providers?success=1&message=' . urlencode($message));
+
+        } catch (\Exception $e) {
+            error_log('[WhatsAppProvidersController] Erro ao salvar Whapi: ' . $e->getMessage());
+            $this->redirect('/settings/whatsapp-providers?error=save_failed&message=' . urlencode($e->getMessage()));
+        }
+    }
+
+    /**
+     * Testa conexão com Whapi.Cloud
+     * 
+     * POST /settings/whatsapp-providers/whapi/test
+     */
+    public function testWhapiConnection(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        try {
+            $db = DB::getConnection();
+            $stmt = $db->query("
+                SELECT whapi_api_token FROM whatsapp_provider_configs
+                WHERE provider_type = 'whapi' AND is_global = TRUE AND is_active = 1 LIMIT 1
+            ");
+            $config = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$config || empty($config['whapi_api_token'])) {
+                echo json_encode(['success' => false, 'error' => 'Nenhuma configuração Whapi ativa']);
+                return;
+            }
+
+            $token = $config['whapi_api_token'];
+            if (strpos($token, 'encrypted:') === 0) {
+                $token = CryptoHelper::decrypt(substr($token, 10));
+            }
+
+            // Testa o endpoint de health do Whapi
+            $ch = curl_init('https://gate.whapi.cloud/health');
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_HTTPHEADER => ["Authorization: Bearer {$token}", 'Accept: application/json'],
+            ]);
+            $body = curl_exec($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err  = curl_error($ch);
+            curl_close($ch);
+
+            if ($err) {
+                echo json_encode(['success' => false, 'error' => 'Erro de conexão: ' . $err]);
+                return;
+            }
+
+            $data = json_decode($body, true);
+            if ($code >= 200 && $code < 300) {
+                echo json_encode(['success' => true, 'message' => 'Whapi.Cloud respondeu com sucesso (HTTP ' . $code . ')']);
+            } else {
+                echo json_encode(['success' => false, 'error' => 'HTTP ' . $code . ': ' . ($data['message'] ?? $body)]);
+            }
+        } catch (\Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
     }
 
     /**
