@@ -71,9 +71,10 @@ class WhatsAppProvidersController extends Controller
     {
         Auth::requireInternal();
 
-        $apiToken  = trim($_POST['whapi_api_token'] ?? '');
-        $apiUrl    = trim($_POST['whapi_api_url'] ?? 'https://gate.whapi.cloud');
-        $isActive  = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : false;
+        $apiToken    = trim($_POST['whapi_api_token'] ?? '');
+        $apiUrl      = trim($_POST['whapi_api_url'] ?? 'https://gate.whapi.cloud');
+        $isActive    = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : false;
+        $channelName = trim($_POST['channel_name'] ?? '');
 
         if (empty($apiUrl)) {
             $apiUrl = 'https://gate.whapi.cloud';
@@ -100,6 +101,15 @@ class WhatsAppProvidersController extends Controller
                         SET is_active = ?, config_metadata = ?, updated_by = ?, updated_at = NOW()
                         WHERE id = ?
                     ")->execute([$isActive ? 1 : 0, json_encode($meta), $userId, $row['id']]);
+                }
+                // Atualiza nome do canal se informado
+                if ($channelName !== '') {
+                    try {
+                        $db->prepare("
+                            UPDATE tenant_message_channels SET name = ?, updated_at = NOW()
+                            WHERE provider = 'whapi' AND is_enabled = 1
+                        ")->execute([$channelName]);
+                    } catch (\Exception $e2) { /* ignora se coluna ainda não existe */ }
                 }
                 $this->redirect('/settings/whatsapp-providers?success=1&message=' . urlencode('Configuração Whapi atualizada'));
             } catch (\Exception $e) {
@@ -151,6 +161,16 @@ class WhatsAppProvidersController extends Controller
                     VALUES (NULL, 'whapi', TRUE, ?, ?, ?, ?, ?)
                 ")->execute([$encryptedToken, $isActive ? 1 : 0, $metaJson, $userId, $userId]);
                 $message = 'Configuração Whapi.Cloud criada com sucesso';
+            }
+
+            // Atualiza nome do canal se informado
+            if ($channelName !== '') {
+                try {
+                    $db->prepare("
+                        UPDATE tenant_message_channels SET name = ?, updated_at = NOW()
+                        WHERE provider = 'whapi' AND is_enabled = 1
+                    ")->execute([$channelName]);
+                } catch (\Exception $e2) { /* ignora se coluna ainda não existe */ }
             }
 
             $this->redirect('/settings/whatsapp-providers?success=1&message=' . urlencode($message));

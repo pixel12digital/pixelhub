@@ -2638,7 +2638,7 @@ class CommunicationHubController extends Controller
         // 1. Whapi.Cloud — canais ativos em tenant_message_channels
         try {
             $stmt = $db->query("
-                SELECT channel_id, provider
+                SELECT channel_id, name, provider
                 FROM tenant_message_channels
                 WHERE provider = 'whapi'
                   AND is_enabled = 1
@@ -2647,9 +2647,12 @@ class CommunicationHubController extends Controller
             foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
                 $id = $row['channel_id'];
                 if (!$id) continue;
+                $displayName = !empty($row['name'])
+                    ? $row['name']
+                    : ucwords(str_replace(['_', '-'], ' ', $id));
                 $sessions[] = [
                     'id'     => $id,
-                    'name'   => ucwords(str_replace(['_', '-'], ' ', $id)),
+                    'name'   => $displayName,
                     'status' => 'connected',
                     'source' => 'whapi',
                 ];
@@ -2790,11 +2793,13 @@ class CommunicationHubController extends Controller
                     l.name as lead_name,
                     l.phone as lead_phone,
                     l.status as lead_status,
-                    u.name as assigned_to_name
+                    u.name as assigned_to_name,
+                    COALESCE(tmc.name, c.channel_id) as channel_display_name
                 FROM conversations c
                 LEFT JOIN tenants t ON c.tenant_id = t.id
                 LEFT JOIN leads l ON c.lead_id = l.id
                 LEFT JOIN users u ON c.assigned_to = u.id
+                LEFT JOIN tenant_message_channels tmc ON c.channel_id = tmc.channel_id AND tmc.provider = 'whapi' AND tmc.is_enabled = 1
                 {$whereClause}
                 ORDER BY c.is_incoming_lead DESC, COALESCE(c.last_message_at, c.created_at) DESC, c.created_at DESC
                 LIMIT 100
@@ -2923,6 +2928,7 @@ class CommunicationHubController extends Controller
                         'channel' => 'whatsapp',
                         'channel_type' => $conv['channel_type'], // Adiciona contexto
                         'channel_id' => $finalChannelId, // CORREÇÃO: Usa channel_id resolvido se necessário
+                        'channel_display_name' => $conv['channel_display_name'] ?? $finalChannelId,
                         'status' => $conv['status'],
                         'unread_count' => (int) $conv['unread_count'],
                         'assigned_to' => $conv['assigned_to'],

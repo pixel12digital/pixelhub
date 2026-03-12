@@ -6208,7 +6208,7 @@
                     const channel = lead.channel || 'whatsapp';
                     const contactName = escapeInboxHtml(lead.contact_name || 'Contato Desconhecido');
                     const contact = escapeInboxHtml(lead.contact || 'Número não identificado');
-                    const channelId = lead.channel_id ? ` <span style="opacity: 0.6; font-size: 11px;">• ${escapeInboxHtml(InboxState.sessionNames[lead.channel_id] || lead.channel_id)}</span>` : '';
+                    const channelId = (lead.channel_display_name || lead.channel_id) ? ` <span style="opacity: 0.6; font-size: 11px;">• ${escapeInboxHtml(lead.channel_display_name || lead.channel_id)}</span>` : '';
                     const convId = lead.conversation_id || 0;
                     const ignoreBtn = showIgnoreInMenu ? `<button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); inboxIgnoreConversation(${convId}, '${contactName}'); closeIncomingLeadMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>Silenciar</button>` : '';
                     html += `
@@ -6278,7 +6278,7 @@
                 const contact = escapeInboxHtml(conv.contact || 'Número não identificado');
                 const tenantName = escapeInboxHtml(conv.tenant_name || '');
                 const convId = conv.conversation_id || 0;
-                const channelId = conv.channel_id ? ` <span style="opacity: 0.6; font-size: 11px;">• ${escapeInboxHtml(InboxState.sessionNames[conv.channel_id] || conv.channel_id)}</span>` : (conv.channel_type ? ` <span style="opacity: 0.7; font-size: 11px;">• ${(conv.channel_type || '').toUpperCase()}</span>` : '');
+                const channelId = (conv.channel_display_name || conv.channel_id) ? ` <span style="opacity: 0.6; font-size: 11px;">• ${escapeInboxHtml(conv.channel_display_name || conv.channel_id)}</span>` : (conv.channel_type ? ` <span style="opacity: 0.7; font-size: 11px;">• ${(conv.channel_type || '').toUpperCase()}</span>` : '');
                 // lead_id tem prioridade sobre tenant_id (lead ainda não é cliente)
                 const tenantLink = leadId
                     ? ` <a href="${INBOX_BASE_URL}/opportunities/view-by-lead?lead_id=${encodeURIComponent(leadId)}" onclick="event.stopPropagation();" style="opacity: 0.8; font-weight: 500; color: #0d6efd; font-size: 11px; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;" title="Clique para abrir a oportunidade do lead">• ${escapeInboxHtml(leadName ? ('Lead: ' + leadName) : ('Lead: ' + (leadPhone || '#' + leadId)))}${leadPhone ? ' (' + escapeInboxHtml(leadPhone) + ')' : ''}</a>`

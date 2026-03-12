@@ -146,6 +146,25 @@ ob_start();
             </div>
 
             <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">
+                    Nome do Canal
+                </label>
+                <?php
+                $whapiChannelName = '';
+                try {
+                    $db = \App\Core\DB::getConnection();
+                    $row = $db->query("SELECT name FROM tenant_message_channels WHERE provider = 'whapi' AND is_enabled = 1 LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
+                    $whapiChannelName = $row['name'] ?? '';
+                } catch (\Exception $e) { /* ignora se coluna não existe ainda */ }
+                ?>
+                <input type="text" name="channel_name"
+                       value="<?= htmlspecialchars($whapiChannelName) ?>"
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;"
+                       placeholder="Ex: Pixel12 Digital">
+                <small style="color: #666;">Nome exibido no inbox ao lado do número (ex: <strong>Pixel12 Digital</strong>)</small>
+            </div>
+
+            <div style="margin-bottom: 20px;">
                 <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="is_active" value="1" <?= $whapiIsActive ? 'checked' : '' ?>>
                     <span>Ativar imediatamente após salvar</span>
