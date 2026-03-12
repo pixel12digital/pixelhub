@@ -605,6 +605,25 @@ class CommunicationHubController extends Controller
             $caption = isset($_POST['caption']) ? trim($_POST['caption']) : null;
             $fileName = isset($_POST['fileName']) ? trim($_POST['fileName']) : null;
 
+            // Fallback: lê arquivo do $_FILES['attachment'] se base64Document/Image não veio via POST
+            // (base64 em campo POST pode ser bloqueado por WAF/mod_security no servidor)
+            if (empty($base64Document) && isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
+                $tmpPath = $_FILES['attachment']['tmp_name'];
+                $base64Document = base64_encode(file_get_contents($tmpPath));
+                if (empty($fileName)) {
+                    $fileName = $_FILES['attachment']['name'] ?? 'documento';
+                }
+                error_log("[CommunicationHub::send] 📎 Documento lido via \$_FILES: {$fileName} (" . strlen($base64Document) . " bytes base64)");
+            }
+            if (empty($base64Image) && isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
+                $mime = $_FILES['attachment']['type'] ?? '';
+                if (strpos($mime, 'image/') === 0) {
+                    $tmpPath = $_FILES['attachment']['tmp_name'];
+                    $base64Image = base64_encode(file_get_contents($tmpPath));
+                    error_log("[CommunicationHub::send] 🖼️ Imagem lida via \$_FILES: {$fileName} (" . strlen($base64Image) . " bytes base64)");
+                }
+            }
+
             // Aumenta timeout/memória para envio de mídia
             if (in_array($messageType, ['audio', 'image', 'video', 'document'])) {
                 set_time_limit(120);

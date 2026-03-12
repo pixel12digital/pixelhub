@@ -6677,7 +6677,13 @@
                     if (InboxMediaState.type === 'image') {
                         formData.append('base64Image', InboxMediaState.base64);
                     } else {
-                        formData.append('base64Document', InboxMediaState.base64);
+                        // Usa upload binário nativo em vez de base64 no campo POST
+                        // (base64 em campo POST pode ser bloqueado por WAF/mod_security)
+                        if (InboxMediaState.file) {
+                            formData.append('attachment', InboxMediaState.file, InboxMediaState.fileName);
+                        } else {
+                            formData.append('base64Document', InboxMediaState.base64);
+                        }
                         formData.append('fileName', InboxMediaState.fileName);
                     }
                     
@@ -6692,7 +6698,13 @@
                     method: 'POST',
                     body: formData
                 });
-                const result = await response.json();
+                let result;
+                try {
+                    result = await response.json();
+                } catch (parseErr) {
+                    const rawText = await response.text().catch(() => '');
+                    throw new Error(`Erro HTTP ${response.status}: ${rawText.substring(0, 200)}`);
+                }
                 
                 if (!result.success) {
                     throw new Error(result.error || 'Erro ao enviar');
