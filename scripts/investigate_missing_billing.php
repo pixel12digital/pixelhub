@@ -240,3 +240,113 @@ foreach ($targetDates as $dueDate => $description) {
 }
 
 echo "\n✅ Investigação concluída!\n\n";
+
+// ═══════════════════════════════════════════════════════════════════
+// SEÇÃO 2: INVESTIGAÇÃO DE DUPLICATAS (SO OBRAS / qualquer tenant)
+// ═══════════════════════════════════════════════════════════════════
+
+echo "\n╔══════════════════════════════════════════════════════════════════╗\n";
+echo "║  SEÇÃO 2: DIAGNÓSTICO DE MENSAGENS DUPLICADAS                    ║\n";
+echo "╚══════════════════════════════════════════════════════════════════╝\n\n";
+
+// 1. Verifica colunas da billing_dispatch_queue
+echo "🔬 1. Estrutura da tabela billing_dispatch_queue:\n";
+$cols = $db->query("DESCRIBE billing_dispatch_queue")->fetchAll(PDO::FETCH_ASSOC);
+$colNames = array_column($cols, 'Field');
+$expected = ['trigger_source', 'triggered_by_user_id', 'is_forced', 'force_reason', 'sent_at', 'idempotency_key'];
+foreach ($expected as $col) {
+    $exists = in_array($col, $colNames);
+    echo "   " . ($exists ? '✅' : '❌ AUSENTE') . " $col\n";
+}
+echo "\n";
+
+// 2. Jobs duplicados: mesma regra + mesmo tenant + mesmo dia, mais de 1 entry
+echo "🔬 2. Jobs duplicados no billing_dispatch_queue (últimos 7 dias):\n";
+$stmt = $db->query("
+    SELECT tenant_id, dispatch_rule_id, DATE(created_at) as dia,
+           COUNT(*) as total,
+           GROUP_CONCAT(id ORDER BY id) as job_ids,
+           GROUP_CONCAT(status ORDER BY id) as statuses
+    FROM billing_dispatch_queue
+    WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    GROUP BY tenant_id, dispatch_rule_id, DATE(created_at)
+    HAVING COUNT(*) > 1
+    ORDER BY dia DESC
+");
+$dups = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+if (empty($dups)) {
+    echo "   ✅ Nenhum job duplicado encontrado nos últimos 7 dias.\n\n";
+} else {
+    echo "   ⚠️  " . count($dups) . " grupo(s) de jobs duplicados:\n\n";
+    foreach ($dups as $dup) {
+        $tenantName = $db->query("SELECT name FROM tenants WHERE id = {$dup['tenant_id']}")->fetchColumn();
+        $ruleName   = $dup['dispatch_rule_id']
+            ? $db->query("SELECT name FROM billing_dispatch_rules WHERE id = {$dup['dispatch_rule_id']}")->fetchColumn()
+            : 'N/A';
+        echo "   ┌─ Tenant: {$tenantName} (id={$dup['tenant_id']})\n";
+        echo "   │  Regra: {$ruleName} (id={$dup['dispatch_rule_id']})\n";
+        echo "   │  Dia: {$dup['dia']} | Total jobs: {$dup['total']}\n";
+        echo "   │  Job IDs: {$dup['job_ids']}\n";
+        echo "   └─ Statuses: {$dup['statuses']}\n\n";
+    }
+}
+
+// 3. Histórico completo SO OBRAS
+echo "🔬 3. Histórico SO OBRAS - billing_dispatch_queue (últimos 14 dias):\n";
+$stmt = $db->prepare("
+    SELECT t.name, bdq.id, bdq.status, bdq.dispatch_rule_id, bdq.invoice_ids,
+           bdq.attempts, bdq.max_attempts, bdq.scheduled_at, bdq.sent_at,
+           bdq.created_at, bdq.error_message,
+           bdr.name as rule_name
+    FROM billing_dispatch_queue bdq
+    JOIN tenants t ON t.id = bdq.tenant_id
+    LEFT JOIN billing_dispatch_rules bdr ON bdr.id = bdq.dispatch_rule_id
+    WHERE t.name LIKE '%SO OBRAS%'
+       OR t.name LIKE '%SOOBRASEPC%'
+    ORDER BY bdq.created_at DESC
+    LIMIT 20
+");
+$stmt->execute();
+$soObrasJobs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+if (empty($soObrasJobs)) {
+    echo "   ℹ️  Nenhum registro encontrado para SO OBRAS.\n\n";
+} else {
+    foreach ($soObrasJobs as $j) {
+        echo "   Job #{$j['id']} | {$j['status']} | Regra: {$j['rule_name']} | Tentativas: {$j['attempts']}/{$j['max_attempts']}\n";
+        echo "   Agendado: {$j['scheduled_at']} | Criado: {$j['created_at']} | Sent_at: " . ($j['sent_at'] ?? 'NULL') . "\n";
+        echo "   Faturas: {$j['invoice_ids']}\n";
+        if ($j['error_message']) {
+            echo "   ⚠️  Erro: {$j['error_message']}\n";
+        }
+        echo "\n";
+    }
+}
+
+// 4. billing_dispatch_log SO OBRAS
+echo "🔬 4. billing_dispatch_log SO OBRAS (últimos 14 dias):\n";
+$stmt = $db->prepare("
+    SELECT bdl.id, bdl.invoice_id, bdl.channel, bdl.template_key,
+           bdl.sent_at, bdl.trigger_source, bdl.status
+    FROM billing_dispatch_log bdl
+    JOIN billing_invoices bi ON bi.id = bdl.invoice_id
+    JOIN tenants t ON t.id = bi.tenant_id
+    WHERE t.name LIKE '%SO OBRAS%'
+       OR t.name LIKE '%SOOBRASEPC%'
+    ORDER BY bdl.sent_at DESC
+    LIMIT 20
+");
+$stmt->execute();
+$soObrasLogs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+if (empty($soObrasLogs)) {
+    echo "   ℹ️  Nenhum registro no billing_dispatch_log.\n\n";
+} else {
+    foreach ($soObrasLogs as $l) {
+        echo "   Log #{$l['id']} | invoice #{$l['invoice_id']} | {$l['template_key']} | {$l['status']} | {$l['sent_at']}\n";
+    }
+    echo "\n";
+}
+
+echo "\n✅ Diagnóstico de duplicatas concluído!\n\n";

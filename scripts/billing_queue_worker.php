@@ -131,7 +131,20 @@ foreach ($jobs as $job) {
     }
 
     if ($result['success']) {
-        BillingDispatchQueueService::markSent($jobId);
+        try {
+            BillingDispatchQueueService::markSent($jobId);
+        } catch (\Exception $markEx) {
+            // markSent falhou (ex: coluna ausente, FK inválida, etc.)
+            // Força status='sent' diretamente para NUNCA deixar o job em 'processing'
+            // evitando o mecanismo de recovery reenviar a mensagem (causa de duplicatas)
+            try {
+                $db->prepare("UPDATE billing_dispatch_queue SET status = 'sent', updated_at = NOW() WHERE id = ?")
+                   ->execute([$jobId]);
+            } catch (\Exception $fallbackEx) {
+                echo " → WARN: fallback markSent TAMBÉM falhou para job #{$jobId}: " . $fallbackEx->getMessage() . "\n";
+            }
+            echo " → WARN: markSent falhou (job forçado como 'sent'): " . $markEx->getMessage() . "\n";
+        }
         $gwId = $result['gateway_message_id'] ?? '-';
         echo " → SENT (msg_id={$gwId})\n";
         $sent++;

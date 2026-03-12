@@ -145,60 +145,72 @@ class BillingDispatchQueueService
 
     /**
      * Marca job como enviado com sucesso e registra log.
+     * IMPORTANTE: o UPDATE de status ocorre antes de qualquer INSERT de log
+     * para garantir que o job nunca fique preso em 'processing' por falha de log.
      */
     public static function markSent(int $jobId, ?string $messageId = null): void
     {
         $db = DB::getConnection();
 
-        // Busca dados da fila para registrar no log
-        $stmt = $db->prepare("
-            SELECT tenant_id, invoice_ids, channel, trigger_source, triggered_by_user_id,
-                   is_forced, force_reason
-            FROM billing_dispatch_queue
-            WHERE id = ?
-        ");
-        $stmt->execute([$jobId]);
-        $queue = $stmt->fetch(\PDO::FETCH_ASSOC);
+        // Busca dados da fila para registrar no log (SELECT * é resiliente a colunas ausentes)
+        $queue = null;
+        try {
+            $stmt = $db->prepare("SELECT * FROM billing_dispatch_queue WHERE id = ?");
+            $stmt->execute([$jobId]);
+            $queue = $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+        } catch (\Exception $e) {
+            error_log('[BILLING_QUEUE] markSent: erro ao buscar job #' . $jobId . ': ' . $e->getMessage());
+        }
 
-        // Atualiza fila
-        $updateStmt = $db->prepare("
-            UPDATE billing_dispatch_queue 
-            SET status = 'sent', sent_at = NOW(), updated_at = NOW() 
-            WHERE id = ?
-        ");
-        $updateStmt->execute([$jobId]);
+        // Atualiza fila — SEMPRE executa, mesmo se o SELECT falhou
+        // Usa coluna updated_at apenas (sent_at é opcional — pode não existir em instâncias antigas)
+        try {
+            $db->prepare("UPDATE billing_dispatch_queue SET status = 'sent', updated_at = NOW() WHERE id = ?")
+               ->execute([$jobId]);
+            // Tenta também sent_at se a coluna existir (migration mais recente)
+            @$db->prepare("UPDATE billing_dispatch_queue SET sent_at = NOW() WHERE id = ? AND sent_at IS NULL")
+               ->execute([$jobId]);
+        } catch (\Exception $e) {
+            error_log('[BILLING_QUEUE] markSent: erro ao atualizar status do job #' . $jobId . ': ' . $e->getMessage());
+            throw $e; // Este erro é crítico — propaga
+        }
 
-        // Registra log para cada fatura
+        // Registra log para cada fatura (falhas aqui são não-críticas — job já está 'sent')
         if ($queue) {
-            $invoiceIds = json_decode($queue['invoice_ids'], true);
+            try {
+                $invoiceIds = json_decode($queue['invoice_ids'], true) ?: [];
 
-            // Resolve template_key real da regra de disparo (anti-spam depende disso)
-            $templateKey = 'manual';
-            if (!empty($queue['dispatch_rule_id'])) {
-                $stmtTpl = $db->prepare("SELECT template_key FROM billing_dispatch_rules WHERE id = ? LIMIT 1");
-                $stmtTpl->execute([$queue['dispatch_rule_id']]);
-                $templateKey = $stmtTpl->fetchColumn() ?: 'manual';
-            }
+                // Resolve template_key real da regra de disparo (anti-spam depende disso)
+                $templateKey = 'manual';
+                if (!empty($queue['dispatch_rule_id'])) {
+                    $stmtTpl = $db->prepare("SELECT template_key FROM billing_dispatch_rules WHERE id = ? LIMIT 1");
+                    $stmtTpl->execute([$queue['dispatch_rule_id']]);
+                    $templateKey = $stmtTpl->fetchColumn() ?: 'manual';
+                }
 
-            foreach ($invoiceIds as $invoiceId) {
-                $logStmt = $db->prepare("
-                    INSERT INTO billing_dispatch_log (
-                        tenant_id, invoice_id, channel, template_key, sent_at,
-                        trigger_source, triggered_by_user_id, is_forced, force_reason, message_id
-                    ) VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)
-                ");
+                foreach ($invoiceIds as $invoiceId) {
+                    $logStmt = $db->prepare("
+                        INSERT INTO billing_dispatch_log (
+                            tenant_id, invoice_id, channel, template_key, sent_at,
+                            trigger_source, triggered_by_user_id, is_forced, force_reason, message_id
+                        ) VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)
+                    ");
 
-                $logStmt->execute([
-                    $queue['tenant_id'],
-                    $invoiceId,
-                    $queue['channel'],
-                    $templateKey,
-                    $queue['trigger_source'] ?? 'automatic',
-                    $queue['triggered_by_user_id'] ?? null,
-                    $queue['is_forced'] ?? 0,
-                    $queue['force_reason'] ?? null,
-                    $messageId
-                ]);
+                    $logStmt->execute([
+                        $queue['tenant_id'],
+                        $invoiceId,
+                        $queue['channel'],
+                        $templateKey,
+                        $queue['trigger_source'] ?? 'automatic',
+                        $queue['triggered_by_user_id'] ?? null,
+                        $queue['is_forced'] ?? 0,
+                        $queue['force_reason'] ?? null,
+                        $messageId
+                    ]);
+                }
+            } catch (\Exception $e) {
+                // Log de auditoria falhou mas envio foi concluído — não propaga
+                error_log('[BILLING_QUEUE] markSent: erro ao registrar billing_dispatch_log para job #' . $jobId . ': ' . $e->getMessage());
             }
         }
     }
