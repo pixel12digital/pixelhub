@@ -94,7 +94,7 @@ class WhapiCloudProvider implements WhatsAppProviderInterface
 
         $payload = [
             'to' => $to,
-            'media' => $imageUrl // Aceita base64 ou URL
+            'media' => $this->ensureDataUri($imageUrl, $this->detectImageMime($imageUrl))
         ];
 
         if ($caption) {
@@ -129,7 +129,7 @@ class WhapiCloudProvider implements WhatsAppProviderInterface
         // Usa /messages/voice para PTT (voice note) — auto-converte para OGG/Opus
         $payload = [
             'to' => $to,
-            'media' => $audioUrl // base64 ou URL
+            'media' => $this->ensureDataUri($audioUrl, 'audio/webm')
         ];
 
         $result = $this->sendRequest('POST', '/messages/voice', $payload);
@@ -156,7 +156,7 @@ class WhapiCloudProvider implements WhatsAppProviderInterface
 
         $payload = [
             'to' => $to,
-            'media' => $documentUrl, // base64 ou URL
+            'media' => $this->ensureDataUri($documentUrl, $this->detectDocumentMime($filename)),
             'filename' => $filename
         ];
 
@@ -188,7 +188,7 @@ class WhapiCloudProvider implements WhatsAppProviderInterface
 
         $payload = [
             'to' => $to,
-            'media' => $videoUrl, // base64 ou URL
+            'media' => $this->ensureDataUri($videoUrl, 'video/mp4'),
         ];
 
         if ($caption) {
@@ -245,6 +245,54 @@ class WhapiCloudProvider implements WhatsAppProviderInterface
     private function normalizePhone(string $phone): string
     {
         return preg_replace('/[^0-9]/', '', $phone);
+    }
+
+    /**
+     * Garante que o campo media tenha o prefixo data URI para base64.
+     * Whapi exige: data:mime/type;base64,{base64} — plain base64 retorna 404.
+     * Se já for URL (http/https) ou já tiver prefixo data:, retorna sem alterar.
+     */
+    private function ensureDataUri(string $media, string $mimeType): string
+    {
+        if (strpos($media, 'data:') === 0 || strpos($media, 'http://') === 0 || strpos($media, 'https://') === 0) {
+            return $media;
+        }
+        return 'data:' . $mimeType . ';base64,' . $media;
+    }
+
+    /**
+     * Detecta MIME type de imagem pelos magic bytes do base64.
+     */
+    private function detectImageMime(string $base64): string
+    {
+        $header = substr($base64, 0, 16);
+        if (strpos($header, '/9j/') === 0 || strpos($header, '/9j/') !== false) return 'image/jpeg';
+        if (strpos($header, 'iVBORw0K') === 0) return 'image/png';
+        if (strpos($header, 'R0lGOD') === 0) return 'image/gif';
+        if (strpos($header, 'UklGR') === 0) return 'image/webp';
+        return 'image/jpeg';
+    }
+
+    /**
+     * Detecta MIME type de documento pela extensão do arquivo.
+     */
+    private function detectDocumentMime(string $filename): string
+    {
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        $map = [
+            'pdf'  => 'application/pdf',
+            'doc'  => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls'  => 'application/vnd.ms-excel',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'ppt'  => 'application/vnd.ms-powerpoint',
+            'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'txt'  => 'text/plain',
+            'csv'  => 'text/csv',
+            'zip'  => 'application/zip',
+            'rar'  => 'application/x-rar-compressed',
+        ];
+        return $map[$ext] ?? 'application/octet-stream';
     }
 
     /**
