@@ -5561,9 +5561,24 @@
             if (typeof openChangeTenantModal === 'function') { openChangeTenantModal(convId, name, tenantId, tenantName); return; }
             window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
         };
-        window.inboxUnlinkConversation = function(convId, name) {
+        window.inboxUnlinkConversation = async function(convId, name) {
             if (typeof unlinkConversation === 'function') { unlinkConversation(convId, name); return; }
-            window.open(INBOX_BASE_URL + '/communication-hub', '_blank');
+            if (!confirm('Mover a conversa com "' + name + '" para "Não vinculados"?\n\nVocê poderá vincular a um lead ou cliente depois.')) return;
+            try {
+                const resp = await fetch(INBOX_BASE_URL + '/communication-hub/conversation/unlink', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ conversation_id: convId })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    loadInboxConversations();
+                } else {
+                    alert('Erro: ' + (data.error || 'Não foi possível mover a conversa.'));
+                }
+            } catch (e) {
+                alert('Erro ao mover conversa. Tente novamente.');
+            }
         };
         
         // ===== FILTROS (mesmo comportamento do Painel de Comunicação) =====

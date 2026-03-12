@@ -6655,9 +6655,9 @@ class CommunicationHubController extends Controller
         $db = DB::getConnection();
 
         try {
-            // Verifica se a conversa existe e tem tenant vinculado
+            // Verifica se a conversa existe
             $checkStmt = $db->prepare("
-                SELECT id, contact_name, contact_external_id, tenant_id 
+                SELECT id, contact_name, contact_external_id, tenant_id, is_incoming_lead 
                 FROM conversations WHERE id = ?
             ");
             $checkStmt->execute([$conversationId]);
@@ -6668,12 +6668,12 @@ class CommunicationHubController extends Controller
                 return;
             }
 
-            if (empty($conversation['tenant_id'])) {
-                $this->json(['success' => false, 'error' => 'Conversa já está desvinculada'], 400);
+            if (empty($conversation['tenant_id']) && !empty($conversation['is_incoming_lead'])) {
+                $this->json(['success' => false, 'error' => 'Conversa já está em não vinculados'], 400);
                 return;
             }
 
-            // Desvincula: tenant_id = NULL, is_incoming_lead = 1
+            // Move para não-vinculados: tenant_id = NULL, is_incoming_lead = 1
             $updateStmt = $db->prepare("
                 UPDATE conversations 
                 SET tenant_id = NULL, 
@@ -6684,17 +6684,17 @@ class CommunicationHubController extends Controller
             $updateStmt->execute([$conversationId]);
 
             error_log(sprintf(
-                "[CommunicationHub] Conversa %d DESVINCULADA: contato=%s, numero=%s, antigo_tenant_id=%d",
+                "[CommunicationHub] Conversa %d movida para NAO-VINCULADOS: contato=%s, numero=%s, antigo_tenant_id=%s",
                 $conversationId,
                 $conversation['contact_name'] ?? 'N/A',
                 $conversation['contact_external_id'] ?? 'N/A',
-                $conversation['tenant_id']
+                $conversation['tenant_id'] ?? 'NULL'
             ));
 
             $this->json([
                 'success' => true,
                 'conversation_id' => $conversationId,
-                'message' => 'Conversa desvinculada com sucesso. Agora aparece em "Não vinculados".'
+                'message' => 'Conversa movida para "Não vinculados" com sucesso.'
             ]);
 
         } catch (\Exception $e) {

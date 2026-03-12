@@ -863,9 +863,9 @@ class ConversationService
         try {
             // Se tenant_id é NULL, tenta resolver lead_id pelo telefone do contato
             $leadId = null;
-            // CORREÇÃO: is_incoming_lead só deve ser 1 para mensagens INBOUND sem tenant
-            // Mensagens OUTBOUND nunca são "incoming lead" (são mensagens que NÓS enviamos)
-            $isIncomingLead = ($tenantId === null && $direction === 'inbound') ? 1 : 0;
+            // Sem tenant vinculado → vai para "não vinculadas" (independente da direção)
+            // Mensagens de prospecção (source=prospecting + outbound) são filtradas na UI
+            $isIncomingLead = ($tenantId === null) ? 1 : 0;
             
             if ($tenantId === null && !empty($contactExternalId)) {
                 $leadId = self::resolveLeadByPhone($contactExternalId);
