@@ -903,6 +903,67 @@
         .inbox-media-open:hover .inbox-media-thumb {
             filter: brightness(0.95);
         }
+        /* Inbox: card de documento (estilo WhatsApp) */
+        .inbox-doc-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0,0,0,0.04);
+            border-radius: 8px;
+            padding: 10px 12px;
+            min-width: 180px;
+            max-width: 260px;
+            text-decoration: none;
+            cursor: default;
+        }
+        .inbox-doc-card .doc-icon {
+            flex-shrink: 0;
+            width: 36px;
+            height: 36px;
+            background: #e53935;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 13px;
+            font-weight: bold;
+            letter-spacing: -0.5px;
+        }
+        .inbox-doc-card .doc-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .inbox-doc-card .doc-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: #111;
+            word-break: break-word;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .inbox-doc-card .doc-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .inbox-doc-card .doc-btn {
+            font-size: 12px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            border: 1px solid #023A8D;
+            color: #023A8D;
+            text-decoration: none;
+            background: white;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .inbox-doc-card .doc-btn:hover {
+            background: #023A8D;
+            color: white;
+        }
         /* Inbox: transcrição de áudio - ícone na toolbar ao lado do menu */
         .inbox-drawer .inbox-audio-container {
             display: flex;
@@ -6417,6 +6478,20 @@
             }
         };
         
+        function buildInboxDocCard(url, fileName) {
+            const safeName = escapeInboxHtml(fileName || 'Documento');
+            const ext = (fileName || '').split('.').pop().toUpperCase().substring(0, 4) || 'DOC';
+            const iconColors = { PDF: '#e53935', DOC: '#1565c0', DOCX: '#1565c0', XLS: '#2e7d32', XLSX: '#2e7d32', PPT: '#e65100', PPTX: '#e65100', ZIP: '#6a1b9a', RAR: '#6a1b9a' };
+            const iconBg = iconColors[ext] || '#546e7a';
+            let actions = '';
+            if (url) {
+                const safeUrl = escapeInboxHtml(url);
+                const safeFileName = escapeInboxHtml(fileName || 'documento');
+                actions = `<div class="doc-actions"><a href="${safeUrl}" target="_blank" class="doc-btn">Abrir</a><a href="${safeUrl}" download="${safeFileName}" class="doc-btn">Baixar</a></div>`;
+            }
+            return `<div class="inbox-doc-card"><div class="doc-icon" style="background:${iconBg}">${escapeInboxHtml(ext)}</div><div class="doc-info"><div class="doc-name">${safeName}</div>${actions}</div></div>`;
+        }
+
         function buildInboxAudioWithTranscription(msg, media, safeUrl) {
             const eventId = (msg.id || msg.event_id || media.event_id || '').toString();
             const hasTranscription = media.transcription && media.transcription.trim();
@@ -6546,7 +6621,7 @@
                     } else if (mediaType === 'video') {
                         renderedContent = `<video controls class="inbox-media-lazy" data-src="${safeUrl}" style="max-width: 200px; border-radius: 8px;"></video>`;
                     } else if (mediaType === 'document' || mediaType === 'file') {
-                        renderedContent = `<a href="${safeUrl}" target="_blank" style="color: #023A8D; text-decoration: none;">📎 ${escapeInboxHtml(media.file_name || 'Documento')}</a>`;
+                        renderedContent = buildInboxDocCard(safeUrl, media.file_name || media.filename || 'Documento');
                     } else {
                         renderedContent = `<a href="${safeUrl}" target="_blank" style="color: #023A8D;">📎 Mídia</a>`;
                     }
@@ -6650,7 +6725,7 @@
                     content = `<button type="button" class="inbox-media-open" data-src="${dataSrc.replace(/"/g, '&quot;')}"><img src="${dataSrc}" class="inbox-media-thumb" data-src="${dataSrc.replace(/"/g, '&quot;')}" style="max-width: 200px; border-radius: 8px;"></button>`;
                     if (message) content += `<div style="margin-top: 6px;">${escapeInboxHtml(message)}</div>`;
                 } else if (hasMedia && InboxMediaState.type === 'document') {
-                    content = `📎 ${InboxMediaState.fileName}`;
+                    content = buildInboxDocCard(null, InboxMediaState.fileName);
                 } else {
                     content = escapeInboxHtml(message);
                 }
@@ -6917,6 +6992,8 @@
                         renderedContent = buildInboxAudioWithTranscription(msg, media, safeUrl);
                     } else if (mediaType === 'video') {
                         renderedContent = `<video controls class="inbox-media-lazy" data-src="${safeUrl}" style="max-width: 200px; border-radius: 8px;"></video>`;
+                    } else if (mediaType === 'document' || mediaType === 'file') {
+                        renderedContent = buildInboxDocCard(safeUrl, media.file_name || media.filename || 'Documento');
                     } else {
                         renderedContent = `<a href="${safeUrl}" target="_blank" style="color: #023A8D;">📎 Mídia</a>`;
                     }
