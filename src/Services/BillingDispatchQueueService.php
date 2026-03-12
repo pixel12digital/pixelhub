@@ -152,7 +152,8 @@ class BillingDispatchQueueService
     {
         $db = DB::getConnection();
 
-        // Busca dados da fila para registrar no log (SELECT * é resiliente a colunas ausentes)
+        // Busca dados da fila para registrar no log
+        // SELECT * é resiliente a colunas ausentes E inclui dispatch_rule_id para resolução do template_key
         $queue = null;
         try {
             $stmt = $db->prepare("SELECT * FROM billing_dispatch_queue WHERE id = ?");
