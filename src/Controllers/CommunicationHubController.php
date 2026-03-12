@@ -2796,7 +2796,7 @@ class CommunicationHubController extends Controller
                 LEFT JOIN leads l ON c.lead_id = l.id
                 LEFT JOIN users u ON c.assigned_to = u.id
                 {$whereClause}
-                ORDER BY COALESCE(c.last_message_at, c.created_at) DESC, c.created_at DESC
+                ORDER BY c.is_incoming_lead DESC, COALESCE(c.last_message_at, c.created_at) DESC, c.created_at DESC
                 LIMIT 100
             ");
             $stmt->execute($params);
