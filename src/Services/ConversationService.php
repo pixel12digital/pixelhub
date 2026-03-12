@@ -893,6 +893,8 @@ class ConversationService
             if (isset($eventData['source_system'])) {
                 if ($eventData['source_system'] === 'meta_official') {
                     $providerType = 'meta_official';
+                } elseif ($eventData['source_system'] === 'whapi_cloud') {
+                    $providerType = 'whapi';
                 }
             }
             
@@ -2283,7 +2285,12 @@ private static function extractMessageTimestamp(array $eventData): string
                 // Remove @lid e tudo após @
                 $cleaned = preg_replace('/@.*$/', '', (string) $phone);
                 // Remove tudo exceto dígitos
-                return preg_replace('/[^0-9]/', '', $cleaned);
+                $digits = preg_replace('/[^0-9]/', '', $cleaned);
+                // Adiciona prefixo 55 para números BR sem ele (igual ao resolveTenantByPhone)
+                if (!empty($digits) && substr($digits, 0, 2) !== '55' && (strlen($digits) === 10 || strlen($digits) === 11)) {
+                    $digits = '55' . $digits;
+                }
+                return $digits;
             };
             
             $contactPhone = $normalizePhone($contactExternalId);

@@ -266,11 +266,12 @@ class WhapiWebhookController extends Controller
                 'tenant_id' => $tenantId,
                 'process_media_sync' => false,
                 'metadata' => [
-                    'channel_id' => $whapiChannelId,
-                    'raw_event_type' => "whapi_message_{$type}",
-                    'provider_type' => 'whapi',
-                    'message_id' => $messageId,
-                    'contact_name' => $fromName,
+                    'channel_id'                => $whapiChannelId,
+                    'raw_event_type'            => "whapi_message_{$type}",
+                    'provider_type'             => 'whapi',
+                    'message_id'                => $messageId,
+                    'contact_name'              => $fromName,
+                    'tenant_resolved_from_phone' => ($tenantId !== null),
                 ]
             ]);
 
