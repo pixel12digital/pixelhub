@@ -25,7 +25,7 @@ use PDO;
 class WhapiPollerController extends Controller
 {
     private const CACHE_KEY  = 'whapi_poller_last_ts';
-    private const CACHE_FILE = '/tmp/pixelhub_whapi_poller.json';
+    private const CACHE_FILE = __DIR__ . '/../../storage/logs/whapi_poller_cache.json';
     private const WHAPI_BASE = 'https://gate.whapi.cloud';
 
     public function poll(): void
@@ -136,41 +136,51 @@ class WhapiPollerController extends Controller
 
     private function fetchMessages(string $apiToken, int $sinceTs): array
     {
-        $url = self::WHAPI_BASE . '/messages?count=100';
+        $headers = [
+            'Authorization: Bearer ' . $apiToken,
+            'Accept: application/json',
+        ];
 
-        $ch = curl_init($url);
+        // GET /chats retorna cada chat com last_message embutido — uma única chamada
+        $ch = curl_init(self::WHAPI_BASE . '/chats?count=50');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 20,
-            CURLOPT_HTTPHEADER     => [
-                'Authorization: Bearer ' . $apiToken,
-                'Accept: application/json',
-            ],
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_HTTPHEADER     => $headers,
         ]);
-        $body    = curl_exec($ch);
+        $body     = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $err     = curl_error($ch);
+        $err      = curl_error($ch);
         curl_close($ch);
 
         if ($err || $httpCode !== 200) {
-            error_log("[WhapiPoller] fetchMessages failed: http={$httpCode} err={$err}");
+            error_log("[WhapiPoller] GET /chats failed: http={$httpCode} err={$err}");
             return [];
         }
 
-        $data = json_decode($body, true);
-        if (!is_array($data)) return [];
+        $chatsData = json_decode($body, true);
+        $chats = $chatsData['chats'] ?? [];
+        if (empty($chats)) return [];
 
-        // A API retorna {"messages": [...]} ou array direto
-        $messages = $data['messages'] ?? (isset($data[0]) ? $data : []);
+        $allMessages = [];
+        foreach ($chats as $chat) {
+            $chatId = $chat['id'] ?? null;
+            if (!$chatId) continue;
 
-        // Filtra apenas mensagens mais novas que o último timestamp processado
-        if ($sinceTs > 0) {
-            $messages = array_filter($messages, function ($m) use ($sinceTs) {
-                return (int)($m['timestamp'] ?? 0) > $sinceTs;
-            });
+            // Pula grupos
+            if (strpos($chatId, '@g.us') !== false) continue;
+
+            // Usa last_message embutido no objeto do chat
+            $lastMsg = $chat['last_message'] ?? null;
+            if (!$lastMsg) continue;
+
+            $msgTs = (int)($lastMsg['timestamp'] ?? 0);
+            if ($sinceTs > 0 && $msgTs <= $sinceTs) continue;
+
+            $allMessages[] = $lastMsg;
         }
 
-        return array_values($messages);
+        return $allMessages;
     }
 
     private function processMessage(array $message, ?string $channelId, PDO $db): array
@@ -183,10 +193,11 @@ class WhapiPollerController extends Controller
         $fromName  = $message['from_name'] ?? null;
         $timestamp = $message['timestamp'] ?? time();
 
-        // Ignora grupos
-        if ($chatId && strpos($chatId, '@g.us') !== false) {
-            return ['processed' => false, 'reason' => 'group'];
-        }
+        // Ignora grupos e chats de sistema (stories, broadcast, etc.)
+        if (!$chatId) return ['processed' => false, 'reason' => 'no_chat_id'];
+        if (strpos($chatId, '@g.us') !== false) return ['processed' => false, 'reason' => 'group'];
+        if (in_array($chatId, ['stories', 'status@broadcast'], true)) return ['processed' => false, 'reason' => 'system_chat'];
+        if (strpos($chatId, '@broadcast') !== false) return ['processed' => false, 'reason' => 'broadcast'];
 
         // Ignora tipos de sistema
         $skipTypes = ['protocol', 'revoked', 'e2e_notification', 'ciphertext', 'system'];
