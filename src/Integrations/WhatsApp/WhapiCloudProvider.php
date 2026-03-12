@@ -330,9 +330,14 @@ class WhapiCloudProvider implements WhatsAppProviderInterface
             ];
         }
 
-        // Erro da API
-        $errorMessage = $responseData['message'] ?? $responseData['error'] ?? "HTTP {$httpCode}";
-        error_log("[WhapiCloudProvider] ❌ API error: {$errorMessage}");
+        // Erro da API — Whapi retorna {"error": {"code": int, "message": str, "details": str}}
+        $errObj = $responseData['error'] ?? null;
+        if (is_array($errObj)) {
+            $errorMessage = $errObj['message'] ?? ($errObj['details'] ?? json_encode($errObj));
+        } else {
+            $errorMessage = $responseData['message'] ?? ($errObj ?? "HTTP {$httpCode}");
+        }
+        error_log("[WhapiCloudProvider] ❌ API error: {$errorMessage} | full: " . substr($responseBody, 0, 300));
 
         return [
             'success' => false,
