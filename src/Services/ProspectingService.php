@@ -524,7 +524,8 @@ class ProspectingService
         $duplicates = 0;
         $errors     = [];
 
-        $db = DB::getConnection();
+        // Reconecta ao MySQL após longas operações de API (evita "server has gone away")
+        $db = DB::reconnect();
 
         foreach ($places as $place) {
             $cnpj = $place['cnpj'] ?? '';

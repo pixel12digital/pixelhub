@@ -53,6 +53,15 @@ class DB
     }
 
     /**
+     * Força reconexão (útil após operações longas que podem expirar a conexão)
+     */
+    public static function reconnect(): PDO
+    {
+        self::$connection = null;
+        return self::getConnection();
+    }
+
+    /**
      * Fecha a conexão (útil para testes)
      */
     public static function closeConnection(): void
