@@ -469,8 +469,14 @@ class ProspectingService
         }
         $hasNameFilter = !empty($nameKeywords);
 
-        // Quando há filtro por nome, busca mais resultados para compensar a filtragem
-        $fetchMultiplier = $hasNameFilter ? 10 : 1;
+        // Quando há filtro por nome, busca mais resultados para compensar a filtragem.
+        // Cap: total a buscar <= 15.000 itens (150 requests × 200ms ≈ 30s)
+        if ($hasNameFilter) {
+            $maxFetch = 15000;
+            $fetchMultiplier = max(2, min(10, (int) floor($maxFetch / max($maxResults, 1))));
+        } else {
+            $fetchMultiplier = 1;
+        }
 
         // Busca por cada CNAE e consolida resultados (remove duplicados por CNPJ)
         $allPlaces = [];

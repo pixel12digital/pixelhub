@@ -16,7 +16,7 @@ class MinhaReceitaClient
     private const BASE_URL = 'https://minhareceita.org';
     private const TIMEOUT  = 25;
     private const MAX_PER_PAGE = 100;
-    private const SLEEP_BETWEEN_REQUESTS_MS = 500; // 500ms entre requisições para evitar rate limit
+    private const SLEEP_BETWEEN_REQUESTS_MS = 200; // 200ms entre requisições para evitar rate limit
 
     // =========================================================================
     // BUSCA EM LOTE POR CNAE + REGIÃO
