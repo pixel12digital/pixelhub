@@ -370,15 +370,15 @@ class ProspectingService
             $cnaes = [['code' => $recipe['cnae_code'], 'desc' => $recipe['cnae_description'] ?? '']];
         }
 
-        if (empty($cnaes) || empty($uf)) {
-            throw new \InvalidArgumentException('CNAE e UF são obrigatórios');
+        if (empty($cnaes)) {
+            throw new \InvalidArgumentException('CNAE é obrigatório');
         }
 
         $client = new MinhaReceitaClient();
 
-        // Resolve código IBGE da cidade se informada
+        // Resolve código IBGE da cidade se informada (requer UF)
         $ibgeCode = null;
-        if (!empty($city)) {
+        if (!empty($city) && !empty($uf)) {
             $ibgeCode = $client->resolveIbgeCode($city, $uf);
         }
 
@@ -450,15 +450,15 @@ class ProspectingService
             $cnaes = [['code' => $recipe['cnae_code'], 'desc' => $recipe['cnae_description'] ?? '']];
         }
 
-        if (empty($cnaes) || empty($uf)) {
-            throw new \InvalidArgumentException('CNAE e UF são obrigatórios para busca Minha Receita');
+        if (empty($cnaes)) {
+            throw new \InvalidArgumentException('CNAE é obrigatório para busca Minha Receita');
         }
 
         $client = new MinhaReceitaClient();
 
-        // Resolve código IBGE da cidade se informada
+        // Resolve código IBGE da cidade se informada (requer UF)
         $ibgeCode = null;
-        if (!empty($city)) {
+        if (!empty($city) && !empty($uf)) {
             $ibgeCode = $client->resolveIbgeCode($city, $uf);
         }
 

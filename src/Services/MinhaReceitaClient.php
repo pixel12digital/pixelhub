@@ -41,9 +41,6 @@ class MinhaReceitaClient
         }
 
         $uf = strtoupper(trim($uf));
-        if (empty($uf) || strlen($uf) !== 2) {
-            throw new \InvalidArgumentException('UF inválida');
-        }
 
         $results = [];
         $cursor  = null;
@@ -55,9 +52,12 @@ class MinhaReceitaClient
         do {
             $params = [
                 'cnae'  => $cnaeClean,
-                'uf'    => $uf,
                 'limit' => $perPage,
             ];
+
+            if (!empty($uf) && strlen($uf) === 2) {
+                $params['uf'] = $uf;
+            }
 
             if (!empty($ibgeCode)) {
                 $params['municipio'] = preg_replace('/\D/', '', $ibgeCode);
@@ -133,15 +133,15 @@ class MinhaReceitaClient
         }
 
         $uf = strtoupper(trim($uf));
-        if (empty($uf) || strlen($uf) !== 2) {
-            throw new \InvalidArgumentException('UF inválida');
-        }
 
         $params = [
             'cnae'  => $cnaeClean,
-            'uf'    => $uf,
             'limit' => self::MAX_PER_PAGE,
         ];
+
+        if (!empty($uf) && strlen($uf) === 2) {
+            $params['uf'] = $uf;
+        }
 
         if (!empty($ibgeCode)) {
             $params['municipio'] = preg_replace('/\D/', '', $ibgeCode);

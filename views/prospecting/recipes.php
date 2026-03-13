@@ -244,7 +244,7 @@ if (($sourceFilter ?? null) === 'minhareceita') {
                     <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Nome da receita *</label>
                     <input type="text" name="name" id="recipeName" required placeholder="Ex: Imobiliárias em Curitiba" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
                 </div>
-                <?php $cityRequired = ($sourceFilter ?? 'google_maps') !== 'instagram'; ?>
+                <?php $cityRequired = !in_array($sourceFilter ?? 'google_maps', ['instagram', 'minhareceita']); ?>
                 <div style="display:grid;grid-template-columns:1fr 80px;gap:12px;<?= ($sourceFilter ?? '') === 'instagram' ? 'display:none!important;' : '' ?>" id="cityStateRow">
                     <div style="position:relative;">
                         <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Cidade <?= $cityRequired ? '*' : '' ?></label>
@@ -272,10 +272,10 @@ if (($sourceFilter ?? null) === 'minhareceita') {
                                style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
                         <div id="cnaeDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300;max-height:220px;overflow-y:auto;"></div>
                     </div>
-                    <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Selecione o CNAE principal. A cidade é opcional (filtra por município IBGE).</p>
+                    <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Selecione o CNAE principal. UF e cidade são opcionais (UF filtra por estado, cidade filtra por município via IBGE).</p>
                 </div>
                 <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 12px;font-size:12px;color:#166534;">
-                    Minha Receita — gratuito, sem chave. Busca por CNAE + UF (+ cidade opcional via IBGE).
+                    Minha Receita — gratuito, sem chave. Busca por CNAE (+ UF opcional para filtrar estado, + cidade para município).
                 </div>
                 <?php elseif (($sourceFilter ?? '') === 'instagram'): ?>
                 <!-- CAMPOS INSTAGRAM (Apify) -->
