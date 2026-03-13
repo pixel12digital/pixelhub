@@ -274,6 +274,13 @@ if (($sourceFilter ?? null) === 'minhareceita') {
                     </div>
                     <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Selecione o CNAE principal. UF e cidade são opcionais (UF filtra por estado, cidade filtra por município via IBGE).</p>
                 </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;">Filtrar por nome <span style="font-weight:400;color:#94a3b8;">(opcional)</span></label>
+                    <input type="text" name="keywords_raw" id="recipeKeywords" autocomplete="off"
+                           placeholder="Ex: lingerie, moda íntima, pijama, underwear"
+                           style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                    <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Filtra os resultados pelo nome fantasia ou razão social. Separe por vírgula. Deixe em branco para trazer todos.</p>
+                </div>
                 <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 12px;font-size:12px;color:#166534;">
                     Minha Receita — gratuito, sem chave. Busca por CNAE (+ UF opcional para filtrar estado, + cidade para município).
                 </div>

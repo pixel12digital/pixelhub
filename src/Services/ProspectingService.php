@@ -459,10 +459,23 @@ class ProspectingService
             $ibgeCode = $client->resolveIbgeCode($city, $uf);
         }
 
+        // Keywords de filtro por nome (nome_fantasia / razao_social)
+        $nameKeywords = [];
+        if (!empty($recipe['keywords'])) {
+            $kws = is_string($recipe['keywords']) ? json_decode($recipe['keywords'], true) : $recipe['keywords'];
+            if (is_array($kws)) {
+                $nameKeywords = array_values(array_filter(array_map('trim', $kws)));
+            }
+        }
+        $hasNameFilter = !empty($nameKeywords);
+
+        // Quando há filtro por nome, busca mais resultados para compensar a filtragem
+        $fetchMultiplier = $hasNameFilter ? 10 : 1;
+
         // Busca por cada CNAE e consolida resultados (remove duplicados por CNPJ)
         $allPlaces = [];
         $seenCnpjs = [];
-        $resultsPerCnae = (int) ceil($maxResults / count($cnaes));
+        $resultsPerCnae = (int) ceil(($maxResults * $fetchMultiplier) / count($cnaes));
 
         foreach ($cnaes as $cnae) {
             $cnaeCode = $cnae['code'] ?? '';
@@ -478,15 +491,21 @@ class ProspectingService
             $maxRequests = $resultsPerCnae > 1000 ? 0 : 100; // 0 = ilimitado
 
             $places = $client->searchByCnaeAndRegion($cnaeCode, $uf, $ibgeCode, $resultsPerCnae, $progressCallback, $maxRequests);
-            
+
             foreach ($places as $place) {
                 $cnpj = $place['cnpj'] ?? '';
                 if (empty($cnpj) || isset($seenCnpjs[$cnpj])) {
                     continue;
                 }
+
+                // Filtro por nome: verifica nome_fantasia e razao_social
+                if ($hasNameFilter && !self::matchesNameKeywords($place, $nameKeywords)) {
+                    continue;
+                }
+
                 $seenCnpjs[$cnpj] = true;
                 $allPlaces[] = $place;
-                
+
                 if (count($allPlaces) >= $maxResults) {
                     break 2;
                 }
@@ -1259,6 +1278,34 @@ class ProspectingService
     // =========================================================================
     // HELPERS
     // =========================================================================
+
+    /**
+     * Verifica se uma empresa (place) contém alguma das palavras-chave no nome fantasia ou razão social
+     */
+    private static function matchesNameKeywords(array $place, array $keywords): bool
+    {
+        $name     = $place['name'] ?? '';
+        $razao    = $place['razao_social'] ?? '';
+        $haystack = self::normalizeForSearch($name . ' ' . $razao);
+
+        foreach ($keywords as $kw) {
+            if (empty($kw)) continue;
+            if (str_contains($haystack, self::normalizeForSearch($kw))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Normaliza string para busca: lowercase + remove acentos
+     */
+    private static function normalizeForSearch(string $str): string
+    {
+        $str = mb_strtolower(trim($str), 'UTF-8');
+        $str = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $str);
+        return preg_replace('/[^a-z0-9 ]/', ' ', $str);
+    }
 
     /**
      * Normaliza array de palavras-chave (string ou array)
