@@ -200,9 +200,6 @@ class ProspectingService
         if ($source === 'minhareceita' && empty($cnaeCode)) {
             throw new \InvalidArgumentException('CNAE é obrigatório para a fonte Minha Receita');
         }
-        if ($source === 'minhareceita' && empty($state)) {
-            throw new \InvalidArgumentException('Estado (UF) é obrigatório para a fonte Minha Receita');
-        }
         if ($source === 'instagram' && empty($keywords)) {
             throw new \InvalidArgumentException('Informe ao menos uma hashtag para prospecção no Instagram.');
         }
