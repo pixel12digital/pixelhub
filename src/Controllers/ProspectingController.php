@@ -461,7 +461,7 @@ class ProspectingController extends Controller
         try {
             $result = ProspectingService::runSearch($recipeId, $maxResults);
             $this->json(['success' => true, 'result' => $result]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log('[ProspectingController] Erro ao executar busca: ' . $e->getMessage());
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
         }

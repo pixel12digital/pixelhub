@@ -13,10 +13,20 @@ class DB
     private static ?PDO $connection = null;
 
     /**
-     * Obtém a conexão PDO (singleton)
+     * Obtém a conexão PDO (singleton). Reconecta automaticamente se a conexão caiu.
      */
     public static function getConnection(): PDO
     {
+        if (self::$connection !== null) {
+            // Verifica se a conexão ainda está viva (evita "MySQL server has gone away")
+            try {
+                self::$connection->query('SELECT 1');
+            } catch (\PDOException $e) {
+                // Erro 2006 = server gone away, 2013 = lost connection
+                self::$connection = null;
+            }
+        }
+
         if (self::$connection !== null) {
             return self::$connection;
         }
