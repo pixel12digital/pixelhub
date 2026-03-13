@@ -492,9 +492,8 @@ class ProspectingService
                 error_log("[ProspectingService] CNAE {$cnaeCode}: {$fetched} buscados, {$filtered} filtrados, {$valid} válidos");
             };
 
-            // Calcula maxRequests baseado no volume esperado
-            // Para volumes grandes (>1000), permite mais requisições
-            $maxRequests = $resultsPerCnae > 1000 ? 0 : 100; // 0 = ilimitado
+            // Calcula maxRequests: páginas necessárias + 5 de buffer (nunca ilimitado)
+            $maxRequests = (int) ceil($resultsPerCnae / 100) + 5;
 
             $places = $client->searchByCnaeAndRegion($cnaeCode, $uf, $ibgeCode, $resultsPerCnae, $progressCallback, $maxRequests);
 
