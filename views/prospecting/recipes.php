@@ -646,7 +646,7 @@ const CNAE_DATA = [
     ['1066-0/00','Fabricação de alimentos para animais','racao animal pet industria'],
     ['1091-1/01','Fabricação de produtos de panificação','padaria industrial panificacao biscoito'],
     ['1321-9/00','Tecelagem de fios de algodão','tecelagem tecido algodao industria textil'],
-    ['1411-8/01','Confecção de roupas','confeccao roupa vestuario industria'],
+    ['1411-8/01','Confecção de roupas íntimas','confeccao roupa intimas vestuario industria lingerie'],
     ['1531-9/01','Fabricação de calçados','calcado sapato industria calçadista'],
     ['2330-3/01','Fabricação de cimento','cimento industria construcao'],
     ['2512-8/00','Fabricação de esquadrias','esquadria aluminio janela porta industria'],
