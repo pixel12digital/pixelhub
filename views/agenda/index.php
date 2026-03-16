@@ -397,7 +397,8 @@ ob_start();
         // Só destaca bloco atual se estiver visualizando o dia de hoje
         if ($dataStr === $dataAtual) {
             foreach ($blocos as $bloco) {
-                if ($bloco['data'] === $dataAtual && 
+                if ($bloco['data'] === $dataAtual &&
+                    !empty($bloco['hora_inicio']) && !empty($bloco['hora_fim']) &&
                     $bloco['hora_inicio'] <= $horaAtual && 
                     $bloco['hora_fim'] >= $horaAtual) {
                     $blocoAtualId = $bloco['id'];
@@ -430,7 +431,9 @@ ob_start();
                 <span class="block-type" style="background: <?= $corBorda ?>; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: white;">
                     <?= htmlspecialchars($bloco['tipo_nome']) ?>
                 </span>
-                <span class="block-time"><?= date('H:i', strtotime($bloco['hora_inicio'])) ?> – <?= date('H:i', strtotime($bloco['hora_fim'])) ?><?php if ($isCurrent): ?> <span style="color: #1976d2; font-size: 11px;">● Agora</span><?php endif; ?></span>
+                <?php if (!empty($bloco['hora_inicio'])): ?>
+                <span class="block-time"><?= date('H:i', strtotime($bloco['hora_inicio'])) ?><?= !empty($bloco['hora_fim']) ? ' – '.date('H:i', strtotime($bloco['hora_fim'])) : '' ?><?php if ($isCurrent): ?> <span style="color: #1976d2; font-size: 11px;">● Agora</span><?php endif; ?></span>
+                <?php endif; ?>
                 <div class="block-actions-row" onclick="event.stopPropagation()">
                     <?php if ($bloco['status'] === 'completed'): ?>
                         <form method="post" action="<?= pixelhub_url('/agenda/bloco/reopen') ?>" style="display: inline;" onsubmit="return confirm('Reabrir este bloco?');">

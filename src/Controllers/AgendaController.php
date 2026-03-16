@@ -72,7 +72,14 @@ class AgendaController extends Controller
         if ($statusFiltro) {
             $blocos = array_values(array_filter($blocos, fn($b) => ($b['status'] ?? '') === $statusFiltro));
         }
-        usort($blocos, fn($a, $b) => strcmp($a['hora_inicio'], $b['hora_inicio']));
+        usort($blocos, function($a, $b) {
+            $aNull = empty($a['hora_inicio']);
+            $bNull = empty($b['hora_inicio']);
+            if ($aNull && $bNull) return strcmp($a['created_at'] ?? '', $b['created_at'] ?? '');
+            if ($aNull) return 1;
+            if ($bNull) return -1;
+            return strcmp($a['hora_inicio'], $b['hora_inicio']);
+        });
 
         $tipos = [];
         $projetos = [];
@@ -110,7 +117,7 @@ class AgendaController extends Controller
             $blocosDoDia = AgendaService::enrichBlocksWithProjectNames($blocosDoDia);
             if ($isHoje && !empty($blocosDoDia)) {
                 foreach ($blocosDoDia as $key => $bloco) {
-                    if (($bloco['hora_inicio'] ?? '') <= $horaAtual && ($bloco['hora_fim'] ?? '') >= $horaAtual) {
+                    if (!empty($bloco['hora_inicio']) && !empty($bloco['hora_fim']) && $bloco['hora_inicio'] <= $horaAtual && $bloco['hora_fim'] >= $horaAtual) {
                         $blocosDoDia[$key]['is_atual'] = true;
                     }
                 }
@@ -1572,6 +1579,31 @@ class AgendaController extends Controller
         }
     }
     
+    /**
+     * Atualiza status de um bloco de forma simples (sem validações complexas)
+     * Usado pelo planejamento baseado em lista de tarefas
+     */
+    public function quickStatus(): void
+    {
+        Auth::requireInternal();
+        $blockId = (int)($_POST['block_id'] ?? 0);
+        $status  = trim($_POST['status'] ?? '');
+        $validStatuses = ['planned', 'ongoing', 'completed', 'canceled'];
+        if ($blockId <= 0 || !in_array($status, $validStatuses, true)) {
+            $this->json(['error' => 'Parâmetros inválidos'], 400);
+            return;
+        }
+        try {
+            $db = \PixelHub\Core\DB::getConnection();
+            $db->prepare("UPDATE agenda_blocks SET status = ?, updated_at = NOW() WHERE id = ?")
+               ->execute([$status, $blockId]);
+            $this->json(['success' => true, 'status' => $status]);
+        } catch (\Exception $e) {
+            error_log("quickStatus error: " . $e->getMessage());
+            $this->json(['error' => 'Erro ao atualizar status'], 500);
+        }
+    }
+
     /**
      * Agenda semanal — redireciona para Agenda Unificada (Quadro)
      */

@@ -85,13 +85,14 @@ ob_start();
         </div>
         
         <div class="form-group">
-            <label for="hora_inicio">Horário de Início *</label>
-            <input type="time" id="hora_inicio" name="hora_inicio" value="<?= htmlspecialchars($dados['hora_inicio'] ?? '') ?>" required>
+            <label for="hora_inicio">Horário de Início</label>
+            <input type="time" id="hora_inicio" name="hora_inicio" value="<?= htmlspecialchars($dados['hora_inicio'] ?? '') ?>">
+            <small style="color:#666;font-size:12px;">Opcional — deixe em branco para planejamento por lista de tarefas</small>
         </div>
         
         <div class="form-group">
-            <label for="hora_fim">Horário de Fim *</label>
-            <input type="time" id="hora_fim" name="hora_fim" value="<?= htmlspecialchars($dados['hora_fim'] ?? '') ?>" required>
+            <label for="hora_fim">Horário de Fim</label>
+            <input type="time" id="hora_fim" name="hora_fim" value="<?= htmlspecialchars($dados['hora_fim'] ?? '') ?>">
         </div>
         
         <div class="form-group">

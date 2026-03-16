@@ -216,14 +216,14 @@ ob_start();
                         <?php
                             $isBlocoAtual = isset($bloco['is_atual']) && $bloco['is_atual'];
                             $corHex = $bloco['tipo_cor_hex'] ?? '#cccccc';
-                            $horaInicio = date('H:i', strtotime($bloco['hora_inicio']));
-                            $horaFim = date('H:i', strtotime($bloco['hora_fim']));
+                            $horaInicio = !empty($bloco['hora_inicio']) ? date('H:i', strtotime($bloco['hora_inicio'])) : '';
+                            $horaFim    = !empty($bloco['hora_fim'])    ? date('H:i', strtotime($bloco['hora_fim']))    : '';
                             
                         ?>
                         <div class="agenda-bloco-card <?= $isBlocoAtual ? 'agenda-bloco-atual' : '' ?>"
                              style="border-left-color: <?= htmlspecialchars($corHex) ?>;"
                              onclick="window.location.href='<?= pixelhub_url('/agenda/bloco?id=' . $bloco['id']) ?>'">
-                            <strong><?= htmlspecialchars($horaInicio . '–' . $horaFim) ?></strong>
+                            <?php if ($horaInicio || $horaFim): ?><strong><?= htmlspecialchars($horaInicio . ($horaFim ? '–'.$horaFim : '')) ?></strong><?php endif; ?>
                             <div class="agenda-bloco-tipo" style="color: <?= htmlspecialchars($corHex) ?>;">
                                 <?= htmlspecialchars($bloco['tipo_nome'] ?? '') ?>
                             </div>

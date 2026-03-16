@@ -87,7 +87,9 @@ $blocoData = $bloco['data'];
     <div class="bloco-sticky-header-inner">
         <div class="bloco-sticky-header-info">
             <span class="data"><?= date('d/m/Y', strtotime($bloco['data'])) ?></span>
-            <span class="intervalo"><?= date('H:i', strtotime($bloco['hora_inicio'])) ?> – <?= date('H:i', strtotime($bloco['hora_fim'])) ?></span>
+            <?php if (!empty($bloco['hora_inicio'])): ?>
+            <span class="intervalo"><?= date('H:i', strtotime($bloco['hora_inicio'])) ?><?= !empty($bloco['hora_fim']) ? ' – '.date('H:i', strtotime($bloco['hora_fim'])) : '' ?></span>
+            <?php endif; ?>
             <span class="categoria"><?= htmlspecialchars($bloco['tipo_nome']) ?></span>
         </div>
         <div class="bloco-sticky-header-actions">

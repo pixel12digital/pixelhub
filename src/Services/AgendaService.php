@@ -413,8 +413,10 @@ class AgendaService
         }
         
         // Validações
-        $horaInicio = isset($dados['hora_inicio']) ? trim($dados['hora_inicio']) : $bloco['hora_inicio'];
-        $horaFim = isset($dados['hora_fim']) ? trim($dados['hora_fim']) : $bloco['hora_fim'];
+        $horaInicioRaw = isset($dados['hora_inicio']) ? trim($dados['hora_inicio']) : ($bloco['hora_inicio'] ?? '');
+        $horaFimRaw    = isset($dados['hora_fim'])    ? trim($dados['hora_fim'])    : ($bloco['hora_fim'] ?? '');
+        $horaInicio = $horaInicioRaw !== '' ? $horaInicioRaw : null;
+        $horaFim    = $horaFimRaw !== '' ? $horaFimRaw : null;
         $tipoId = isset($dados['tipo_id']) && (int)$dados['tipo_id'] > 0 ? (int)$dados['tipo_id'] : (int)$bloco['tipo_id'];
         $projetoFocoId = isset($dados['projeto_foco_id']) ? ($dados['projeto_foco_id'] ? (int)$dados['projeto_foco_id'] : null) : $bloco['projeto_foco_id'];
         $activityTypeId = array_key_exists('activity_type_id', $dados) ? ($dados['activity_type_id'] ? (int)$dados['activity_type_id'] : null) : ($bloco['activity_type_id'] ?? null);
@@ -426,38 +428,31 @@ class AgendaService
             throw new \RuntimeException('Tipo de bloco inválido. O bloco está vinculado a um tipo que não existe mais. Edite o bloco e selecione um tipo válido em Configurações → Agenda → Tipos de Blocos.');
         }
         
-        // Valida horário de início < horário de fim
-        if ($horaInicio >= $horaFim) {
-            throw new \RuntimeException('Horário de início deve ser menor que o horário de fim.');
+        // Valida e verifica conflito apenas quando ambos horários são informados
+        $duracaoMinutos = (int)($bloco['duracao_planejada'] ?? 0);
+        if ($horaInicio !== null && $horaFim !== null) {
+            if ($horaInicio >= $horaFim) {
+                throw new \RuntimeException('Horário de início deve ser menor que o horário de fim.');
+            }
+            $stmt = $db->prepare("
+                SELECT COUNT(*) as count
+                FROM agenda_blocks
+                WHERE data = ?
+                AND id != ?
+                AND hora_inicio IS NOT NULL AND hora_fim IS NOT NULL
+                AND hora_inicio < ?
+                AND hora_fim > ?
+            ");
+            $stmt->execute([$bloco['data'], $id, $horaFim, $horaInicio]);
+            $conflito = $stmt->fetch();
+            if ($conflito && (int)$conflito['count'] > 0) {
+                throw new \RuntimeException('Já existe um bloco nesse horário para este dia.');
+            }
+            $inicio = new \DateTime($bloco['data'] . ' ' . $horaInicio);
+            $fim = new \DateTime($bloco['data'] . ' ' . $horaFim);
+            $diff = $inicio->diff($fim);
+            $duracaoMinutos = ($diff->h * 60) + $diff->i;
         }
-        
-        // Verifica se há conflito com outro bloco na mesma data (exceto o próprio bloco)
-        // Dois intervalos [a1, b1] e [a2, b2] se sobrepõem se: a1 < b2 AND a2 < b1
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as count
-            FROM agenda_blocks
-            WHERE data = ?
-            AND id != ?
-            AND hora_inicio < ? 
-            AND hora_fim > ?
-        ");
-        $stmt->execute([
-            $bloco['data'],
-            $id,
-            $horaFim,    // Outro bloco termina depois do novo início
-            $horaInicio // Outro bloco começa antes do novo fim
-        ]);
-        $conflito = $stmt->fetch();
-        
-        if ($conflito && (int)$conflito['count'] > 0) {
-            throw new \RuntimeException('Já existe um bloco nesse horário para este dia.');
-        }
-        
-        // Calcula nova duração
-        $inicio = new \DateTime($bloco['data'] . ' ' . $horaInicio);
-        $fim = new \DateTime($bloco['data'] . ' ' . $horaFim);
-        $diff = $inicio->diff($fim);
-        $duracaoMinutos = ($diff->h * 60) + $diff->i;
         
         // Horários reais (opcionais)
         $horaInicioReal = isset($dados['hora_inicio_real']) && $dados['hora_inicio_real'] !== '' ? trim($dados['hora_inicio_real']) : null;
@@ -505,13 +500,11 @@ class AgendaService
         $dataStr = $data->format('Y-m-d');
         
         // Validações
-        $horaInicio = trim($dados['hora_inicio'] ?? '');
-        $horaFim = trim($dados['hora_fim'] ?? '');
+        $horaInicioRaw = trim($dados['hora_inicio'] ?? '');
+        $horaFimRaw = trim($dados['hora_fim'] ?? '');
+        $horaInicio = $horaInicioRaw !== '' ? $horaInicioRaw : null;
+        $horaFim    = $horaFimRaw !== '' ? $horaFimRaw : null;
         $tipoId = isset($dados['tipo_id']) ? (int)$dados['tipo_id'] : 0;
-        
-        if (empty($horaInicio) || empty($horaFim)) {
-            throw new \RuntimeException('Horário de início e fim são obrigatórios.');
-        }
         
         if ($tipoId <= 0) {
             throw new \RuntimeException('Tipo de bloco é obrigatório. Selecione um tipo (ex.: PRODUÇÃO, COMERCIAL) no campo Bloco.');
@@ -524,36 +517,31 @@ class AgendaService
             throw new \RuntimeException('Tipo de bloco inválido ou inativo. Selecione um tipo válido em Configurações → Agenda → Tipos de Blocos.');
         }
         
-        // Valida horário de início < horário de fim
-        if ($horaInicio >= $horaFim) {
-            throw new \RuntimeException('Horário de início deve ser menor que o horário de fim.');
+        // Valida e verifica conflito apenas quando ambos os horários são informados
+        $duracaoMinutos = 0;
+        if ($horaInicio !== null && $horaFim !== null) {
+            if ($horaInicio >= $horaFim) {
+                throw new \RuntimeException('Horário de início deve ser menor que o horário de fim.');
+            }
+            // Verifica conflito com outro bloco que também tenha horários
+            $stmt = $db->prepare("
+                SELECT COUNT(*) as count
+                FROM agenda_blocks
+                WHERE data = ?
+                AND hora_inicio IS NOT NULL AND hora_fim IS NOT NULL
+                AND hora_inicio < ?
+                AND hora_fim > ?
+            ");
+            $stmt->execute([$dataStr, $horaFim, $horaInicio]);
+            $conflito = $stmt->fetch();
+            if ($conflito && (int)$conflito['count'] > 0) {
+                throw new \RuntimeException('Já existe um bloco nesse horário para este dia.');
+            }
+            $inicio = new \DateTime($dataStr . ' ' . $horaInicio);
+            $fim = new \DateTime($dataStr . ' ' . $horaFim);
+            $diff = $inicio->diff($fim);
+            $duracaoMinutos = ($diff->h * 60) + $diff->i;
         }
-        
-        // Verifica se há conflito com outro bloco na mesma data
-        // Dois intervalos [a1, b1] e [a2, b2] se sobrepõem se: a1 < b2 AND a2 < b1
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as count
-            FROM agenda_blocks
-            WHERE data = ?
-            AND hora_inicio < ? 
-            AND hora_fim > ?
-        ");
-        $stmt->execute([
-            $dataStr,
-            $horaFim,    // Outro bloco termina depois do novo início
-            $horaInicio  // Outro bloco começa antes do novo fim
-        ]);
-        $conflito = $stmt->fetch();
-        
-        if ($conflito && (int)$conflito['count'] > 0) {
-            throw new \RuntimeException('Já existe um bloco nesse horário para este dia.');
-        }
-        
-        // Calcula duração
-        $inicio = new \DateTime($dataStr . ' ' . $horaInicio);
-        $fim = new \DateTime($dataStr . ' ' . $horaFim);
-        $diff = $inicio->diff($fim);
-        $duracaoMinutos = ($diff->h * 60) + $diff->i;
         
         // Projeto foco (opcional)
         $projetoFocoId = isset($dados['projeto_foco_id']) && (int)$dados['projeto_foco_id'] > 0 ? (int)$dados['projeto_foco_id'] : null;
@@ -574,8 +562,8 @@ class AgendaService
         ");
         $stmt->execute([
             $dataStr,
-            $horaInicio,
-            $horaFim,
+            $horaInicio ?? null,
+            $horaFim ?? null,
             $tipoId,
             $projetoFocoId,
             $ticketId,
@@ -829,13 +817,17 @@ class AgendaService
             $diaSemana = (int)$dataObj->format('w');
             $dataFormatada = $nomesDias[$diaSemana] . ' ' . $dataObj->format('d/m/Y');
             
-            // Verifica se o bloco está em andamento
-            $horaInicioCompleta = $bloco['data'] . ' ' . $bloco['hora_inicio'];
-            $horaFimCompleta = $bloco['data'] . ' ' . $bloco['hora_fim'];
-            $inicioObj = new \DateTimeImmutable($horaInicioCompleta, $timezone);
-            $fimObj = new \DateTimeImmutable($horaFimCompleta, $timezone);
-            
-            $isCurrent = ($inicioObj <= $now && $fimObj >= $now);
+            // Verifica se o bloco está em andamento (só possível com horários definidos)
+            $isCurrent = false;
+            if (!empty($bloco['hora_inicio']) && !empty($bloco['hora_fim'])) {
+                try {
+                    $inicioObj = new \DateTimeImmutable($bloco['data'] . ' ' . $bloco['hora_inicio'], $timezone);
+                    $fimObj    = new \DateTimeImmutable($bloco['data'] . ' ' . $bloco['hora_fim'], $timezone);
+                    $isCurrent = ($inicioObj <= $now && $fimObj >= $now);
+                } catch (\Exception $e) {
+                    $isCurrent = false;
+                }
+            }
             
             // Busca tarefas de exemplo (até 2) para este bloco
             $sampleTasks = [];
@@ -1203,7 +1195,7 @@ class AgendaService
             LEFT JOIN tasks t_focus ON b.focus_task_id = t_focus.id
             LEFT JOIN tickets ticket ON b.ticket_id = ticket.id
             WHERE b.data = ?
-            ORDER BY b.hora_inicio ASC
+            ORDER BY (CASE WHEN b.hora_inicio IS NULL THEN 1 ELSE 0 END) ASC, b.hora_inicio ASC, b.created_at ASC
         ";
         
         $stmt = $db->prepare($sql);

@@ -400,9 +400,34 @@ class AgendaReportService
         $items = self::getAgendaItemsForPeriod($dataInicio, $dataFim, $filters);
         $report['itens_agenda'] = self::injectGapItems($items);
         $report['dashboard'] = self::getDashboardData($dataInicio, $dataFim, $filters);
+        $report['dashboard']['blocos_concluidos_por_tipo'] = self::getCompletedBlocksByType($dataInicio, $dataFim);
         $report['tarefas_com_vinculo'] = self::getTasksWithAgendaLink($dataInicio, $dataFim, $filters);
 
         return $report;
+    }
+
+    /**
+     * Retorna contagem de blocos concluídos por tipo de bloco no período.
+     * Usado no resumo semanal (modelo de produtividade por tarefas).
+     */
+    public static function getCompletedBlocksByType(string $dataInicio, string $dataFim): array
+    {
+        $db = DB::getConnection();
+        try {
+            $stmt = $db->prepare("
+                SELECT bt.nome as tipo_nome, bt.cor_hex as tipo_cor, COUNT(b.id) as total
+                FROM agenda_blocks b
+                INNER JOIN agenda_block_types bt ON b.tipo_id = bt.id
+                WHERE b.data BETWEEN ? AND ?
+                  AND b.status = 'completed'
+                GROUP BY bt.id, bt.nome, bt.cor_hex
+                ORDER BY total DESC
+            ");
+            $stmt->execute([$dataInicio, $dataFim]);
+            return $stmt->fetchAll();
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
     private static function hasActivityTypesColumn(\PDO $db): bool

@@ -83,13 +83,14 @@ ob_start();
         </div>
         
         <div class="form-group">
-            <label for="hora_inicio">Horário de Início (Planejado) *</label>
-            <input type="time" id="hora_inicio" name="hora_inicio" value="<?= htmlspecialchars($bloco['hora_inicio']) ?>" required>
+            <label for="hora_inicio">Horário de Início (Planejado)</label>
+            <input type="time" id="hora_inicio" name="hora_inicio" value="<?= htmlspecialchars($bloco['hora_inicio'] ?? '') ?>">
+            <small style="color:#666;font-size:12px;">Opcional — deixe em branco para planejamento por lista de tarefas</small>
         </div>
         
         <div class="form-group">
-            <label for="hora_fim">Horário de Fim (Planejado) *</label>
-            <input type="time" id="hora_fim" name="hora_fim" value="<?= htmlspecialchars($bloco['hora_fim']) ?>" required>
+            <label for="hora_fim">Horário de Fim (Planejado)</label>
+            <input type="time" id="hora_fim" name="hora_fim" value="<?= htmlspecialchars($bloco['hora_fim'] ?? '') ?>">
         </div>
         
         <div class="form-group">

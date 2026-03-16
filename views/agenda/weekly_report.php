@@ -241,6 +241,42 @@ table tr:hover { background: #f9f9f9; }
     <?php endif; ?>
 </div>
 
+<?php if (!empty($dash['blocos_concluidos_por_tipo'])): ?>
+<div class="report-section">
+    <h3>Tarefas Concluídas por Bloco</h3>
+    <p style="font-size:13px;color:#64748b;margin:0 0 12px 0;">Blocos marcados como concluídos no período.</p>
+    <table style="width: auto; min-width: 280px;">
+        <thead>
+            <tr>
+                <th style="text-align:left; padding: 8px 16px 8px 8px;">Bloco</th>
+                <th style="text-align:right; padding: 8px 8px;">Concluídos</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($dash['blocos_concluidos_por_tipo'] as $item): ?>
+            <tr>
+                <td style="padding: 8px 16px 8px 8px;">
+                    <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:<?= htmlspecialchars($item['tipo_cor'] ?? '#94a3b8') ?>; margin-right:6px;"></span>
+                    <strong><?= htmlspecialchars($item['tipo_nome']) ?></strong>
+                </td>
+                <td style="text-align:right; padding: 8px 8px; font-weight:700; font-size:16px; color:#15803d;">
+                    <?= (int)$item['total'] ?>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+        <tfoot>
+            <tr style="border-top: 2px solid #e5e7eb;">
+                <td style="padding: 8px 16px 8px 8px; font-weight:600; color:#64748b;">Total</td>
+                <td style="text-align:right; padding: 8px 8px; font-weight:700; font-size:16px;">
+                    <?= array_sum(array_column($dash['blocos_concluidos_por_tipo'], 'total')) ?>
+                </td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+<?php endif; ?>
+
 <?php elseif ($tab === 'agenda'): ?>
 <!-- Aba Agenda (Tempo) -->
 <div class="report-section">

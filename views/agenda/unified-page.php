@@ -63,12 +63,10 @@ $highlightBlockId = $expandBlockId ?? 0;
 .agenda-list-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; background: white; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
 .agenda-list-table thead { background: #f8fafc; }
 .agenda-list-table th { padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid #e2e8f0; }
-.agenda-list-table th.col-item { width: 220px; max-width: 220px; }
+.agenda-list-table th.col-item { width: 240px; max-width: 260px; }
 .agenda-list-table th.col-cliente { width: 140px; }
-.agenda-list-table th.col-tipo { width: 120px; }
-.agenda-list-table th.col-inicio { width: 130px; }
-.agenda-list-table th.col-fim { width: 130px; }
-.agenda-list-table td.col-inicio, .agenda-list-table td.col-fim { overflow: visible; }
+.agenda-list-table th.col-tipo { width: 130px; }
+.agenda-list-table th.col-status { width: 130px; }
 .agenda-list-table th.col-acoes { width: 80px; }
 .agenda-list-table tbody tr.block-row { height: 48px; cursor: pointer; transition: background 0.12s; border-bottom: 1px solid #f1f5f9; }
 .agenda-list-table tbody tr.block-row:hover { background: #f8fafc; }
@@ -121,6 +119,14 @@ $highlightBlockId = $expandBlockId ?? 0;
 .agenda-list-table .btn-icon:hover { color: #dc2626; }
 .inline-edit-time { cursor: pointer; padding: 2px 4px; border-radius: 4px; }
 .inline-edit-time:hover { background: #e2e8f0; }
+/* Status badge (planejamento por lista) */
+.block-status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; cursor: pointer; border: none; background: none; transition: opacity 0.15s; white-space: nowrap; }
+.block-status-badge:hover { opacity: 0.8; }
+.block-status-badge.status-planned  { background: #f1f5f9; color: #475569; }
+.block-status-badge.status-ongoing  { background: #dbeafe; color: #1d4ed8; }
+.block-status-badge.status-completed { background: #dcfce7; color: #15803d; }
+.block-status-badge.status-canceled  { background: #fee2e2; color: #b91c1c; }
+.block-time-hint { font-size: 11px; color: #9ca3af; margin-top: 2px; }
 .inline-edit-tipo { cursor: pointer; transition: opacity 0.15s; }
 .inline-edit-tipo:hover { opacity: 0.8; filter: brightness(1.1); }
 .inline-edit-tipo-select { padding: 4px 8px; font-size: 12px; font-weight: 600; border: 2px solid #3b82f6; border-radius: 6px; background: white; cursor: pointer; min-width: 120px; }
@@ -200,16 +206,18 @@ $highlightBlockId = $expandBlockId ?? 0;
 .quadro-card:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
 .quadro-card.atual { background: #e0f2fe; border-left-color: #0ea5e9; }
 .quadro-card-item { font-size: 11px; color: #374151; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-/* Quick-add form: grid com larguras fixas para evitar corte de horário */
-/* PROJETO ~35% / TAREFA ~65% do espaço flexível; Tipo/Horários/Adicionar fixos */
-.quick-add-form-grid { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(180px, 2fr) 180px 140px 140px 120px; gap: 10px; align-items: center; }
+/* Quick-add form: PROJETO / TAREFA / TIPO / BOTÃO (horário opcional) */
+.quick-add-form-grid { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(180px, 2fr) 180px 120px; gap: 10px; align-items: center; }
 .quick-add-form-grid .col-projeto { min-width: 0; }
 .quick-add-form-grid .col-tarefa { min-width: 0; }
 .quick-add-form-grid .col-tipo { min-width: 180px; }
-.quick-add-form-grid .col-inicio, .quick-add-form-grid .col-fim { min-width: 120px; }
 .quick-add-form-grid input[type="time"] { width: 100%; min-width: 110px; height: 38px; box-sizing: border-box; padding: 8px 10px; border-radius: 6px; }
 .quick-add-form-grid .btn-add { min-width: 110px; display: flex; align-items: center; }
 .quick-add-form-grid .btn-add .btn-agenda-primary { width: 100%; }
+.quick-add-time-row { display: none; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e5e7eb; gap: 10px; align-items: center; flex-wrap: wrap; }
+.quick-add-time-row.show { display: flex; }
+.qa-time-toggle-link { font-size: 12px; color: #6b7280; cursor: pointer; text-decoration: underline; background: none; border: none; padding: 0; }
+.qa-time-toggle-link:hover { color: #374151; }
 .agenda-cliente-autocomplete-results .ac-item { padding: 8px 12px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #f1f5f9; }
 .agenda-cliente-autocomplete-results .ac-item:last-child { border-bottom: none; }
 .agenda-cliente-autocomplete-results .ac-item:hover, .agenda-cliente-autocomplete-results .ac-item.ac-selected { background: #f0f9ff; }
@@ -219,9 +227,11 @@ $highlightBlockId = $expandBlockId ?? 0;
 .quick-add-avulsa-row .col-observacao-avulsa { flex: 1 1 auto; min-width: 200px; }
 @media (max-width: 600px) { .quick-add-avulsa-row { flex-wrap: wrap; } .quick-add-avulsa-row .col-cliente-avulsa, .quick-add-avulsa-row .col-observacao-avulsa { flex: 1 1 100%; min-width: 0; } }
 @media (max-width: 900px) {
-    .quick-add-form-grid { grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
+    .quick-add-form-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
     .quick-add-form-grid .col-projeto { grid-column: 1 / -1; }
     .quick-add-form-grid .col-tarefa { grid-column: 1 / -1; }
+    .quick-add-form-grid .col-tipo  { grid-column: 1 / 2; }
+    .quick-add-form-grid .btn-add   { grid-column: 2 / 3; }
 }
 /* ===== Layout fixo: topo + form + header fixos, scroll só na lista (desktop) ===== */
 .agenda-lista-page-layout {
@@ -400,15 +410,23 @@ $highlightBlockId = $expandBlockId ?? 0;
                 <?php foreach ($tipos as $t): ?><option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nome']) ?></option><?php endforeach; ?>
             </select>
         </div>
-        <div class="col-inicio">
-            <input type="time" name="hora_inicio" required placeholder="Início" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-        </div>
-        <div class="col-fim">
-            <input type="time" name="hora_fim" required placeholder="Fim" style="padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-        </div>
         <div class="btn-add">
             <button type="submit" class="btn-add-submit btn-agenda-primary">Adicionar</button>
         </div>
+    </div>
+    <div class="quick-add-time-row" id="quick-add-time-row">
+        <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+            <label style="font-size:11px; color:#64748b; white-space:nowrap;">Início</label>
+            <input type="time" name="hora_inicio" id="quick-add-hora-inicio" placeholder="HH:MM" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; height:36px;">
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+            <label style="font-size:11px; color:#64748b; white-space:nowrap;">Fim</label>
+            <input type="time" name="hora_fim" id="quick-add-hora-fim" placeholder="HH:MM" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; height:36px;">
+        </div>
+        <button type="button" class="qa-time-toggle-link" onclick="toggleQuickAddTime()" style="margin-left:4px;">Remover horário</button>
+    </div>
+    <div style="margin-top:6px;">
+        <button type="button" class="qa-time-toggle-link" id="qa-show-time-btn" onclick="toggleQuickAddTime()">+ Adicionar horário (opcional)</button>
     </div>
     <div id="quick-add-avulsa-fields" class="quick-add-avulsa-row" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid #e5e7eb; gap:12px; align-items:flex-end; flex-wrap:wrap;">
         <div class="col-cliente-avulsa" style="min-width:200px; position:relative;">
@@ -510,12 +528,27 @@ if (!empty($dailyTasks)):
                 <th class="col-item">Item</th>
                 <th class="col-cliente">Cliente</th>
                 <th class="col-tipo">Bloco</th>
-                <th class="col-inicio">Início</th>
-                <th class="col-fim">Fim</th>
+                <th class="col-status">Status</th>
                 <th class="col-acoes">Ações</th>
             </tr>
         </thead>
         <tbody>
+        <?php
+        $statusLabels = [
+            'planned'   => ['label' => 'Pendente',     'class' => 'status-planned'],
+            'ongoing'   => ['label' => 'Em andamento', 'class' => 'status-ongoing'],
+            'completed' => ['label' => 'Concluído',    'class' => 'status-completed'],
+            'partial'   => ['label' => 'Parcial',      'class' => 'status-ongoing'],
+            'canceled'  => ['label' => 'Cancelado',    'class' => 'status-canceled'],
+        ];
+        $statusNextMap = [
+            'planned'   => 'ongoing',
+            'ongoing'   => 'completed',
+            'completed' => 'planned',
+            'partial'   => 'completed',
+            'canceled'  => 'planned',
+        ];
+        ?>
         <?php foreach ($blocos as $bloco):
             $isCurrent = ($bloco['id'] === $blocoAtualId);
             $corBorda = htmlspecialchars($bloco['tipo_cor'] ?? '#94a3b8');
@@ -534,8 +567,11 @@ if (!empty($dailyTasks)):
             $isExpanded = ($expandBlockId && $expandBlockId === (int)$bloco['id']);
         ?>
             <?php
-                $horaInicioFmt = date('H:i', strtotime($bloco['hora_inicio']));
-                $horaFimFmt = date('H:i', strtotime($bloco['hora_fim']));
+                $horaInicioFmt = !empty($bloco['hora_inicio']) ? date('H:i', strtotime($bloco['hora_inicio'])) : '';
+                $horaFimFmt    = !empty($bloco['hora_fim'])    ? date('H:i', strtotime($bloco['hora_fim']))    : '';
+                $temHorario    = $horaInicioFmt !== '' || $horaFimFmt !== '';
+                $blocoStatus   = $bloco['status'] ?? 'planned';
+                $statusInfo    = $statusLabels[$blocoStatus] ?? $statusLabels['planned'];
             ?>
             <?php
                 $projetoUrl = !empty($bloco['projeto_foco_id']) ? pixelhub_url('/projects/board?project_id=' . (int)$bloco['projeto_foco_id']) : pixelhub_url('/projects');
@@ -543,7 +579,7 @@ if (!empty($dailyTasks)):
                 $ticketUrl = !empty($bloco['ticket_id']) ? pixelhub_url('/tickets/show?id=' . (int)$bloco['ticket_id']) : null;
             ?>
             <?php $hasSubitems = true; ?>
-            <tr class="block-row <?= $isCurrent ? 'current' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" data-projeto-foco-id="<?= (int)($bloco['projeto_foco_id'] ?? 0) ?>" data-tarefas-count="<?= (int)($bloco['tarefas_count'] ?? 0) ?>" data-hora-inicio="<?= htmlspecialchars($horaInicioFmt) ?>" data-hora-fim="<?= htmlspecialchars($horaFimFmt) ?>">
+            <tr class="block-row <?= $isCurrent ? 'current' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" data-projeto-foco-id="<?= (int)($bloco['projeto_foco_id'] ?? 0) ?>" data-tarefas-count="<?= (int)($bloco['tarefas_count'] ?? 0) ?>" data-hora-inicio="<?= htmlspecialchars($horaInicioFmt) ?>" data-hora-fim="<?= htmlspecialchars($horaFimFmt) ?>" data-status="<?= htmlspecialchars($blocoStatus) ?>">
                 <td class="col-item" style="border-left: 4px solid <?= $corBorda ?>;">
                     <div class="block-item-cell">
                         <button type="button" class="block-expand-btn <?= $isExpanded ? 'expanded' : '' ?> <?= !$hasSubitems ? 'is-disabled' : '' ?>" onclick="toggleBlockExpand(<?= (int)$bloco['id'] ?>)" title="<?= $hasSubitems ? ($isExpanded ? 'Recolher' : 'Expandir registros') : 'Sem itens' ?>" aria-label="<?= $hasSubitems ? ($isExpanded ? 'Recolher' : 'Expandir') : 'Sem itens' ?>" <?= !$hasSubitems ? 'aria-disabled="true"' : '' ?>>
@@ -574,11 +610,17 @@ if (!empty($dailyTasks)):
                     echo htmlspecialchars($clienteNome);
                 ?></td>
                 <td class="col-tipo" onclick="event.stopPropagation()"><span class="inline-edit-tipo" data-block-id="<?= (int)$bloco['id'] ?>" data-tipo-id="<?= (int)($bloco['tipo_id'] ?? 0) ?>" style="background: <?= $corBorda ?>; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: white; display:inline-block;" title="Clique para alterar o bloco"><?= htmlspecialchars($bloco['tipo_nome']) ?></span></td>
-                <td class="col-inicio" onclick="event.stopPropagation()">
-                    <span class="inline-edit-time" data-field="hora_inicio" data-block-id="<?= (int)$bloco['id'] ?>" title="Clique para editar"><?= $horaInicioFmt ?></span><?= $isCurrent ? ' <span style="color:#1976d2;font-size:10px;">●</span>' : '' ?>
-                </td>
-                <td class="col-fim" onclick="event.stopPropagation()">
-                    <span class="inline-edit-time" data-field="hora_fim" data-block-id="<?= (int)$bloco['id'] ?>" title="Clique para editar"><?= $horaFimFmt ?></span>
+                <td class="col-status" onclick="event.stopPropagation()">
+                    <button type="button"
+                        class="block-status-badge <?= $statusInfo['class'] ?>"
+                        id="status-badge-<?= (int)$bloco['id'] ?>"
+                        onclick="quickCycleStatus(<?= (int)$bloco['id'] ?>, '<?= htmlspecialchars($blocoStatus) ?>')"
+                        title="Clique para mudar o status">
+                        <?= $statusInfo['label'] ?>
+                    </button>
+                    <?php if ($temHorario): ?>
+                    <div class="block-time-hint"><?= $horaInicioFmt ?><?= $horaFimFmt ? '–'.$horaFimFmt : '' ?><?= $isCurrent ? ' ●' : '' ?></div>
+                    <?php endif; ?>
                 </td>
                 <td class="col-acoes">
                     <div class="block-actions-cell" onclick="event.stopPropagation()">
@@ -593,7 +635,7 @@ if (!empty($dailyTasks)):
                 </td>
             </tr>
             <tr class="block-expand <?= $isExpanded ? 'show' : '' ?>" id="block-expand-<?= (int)$bloco['id'] ?>" data-block-id="<?= (int)$bloco['id'] ?>" onclick="event.stopPropagation()">
-                <td colspan="6">
+                <td colspan="5">
                     <div class="block-expand-content"></div>
                 </td>
             </tr>
@@ -634,7 +676,7 @@ if (!empty($dailyTasks)):
                 ?>
                 <div class="quadro-card <?= $isAtual ? 'atual' : '' ?>" style="border-left-color: <?= htmlspecialchars($corHex) ?>"
                      onclick="window.location.href='<?= $baseUrl ?>?view=lista&data=<?= $dia['data_iso'] ?>&block_id=<?= (int)$bloco['id'] ?><?= $taskParam ?>'">
-                    <strong><?= date('H:i', strtotime($bloco['hora_inicio'])) ?>–<?= date('H:i', strtotime($bloco['hora_fim'])) ?></strong>
+                    <?php if (!empty($bloco['hora_inicio'])): ?><strong><?= date('H:i', strtotime($bloco['hora_inicio'])) ?><?= !empty($bloco['hora_fim']) ? '–'.date('H:i', strtotime($bloco['hora_fim'])) : '' ?></strong><?php endif; ?>
                     <div style="color: <?= htmlspecialchars($corHex) ?>; margin-top: 2px;"><?= htmlspecialchars($bloco['tipo_nome'] ?? '') ?></div>
                     <?php if ($itemLabel): ?><div class="quadro-card-item" title="<?= htmlspecialchars($itemLabel) ?>"><?= htmlspecialchars(mb_strimwidth($itemLabel, 0, 50, '…')) ?></div><?php endif; ?>
                     <?php if (!empty($bloco['segment_fatias'])): ?><div style="font-size: 11px; color: #6b7280; margin-top: 4px;"><?= htmlspecialchars(implode(' | ', $bloco['segment_fatias'])) ?></div><?php endif; ?>
@@ -816,6 +858,80 @@ const taskParam = '<?= $taskParam ?>';
 window.AGENDA_TIPOS = <?= json_encode(array_map(fn($t) => ['id' => (int)$t['id'], 'nome' => $t['nome'] ?? '', 'cor' => $t['cor'] ?? '#94a3b8'], $tipos ?? [])) ?>;
 window.AGENDA_HIGHLIGHT_TASK_ID = <?= (int)$highlightTaskId ?>;
 window.AGENDA_HIGHLIGHT_BLOCK_ID = <?= (int)$highlightBlockId ?>;
+
+// ===== STATUS RÁPIDO (planejamento por lista de tarefas) =====
+var _statusNextMap = {
+    planned:   'ongoing',
+    ongoing:   'completed',
+    completed: 'planned',
+    partial:   'completed',
+    canceled:  'planned'
+};
+var _statusBadgeConfig = {
+    planned:   { label: 'Pendente',      cls: 'status-planned' },
+    ongoing:   { label: 'Em andamento',  cls: 'status-ongoing' },
+    completed: { label: 'Concluído',     cls: 'status-completed' },
+    partial:   { label: 'Parcial',       cls: 'status-ongoing' },
+    canceled:  { label: 'Cancelado',     cls: 'status-canceled' }
+};
+
+function quickCycleStatus(blockId, currentStatus) {
+    var next = _statusNextMap[currentStatus] || 'planned';
+    var btn = document.getElementById('status-badge-' + blockId);
+    if (!btn) return;
+    var original = btn.textContent.trim();
+    btn.textContent = '...';
+    btn.disabled = true;
+    var fd = new FormData();
+    fd.append('block_id', blockId);
+    fd.append('status', next);
+    fetch('<?= pixelhub_url('/agenda/bloco/quick-status') ?>', {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        if (data.success) {
+            var cfg = _statusBadgeConfig[next] || _statusBadgeConfig['planned'];
+            btn.textContent = cfg.label;
+            btn.className = 'block-status-badge ' + cfg.cls;
+            btn.setAttribute('onclick', "quickCycleStatus(" + blockId + ", '" + next + "')");
+            var row = document.querySelector('tr.block-row[data-block-id="' + blockId + '"]');
+            if (row) row.setAttribute('data-status', next);
+        } else {
+            btn.textContent = original;
+            alert(data.error || 'Erro ao atualizar status');
+        }
+    })
+    .catch(function() {
+        btn.disabled = false;
+        btn.textContent = original;
+        alert('Erro de conexão ao atualizar status');
+    });
+}
+
+// Alterna visibilidade do campo de horário no quick-add
+function toggleQuickAddTime() {
+    var row = document.getElementById('quick-add-time-row');
+    var showBtn = document.getElementById('qa-show-time-btn');
+    if (!row) return;
+    var visible = row.classList.contains('show');
+    if (visible) {
+        row.classList.remove('show');
+        if (showBtn) showBtn.style.display = '';
+        var hi = document.getElementById('quick-add-hora-inicio');
+        var hf = document.getElementById('quick-add-hora-fim');
+        if (hi) hi.value = '';
+        if (hf) hf.value = '';
+    } else {
+        row.classList.add('show');
+        if (showBtn) showBtn.style.display = 'none';
+        var hi2 = document.getElementById('quick-add-hora-inicio');
+        if (hi2) setTimeout(function() { hi2.focus(); }, 50);
+    }
+}
 
 // ===== MODAL DE CRIAÇÃO DE TAREFA (AGENDA) =====
 var _atmBlockId = 0;
