@@ -1920,15 +1920,26 @@ function loadBlockContent(blockId, container) {
                 const plusBtn = document.createElement('button');
                 plusBtn.type = 'button';
                 plusBtn.className = 'block-add-task-btn';
-                plusBtn.title = 'Criar / adicionar tarefa a este bloco';
+                plusBtn.title = 'Adicionar tarefa a este bloco';
                 plusBtn.textContent = '+';
                 const formSectionRef = container.querySelector('.block-add-task-section');
-                plusBtn.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    if (formSectionRef) {
-                        formSectionRef.style.display = formSectionRef.style.display === 'block' ? 'none' : 'block';
-                    }
-                });
+                // Se não há projeto vinculado, vai direto ao modal de criação
+                if (projectId <= 0) {
+                    plusBtn.title = 'Criar nova tarefa e vincular a este bloco';
+                    plusBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        openAgendaCreateTaskModal(blockId, projectId, container);
+                    });
+                } else {
+                    plusBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        if (formSectionRef) {
+                            formSectionRef.style.display = formSectionRef.style.display === 'block' ? 'none' : 'block';
+                        }
+                    });
+                }
+                plusBtn.dataset.blockId = blockId;
+                plusBtn.dataset.projectId = projectId;
                 addBtnWrap.appendChild(plusBtn);
             }
 
@@ -1959,9 +1970,14 @@ function loadBlockContent(blockId, container) {
                             const hasAvailable = allTasks.some(function(t) { return !linkedIdsForBtn.has(t.id); });
                             const btn = addBtnWrap.querySelector('.block-add-task-btn');
                             if (btn && !hasAvailable) {
-                                btn.className = 'block-add-task-btn disabled';
-                                btn.title = 'Sem tarefas existentes para vincular — use + Criar Nova';
+                                // Sem tarefas disponíveis: + abre modal de criação diretamente
+                                btn.className = 'block-add-task-btn';
+                                btn.title = 'Criar nova tarefa e vincular a este bloco';
                                 btn.disabled = false;
+                                btn.onclick = function(e) {
+                                    e.stopPropagation();
+                                    openAgendaCreateTaskModal(blockId, projectId, container);
+                                };
                             }
                         }
 
