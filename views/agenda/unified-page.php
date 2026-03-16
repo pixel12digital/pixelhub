@@ -71,6 +71,8 @@ $highlightBlockId = $expandBlockId ?? 0;
 .agenda-list-table tbody tr.block-row { height: 48px; cursor: pointer; transition: background 0.12s; border-bottom: 1px solid #f1f5f9; }
 .agenda-list-table tbody tr.block-row:hover { background: #f8fafc; }
 .agenda-list-table tbody tr.block-row.current { background: #eff6ff; }
+.agenda-list-table tbody tr.block-row.block-completed { opacity: 0.45; }
+.agenda-list-table tbody tr.block-row.block-completed:hover { opacity: 0.65; background: #f8fafc; }
 .agenda-list-table tbody tr.block-row td { padding: 8px 12px; vertical-align: middle; }
 .agenda-list-table td.col-item { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
 .agenda-list-table .block-item-cell { display: flex; align-items: center; gap: 8px; }
@@ -579,7 +581,7 @@ if (!empty($dailyTasks)):
                 $ticketUrl = !empty($bloco['ticket_id']) ? pixelhub_url('/tickets/show?id=' . (int)$bloco['ticket_id']) : null;
             ?>
             <?php $hasSubitems = true; ?>
-            <tr class="block-row <?= $isCurrent ? 'current' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" data-projeto-foco-id="<?= (int)($bloco['projeto_foco_id'] ?? 0) ?>" data-tarefas-count="<?= (int)($bloco['tarefas_count'] ?? 0) ?>" data-hora-inicio="<?= htmlspecialchars($horaInicioFmt) ?>" data-hora-fim="<?= htmlspecialchars($horaFimFmt) ?>" data-status="<?= htmlspecialchars($blocoStatus) ?>">
+            <tr class="block-row <?= $isCurrent ? 'current' : '' ?> <?= $blocoStatus === 'completed' ? 'block-completed' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" data-projeto-foco-id="<?= (int)($bloco['projeto_foco_id'] ?? 0) ?>" data-tarefas-count="<?= (int)($bloco['tarefas_count'] ?? 0) ?>" data-hora-inicio="<?= htmlspecialchars($horaInicioFmt) ?>" data-hora-fim="<?= htmlspecialchars($horaFimFmt) ?>" data-status="<?= htmlspecialchars($blocoStatus) ?>">
                 <td class="col-item" style="border-left: 4px solid <?= $corBorda ?>;">
                     <div class="block-item-cell">
                         <button type="button" class="block-expand-btn <?= $isExpanded ? 'expanded' : '' ?> <?= !$hasSubitems ? 'is-disabled' : '' ?>" onclick="toggleBlockExpand(<?= (int)$bloco['id'] ?>)" title="<?= $hasSubitems ? ($isExpanded ? 'Recolher' : 'Expandir registros') : 'Sem itens' ?>" aria-label="<?= $hasSubitems ? ($isExpanded ? 'Recolher' : 'Expandir') : 'Sem itens' ?>" <?= !$hasSubitems ? 'aria-disabled="true"' : '' ?>>
@@ -899,7 +901,11 @@ function quickCycleStatus(blockId, currentStatus) {
             btn.className = 'block-status-badge ' + cfg.cls;
             btn.setAttribute('onclick', "quickCycleStatus(" + blockId + ", '" + next + "')");
             var row = document.querySelector('tr.block-row[data-block-id="' + blockId + '"]');
-            if (row) row.setAttribute('data-status', next);
+            if (row) {
+                row.setAttribute('data-status', next);
+                if (next === 'completed') row.classList.add('block-completed');
+                else row.classList.remove('block-completed');
+            }
         } else {
             btn.textContent = original;
             alert(data.error || 'Erro ao atualizar status');
