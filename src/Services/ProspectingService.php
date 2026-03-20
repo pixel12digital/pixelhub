@@ -851,6 +851,9 @@ class ProspectingService
             ? json_decode($recipe['search_grid_data'], true)
             : null;
 
+        $targetCity  = trim($recipe['city']  ?? '');
+        $targetState = trim($recipe['state'] ?? '');
+
         if (!$gridData) {
             // ── Fase 1: busca direta (sem locationRestriction) ──────────────────
             foreach ($queries as $query) {
@@ -858,7 +861,7 @@ class ProspectingService
                     $batch = $client->textSearch($query, 60);
                     foreach ($batch as $place) {
                         $pid = $place['google_place_id'] ?? '';
-                        if ($pid && !isset($existingIds[$pid])) {
+                        if ($pid && !isset($existingIds[$pid]) && self::matchesTargetCity($place, $targetCity, $targetState)) {
                             $existingIds[$pid] = true;
                             $allPlaces[] = $place;
                         }
@@ -882,9 +885,13 @@ class ProspectingService
             }
         } else {
             // ── Fase 2: busca por células da grade ──────────────────────────────
+            // Na grade, usamos só o keyword SEM cidade/estado para não conflitar
+            // com o locationRestriction (Google retorna 0 quando texto tem cidade + restrição geográfica)
+            $gridQueries = self::buildGridQueries($recipe);
+
             $cells     = $gridData['cells'];
             $processed = 0;
-            $batchSize = 5; // células por execução (5 × 3 queries × 60 = até 900 chamadas/lote)
+            $batchSize = 5; // células por execução (5 × N queries × 60 = até 900 chamadas/lote)
 
             foreach ($cells as &$cell) {
                 if ($cell['searched']) {
@@ -892,12 +899,12 @@ class ProspectingService
                 }
 
                 $restriction = ['lat' => $cell['lat'], 'lng' => $cell['lng'], 'radius' => $cell['radius']];
-                foreach ($queries as $query) {
+                foreach ($gridQueries as $query) {
                     try {
                         $batch = $client->textSearch($query, 60, $restriction);
                         foreach ($batch as $place) {
                             $pid = $place['google_place_id'] ?? '';
-                            if ($pid && !isset($existingIds[$pid])) {
+                            if ($pid && !isset($existingIds[$pid]) && self::matchesTargetCity($place, $targetCity, $targetState)) {
                                 $existingIds[$pid] = true;
                                 $allPlaces[] = $place;
                             }
@@ -1011,6 +1018,58 @@ class ProspectingService
     }
 
     /**
+     * Verifica se o resultado do Google Maps pertence à cidade alvo.
+     * 
+     * Normaliza acentos e é case-insensitive. Se a cidade do resultado for
+     * nula (Google não retornou), aceita o resultado (benefício da dúvida).
+     * Também aceita se o estado bater quando a cidade não bater exatamente
+     * (evita rejeitar variações de nome como "Blumenau" vs "Município de Blumenau").
+     */
+    private static function matchesTargetCity(array $place, string $targetCity, string $targetState): bool
+    {
+        if (empty($targetCity)) {
+            return true;
+        }
+
+        $placeCity  = $place['city']  ?? null;
+        $placeState = $place['state'] ?? null;
+
+        // Se Google não retornou cidade, aceita (não temos como saber)
+        if (empty($placeCity)) {
+            return true;
+        }
+
+        $normalize = function (string $s): string {
+            // Remove acentos, converte para minúsculo
+            $s = mb_strtolower(trim($s), 'UTF-8');
+            $from = ['á','à','ã','â','ä','é','è','ê','ë','í','ì','î','ï','ó','ò','õ','ô','ö','ú','ù','û','ü','ç','ñ'];
+            $to   = ['a','a','a','a','a','e','e','e','e','i','i','i','i','o','o','o','o','o','u','u','u','u','c','n'];
+            return str_replace($from, $to, $s);
+        };
+
+        $normTarget = $normalize($targetCity);
+        $normPlace  = $normalize($placeCity);
+
+        // Match exato ou resultado contém a cidade alvo (ex: "Blumenau - SC")
+        if ($normPlace === $normTarget || str_contains($normPlace, $normTarget)) {
+            return true;
+        }
+
+        // Rejeita se estados também não batem (evita falso negativo por variação de nome)
+        if (!empty($targetState) && !empty($placeState)) {
+            $normTargetState = strtoupper(trim($targetState));
+            $normPlaceState  = strtoupper(trim($placeState));
+            if ($normPlaceState !== $normTargetState) {
+                return false; // Estado diferente → rejeita
+            }
+            // Mesmo estado mas cidade diferente → rejeita
+            return false;
+        }
+
+        return false;
+    }
+
+    /**
      * Retorna mapa [google_place_id => true] dos resultados já salvos para a receita
      */
     private static function getExistingPlaceIds(int $recipeId): array
@@ -1075,6 +1134,33 @@ class ProspectingService
         // Fallback: query genérica só com localização se não houver keywords
         if (empty($queries)) {
             $queries[] = $location;
+        }
+
+        return $queries;
+    }
+
+    /**
+     * Monta queries para busca em grade geográfica — apenas keywords, SEM cidade/estado.
+     * A localização é fornecida pelo locationRestriction, não pelo texto da query.
+     * Incluir cidade no texto conflita com a restrição geográfica e retorna 0 resultados.
+     */
+    private static function buildGridQueries(array $recipe): array
+    {
+        $keywords = $recipe['keywords'] ?? [];
+        $queries  = [];
+
+        if (!empty($keywords)) {
+            foreach ($keywords as $kw) {
+                $kw = trim($kw);
+                if ($kw !== '') {
+                    $queries[] = $kw;
+                }
+            }
+        }
+
+        // Fallback: se não há keywords, usa o nome da cidade mesmo (melhor que nada)
+        if (empty($queries)) {
+            $queries[] = trim($recipe['city'] ?? 'empresa');
         }
 
         return $queries;
