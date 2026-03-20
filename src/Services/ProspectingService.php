@@ -206,6 +206,27 @@ class ProspectingService
 
         $tenantId = !empty($data['tenant_id']) ? (int) $data['tenant_id'] : null;
 
+        // Anti-duplicação: mesmo tenant + cidade + tipo de lugar (Google Maps)
+        if ($source === 'google_maps') {
+            $dupCheck = $db->prepare("
+                SELECT id, name FROM prospecting_recipes
+                WHERE source = 'google_maps'
+                  AND LOWER(TRIM(city)) = LOWER(TRIM(?))
+                  AND (tenant_id <=> ?)
+                  AND (google_place_type <=> ?)
+                  AND status != 'deleted'
+                LIMIT 1
+            ");
+            $dupCheck->execute([$city, $tenantId, $placeType]);
+            $dup = $dupCheck->fetch(\PDO::FETCH_ASSOC);
+            if ($dup) {
+                $typeLabel = $placeType ? self::getCommonPlaceTypes()[$placeType] ?? $placeType : 'Qualquer tipo';
+                throw new \InvalidArgumentException(
+                    "Já existe a receita \"{$dup['name']}\" para {$city} com tipo \"{$typeLabel}\". Evite duplicatas para não contactar os mesmos leads duas vezes."
+                );
+            }
+        }
+
         $stmt = $db->prepare("
             INSERT INTO prospecting_recipes
                 (tenant_id, name, source, product_id, city, state, keywords, google_place_type, radius_meters, cnae_code, cnae_description, cnaes, status, notes, created_by, created_at, updated_at)
@@ -853,12 +874,13 @@ class ProspectingService
 
         $targetCity  = trim($recipe['city']  ?? '');
         $targetState = trim($recipe['state'] ?? '');
+        $includedType = !empty($recipe['google_place_type']) ? $recipe['google_place_type'] : null;
 
         if (!$gridData) {
             // ── Fase 1: busca direta (sem locationRestriction) ──────────────────
             foreach ($queries as $query) {
                 try {
-                    $batch = $client->textSearch($query, 60);
+                    $batch = $client->textSearch($query, 60, null, $includedType);
                     foreach ($batch as $place) {
                         $pid = $place['google_place_id'] ?? '';
                         if ($pid && !isset($existingIds[$pid]) && self::matchesTargetCity($place, $targetCity, $targetState)) {
@@ -902,7 +924,7 @@ class ProspectingService
                 $restriction = ['lat' => $cell['lat'], 'lng' => $cell['lng'], 'radius' => $cell['radius']];
                 foreach ($gridQueries as $query) {
                     try {
-                        $batch = $client->textSearch($query, 60, $restriction);
+                        $batch = $client->textSearch($query, 60, $restriction, $includedType);
                         foreach ($batch as $place) {
                             $pid = $place['google_place_id'] ?? '';
                             if ($pid && !isset($existingIds[$pid]) && self::matchesTargetCity($place, $targetCity, $targetState)) {
@@ -1874,45 +1896,75 @@ class ProspectingService
     {
         return [
             '' => 'Qualquer tipo',
+            // ── Serviços Profissionais ──────────────────────────────────────────
             'real_estate_agency'    => 'Imobiliária',
-            'car_dealer'            => 'Concessionária',
-            'car_repair'            => 'Oficina Mecânica',
-            'beauty_salon'          => 'Salão de Beleza',
-            'dentist'               => 'Dentista / Clínica Odontológica',
-            'doctor'                => 'Médico / Clínica',
-            'gym'                   => 'Academia',
             'lawyer'                => 'Escritório de Advocacia',
             'accounting'            => 'Contabilidade',
             'insurance_agency'      => 'Seguradora / Corretora de Seguros',
             'travel_agency'         => 'Agência de Viagens',
-            'restaurant'            => 'Restaurante',
-            'store'                 => 'Loja',
+            'photographer'          => 'Fotógrafo / Estúdio',
+            'moving_company'        => 'Transportadora / Mudança',
+            'courier_service'       => 'Transportadora / Courier',
+            // ── Saúde ───────────────────────────────────────────────────────────
+            'hospital'              => 'Hospital',
+            'doctor'                => 'Médico / Clínica',
+            'medical_clinic'        => 'Clínica Médica',
+            'dentist'               => 'Dentista / Clínica Odontológica',
+            'dental_clinic'         => 'Clínica Odontológica',
+            'pharmacy'              => 'Farmácia',
+            'physiotherapist'       => 'Fisioterapeuta',
+            'veterinary_care'       => 'Veterinário',
+            // ── Beleza & Bem-estar ───────────────────────────────────────────────
+            'beauty_salon'          => 'Salão de Beleza',
+            'hair_salon'            => 'Cabeleireiro',
+            'barber_shop'           => 'Barbearia',
+            'nail_salon'            => 'Manicure / Nail Designer',
+            'spa'                   => 'Spa / Estética',
+            'skin_care_clinic'      => 'Clínica de Estética',
+            'gym'                   => 'Academia',
+            'yoga_studio'           => 'Yoga / Pilates',
+            // ── Automotivo ──────────────────────────────────────────────────────
+            'car_dealer'            => 'Concessionária',
+            'car_repair'            => 'Oficina Mecânica',
+            'car_wash'              => 'Lava-Rápido / Lava-Car',
+            'auto_parts_store'      => 'Autopeças',
+            'tire_shop'             => 'Borracharia / Pneus',
+            // ── Varejo ──────────────────────────────────────────────────────────
+            'store'                 => 'Loja (Geral)',
             'clothing_store'        => 'Loja de Roupas',
+            'shoe_store'            => 'Loja de Calçados',
+            'jewelry_store'         => 'Joalheria / Ótica',
             'home_goods_store'      => 'Loja de Cama, Mesa e Banho / Casa',
             'furniture_store'       => 'Loja de Móveis',
             'electronics_store'     => 'Loja de Eletrônicos',
             'department_store'      => 'Loja de Departamentos',
-            'shopping_mall'         => 'Shopping / Centro Comercial',
+            'sporting_goods_store'  => 'Artigos Esportivos',
+            'book_store'            => 'Livraria / Papelaria',
             'pet_store'             => 'Pet Shop',
+            'shopping_mall'         => 'Shopping / Centro Comercial',
+            // ── Alimentação ─────────────────────────────────────────────────────
+            'restaurant'            => 'Restaurante',
+            'fast_food_restaurant'  => 'Fast Food / Lanchonete',
+            'bakery'                => 'Padaria / Confeitaria',
+            'cafe'                  => 'Café / Cafeteria',
+            'bar'                   => 'Bar',
+            'supermarket'           => 'Supermercado / Mercado',
+            // ── Educação ────────────────────────────────────────────────────────
             'school'                => 'Escola / Curso',
             'university'            => 'Faculdade / Universidade',
-            'hospital'              => 'Hospital',
-            'pharmacy'              => 'Farmácia',
-            'supermarket'           => 'Supermercado',
-            'bakery'                => 'Padaria',
-            'bar'                   => 'Bar',
-            'hotel'                 => 'Hotel / Pousada',
-            'lodging'               => 'Hospedagem',
-            'moving_company'        => 'Transportadora / Mudança',
+            // ── Hospedagem ──────────────────────────────────────────────────────
+            'hotel'                 => 'Hotel',
+            'lodging'               => 'Pousada / Hospedagem',
+            // ── Construção & Serviços Gerais ────────────────────────────────────
+            'general_contractor'    => 'Construtora / Empreiteira',
+            'roofing_contractor'    => 'Telhados / Coberturas',
             'plumber'               => 'Encanador / Hidráulica',
             'electrician'           => 'Eletricista',
             'painter'               => 'Pintor',
-            'roofing_contractor'    => 'Telhados / Construção',
-            'general_contractor'    => 'Construtora',
+            'locksmith'             => 'Chaveiro',
+            // ── Outros ──────────────────────────────────────────────────────────
             'florist'               => 'Floricultura',
-            'photographer'          => 'Fotógrafo / Estúdio',
-            'spa'                   => 'Spa / Estética',
-            'veterinary_care'       => 'Veterinário',
+            'event_venue'           => 'Buffet / Espaço de Eventos',
         ];
     }
 }

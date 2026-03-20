@@ -72,12 +72,13 @@ class GooglePlacesClient
     /**
      * Busca empresas por texto + cidade usando Text Search
      * 
-     * @param string     $query              Ex: "imobiliária Curitiba PR"
-     * @param int        $maxResults         Máximo de resultados (até 60, paginado em grupos de 20)
-     * @param array|null $locationRestriction Opcional: ['lat' => float, 'lng' => float, 'radius' => int (metros)]
+     * @param string      $query               Ex: "imobiliária Curitiba PR"
+     * @param int         $maxResults          Máximo de resultados (até 60, paginado em grupos de 20)
+     * @param array|null  $locationRestriction Opcional: ['lat' => float, 'lng' => float, 'radius' => int (metros)]
+     * @param string|null $includedType        Opcional: tipo de lugar Google Places (ex: 'clothing_store')
      * @return array Lista de lugares normalizados
      */
-    public function textSearch(string $query, int $maxResults = 20, ?array $locationRestriction = null): array
+    public function textSearch(string $query, int $maxResults = 20, ?array $locationRestriction = null, ?string $includedType = null): array
     {
         $results = [];
         $nextPageToken = null;
@@ -89,6 +90,10 @@ class GooglePlacesClient
                 'languageCode' => 'pt-BR',
                 'maxResultCount' => min(20, $maxResults - $fetched),
             ];
+
+            if ($includedType) {
+                $payload['includedType'] = $includedType;
+            }
 
             if ($nextPageToken) {
                 $payload['pageToken'] = $nextPageToken;
