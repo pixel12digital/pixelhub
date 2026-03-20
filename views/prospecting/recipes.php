@@ -863,12 +863,27 @@ function runSearchGoogleMaps(recipeId,btn){
             if(r.grid){
                 const g=r.grid;
                 const pct=Math.round((g.cells_done/g.cells_total)*100);
-                const bar='<div style="margin-top:6px;height:6px;background:#d1fae5;border-radius:3px;overflow:hidden;"><div style="height:100%;width:'+pct+'%;background:#16a34a;border-radius:3px;"></div></div>';
-                gridInfo='<div style="margin-top:8px;padding:8px 10px;background:#dcfce7;border-radius:6px;font-size:12px;color:#166534;">'
+                const bar='<div style="margin-top:6px;height:6px;border-radius:3px;overflow:hidden;background:#e5e7eb;"><div style="height:100%;width:'+pct+'%;border-radius:3px;background:'+(g.status==='exhausted'?'#6b7280':g.status==='low_yield'?'#f59e0b':'#16a34a')+'"></div></div>';
+                let statusBadge='', statusMsg='', bgColor='#dcfce7', textColor='#166534';
+                if(g.status==='exhausted'){
+                    bgColor='#f1f5f9'; textColor='#475569';
+                    statusBadge='<span style="background:#e2e8f0;color:#64748b;padding:1px 7px;border-radius:10px;font-weight:700;font-size:11px;margin-left:6px;">✓ ESGOTADO</span>';
+                    statusMsg='<div style="margin-top:5px;font-size:12px;color:#64748b;">Todas as '+g.max_divs+'×'+g.max_divs+' zonas na maior resolução foram exploradas. Não há mais resultados disponíveis para esta receita.</div>';
+                } else if(g.status==='low_yield'){
+                    bgColor='#fffbeb'; textColor='#92400e';
+                    statusBadge='<span style="background:#fde68a;color:#92400e;padding:1px 7px;border-radius:10px;font-weight:700;font-size:11px;margin-left:6px;">⚠ RENDIMENTO BAIXO</span>';
+                    statusMsg='<div style="margin-top:5px;font-size:12px;color:#b45309;">'+g.consecutive_empty+' buscas seguidas sem novos resultados. Ainda há '+g.cells_left+' zonas — pode continuar, mas o retorno tende a ser baixo.</div>';
+                } else {
+                    statusBadge='<span style="background:#bbf7d0;color:#166534;padding:1px 7px;border-radius:10px;font-weight:700;font-size:11px;margin-left:6px;">▶ CONTINUE BUSCANDO</span>';
+                    statusMsg='<div style="margin-top:5px;font-size:12px;color:#166534;"><strong>'+g.cells_left+'</strong> zonas restantes — clique "Buscar Agora" para continuar explorando.</div>';
+                }
+                gridInfo='<div style="margin-top:8px;padding:10px 12px;background:'+bgColor+';border-radius:6px;font-size:12px;color:'+textColor+';">'
                     +'🗺 Grade geográfica — Geração '+g.generation+' ('+g.divs+'×'+g.divs+' zonas): '
-                    +'<strong>'+g.cells_done+'/'+g.cells_total+'</strong> zonas exploradas'
-                    +(g.cells_left>0?' · <strong>'+g.cells_left+'</strong> zonas restantes (clique "Buscar Agora" para continuar)':' · Todas as zonas exploradas! Próxima busca usa grade mais fina.')
-                    +bar+'</div>';
+                    +'<strong>'+g.cells_done+'/'+g.cells_total+'</strong> exploradas'
+                    +statusBadge
+                    +bar
+                    +statusMsg
+                    +'</div>';
             }
             div.innerHTML='✓ Busca concluída! <strong>'+r.found+'</strong> encontradas, <strong>'+r.new+'</strong> novas, <strong>'+r.duplicates+'</strong> já existentes.'
                 +(r.new>0?' <a href="<?= pixelhub_url('/prospecting/results?recipe_id=') ?>'+recipeId+'" style="color:#023A8D;font-weight:600;margin-left:8px;">Ver Resultados →</a>':'')

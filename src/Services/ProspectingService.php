@@ -889,9 +889,10 @@ class ProspectingService
             // com o locationRestriction (Google retorna 0 quando texto tem cidade + restrição geográfica)
             $gridQueries = self::buildGridQueries($recipe);
 
-            $cells     = $gridData['cells'];
-            $processed = 0;
-            $batchSize = 5; // células por execução (5 × N queries × 60 = até 900 chamadas/lote)
+            $cells          = $gridData['cells'];
+            $processed      = 0;
+            $batchSize      = 5; // células por execução (5 × N queries × 60 = até 900 chamadas/lote)
+            $newInThisBatch = 0; // novos encontrados neste lote (para rastrear batches zerados)
 
             foreach ($cells as &$cell) {
                 if ($cell['searched']) {
@@ -907,6 +908,7 @@ class ProspectingService
                             if ($pid && !isset($existingIds[$pid]) && self::matchesTargetCity($place, $targetCity, $targetState)) {
                                 $existingIds[$pid] = true;
                                 $allPlaces[] = $place;
+                                $newInThisBatch++;
                             }
                         }
                     } catch (\Exception $e) {
@@ -922,20 +924,36 @@ class ProspectingService
             }
             unset($cell);
 
+            // Rastreia batches consecutivos sem novos resultados
+            $consecutiveEmpty = (int) ($gridData['consecutive_empty'] ?? 0);
+            if ($newInThisBatch === 0) {
+                $consecutiveEmpty++;
+            } else {
+                $consecutiveEmpty = 0; // reseta contador quando encontra resultados
+            }
+            $gridData['consecutive_empty'] = $consecutiveEmpty;
+
             // Verifica se todas as células foram exploradas
             $pending = array_filter($cells, fn($c) => !$c['searched']);
             if (empty($pending)) {
-                // Aumenta resolução da grade (3→4→5→6...) para explorar mais sub-regiões
-                $nextDivs = min(($gridData['divs'] ?? 3) + 1, 6);
-                $newCells = GooglePlacesClient::generateGrid($gridData['bbox'], $nextDivs);
-                // Marca como pesquisadas as células que cobrem áreas já cobertas
-                // (simplificação: reinicia tudo com grade mais fina)
-                $gridData = [
-                    'bbox'       => $gridData['bbox'],
-                    'divs'       => $nextDivs,
-                    'cells'      => $newCells,
-                    'generation' => ($gridData['generation'] ?? 1) + 1,
-                ];
+                $currentDivs = $gridData['divs'] ?? 3;
+                $maxDivs     = 6;
+                if ($currentDivs >= $maxDivs) {
+                    // Grade totalmente esgotada — máxima resolução atingida
+                    $gridData['cells']    = $cells;
+                    $gridData['exhausted'] = true;
+                } else {
+                    // Aumenta resolução da grade (3→4→5→6)
+                    $nextDivs = $currentDivs + 1;
+                    $newCells = GooglePlacesClient::generateGrid($gridData['bbox'], $nextDivs);
+                    $gridData = [
+                        'bbox'             => $gridData['bbox'],
+                        'divs'             => $nextDivs,
+                        'cells'            => $newCells,
+                        'generation'       => ($gridData['generation'] ?? 1) + 1,
+                        'consecutive_empty' => 0,
+                    ];
+                }
             } else {
                 $gridData['cells'] = $cells;
             }
@@ -997,14 +1015,31 @@ class ProspectingService
         // Metadados de grade para feedback ao usuário
         $gridMeta = null;
         if ($gridData) {
-            $total   = count($gridData['cells']);
-            $done    = count(array_filter($gridData['cells'], fn($c) => $c['searched']));
+            $total            = count($gridData['cells']);
+            $done             = count(array_filter($gridData['cells'], fn($c) => $c['searched']));
+            $consecutiveEmpty = (int) ($gridData['consecutive_empty'] ?? 0);
+            $exhausted        = !empty($gridData['exhausted']);
+            $maxDivs          = 6;
+            $currentDivs      = $gridData['divs'] ?? 3;
+
+            // status: 'exhausted' | 'low_yield' | 'has_more'
+            if ($exhausted) {
+                $status = 'exhausted'; // grade no limite máximo e toda explorada
+            } elseif ($consecutiveEmpty >= 3) {
+                $status = 'low_yield'; // 3+ batches seguidos sem resultado → rendimento baixo
+            } else {
+                $status = 'has_more';
+            }
+
             $gridMeta = [
-                'generation'   => $gridData['generation'] ?? 1,
-                'divs'         => $gridData['divs'] ?? 3,
-                'cells_total'  => $total,
-                'cells_done'   => $done,
-                'cells_left'   => $total - $done,
+                'generation'       => $gridData['generation'] ?? 1,
+                'divs'             => $currentDivs,
+                'cells_total'      => $total,
+                'cells_done'       => $done,
+                'cells_left'       => $total - $done,
+                'consecutive_empty' => $consecutiveEmpty,
+                'max_divs'         => $maxDivs,
+                'status'           => $status,
             ];
         }
 
