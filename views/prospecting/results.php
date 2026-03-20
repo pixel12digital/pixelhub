@@ -657,8 +657,33 @@ function runSearch(recipeId, btn) {
         if (data.success) {
             const r = data.result;
             div.style.background = '#f0fdf4'; div.style.border = '1px solid #bbf7d0'; div.style.color = '#15803d';
+            let gridInfo = '';
+            if (r.grid) {
+                const g = r.grid;
+                const pct = Math.round((g.cells_done / g.cells_total) * 100);
+                const barColor = g.status === 'exhausted' ? '#6b7280' : g.status === 'low_yield' ? '#f59e0b' : '#16a34a';
+                const bar = '<div style="margin-top:6px;height:6px;border-radius:3px;overflow:hidden;background:#e5e7eb;"><div style="height:100%;width:' + pct + '%;border-radius:3px;background:' + barColor + '"></div></div>';
+                let statusBadge = '', statusMsg = '', bgColor = '#dcfce7', textColor = '#166534';
+                if (g.status === 'exhausted') {
+                    bgColor = '#f1f5f9'; textColor = '#475569';
+                    statusBadge = '<span style="background:#e2e8f0;color:#64748b;padding:1px 7px;border-radius:10px;font-weight:700;font-size:11px;margin-left:6px;">✓ ESGOTADO</span>';
+                    statusMsg = '<div style="margin-top:5px;font-size:12px;color:#64748b;">Todas as ' + g.max_divs + '×' + g.max_divs + ' zonas na maior resolução foram exploradas. Não há mais resultados disponíveis para esta receita.</div>';
+                } else if (g.status === 'low_yield') {
+                    bgColor = '#fffbeb'; textColor = '#92400e';
+                    statusBadge = '<span style="background:#fde68a;color:#92400e;padding:1px 7px;border-radius:10px;font-weight:700;font-size:11px;margin-left:6px;">⚠ RENDIMENTO BAIXO</span>';
+                    statusMsg = '<div style="margin-top:5px;font-size:12px;color:#b45309;">' + g.consecutive_empty + ' buscas seguidas sem novos resultados. Ainda há ' + g.cells_left + ' zonas — pode continuar, mas o retorno tende a ser baixo.</div>';
+                } else {
+                    statusBadge = '<span style="background:#bbf7d0;color:#166534;padding:1px 7px;border-radius:10px;font-weight:700;font-size:11px;margin-left:6px;">▶ CONTINUE BUSCANDO</span>';
+                    statusMsg = '<div style="margin-top:5px;font-size:12px;color:#166534;"><strong>' + g.cells_left + '</strong> zonas restantes — clique "Buscar Mais" para continuar explorando.</div>';
+                }
+                gridInfo = '<div style="margin-top:8px;padding:10px 12px;background:' + bgColor + ';border-radius:6px;font-size:12px;color:' + textColor + ';">'
+                    + '🗺 Grade geográfica — Geração ' + g.generation + ' (' + g.divs + '×' + g.divs + ' zonas): '
+                    + '<strong>' + g.cells_done + '/' + g.cells_total + '</strong> exploradas'
+                    + statusBadge + bar + statusMsg + '</div>';
+            }
             div.innerHTML = '✓ Busca concluída! <strong>' + r.found + '</strong> encontradas, <strong>' + r.new + '</strong> novas, <strong>' + r.duplicates + '</strong> já existentes.'
-                + (r.new > 0 ? ' <button onclick="location.reload()" style="margin-left:8px;padding:4px 10px;background:#023A8D;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;">Atualizar lista</button>' : '');
+                + (r.new > 0 ? ' <button onclick="location.reload()" style="margin-left:8px;padding:4px 10px;background:#023A8D;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;">Atualizar lista</button>' : '')
+                + gridInfo;
         } else {
             div.style.background = '#fef2f2'; div.style.border = '1px solid #fecaca'; div.style.color = '#dc2626';
             div.innerHTML = '✗ ' + data.error;
