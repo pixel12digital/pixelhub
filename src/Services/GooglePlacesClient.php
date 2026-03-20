@@ -95,7 +95,11 @@ class GooglePlacesClient
             }
 
             if ($locationRestriction) {
-                $payload['locationRestriction'] = [
+                // Usa locationBias (não locationRestriction) para evitar retorno vazio.
+                // locationRestriction retorna 0 quando não há correspondência exata na área.
+                // locationBias favorece a área mas pode incluir arredores — o filtro
+                // matchesTargetCity() em ProspectingService garante que só a cidade certa é salva.
+                $payload['locationBias'] = [
                     'circle' => [
                         'center' => [
                             'latitude'  => (float) $locationRestriction['lat'],
