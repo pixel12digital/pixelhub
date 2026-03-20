@@ -1171,8 +1171,8 @@ class ProspectingService
      */
     private static function buildSearchQueries(array $recipe): array
     {
-        $keywords = $recipe['keywords'] ?? [];
-        $location = trim($recipe['city']);
+        $keywords  = $recipe['keywords'] ?? [];
+        $location  = trim($recipe['city']);
         if (!empty($recipe['state'])) {
             $location .= ' ' . $recipe['state'];
         }
@@ -1188,9 +1188,18 @@ class ProspectingService
             }
         }
 
-        // Fallback: query genérica só com localização se não houver keywords
+        // Fallback sem keywords: usa o label do tipo de lugar como termo de busca.
+        // Ex: cell_phone_store → "Loja de Celulares Blumenau SC"
+        // Isso garante resultados mesmo sem keywords quando includedType está ativo.
         if (empty($queries)) {
-            $queries[] = $location;
+            $placeType = $recipe['google_place_type'] ?? '';
+            if ($placeType) {
+                $types     = self::getCommonPlaceTypes();
+                $typeLabel = $types[$placeType] ?? $placeType;
+                $queries[] = $typeLabel . ' ' . $location;
+            } else {
+                $queries[] = $location;
+            }
         }
 
         return $queries;
@@ -1215,9 +1224,17 @@ class ProspectingService
             }
         }
 
-        // Fallback: se não há keywords, usa o nome da cidade mesmo (melhor que nada)
+        // Fallback: usa label do tipo de lugar (sem cidade, pois locationBias já posiciona)
         if (empty($queries)) {
-            $queries[] = trim($recipe['city'] ?? 'empresa');
+            $placeType = $recipe['google_place_type'] ?? '';
+            if ($placeType) {
+                $types     = self::getCommonPlaceTypes();
+                $typeLabel = $types[$placeType] ?? $placeType;
+                // Remove barras e parênteses para simplificar a query da grade
+                $queries[] = preg_replace('/\s*[\/\(].*/', '', $typeLabel);
+            } else {
+                $queries[] = trim($recipe['city'] ?? 'empresa');
+            }
         }
 
         return $queries;
