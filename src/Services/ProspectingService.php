@@ -830,32 +830,113 @@ class ProspectingService
     }
 
     /**
-     * Executa busca via Google Places API
+     * Executa busca via Google Places API com grade geográfica paginada.
+     *
+     * Fase 1 (primeira execução): busca direta sem restrição de área → até 60 resultados por query.
+     * Fase 2 (execuções seguintes): divide a cidade em grade de células (3×3, depois 4×4, etc.)
+     * e processa um lote de células por vez, garantindo que cada "Buscar Novamente"
+     * explore novas sub-regiões e retorne resultados diferentes.
      */
     private static function runSearchGoogleMaps(array $recipe, int $recipeId, int $maxResults): array
     {
-        $client = new GooglePlacesClient();
-
+        $client  = new GooglePlacesClient();
         $queries = self::buildSearchQueries($recipe);
 
-        $seenPlaceIds = [];
-        $allPlaces    = [];
+        // IDs já salvos no banco para esta receita (para deduplicação em memória)
+        $existingIds = self::getExistingPlaceIds($recipeId);
+        $allPlaces   = [];
 
-        foreach ($queries as $query) {
-            try {
-                $batch = $client->textSearch($query, 20);
-                foreach ($batch as $place) {
-                    $pid = $place['google_place_id'] ?? '';
-                    if ($pid && !isset($seenPlaceIds[$pid])) {
-                        $seenPlaceIds[$pid] = true;
-                        $allPlaces[] = $place;
+        // Carrega estado da grade salvo na receita
+        $gridData = !empty($recipe['search_grid_data'])
+            ? json_decode($recipe['search_grid_data'], true)
+            : null;
+
+        if (!$gridData) {
+            // ── Fase 1: busca direta (sem locationRestriction) ──────────────────
+            foreach ($queries as $query) {
+                try {
+                    $batch = $client->textSearch($query, 60);
+                    foreach ($batch as $place) {
+                        $pid = $place['google_place_id'] ?? '';
+                        if ($pid && !isset($existingIds[$pid])) {
+                            $existingIds[$pid] = true;
+                            $allPlaces[] = $place;
+                        }
+                    }
+                } catch (\Exception $e) {
+                    error_log('[ProspectingService] textSearch direto falhou: ' . $e->getMessage());
+                }
+            }
+
+            // Inicializa grade geográfica para as próximas execuções
+            $bbox = GooglePlacesClient::fetchCityBbox($recipe['city'] ?? '', $recipe['state'] ?? '');
+            if ($bbox) {
+                $cells    = GooglePlacesClient::generateGrid($bbox, 3); // 9 células 3×3
+                $gridData = [
+                    'bbox'       => $bbox,
+                    'divs'       => 3,
+                    'cells'      => $cells,
+                    'generation' => 1,
+                ];
+                self::saveGridData($recipeId, $gridData);
+            }
+        } else {
+            // ── Fase 2: busca por células da grade ──────────────────────────────
+            $cells     = $gridData['cells'];
+            $processed = 0;
+            $batchSize = 5; // células por execução (5 × 3 queries × 60 = até 900 chamadas/lote)
+
+            foreach ($cells as &$cell) {
+                if ($cell['searched']) {
+                    continue;
+                }
+
+                $restriction = ['lat' => $cell['lat'], 'lng' => $cell['lng'], 'radius' => $cell['radius']];
+                foreach ($queries as $query) {
+                    try {
+                        $batch = $client->textSearch($query, 60, $restriction);
+                        foreach ($batch as $place) {
+                            $pid = $place['google_place_id'] ?? '';
+                            if ($pid && !isset($existingIds[$pid])) {
+                                $existingIds[$pid] = true;
+                                $allPlaces[] = $place;
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        error_log('[ProspectingService] textSearch célula falhou: ' . $e->getMessage());
                     }
                 }
-            } catch (\Exception $e) {
-                // Continua com as demais queries mesmo se uma falhar
+
+                $cell['searched'] = true;
+                $processed++;
+                if ($processed >= $batchSize) {
+                    break;
+                }
             }
+            unset($cell);
+
+            // Verifica se todas as células foram exploradas
+            $pending = array_filter($cells, fn($c) => !$c['searched']);
+            if (empty($pending)) {
+                // Aumenta resolução da grade (3→4→5→6...) para explorar mais sub-regiões
+                $nextDivs = min(($gridData['divs'] ?? 3) + 1, 6);
+                $newCells = GooglePlacesClient::generateGrid($gridData['bbox'], $nextDivs);
+                // Marca como pesquisadas as células que cobrem áreas já cobertas
+                // (simplificação: reinicia tudo com grade mais fina)
+                $gridData = [
+                    'bbox'       => $gridData['bbox'],
+                    'divs'       => $nextDivs,
+                    'cells'      => $newCells,
+                    'generation' => ($gridData['generation'] ?? 1) + 1,
+                ];
+            } else {
+                $gridData['cells'] = $cells;
+            }
+
+            self::saveGridData($recipeId, $gridData);
         }
 
+        // ── Persistência ────────────────────────────────────────────────────────
         $found      = count($allPlaces);
         $new        = 0;
         $duplicates = 0;
@@ -906,12 +987,52 @@ class ProspectingService
 
         self::updateRecipeStats($recipeId);
 
+        // Metadados de grade para feedback ao usuário
+        $gridMeta = null;
+        if ($gridData) {
+            $total   = count($gridData['cells']);
+            $done    = count(array_filter($gridData['cells'], fn($c) => $c['searched']));
+            $gridMeta = [
+                'generation'   => $gridData['generation'] ?? 1,
+                'divs'         => $gridData['divs'] ?? 3,
+                'cells_total'  => $total,
+                'cells_done'   => $done,
+                'cells_left'   => $total - $done,
+            ];
+        }
+
         return [
             'found'      => $found,
             'new'        => $new,
             'duplicates' => $duplicates,
             'errors'     => $errors,
+            'grid'       => $gridMeta,
         ];
+    }
+
+    /**
+     * Retorna mapa [google_place_id => true] dos resultados já salvos para a receita
+     */
+    private static function getExistingPlaceIds(int $recipeId): array
+    {
+        $db   = DB::getConnection();
+        $stmt = $db->prepare("SELECT google_place_id FROM prospecting_results WHERE recipe_id = ? AND google_place_id IS NOT NULL");
+        $stmt->execute([$recipeId]);
+        $map  = [];
+        foreach ($stmt->fetchAll(\PDO::FETCH_COLUMN) as $pid) {
+            $map[$pid] = true;
+        }
+        return $map;
+    }
+
+    /**
+     * Persiste o estado da grade geográfica na receita
+     */
+    private static function saveGridData(int $recipeId, array $gridData): void
+    {
+        DB::getConnection()
+            ->prepare("UPDATE prospecting_recipes SET search_grid_data = ?, updated_at = NOW() WHERE id = ?")
+            ->execute([json_encode($gridData, JSON_UNESCAPED_UNICODE), $recipeId]);
     }
 
     /**

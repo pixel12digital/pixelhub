@@ -851,7 +851,7 @@ function runSearchGoogleMaps(recipeId,btn){
     if(btn){btn.disabled=true;var orig=btn.innerHTML;btn.innerHTML='⏳ Buscando...';}
     div.style.display='block';
     div.style.background='#eff6ff';div.style.border='1px solid #bfdbfe';div.style.color='#1e40af';
-    div.innerHTML='⏳ Buscando no Google Maps... <span style="font-size:11px;opacity:0.8;">(máximo ~60 resultados devido a limites da API)</span>';
+    div.innerHTML='⏳ Buscando no Google Maps... <span style="font-size:11px;opacity:0.8;">A primeira busca retorna até 60 resultados; as seguintes exploram sub-regiões da cidade.</span>';
     fetch('<?= pixelhub_url('/prospecting/run') ?>',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'recipe_id='+recipeId+'&max_results=60'})
     .then(r=>r.json())
     .then(data=>{
@@ -859,9 +859,21 @@ function runSearchGoogleMaps(recipeId,btn){
         if(data.success){
             const r=data.result;
             div.style.background='#f0fdf4';div.style.border='1px solid #bbf7d0';div.style.color='#15803d';
+            let gridInfo='';
+            if(r.grid){
+                const g=r.grid;
+                const pct=Math.round((g.cells_done/g.cells_total)*100);
+                const bar='<div style="margin-top:6px;height:6px;background:#d1fae5;border-radius:3px;overflow:hidden;"><div style="height:100%;width:'+pct+'%;background:#16a34a;border-radius:3px;"></div></div>';
+                gridInfo='<div style="margin-top:8px;padding:8px 10px;background:#dcfce7;border-radius:6px;font-size:12px;color:#166534;">'
+                    +'🗺 Grade geográfica — Geração '+g.generation+' ('+g.divs+'×'+g.divs+' zonas): '
+                    +'<strong>'+g.cells_done+'/'+g.cells_total+'</strong> zonas exploradas'
+                    +(g.cells_left>0?' · <strong>'+g.cells_left+'</strong> zonas restantes (clique "Buscar Agora" para continuar)':' · Todas as zonas exploradas! Próxima busca usa grade mais fina.')
+                    +bar+'</div>';
+            }
             div.innerHTML='✓ Busca concluída! <strong>'+r.found+'</strong> encontradas, <strong>'+r.new+'</strong> novas, <strong>'+r.duplicates+'</strong> já existentes.'
                 +(r.new>0?' <a href="<?= pixelhub_url('/prospecting/results?recipe_id=') ?>'+recipeId+'" style="color:#023A8D;font-weight:600;margin-left:8px;">Ver Resultados →</a>':'')
-                +(r.errors&&r.errors.length?' <span style="color:#dc2626;margin-left:8px;">'+r.errors.length+' erro(s)</span>':'');
+                +(r.errors&&r.errors.length?' <span style="color:#dc2626;margin-left:8px;">'+r.errors.length+' erro(s)</span>':'')
+                +gridInfo;
         }else{
             div.style.background='#fef2f2';div.style.border='1px solid #fecaca';div.style.color='#dc2626';
             div.innerHTML='✗ '+data.error;

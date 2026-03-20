@@ -72,11 +72,12 @@ class GooglePlacesClient
     /**
      * Busca empresas por texto + cidade usando Text Search
      * 
-     * @param string $query       Ex: "imobiliária Curitiba PR"
-     * @param int    $maxResults  Máximo de resultados (até 60, paginado em grupos de 20)
+     * @param string     $query              Ex: "imobiliária Curitiba PR"
+     * @param int        $maxResults         Máximo de resultados (até 60, paginado em grupos de 20)
+     * @param array|null $locationRestriction Opcional: ['lat' => float, 'lng' => float, 'radius' => int (metros)]
      * @return array Lista de lugares normalizados
      */
-    public function textSearch(string $query, int $maxResults = 20): array
+    public function textSearch(string $query, int $maxResults = 20, ?array $locationRestriction = null): array
     {
         $results = [];
         $nextPageToken = null;
@@ -91,6 +92,18 @@ class GooglePlacesClient
 
             if ($nextPageToken) {
                 $payload['pageToken'] = $nextPageToken;
+            }
+
+            if ($locationRestriction) {
+                $payload['locationRestriction'] = [
+                    'circle' => [
+                        'center' => [
+                            'latitude'  => (float) $locationRestriction['lat'],
+                            'longitude' => (float) $locationRestriction['lng'],
+                        ],
+                        'radius' => (float) $locationRestriction['radius'],
+                    ],
+                ];
             }
 
             $response = $this->post(self::TEXT_SEARCH_URL, $payload, [
@@ -114,6 +127,79 @@ class GooglePlacesClient
         } while ($nextPageToken && $fetched < $maxResults);
 
         return $results;
+    }
+
+    /**
+     * Obtém bounding box de uma cidade via Nominatim (OpenStreetMap) — sem chave de API
+     * 
+     * @return array|null ['south','north','west','east'] em graus decimais
+     */
+    public static function fetchCityBbox(string $city, string $state = ''): ?array
+    {
+        $q = trim($city . ($state ? ", $state" : '') . ', Brasil');
+        $url = 'https://nominatim.openstreetmap.org/search?q=' . urlencode($q)
+             . '&format=json&limit=1&addressdetails=0';
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_USERAGENT      => 'PixelHub/1.0 (hub.pixel12digital.com.br)',
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        $body = curl_exec($ch);
+        curl_close($ch);
+
+        if (!$body) {
+            return null;
+        }
+
+        $data = json_decode($body, true);
+        if (empty($data[0]['boundingbox'])) {
+            return null;
+        }
+
+        [$south, $north, $west, $east] = $data[0]['boundingbox'];
+        return [
+            'south' => (float) $south,
+            'north' => (float) $north,
+            'west'  => (float) $west,
+            'east'  => (float) $east,
+        ];
+    }
+
+    /**
+     * Gera grade de células geográficas sobre um bounding box de cidade
+     * 
+     * @param array $bbox    ['south','north','west','east']
+     * @param int   $divs    Divisões por eixo (3 = 9 células, 4 = 16, 5 = 25)
+     * @return array[] Lista de ['lat','lng','radius','searched' => false]
+     */
+    public static function generateGrid(array $bbox, int $divs = 3): array
+    {
+        $cells   = [];
+        $latStep = ($bbox['north'] - $bbox['south']) / $divs;
+        $lngStep = ($bbox['east']  - $bbox['west'])  / $divs;
+
+        $midLat   = ($bbox['north'] + $bbox['south']) / 2;
+        $lngScale = cos(deg2rad($midLat));
+
+        $cellLatM = $latStep * 111320;
+        $cellLngM = $lngStep * 111320 * $lngScale;
+        $radius   = (int) (max($cellLatM, $cellLngM) / 2 * 1.25);
+
+        for ($i = 0; $i < $divs; $i++) {
+            for ($j = 0; $j < $divs; $j++) {
+                $cells[] = [
+                    'lat'      => round($bbox['south'] + ($i + 0.5) * $latStep, 6),
+                    'lng'      => round($bbox['west']  + ($j + 0.5) * $lngStep, 6),
+                    'radius'   => $radius,
+                    'searched' => false,
+                ];
+            }
+        }
+
+        return $cells;
     }
 
     /**
