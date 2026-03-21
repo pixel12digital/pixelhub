@@ -2001,6 +2001,9 @@
                         <a href="<?= pixelhub_url('/prospecting?source=instagram') ?>" class="sub-item <?= (strpos($currentUri, 'source=instagram') !== false) ? 'active' : '' ?>">
                             <span class="sidebar-text">Instagram</span>
                         </a>
+                        <a href="<?= pixelhub_url('/prospecting/training') ?>" class="sub-item <?= (strpos($currentUri, '/prospecting/training') !== false) ? 'active' : '' ?>">
+                            <span class="sidebar-text">🎯 Treinar Vendedor</span>
+                        </a>
                     </div>
                 </div>
             </div>
