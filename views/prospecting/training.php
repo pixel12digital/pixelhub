@@ -516,96 +516,158 @@ itoupavacellcelulares.com.br"></textarea>
     <!-- ═══════════════════════════════════════════════════════ TAB 2: ROTEIRO -->
     <div id="stPanel-roteiro" class="st-tab-panel">
 
-        <!-- Orsegups — New validated 3-step flow -->
         <div class="st-roteiro-orsegups">
-            <div class="roh-header">🔐 Orsegups — Roteiro Operacional Validado (3 Etapas)</div>
+            <div class="roh-header">⚡ Orsegups — Playbook AIDA · Objetivo: "posso passar aí e te mostrar?"</div>
             <div class="roh-body">
-                <div style="font-size:12px;color:#ef4444;font-weight:600;margin-bottom:14px;">❌ Erro comum: começar como vendedor → rejeição automática. Siga as etapas abaixo.</div>
 
-                <div class="st-flow-msg">
-                    <div class="fm-label">Etapa 1 — Abertura (NÃO se apresente ainda)</div>Oi, tudo bem? Me tira uma dúvida rápida — vocês já têm alarme com monitoramento aí?</div>
-                <div style="font-size:11px;color:#64748b;margin:-6px 0 10px 4px;">✔ Simples &nbsp;✔ Não parece venda &nbsp;✔ Abre conversa &nbsp;✘ Sem empresa, sem produto</div>
+                <!-- A - ATENÇÃO -->
+                <div style="font-size:11px;font-weight:700;color:#023A8D;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">A — Atenção · Abertura (formato fixo — não alterar)</div>
+                <div class="st-flow-msg">Olá, tudo bem? Vi sua <strong>{tipo de negócio}</strong> aí na <strong>{bairro}</strong>. Estou falando com alguns comércios aqui da região essa semana — posso te fazer uma pergunta rápida?</div>
+                <div style="font-size:11px;color:#64748b;margin:-6px 0 14px 4px;">✘ Sem empresa &nbsp;✘ Sem produto &nbsp;✘ Sem preço &nbsp;✔ Personalize negócio + bairro</div>
 
-                <div class="st-flow-arrow">↓ baseado na resposta</div>
+                <div class="st-flow-arrow">↓ lead responde</div>
 
-                <div class="st-flow-branches">
-                    <div class="st-branch-card bc-orange">
-                        <div class="bc-label">❌ NÃO tem monitoramento</div>
-                        Gere curiosidade — NÃO ofereça ainda:<br><br>
-                        <em>"Entendi. Pergunto porque estamos implementando um modelo com resposta mais rápida usando IA aqui na região, e alguns comércios estão migrando por isso."</em>
-                    </div>
+                <!-- I - INTERESSE -->
+                <div style="font-size:11px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;margin:8px 0 6px;">I — Interesse · Resposta à abertura</div>
+                <div class="st-flow-branches" style="grid-template-columns:1fr 1fr 1fr;">
                     <div class="st-branch-card bc-green">
-                        <div class="bc-label">✅ JÁ tem monitoramento</div>
-                        Abra brecha para a dor:<br><br>
-                        <em>"Boa. Hoje está atendendo bem ou já tiveram alguma situação que deixou a desejar?"</em>
+                        <div class="bc-label">✅ "Pode" / "Sim" / "Fala"</div>
+                        <em>"Hoje vocês já têm algum tipo de alarme ou monitoramento aí?"</em>
                     </div>
                     <div class="st-branch-card bc-blue">
-                        <div class="bc-label">❓ Evasivo / "sobre o quê?"</div>
-                        Faça o diagnóstico diretamente:<br><br>
-                        <em>"Pergunto porque atendo comércios aqui na região — vocês já têm algum monitoramento?"</em>
+                        <div class="bc-label">❓ "Sobre o quê?"</div>
+                        <em>"É sobre segurança — um modelo novo de alarme com IA que reduz falso disparo e acelera a resposta. Vocês já têm monitoramento aí hoje?"</em>
+                    </div>
+                    <div class="st-branch-card" style="background:#f1f5f9;border:1px solid #cbd5e1;">
+                        <div class="bc-label" style="color:#475569;">👻 Ghost (não respondeu)</div>
+                        <em>"Te chamei porque alguns comércios aqui da região estão trocando por um modelo com resposta mais rápida e menos falso alarme — achei que poderia fazer sentido pra você também."</em>
                     </div>
                 </div>
 
-                <div class="st-flow-arrow" style="margin-top:14px;">↓ só depois do diagnóstico</div>
+                <div class="st-flow-arrow" style="margin-top:14px;">↓ diagnóstico: tem ou não tem?</div>
 
-                <div class="st-flow-msg" style="border-left:3px solid #023A8D;background:#eff6ff;">
-                    <div class="fm-label">Etapa 3 — Autoridade (só agora você entra como Charles)</div>Sou Charles, da Orsegups. Estou mapeando alguns comércios aqui na região justamente pra ver onde faz sentido.</div>
+                <!-- D - DESEJO -->
+                <div style="font-size:11px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px;margin:8px 0 6px;">D — Desejo · Máx. 2 frases — depois parar</div>
+                <div class="st-flow-branches" style="grid-template-columns:1fr 1fr;">
+                    <div class="st-branch-card bc-orange">
+                        <div class="bc-label">❌ NÃO TEM sistema → lead quente</div>
+                        <em>"Hoje o problema é que só alarme comum não resolve muita coisa na prática. Esse modelo já identifica se é invasão real e a central já age na hora."</em><br><br>
+                        <span style="font-size:11px;color:#c2410c;">⚠ Pare aqui. Vá para AÇÃO.</span>
+                    </div>
+                    <div class="st-branch-card bc-green">
+                        <div class="bc-label">✅ TEM sistema → abra a dor</div>
+                        <em>"Boa. E hoje te atende bem ou já teve alguma situação que deixou a desejar?"</em>
+                    </div>
+                </div>
+
+                <div style="margin-top:10px;" class="st-flow-branches" style="grid-template-columns:1fr 1fr 1fr;">
+                    <div class="st-branch-card bc-green">
+                        <div class="bc-label">✅ Atende bem — crie dúvida</div>
+                        <em>"Perfeito. A maioria que já atende bem acaba migrando mais pela evolução — IA e resposta mais rápida. Hoje ele consegue diferenciar invasão real ou dispara por qualquer movimento?"</em>
+                    </div>
+                    <div class="st-branch-card bc-orange">
+                        <div class="bc-label">⚠ Não atende / deu problema → lead quente</div>
+                        <em>"Isso é bem comum — falso alarme ou demora. Esse modelo já valida com imagem e a central age praticamente na hora."</em><br><br>
+                        <span style="font-size:11px;color:#c2410c;">⚠ Vá para AÇÃO.</span>
+                    </div>
+                    <div class="st-branch-card bc-blue">
+                        <div class="bc-label">🔁 É Orsegups — qualifique</div>
+                        <em>"Boa. E você já está usando o modelo mais novo com imagem e IA ou ainda é o sistema mais tradicional?"</em>
+                    </div>
+                </div>
+
+                <div class="st-flow-arrow" style="margin-top:14px;">↓ qualquer abertura ou interesse</div>
+
+                <!-- A - AÇÃO -->
+                <div style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.5px;margin:8px 0 6px;">A — Ação · Conduzir para visita (direto — sem pedir permissão vaga)</div>
+                <div class="st-flow-msg" style="border-left:3px solid #15803d;background:#f0fdf4;">
+                    <div class="fm-label">Padrão</div><em>"O ideal nem é te explicar por aqui. Posso passar aí rapidinho e te mostrar como funciona na prática?"</em>
+                </div>
+                <div class="st-flow-branches" style="grid-template-columns:1fr 1fr;margin-top:8px;">
+                    <div class="st-branch-card bc-green">
+                        <div class="bc-label">💪 Mais firme (melhor conversão)</div>
+                        <em>"Eu passo aí rapidinho essa semana e te mostro funcionando na prática — é bem direto."</em>
+                    </div>
+                    <div class="st-branch-card bc-green">
+                        <div class="bc-label">🎯 Com controle / opção</div>
+                        <em>"Prefere que eu passe mais no início ou final da semana?"</em>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- 7 scenario cards -->
-        <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:12px;">🗂 Os 7 Cenários de Resposta à 1ª mensagem</div>
+        <!-- Objeções -->
+        <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:12px;">� Objeções — Respostas Prontas</div>
         <div class="st-roteiro-grid">
 
             <div class="st-scenario-card">
-                <div class="sc-label">🟢 1. Resposta Positiva / Confirma que tem</div>
-                <div class="sc-examples">Ex: "sim, temos", "já tenho", "temos câmera"</div>
-                <div class="sc-script">Boa. Hoje está atendendo bem ou já tiveram alguma situação que deixou a desejar?</div>
-                <div class="sc-branch">👉 Abra a dor. Não ofereça ainda.</div>
+                <div class="sc-label">⚫ "Não tenho interesse"</div>
+                <div class="sc-script">Tranquilo — geralmente quem fala isso é porque já tem algo ou nunca precisou usar de verdade.
+Mas me diz, hoje você tem algum sistema aí ou não usa nada?</div>
+                <div class="sc-branch">👉 Volta pro diagnóstico.</div>
             </div>
 
             <div class="st-scenario-card">
-                <div class="sc-label">� 2. Não tem monitoramento</div>
-                <div class="sc-examples">Ex: "não", "ainda não", "não tenho"</div>
-                <div class="sc-script">Entendi. Pergunto porque estamos implementando um modelo com resposta mais rápida usando IA no monitoramento aqui na região, e alguns comércios estão migrando por isso.</div>
-                <div class="sc-branch">👉 Gera curiosidade. Aguarda reação antes de continuar.</div>
+                <div class="sc-label">🟢 "Já tenho"</div>
+                <div class="sc-script">Perfeito. E hoje ele resolve bem quando realmente precisa ou já te deixou na mão alguma vez?</div>
+                <div class="sc-branch">👉 Traz realidade.</div>
             </div>
 
             <div class="st-scenario-card">
-                <div class="sc-label">� 3. "Sobre o quê?" / Evasivo</div>
-                <div class="sc-examples">Ex: "sobre o que?", "o que você vende?", "do que se trata?"</div>
-                <div class="sc-script">Pergunto porque atendo comércios aqui na região — vocês já têm algum monitoramento?</div>
-                <div class="sc-branch">👉 Não se desvie. Faça o diagnóstico primeiro.</div>
+                <div class="sc-label">🟡 "Agora não posso"</div>
+                <div class="sc-script">Sem problema — é bem rápido mesmo. Qual horário costuma ser mais tranquilo aí?</div>
             </div>
 
             <div class="st-scenario-card">
-                <div class="sc-label">� 4. "Quem fala?"</div>
-                <div class="sc-examples">Ex: "quem é?", "quem está falando?"</div>
-                <div class="sc-script">Oi! Sou Charles, atendo comércios na região. Me tira uma dúvida — vocês já têm monitoramento eletrônico aí?</div>
-                <div class="sc-branch">👉 Apresentação mínima + volta pro diagnóstico.</div>
+                <div class="sc-label">🟠 "Só manda informação"</div>
+                <div class="sc-script">Posso até te mandar, mas na prática vendo em 2 minutos você entende melhor.
+Passo aí rapidinho e te explico sem compromisso.</div>
             </div>
 
             <div class="st-scenario-card">
-                <div class="sc-label">� 5. "Não sou eu / Outra pessoa"</div>
-                <div class="sc-examples">Ex: "aqui é recepção", "tem que falar com o dono"</div>
-                <div class="sc-script">Entendi! Você consegue me indicar com quem falo? É rápido.</div>
+                <div class="sc-label">🔵 "Sem tempo"</div>
+                <div class="sc-script">Justo — por isso é rápido.
+Eu passo em menos de 5 minutos só pra te mostrar o conceito.</div>
             </div>
 
             <div class="st-scenario-card">
-                <div class="sc-label">� 6. Não Responde (Ghost)</div>
-                <div class="sc-examples">Leu mas não respondeu</div>
-                <div class="sc-script">Oi! Só pra não perder o fio — vocês já têm algum monitoramento aí ou ainda não?</div>
-                <div class="sc-branch">⏱ Se ignorar de novo → aguardar 2–3 dias, nova tentativa com ângulo diferente.</div>
-            </div>
-
-            <div class="st-scenario-card">
-                <div class="sc-label">⚫ 7. Rejeição Direta</div>
-                <div class="sc-examples">Ex: "não tenho interesse", "não precisa"</div>
-                <div class="sc-script">Entendo! Posso perguntar só uma coisa — é porque já têm ou não veem necessidade por enquanto?</div>
-                <div class="sc-branch">👉 "Já tem" → qualifica o atual. "Não vê necessidade" → abre brecha pra educar.</div>
+                <div class="sc-label">🟣 Ghost (não respondeu)</div>
+                <div class="sc-script">Te chamei porque alguns comércios aqui da região estão trocando o sistema por um modelo com resposta mais rápida e menos falso alarme — achei que poderia fazer sentido pra você também.</div>
+                <div class="sc-branch">⏱ Se ignorar de novo → aguardar 2–3 dias.</div>
             </div>
 
         </div>
+
+        <!-- Regras -->
+        <div class="st-roteiro-orsegups" style="margin-top:4px;">
+            <div class="roh-header" style="background:#1e293b;">🚫 Erros que travam a venda</div>
+            <div class="roh-body">
+                <div class="st-flow-branches" style="grid-template-columns:1fr 1fr;">
+                    <div>
+                        <div style="font-size:12px;color:#ef4444;font-weight:700;margin-bottom:8px;">NUNCA FAÇA</div>
+                        <div style="font-size:12px;color:#374151;line-height:2;">
+                            ❌ Interrogatório (perguntas seguidas)<br>
+                            ❌ Explicar demais antes de gerar interesse<br>
+                            ❌ Apresentar empresa na abertura<br>
+                            ❌ Falar de preço<br>
+                            ❌ Criticar concorrente<br>
+                            ❌ Linguagem técnica complexa
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:#15803d;font-weight:700;margin-bottom:8px;">POSICIONAMENTO NATURAL</div>
+                        <div style="font-size:12px;color:#374151;line-height:2;">
+                            ✔ IA reduz falso alarme<br>
+                            ✔ Verificação por imagem em tempo real<br>
+                            ✔ Central age na hora<br>
+                            ✔ Comunicação direta com o local<br><br>
+                            <strong>Regra:</strong> se a mensagem não empurra para visita → está errada.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div><!-- /tab roteiro -->
 
     <!-- ═══════════════════════════════════════════════════════ TAB 3: SIMULAR -->
