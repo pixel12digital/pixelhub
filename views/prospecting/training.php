@@ -516,88 +516,93 @@ itoupavacellcelulares.com.br"></textarea>
     <!-- ═══════════════════════════════════════════════════════ TAB 2: ROTEIRO -->
     <div id="stPanel-roteiro" class="st-tab-panel">
 
-        <!-- Orsegups qualification flow -->
+        <!-- Orsegups — New validated 3-step flow -->
         <div class="st-roteiro-orsegups">
-            <div class="roh-header">🔐 Orsegups — Roteiro de Qualificação (Mensagem 3)</div>
+            <div class="roh-header">🔐 Orsegups — Roteiro Operacional Validado (3 Etapas)</div>
             <div class="roh-body">
-                <div style="font-size:12px;color:#64748b;margin-bottom:14px;">Após passar pela barreira inicial e despertar interesse, conduza para a apresentação + qualificação:</div>
+                <div style="font-size:12px;color:#ef4444;font-weight:600;margin-bottom:14px;">❌ Erro comum: começar como vendedor → rejeição automática. Siga as etapas abaixo.</div>
+
                 <div class="st-flow-msg">
-                    <div class="fm-label">Mensagem 3 — Apresentação + Qualificação</div>Sou o Charles, trabalho com a Orsegups aqui na região com monitoramento eletrônico.
-Me diz uma coisa — hoje vocês já usam algum tipo de monitoramento aí ou ainda não?</div>
+                    <div class="fm-label">Etapa 1 — Abertura (NÃO se apresente ainda)</div>Oi, tudo bem? Me tira uma dúvida rápida — vocês já têm alarme com monitoramento aí?</div>
+                <div style="font-size:11px;color:#64748b;margin:-6px 0 10px 4px;">✔ Simples &nbsp;✔ Não parece venda &nbsp;✔ Abre conversa &nbsp;✘ Sem empresa, sem produto</div>
+
                 <div class="st-flow-arrow">↓ baseado na resposta</div>
+
                 <div class="st-flow-branches">
-                    <div class="st-branch-card bc-green">
-                        <div class="bc-label">✅ Caso 1 — Decisor</div>
-                        Responde direto, sabe do assunto<br><br>
-                        👉 Continua o roteiro normalmente
-                    </div>
                     <div class="st-branch-card bc-orange">
-                        <div class="bc-label">⚠ Caso 2 — Funcionário</div>
-                        Resposta vaga: "acho que tem", "não sei direito"<br><br>
-                        👉 <em>"Entendi — normalmente quem cuida dessa parte aí é você ou outra pessoa?"</em>
+                        <div class="bc-label">❌ NÃO tem monitoramento</div>
+                        Gere curiosidade — NÃO ofereça ainda:<br><br>
+                        <em>"Entendi. Pergunto porque estamos implementando um modelo com resposta mais rápida usando IA aqui na região, e alguns comércios estão migrando por isso."</em>
+                    </div>
+                    <div class="st-branch-card bc-green">
+                        <div class="bc-label">✅ JÁ tem monitoramento</div>
+                        Abra brecha para a dor:<br><br>
+                        <em>"Boa. Hoje está atendendo bem ou já tiveram alguma situação que deixou a desejar?"</em>
                     </div>
                     <div class="st-branch-card bc-blue">
-                        <div class="bc-label">🔁 Caso 3 — Redireciona</div>
-                        "Isso é com meu chefe"<br><br>
-                        👉 <em>"Perfeito — você consegue me indicar com quem falo pra te explicar rapidinho?"</em>
+                        <div class="bc-label">❓ Evasivo / "sobre o quê?"</div>
+                        Faça o diagnóstico diretamente:<br><br>
+                        <em>"Pergunto porque atendo comércios aqui na região — vocês já têm algum monitoramento?"</em>
                     </div>
                 </div>
+
+                <div class="st-flow-arrow" style="margin-top:14px;">↓ só depois do diagnóstico</div>
+
+                <div class="st-flow-msg" style="border-left:3px solid #023A8D;background:#eff6ff;">
+                    <div class="fm-label">Etapa 3 — Autoridade (só agora você entra como Charles)</div>Sou Charles, da Orsegups. Estou mapeando alguns comércios aqui na região justamente pra ver onde faz sentido.</div>
             </div>
         </div>
 
         <!-- 7 scenario cards -->
-        <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:12px;">🗂 Os 7 Cenários de Resposta — Script para cada um</div>
+        <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:12px;">🗂 Os 7 Cenários de Resposta à 1ª mensagem</div>
         <div class="st-roteiro-grid">
 
             <div class="st-scenario-card">
-                <div class="sc-label">🟢 1. Resposta Positiva Direta</div>
-                <div class="sc-examples">Ex: "pode", "sim", "claro", "pode falar"</div>
-                <div class="sc-script">Bom dia! Sou o Charles, da Orsegups — trabalho com monitoramento eletrônico aqui na região.
-Me diz uma coisa — hoje vocês já usam algum sistema de monitoramento aí ou ainda não?</div>
+                <div class="sc-label">🟢 1. Resposta Positiva / Confirma que tem</div>
+                <div class="sc-examples">Ex: "sim, temos", "já tenho", "temos câmera"</div>
+                <div class="sc-script">Boa. Hoje está atendendo bem ou já tiveram alguma situação que deixou a desejar?</div>
+                <div class="sc-branch">👉 Abra a dor. Não ofereça ainda.</div>
             </div>
 
             <div class="st-scenario-card">
-                <div class="sc-label">🟡 2. "Sobre o quê?"</div>
-                <div class="sc-examples">Ex: "sobre o que?", "qual assunto?", "do que se trata?"</div>
-                <div class="sc-script">Boa pergunta! É sobre monitoramento eletrônico — trabalho com a Orsegups aqui na região.
-Estou passando por alguns estabelecimentos essa semana. Posso te fazer uma pergunta rápida?</div>
+                <div class="sc-label">� 2. Não tem monitoramento</div>
+                <div class="sc-examples">Ex: "não", "ainda não", "não tenho"</div>
+                <div class="sc-script">Entendi. Pergunto porque estamos implementando um modelo com resposta mais rápida usando IA no monitoramento aqui na região, e alguns comércios estão migrando por isso.</div>
+                <div class="sc-branch">👉 Gera curiosidade. Aguarda reação antes de continuar.</div>
             </div>
 
             <div class="st-scenario-card">
-                <div class="sc-label">🟠 3. "Quem fala?"</div>
+                <div class="sc-label">� 3. "Sobre o quê?" / Evasivo</div>
+                <div class="sc-examples">Ex: "sobre o que?", "o que você vende?", "do que se trata?"</div>
+                <div class="sc-script">Pergunto porque atendo comércios aqui na região — vocês já têm algum monitoramento?</div>
+                <div class="sc-branch">👉 Não se desvie. Faça o diagnóstico primeiro.</div>
+            </div>
+
+            <div class="st-scenario-card">
+                <div class="sc-label">� 4. "Quem fala?"</div>
                 <div class="sc-examples">Ex: "quem é?", "quem está falando?"</div>
-                <div class="sc-script">Oi! Me chamo Charles, trabalho com a Orsegups — monitoramento eletrônico.
-Entrei em contato porque estou visitando comércios aqui no bairro essa semana. Faz sentido conversar rapidinho?</div>
+                <div class="sc-script">Oi! Sou Charles, atendo comércios na região. Me tira uma dúvida — vocês já têm monitoramento eletrônico aí?</div>
+                <div class="sc-branch">👉 Apresentação mínima + volta pro diagnóstico.</div>
             </div>
 
             <div class="st-scenario-card">
-                <div class="sc-label">🔵 4. "Não sou eu / Outra pessoa"</div>
-                <div class="sc-examples">Ex: "não sou responsável", "aqui é recepção", "tem que falar com fulano"</div>
-                <div class="sc-script">Entendi! Sem problema.
-Você consegue me indicar com quem falo? É rápido — só quero fazer uma pergunta sobre a segurança de vocês.</div>
+                <div class="sc-label">� 5. "Não sou eu / Outra pessoa"</div>
+                <div class="sc-examples">Ex: "aqui é recepção", "tem que falar com o dono"</div>
+                <div class="sc-script">Entendi! Você consegue me indicar com quem falo? É rápido.</div>
             </div>
 
             <div class="st-scenario-card">
-                <div class="sc-label">🟣 5. Resposta Curta Neutra</div>
-                <div class="sc-examples">Ex: "sim, diga", "pode falar", "ok"</div>
-                <div class="sc-script">Opa, boa tarde! Sou o Charles, da Orsegups — trabalho com monitoramento eletrônico aqui na região.
-Me diz uma coisa — hoje vocês já têm algum sistema de monitoramento aí ou ainda não?</div>
-            </div>
-
-            <div class="st-scenario-card">
-                <div class="sc-label">🔴 6. Não Responde (Ghost)</div>
-                <div class="sc-examples">Leu, mas não respondeu a 1ª mensagem</div>
-                <div class="sc-script">Oi! Vi que você recebeu minha mensagem.
-Não vou tomar seu tempo — só queria saber se faz sentido conversar sobre segurança eletrônica pro seu negócio. Posso te fazer uma pergunta rápida?</div>
-                <div class="sc-branch">⏱ Se ignorar de novo → aguardar 2–3 dias e tentar uma última vez com outro ângulo.</div>
+                <div class="sc-label">� 6. Não Responde (Ghost)</div>
+                <div class="sc-examples">Leu mas não respondeu</div>
+                <div class="sc-script">Oi! Só pra não perder o fio — vocês já têm algum monitoramento aí ou ainda não?</div>
+                <div class="sc-branch">⏱ Se ignorar de novo → aguardar 2–3 dias, nova tentativa com ângulo diferente.</div>
             </div>
 
             <div class="st-scenario-card">
                 <div class="sc-label">⚫ 7. Rejeição Direta</div>
-                <div class="sc-examples">Ex: "não tenho interesse", "não precisa", "obrigado"</div>
-                <div class="sc-script">Entendo! Sem problema nenhum.
-Posso perguntar só uma coisa — é porque já têm monitoramento ou não veem necessidade por enquanto?</div>
-                <div class="sc-branch">👉 Dependendo da resposta: se "já tem" → qualifica o fornecedor atual. Se "não vê necessidade" → abre brecha para educar.</div>
+                <div class="sc-examples">Ex: "não tenho interesse", "não precisa"</div>
+                <div class="sc-script">Entendo! Posso perguntar só uma coisa — é porque já têm ou não veem necessidade por enquanto?</div>
+                <div class="sc-branch">👉 "Já tem" → qualifica o atual. "Não vê necessidade" → abre brecha pra educar.</div>
             </div>
 
         </div>
