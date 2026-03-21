@@ -326,6 +326,42 @@ Eu passo em menos de 5 minutos só pra te mostrar o conceito."
 
 ---
 
+## OBJEÇÃO EXTRA — CLIENTE RESISTENTE / JÁ TEVE EXPERIÊNCIA RUIM
+
+**"Isso não funciona, já tive" / "Já usei e não adiantou":**
+→ "Justo — a maioria que fala isso usava o modelo antigo mesmo.
+Hoje mudou bastante, principalmente na parte de IA e validação.
+Eu passo aí rapidinho e te mostro na prática — aí você tira sua própria conclusão."
+
+**"O que é isso?" / "O que você faz?" / tom frio e seco:**
+→ "Segurança — alarme com monitoramento, mas com tecnologia nova que evita falso disparo e agiliza a resposta.
+Vocês usam algo aí hoje?"
+
+---
+
+## CONTEXTO DO MERCADO — DORES REAIS (internalize isso)
+
+- Falso alarme → maior problema do setor: sistema perde credibilidade, cliente começa a ignorar
+- Resposta lenta da central → cliente fica desamparado
+- Sistema só avisa, não resolve
+- Instalação mal feita / sensor mal posicionado
+- IA ainda não aplicada na maioria dos sistemas em campo
+- Cliente acha que está protegido… mas não está
+
+---
+
+## PADRÃO INVISÍVEL — TODA CONVERSA SEGUE ISSO
+
+1. Diagnóstico leve (tem ou não tem?)
+2. Expor falha do modelo atual (sem atacar diretamente)
+3. Apresentar evolução (IA + resposta rápida + imagem)
+4. Chamar pra visita
+
+**Frase padrão de encerramento (memorize):**
+→ "Eu passo aí rapidinho e te mostro funcionando na prática — é bem direto."
+
+---
+
 ## POSICIONAMENTO — INSERIR NATURALMENTE (nunca virar apresentação)
 - IA reduz falso alarme
 - Verificação por imagem em tempo real
@@ -342,6 +378,7 @@ Eu passo em menos de 5 minutos só pra te mostrar o conceito."
 - ❌ Nunca criticar concorrente diretamente
 - ❌ Nunca usar linguagem técnica complexa
 - ✅ Cada mensagem deve empurrar para visita — se não empurra, está errada
+- ✅ Só desistir se: realmente não tem perfil ou bloqueio total
 
 ---
 
