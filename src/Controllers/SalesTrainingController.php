@@ -56,6 +56,70 @@ class SalesTrainingController extends Controller
     }
 
     /**
+     * POST /prospecting/training/prospect  (AJAX)
+     * Modo Simular Prospect: IA joga como prospect + avalia o vendedor
+     */
+    public function prospect(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json; charset=utf-8');
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $scenario     = trim($input['scenario'] ?? '');
+        $chatHistory  = $input['chat_history'] ?? [];
+        $salesMessage = trim($input['salesperson_message'] ?? '');
+
+        if (empty($scenario)) {
+            echo json_encode(['success' => false, 'error' => 'Selecione um cenário para simular.']);
+            return;
+        }
+
+        $apiKey = self::getApiKey();
+        if (empty($apiKey)) {
+            echo json_encode(['success' => false, 'error' => 'Chave OpenAI não configurada.']);
+            return;
+        }
+
+        $systemPrompt = self::buildProspectSystemPrompt($scenario);
+        $messages = [['role' => 'system', 'content' => $systemPrompt]];
+
+        foreach ($chatHistory as $msg) {
+            $role = ($msg['role'] ?? 'user') === 'assistant' ? 'assistant' : 'user';
+            $messages[] = ['role' => $role, 'content' => $msg['content'] ?? ''];
+        }
+
+        if (!empty($salesMessage)) {
+            $messages[] = ['role' => 'user', 'content' => $salesMessage];
+        } else {
+            $messages[] = ['role' => 'user', 'content' => 'INICIAR_SIMULACAO'];
+        }
+
+        try {
+            $raw = self::callOpenAIChat($apiKey, $messages);
+
+            $prospectReply = '';
+            $feedback      = '';
+
+            if (preg_match('/---PROSPECT---(.*?)---FEEDBACK---(.*)$/s', $raw, $m)) {
+                $prospectReply = trim($m[1]);
+                $feedback      = trim($m[2]);
+            } else {
+                $prospectReply = trim($raw);
+            }
+
+            echo json_encode([
+                'success'       => true,
+                'prospect_reply' => $prospectReply,
+                'feedback'      => $feedback,
+            ]);
+        } catch (\Exception $e) {
+            error_log('[SalesTraining] Erro prospect: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
      * POST /prospecting/training/chat  (AJAX)
      * Refinamento via chat: recebe histórico + feedback do treinador e retorna mensagem ajustada.
      */
@@ -108,6 +172,62 @@ class SalesTrainingController extends Controller
     // =========================================================================
     // PRIVADOS
     // =========================================================================
+
+    private static function buildProspectSystemPrompt(string $scenario): string
+    {
+        $scenarios = [
+            'positivo'   => "🟢 RESPOSTA POSITIVA DIRETA\nO prospect respondeu de forma positiva e aberta. Exemplos: 'pode', 'sim', 'claro', 'pode falar'. Você é um empresário receptivo mas ocupado. Se o vendedor fizer uma boa abordagem, avança; se for genérico ou agressivo, se fecha.",
+            'sobre_que'  => "🟡 'SOBRE O QUÊ?'\nO prospect respondeu com desconfiança/curiosidade: 'sobre o que?', 'qual assunto?', 'do que se trata?'. Você está ocupado e não quer perder tempo. Exige uma resposta clara e objetiva antes de continuar.",
+            'quem_fala'  => "🟠 'QUEM FALA?'\nO prospect perguntou a identidade: 'quem é?', 'quem está falando?'. Você é cauteloso com desconhecidos. Quer saber quem é antes de continuar a conversa.",
+            'nao_sou_eu' => "🔵 'NÃO SOU EU / OUTRA PESSOA'\nVocê não é o decisor. Exemplos que daria: 'não sou responsável', 'aqui é recepção', 'tem que falar com o fulano'. Você é um funcionário ou recepcionista. Pode ou não facilitar o contato com o decisor dependendo de como o vendedor abordar.",
+            'neutro'     => "🟣 RESPOSTA CURTA NEUTRA\nO prospect respondeu brevemente: 'sim, diga', 'pode falar', 'ok'. Você está disponível mas não demonstra entusiasmo. Aguarda ver do que se trata.",
+            'ghost'      => "🔴 NÃO RESPONDE (GHOST)\nO prospect leu mas não respondeu a primeira mensagem. Quando o vendedor fizer follow-up (segunda tentativa), você pode: (a) continuar ignorando, (b) responder com frieza 'não tenho interesse', (c) dar uma chance se a abordagem for muito boa. Simule a reação realista.",
+            'rejeicao'   => "⚫ REJEIÇÃO DIRETA\nO prospect rejeitou: 'não tenho interesse', 'não precisa', 'obrigado'. Você não quer ser perturbado. Mas se o vendedor contornar com inteligência (sem insistir de forma irritante), pode abrir uma pequena brecha.",
+        ];
+
+        $scenarioDesc = $scenarios[$scenario] ?? "Prospect genérico. Seja realista.";
+
+        return <<<PROMPT
+Você está em uma SIMULAÇÃO DE TREINAMENTO DE VENDAS.
+
+Você joga DOIS papéis ao mesmo tempo:
+
+## PAPEL 1: PROSPECT
+Você é um dono/responsável de um negócio local em Blumenau - SC.
+O vendedor que está entrando em contato é Charles, da Orsegups (monitoramento eletrônico).
+Você está recebendo uma abordagem via WhatsApp.
+
+### Seu perfil nesta simulação:
+{$scenarioDesc}
+
+### Como agir como prospect:
+- Responda como responde no WhatsApp real: curto, informal, sem formalidade corporativa
+- Não facilite demais — seja realista. Prospects reais são ocupados e desconfiados
+- Se o vendedor usar um script ruim, mostre resistência natural
+- Se o vendedor for bom, avance gradualmente
+- Máximo 1-3 linhas por resposta de prospect
+
+## PAPEL 2: COACH
+Depois de cada mensagem do vendedor (trainee), avalie brevemente a abordagem dele.
+
+## FORMATO OBRIGATÓRIO DA RESPOSTA:
+```
+---PROSPECT---
+[Sua resposta como prospect — texto plano, como WhatsApp real]
+---FEEDBACK---
+[✓ ou ⚠ — 1-2 linhas avaliando o que o vendedor disse. Foi bom? O que poderia melhorar?]
+```
+
+## QUANDO RECEBER "INICIAR_SIMULACAO":
+Inicie a simulação mostrando a resposta do prospect à primeira abordagem do vendedor, conforme o cenário acima. Não espere mensagem do vendedor — comece você com a reação do prospect.
+
+## Regras gerais:
+- NUNCA saia do personagem prospect sem ser no bloco ---FEEDBACK---
+- O feedback deve ser breve e direto — foco no desenvolvimento do vendedor
+- Se o vendedor errar feio, o prospect fecha mais
+- Se o vendedor for bom, avance naturalmente no roteiro
+PROMPT;
+    }
 
     private static function buildSystemPrompt(): string
     {

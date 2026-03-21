@@ -813,6 +813,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/prospecting/training', 'SalesTrainingController@index');
     $router->post('/prospecting/training/generate', 'SalesTrainingController@generate');
     $router->post('/prospecting/training/chat', 'SalesTrainingController@chat');
+    $router->post('/prospecting/training/prospect', 'SalesTrainingController@prospect');
 
     // Configurações — Catálogo de Produtos por Conta
     $router->get('/settings/tenant-products', 'TenantProductsController@index');
