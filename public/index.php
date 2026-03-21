@@ -809,6 +809,11 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/prospecting/mark-wa-sent', 'ProspectingController@markWaSent');
     $router->get('/prospecting/poll-status', 'ProspectingController@pollStatus');
 
+    // Treinamento de Vendas — Simulador de Abordagem
+    $router->get('/prospecting/training', 'SalesTrainingController@index');
+    $router->post('/prospecting/training/generate', 'SalesTrainingController@generate');
+    $router->post('/prospecting/training/chat', 'SalesTrainingController@chat');
+
     // Configurações — Catálogo de Produtos por Conta
     $router->get('/settings/tenant-products', 'TenantProductsController@index');
     $router->post('/settings/tenant-products/store', 'TenantProductsController@store');

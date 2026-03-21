@@ -63,6 +63,10 @@ if (($sourceFilter ?? null) === 'minhareceita') {
        style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;text-decoration:none;<?= ($sourceFilter ?? '') === 'instagram' ? 'background:#e1306c;color:#fff;' : 'background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;' ?>">
         📸 Instagram
     </a>
+    <a href="<?= pixelhub_url('/prospecting/training') ?>"
+       style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;text-decoration:none;margin-left:8px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;">
+        🎯 Treinar Vendedor
+    </a>
 </div>
 
 <!-- Seletor de Conta -->
