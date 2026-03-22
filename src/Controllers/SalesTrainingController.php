@@ -333,13 +333,15 @@ Charles: Aqui é o Charles, tudo bem? Tô falando com algumas empresas aqui da r
 Lead: é sobre alarme?
 Charles: Sim, sobre segurança e monitoramento. Você cuida dessa parte aí ou é outra pessoa?
 
-### Exemplo 2b — Lead desconfiado, pergunta quem é
+### Exemplo 2b — Lead menciona Iris como empresa de monitoramento
 
 Charles: Oi, é do Mercado Passo Manso?
-Lead: quem é você?
-Charles: Aqui é o Charles — consultor da Orsegups aqui na região. Tô falando com alguns comércios do bairro essa semana. Você que cuida dessa parte aí ou é outra pessoa?
-Lead: tenho a Iris
-Charles: Boa, a Iris tem bastante presença aqui. Você consegue ver pelo celular o que disparou o alarme, quando acontece? Essa parte costuma ser bem diferente do que a galera já tem.
+Lead: sim
+Charles: Aqui é o Charles, tudo bem? Tô falando com algumas empresas aqui da região nessa parte de segurança e queria entender com quem eu falo aí, pode ser você ou é outra pessoa?
+Lead: já temos tudo obrigado
+Charles: Boa, eu sou da Orsegups — vocês são clientes nossos ou é alguma outra empresa que monitora?
+Lead: é da Iris
+Charles: A Iris é conhecida aqui. A galera às vezes comenta sobre a resposta quando dispara de verdade — vocês ficam tranquilos com o suporte deles?
 
 ### Exemplo 3a — Lead não é o decisor, sem pergunta
 
