@@ -840,8 +840,8 @@ class SdrDispatchService
         if (empty($session)) {
             try {
                 $db  = DB::getConnection();
-                $row = $db->query("SELECT value FROM integration_settings WHERE key_name='sdr_whapi_session' LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
-                $session = $row['value'] ?? '';
+                $row = $db->query("SELECT integration_value FROM integration_settings WHERE integration_key='sdr_whapi_session' LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
+                $session = $row['integration_value'] ?? '';
             } catch (\Throwable $e) {
                 $session = '';
             }
@@ -880,14 +880,14 @@ class SdrDispatchService
     {
         $db = DB::getConnection();
         $val = $paused ? '1' : '0';
-        $db->prepare("INSERT INTO integration_settings (key_name, value, updated_at) VALUES ('sdr_paused', ?, NOW()) ON DUPLICATE KEY UPDATE value=?, updated_at=NOW()")
+        $db->prepare("INSERT INTO integration_settings (integration_key, integration_value, updated_at) VALUES ('sdr_paused', ?, NOW()) ON DUPLICATE KEY UPDATE integration_value=?, updated_at=NOW()")
            ->execute([$val, $val]);
     }
 
     public static function isPaused(): bool
     {
         $db  = DB::getConnection();
-        $val = $db->query("SELECT value FROM integration_settings WHERE key_name='sdr_paused' LIMIT 1")->fetchColumn();
+        $val = $db->query("SELECT integration_value FROM integration_settings WHERE integration_key='sdr_paused' LIMIT 1")->fetchColumn();
         return $val === '1';
     }
 
