@@ -152,7 +152,7 @@ ob_start();
                 <?php
                 $whapiChannelName = '';
                 try {
-                    $db = \App\Core\DB::getConnection();
+                    $db = \PixelHub\Core\DB::getConnection();
                     $row = $db->query("SELECT name FROM tenant_message_channels WHERE provider = 'whapi' AND is_enabled = 1 LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
                     $whapiChannelName = $row['name'] ?? '';
                 } catch (\Exception $e) { /* ignora se coluna não existe ainda */ }
