@@ -23,15 +23,6 @@ RewriteCond %{REQUEST_FILENAME} -d
 RewriteCond %{REQUEST_URI} !^/$
 RewriteRule ^(.*)$ index.php [QSA,L]
 
-# ── Webhook Whapi: desabilita WAF (Imunify360/ModSecurity) para este path ───
-# O Imunify360 bloqueia payloads de canais novos com 403 (openresty/1.27.1.1)
-# sem esse bypass a verificação do webhook no painel Whapi falha com 403
-<IfModule mod_security2.c>
-    <If "%{REQUEST_URI} =~ m|/api/whatsapp/whapi/webhook|">
-        SecRuleEngine Off
-    </If>
-</IfModule>
-
 # ── Webhook Whapi: desabilita buffering para garantir resposta 200 imediata ──
 # Evita ETIMEDOUT: Apache/mod_deflate pode segurar a resposta até o PHP terminar
 <IfModule mod_headers.c>
