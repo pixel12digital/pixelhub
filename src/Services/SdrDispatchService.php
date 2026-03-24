@@ -6,6 +6,7 @@ use PixelHub\Core\DB;
 use PixelHub\Core\Env;
 use PixelHub\Core\CryptoHelper;
 use PixelHub\Integrations\WhatsApp\WhapiCloudProvider;
+use PixelHub\Services\WhatsAppProviderFactory;
 use PixelHub\Controllers\SalesTrainingController;
 
 /**
@@ -824,26 +825,36 @@ class SdrDispatchService
     }
 
     /**
-     * Retorna o provider Whapi configurado para o canal SDR/Orsegups.
-     * Token configurável via integration_settings com key 'sdr_whapi_token'.
+     * Retorna o provider Whapi para o canal SDR.
+     * Session resolvível via:
+     *   1. Env SDR_WHAPI_SESSION (ex: 'orsegups')
+     *   2. integration_settings.sdr_whapi_session
+     *   3. Fallback: primeiro canal ativo (padrão)
      */
     public static function getSdrProvider(): WhapiCloudProvider
     {
-        $db    = DB::getConnection();
-        $row   = $db->query("SELECT value FROM integration_settings WHERE key_name='sdr_whapi_token' LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
-        $token = $row['value'] ?? '';
+        // 1. Tenta env
+        $session = Env::get('SDR_WHAPI_SESSION', '');
 
-        if (empty($token)) {
-            // Fallback: usa token global do Whapi
-            $global = $db->query("SELECT whapi_api_token FROM whatsapp_provider_configs WHERE is_active=1 LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
-            $token  = $global['whapi_api_token'] ?? '';
+        // 2. Tenta integration_settings
+        if (empty($session)) {
+            try {
+                $db  = DB::getConnection();
+                $row = $db->query("SELECT value FROM integration_settings WHERE key_name='sdr_whapi_session' LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
+                $session = $row['value'] ?? '';
+            } catch (\Throwable $e) {
+                $session = '';
+            }
         }
 
-        if (!empty($token) && strpos($token, 'encrypted:') === 0) {
-            $token = CryptoHelper::decrypt(substr($token, 10));
+        // 3. Se tiver session_name configurável, usa por sessão
+        if (!empty($session)) {
+            return WhatsAppProviderFactory::getWhapiProviderBySession($session);
         }
 
-        return new WhapiCloudProvider(['whapi_api_token' => $token]);
+        // 4. Fallback: primeiro canal ativo (comportamento anterior)
+        return WhatsAppProviderFactory::getWhapiProviderBySession('pixel12digital')
+            ?: new WhapiCloudProvider([]);
     }
 
     private static function getOpenAiKey(): string
