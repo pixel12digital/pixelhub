@@ -491,6 +491,12 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/api/whatsapp/webhook', 'WhatsAppWebhookController@handle');
     
     // Webhook do Whapi.Cloud (substitui WPPConnect)
+    $router->get('/api/whatsapp/whapi/webhook', function() {
+        http_response_code(200);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['status' => 'ok', 'code' => 'WEBHOOK_READY']);
+        exit;
+    });
     $router->post('/api/whatsapp/whapi/webhook', 'WhapiWebhookController@handle');
 
     // Polling ativo Whapi.Cloud (alternativa ao webhook quando firewall bloqueia inbound)
