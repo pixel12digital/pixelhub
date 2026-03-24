@@ -27,18 +27,14 @@ class WhatsAppProvidersController extends Controller
 
         $availableProviders = WhatsAppProviderFactory::getAvailableProviders();
 
-        // Busca configuração Whapi.Cloud GLOBAL
-        $whapiConfig = null;
-        try {
-            $stmt = $db->query("
-                SELECT * FROM whatsapp_provider_configs
-                WHERE provider_type = 'whapi' AND is_global = TRUE
-                LIMIT 1
-            ");
-            $whapiConfig = $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
-        } catch (\Exception $e) {
-            $error = 'Erro ao carregar config Whapi: ' . $e->getMessage();
-        }
+        // Busca TODOS os canais Whapi.Cloud cadastrados
+        $whapiConfigs = WhatsAppProviderFactory::getAllWhapiConfigs();
+        // Compatibilidade: $whapiConfig = primeiro canal (para partes da view que ainda usam singular)
+        $whapiConfig = !empty($whapiConfigs) ? $db->query("
+            SELECT * FROM whatsapp_provider_configs
+            WHERE provider_type = 'whapi'
+            ORDER BY is_active DESC, id ASC LIMIT 1
+        ")->fetch(\PDO::FETCH_ASSOC) : null;
 
         // Busca configuração Meta GLOBAL (apenas 1)
         $metaConfig = null;
@@ -56,9 +52,10 @@ class WhatsAppProvidersController extends Controller
 
         $this->view('settings.whatsapp_providers', [
             'availableProviders' => $availableProviders,
-            'whapiConfig' => $whapiConfig,
-            'metaConfig' => $metaConfig,
-            'error' => $error ?? null
+            'whapiConfigs'       => $whapiConfigs,
+            'whapiConfig'        => $whapiConfig,
+            'metaConfig'         => $metaConfig,
+            'error'              => $error ?? null
         ]);
     }
 
@@ -75,92 +72,66 @@ class WhatsAppProvidersController extends Controller
         $apiUrl      = trim($_POST['whapi_api_url'] ?? 'https://gate.whapi.cloud');
         $isActive    = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : false;
         $channelName = trim($_POST['channel_name'] ?? '');
+        $sessionName = trim($_POST['session_name'] ?? 'pixel12digital');
+        if (empty($sessionName)) $sessionName = 'pixel12digital';
+        // Sanitiza: apenas letras, números e hífens
+        $sessionName = preg_replace('/[^a-z0-9_-]/', '', strtolower($sessionName));
 
         if (empty($apiUrl)) {
             $apiUrl = 'https://gate.whapi.cloud';
         }
         $apiUrl = rtrim($apiUrl, '/');
 
-        if (empty($apiToken) || strpos($apiToken, "\xE2\x97\x8F") !== false) {
-            // Token not changed (masked) - update is_active + URL only
-            try {
-                $db     = DB::getConnection();
-                $userId = Auth::user()['id'] ?? null;
+        try {
+            $db     = DB::getConnection();
+            $userId = Auth::user()['id'] ?? null;
 
-                // Atualiza config_metadata com a nova URL
-                $stmt = $db->query("
-                    SELECT id, config_metadata FROM whatsapp_provider_configs
-                    WHERE provider_type = 'whapi' AND is_global = TRUE LIMIT 1
-                ");
-                $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-                if ($row) {
-                    $meta = json_decode($row['config_metadata'] ?? '{}', true) ?: [];
+            // Busca linha existente por session_name
+            $stmt = $db->prepare("
+                SELECT id, config_metadata FROM whatsapp_provider_configs
+                WHERE provider_type = 'whapi' AND session_name = ? LIMIT 1
+            ");
+            $stmt->execute([$sessionName]);
+            $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (empty($apiToken) || strpos($apiToken, "\xE2\x97\x8F") !== false) {
+                // Token mascarado — só atualiza URL e status
+                if ($existing) {
+                    $meta = json_decode($existing['config_metadata'] ?? '{}', true) ?: [];
                     $meta['whapi_base_url'] = $apiUrl;
                     $db->prepare("
                         UPDATE whatsapp_provider_configs
                         SET is_active = ?, config_metadata = ?, updated_by = ?, updated_at = NOW()
                         WHERE id = ?
-                    ")->execute([$isActive ? 1 : 0, json_encode($meta), $userId, $row['id']]);
+                    ")->execute([$isActive ? 1 : 0, json_encode($meta), $userId, $existing['id']]);
                 }
-                // Atualiza nome do canal se informado
-                if ($channelName !== '') {
-                    try {
-                        $db->prepare("
-                            UPDATE tenant_message_channels SET name = ?, updated_at = NOW()
-                            WHERE provider = 'whapi' AND is_enabled = 1
-                        ")->execute([$channelName]);
-                    } catch (\Exception $e2) { /* ignora se coluna ainda não existe */ }
-                }
-                $this->redirect('/settings/whatsapp-providers?success=1&message=' . urlencode('Configuração Whapi atualizada'));
-            } catch (\Exception $e) {
-                $this->redirect('/settings/whatsapp-providers?error=save_failed&message=' . urlencode($e->getMessage()));
-            }
-            return;
-        }
-
-        if (empty($apiToken)) {
-            $this->redirect('/settings/whatsapp-providers?error=missing_token');
-            return;
-        }
-
-        try {
-            $db = DB::getConnection();
-            $userId = Auth::user()['id'] ?? null;
-
-            // Criptografa token
-            $encryptedToken = 'encrypted:' . CryptoHelper::encrypt($apiToken);
-
-            // Verifica se já existe
-            $stmt = $db->query("
-                SELECT id FROM whatsapp_provider_configs
-                WHERE provider_type = 'whapi' AND is_global = TRUE LIMIT 1
-            ");
-            $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
-
-            // Monta config_metadata com URL da API
-            $existingMeta = [];
-            if ($existing) {
-                $stmtMeta = $db->prepare("SELECT config_metadata FROM whatsapp_provider_configs WHERE id = ?");
-                $stmtMeta->execute([$existing['id']]);
-                $existingMeta = json_decode($stmtMeta->fetchColumn() ?? '{}', true) ?: [];
-            }
-            $existingMeta['whapi_base_url'] = $apiUrl;
-            $metaJson = json_encode($existingMeta);
-
-            if ($existing) {
-                $db->prepare("
-                    UPDATE whatsapp_provider_configs
-                    SET whapi_api_token = ?, is_active = ?, config_metadata = ?, updated_by = ?, updated_at = NOW()
-                    WHERE id = ?
-                ")->execute([$encryptedToken, $isActive ? 1 : 0, $metaJson, $userId, $existing['id']]);
-                $message = 'Token Whapi.Cloud atualizado com sucesso';
             } else {
-                $db->prepare("
-                    INSERT INTO whatsapp_provider_configs
-                    (tenant_id, provider_type, is_global, whapi_api_token, is_active, config_metadata, created_by, updated_by)
-                    VALUES (NULL, 'whapi', TRUE, ?, ?, ?, ?, ?)
-                ")->execute([$encryptedToken, $isActive ? 1 : 0, $metaJson, $userId, $userId]);
-                $message = 'Configuração Whapi.Cloud criada com sucesso';
+                if (empty($apiToken)) {
+                    $this->redirect('/settings/whatsapp-providers?error=missing_token');
+                    return;
+                }
+
+                $encryptedToken = 'encrypted:' . CryptoHelper::encrypt($apiToken);
+                $existingMeta   = json_decode($existing['config_metadata'] ?? '{}', true) ?: [];
+                $existingMeta['whapi_base_url'] = $apiUrl;
+                $metaJson = json_encode($existingMeta);
+
+                if ($existing) {
+                    $db->prepare("
+                        UPDATE whatsapp_provider_configs
+                        SET whapi_api_token = ?, is_active = ?, config_metadata = ?, updated_by = ?, updated_at = NOW()
+                        WHERE id = ?
+                    ")->execute([$encryptedToken, $isActive ? 1 : 0, $metaJson, $userId, $existing['id']]);
+                    $message = "Canal '{$sessionName}' atualizado com sucesso";
+                } else {
+                    $isGlobal = ($sessionName === 'pixel12digital') ? 1 : 0;
+                    $db->prepare("
+                        INSERT INTO whatsapp_provider_configs
+                        (tenant_id, provider_type, is_global, session_name, whapi_api_token, is_active, config_metadata, created_by, updated_by)
+                        VALUES (NULL, 'whapi', ?, ?, ?, ?, ?, ?, ?)
+                    ")->execute([$isGlobal, $sessionName, $encryptedToken, $isActive ? 1 : 0, $metaJson, $userId, $userId]);
+                    $message = "Canal '{$sessionName}' criado com sucesso";
+                }
             }
 
             // Atualiza nome do canal se informado

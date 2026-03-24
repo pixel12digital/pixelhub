@@ -55,34 +55,109 @@ class WhatsAppProviderFactory
 
     /**
      * Cria provider Whapi.Cloud (provider padrão)
+     *
+     * @param string|null $sessionName Nome do canal (ex: 'orsegups', 'pixel12digital') ou null para o padrão ativo
      */
-    private static function createWhapiProvider(): WhapiCloudProvider
+    private static function createWhapiProvider(?string $sessionName = null): WhapiCloudProvider
     {
-        $whapiConfig = self::getGlobalWhapiConfig();
+        $whapiConfig = $sessionName
+            ? self::getWhapiConfigBySession($sessionName)
+            : self::getGlobalWhapiConfig();
         if ($whapiConfig) {
-            error_log("[WhatsAppProviderFactory] Usando Whapi.Cloud");
+            $sess = $whapiConfig['session_name'] ?? 'default';
+            error_log("[WhatsAppProviderFactory] Usando Whapi.Cloud session={$sess}");
             return new WhapiCloudProvider($whapiConfig);
         }
-        // Retorna instância sem config (validação falhará ao tentar enviar)
         error_log("[WhatsAppProviderFactory] AVISO: Whapi.Cloud não configurado. Configure o token em Configurações → WhatsApp");
         return new WhapiCloudProvider([]);
     }
 
     /**
-     * Obtém configuração GLOBAL do Whapi.Cloud
+     * Obtém configuração de um canal Whapi específico por session_name
+     *
+     * @param string $sessionName Identificador do canal (ex: 'orsegups')
+     * @return array|null Config ou null se não encontrado
+     */
+    public static function getWhapiConfigBySession(string $sessionName): ?array
+    {
+        try {
+            $db   = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT whapi_api_token, whapi_channel_id, config_metadata, session_name
+                FROM whatsapp_provider_configs
+                WHERE provider_type = 'whapi'
+                  AND session_name = ?
+                  AND is_active = 1
+                LIMIT 1
+            ");
+            $stmt->execute([$sessionName]);
+            $config = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($config && !empty($config['whapi_api_token'])) {
+                if (!empty($config['config_metadata'])) {
+                    $meta = json_decode($config['config_metadata'], true);
+                    if (!empty($meta['whapi_base_url'])) {
+                        $config['whapi_base_url'] = rtrim($meta['whapi_base_url'], '/');
+                    }
+                }
+                return $config;
+            }
+            return null;
+        } catch (\Exception $e) {
+            error_log("[WhatsAppProviderFactory] Erro ao buscar Whapi session={$sessionName}: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Obtém provider Whapi por session_name (para o SDR e outros subsistemas multi-canal)
+     *
+     * @param string $sessionName Nome do canal
+     */
+    public static function getWhapiProviderBySession(string $sessionName): WhapiCloudProvider
+    {
+        return self::createWhapiProvider($sessionName);
+    }
+
+    /**
+     * Lista todos os canais Whapi cadastrados
+     *
+     * @return array Lista de configs (sem tokens descriptografados)
+     */
+    public static function getAllWhapiConfigs(): array
+    {
+        try {
+            $db   = DB::getConnection();
+            $stmt = $db->query("
+                SELECT id, session_name, whapi_channel_id, is_active, is_global,
+                       config_metadata, created_at, updated_at,
+                       CASE WHEN whapi_api_token IS NOT NULL AND whapi_api_token != '' THEN 1 ELSE 0 END AS has_token
+                FROM whatsapp_provider_configs
+                WHERE provider_type = 'whapi'
+                ORDER BY is_active DESC, session_name ASC
+            ");
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            error_log("[WhatsAppProviderFactory] Erro ao listar Whapi configs: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Obtém configuração GLOBAL/padrão do Whapi.Cloud (primeiro canal ativo)
      * 
-     * @return array|null Configuração Whapi global ou null se não encontrada
+     * @return array|null Configuração Whapi padrão ou null se não encontrada
      */
     private static function getGlobalWhapiConfig(): ?array
     {
         try {
             $db = DB::getConnection();
             $stmt = $db->query("
-                SELECT whapi_api_token, whapi_channel_id, config_metadata
+                SELECT whapi_api_token, whapi_channel_id, config_metadata, session_name
                 FROM whatsapp_provider_configs
                 WHERE provider_type = 'whapi' 
-                  AND is_global = TRUE 
                   AND is_active = 1
+                ORDER BY is_global DESC, id ASC
                 LIMIT 1
             ");
             $config = $stmt->fetch(\PDO::FETCH_ASSOC);

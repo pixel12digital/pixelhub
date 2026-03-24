@@ -44,148 +44,162 @@ ob_start();
 
 <!-- Tab Whapi.Cloud -->
 <div id="content-whapi" class="tab-content">
-    <?php
-    $whapiIsActive = !empty($whapiConfig) && !empty($whapiConfig['is_active']);
-    $whapiHasToken = !empty($whapiConfig) && !empty($whapiConfig['whapi_api_token']);
-    ?>
 
-    <!-- Status card -->
-    <div class="card" style="margin-bottom: 20px; border-left: 4px solid <?= $whapiIsActive ? '#28a745' : '#ffc107' ?>;">
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
-            <h3 style="margin: 0;">Whapi.Cloud</h3>
-            <?php if ($whapiIsActive): ?>
-                <span style="background: #28a745; color: white; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; line-height: 1.4;">● Ativo</span>
-            <?php elseif ($whapiHasToken): ?>
-                <span style="background: #ffc107; color: #000; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; line-height: 1.4;">○ Inativo</span>
-            <?php else: ?>
-                <span style="background: #dc3545; color: white; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; line-height: 1.4;">⚠ Não configurado</span>
-            <?php endif; ?>
+    <!-- Cabeçalho + botão Adicionar -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div>
+            <h3 style="margin:0;">Canais Whapi.Cloud</h3>
+            <small style="color:#6c757d;">Cada canal é um número/sessão independente no Whapi.Cloud.</small>
         </div>
-        <p style="color: #6c757d; margin-bottom: 16px;">WhatsApp API gerenciada — substitui o WPPConnect Gateway. Sem necessidade de VPS.</p>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
-            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 14px 16px;">
-                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">● Status</div>
-                <div style="font-weight: 600; color: <?= $whapiIsActive ? '#28a745' : '#dc3545' ?>;">
-                    <?= $whapiIsActive ? 'Ativo e operacional' : ($whapiHasToken ? 'Token configurado, inativo' : 'Sem configuração') ?>
-                </div>
-            </div>
-            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 14px 16px;">
-                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">🔗 Endpoint Webhook</div>
-                <code style="font-size: 12px; color: #333;">/api/whatsapp/whapi/webhook</code>
-            </div>
-            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 14px 16px;">
-                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 4px;">⚙ Provider</div>
-                <div style="font-weight: 600; color: #333;">Whapi.Cloud</div>
-            </div>
-        </div>
-
-        <?php if ($whapiIsActive): ?>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <button onclick="testWhapiConnection()" style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
-                🔍 Testar Conexão
-            </button>
-            <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/toggle-status') ?>" style="display: inline;">
-                <input type="hidden" name="config_id" value="<?= $whapiConfig['id'] ?>">
-                <button type="submit" style="background: #ffc107; color: #000; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Desativar</button>
-            </form>
-        </div>
-        <?php elseif ($whapiHasToken): ?>
-        <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/toggle-status') ?>" style="display: inline;">
-            <input type="hidden" name="config_id" value="<?= $whapiConfig['id'] ?>">
-            <button type="submit" style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">✓ Ativar</button>
-        </form>
-        <?php endif; ?>
-        <div id="whapiTestResult" style="margin-top: 15px; padding: 12px; border-radius: 4px; display: none;"></div>
+        <button onclick="document.getElementById('whapi-new-form').style.display = document.getElementById('whapi-new-form').style.display === 'none' ? 'block' : 'none'"
+                style="background:#023A8D; color:white; padding:8px 18px; border:none; border-radius:4px; cursor:pointer; font-weight:600; white-space:nowrap;">
+            + Adicionar Canal
+        </button>
     </div>
 
-    <!-- Formulário de configuração Whapi -->
-    <div class="card" id="whapi-form">
-        <h3 style="margin-top: 0;">Configurar Whapi.Cloud</h3>
-
-        <div style="background: #e7f3ff; border-left: 4px solid #0066cc; padding: 12px; margin-bottom: 20px;">
-            <strong>ℹ️ Como obter o API Token</strong>
-            <ol style="margin: 8px 0 0 0; padding-left: 20px; font-size: 14px;">
-                <li>Acesse <strong>app.whapi.cloud</strong> e faça login</li>
-                <li>Vá em <strong>Channels → seu canal (pixel12digital)</strong></li>
-                <li>Copie o <strong>Token</strong> exibido no painel</li>
-            </ol>
+    <!-- Lista de canais existentes -->
+    <?php if (empty($whapiConfigs)): ?>
+        <div class="card" style="text-align:center; padding:30px; color:#6c757d;">
+            Nenhum canal Whapi configurado ainda. Clique em <strong>+ Adicionar Canal</strong> para começar.
         </div>
-
-        <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/whapi/save') ?>">
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600;">
-                    URL da API <span style="color: #dc3545;">*</span>
-                </label>
-                <?php
-                $savedApiUrl = 'https://gate.whapi.cloud';
-                if (!empty($whapiConfig['config_metadata'])) {
-                    $whapiMeta = json_decode($whapiConfig['config_metadata'], true);
-                    if (!empty($whapiMeta['whapi_base_url'])) {
-                        $savedApiUrl = $whapiMeta['whapi_base_url'];
-                    }
-                }
-                ?>
-                <input type="url" name="whapi_api_url"
-                       value="<?= htmlspecialchars($savedApiUrl) ?>"
-                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;"
-                       placeholder="https://gate.whapi.cloud">
-                <small style="color: #666;">URL base da API Whapi.Cloud (padrão: <code>https://gate.whapi.cloud</code>)</small>
+    <?php else: ?>
+        <?php foreach ($whapiConfigs as $ch): ?>
+        <?php
+            $chActive   = !empty($ch['is_active']);
+            $chHasToken = !empty($ch['has_token']);
+            $chSession  = htmlspecialchars($ch['session_name'] ?? '—');
+            $chMeta     = json_decode($ch['config_metadata'] ?? '{}', true) ?: [];
+            $chUrl      = $chMeta['whapi_base_url'] ?? 'https://gate.whapi.cloud';
+            $editId     = 'edit-' . ($ch['id']);
+        ?>
+        <div class="card" style="margin-bottom:14px; border-left:4px solid <?= $chActive ? '#28a745' : '#adb5bd' ?>;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <div>
+                        <strong style="font-size:15px;"><?= $chSession ?></strong>
+                        <?php if ($chActive): ?>
+                            <span style="background:#28a745; color:white; font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; margin-left:6px;">● Ativo</span>
+                        <?php elseif ($chHasToken): ?>
+                            <span style="background:#ffc107; color:#000; font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; margin-left:6px;">○ Inativo</span>
+                        <?php else: ?>
+                            <span style="background:#dc3545; color:white; font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; margin-left:6px;">⚠ Sem token</span>
+                        <?php endif; ?>
+                    </div>
+                    <div style="color:#6c757d; font-size:13px;">
+                        <code><?= htmlspecialchars($chUrl) ?></code>
+                        &nbsp;·&nbsp; Webhook: <code>/api/whatsapp/whapi/webhook</code>
+                    </div>
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button onclick="document.getElementById('<?= $editId ?>').style.display = document.getElementById('<?= $editId ?>').style.display === 'none' ? 'block' : 'none'"
+                            style="background:#6c757d; color:white; padding:6px 14px; border:none; border-radius:4px; cursor:pointer; font-size:13px;">
+                        ✏ Editar
+                    </button>
+                    <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/toggle-status') ?>" style="display:inline;">
+                        <input type="hidden" name="config_id" value="<?= $ch['id'] ?>">
+                        <?php if ($chActive): ?>
+                            <button type="submit" style="background:#ffc107; color:#000; padding:6px 14px; border:none; border-radius:4px; cursor:pointer; font-size:13px;">Desativar</button>
+                        <?php else: ?>
+                            <button type="submit" style="background:#28a745; color:white; padding:6px 14px; border:none; border-radius:4px; cursor:pointer; font-size:13px;">Ativar</button>
+                        <?php endif; ?>
+                    </form>
+                </div>
             </div>
 
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600;">
-                    API Token <span style="color: #dc3545;">*</span>
-                </label>
-                <input type="text" name="whapi_api_token" required
-                       value="<?= $whapiHasToken ? '●●●●●●●●●●●●●●●●●●●●' : '' ?>"
-                       onfocus="if(this.value.includes('●')) this.value=''"
-                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;"
-                       placeholder="Cole o API Token do Whapi.Cloud aqui...">
-                <small style="color: #666;">Token do canal encontrado no painel Whapi.Cloud</small>
+            <!-- Formulário de edição (oculto por padrão) -->
+            <div id="<?= $editId ?>" style="display:none; margin-top:18px; border-top:1px solid #dee2e6; padding-top:18px;">
+                <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/whapi/save') ?>">
+                    <input type="hidden" name="session_name" value="<?= $chSession ?>">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                        <div>
+                            <label style="display:block; margin-bottom:6px; font-weight:600; font-size:13px;">URL da API</label>
+                            <input type="url" name="whapi_api_url" value="<?= htmlspecialchars($chUrl) ?>"
+                                   style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-family:monospace; font-size:13px;"
+                                   placeholder="https://gate.whapi.cloud">
+                        </div>
+                        <div>
+                            <label style="display:block; margin-bottom:6px; font-weight:600; font-size:13px;">API Token</label>
+                            <input type="text" name="whapi_api_token"
+                                   value="<?= $chHasToken ? '●●●●●●●●●●●●●●●●●●●●' : '' ?>"
+                                   onfocus="if(this.value.includes('●')) this.value=''"
+                                   style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-family:monospace; font-size:13px;"
+                                   placeholder="Token do Whapi.Cloud (deixe em branco para manter)">
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:20px;">
+                        <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+                            <input type="checkbox" name="is_active" value="1" <?= $chActive ? 'checked' : '' ?>>
+                            Ativo
+                        </label>
+                        <button type="submit" style="background:#023A8D; color:white; padding:8px 20px; border:none; border-radius:4px; cursor:pointer; font-weight:600; font-size:13px;">
+                            Salvar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    <?php endif; ?>
+    <div id="whapiTestResult" style="margin-bottom:10px; padding:12px; border-radius:4px; display:none;"></div>
+
+    <!-- Formulário: Adicionar Novo Canal -->
+    <div id="whapi-new-form" style="display:none; margin-top:4px;">
+        <div class="card" style="border-left:4px solid #023A8D;">
+            <h4 style="margin-top:0;">Novo Canal Whapi.Cloud</h4>
+
+            <div style="background:#e7f3ff; border-left:4px solid #0066cc; padding:10px 14px; margin-bottom:18px; font-size:13px;">
+                <strong>ℹ️ Como obter o Token:</strong>
+                Acesse <strong>app.whapi.cloud → Channels → seu canal → Token</strong>.
+                O <strong>Session ID</strong> é um identificador único (ex: <code>orsegups</code>, <code>pixel12digital</code>).
             </div>
 
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600;">
-                    Nome do Canal
-                </label>
-                <?php
-                $whapiChannelName = '';
-                try {
-                    $db = \PixelHub\Core\DB::getConnection();
-                    $row = $db->query("SELECT name FROM tenant_message_channels WHERE provider = 'whapi' AND is_enabled = 1 LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
-                    $whapiChannelName = $row['name'] ?? '';
-                } catch (\Exception $e) { /* ignora se coluna não existe ainda */ }
-                ?>
-                <input type="text" name="channel_name"
-                       value="<?= htmlspecialchars($whapiChannelName) ?>"
-                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;"
-                       placeholder="Ex: Pixel12 Digital">
-                <small style="color: #666;">Nome exibido no inbox ao lado do número (ex: <strong>Pixel12 Digital</strong>)</small>
-            </div>
-
-            <div style="margin-bottom: 20px;">
-                <label style="display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" name="is_active" value="1" <?= $whapiIsActive ? 'checked' : '' ?>>
-                    <span>Ativar imediatamente após salvar</span>
-                </label>
-            </div>
-
-            <button type="submit" style="background: #023A8D; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
-                Salvar Configuração Whapi
-            </button>
-        </form>
+            <form method="POST" action="<?= pixelhub_url('/settings/whatsapp-providers/whapi/save') ?>">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                    <div>
+                        <label style="display:block; margin-bottom:6px; font-weight:600;">Session ID <span style="color:#dc3545;">*</span></label>
+                        <input type="text" name="session_name" required
+                               pattern="[a-zA-Z0-9_-]+"
+                               style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;"
+                               placeholder="Ex: orsegups">
+                        <small style="color:#666;">Identificador único (letras, números, hífen). Ex: <code>orsegups</code></small>
+                    </div>
+                    <div>
+                        <label style="display:block; margin-bottom:6px; font-weight:600;">URL da API</label>
+                        <input type="url" name="whapi_api_url" value="https://gate.whapi.cloud"
+                               style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:monospace;"
+                               placeholder="https://gate.whapi.cloud">
+                    </div>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block; margin-bottom:6px; font-weight:600;">API Token <span style="color:#dc3545;">*</span></label>
+                    <input type="text" name="whapi_api_token" required
+                           style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:monospace;"
+                           placeholder="Cole o API Token do novo canal aqui...">
+                </div>
+                <div style="display:flex; align-items:center; gap:20px;">
+                    <label style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" name="is_active" value="1" checked>
+                        Ativar imediatamente
+                    </label>
+                    <button type="submit" style="background:#023A8D; color:white; padding:10px 24px; border:none; border-radius:4px; cursor:pointer; font-weight:600;">
+                        Criar Canal
+                    </button>
+                    <button type="button" onclick="document.getElementById('whapi-new-form').style.display='none'"
+                            style="background:none; border:none; color:#6c757d; cursor:pointer; font-size:13px;">Cancelar</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Instruções webhook -->
-    <div class="card" style="margin-top: 20px; background: #e7f3ff; border-left: 4px solid #0066cc;">
+    <div class="card" style="margin-top:20px; background:#e7f3ff; border-left:4px solid #0066cc;">
         <h4>📋 Configuração do Webhook no Whapi.Cloud</h4>
-        <ol style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8;">
+        <ol style="margin:0; padding-left:20px; font-size:14px; line-height:1.8;">
             <li>Acesse <strong>app.whapi.cloud → Channels → seu canal → Settings → Webhooks</strong></li>
-            <li>Cole a URL: <code style="background: #fff; padding: 2px 6px; border-radius: 3px;"><?= pixelhub_url('/api/whatsapp/whapi/webhook') ?></code></li>
+            <li>Cole a URL: <code style="background:#fff; padding:2px 6px; border-radius:3px;"><?= pixelhub_url('/api/whatsapp/whapi/webhook') ?></code></li>
             <li>Em <strong>Events</strong>, ative: <code>messages</code></li>
-            <li>Em <strong>Media</strong>, ative Auto Download para: <strong>Image, Audio, Voice, Video, Document</strong></li>
-            <li>Clique em <strong>Save</strong></li>
+            <li>Em <strong>Media</strong>, ative Auto Download: <strong>Image, Audio, Voice, Video, Document</strong></li>
+            <li>Repita para cada canal adicionado</li>
         </ol>
     </div>
 </div>
