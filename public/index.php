@@ -818,6 +818,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/prospecting/poll-status', 'ProspectingController@pollStatus');
     // SDR — Sales Development Representative
     $router->post('/prospecting/sdr/dispatch', 'ProspectingController@sdrDispatch');
+    $router->post('/prospecting/sdr/dispatch-selection', 'ProspectingController@sdrDispatchSelection');
     $router->post('/prospecting/sdr/takeover', 'ProspectingController@sdrTakeover');
     $router->get('/prospecting/sdr/status', 'ProspectingController@sdrStatus');
     $router->get('/prospecting/sdr/conversations', 'ProspectingController@sdrConversations');

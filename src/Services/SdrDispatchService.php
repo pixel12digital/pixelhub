@@ -184,6 +184,73 @@ class SdrDispatchService
     }
 
     /**
+     * Enfileira apenas os result_ids selecionados pelo usuário.
+     *
+     * @param  int[] $resultIds IDs de prospecting_results a enfileirar
+     * @return array ['enqueued' => int, 'skipped_duplicate' => int, 'skipped_no_phone' => int]
+     */
+    public static function planSelection(array $resultIds): array
+    {
+        $stats = ['enqueued' => 0, 'skipped_duplicate' => 0, 'skipped_no_phone' => 0];
+        if (empty($resultIds)) {
+            return $stats;
+        }
+
+        $db           = DB::getConnection();
+        $placeholders = implode(',', array_fill(0, count($resultIds), '?'));
+
+        $stmt = $db->prepare("
+            SELECT pr.id, pr.name, pr.phone, pr.recipe_id
+            FROM prospecting_results pr
+            WHERE pr.id IN ($placeholders)
+              AND pr.status != 'discarded'
+              AND (pr.phone IS NOT NULL AND pr.phone != '')
+              AND NOT EXISTS (
+                  SELECT 1 FROM sdr_dispatch_queue dq WHERE dq.result_id = pr.id
+              )
+            ORDER BY pr.id ASC
+        ");
+        $stmt->execute($resultIds);
+        $candidates = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        if (empty($candidates)) {
+            return $stats;
+        }
+
+        $times = self::calculateHumanTimes(count($candidates));
+        $insertQueue = $db->prepare("
+            INSERT INTO sdr_dispatch_queue
+                (result_id, recipe_id, phone, establishment_name, message, scheduled_at, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'queued', NOW())
+            ON DUPLICATE KEY UPDATE id = id
+        ");
+        $insertConv = $db->prepare("
+            INSERT INTO sdr_conversations
+                (result_id, phone, establishment_name, stage, human_mode, created_at, updated_at)
+            VALUES (?, ?, ?, 'opening', 0, NOW(), NOW())
+            ON DUPLICATE KEY UPDATE id = id
+        ");
+
+        foreach ($candidates as $i => $lead) {
+            $phone = PhoneNormalizer::toE164OrNull($lead['phone']);
+            if (!$phone) {
+                $stats['skipped_no_phone']++;
+                continue;
+            }
+
+            $name    = $lead['name'] ?? 'estabelecimento';
+            $message = self::buildOpeningMessage($name);
+            $schAt   = isset($times[$i]) ? $times[$i]->format('Y-m-d H:i:s') : date('Y-m-d 09:00:00');
+
+            $insertQueue->execute([$lead['id'], $lead['recipe_id'], $phone, $name, $message, $schAt]);
+            $insertConv->execute([$lead['id'], $phone, $name]);
+            $stats['enqueued']++;
+        }
+
+        return $stats;
+    }
+
+    /**
      * Gera a mensagem de abertura para um estabelecimento.
      */
     public static function buildOpeningMessage(string $name): string

@@ -22,9 +22,9 @@ ob_start();
             📞 Buscar Todos os Telefones
         </button>
         <?php endif; ?>
-        <button onclick="openSdrModalResults(<?= $recipe['id'] ?>, '<?= htmlspecialchars(addslashes($recipe['name'])) ?>')"
+        <button id="sdr-dispatch-btn" onclick="openSdrModalResults(<?= $recipe['id'] ?>, '<?= htmlspecialchars(addslashes($recipe['name'])) ?>')"
                 style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
-            Disparar SDR
+            <span id="sdr-btn-label">Disparar SDR</span>
         </button>
         <button onclick="<?= ($recipe['source'] ?? '') === 'instagram' ? 'runSearchInstagram(' . $recipe['id'] . ', this)' : 'runSearch(' . $recipe['id'] . ', this)' ?>"
                 <?= (($recipe['source'] ?? '') !== 'instagram' && !$hasKey) ? 'disabled title="Configure a API primeiro"' : '' ?>
@@ -150,6 +150,9 @@ ob_start();
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead>
                 <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+                    <th style="padding:12px 14px;width:36px;text-align:center;">
+                        <input type="checkbox" id="sdr-select-all" title="Selecionar todos" style="width:15px;height:15px;cursor:pointer;accent-color:#023A8D;">
+                    </th>
                     <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;"><?= ($recipe['source'] ?? '') === 'instagram' ? 'Perfil' : 'Empresa' ?></th>
                     <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Email</th>
                     <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Telefone</th>
@@ -163,6 +166,11 @@ ob_start();
                     $stStyle = $statusLabels[$st] ?? $statusLabels['new'];
                 ?>
                 <tr style="border-bottom:1px solid #f1f5f9;<?= $st === 'discarded' ? 'opacity:.4;background:#f8fafc;filter:grayscale(.5);' : '' ?>" id="row-<?= $result['id'] ?>" data-status="<?= htmlspecialchars($st) ?>" data-name="<?= htmlspecialchars($result['name'] ?? '') ?>">
+                    <td style="padding:14px 14px;text-align:center;vertical-align:top;">
+                        <?php if ($st !== 'discarded'): ?>
+                        <input type="checkbox" class="sdr-row-check" data-id="<?= $result['id'] ?>" style="width:15px;height:15px;cursor:pointer;accent-color:#023A8D;margin-top:2px;">
+                        <?php endif; ?>
+                    </td>
                     <td style="padding:14px 16px;">
                         <?php if ($result['source'] === 'instagram'): ?>
                         <!-- INSTAGRAM: foto + username + bio + seguidores + categoria -->
@@ -1235,70 +1243,97 @@ if ($totalPages > 1):
     setInterval(_poll, 30000);
 })();
 
+// ── Seleção SDR ──────────────────────────────────────────────────────────────
+function _sdrGetSelected() {
+    return Array.from(document.querySelectorAll('.sdr-row-check:checked')).map(c => parseInt(c.dataset.id));
+}
+function _sdrUpdateBtn() {
+    const n = _sdrGetSelected().length;
+    const lbl = document.getElementById('sdr-btn-label');
+    if (lbl) lbl.textContent = n > 0 ? 'Disparar SDR (' + n + ' sel.)' : 'Disparar SDR';
+}
+document.addEventListener('change', function(e) {
+    if (e.target.id === 'sdr-select-all') {
+        document.querySelectorAll('.sdr-row-check').forEach(c => c.checked = e.target.checked);
+        _sdrUpdateBtn();
+    } else if (e.target.classList.contains('sdr-row-check')) {
+        const all = document.querySelectorAll('.sdr-row-check');
+        const checked = document.querySelectorAll('.sdr-row-check:checked');
+        const sa = document.getElementById('sdr-select-all');
+        if (sa) sa.checked = all.length > 0 && checked.length === all.length;
+        _sdrUpdateBtn();
+    }
+});
+
 function openSdrModalResults(recipeId, recipeName) {
+    const selectedIds = _sdrGetSelected();
+    const isSelection = selectedIds.length > 0;
     const existing = document.getElementById('sdr-dispatch-modal');
     if (existing) existing.remove();
     const div = document.createElement('div');
     div.id = 'sdr-dispatch-modal';
+    const modeInfo = isSelection
+        ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:18px;font-size:12px;color:#166534;"><strong>${selectedIds.length} contato(s) selecionado(s)</strong> serão enfileirados.</div>`
+        : `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:18px;font-size:12px;color:#1e40af;">Nenhum selecionado — serão enfileirados automaticamente até o limite abaixo.</div>
+           <div style="margin-bottom:18px;">
+               <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">Máximo de envios hoje</label>
+               <input type="number" id="sdr-max-per-day" value="80" min="1" max="120" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;">
+               <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Máximo permitido: 120 por dia.</p>
+           </div>`;
     div.innerHTML = `
         <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;" onclick="if(event.target===this)this.remove()">
             <div style="background:#fff;border-radius:12px;padding:24px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
                 <h3 style="margin:0 0 6px;font-size:17px;color:#1e293b;">Disparar SDR</h3>
-                <p style="margin:0 0 18px;font-size:13px;color:#64748b;">Receita: <strong>${recipeName}</strong></p>
-                <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:18px;font-size:12px;color:#1e40af;">
-                    O SDR enfileira contatos com telefone e distribui os envios em horários humanizados ao longo do dia.
-                    Contatos já na fila ou já contatados não serão duplicados.
-                </div>
-                <div style="margin-bottom:18px;">
-                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">Máximo de envios hoje</label>
-                    <input type="number" id="sdr-max-per-day" value="80" min="1" max="120"
-                        style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;">
-                    <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Máximo permitido: 120 por dia.</p>
-                </div>
+                <p style="margin:0 0 14px;font-size:13px;color:#64748b;">Receita: <strong>${recipeName}</strong></p>
+                ${modeInfo}
                 <div id="sdr-modal-result" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:13px;"></div>
                 <div style="display:flex;gap:10px;">
                     <button onclick="this.closest('#sdr-dispatch-modal').remove()" style="flex:1;padding:10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;color:#64748b;">Cancelar</button>
-                    <button onclick="dispatchSdrResults(${recipeId}, this)" style="flex:2;padding:10px;background:#023A8D;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Enfileirar para SDR</button>
+                    <button onclick="dispatchSdrResults(${recipeId}, this, ${JSON.stringify(selectedIds)})" style="flex:2;padding:10px;background:#023A8D;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Enfileirar para SDR</button>
                 </div>
             </div>
         </div>`;
     document.body.appendChild(div);
 }
-function dispatchSdrResults(recipeId, btn) {
-    const maxPerDay = parseInt(document.getElementById('sdr-max-per-day').value) || 80;
+
+function dispatchSdrResults(recipeId, btn, selectedIds) {
     const resultDiv = document.getElementById('sdr-modal-result');
     const orig = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '⏳ Enfileirando...';
+    btn.innerHTML = 'Enfileirando...';
     resultDiv.style.display = 'none';
-    fetch('<?= pixelhub_url('/prospecting/sdr/dispatch') ?>', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'recipe_id=' + recipeId + '&max_per_day=' + maxPerDay
-    })
+
+    let url, body;
+    if (selectedIds && selectedIds.length > 0) {
+        url = '<?= pixelhub_url('/prospecting/sdr/dispatch-selection') ?>';
+        body = selectedIds.map(id => 'result_ids[]=' + id).join('&');
+    } else {
+        const maxPerDay = parseInt((document.getElementById('sdr-max-per-day') || {}).value) || 80;
+        url = '<?= pixelhub_url('/prospecting/sdr/dispatch') ?>';
+        body = 'recipe_id=' + recipeId + '&max_per_day=' + maxPerDay;
+    }
+
+    fetch(url, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body})
     .then(r => r.json())
     .then(data => {
         resultDiv.style.display = 'block';
         if (data.success) {
-            resultDiv.style.background = '#f0fdf4';
-            resultDiv.style.border = '1px solid #bbf7d0';
-            resultDiv.style.color = '#15803d';
+            resultDiv.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:13px;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;';
             resultDiv.innerHTML = '✓ ' + data.message + (data.skipped_no_phone ? ' (' + data.skipped_no_phone + ' sem telefone ignorados)' : '');
             btn.innerHTML = '✓ Enfileirado';
+            document.querySelectorAll('.sdr-row-check:checked').forEach(c => c.checked = false);
+            const sa = document.getElementById('sdr-select-all');
+            if (sa) sa.checked = false;
+            _sdrUpdateBtn();
         } else {
-            resultDiv.style.background = '#fef2f2';
-            resultDiv.style.border = '1px solid #fecaca';
-            resultDiv.style.color = '#dc2626';
+            resultDiv.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:13px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;';
             resultDiv.innerHTML = '✗ ' + data.error;
             btn.disabled = false;
             btn.innerHTML = orig;
         }
     })
     .catch(() => {
-        resultDiv.style.display = 'block';
-        resultDiv.style.background = '#fef2f2';
-        resultDiv.style.border = '1px solid #fecaca';
-        resultDiv.style.color = '#dc2626';
+        resultDiv.style.cssText = 'display:block;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:13px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;';
         resultDiv.innerHTML = '✗ Erro de comunicação.';
         btn.disabled = false;
         btn.innerHTML = orig;

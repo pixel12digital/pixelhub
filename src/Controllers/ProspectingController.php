@@ -869,6 +869,38 @@ class ProspectingController extends Controller
     }
 
     /**
+     * POST /prospecting/sdr/dispatch-selection  (AJAX)
+     * Enfileira apenas os result_ids selecionados pelo usuário.
+     */
+    public function sdrDispatchSelection(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $resultIds = array_map('intval', (array) ($_POST['result_ids'] ?? []));
+        $resultIds = array_filter($resultIds, fn($id) => $id > 0);
+        $resultIds = array_values($resultIds);
+
+        if (empty($resultIds)) {
+            $this->json(['success' => false, 'error' => 'Nenhum contato selecionado'], 400);
+            return;
+        }
+
+        try {
+            $stats = \PixelHub\Services\SdrDispatchService::planSelection($resultIds);
+            $this->json([
+                'success'          => true,
+                'enqueued'         => $stats['enqueued'],
+                'skipped_no_phone' => $stats['skipped_no_phone'],
+                'message'          => "Enfileirados: {$stats['enqueued']} de " . count($resultIds) . " selecionados.",
+            ]);
+        } catch (\Exception $e) {
+            error_log('[ProspectingController] sdrDispatchSelection error: ' . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * POST /prospecting/sdr/takeover  (AJAX)
      * Ativa ou desativa modo humano para uma conversa SDR.
      */
