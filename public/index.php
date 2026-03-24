@@ -820,6 +820,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/prospecting/sdr/dispatch', 'ProspectingController@sdrDispatch');
     $router->post('/prospecting/sdr/dispatch-selection', 'ProspectingController@sdrDispatchSelection');
     $router->post('/prospecting/sdr/takeover', 'ProspectingController@sdrTakeover');
+    $router->get('/prospecting/sdr/sessions', 'ProspectingController@sdrSessions');
     $router->get('/prospecting/sdr/status', 'ProspectingController@sdrStatus');
     $router->get('/prospecting/sdr/conversations', 'ProspectingController@sdrConversations');
 

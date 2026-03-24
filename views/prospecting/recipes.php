@@ -937,12 +937,18 @@ function openSdrModal(recipeId, recipeName) {
         <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;" onclick="if(event.target===this)this.remove()">
             <div style="background:#fff;border-radius:12px;padding:24px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
                 <h3 style="margin:0 0 6px;font-size:17px;color:#1e293b;">Disparar SDR</h3>
-                <p style="margin:0 0 18px;font-size:13px;color:#64748b;">Receita: <strong>${recipeName}</strong></p>
-                <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:18px;font-size:12px;color:#1e40af;">
+                <p style="margin:0 0 14px;font-size:13px;color:#64748b;">Receita: <strong>${recipeName}</strong></p>
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#1e40af;">
                     O SDR enfileira contatos com telefone e distribui os envios em horários humanizados ao longo do dia.
                     Contatos já na fila ou já contatados não serão duplicados.
                 </div>
-                <div style="margin-bottom:18px;">
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">Sessão WhatsApp</label>
+                    <select id="sdr-session-select" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:16px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">Máximo de envios hoje</label>
                     <input type="number" id="sdr-max-per-day" value="80" min="1" max="120"
                         style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;">
@@ -956,18 +962,40 @@ function openSdrModal(recipeId, recipeName) {
             </div>
         </div>`;
     document.body.appendChild(div);
+    _loadSdrSessionsRecipes();
+}
+function _loadSdrSessionsRecipes() {
+    fetch('<?= pixelhub_url('/prospecting/sdr/sessions') ?>')
+    .then(r => r.json())
+    .then(data => {
+        const sel = document.getElementById('sdr-session-select');
+        if (!sel) return;
+        const sessions = data.sessions || [];
+        if (!sessions.length) {
+            sel.innerHTML = '<option value="">Nenhuma sessão configurada</option>';
+            return;
+        }
+        sel.innerHTML = sessions.map(s =>
+            `<option value="${s.session_name}">${s.session_name}</option>`
+        ).join('');
+    })
+    .catch(() => {
+        const sel = document.getElementById('sdr-session-select');
+        if (sel) sel.innerHTML = '<option value="">Erro ao carregar sessões</option>';
+    });
 }
 function dispatchSdr(recipeId, btn) {
     const maxPerDay = parseInt(document.getElementById('sdr-max-per-day').value) || 80;
+    const sessionName = (document.getElementById('sdr-session-select') || {}).value || '';
     const resultDiv = document.getElementById('sdr-modal-result');
     const orig = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '⏳ Enfileirando...';
+    btn.innerHTML = 'Enfileirando...';
     resultDiv.style.display = 'none';
     fetch('<?= pixelhub_url('/prospecting/sdr/dispatch') ?>', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'recipe_id=' + recipeId + '&max_per_day=' + maxPerDay
+        body: 'recipe_id=' + recipeId + '&max_per_day=' + maxPerDay + '&session_name=' + encodeURIComponent(sessionName)
     })
     .then(r => r.json())
     .then(data => {

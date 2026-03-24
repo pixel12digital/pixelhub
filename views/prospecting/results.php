@@ -1244,6 +1244,26 @@ if ($totalPages > 1):
 })();
 
 // ── Seleção SDR ──────────────────────────────────────────────────────────────
+function _loadSdrSessions() {
+    fetch('<?= pixelhub_url('/prospecting/sdr/sessions') ?>')
+    .then(r => r.json())
+    .then(data => {
+        const sel = document.getElementById('sdr-session-select');
+        if (!sel) return;
+        const sessions = data.sessions || [];
+        if (!sessions.length) {
+            sel.innerHTML = '<option value="">Nenhuma sessão configurada</option>';
+            return;
+        }
+        sel.innerHTML = sessions.map(s =>
+            `<option value="${s.session_name}">${s.session_name}</option>`
+        ).join('');
+    })
+    .catch(() => {
+        const sel = document.getElementById('sdr-session-select');
+        if (sel) sel.innerHTML = '<option value="">Erro ao carregar sessões</option>';
+    });
+}
 function _sdrGetSelected() {
     return Array.from(document.querySelectorAll('.sdr-row-check:checked')).map(c => parseInt(c.dataset.id));
 }
@@ -1286,6 +1306,12 @@ function openSdrModalResults(recipeId, recipeName) {
                 <h3 style="margin:0 0 6px;font-size:17px;color:#1e293b;">Disparar SDR</h3>
                 <p style="margin:0 0 14px;font-size:13px;color:#64748b;">Receita: <strong>${recipeName}</strong></p>
                 ${modeInfo}
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">Sessão WhatsApp</label>
+                    <select id="sdr-session-select" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
                 <div id="sdr-modal-result" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:13px;"></div>
                 <div style="display:flex;gap:10px;">
                     <button onclick="this.closest('#sdr-dispatch-modal').remove()" style="flex:1;padding:10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;color:#64748b;">Cancelar</button>
@@ -1293,6 +1319,7 @@ function openSdrModalResults(recipeId, recipeName) {
                 </div>
             </div>
         </div>`;
+    _loadSdrSessions();
     document.body.appendChild(div);
 }
 
@@ -1303,14 +1330,15 @@ function dispatchSdrResults(recipeId, btn, selectedIds) {
     btn.innerHTML = 'Enfileirando...';
     resultDiv.style.display = 'none';
 
+    const sessionName = (document.getElementById('sdr-session-select') || {}).value || '';
     let url, body;
     if (selectedIds && selectedIds.length > 0) {
         url = '<?= pixelhub_url('/prospecting/sdr/dispatch-selection') ?>';
-        body = selectedIds.map(id => 'result_ids[]=' + id).join('&');
+        body = selectedIds.map(id => 'result_ids[]=' + id).join('&') + '&session_name=' + encodeURIComponent(sessionName);
     } else {
         const maxPerDay = parseInt((document.getElementById('sdr-max-per-day') || {}).value) || 80;
         url = '<?= pixelhub_url('/prospecting/sdr/dispatch') ?>';
-        body = 'recipe_id=' + recipeId + '&max_per_day=' + maxPerDay;
+        body = 'recipe_id=' + recipeId + '&max_per_day=' + maxPerDay + '&session_name=' + encodeURIComponent(sessionName);
     }
 
     fetch(url, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body})

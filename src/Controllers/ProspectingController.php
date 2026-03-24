@@ -854,8 +854,10 @@ class ProspectingController extends Controller
             return;
         }
 
+        $sessionName = trim($_POST['session_name'] ?? '');
+
         try {
-            $stats = \PixelHub\Services\SdrDispatchService::planDay($recipeId, $maxPerDay);
+            $stats = \PixelHub\Services\SdrDispatchService::planDay($recipeId, $maxPerDay, $sessionName);
             $this->json([
                 'success'          => true,
                 'enqueued'         => $stats['enqueued'],
@@ -886,8 +888,10 @@ class ProspectingController extends Controller
             return;
         }
 
+        $sessionName = trim($_POST['session_name'] ?? '');
+
         try {
-            $stats = \PixelHub\Services\SdrDispatchService::planSelection($resultIds);
+            $stats = \PixelHub\Services\SdrDispatchService::planSelection($resultIds, $sessionName);
             $this->json([
                 'success'          => true,
                 'enqueued'         => $stats['enqueued'],
@@ -898,6 +902,25 @@ class ProspectingController extends Controller
             error_log('[ProspectingController] sdrDispatchSelection error: ' . $e->getMessage());
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * GET /prospecting/sdr/sessions  (AJAX)
+     * Lista sessões Whapi disponíveis para uso no SDR.
+     */
+    public function sdrSessions(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $configs = \PixelHub\Services\WhatsAppProviderFactory::getAllWhapiConfigs();
+        $sessions = array_map(fn($c) => [
+            'session_name' => $c['session_name'] ?? '',
+            'is_active'    => (bool)($c['is_active'] ?? false),
+            'has_token'    => (bool)($c['has_token'] ?? false),
+        ], array_filter($configs, fn($c) => !empty($c['session_name']) && $c['is_active'] && $c['has_token']));
+
+        $this->json(['success' => true, 'sessions' => array_values($sessions)]);
     }
 
     /**

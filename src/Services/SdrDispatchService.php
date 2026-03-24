@@ -123,7 +123,7 @@ class SdrDispatchService
      *
      * @return array ['enqueued' => int, 'skipped_duplicate' => int, 'skipped_no_phone' => int]
      */
-    public static function planDay(int $recipeId, int $maxPerDay = self::MAX_PER_DAY): array
+    public static function planDay(int $recipeId, int $maxPerDay = self::MAX_PER_DAY, string $sessionName = ''): array
     {
         $db = DB::getConnection();
 
@@ -175,7 +175,7 @@ class SdrDispatchService
             $message = self::buildOpeningMessage($name);
             $schAt   = isset($times[$i]) ? $times[$i]->format('Y-m-d H:i:s') : date('Y-m-d 09:00:00');
 
-            $insertQueue->execute([$lead['id'], $recipeId, $phone, $name, $message, $schAt]);
+            $insertQueue->execute([$lead['id'], $recipeId, $sessionName, $phone, $name, $message, $schAt]);
             $insertConv->execute([$lead['id'], $phone, $name]);
             $stats['enqueued']++;
         }
@@ -189,7 +189,7 @@ class SdrDispatchService
      * @param  int[] $resultIds IDs de prospecting_results a enfileirar
      * @return array ['enqueued' => int, 'skipped_duplicate' => int, 'skipped_no_phone' => int]
      */
-    public static function planSelection(array $resultIds): array
+    public static function planSelection(array $resultIds, string $sessionName = ''): array
     {
         $stats = ['enqueued' => 0, 'skipped_duplicate' => 0, 'skipped_no_phone' => 0];
         if (empty($resultIds)) {
@@ -220,8 +220,8 @@ class SdrDispatchService
         $times = self::calculateHumanTimes(count($candidates));
         $insertQueue = $db->prepare("
             INSERT INTO sdr_dispatch_queue
-                (result_id, recipe_id, phone, establishment_name, message, scheduled_at, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'queued', NOW())
+                (result_id, recipe_id, session_name, phone, establishment_name, message, scheduled_at, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', NOW())
             ON DUPLICATE KEY UPDATE id = id
         ");
         $insertConv = $db->prepare("
@@ -242,7 +242,7 @@ class SdrDispatchService
             $message = self::buildOpeningMessage($name);
             $schAt   = isset($times[$i]) ? $times[$i]->format('Y-m-d H:i:s') : date('Y-m-d 09:00:00');
 
-            $insertQueue->execute([$lead['id'], $lead['recipe_id'], $phone, $name, $message, $schAt]);
+            $insertQueue->execute([$lead['id'], $lead['recipe_id'], $sessionName, $phone, $name, $message, $schAt]);
             $insertConv->execute([$lead['id'], $phone, $name]);
             $stats['enqueued']++;
         }
@@ -307,7 +307,10 @@ class SdrDispatchService
      */
     public static function sendOpeningMessage(array $job): array
     {
-        $provider = self::getSdrProvider();
+        $jobSession = $job['session_name'] ?? '';
+        $provider   = !empty($jobSession)
+            ? WhatsAppProviderFactory::getWhapiProviderBySession($jobSession)
+            : self::getSdrProvider();
         $result   = $provider->sendText($job['phone'], $job['message']);
 
         if (!($result['success'] ?? false)) {
