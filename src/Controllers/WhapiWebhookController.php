@@ -299,6 +299,41 @@ class WhapiWebhookController extends Controller
                 }
             }
 
+            // ── SDR: atualiza estado da conversa e processa comandos do operador ──
+            if ($internalEventType === 'whatsapp.inbound.message' && !empty($body)) {
+                try {
+                    $sdrPhone = \PixelHub\Services\PhoneNormalizer::toE164OrNull($contactPhone);
+                    if ($sdrPhone) {
+                        $dbSdr = DB::getConnection();
+
+                        // 1. Atualiza last_inbound_at + conversation_id em sdr_conversations
+                        $convIdForSdr = null;
+                        if (!empty($convRow['conversation_id'])) {
+                            $convIdForSdr = $convRow['conversation_id'];
+                        }
+                        $sdrUpd = $dbSdr->prepare("
+                            UPDATE sdr_conversations
+                            SET last_inbound_at = NOW(),
+                                conversation_id = COALESCE(conversation_id, ?),
+                                updated_at = NOW()
+                            WHERE phone = ?
+                              AND stage NOT IN ('closed_win','closed_lost','opted_out')
+                        ");
+                        $sdrUpd->execute([$convIdForSdr, $sdrPhone]);
+
+                        // 2. Processa comandos do operador (47 996164699)
+                        if ($sdrPhone === \PixelHub\Services\SdrDispatchService::OWNER_PHONE) {
+                            $reply = \PixelHub\Services\SdrDispatchService::processCommand($body, $sdrPhone);
+                            if (!empty($reply)) {
+                                \PixelHub\Services\SdrDispatchService::notifyOwner($reply);
+                            }
+                        }
+                    }
+                } catch (\Throwable $sdrEx) {
+                    error_log("[WhapiWebhook] SDR hook error: " . $sdrEx->getMessage());
+                }
+            }
+
             error_log(sprintf(
                 '[WhapiWebhook] Ingested: event_id=%s, saved=%s, type=%s',
                 $eventId ?? 'NULL',

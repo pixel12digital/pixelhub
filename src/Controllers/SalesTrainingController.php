@@ -236,7 +236,7 @@ Simule a reação inicial do prospect conforme o cenário, como se já tivesse r
 PROMPT;
     }
 
-    private static function buildSystemPrompt(): string
+    public static function buildSystemPrompt(): string
     {
         return <<<PROMPT
 Você é Charles, consultor da Orsegups em Blumenau e região (Vale do Itajaí, SC).

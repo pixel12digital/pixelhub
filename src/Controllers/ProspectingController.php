@@ -833,6 +833,117 @@ class ProspectingController extends Controller
         }
     }
 
+    // =========================================================================
+    // SDR — Sales Development Representative
+    // =========================================================================
+
+    /**
+     * POST /prospecting/sdr/dispatch  (AJAX)
+     * Enfileira todos os leads de uma receita para disparo SDR no dia atual.
+     */
+    public function sdrDispatch(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $recipeId  = (int) ($_POST['recipe_id'] ?? 0);
+        $maxPerDay = min((int) ($_POST['max_per_day'] ?? 80), 120);
+
+        if (!$recipeId) {
+            $this->json(['success' => false, 'error' => 'ID da receita inválido'], 400);
+            return;
+        }
+
+        try {
+            $stats = \PixelHub\Services\SdrDispatchService::planDay($recipeId, $maxPerDay);
+            $this->json([
+                'success'          => true,
+                'enqueued'         => $stats['enqueued'],
+                'skipped_no_phone' => $stats['skipped_no_phone'],
+                'message'          => "Enfileirados: {$stats['enqueued']} leads para disparo SDR.",
+            ]);
+        } catch (\Exception $e) {
+            error_log('[ProspectingController] sdrDispatch error: ' . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * POST /prospecting/sdr/takeover  (AJAX)
+     * Ativa ou desativa modo humano para uma conversa SDR.
+     */
+    public function sdrTakeover(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $sdrConvId = (int) ($_POST['sdr_conv_id'] ?? 0);
+        $mode      = (int) ($_POST['human_mode'] ?? 1); // 1=assumir, 0=devolver
+
+        if (!$sdrConvId) {
+            $this->json(['success' => false, 'error' => 'ID da conversa SDR inválido'], 400);
+            return;
+        }
+
+        try {
+            $userId = Auth::user()['id'] ?? null;
+            \PixelHub\Services\SdrDispatchService::setHumanMode($sdrConvId, (bool) $mode, $userId);
+            $label = $mode ? 'Conversa assumida por humano. IA pausada.' : 'Conversa devolvida à IA.';
+            $this->json(['success' => true, 'message' => $label]);
+        } catch (\Exception $e) {
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * GET /prospecting/sdr/status  (AJAX)
+     * Retorna estatísticas diárias do SDR.
+     */
+    public function sdrStatus(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        try {
+            $stats = \PixelHub\Services\SdrDispatchService::getDailyStats();
+            $this->json(['success' => true, 'stats' => $stats]);
+        } catch (\Exception $e) {
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * GET /prospecting/sdr/conversations  (AJAX)
+     * Lista conversas SDR ativas para exibição na tela de resultados.
+     */
+    public function sdrConversations(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $recipeId = (int) ($_GET['recipe_id'] ?? 0);
+
+        try {
+            $db = \PixelHub\Core\DB::getConnection();
+            $where = $recipeId ? 'AND dq.recipe_id = ' . $recipeId : '';
+            $stmt  = $db->query("
+                SELECT sc.id, sc.result_id, sc.phone, sc.establishment_name,
+                       sc.stage, sc.human_mode, sc.scheduled_at,
+                       sc.last_inbound_at, sc.last_ai_reply_at,
+                       dq.status AS queue_status, dq.sent_at, dq.scheduled_at AS dispatch_at
+                FROM sdr_conversations sc
+                LEFT JOIN sdr_dispatch_queue dq ON dq.result_id = sc.result_id
+                WHERE 1=1 {$where}
+                ORDER BY sc.updated_at DESC
+                LIMIT 200
+            ");
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $this->json(['success' => true, 'conversations' => $rows]);
+        } catch (\Exception $e) {
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
     /**
      * GET /prospecting/poll-status
      * Retorna status atual e whatsapp_sent_at para uma lista de IDs de resultados.

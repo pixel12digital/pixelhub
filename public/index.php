@@ -808,6 +808,11 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->post('/prospecting/convert-to-lead', 'ProspectingController@convertToLead');
     $router->post('/prospecting/mark-wa-sent', 'ProspectingController@markWaSent');
     $router->get('/prospecting/poll-status', 'ProspectingController@pollStatus');
+    // SDR — Sales Development Representative
+    $router->post('/prospecting/sdr/dispatch', 'ProspectingController@sdrDispatch');
+    $router->post('/prospecting/sdr/takeover', 'ProspectingController@sdrTakeover');
+    $router->get('/prospecting/sdr/status', 'ProspectingController@sdrStatus');
+    $router->get('/prospecting/sdr/conversations', 'ProspectingController@sdrConversations');
 
     // Treinamento de Vendas — Simulador de Abordagem
     $router->get('/prospecting/training', 'SalesTrainingController@index');
