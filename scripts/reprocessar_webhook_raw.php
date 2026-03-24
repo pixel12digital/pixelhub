@@ -64,7 +64,8 @@ if (empty($rows)) {
     exit(0);
 }
 
-$controller = new \PixelHub\Controllers\WhatsAppWebhookController();
+$wppController   = new \PixelHub\Controllers\WhatsAppWebhookController();
+$whapiController = new \PixelHub\Controllers\WhapiWebhookController();
 
 $ok = 0;
 $fail = 0;
@@ -82,7 +83,12 @@ foreach ($rows as $row) {
 
     echo "  [id={$row['id']}] {$row['received_at']} type={$row['event_type']} ... ";
 
-    $result = $controller->processPayload($payload);
+    // Roteia para o controller correto baseado no prefixo do event_type
+    if (strncmp($row['event_type'], 'whapi_', 6) === 0) {
+        $result = $whapiController->processPayload($payload);
+    } else {
+        $result = $wppController->processPayload($payload);
+    }
 
     if ($result['skipped']) {
         $db->prepare("UPDATE webhook_raw_logs SET processed = 1, error_message = ? WHERE id = ?")

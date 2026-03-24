@@ -54,21 +54,26 @@ class WhapiWebhookController extends Controller
             $eventAction  = $payload['event']['event'] ?? null;
             $whapiChannelId = $payload['channel_id'] ?? null;
 
-            // ── Responde 200 IMEDIATAMENTE antes de qualquer processamento ──────
-            // Headers + Content-Length + Connection:close ANTES do echo para que
-            // Apache/nginx/LiteSpeed envie a resposta sem esperar o script terminar
-            ignore_user_abort(true);
-            $responseBody = json_encode(['success' => true, 'code' => 'RECEIVED'], JSON_UNESCAPED_UNICODE);
-            while (ob_get_level() > 0) @ob_end_clean(); // limpa apenas agora (pós-leitura de input)
-            http_response_code(200);
-            header('Content-Type: application/json; charset=utf-8');
-            header('Content-Length: ' . strlen($responseBody));
-            header('Connection: close');
-            echo $responseBody;
-            if (ob_get_level() > 0) ob_end_flush();
-            flush();
-            if (function_exists('fastcgi_finish_request')) {
-                fastcgi_finish_request();
+            // ── Responde 200 IMEDIATAMENTE (apenas se index.php não enviou a resposta precoce) ──
+            // Se index.php já enviou o early-response, NÃO enviamos novamente para evitar
+            // double-echo que causa Content-Length mismatch → ETIMEDOUT no Whapi.
+            $earlyResponseSent = !empty($GLOBALS['_WHAPI_EARLY_RESPONSE_SENT']);
+            $hasFpm = function_exists('fastcgi_finish_request');
+
+            if (!$earlyResponseSent) {
+                ignore_user_abort(true);
+                $responseBody = json_encode(['success' => true, 'code' => 'RECEIVED'], JSON_UNESCAPED_UNICODE);
+                while (ob_get_level() > 0) @ob_end_clean();
+                http_response_code(200);
+                header('Content-Type: application/json; charset=utf-8');
+                header('Content-Length: ' . strlen($responseBody));
+                header('Connection: close');
+                echo $responseBody;
+                if (ob_get_level() > 0) ob_end_flush();
+                flush();
+                if ($hasFpm) {
+                    fastcgi_finish_request();
+                }
             }
             // ── Whapi já recebeu o 200, processamento continua em background ────
 
@@ -78,7 +83,7 @@ class WhapiWebhookController extends Controller
                 $remoteIp, $eventType ?? 'NULL', $eventAction ?? 'NULL', $whapiChannelId ?? 'NULL'
             ));
 
-            // Persiste payload bruto para auditoria
+            // Persiste payload bruto para auditoria (e fila de reprocessamento via cron)
             $payloadHash = substr(md5($rawPayload), 0, 16);
             try {
                 $dbLog = DB::getConnection();
@@ -88,6 +93,15 @@ class WhapiWebhookController extends Controller
                 ")->execute(["whapi_{$eventType}_{$eventAction}", $payloadHash, $rawPayload]);
             } catch (\Throwable $e) {
                 error_log("[WhapiWebhook] Erro ao persistir webhook_raw_logs: " . $e->getMessage());
+            }
+
+            // ── Se não há FPM e a resposta precoce foi enviada, sair imediatamente ──
+            // Sem FPM, o Apache mantém a conexão aberta enquanto o PHP roda.
+            // Content-Length já foi enviado (34 bytes). Qualquer echo adicional causa
+            // Content-Length mismatch → ETIMEDOUT. Saímos aqui para fechar a conexão
+            // rápido. O cron reprocessar_webhook_raw.php processará o payload.
+            if ($earlyResponseSent && !$hasFpm) {
+                exit;
             }
 
             // Ignora eventos de status
@@ -125,6 +139,34 @@ class WhapiWebhookController extends Controller
             // Resposta já foi enviada acima — apenas loga
             exit;
         }
+    }
+
+    /**
+     * Processa um payload completo Whapi — chamado pelo cron reprocessar_webhook_raw.php
+     * 
+     * @param array $fullPayload Payload JSON completo do webhook Whapi
+     * @return array ['saved' => bool, 'skipped' => bool, 'event_id' => ?string, 'error' => ?string]
+     */
+    public function processPayload(array $fullPayload): array
+    {
+        $eventType     = $fullPayload['event']['type'] ?? null;
+        $eventAction   = $fullPayload['event']['event'] ?? null;
+        $whapiChannelId = $fullPayload['channel_id'] ?? null;
+
+        if ($eventType === 'statuses') {
+            return ['saved' => false, 'skipped' => true, 'event_id' => null, 'error' => 'STATUS_SKIPPED'];
+        }
+
+        if ($eventType !== 'messages' || empty($fullPayload['messages'])) {
+            return ['saved' => false, 'skipped' => true, 'event_id' => null, 'error' => 'NON_MESSAGE_SKIPPED'];
+        }
+
+        $rawPayload = json_encode($fullPayload);
+        $lastResult = ['saved' => false, 'skipped' => false, 'event_id' => null, 'error' => null];
+        foreach ($fullPayload['messages'] as $message) {
+            $lastResult = $this->processMessage($message, $whapiChannelId, $rawPayload);
+        }
+        return $lastResult;
     }
 
     /**

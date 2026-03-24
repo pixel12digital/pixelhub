@@ -28,6 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' &&
         while (ob_get_level() > 0) @ob_end_flush();
         flush();
     }
+    // Sinaliza que a resposta já foi enviada (evita double-echo no controller)
+    $GLOBALS['_WHAPI_EARLY_RESPONSE_SENT'] = true;
     // Continua o bootstrap e processamento abaixo (em background)
     set_time_limit(120);
     ini_set('max_execution_time', 120);
