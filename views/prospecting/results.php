@@ -23,8 +23,8 @@ ob_start();
         </button>
         <?php endif; ?>
         <button onclick="openSdrModalResults(<?= $recipe['id'] ?>, '<?= htmlspecialchars(addslashes($recipe['name'])) ?>')"
-                style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#0369a1;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
-            🤖 Disparar SDR
+                style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
+            Disparar SDR
         </button>
         <button onclick="<?= ($recipe['source'] ?? '') === 'instagram' ? 'runSearchInstagram(' . $recipe['id'] . ', this)' : 'runSearch(' . $recipe['id'] . ', this)' ?>"
                 <?= (($recipe['source'] ?? '') !== 'instagram' && !$hasKey) ? 'disabled title="Configure a API primeiro"' : '' ?>
@@ -1243,7 +1243,7 @@ function openSdrModalResults(recipeId, recipeName) {
     div.innerHTML = `
         <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;" onclick="if(event.target===this)this.remove()">
             <div style="background:#fff;border-radius:12px;padding:24px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
-                <h3 style="margin:0 0 6px;font-size:17px;color:#1e293b;">🤖 Disparar SDR</h3>
+                <h3 style="margin:0 0 6px;font-size:17px;color:#1e293b;">Disparar SDR</h3>
                 <p style="margin:0 0 18px;font-size:13px;color:#64748b;">Receita: <strong>${recipeName}</strong></p>
                 <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:18px;font-size:12px;color:#1e40af;">
                     O SDR enfileira contatos com telefone e distribui os envios em horários humanizados ao longo do dia.
@@ -1258,7 +1258,7 @@ function openSdrModalResults(recipeId, recipeName) {
                 <div id="sdr-modal-result" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:13px;"></div>
                 <div style="display:flex;gap:10px;">
                     <button onclick="this.closest('#sdr-dispatch-modal').remove()" style="flex:1;padding:10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;color:#64748b;">Cancelar</button>
-                    <button onclick="dispatchSdrResults(${recipeId}, this)" style="flex:2;padding:10px;background:#0369a1;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">🤖 Enfileirar para SDR</button>
+                    <button onclick="dispatchSdrResults(${recipeId}, this)" style="flex:2;padding:10px;background:#023A8D;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Enfileirar para SDR</button>
                 </div>
             </div>
         </div>`;
