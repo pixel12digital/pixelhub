@@ -206,6 +206,8 @@ if (($sourceFilter ?? null) === 'minhareceita') {
                         <button onclick="openEditModal(<?= htmlspecialchars(json_encode($recipe), ENT_QUOTES) ?>)" style="display:block;width:100%;padding:10px 14px;background:none;border:none;cursor:pointer;font-size:13px;color:#374151;text-align:left;">✏ Editar</button>
                         <button onclick="toggleStatus(<?= $recipe['id'] ?>)" style="display:block;width:100%;padding:10px 14px;background:none;border:none;cursor:pointer;font-size:13px;color:#374151;text-align:left;"><?= $isActive ? '⏸ Pausar' : '▶ Ativar' ?></button>
                         <div style="border-top:1px solid #f1f5f9;"></div>
+                        <button onclick="openSdrModal(<?= $recipe['id'] ?>, '<?= htmlspecialchars(addslashes($recipe['name'])) ?>')" style="display:block;width:100%;padding:10px 14px;background:none;border:none;cursor:pointer;font-size:13px;color:#0369a1;text-align:left;">🤖 Disparar SDR</button>
+                        <div style="border-top:1px solid #f1f5f9;"></div>
                         <button onclick="deleteRecipe(<?= $recipe['id'] ?>, '<?= htmlspecialchars(addslashes($recipe['name'])) ?>')" style="display:block;width:100%;padding:10px 14px;background:none;border:none;cursor:pointer;font-size:13px;color:#dc2626;text-align:left;">🗑 Excluir</button>
                     </div>
                 </div>
@@ -924,6 +926,76 @@ function runSearchInstagram(recipeId,btn){
     })
     .catch(()=>{div.style.display='block';div.style.background='#fef2f2';div.style.border='1px solid #fecaca';div.style.color='#dc2626';div.innerHTML='✗ Erro de comunicação.';})
     .finally(()=>{if(btn){btn.disabled=false;btn.innerHTML=orig;}});
+}
+function openSdrModal(recipeId, recipeName) {
+    closeAllDropdowns();
+    const existing = document.getElementById('sdr-dispatch-modal');
+    if (existing) existing.remove();
+    const div = document.createElement('div');
+    div.id = 'sdr-dispatch-modal';
+    div.innerHTML = `
+        <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;" onclick="if(event.target===this)this.remove()">
+            <div style="background:#fff;border-radius:12px;padding:24px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+                <h3 style="margin:0 0 6px;font-size:17px;color:#1e293b;">🤖 Disparar SDR</h3>
+                <p style="margin:0 0 18px;font-size:13px;color:#64748b;">Receita: <strong>${recipeName}</strong></p>
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:18px;font-size:12px;color:#1e40af;">
+                    O SDR enfileira contatos com telefone e distribui os envios em horários humanizados ao longo do dia.
+                    Contatos já na fila ou já contatados não serão duplicados.
+                </div>
+                <div style="margin-bottom:18px;">
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">Máximo de envios hoje</label>
+                    <input type="number" id="sdr-max-per-day" value="80" min="1" max="120"
+                        style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;">
+                    <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Máximo permitido: 120 por dia.</p>
+                </div>
+                <div id="sdr-modal-result" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:13px;"></div>
+                <div style="display:flex;gap:10px;">
+                    <button onclick="this.closest('#sdr-dispatch-modal').remove()" style="flex:1;padding:10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;color:#64748b;">Cancelar</button>
+                    <button onclick="dispatchSdr(${recipeId}, this)" style="flex:2;padding:10px;background:#0369a1;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">🤖 Enfileirar para SDR</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(div);
+}
+function dispatchSdr(recipeId, btn) {
+    const maxPerDay = parseInt(document.getElementById('sdr-max-per-day').value) || 80;
+    const resultDiv = document.getElementById('sdr-modal-result');
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Enfileirando...';
+    resultDiv.style.display = 'none';
+    fetch('<?= pixelhub_url('/prospecting/sdr/dispatch') ?>', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'recipe_id=' + recipeId + '&max_per_day=' + maxPerDay
+    })
+    .then(r => r.json())
+    .then(data => {
+        resultDiv.style.display = 'block';
+        if (data.success) {
+            resultDiv.style.background = '#f0fdf4';
+            resultDiv.style.border = '1px solid #bbf7d0';
+            resultDiv.style.color = '#15803d';
+            resultDiv.innerHTML = '✓ ' + data.message + (data.skipped_no_phone ? ' (' + data.skipped_no_phone + ' sem telefone ignorados)' : '');
+            btn.innerHTML = '✓ Enfileirado';
+        } else {
+            resultDiv.style.background = '#fef2f2';
+            resultDiv.style.border = '1px solid #fecaca';
+            resultDiv.style.color = '#dc2626';
+            resultDiv.innerHTML = '✗ ' + data.error;
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        }
+    })
+    .catch(() => {
+        resultDiv.style.display = 'block';
+        resultDiv.style.background = '#fef2f2';
+        resultDiv.style.border = '1px solid #fecaca';
+        resultDiv.style.color = '#dc2626';
+        resultDiv.innerHTML = '✗ Erro de comunicação.';
+        btn.disabled = false;
+        btn.innerHTML = orig;
+    });
 }
 function runSearch(recipeId,btn,maxResults){
     maxResults=maxResults||100;
