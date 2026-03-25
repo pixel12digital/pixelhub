@@ -1350,7 +1350,7 @@ function openSdrModalResults(recipeId, recipeName) {
                 </div>
                 <div id="sdr-modal-result" style="display:none;margin-bottom:14px;padding:12px 14px;border-radius:6px;font-size:13px;"></div>
                 <div style="display:flex;gap:10px;flex-direction:column;">
-                    <button onclick="dispatchSdrResults(${recipeId}, this)" style="padding:14px;background:#023A8D;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:15px;font-weight:600;min-height:48px;">Enfileirar para SDR</button>
+                    <button onclick="dispatchSdrResults(${recipeId}, this, _sdrGetSelected())" style="padding:14px;background:#023A8D;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:15px;font-weight:600;min-height:48px;">Enfileirar para SDR</button>
                     <button onclick="this.closest('#sdr-dispatch-modal').remove()" style="padding:12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;color:#64748b;min-height:44px;">Cancelar</button>
                 </div>
             </div>

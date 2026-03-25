@@ -79,7 +79,9 @@ class SdrDispatchService
         $morningEnd   = strtotime("{$date} 11:30:00");
 
         $times = [];
-        $cursor = $windowStart + rand(30, 180); // inicia com 30s-3min de variação
+        // Inicia do maior entre: agora+buffer (se já passou das 09:00) ou início da janela
+        $nowPlusBuffer = time() + rand(60, 300); // 1-5 min de buffer a partir de agora
+        $cursor = max($nowPlusBuffer, $windowStart) + rand(30, 120);
 
         for ($i = 0; $i < $count; $i++) {
             // Pula almoço
