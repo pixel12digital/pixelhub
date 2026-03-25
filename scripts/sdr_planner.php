@@ -78,7 +78,7 @@ if (empty($recipes)) {
 echo "{$L} Receitas ativas: " . count($recipes) . "\n";
 
 // ─── 3. Calcula budget proporcional ao horário atual ───────────
-$maxPerDay    = (int)(Env::get('SDR_MAX_PER_DAY', '850'));
+$maxPerDay    = (int)(Env::get('SDR_MAX_PER_DAY', '100')); // seguro: 80-120/dia para WhatsApp
 $windowStart  = strtotime(date('Y-m-d') . ' ' . \PixelHub\Services\SdrDispatchService::DISPATCH_WINDOW_START . ':00');
 $windowEnd    = strtotime(date('Y-m-d') . ' ' . \PixelHub\Services\SdrDispatchService::DISPATCH_WINDOW_END   . ':00');
 $totalWindow  = $windowEnd - $windowStart; // segundos totais da janela
