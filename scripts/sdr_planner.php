@@ -77,11 +77,46 @@ if (empty($recipes)) {
 
 echo "{$L} Receitas ativas: " . count($recipes) . "\n";
 
-// ─── 3. Para cada receita, planeja o dia ───────────────────────
-$maxPerDay = (int) (Env::get('SDR_MAX_PER_DAY', '80'));
-$totalSlots = $maxPerDay;
+// ─── 3. Calcula budget proporcional ao horário atual ───────────
+$maxPerDay    = (int)(Env::get('SDR_MAX_PER_DAY', '850'));
+$windowStart  = strtotime(date('Y-m-d') . ' ' . \PixelHub\Services\SdrDispatchService::DISPATCH_WINDOW_START . ':00');
+$windowEnd    = strtotime(date('Y-m-d') . ' ' . \PixelHub\Services\SdrDispatchService::DISPATCH_WINDOW_END   . ':00');
+$totalWindow  = $windowEnd - $windowStart; // segundos totais da janela
+
+$now = time();
+if ($now <= $windowStart) {
+    // Antes da janela: budget completo do dia
+    $todayBudget = $maxPerDay;
+} elseif ($now >= $windowEnd) {
+    // Depois da janela: agenda para amanhã (calculateHumanTimes cuida disso)
+    $todayBudget = $maxPerDay;
+} else {
+    // Durante a janela: proporcional ao tempo restante
+    $remaining   = $windowEnd - $now;
+    $proportion  = $remaining / $totalWindow;
+    $todayBudget = (int) ceil($maxPerDay * $proportion);
+}
+
+// Subtrai jobs já enfileirados/enviados hoje (evita ultrapassar o limite diário)
+$alreadyToday = (int) $db->query("
+    SELECT COUNT(*) FROM sdr_dispatch_queue
+    WHERE DATE(created_at) = CURDATE()
+      AND status NOT IN ('cancelled', 'failed')
+")->fetchColumn();
+
+$totalSlots   = max(0, min($todayBudget, $maxPerDay - $alreadyToday));
 $totalEnqueued = 0;
 $totalSkipped  = 0;
+
+echo "{$L} Limite diário : {$maxPerDay}\n";
+echo "{$L} Já enfileirado: {$alreadyToday}\n";
+echo "{$L} Budget hoje   : {$todayBudget} (proporcional ao tempo restante)\n";
+echo "{$L} Slots livres  : {$totalSlots}\n\n";
+
+if ($totalSlots <= 0) {
+    echo "{$L} Budget diário atingido ou janela encerrada. Nada a enfileirar.\n";
+    exit(0);
+}
 
 // Distribui o budget entre as receitas ativas
 $perRecipe = (int) ceil($totalSlots / count($recipes));
