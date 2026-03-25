@@ -59,29 +59,34 @@ class SdrDispatchService
 
         $date = $date ?? date('Y-m-d');
 
-        // Janela 09:00 – 17:00, com pausa de almoço 12:00-13:20
         $windowStart = strtotime("{$date} " . self::DISPATCH_WINDOW_START . ':00');
         $windowEnd   = strtotime("{$date} " . self::DISPATCH_WINDOW_END   . ':00');
         $lunchStart  = strtotime("{$date} 12:00:00");
         $lunchEnd    = strtotime("{$date} 13:20:00");
 
-        // Distribuição de perfis de intervalo (em segundos)
-        $profiles = [
-            ['min' => 120,  'max' => 240,  'weight' => 15], // rápido: 2-4 min
-            ['min' => 360,  'max' => 720,  'weight' => 45], // normal: 6-12 min
-            ['min' => 900,  'max' => 1680, 'weight' => 25], // devagar: 15-28 min
-            ['min' => 1800, 'max' => 3300, 'weight' => 15], // pausa: 30-55 min
-        ];
+        // Ponto de início: max(agora + 1-5 min buffer, início da janela)
+        $start = max(time() + rand(60, 300), $windowStart);
 
-        // Pico de manhã: entre 09:30-11:30 concentra ~40% dos envios
-        $morningBoost = (int) round($count * 0.40);
-        $morningStart = strtotime("{$date} 09:30:00");
-        $morningEnd   = strtotime("{$date} 11:30:00");
+        // Se o início cair no almoço, mover para depois do almoço
+        if ($start >= $lunchStart && $start < $lunchEnd) {
+            $start = $lunchEnd + rand(60, 300);
+        }
+
+        // Calcular tempo disponível líquido (excluindo almoço, se ainda está por vir)
+        $netAvail = $windowEnd - $start;
+        if ($lunchStart < $windowEnd && $lunchEnd > $start) {
+            $overlap = min($lunchEnd, $windowEnd) - max($lunchStart, $start);
+            $netAvail -= max(0, $overlap);
+        }
+        $netAvail = max($netAvail, $count * 180); // garante ao menos 3 min/contato
+
+        // Intervalo base adaptativo: tempo disponível dividido pelo número de contatos
+        // Clamped entre 3 min (mínimo humano) e 45 min (máximo realista)
+        $baseInterval = (int) ($netAvail / $count);
+        $baseInterval = max(180, min(2700, $baseInterval));
 
         $times = [];
-        // Inicia do maior entre: agora+buffer (se já passou das 09:00) ou início da janela
-        $nowPlusBuffer = time() + rand(60, 300); // 1-5 min de buffer a partir de agora
-        $cursor = max($nowPlusBuffer, $windowStart) + rand(30, 120);
+        $cursor = $start + rand(30, 90);
 
         for ($i = 0; $i < $count; $i++) {
             // Pula almoço
@@ -89,30 +94,24 @@ class SdrDispatchService
                 $cursor = $lunchEnd + rand(60, 300);
             }
 
-            // Respeita fim da janela
-            if ($cursor >= $windowEnd) {
-                $cursor = $windowEnd - rand(60, 300);
-            }
-
             $dt = new \DateTime();
             $dt->setTimestamp($cursor);
             $times[] = clone $dt;
 
-            // Sorteia próximo intervalo com base nos perfis
+            // Variação humana bimodal:
+            // 70% do tempo: intervalo "normal" (±30% do base)
+            // 30% do tempo: intervalo "distração" (1.5×-2.5× o base — pausa para responder outro lead)
             $roll = rand(1, 100);
-            $cumWeight = 0;
-            $interval = 600; // fallback 10 min
-            foreach ($profiles as $p) {
-                $cumWeight += $p['weight'];
-                if ($roll <= $cumWeight) {
-                    $interval = rand($p['min'], $p['max']);
-                    break;
-                }
+            if ($roll <= 70) {
+                $variance = (int) ($baseInterval * 0.30);
+                $interval = $baseInterval + rand(-$variance, $variance);
+            } else {
+                $interval = (int) ($baseInterval * (1.5 + lcg_value())); // 1.5x–2.5x
             }
 
-            // Adiciona segundos aleatórios para parecer ainda mais humano
-            $interval += rand(-30, 60);
-            $interval = max(90, $interval);
+            // Segundos aleatórios (evita horários redondos como 14:00:00)
+            $interval += rand(-45, 45);
+            $interval  = max(180, $interval); // nunca menos de 3 min
 
             $cursor += $interval;
         }
