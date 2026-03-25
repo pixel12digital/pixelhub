@@ -651,7 +651,11 @@ class SdrDispatchService
      */
     private static function deliverAiReply(array $conv, string $text, \PDO $db): void
     {
-        $provider = self::getSdrProvider();
+        // Usa a sessão da conversa; fallback para getSdrProvider()
+        $convSession = $conv['session_name'] ?? '';
+        $provider = !empty($convSession)
+            ? WhatsAppProviderFactory::getWhapiProviderBySession($convSession)
+            : self::getSdrProvider();
         $result   = $provider->sendText($conv['phone'], $text);
 
         if (!($result['success'] ?? false)) {
@@ -1142,8 +1146,8 @@ class SdrDispatchService
             return WhatsAppProviderFactory::getWhapiProviderBySession($session);
         }
 
-        // 4. Fallback: primeiro canal ativo (comportamento anterior)
-        return WhatsAppProviderFactory::getWhapiProviderBySession('pixel12digital')
+        // 4. Fallback: sessão padrão orsegups
+        return WhatsAppProviderFactory::getWhapiProviderBySession('orsegups')
             ?: new WhapiCloudProvider([]);
     }
 

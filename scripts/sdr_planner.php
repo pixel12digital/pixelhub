@@ -90,7 +90,8 @@ foreach ($recipes as $recipe) {
     echo "{$L} Receita #{$recipe['id']}: {$recipe['name']} ({$recipe['source']})\n";
 
     try {
-        $stats = SdrDispatchService::planDay($recipe['id'], min($perRecipe, $totalSlots - $totalEnqueued));
+        $sessionName = Env::get('SDR_WHAPI_SESSION', 'orsegups');
+        $stats = SdrDispatchService::planDay($recipe['id'], min($perRecipe, $totalSlots - $totalEnqueued), $sessionName);
 
         echo "{$L}   Enfileirados: {$stats['enqueued']}\n";
         echo "{$L}   Sem telefone: {$stats['skipped_no_phone']}\n";
