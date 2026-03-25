@@ -173,11 +173,21 @@ class SdrDispatchService
             VALUES (?, ?, ?, 'opening', 0, NOW(), NOW())
             ON DUPLICATE KEY UPDATE id = id
         ");
+        $checkPhone = $db->prepare("
+            SELECT 1 FROM sdr_dispatch_queue WHERE phone = ? LIMIT 1
+        ");
 
         foreach ($candidates as $i => $lead) {
             $phone = PhoneNormalizer::toE164OrNull($lead['phone']);
             if (!$phone) {
                 $stats['skipped_no_phone']++;
+                continue;
+            }
+
+            // Dedup por telefone: evita enviar dois opens para o mesmo número
+            $checkPhone->execute([$phone]);
+            if ($checkPhone->fetch()) {
+                $stats['skipped_duplicate']++;
                 continue;
             }
 
@@ -248,11 +258,21 @@ class SdrDispatchService
             VALUES (?, ?, ?, 'opening', 0, NOW(), NOW())
             ON DUPLICATE KEY UPDATE id = id
         ");
+        $checkPhone = $db->prepare("
+            SELECT 1 FROM sdr_dispatch_queue WHERE phone = ? LIMIT 1
+        ");
 
         foreach ($candidates as $i => $lead) {
             $phone = PhoneNormalizer::toE164OrNull($lead['phone']);
             if (!$phone) {
                 $stats['skipped_no_phone']++;
+                continue;
+            }
+
+            // Dedup por telefone: evita enviar dois opens para o mesmo número
+            $checkPhone->execute([$phone]);
+            if ($checkPhone->fetch()) {
+                $stats['skipped_duplicate']++;
                 continue;
             }
 
