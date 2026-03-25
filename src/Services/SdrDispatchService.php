@@ -5,6 +5,7 @@ namespace PixelHub\Services;
 use PixelHub\Core\DB;
 use PixelHub\Core\Env;
 use PixelHub\Core\CryptoHelper;
+use PixelHub\Core\PhoneNormalizer;
 use PixelHub\Integrations\WhatsApp\WhapiCloudProvider;
 use PixelHub\Services\WhatsAppProviderFactory;
 use PixelHub\Controllers\SalesTrainingController;
@@ -141,7 +142,7 @@ class SdrDispatchService
               AND pr.whatsapp_sent_at IS NULL
               AND ((pr.source = 'instagram' AND pr.phone_instagram IS NOT NULL AND pr.phone_instagram != '')
                 OR (pr.source = 'google_maps' AND pr.phone_google IS NOT NULL AND pr.phone_google != '')
-                OR (pr.source IN ('minha_receita','cnpj_ws') AND pr.phone_minhareceita IS NOT NULL AND pr.phone_minhareceita != ''))
+                OR (pr.source IN ('minha_receita','minhareceita','cnpj_ws','cnpjws') AND pr.phone_minhareceita IS NOT NULL AND pr.phone_minhareceita != ''))
               AND NOT EXISTS (
                   SELECT 1 FROM sdr_dispatch_queue dq WHERE dq.result_id = pr.id
               )
@@ -216,9 +217,10 @@ class SdrDispatchService
             FROM prospecting_results pr
             WHERE pr.id IN ($placeholders)
               AND pr.status != 'discarded'
+              AND pr.whatsapp_sent_at IS NULL
               AND ((pr.source = 'instagram' AND pr.phone_instagram IS NOT NULL AND pr.phone_instagram != '')
                 OR (pr.source = 'google_maps' AND pr.phone_google IS NOT NULL AND pr.phone_google != '')
-                OR (pr.source IN ('minha_receita','cnpj_ws') AND pr.phone_minhareceita IS NOT NULL AND pr.phone_minhareceita != ''))
+                OR (pr.source IN ('minha_receita','minhareceita','cnpj_ws','cnpjws') AND pr.phone_minhareceita IS NOT NULL AND pr.phone_minhareceita != ''))
               AND NOT EXISTS (
                   SELECT 1 FROM sdr_dispatch_queue dq WHERE dq.result_id = pr.id
               )
