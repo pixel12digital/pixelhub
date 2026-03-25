@@ -62,6 +62,17 @@ class SdrDispatchService
 
         $windowStart = strtotime("{$date} " . self::DISPATCH_WINDOW_START . ':00');
         $windowEnd   = strtotime("{$date} " . self::DISPATCH_WINDOW_END   . ':00');
+
+        // Se faltam menos de 30 min para o fim da janela hoje, usa próximo dia útil
+        if ($date === date('Y-m-d') && time() >= ($windowEnd - 1800)) {
+            $next = date('Y-m-d', strtotime('tomorrow'));
+            // Pula final de semana
+            $dow = (int) date('N', strtotime($next));
+            if ($dow === 6) $next = date('Y-m-d', strtotime($next . ' +2 days'));
+            if ($dow === 7) $next = date('Y-m-d', strtotime($next . ' +1 day'));
+            return self::calculateHumanTimes($count, $next);
+        }
+
         $lunchStart  = strtotime("{$date} 12:00:00");
         $lunchEnd    = strtotime("{$date} 13:20:00");
 
