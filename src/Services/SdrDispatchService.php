@@ -517,7 +517,18 @@ class SdrDispatchService
             return;
         }
 
-        // 2. Monta ai_history com mensagens novas
+        // 2. Quando contato responde pela primeira vez → marcar como 'qualified'
+        // (qualificação real = contato demonstrou interesse ao responder)
+        $hasInbound = !empty(array_filter($history, fn($m) => $m['direction'] === 'inbound'));
+        if ($hasInbound && !empty($conv['result_id'])) {
+            $db->prepare("
+                UPDATE prospecting_results
+                SET status = 'qualified', updated_at = NOW()
+                WHERE id = ? AND status = 'new'
+            ")->execute([$conv['result_id']]);
+        }
+
+        // 3. Monta ai_history com mensagens novas
         $aiHistory = json_decode($conv['ai_history'] ?? '[]', true) ?: [];
 
         // Adiciona apenas mensagens do lead ainda não no ai_history
