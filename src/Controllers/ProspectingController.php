@@ -943,6 +943,7 @@ class ProspectingController extends Controller
             $stmt = $db->prepare("
                 SELECT dq.id, dq.result_id, dq.session_name, dq.phone, dq.establishment_name,
                        dq.message, dq.scheduled_at, dq.status, dq.created_at,
+                       dq.phone_validation_status, dq.error,
                        pr.name as result_name
                 FROM sdr_dispatch_queue dq
                 LEFT JOIN prospecting_results pr ON pr.id = dq.result_id
@@ -955,11 +956,17 @@ class ProspectingController extends Controller
             // Formata horários e adiciona status legível
             foreach ($jobs as &$j) {
                 $j['scheduled_at_br'] = (new \DateTime($j['scheduled_at']))->format('d/m/Y H:i');
-                $j['status_label'] = match ($j['status']) {
-                    'queued' => 'Aguardando',
-                    'processing' => 'Enviando',
-                    'sent' => 'Enviado',
-                    'failed' => 'Falhou',
+                $isInvalidPhone = $j['status'] === 'failed'
+                    && ($j['phone_validation_status'] === 'invalid'
+                        || str_contains($j['error'] ?? '', 'Sem WhatsApp')
+                        || str_contains($j['error'] ?? '', 'sem WhatsApp'));
+                $j['no_whatsapp'] = $isInvalidPhone;
+                $j['status_label'] = match (true) {
+                    $isInvalidPhone => 'Sem WhatsApp',
+                    $j['status'] === 'queued' => 'Aguardando',
+                    $j['status'] === 'processing' => 'Enviando',
+                    $j['status'] === 'sent' => 'Enviado',
+                    $j['status'] === 'failed' => 'Falhou',
                     default => $j['status']
                 };
             }

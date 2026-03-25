@@ -1467,8 +1467,10 @@ function _loadSdrQueue(recipeId) {
                 <td style="padding:10px 12px;">${job.session_name || '-'}</td>
                 <td style="padding:10px 12px;">${job.scheduled_at_br}</td>
                 <td style="padding:10px 12px;">
-                    <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${job.status === 'queued' ? '#dbeafe' : job.status === 'sent' ? '#dcfce7' : job.status === 'failed' ? '#fef2f2' : '#f3f4f6'};color:${job.status === 'queued' ? '#1e40af' : job.status === 'sent' ? '#166534' : job.status === 'failed' ? '#dc2626' : '#374151'};">
-                        ${job.status_label}
+                    <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;
+                        background:${job.no_whatsapp ? '#fff7ed' : job.status === 'queued' ? '#dbeafe' : job.status === 'sent' ? '#dcfce7' : job.status === 'failed' ? '#fef2f2' : '#f3f4f6'};
+                        color:${job.no_whatsapp ? '#c2410c' : job.status === 'queued' ? '#1e40af' : job.status === 'sent' ? '#166534' : job.status === 'failed' ? '#dc2626' : '#374151'};">
+                        ${job.no_whatsapp ? '📵 ' : ''}${job.status_label}
                     </span>
                 </td>
                 <td style="padding:10px 12px;">

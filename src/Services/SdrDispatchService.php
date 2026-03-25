@@ -161,8 +161,8 @@ class SdrDispatchService
         $times = self::calculateHumanTimes(count($candidates));
         $insertQueue = $db->prepare("
             INSERT INTO sdr_dispatch_queue
-                (result_id, recipe_id, phone, establishment_name, message, scheduled_at, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'queued', NOW())
+                (result_id, recipe_id, session_name, phone, establishment_name, message, scheduled_at, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', NOW())
             ON DUPLICATE KEY UPDATE id = id
         ");
         $insertConv = $db->prepare("
