@@ -1258,16 +1258,13 @@ function _loadQueuedIds() {
             const id = parseInt(cb.dataset.id);
             if (queuedResultIds.has(id)) {
                 cb.disabled = true;
-                cb.checked = false;
+                cb.checked = true; // Marca o checkbox
                 cb.style.cursor = 'not-allowed';
-                cb.style.accentColor = '#94a3b8';
+                cb.style.accentColor = '#16a34a'; // Verde para indicar fila
                 cb.title = 'Já está na fila SDR';
                 cb.dataset.queued = '1';
-                // Adiciona check visual ao lado
-                const checkSpan = document.createElement('span');
-                checkSpan.innerHTML = '✓';
-                checkSpan.style.cssText = 'margin-left:4px;color:#16a34a;font-size:14px;font-weight:bold;pointer-events:none;';
-                cb.parentNode.appendChild(checkSpan);
+                // Impede que seja desmarcado
+                cb.addEventListener('click', e => e.preventDefault());
             }
         });
         _updateSelectAllState();
