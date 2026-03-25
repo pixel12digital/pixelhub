@@ -32,19 +32,28 @@ class PhoneNormalizer
         
         // Adicionar código do Brasil +55 se não tiver
         if (strlen($digits) === 10 || strlen($digits) === 11) {
-            // 10 dígitos: DDD + telefone (fixo)
-            // 11 dígitos: DDD + 9 + telefone (móvel)
+            // 10 dígitos: DDD(2) + telefone(8)
+            // 11 dígitos: DDD(2) + 9 + telefone(8) = móvel correto
             $digits = '55' . $digits;
         }
-        
-        // Verificar se tem o formato correto: 55 + DDD + telefone
+
+        // DDDs que usam formato 8 dígitos (sem 9º dígito adicional)
+        // Para estes DDDs: se tiver 9 extra (13 dígitos), remover
+        $dddProvisorio = substr($digits, 2, 2);
+        $eightDigitDDDs = ['47', '48', '49']; // Santa Catarina e região
+
+        // Normalizar para o formato correto: 55 + DDD + telefone
         if (strlen($digits) === 12) {
-            // 55 + DDD (2) + telefone (8) - fixo sem 9
-            // Adicionar 9 após o DDD para tornar móvel
-            $digits = '55' . substr($digits, 2, 2) . '9' . substr($digits, 4);
+            // 55 + DDD(2) + telefone(8) — aceita fixos e móveis
+            // Obs: a validação de WhatsApp é feita pelo Whapi API, não aqui
         } elseif (strlen($digits) === 13) {
-            // 55 + DDD (2) + 9 + telefone (8) - móvel
-            // Já está no formato correto
+            // 55 + DDD(2) + 9 + telefone(8)
+            if (in_array($dddProvisorio, $eightDigitDDDs)) {
+                // DDD 47/48/49: tem 9 extra — remover o 9 após o DDD
+                // Ex: 55 47 9 9634-5857 → 55 47 9634-5857
+                $digits = '55' . substr($digits, 2, 2) . substr($digits, 5);
+            }
+            // Outros DDDs: formato 13 dígitos correto para móvel
         } else {
             return null;
         }
