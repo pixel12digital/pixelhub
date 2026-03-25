@@ -185,7 +185,7 @@ class SdrDispatchService
             ON DUPLICATE KEY UPDATE id = id
         ");
         $checkPhone = $db->prepare("
-            SELECT 1 FROM sdr_dispatch_queue WHERE phone = ? LIMIT 1
+            SELECT 1 FROM sdr_dispatch_queue WHERE phone = ? AND status IN ('queued','processing') LIMIT 1
         ");
 
         foreach ($candidates as $i => $lead) {
@@ -195,7 +195,7 @@ class SdrDispatchService
                 continue;
             }
 
-            // Dedup por telefone: evita enviar dois opens para o mesmo número
+            // Dedup por telefone: evita dois opens ATIVOS para o mesmo número
             $checkPhone->execute([$phone]);
             if ($checkPhone->fetch()) {
                 $stats['skipped_duplicate']++;
@@ -270,7 +270,7 @@ class SdrDispatchService
             ON DUPLICATE KEY UPDATE id = id
         ");
         $checkPhone = $db->prepare("
-            SELECT 1 FROM sdr_dispatch_queue WHERE phone = ? LIMIT 1
+            SELECT 1 FROM sdr_dispatch_queue WHERE phone = ? AND status IN ('queued','processing') LIMIT 1
         ");
 
         foreach ($candidates as $i => $lead) {
@@ -280,7 +280,7 @@ class SdrDispatchService
                 continue;
             }
 
-            // Dedup por telefone: evita enviar dois opens para o mesmo número
+            // Dedup por telefone: evita dois opens ATIVOS para o mesmo número
             $checkPhone->execute([$phone]);
             if ($checkPhone->fetch()) {
                 $stats['skipped_duplicate']++;
