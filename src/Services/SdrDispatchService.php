@@ -269,12 +269,37 @@ class SdrDispatchService
     }
 
     /**
+     * Encurta nome do estabelecimento para a saudação (primeiras 2 palavras ou até separador).
+     * Ex: "Ana Agnol Acessórios De Moda" → "Ana Agnol"
+     *     "M.M. Jóias - Alianças De Moedas Antigas" → "M.M. Jóias"
+     */
+    public static function shortenBusinessName(string $name): string
+    {
+        $name = mb_convert_case(trim($name), MB_CASE_TITLE, 'UTF-8');
+
+        foreach ([' - ', ' – ', ' | ', ', ', ': '] as $sep) {
+            $pos = mb_strpos($name, $sep);
+            if ($pos !== false && $pos > 3) {
+                $name = mb_substr($name, 0, $pos);
+                break;
+            }
+        }
+
+        $words = explode(' ', trim($name));
+        if (count($words) > 3) {
+            $name = implode(' ', array_slice($words, 0, 2));
+        }
+
+        return trim($name);
+    }
+
+    /**
      * Gera a mensagem de abertura para um estabelecimento.
      */
     public static function buildOpeningMessage(string $name): string
     {
-        $cleanName = mb_convert_case(trim($name), MB_CASE_TITLE, 'UTF-8');
-        return "Oi, é da {$cleanName}? Qual o horário de funcionamento, por gentileza?";
+        $shortName = self::shortenBusinessName($name);
+        return "Oi, é da {$shortName}? Qual o horário de funcionamento, por gentileza?";
     }
 
     // =========================================================================

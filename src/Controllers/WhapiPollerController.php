@@ -195,9 +195,8 @@ class WhapiPollerController extends Controller
             $lastMsg = $chat['last_message'] ?? null;
             if (!$lastMsg) continue;
 
-            $msgTs = (int)($lastMsg['timestamp'] ?? 0);
-            if ($sinceTs > 0 && $msgTs <= $sinceTs) continue;
-
+            // Sem filtro de timestamp: max_ts global causaria miss em novos chats
+            // com timestamp anterior ao max. Usa dedup por message_id em processMessage().
             $allMessages[] = $lastMsg;
         }
 
