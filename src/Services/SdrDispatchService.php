@@ -129,12 +129,19 @@ class SdrDispatchService
 
         // Busca resultados com telefone, não descartados e sem envio prévio
         $stmt = $db->prepare("
-            SELECT pr.id, pr.name, pr.phone
+            SELECT pr.id, pr.name, pr.source,
+                   CASE
+                       WHEN pr.source = 'instagram' THEN pr.phone_instagram
+                       WHEN pr.source = 'google_maps' THEN pr.phone_google
+                       ELSE pr.phone_minhareceita
+                   END AS phone
             FROM prospecting_results pr
             WHERE pr.recipe_id = ?
               AND pr.status != 'discarded'
               AND pr.whatsapp_sent_at IS NULL
-              AND (pr.phone IS NOT NULL AND pr.phone != '')
+              AND ((pr.source = 'instagram' AND pr.phone_instagram IS NOT NULL AND pr.phone_instagram != '')
+                OR (pr.source = 'google_maps' AND pr.phone_google IS NOT NULL AND pr.phone_google != '')
+                OR (pr.source IN ('minha_receita','cnpj_ws') AND pr.phone_minhareceita IS NOT NULL AND pr.phone_minhareceita != ''))
               AND NOT EXISTS (
                   SELECT 1 FROM sdr_dispatch_queue dq WHERE dq.result_id = pr.id
               )
@@ -200,11 +207,18 @@ class SdrDispatchService
         $placeholders = implode(',', array_fill(0, count($resultIds), '?'));
 
         $stmt = $db->prepare("
-            SELECT pr.id, pr.name, pr.phone, pr.recipe_id
+            SELECT pr.id, pr.name, pr.source, pr.recipe_id,
+                   CASE
+                       WHEN pr.source = 'instagram' THEN pr.phone_instagram
+                       WHEN pr.source = 'google_maps' THEN pr.phone_google
+                       ELSE pr.phone_minhareceita
+                   END AS phone
             FROM prospecting_results pr
             WHERE pr.id IN ($placeholders)
               AND pr.status != 'discarded'
-              AND (pr.phone IS NOT NULL AND pr.phone != '')
+              AND ((pr.source = 'instagram' AND pr.phone_instagram IS NOT NULL AND pr.phone_instagram != '')
+                OR (pr.source = 'google_maps' AND pr.phone_google IS NOT NULL AND pr.phone_google != '')
+                OR (pr.source IN ('minha_receita','cnpj_ws') AND pr.phone_minhareceita IS NOT NULL AND pr.phone_minhareceita != ''))
               AND NOT EXISTS (
                   SELECT 1 FROM sdr_dispatch_queue dq WHERE dq.result_id = pr.id
               )
