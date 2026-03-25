@@ -1346,7 +1346,7 @@ function openSdrModalResults(recipeId, recipeName) {
                     <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Máximo de envios hoje</label>
                     <input type="number" id="sdr-max-per-day" value="80" min="1" max="120"
                         style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;box-sizing:border-box;-webkit-appearance:none;">
-                    <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Máximo permitido: 120 por dia.</p>
+                    <p id="sdr-quota-info" style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Máximo permitido: 120 por dia. Carregando estatísticas...</p>
                 </div>
                 <div id="sdr-modal-result" style="display:none;margin-bottom:14px;padding:12px 14px;border-radius:6px;font-size:13px;"></div>
                 <div style="display:flex;gap:10px;flex-direction:column;">
@@ -1356,7 +1356,26 @@ function openSdrModalResults(recipeId, recipeName) {
             </div>
         </div>`;
     _loadSdrSessions();
+    _loadSdrQuota();
     document.body.appendChild(div);
+}
+function _loadSdrQuota() {
+    fetch('<?= pixelhub_url('/prospecting/sdr/status') ?>')
+    .then(r => r.json())
+    .then(data => {
+        const info = document.getElementById('sdr-quota-info');
+        const input = document.getElementById('sdr-max-per-day');
+        if (!info || !data.stats) return;
+        const maxDay = 120;
+        const sentToday = data.stats.sent_today || 0;
+        const remaining = Math.max(0, maxDay - sentToday);
+        info.innerHTML = `Enviados hoje: <strong>${sentToday}</strong> / ${maxDay} &nbsp;|&nbsp; Restam: <strong style="color:${remaining > 0 ? '#15803d' : '#dc2626'}">${remaining}</strong>`;
+        if (input) input.value = Math.min(remaining, 80);
+    })
+    .catch(() => {
+        const info = document.getElementById('sdr-quota-info');
+        if (info) info.textContent = 'Máximo permitido: 120 por dia.';
+    });
 }
 
 function dispatchSdrResults(recipeId, btn, selectedIds) {

@@ -146,7 +146,7 @@ class SdrDispatchService
               AND NOT EXISTS (
                   SELECT 1 FROM sdr_dispatch_queue dq WHERE dq.result_id = pr.id
               )
-            ORDER BY pr.created_at ASC
+            ORDER BY pr.found_at ASC
             LIMIT ?
         ");
         $stmt->execute([$recipeId, $maxPerDay]);
