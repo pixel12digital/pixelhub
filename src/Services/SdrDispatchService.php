@@ -321,6 +321,30 @@ class SdrDispatchService
      */
     public static function sendOpeningMessage(array $job): array
     {
+        // 1. Validar número de telefone antes de enviar
+        $validation = self::validatePhoneNumber($job['phone'], $job['session_name'] ?? '');
+        
+        // Atualizar status da validação no job
+        $db = DB::getConnection();
+        $db->prepare("
+            UPDATE sdr_dispatch_queue 
+            SET phone_validated = ?, phone_validation_status = ?, phone_validated_at = NOW()
+            WHERE id = ?
+        ")->execute([$validation['valid'] ? 1 : 0, $validation['status'], $job['id']]);
+        
+        // Se número inválido, marcar como failed e não enviar
+        if (!$validation['valid']) {
+            $errorMsg = 'Número sem WhatsApp: ' . $validation['status'];
+            self::markFailed($job['id'], $errorMsg);
+            
+            return [
+                'success' => false,
+                'error' => $errorMsg,
+                'validation' => $validation
+            ];
+        }
+        
+        // 2. Prosseguir com envio normal
         $jobSession = $job['session_name'] ?? '';
         $provider   = !empty($jobSession)
             ? WhatsAppProviderFactory::getWhapiProviderBySession($jobSession)
@@ -332,7 +356,6 @@ class SdrDispatchService
         }
 
         // Marca whatsapp_sent_at no prospecting_results
-        $db = DB::getConnection();
         $db->prepare("UPDATE prospecting_results SET whatsapp_sent_at=NOW() WHERE id=?")
            ->execute([$job['result_id']]);
 
@@ -340,6 +363,99 @@ class SdrDispatchService
         self::registerOutboundEvent($job['phone'], $job['message'], $result['message_id'] ?? null);
 
         return $result;
+    }
+
+    /**
+     * Valida um número de telefone via API Whapi.Cloud
+     */
+    private static function validatePhoneNumber(string $phone, string $sessionName): array
+    {
+        // Pegar token da sessão
+        $db = DB::getConnection();
+        $stmt = $db->prepare("
+            SELECT whapi_api_token 
+            FROM whatsapp_provider_configs 
+            WHERE provider_type = 'whapi' AND session_name = ? AND is_active = 1
+        ");
+        $stmt->execute([$sessionName]);
+        $config = $stmt->fetch(\PDO::FETCH_ASSOC);
+        
+        if (!$config || !$config['whapi_api_token']) {
+            return [
+                'valid' => false,
+                'status' => 'error',
+                'error' => 'Configuração não encontrada para sessão: ' . $sessionName
+            ];
+        }
+        
+        // Descriptografar token
+        $apiToken = $config['whapi_api_token'];
+        if (!empty($apiToken) && strpos($apiToken, 'encrypted:') === 0) {
+            $token = CryptoHelper::decrypt(substr($apiToken, 10));
+        } else {
+            $token = $apiToken;
+        }
+        
+        // Fazer requisição para API
+        $url = "https://gate.whapi.cloud/contacts";
+        $data = [
+            'contacts' => [$phone]
+        ];
+        
+        $headers = [
+            'Authorization: Bearer ' . $token,
+            'Content-Type: application/json',
+            'Accept: application/json'
+        ];
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+        
+        if ($curlError) {
+            return [
+                'valid' => false,
+                'status' => 'error',
+                'error' => 'Erro na requisição: ' . $curlError
+            ];
+        }
+        
+        if ($httpCode !== 200) {
+            return [
+                'valid' => false,
+                'status' => 'error',
+                'error' => 'HTTP ' . $httpCode . ': ' . substr($response, 0, 100)
+            ];
+        }
+        
+        $responseData = json_decode($response, true);
+        
+        if (!isset($responseData['contacts'][0])) {
+            return [
+                'valid' => false,
+                'status' => 'error',
+                'error' => 'Resposta inválida da API'
+            ];
+        }
+        
+        $contact = $responseData['contacts'][0];
+        $status = $contact['status'] ?? 'invalid';
+        
+        return [
+            'valid' => $status === 'valid',
+            'status' => $status,
+            'phone' => $contact['input'] ?? $phone,
+            'response' => $contact
+        ];
     }
 
     // =========================================================================
