@@ -8,6 +8,7 @@ use PixelHub\Core\CryptoHelper;
 use PixelHub\Core\PhoneNormalizer;
 use PixelHub\Integrations\WhatsApp\WhapiCloudProvider;
 use PixelHub\Services\WhatsAppProviderFactory;
+use PixelHub\Services\EventIngestionService;
 use PixelHub\Controllers\SalesTrainingController;
 
 /**
@@ -363,7 +364,8 @@ class SdrDispatchService
            ->execute([$job['result_id']]);
 
         // Registra em communication_events para aparecer no Inbox
-        self::registerOutboundEvent($job['phone'], $job['message'], $result['message_id'] ?? null);
+        $sessionName = $job['session_name'] ?? 'orsegups';
+        self::registerOutboundEvent($job['phone'], $job['message'], $result['message_id'] ?? null, $sessionName);
 
         return $result;
     }
@@ -612,7 +614,8 @@ class SdrDispatchService
             return;
         }
 
-        self::registerOutboundEvent($conv['phone'], $text, $result['message_id'] ?? null);
+        $sessionName = Env::get('SDR_WHAPI_SESSION', 'orsegups');
+        self::registerOutboundEvent($conv['phone'], $text, $result['message_id'] ?? null, $sessionName);
 
         $db->prepare("
             UPDATE sdr_conversations
@@ -1015,24 +1018,52 @@ class SdrDispatchService
 
     /**
      * Registra evento de saída em communication_events para aparecer no Inbox.
+     * Usa EventIngestionService::ingest() para que a mensagem seja vinculada
+     * à conversa correta (conversation_id) e apareça no thread do Inbox.
      */
-    private static function registerOutboundEvent(string $toPhone, string $text, ?string $msgId): void
+    private static function registerOutboundEvent(string $toPhone, string $text, ?string $msgId, string $sessionName = 'orsegups'): void
     {
         try {
-            $db = DB::getConnection();
-            $payload = json_encode([
-                'to'        => $toPhone,
-                'body'      => $text,
-                'direction' => 'outbound',
-                'source'    => 'sdr_auto',
-                'message_id'=> $msgId,
-            ], JSON_UNESCAPED_UNICODE);
+            $digits = preg_replace('/[^0-9]/', '', $toPhone);
+            $chatId = $digits . '@s.whatsapp.net';
 
-            $db->prepare("
-                INSERT INTO communication_events
-                    (event_type, source_system, payload, created_at)
-                VALUES ('message', 'sdr_auto', ?, NOW())
-            ")->execute([$payload]);
+            $normalizedPayload = [
+                'id'         => $msgId,
+                'message_id' => $msgId,
+                'from'       => null,
+                'to'         => $chatId,
+                'timestamp'  => time(),
+                'type'       => 'chat',
+                'text'       => $text,
+                'body'       => $text,
+                'fromMe'     => true,
+                'direction'  => 'outbound',
+                'message'    => [
+                    'id'      => $msgId,
+                    'from'    => null,
+                    'to'      => $chatId,
+                    'type'    => 'chat',
+                    'body'    => $text,
+                    'text'    => $text,
+                    'fromMe'  => true,
+                    'key'     => ['id' => $msgId, 'remoteJid' => $chatId, 'fromMe' => true],
+                ],
+                'whapi_channel_id' => $sessionName,
+            ];
+
+            EventIngestionService::ingest([
+                'event_type'         => 'whatsapp.outbound.message',
+                'source_system'      => 'whapi_cloud',
+                'payload'            => $normalizedPayload,
+                'tenant_id'          => null,
+                'process_media_sync' => false,
+                'metadata'           => [
+                    'channel_id'    => $sessionName,
+                    'provider_type' => 'whapi',
+                    'message_id'    => $msgId,
+                    'via'           => 'sdr_dispatch',
+                ],
+            ]);
         } catch (\Throwable $e) {
             error_log("[SDR] Falha ao registrar evento outbound: " . $e->getMessage());
         }
