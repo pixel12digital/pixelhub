@@ -924,6 +924,86 @@ class ProspectingController extends Controller
     }
 
     /**
+     * GET /prospecting/sdr/queue  (AJAX)
+     * Lista jobs enfileirados para uma receita (acompanhamento).
+     */
+    public function sdrQueue(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $recipeId = (int) ($_GET['recipe_id'] ?? 0);
+        if (!$recipeId) {
+            $this->json(['success' => false, 'error' => 'ID da receita inválido'], 400);
+            return;
+        }
+
+        try {
+            $db = DB::getConnection();
+            $stmt = $db->prepare("
+                SELECT dq.id, dq.result_id, dq.session_name, dq.phone, dq.establishment_name,
+                       dq.message, dq.scheduled_at, dq.status, dq.created_at,
+                       pr.name as result_name
+                FROM sdr_dispatch_queue dq
+                LEFT JOIN prospecting_results pr ON pr.id = dq.result_id
+                WHERE dq.recipe_id = ?
+                ORDER BY dq.scheduled_at ASC, dq.created_at ASC
+            ");
+            $stmt->execute([$recipeId]);
+            $jobs = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            // Formata horários e adiciona status legível
+            foreach ($jobs as &$j) {
+                $j['scheduled_at_br'] = (new \DateTime($j['scheduled_at']))->format('d/m/Y H:i');
+                $j['status_label'] = match ($j['status']) {
+                    'queued' => 'Aguardando',
+                    'processing' => 'Enviando',
+                    'sent' => 'Enviado',
+                    'failed' => 'Falhou',
+                    default => $j['status']
+                };
+            }
+
+            $this->json(['success' => true, 'jobs' => $jobs]);
+        } catch (\Exception $e) {
+            error_log('[ProspectingController] sdrQueue error: ' . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * POST /prospecting/sdr/cancel  (AJAX)
+     * Cancela um job específico da fila (se ainda não enviado).
+     */
+    public function sdrCancel(): void
+    {
+        Auth::requireInternal();
+        header('Content-Type: application/json');
+
+        $jobId = (int) ($_POST['job_id'] ?? 0);
+        if (!$jobId) {
+            $this->json(['success' => false, 'error' => 'ID do job inválido'], 400);
+            return;
+        }
+
+        try {
+            $db = DB::getConnection();
+            // Só permite cancelar se status = queued
+            $stmt = $db->prepare("UPDATE sdr_dispatch_queue SET status='cancelled' WHERE id=? AND status='queued'");
+            $affected = $stmt->execute([$jobId]);
+
+            if ($affected) {
+                $this->json(['success' => true, 'message' => 'Envio cancelado.']);
+            } else {
+                $this->json(['success' => false, 'error' => 'Job não encontrado ou já enviado.'], 404);
+            }
+        } catch (\Exception $e) {
+            error_log('[ProspectingController] sdrCancel error: ' . $e->getMessage());
+            $this->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * POST /prospecting/sdr/takeover  (AJAX)
      * Ativa ou desativa modo humano para uma conversa SDR.
      */

@@ -26,6 +26,10 @@ ob_start();
                 style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
             <span id="sdr-btn-label">Disparar SDR</span>
         </button>
+        <button onclick="openSdrQueueModal(<?= $recipe['id'] ?>, '<?= htmlspecialchars(addslashes($recipe['name'])) ?>')"
+                style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
+            Ver Fila SDR
+        </button>
         <button onclick="<?= ($recipe['source'] ?? '') === 'instagram' ? 'runSearchInstagram(' . $recipe['id'] . ', this)' : 'runSearch(' . $recipe['id'] . ', this)' ?>"
                 <?= (($recipe['source'] ?? '') !== 'instagram' && !$hasKey) ? 'disabled title="Configure a API primeiro"' : '' ?>
                 style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:<?= (($recipe['source'] ?? '') === 'instagram') ? '#e1306c' : ($hasKey ? '#023A8D' : '#94a3b8') ?>;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
@@ -168,7 +172,7 @@ ob_start();
                 <tr style="border-bottom:1px solid #f1f5f9;<?= $st === 'discarded' ? 'opacity:.4;background:#f8fafc;filter:grayscale(.5);' : '' ?>" id="row-<?= $result['id'] ?>" data-status="<?= htmlspecialchars($st) ?>" data-name="<?= htmlspecialchars($result['name'] ?? '') ?>">
                     <td style="padding:14px 14px;text-align:center;vertical-align:top;">
                         <?php if ($st !== 'discarded'): ?>
-                        <input type="checkbox" class="sdr-row-check" data-id="<?= $result['id'] ?>" style="width:15px;height:15px;cursor:pointer;accent-color:#023A8D;margin-top:2px;">
+                        <input type="checkbox" class="sdr-row-check" data-id="<?= $result['id'] ?>" style="width:15px;height:15px;cursor:pointer;accent-color:#023A8D;margin-top:2px;" data-queued="0">
                         <?php endif; ?>
                     </td>
                     <td style="padding:14px 16px;">
@@ -1244,6 +1248,27 @@ if ($totalPages > 1):
 })();
 
 // ── Seleção SDR ──────────────────────────────────────────────────────────────
+function _loadQueuedIds() {
+    fetch('<?= pixelhub_url('/prospecting/sdr/queue?recipe_id=') . $recipe['id'] ?>')
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) return;
+        const queuedResultIds = new Set(data.jobs.map(j => j.result_id).filter(Boolean));
+        document.querySelectorAll('.sdr-row-check').forEach(cb => {
+            const id = parseInt(cb.dataset.id);
+            if (queuedResultIds.has(id)) {
+                cb.disabled = true;
+                cb.checked = false;
+                cb.style.cursor = 'not-allowed';
+                cb.style.accentColor = '#94a3b8';
+                cb.title = 'Já está na fila SDR';
+                cb.dataset.queued = '1';
+            }
+        });
+        _updateSelectAllState();
+    })
+    .catch(() => {});
+}
 function _loadSdrSessions() {
     fetch('<?= pixelhub_url('/prospecting/sdr/sessions') ?>')
     .then(r => r.json())
@@ -1367,6 +1392,122 @@ function dispatchSdrResults(recipeId, btn, selectedIds) {
         btn.innerHTML = orig;
     });
 }
+
+// Carrega IDs já na fila ao abrir a página
+_loadQueuedIds();
+
+// ── Modal Fila SDR ─────────────────────────────────────────────────────────────
+function openSdrQueueModal(recipeId, recipeName) {
+    const existing = document.getElementById('sdr-queue-modal');
+    if (existing) existing.remove();
+    const div = document.createElement('div');
+    div.id = 'sdr-queue-modal';
+    div.innerHTML = `
+        <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;" onclick="if(event.target===this)this.remove()">
+            <div style="background:#fff;border-radius:12px;padding:24px;max-width:720px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+                    <h3 style="margin:0;font-size:17px;color:#1e293b;">Fila SDR — ${recipeName}</h3>
+                    <button onclick="this.closest('#sdr-queue-modal').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;">&times;</button>
+                </div>
+                <div id="sdr-queue-list" style="font-size:12px;color:#64748b;">Carregando...</div>
+            </div>
+        </div>`;
+    document.body.appendChild(div);
+    _loadSdrQueue(recipeId);
+}
+
+function _loadSdrQueue(recipeId) {
+    fetch('<?= pixelhub_url('/prospecting/sdr/queue?recipe_id=') ?>' + recipeId)
+    .then(r => r.json())
+    .then(data => {
+        const list = document.getElementById('sdr-queue-list');
+        if (!list) return;
+        if (!data.success) {
+            list.innerHTML = '<div style="color:#dc2626;">Erro: ' + data.error + '</div>';
+            return;
+        }
+        if (!data.jobs.length) {
+            list.innerHTML = '<div style="color:#64748b;">Nenhum job na fila.</div>';
+            return;
+        }
+        const rows = data.jobs.map(job => `
+            <tr style="border-bottom:1px solid #f1f5f9;">
+                <td style="padding:10px 12px;">${job.establishment_name || job.result_name || '-'}</td>
+                <td style="padding:10px 12px;">${job.phone || '-'}</td>
+                <td style="padding:10px 12px;">${job.session_name || '-'}</td>
+                <td style="padding:10px 12px;">${job.scheduled_at_br}</td>
+                <td style="padding:10px 12px;">
+                    <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${job.status === 'queued' ? '#dbeafe' : job.status === 'sent' ? '#dcfce7' : job.status === 'failed' ? '#fef2f2' : '#f3f4f6'};color:${job.status === 'queued' ? '#1e40af' : job.status === 'sent' ? '#166534' : job.status === 'failed' ? '#dc2626' : '#374151'};">
+                        ${job.status_label}
+                    </span>
+                </td>
+                <td style="padding:10px 12px;">
+                    ${job.status === 'queued' ? `<button onclick="cancelSdrJob(${job.id}, this)" style="padding:4px 10px;background:#ef4444;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;">Cancelar</button>` : '-'}
+                </td>
+            </tr>
+        `).join('');
+        list.innerHTML = `
+            <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr style="background:#f8fafc;">
+                        <th style="padding:10px 12px;text-align:left;font-weight:600;">Estabelecimento</th>
+                        <th style="padding:10px 12px;text-align:left;font-weight:600;">Telefone</th>
+                        <th style="padding:10px 12px;text-align:left;font-weight:600;">Sessão</th>
+                        <th style="padding:10px 12px;text-align:left;font-weight:600;">Agendado</th>
+                        <th style="padding:10px 12px;text-align:left;font-weight:600;">Status</th>
+                        <th style="padding:10px 12px;text-align:left;font-weight:600;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        `;
+    })
+    .catch(() => {
+        const list = document.getElementById('sdr-queue-list');
+        if (list) list.innerHTML = '<div style="color:#dc2626;">Erro ao carregar a fila.</div>';
+    });
+}
+
+function cancelSdrJob(jobId, btn) {
+    if (!confirm('Cancelar este envio?')) return;
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = 'Cancelando...';
+    fetch('<?= pixelhub_url('/prospecting/sdr/cancel') ?>', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'job_id=' + jobId
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            btn.innerHTML = 'Cancelado';
+            btn.style.background = '#94a3b8';
+            btn.disabled = true;
+            // Opcional: recarregar a fila após 1s
+            setTimeout(() => {
+                const modal = document.getElementById('sdr-queue-modal');
+                if (modal) {
+                    const recipeMatch = modal.querySelector('h3').textContent.match(/Fila SDR — (.+)/);
+                    if (recipeMatch) {
+                        const recipeIdMatch = location.href.match(/recipe_id=(\d+)/);
+                        if (recipeIdMatch) _loadSdrQueue(parseInt(recipeIdMatch[1]));
+                    }
+                }
+            }, 1000);
+        } else {
+            alert('Erro: ' + data.error);
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        }
+    })
+    .catch(() => {
+        alert('Erro de comunicação.');
+        btn.disabled = false;
+        btn.innerHTML = orig;
+    });
+}
+
 </script>
 
 <?php
