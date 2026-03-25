@@ -404,12 +404,17 @@ class SdrDispatchService
             ];
         }
         
-        // 2. Prosseguir com envio normal
+        // 2. Prosseguir com envio normal (usa telefone normalizado pela validação, ex: 9º dígito BR)
+        $sendPhone  = $validation['phone_normalized'] ?? $validation['phone'] ?? $job['phone'];
+        if ($sendPhone !== $job['phone']) {
+            // Atualiza phone no job com o número normalizado
+            $db->prepare("UPDATE sdr_dispatch_queue SET phone=? WHERE id=?")->execute([$sendPhone, $job['id']]);
+        }
         $jobSession = $job['session_name'] ?? '';
         $provider   = !empty($jobSession)
             ? WhatsAppProviderFactory::getWhapiProviderBySession($jobSession)
             : self::getSdrProvider();
-        $result   = $provider->sendText($job['phone'], $job['message']);
+        $result   = $provider->sendText($sendPhone, $job['message']);
 
         if (!($result['success'] ?? false)) {
             return $result;
@@ -457,12 +462,29 @@ class SdrDispatchService
             $token = $apiToken;
         }
         
-        // Fazer requisição para API
-        $url = "https://gate.whapi.cloud/contacts";
-        $data = [
-            'contacts' => [$phone]
-        ];
+        $result = self::callWhapiContacts($phone, $token);
         
+        // Falso-negativo para BR 8 dígitos (formato pré-2012):
+        // Se inválido e número tem 12 dígitos (55+DDD+8 dígitos), tenta com 9º dígito.
+        if (!$result['valid'] && $result['status'] !== 'error') {
+            $digits = preg_replace('/[^0-9]/', '', $phone);
+            if (strlen($digits) === 12 && substr($digits, 0, 2) === '55') {
+                // Insere '9' após DDD: 55(2)+DDD(2)+9+subscriber(8) = 13 dígitos
+                $phoneWith9 = substr($digits, 0, 4) . '9' . substr($digits, 4);
+                $result9 = self::callWhapiContacts($phoneWith9, $token);
+                if ($result9['valid']) {
+                    return array_merge($result9, ['phone' => $phoneWith9, 'phone_normalized' => $phoneWith9]);
+                }
+            }
+        }
+        
+        return $result;
+    }
+
+    private static function callWhapiContacts(string $phone, string $token): array
+    {
+        $url  = 'https://gate.whapi.cloud/contacts';
+        $data = ['contacts' => [$phone]];
         $headers = [
             'Authorization: Bearer ' . $token,
             'Content-Type: application/json',
@@ -477,44 +499,29 @@ class SdrDispatchService
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
         
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $response  = curl_exec($ch);
+        $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
         curl_close($ch);
         
         if ($curlError) {
-            return [
-                'valid' => false,
-                'status' => 'error',
-                'error' => 'Erro na requisição: ' . $curlError
-            ];
+            return ['valid' => false, 'status' => 'error', 'error' => 'Erro na requisição: ' . $curlError];
         }
-        
         if ($httpCode !== 200) {
-            return [
-                'valid' => false,
-                'status' => 'error',
-                'error' => 'HTTP ' . $httpCode . ': ' . substr($response, 0, 100)
-            ];
+            return ['valid' => false, 'status' => 'error', 'error' => 'HTTP ' . $httpCode . ': ' . substr($response, 0, 100)];
         }
         
         $responseData = json_decode($response, true);
-        
         if (!isset($responseData['contacts'][0])) {
-            return [
-                'valid' => false,
-                'status' => 'error',
-                'error' => 'Resposta inválida da API'
-            ];
+            return ['valid' => false, 'status' => 'error', 'error' => 'Resposta inválida da API'];
         }
         
         $contact = $responseData['contacts'][0];
-        $status = $contact['status'] ?? 'invalid';
-        
+        $status  = $contact['status'] ?? 'invalid';
         return [
-            'valid' => $status === 'valid',
-            'status' => $status,
-            'phone' => $contact['input'] ?? $phone,
+            'valid'    => $status === 'valid',
+            'status'   => $status,
+            'phone'    => $contact['input'] ?? $phone,
             'response' => $contact
         ];
     }
