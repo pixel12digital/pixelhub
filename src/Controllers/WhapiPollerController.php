@@ -322,7 +322,8 @@ class WhapiPollerController extends Controller
                 // SDR: atualiza last_inbound_at para que a IA processe a resposta
                 if (!$fromMe && !empty($body)) {
                     try {
-                        $sdrPhone = \PixelHub\Services\PhoneNormalizer::toE164OrNull($contactPhone);
+                        // Usa phoneFromChatId para strip do @s.whatsapp.net antes de normalizar
+                        $sdrPhone = \PixelHub\Services\PhoneNormalizer::toE164OrNull($this->phoneFromChatId($chatId));
                         if ($sdrPhone) {
                             // Recupera conversation_id criado pelo EventIngestionService
                             $convRow = $db->prepare("SELECT conversation_id FROM communication_events WHERE event_id = ? LIMIT 1");

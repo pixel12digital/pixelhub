@@ -344,7 +344,9 @@ class WhapiWebhookController extends Controller
             // ── SDR: atualiza estado da conversa e processa comandos do operador ──
             if ($internalEventType === 'whatsapp.inbound.message' && !empty($body)) {
                 try {
-                    $sdrPhone = \PixelHub\Services\PhoneNormalizer::toE164OrNull($contactPhone);
+                    // Usa extractPhoneFromChatId para garantir strip do @s.whatsapp.net
+                    $rawSdrPhone = $fromMe ? $from : $this->extractPhoneFromChatId($chatId);
+                    $sdrPhone = \PixelHub\Services\PhoneNormalizer::toE164OrNull($rawSdrPhone);
                     if ($sdrPhone) {
                         $dbSdr = DB::getConnection();
 
