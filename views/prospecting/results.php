@@ -23,11 +23,11 @@ ob_start();
         </button>
         <?php endif; ?>
         <button id="sdr-dispatch-btn" onclick="openSdrModalResults(<?= $recipe['id'] ?>, '<?= htmlspecialchars(addslashes($recipe['name'])) ?>')"
-                style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
+                style="display:inline-flex;align-items:center;gap:8px;padding:12px 16px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;white-space:nowrap;">
             <span id="sdr-btn-label">Disparar SDR</span>
         </button>
         <button onclick="openSdrQueueModal(<?= $recipe['id'] ?>, '<?= htmlspecialchars(addslashes($recipe['name'])) ?>')"
-                style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
+                style="display:inline-flex;align-items:center;gap:8px;padding:12px 16px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;white-space:nowrap;">
             Ver Fila SDR
         </button>
         <button onclick="<?= ($recipe['source'] ?? '') === 'instagram' ? 'runSearchInstagram(' . $recipe['id'] . ', this)' : 'runSearch(' . $recipe['id'] . ', this)' ?>"
@@ -155,7 +155,7 @@ ob_start();
             <thead>
                 <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
                     <th style="padding:12px 14px;width:36px;text-align:center;">
-                        <input type="checkbox" id="sdr-select-all" title="Selecionar todos" style="width:15px;height:15px;cursor:pointer;accent-color:#023A8D;">
+                        <input type="checkbox" id="sdr-select-all" title="Selecionar todos" style="width:20px;height:20px;cursor:pointer;accent-color:#023A8D;min-width:20px;min-height:20px;">
                     </th>
                     <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;"><?= ($recipe['source'] ?? '') === 'instagram' ? 'Perfil' : 'Empresa' ?></th>
                     <th style="padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Email</th>
@@ -172,7 +172,7 @@ ob_start();
                 <tr style="border-bottom:1px solid #f1f5f9;<?= $st === 'discarded' ? 'opacity:.4;background:#f8fafc;filter:grayscale(.5);' : '' ?>" id="row-<?= $result['id'] ?>" data-status="<?= htmlspecialchars($st) ?>" data-name="<?= htmlspecialchars($result['name'] ?? '') ?>">
                     <td style="padding:14px 14px;text-align:center;vertical-align:top;">
                         <?php if ($st !== 'discarded'): ?>
-                        <input type="checkbox" class="sdr-row-check" data-id="<?= $result['id'] ?>" style="width:15px;height:15px;cursor:pointer;accent-color:#023A8D;margin-top:2px;" data-queued="0">
+                        <input type="checkbox" class="sdr-row-check" data-id="<?= $result['id'] ?>" style="width:20px;height:20px;cursor:pointer;accent-color:#023A8D;margin-top:2px;min-width:20px;min-height:20px;" data-queued="0">
                         <?php endif; ?>
                     </td>
                     <td style="padding:14px 16px;">
@@ -1328,21 +1328,30 @@ function openSdrModalResults(recipeId, recipeName) {
                <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Máximo permitido: 120 por dia.</p>
            </div>`;
     div.innerHTML = `
-        <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;" onclick="if(event.target===this)this.remove()">
-            <div style="background:#fff;border-radius:12px;padding:24px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
-                <h3 style="margin:0 0 6px;font-size:17px;color:#1e293b;">Disparar SDR</h3>
-                <p style="margin:0 0 14px;font-size:13px;color:#64748b;">Receita: <strong>${recipeName}</strong></p>
-                ${modeInfo}
+        <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:12px;" onclick="if(event.target===this)this.remove()">
+            <div style="background:#fff;border-radius:12px;padding:20px;max-width:440px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+                <h3 style="margin:0 0 6px;font-size:16px;color:#1e293b;">Disparar SDR</h3>
+                <p style="margin:0 0 12px;font-size:13px;color:#64748b;">Receita: <strong>${recipeName}</strong></p>
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:#1e40af;">
+                    O SDR enfileira contatos com telefone e distribui os envios em horários humanizados ao longo do dia.
+                    Contatos já na fila ou já contatados não serão duplicados.
+                </div>
                 <div style="margin-bottom:16px;">
-                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">Sessão WhatsApp</label>
-                    <select id="sdr-session-select" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                    <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Sessão WhatsApp</label>
+                    <select id="sdr-session-select" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;-webkit-appearance:none;-moz-appearance:none;appearance:none;background:#fff url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M6%209L1%204h10z%22/%3E%3C/svg%3E') no-repeat right 12px center;background-size:10px;">
                         <option value="">Carregando...</option>
                     </select>
                 </div>
-                <div id="sdr-modal-result" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:13px;"></div>
-                <div style="display:flex;gap:10px;">
-                    <button onclick="this.closest('#sdr-dispatch-modal').remove()" style="flex:1;padding:10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;color:#64748b;">Cancelar</button>
-                    <button onclick="dispatchSdrResults(${recipeId}, this, ${JSON.stringify(selectedIds)})" style="flex:2;padding:10px;background:#023A8D;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Enfileirar para SDR</button>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Máximo de envios hoje</label>
+                    <input type="number" id="sdr-max-per-day" value="80" min="1" max="120"
+                        style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;box-sizing:border-box;-webkit-appearance:none;">
+                    <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">Máximo permitido: 120 por dia.</p>
+                </div>
+                <div id="sdr-modal-result" style="display:none;margin-bottom:14px;padding:12px 14px;border-radius:6px;font-size:13px;"></div>
+                <div style="display:flex;gap:10px;flex-direction:column;">
+                    <button onclick="dispatchSdrResults(${recipeId}, this)" style="padding:14px;background:#023A8D;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:15px;font-weight:600;min-height:48px;">Enfileirar para SDR</button>
+                    <button onclick="this.closest('#sdr-dispatch-modal').remove()" style="padding:12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;color:#64748b;min-height:44px;">Cancelar</button>
                 </div>
             </div>
         </div>`;
@@ -1405,11 +1414,11 @@ function openSdrQueueModal(recipeId, recipeName) {
     const div = document.createElement('div');
     div.id = 'sdr-queue-modal';
     div.innerHTML = `
-        <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;" onclick="if(event.target===this)this.remove()">
-            <div style="background:#fff;border-radius:12px;padding:24px;max-width:720px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
-                    <h3 style="margin:0;font-size:17px;color:#1e293b;">Fila SDR — ${recipeName}</h3>
-                    <button onclick="this.closest('#sdr-queue-modal').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;">&times;</button>
+        <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:12px;" onclick="if(event.target===this)this.remove()">
+            <div style="background:#fff;border-radius:12px;padding:16px;max-width:720px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;">
+                    <h3 style="margin:0;font-size:16px;color:#1e293b;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Fila SDR — ${recipeName}</h3>
+                    <button onclick="this.closest('#sdr-queue-modal').remove()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#64748b;padding:4px;min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center;">&times;</button>
                 </div>
                 <div id="sdr-queue-list" style="font-size:12px;color:#64748b;">Carregando...</div>
             </div>
@@ -1444,24 +1453,26 @@ function _loadSdrQueue(recipeId) {
                     </span>
                 </td>
                 <td style="padding:10px 12px;">
-                    ${job.status === 'queued' ? `<button onclick="cancelSdrJob(${job.id}, this)" style="padding:4px 10px;background:#ef4444;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;">Cancelar</button>` : '-'}
+                    ${job.status === 'queued' ? `<button onclick="cancelSdrJob(${job.id}, this)" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;min-height:36px;white-space:nowrap;">Cancelar</button>` : '-'}
                 </td>
             </tr>
         `).join('');
         list.innerHTML = `
-            <table style="width:100%;border-collapse:collapse;">
-                <thead>
-                    <tr style="background:#f8fafc;">
-                        <th style="padding:10px 12px;text-align:left;font-weight:600;">Estabelecimento</th>
-                        <th style="padding:10px 12px;text-align:left;font-weight:600;">Telefone</th>
-                        <th style="padding:10px 12px;text-align:left;font-weight:600;">Sessão</th>
-                        <th style="padding:10px 12px;text-align:left;font-weight:600;">Agendado</th>
-                        <th style="padding:10px 12px;text-align:left;font-weight:600;">Status</th>
-                        <th style="padding:10px 12px;text-align:left;font-weight:600;">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>
+            <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+                <table style="width:100%;border-collapse:collapse;min-width:600px;">
+                    <thead>
+                        <tr style="background:#f8fafc;">
+                            <th style="padding:10px 12px;text-align:left;font-weight:600;">Estabelecimento</th>
+                            <th style="padding:10px 12px;text-align:left;font-weight:600;">Telefone</th>
+                            <th style="padding:10px 12px;text-align:left;font-weight:600;">Sessão</th>
+                            <th style="padding:10px 12px;text-align:left;font-weight:600;">Agendado</th>
+                            <th style="padding:10px 12px;text-align:left;font-weight:600;">Status</th>
+                            <th style="padding:10px 12px;text-align:left;font-weight:600;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
         `;
     })
     .catch(() => {
