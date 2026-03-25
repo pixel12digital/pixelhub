@@ -45,51 +45,61 @@ class WhapiPollerController extends Controller
         try {
             $db = DB::getConnection();
 
-            // Obtém token Whapi do banco
-            $apiToken = $this->getWhapiToken($db);
-            if (!$apiToken) {
-                echo json_encode(['success' => false, 'error' => 'Whapi token not configured']);
+            // Obtém TODAS as sessões Whapi ativas (não apenas a global)
+            $sessions = $this->getAllWhapiSessions($db);
+            if (empty($sessions)) {
+                echo json_encode(['success' => false, 'error' => 'No active Whapi sessions configured']);
                 return;
             }
 
-            // Obtém channel_id ativo
-            $channelId = $this->getWhapiChannelId($db);
+            $totalProcessed = 0;
+            $totalSkipped   = 0;
+            $totalMessages  = 0;
+            $sessionResults = [];
 
-            // Timestamp da última execução (para filtrar apenas novas mensagens)
-            $lastTs = $this->getLastTimestamp();
+            foreach ($sessions as $session) {
+                $sessionName = $session['session_name'];
+                $apiToken    = $session['token'];
+                $channelId   = $session['session_name'];
 
-            // Busca mensagens na API Whapi
-            $messages = $this->fetchMessages($apiToken, $lastTs);
+                // Cache de timestamp por sessão
+                $lastTs    = $this->getLastTimestamp($sessionName);
+                $messages  = $this->fetchMessages($apiToken, $lastTs);
 
-            if (empty($messages)) {
-                echo json_encode(['success' => true, 'processed' => 0, 'message' => 'No new messages']);
-                return;
-            }
+                if (empty($messages)) {
+                    $sessionResults[$sessionName] = ['processed' => 0, 'skipped' => 0, 'total' => 0];
+                    continue;
+                }
 
-            $processed = 0;
-            $skipped   = 0;
-            $maxTs     = $lastTs;
+                $processed = 0;
+                $skipped   = 0;
+                $maxTs     = $lastTs;
 
-            foreach ($messages as $message) {
-                $msgTs = (int)($message['timestamp'] ?? 0);
-                if ($msgTs > $maxTs) $maxTs = $msgTs;
+                foreach ($messages as $message) {
+                    $msgTs = (int)($message['timestamp'] ?? 0);
+                    if ($msgTs > $maxTs) $maxTs = $msgTs;
 
-                $result = $this->processMessage($message, $channelId, $db);
-                if ($result['processed']) $processed++;
-                else $skipped++;
-            }
+                    $result = $this->processMessage($message, $channelId, $db);
+                    if ($result['processed']) $processed++;
+                    else $skipped++;
+                }
 
-            // Atualiza timestamp do último processamento
-            if ($maxTs > $lastTs) {
-                $this->saveLastTimestamp($maxTs);
+                if ($maxTs > $lastTs) {
+                    $this->saveLastTimestamp($maxTs, $sessionName);
+                }
+
+                $totalProcessed += $processed;
+                $totalSkipped   += $skipped;
+                $totalMessages  += count($messages);
+                $sessionResults[$sessionName] = ['processed' => $processed, 'skipped' => $skipped, 'total' => count($messages)];
             }
 
             echo json_encode([
                 'success'   => true,
-                'processed' => $processed,
-                'skipped'   => $skipped,
-                'total'     => count($messages),
-                'last_ts'   => $maxTs,
+                'processed' => $totalProcessed,
+                'skipped'   => $totalSkipped,
+                'total'     => $totalMessages,
+                'sessions'  => $sessionResults,
             ]);
 
         } catch (\Throwable $e) {
@@ -103,24 +113,35 @@ class WhapiPollerController extends Controller
     // Helpers privados
     // -------------------------------------------------------------------------
 
-    private function getWhapiToken(PDO $db): ?string
+    /**
+     * Retorna TODAS as sessões Whapi ativas com tokens descriptografados.
+     * Antes só buscava is_global=TRUE (apenas pixel12digital) — orsegups nunca era polled.
+     */
+    private function getAllWhapiSessions(PDO $db): array
     {
         $stmt = $db->query("
-            SELECT whapi_api_token
+            SELECT session_name, whapi_api_token
             FROM whatsapp_provider_configs
             WHERE provider_type = 'whapi'
-              AND is_global = TRUE
               AND is_active = 1
-            LIMIT 1
+            ORDER BY is_global DESC, id ASC
         ");
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$row || empty($row['whapi_api_token'])) return null;
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $token = $row['whapi_api_token'];
-        if (strpos($token, 'encrypted:') === 0) {
-            $token = CryptoHelper::decrypt(substr($token, 10));
+        $sessions = [];
+        foreach ($rows as $row) {
+            $token = $row['whapi_api_token'] ?? '';
+            if (strpos($token, 'encrypted:') === 0) {
+                $token = CryptoHelper::decrypt(substr($token, 10));
+            }
+            if (!empty($token)) {
+                $sessions[] = [
+                    'session_name' => $row['session_name'],
+                    'token'        => $token,
+                ];
+            }
         }
-        return $token ?: null;
+        return $sessions;
     }
 
     private function getWhapiChannelId(PDO $db): ?string
@@ -298,6 +319,32 @@ class WhapiPollerController extends Controller
                 try {
                     \PixelHub\Services\MediaProcessQueueService::enqueue($eventId);
                 } catch (\Throwable $e) { /* não crítico */ }
+
+                // SDR: atualiza last_inbound_at para que a IA processe a resposta
+                if (!$fromMe && !empty($body)) {
+                    try {
+                        $sdrPhone = \PixelHub\Services\PhoneNormalizer::toE164OrNull($contactPhone);
+                        if ($sdrPhone) {
+                            // Recupera conversation_id criado pelo EventIngestionService
+                            $convRow = $db->prepare("SELECT conversation_id FROM communication_events WHERE event_id = ? LIMIT 1");
+                            $convRow->execute([$eventId]);
+                            $convData = $convRow->fetch(PDO::FETCH_ASSOC);
+                            $convIdForSdr = $convData['conversation_id'] ?? null;
+
+                            $db->prepare("
+                                UPDATE sdr_conversations
+                                SET last_inbound_at = NOW(),
+                                    conversation_id = COALESCE(conversation_id, ?),
+                                    updated_at = NOW()
+                                WHERE phone = ?
+                                  AND stage NOT IN ('closed_win','closed_lost','opted_out')
+                            ")->execute([$convIdForSdr, $sdrPhone]);
+                        }
+                    } catch (\Throwable $sdrEx) {
+                        error_log("[WhapiPoller] SDR update error: " . $sdrEx->getMessage());
+                    }
+                }
+
                 return ['processed' => true, 'event_id' => $eventId];
             }
 
@@ -331,15 +378,21 @@ class WhapiPollerController extends Controller
         return $row ? (int)$row['id'] : null;
     }
 
-    private function getLastTimestamp(): int
+    private function getLastTimestamp(string $session = 'default'): int
     {
         if (!file_exists(self::CACHE_FILE)) return 0;
         $data = @json_decode(file_get_contents(self::CACHE_FILE), true);
-        return (int)($data[self::CACHE_KEY] ?? 0);
+        // Suporte a cache por sessão e ao formato legado (chave única)
+        return (int)($data[self::CACHE_KEY . '_' . $session] ?? $data[self::CACHE_KEY] ?? 0);
     }
 
-    private function saveLastTimestamp(int $ts): void
+    private function saveLastTimestamp(int $ts, string $session = 'default'): void
     {
-        @file_put_contents(self::CACHE_FILE, json_encode([self::CACHE_KEY => $ts]));
+        $data = [];
+        if (file_exists(self::CACHE_FILE)) {
+            $data = @json_decode(file_get_contents(self::CACHE_FILE), true) ?: [];
+        }
+        $data[self::CACHE_KEY . '_' . $session] = $ts;
+        @file_put_contents(self::CACHE_FILE, json_encode($data));
     }
 }
