@@ -5,7 +5,7 @@ namespace PixelHub\Services;
 use PixelHub\Core\DB;
 use PixelHub\Core\Env;
 use PixelHub\Core\CryptoHelper;
-use PixelHub\Core\PhoneNormalizer;
+use PixelHub\Services\PhoneNormalizer;
 use PixelHub\Integrations\WhatsApp\WhapiCloudProvider;
 use PixelHub\Services\WhatsAppProviderFactory;
 use PixelHub\Services\EventIngestionService;
