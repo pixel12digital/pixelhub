@@ -170,7 +170,7 @@ ob_start();
                     $st = $result['status'];
                     $stStyle = $statusLabels[$st] ?? $statusLabels['new'];
                 ?>
-                <tr style="border-bottom:1px solid #e8edf2;<?= $st === 'discarded' ? 'opacity:.4;background:#f8fafc;filter:grayscale(.5);' : (!empty($result['whatsapp_sent_at']) ? 'background:#dbeafe;' : ($rowIdx % 2 === 0 ? 'background:#f4f6f9;' : 'background:#fff;')) ?>" id="row-<?= $result['id'] ?>" data-status="<?= htmlspecialchars($st) ?>" data-name="<?= htmlspecialchars($result['name'] ?? '') ?>" data-wa-sent="<?= !empty($result['whatsapp_sent_at']) ? '1' : '0' ?>">
+                <tr style="border-bottom:1px solid #e8edf2;<?= $st === 'discarded' ? 'opacity:.4;background:#f8fafc;filter:grayscale(.5);' : (!empty($result['whatsapp_sent_at']) ? 'background:#dbeafe;border-left:3px solid #60a5fa;' : 'background:#fff;border-left:3px solid transparent;') ?>" id="row-<?= $result['id'] ?>" data-status="<?= htmlspecialchars($st) ?>" data-name="<?= htmlspecialchars($result['name'] ?? '') ?>" data-wa-sent="<?= !empty($result['whatsapp_sent_at']) ? '1' : '0' ?>">
                     <td style="padding:14px 14px;text-align:center;vertical-align:top;">
                         <?php if ($st !== 'discarded'): ?>
                         <input type="checkbox" class="sdr-row-check" data-id="<?= $result['id'] ?>" style="width:20px;height:20px;cursor:pointer;accent-color:#023A8D;margin-top:2px;min-width:20px;min-height:20px;" data-queued="0" <?= !empty($result['whatsapp_sent_at']) ? 'checked' : '' ?>>
@@ -1239,6 +1239,7 @@ if ($totalPages > 1):
         }
         if (waSentAt && row && row.dataset.waSent !== '1') {
             row.style.background = '#dbeafe';
+            row.style.borderLeft = '3px solid #60a5fa';
             row.dataset.waSent = '1';
             var cb = document.querySelector('.sdr-row-check[data-id="' + id + '"]');
             if (cb && !cb.disabled) cb.checked = true;
@@ -1252,10 +1253,11 @@ if ($totalPages > 1):
         if (!id) return;
         // Atualiza imediatamente para "qualified" + badge visível
         _applyUpdate(id, 'qualified', true);
-        // Marca checkbox e aplica fundo cinza
+        // Marca checkbox e aplica fundo azul
         var row = document.getElementById('row-' + id);
         if (row) {
             row.style.background = '#dbeafe';
+            row.style.borderLeft = '3px solid #60a5fa';
             row.dataset.waSent = '1';
         }
         var cb = document.querySelector('.sdr-row-check[data-id="' + id + '"]');
@@ -1292,6 +1294,7 @@ function _loadQueuedIds() {
                 const row = document.getElementById('row-' + id);
                 if (row && row.dataset.waSent !== '1') {
                     row.style.background = '#dbeafe';
+                    row.style.borderLeft = '3px solid #60a5fa';
                     row.dataset.waSent = '1';
                 }
             }
