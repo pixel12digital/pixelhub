@@ -1529,6 +1529,15 @@ class CommunicationHubController extends Controller
 
                     if ($useWhapiAPI && $whapiProvider) {
                         // ─── WHAPI.CLOUD: Todos os tipos de mensagem ───────────────────────
+                        // Validar se número tem WhatsApp antes de enviar (apenas novas conversas)
+                        if (empty($threadId)) {
+                            $waValidation = \PixelHub\Services\SdrDispatchService::validatePhoneNumber($phoneNormalized, $targetChannelId);
+                            if (!$waValidation['valid'] && ($waValidation['status'] ?? '') !== 'error') {
+                                $sendResults[] = ['channel_id' => $targetChannelId, 'success' => false, 'error' => 'Número sem WhatsApp', 'no_whatsapp' => true];
+                                $errors[] = "{$targetChannelId}: Número sem WhatsApp";
+                                continue;
+                            }
+                        }
                         // Whapi aceita base64 diretamente e auto-converte áudio para OGG/Opus
                         error_log("[CommunicationHub::send] 📱 Enviando via Whapi.Cloud type={$messageType} to={$phoneNormalized}");
 

@@ -435,7 +435,7 @@ class SdrDispatchService
     /**
      * Valida um número de telefone via API Whapi.Cloud
      */
-    private static function validatePhoneNumber(string $phone, string $sessionName): array
+    public static function validatePhoneNumber(string $phone, string $sessionName): array
     {
         // Pegar token da sessão
         $db = DB::getConnection();
@@ -482,7 +482,7 @@ class SdrDispatchService
         return $result;
     }
 
-    private static function callWhapiContacts(string $phone, string $token): array
+    public static function callWhapiContacts(string $phone, string $token): array
     {
         $url  = 'https://gate.whapi.cloud/contacts';
         $data = ['contacts' => [$phone]];
