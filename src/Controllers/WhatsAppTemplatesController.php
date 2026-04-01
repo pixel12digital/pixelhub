@@ -394,6 +394,7 @@ class WhatsAppTemplatesController extends Controller
             return [
                 'id' => (int) $template['id'],
                 'name' => $template['name'],
+                'title' => $template['name'],
                 'category' => $template['category'],
                 'category_id' => $template['category_id'] ? (int) $template['category_id'] : null,
                 'category_name' => $template['category_name'] ?? null,
@@ -403,6 +404,30 @@ class WhatsAppTemplatesController extends Controller
                 'content' => $content,
             ];
         }, $templates);
+
+        // Busca templates aprovados da Meta Official API
+        $metaTemplates = $db->query("
+            SELECT id, template_name, content, category, language
+            FROM whatsapp_message_templates
+            WHERE status = 'approved' AND is_active = 1
+            ORDER BY template_name ASC
+        ")->fetchAll() ?: [];
+
+        // Adiciona templates Meta ao resultado
+        foreach ($metaTemplates as $metaTemplate) {
+            $result[] = [
+                'id' => 'meta_' . $metaTemplate['id'],
+                'name' => $metaTemplate['template_name'],
+                'title' => $metaTemplate['template_name'] . ' (Meta API)',
+                'category' => $metaTemplate['category'],
+                'category_id' => null,
+                'category_name' => ucfirst($metaTemplate['category']),
+                'parent_category_id' => null,
+                'parent_category_name' => 'Meta Templates',
+                'description' => 'Template aprovado pela Meta - ' . strtoupper($metaTemplate['language']),
+                'content' => $metaTemplate['content'],
+            ];
+        }
 
         // Busca árvore de categorias
         $categories = $db->query("
