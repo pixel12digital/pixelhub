@@ -596,6 +596,7 @@ class CommunicationHubController extends Controller
             $channelId = isset($_POST['channel_id']) && $_POST['channel_id'] !== '' ? trim($_POST['channel_id']) : null;
             $originalChannelIdFromPost = $channelId;
 
+            $contactNameFromPost = trim($_POST['contact_name'] ?? '');
             $forwardToAll = isset($_POST['forward_to_all']) && $_POST['forward_to_all'] === '1';
             $channelIdsArray = isset($_POST['channel_ids']) && is_array($_POST['channel_ids']) ? $_POST['channel_ids'] : null;
             $messageType = isset($_POST['type']) ? strtolower(trim($_POST['type'])) : 'text';
@@ -1874,6 +1875,23 @@ class CommunicationHubController extends Controller
                             'tenant_id' => $tenantId,
                             'metadata' => $metadata
                         ]);
+
+                        // Atualiza contact_name na conversa se veio do modal de prospecção
+                        if (!empty($contactNameFromPost)) {
+                            try {
+                                $digits = preg_replace('/[^0-9]/', '', $phoneNormalized);
+                                $chatId = $digits . '@s.whatsapp.net';
+                                $db->prepare("
+                                    UPDATE conversations
+                                    SET contact_name = ?
+                                    WHERE contact_external_id IN (?, ?)
+                                      AND channel_id = ?
+                                      AND (contact_name IS NULL OR contact_name = '' OR contact_name = 'Contato Desconhecido')
+                                ")->execute([$contactNameFromPost, $chatId, $digits, $normalizedChannelId]);
+                            } catch (\Exception $cnEx) {
+                                error_log("[CommunicationHub::send] Falha ao atualizar contact_name: " . $cnEx->getMessage());
+                            }
+                        }
                         
                         // ===== SALVAR MÍDIA OUTBOUND (áudio, imagem, documento) =====
                         // Isso permite que o player/preview funcione para mensagens enviadas
