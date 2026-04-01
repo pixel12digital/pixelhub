@@ -425,8 +425,9 @@ class SdrDispatchService
            ->execute([$job['result_id']]);
 
         // Registra em communication_events para aparecer no Inbox
-        $sessionName = $job['session_name'] ?? 'orsegups';
-        self::registerOutboundEvent($job['phone'], $job['message'], $result['message_id'] ?? null, $sessionName);
+        $sessionName   = $job['session_name'] ?? 'orsegups';
+        $establishName = $job['establishment_name'] ?? '';
+        self::registerOutboundEvent($sendPhone, $job['message'], $result['message_id'] ?? null, $sessionName, $establishName);
 
         return $result;
     }
@@ -681,8 +682,9 @@ class SdrDispatchService
             return;
         }
 
-        $sessionName = Env::get('SDR_WHAPI_SESSION', 'orsegups');
-        self::registerOutboundEvent($conv['phone'], $text, $result['message_id'] ?? null, $sessionName);
+        $sessionName   = Env::get('SDR_WHAPI_SESSION', 'orsegups');
+        $establishName = $conv['establishment_name'] ?? '';
+        self::registerOutboundEvent($conv['phone'], $text, $result['message_id'] ?? null, $sessionName, $establishName);
 
         $db->prepare("
             UPDATE sdr_conversations
@@ -1088,7 +1090,7 @@ class SdrDispatchService
      * Usa EventIngestionService::ingest() para que a mensagem seja vinculada
      * à conversa correta (conversation_id) e apareça no thread do Inbox.
      */
-    private static function registerOutboundEvent(string $toPhone, string $text, ?string $msgId, string $sessionName = 'orsegups'): void
+    private static function registerOutboundEvent(string $toPhone, string $text, ?string $msgId, string $sessionName = 'orsegups', string $contactName = ''): void
     {
         try {
             $digits = preg_replace('/[^0-9]/', '', $toPhone);
@@ -1131,6 +1133,22 @@ class SdrDispatchService
                     'via'           => 'sdr_dispatch',
                 ],
             ]);
+
+            // Atualiza contact_name na conversa criada pelo ingest
+            if (!empty($contactName)) {
+                try {
+                    $db = DB::getConnection();
+                    $db->prepare("
+                        UPDATE conversations
+                        SET contact_name = ?
+                        WHERE contact_external_id IN (?, ?)
+                          AND channel_id = ?
+                          AND (contact_name IS NULL OR contact_name = '' OR contact_name = 'Contato Desconhecido')
+                    ")->execute([$contactName, $chatId, $digits, $sessionName]);
+                } catch (\Throwable $ex) {
+                    error_log("[SDR] Falha ao atualizar contact_name: " . $ex->getMessage());
+                }
+            }
         } catch (\Throwable $e) {
             error_log("[SDR] Falha ao registrar evento outbound: " . $e->getMessage());
         }
