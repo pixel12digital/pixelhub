@@ -1314,6 +1314,12 @@ class CommunicationHubController extends Controller
                     $this->json(['success' => false, 'error' => 'Telefone inválido', 'request_id' => $requestId], 400);
                     return;
                 }
+                // DDD 47: não usa 9º dígito — se chegou com 13 dígitos (55+47+9+8), retira o 9
+                if (strlen($phoneNormalized) === 13
+                    && substr($phoneNormalized, 0, 4) === '5547'
+                    && substr($phoneNormalized, 4, 1) === '9') {
+                    $phoneNormalized = substr($phoneNormalized, 0, 4) . substr($phoneNormalized, 5);
+                }
 
                 // CORREÇÃO: Obtém baseUrl e secret via env/config (mesmo padrão do módulo de teste)
                 // PATCH F+G: Nunca buscar base_url ou gateway_secret do banco (colunas não existem)

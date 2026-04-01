@@ -467,9 +467,12 @@ class SdrDispatchService
         
         // Falso-negativo para BR 8 dígitos (formato pré-2012):
         // Se inválido e número tem 12 dígitos (55+DDD+8 dígitos), tenta com 9º dígito.
+        // Exceção: DDD 47 não usa 9º dígito — não aplicar fallback.
         if (!$result['valid'] && $result['status'] !== 'error') {
             $digits = preg_replace('/[^0-9]/', '', $phone);
-            if (strlen($digits) === 12 && substr($digits, 0, 2) === '55') {
+            $ddd = substr($digits, 2, 2);
+            $dddsSem9Digito = ['47'];
+            if (!in_array($ddd, $dddsSem9Digito) && strlen($digits) === 12 && substr($digits, 0, 2) === '55') {
                 // Insere '9' após DDD: 55(2)+DDD(2)+9+subscriber(8) = 13 dígitos
                 $phoneWith9 = substr($digits, 0, 4) . '9' . substr($digits, 4);
                 $result9 = self::callWhapiContacts($phoneWith9, $token);
