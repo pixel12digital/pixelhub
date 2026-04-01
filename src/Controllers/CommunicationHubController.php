@@ -2799,12 +2799,17 @@ class CommunicationHubController extends Controller
                     l.phone as lead_phone,
                     l.status as lead_status,
                     u.name as assigned_to_name,
-                    COALESCE(tmc.name, c.channel_id) as channel_display_name
+                    COALESCE(
+                        JSON_UNQUOTE(JSON_EXTRACT(wpc.config_metadata, '$.display_name')),
+                        tmc.name,
+                        c.channel_id
+                    ) as channel_display_name
                 FROM conversations c
                 LEFT JOIN tenants t ON c.tenant_id = t.id
                 LEFT JOIN leads l ON c.lead_id = l.id
                 LEFT JOIN users u ON c.assigned_to = u.id
-                LEFT JOIN tenant_message_channels tmc ON c.channel_id = tmc.channel_id AND tmc.provider = 'whapi' AND tmc.is_enabled = 1
+                LEFT JOIN tenant_message_channels tmc ON c.channel_id = tmc.channel_id AND tmc.provider = 'whapi'
+                LEFT JOIN whatsapp_provider_configs wpc ON wpc.session_name = c.channel_id AND wpc.provider_type = 'whapi' AND wpc.is_active = 1
                 {$whereClause}
                 ORDER BY c.is_incoming_lead DESC, COALESCE(c.last_message_at, c.created_at) DESC, c.created_at DESC
                 LIMIT 100
