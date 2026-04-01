@@ -61,6 +61,9 @@ class WhatsAppTemplateController
         Auth::requireInternal();
         
         try {
+            error_log('[WhatsAppTemplate] Iniciando criação de template');
+            error_log('[WhatsAppTemplate] POST data: ' . json_encode($_POST));
+            
             $data = [
                 'tenant_id' => isset($_POST['tenant_id']) && $_POST['tenant_id'] !== '' ? (int) $_POST['tenant_id'] : null,
                 'template_name' => trim($_POST['template_name'] ?? ''),
@@ -73,9 +76,12 @@ class WhatsAppTemplateController
                 'status' => 'draft'
             ];
             
+            error_log('[WhatsAppTemplate] Dados processados: ' . json_encode($data));
+            
             // Processa botões
             $buttons = [];
             if (!empty($_POST['buttons'])) {
+                error_log('[WhatsAppTemplate] Processando botões: ' . $_POST['buttons']);
                 $buttonsData = is_string($_POST['buttons']) ? json_decode($_POST['buttons'], true) : $_POST['buttons'];
                 if (is_array($buttonsData)) {
                     $buttons = $buttonsData;
@@ -84,28 +90,46 @@ class WhatsAppTemplateController
             $data['buttons'] = $buttons;
             
             // Extrai variáveis do conteúdo
+            error_log('[WhatsAppTemplate] Extraindo variáveis do conteúdo');
             $variables = MetaTemplateService::extractVariables($data['content']);
             $data['variables'] = array_map(function($index) {
                 return ['index' => $index, 'example' => ''];
             }, $variables);
             
+            error_log('[WhatsAppTemplate] Variáveis extraídas: ' . json_encode($variables));
+            
             // Valida template
+            error_log('[WhatsAppTemplate] Validando template');
             $validation = MetaTemplateService::validateTemplate($data);
             
             if (!$validation['valid']) {
+                error_log('[WhatsAppTemplate] Validação falhou: ' . json_encode($validation['errors']));
                 $_SESSION['error'] = 'Erro de validação: ' . implode(', ', $validation['errors']);
                 header('Location: ' . pixelhub_url('/whatsapp/templates/create'));
                 exit;
             }
             
+            error_log('[WhatsAppTemplate] Validação OK, criando template no banco');
             $templateId = MetaTemplateService::create($data);
+            
+            error_log('[WhatsAppTemplate] Template criado com ID: ' . $templateId);
             
             $_SESSION['success'] = 'Template criado com sucesso!';
             header('Location: ' . pixelhub_url('/whatsapp/templates?id=' . $templateId));
             exit;
             
         } catch (\Exception $e) {
+            error_log('[WhatsAppTemplate] ERRO: ' . $e->getMessage());
+            error_log('[WhatsAppTemplate] Stack trace: ' . $e->getTraceAsString());
+            
             $_SESSION['error'] = 'Erro ao criar template: ' . $e->getMessage();
+            header('Location: ' . pixelhub_url('/whatsapp/templates/create'));
+            exit;
+        } catch (\Throwable $e) {
+            error_log('[WhatsAppTemplate] ERRO FATAL: ' . $e->getMessage());
+            error_log('[WhatsAppTemplate] Stack trace: ' . $e->getTraceAsString());
+            
+            $_SESSION['error'] = 'Erro fatal ao criar template: ' . $e->getMessage();
             header('Location: ' . pixelhub_url('/whatsapp/templates/create'));
             exit;
         }
