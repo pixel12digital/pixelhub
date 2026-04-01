@@ -1475,9 +1475,7 @@ class ProspectingService
     }
 
     /**
-     * Marca resultado como mensagem WA enviada.
-     * NÃO altera o status — "qualificado" deve refletir interesse real do contato,
-     * não apenas o envio da mensagem. O badge "WA enviado" é mostrado via whatsapp_sent_at.
+     * Marca resultado como mensagem WA enviada e promove status para 'qualified' se ainda for 'new'.
      */
     public static function markWaSent(int $id, ?int $userId = null): void
     {
@@ -1485,6 +1483,7 @@ class ProspectingService
         $db->prepare("
             UPDATE prospecting_results
             SET whatsapp_sent_at = COALESCE(whatsapp_sent_at, NOW()),
+                status = CASE WHEN status = 'new' THEN 'qualified' ELSE status END,
                 updated_by = ?,
                 updated_at = NOW()
             WHERE id = ?
