@@ -22,6 +22,12 @@ ob_start();
             📞 Buscar Todos os Telefones
         </button>
         <?php endif; ?>
+        <button onclick="openWaPreconfigModal()"
+                id="wa-preconfig-btn"
+                style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;white-space:nowrap;"
+                title="Configurar canal, sessão e template padrão para envios manuais">
+            ⚙ Pré-config WA
+        </button>
         <button id="sdr-dispatch-btn" onclick="openSdrModalResults(<?= $recipe['id'] ?>, '<?= htmlspecialchars(addslashes($recipe['name'])) ?>')"
                 style="display:inline-flex;align-items:center;gap:8px;padding:12px 16px;background:#023A8D;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;white-space:nowrap;">
             <span id="sdr-btn-label">Disparar SDR</span>
@@ -1032,6 +1038,7 @@ function openProspectWA(phone, name, resultId) {
     if (typeof openNewMessageModal === 'function') {
         openNewMessageModal();
     }
+    setTimeout(_applyWaPreconfig, 80);
 }
 
 // ===================== ENRIQUECIMENTO EM LOTE =====================
@@ -1146,6 +1153,48 @@ function updateWithCnpjWs(resultId) {
 <div id="enrichModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:8px;max-width:900px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
         <div id="enrichContent"></div>
+    </div>
+</div>
+
+<!-- Modal Pré-config WA Manual -->
+<div id="wa-preconfig-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)closeWaPreconfigModal()">
+    <div style="background:#fff;border-radius:12px;padding:24px;max-width:420px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3 style="margin:0;font-size:16px;color:#1e293b;">⚙ Pré-config WA Manual</h3>
+            <button onclick="closeWaPreconfigModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#64748b;line-height:1;">×</button>
+        </div>
+        <p style="margin:0 0 16px;font-size:12px;color:#64748b;line-height:1.5;">Configure canal, sessão e template padrão para envios manuais nesta receita. Ao clicar em <strong>WA</strong> ou no ícone WhatsApp, o modal já abrirá pré-configurado.</p>
+
+        <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Canal</label>
+            <select id="preconfig-channel" onchange="preconfigChannelChange()" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;">
+                <option value="">Selecione...</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="whatsapp_api">API - Pixel12Digital</option>
+            </select>
+        </div>
+
+        <div id="preconfig-session-wrap" style="margin-bottom:14px;display:none;">
+            <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Sessão WhatsApp</label>
+            <select id="preconfig-session" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;">
+                <option value="">Carregando sessões...</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom:20px;">
+            <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Template / Mensagem padrão</label>
+            <select id="preconfig-template" onchange="preconfigTemplateChange()" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;">
+                <option value="">Nenhum (sem mensagem pré-definida)</option>
+            </select>
+            <div id="preconfig-template-preview" style="display:none;margin-top:8px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#475569;white-space:pre-wrap;max-height:100px;overflow-y:auto;line-height:1.5;"></div>
+        </div>
+
+        <div id="preconfig-status" style="display:none;"></div>
+
+        <div style="display:flex;gap:10px;">
+            <button onclick="saveWaPreconfig()" style="flex:1;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">Salvar</button>
+            <button onclick="closeWaPreconfigModal()" style="padding:12px 20px;background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600;">Fechar</button>
+        </div>
     </div>
 </div>
 
@@ -1627,6 +1676,175 @@ function cancelSdrJob(jobId, btn) {
         btn.innerHTML = orig;
     });
 }
+
+// ===================== PRÉ-CONFIGURAÇÃO WA MANUAL =====================
+var _waPreconfigKey = 'prospecting_wa_preconfig_<?= (int)$recipe['id'] ?>';
+
+function _getWaPreconfig() {
+    try { return JSON.parse(localStorage.getItem(_waPreconfigKey) || 'null') || {}; }
+    catch(e) { return {}; }
+}
+
+function _applyWaPreconfig() {
+    var cfg = _getWaPreconfig();
+    if (!cfg || !cfg.canal) return;
+    var channelSel = document.getElementById('new-message-channel');
+    if (!channelSel) return;
+    channelSel.value = cfg.canal;
+    channelSel.dispatchEvent(new Event('change'));
+    if (cfg.canal === 'whatsapp' && cfg.session) {
+        setTimeout(function() {
+            var s = document.getElementById('new-message-session');
+            if (s) s.value = cfg.session;
+        }, 20);
+    }
+    if (cfg.template_content) {
+        setTimeout(function() {
+            var ta = document.getElementById('new-message-text');
+            if (ta && !ta.disabled) ta.value = cfg.template_content;
+        }, 40);
+    }
+}
+
+function openWaPreconfigModal() {
+    var modal = document.getElementById('wa-preconfig-modal');
+    if (!modal) return;
+    var cfg = _getWaPreconfig();
+    var chSel = document.getElementById('preconfig-channel');
+    if (chSel) {
+        chSel.value = cfg.canal || '';
+        preconfigChannelChange();
+    }
+    var statusEl = document.getElementById('preconfig-status');
+    if (statusEl) statusEl.style.display = 'none';
+    _loadPreconfigSessions(cfg.session || '');
+    _loadPreconfigTemplates(cfg.template_id || '');
+    modal.style.display = 'flex';
+}
+
+function closeWaPreconfigModal() {
+    var modal = document.getElementById('wa-preconfig-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function preconfigChannelChange() {
+    var ch = document.getElementById('preconfig-channel');
+    var wrap = document.getElementById('preconfig-session-wrap');
+    if (ch && wrap) wrap.style.display = ch.value === 'whatsapp' ? 'block' : 'none';
+}
+
+function preconfigTemplateChange() {
+    var sel = document.getElementById('preconfig-template');
+    var preview = document.getElementById('preconfig-template-preview');
+    if (!sel || !preview) return;
+    var opt = sel.options[sel.selectedIndex];
+    var content = opt ? (opt.dataset.content || '') : '';
+    if (content) {
+        preview.textContent = content;
+        preview.style.display = 'block';
+    } else {
+        preview.textContent = '';
+        preview.style.display = 'none';
+    }
+}
+
+function saveWaPreconfig() {
+    var chSel = document.getElementById('preconfig-channel');
+    var seSel = document.getElementById('preconfig-session');
+    var tpSel = document.getElementById('preconfig-template');
+    var status = document.getElementById('preconfig-status');
+    var cfg = {
+        canal: chSel ? chSel.value : '',
+        session: (seSel && chSel && chSel.value === 'whatsapp') ? seSel.value : '',
+        template_id: tpSel ? tpSel.value : '',
+        template_title: '',
+        template_content: ''
+    };
+    if (tpSel && tpSel.value) {
+        var opt = tpSel.options[tpSel.selectedIndex];
+        if (opt) {
+            cfg.template_title = opt.dataset.title || opt.textContent || '';
+            cfg.template_content = opt.dataset.content || '';
+        }
+    }
+    localStorage.setItem(_waPreconfigKey, JSON.stringify(cfg));
+    _updateWaPreconfigBtnStyle();
+    if (status) {
+        status.textContent = '✓ Configuração salva! Próximos envios já serão pré-configurados.';
+        status.style.cssText = 'display:block;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;border-radius:6px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:12px;';
+        setTimeout(function() { closeWaPreconfigModal(); }, 1800);
+    }
+}
+
+function _loadPreconfigSessions(savedSession) {
+    var sel = document.getElementById('preconfig-session');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Carregando...</option>';
+    fetch('<?= pixelhub_url('/prospecting/sdr/sessions') ?>')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var sessions = data.sessions || [];
+            if (!sessions.length) {
+                sel.innerHTML = '<option value="">Nenhuma sessão disponível</option>';
+                return;
+            }
+            sel.innerHTML = '<option value="">Selecione a sessão...</option>';
+            sessions.forEach(function(s) {
+                var opt = document.createElement('option');
+                opt.value = s.session_name;
+                opt.textContent = s.display_name || s.session_name;
+                if (s.session_name === savedSession) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            if (sessions.length === 1) sel.selectedIndex = 1;
+        })
+        .catch(function() {
+            sel.innerHTML = '<option value="">Erro ao carregar sessões</option>';
+        });
+}
+
+function _loadPreconfigTemplates(savedTemplateId) {
+    var sel = document.getElementById('preconfig-template');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Carregando...</option>';
+    fetch('<?= pixelhub_url('/settings/whatsapp-templates/quick-replies') ?>')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var templates = data.templates || [];
+            sel.innerHTML = '<option value="">Nenhum (sem mensagem pré-definida)</option>';
+            templates.forEach(function(t) {
+                var opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = t.title || t.name || ('Template #' + t.id);
+                opt.dataset.content = t.content || '';
+                opt.dataset.title = t.title || t.name || '';
+                if (String(t.id) === String(savedTemplateId)) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            preconfigTemplateChange();
+        })
+        .catch(function() {
+            sel.innerHTML = '<option value="">Erro ao carregar templates</option>';
+        });
+}
+
+function _updateWaPreconfigBtnStyle() {
+    var cfg = _getWaPreconfig();
+    var btn = document.getElementById('wa-preconfig-btn');
+    if (!btn) return;
+    if (cfg && cfg.canal) {
+        btn.style.background = '#5b21b6';
+        var tip = 'Pré-config ativa: ' + (cfg.canal === 'whatsapp' ? 'WhatsApp' : 'API');
+        if (cfg.session) tip += ' · ' + cfg.session;
+        if (cfg.template_title) tip += ' · ' + cfg.template_title;
+        btn.title = tip;
+    } else {
+        btn.style.background = '#7c3aed';
+        btn.title = 'Configurar canal, sessão e template padrão para envios manuais';
+    }
+}
+
+_updateWaPreconfigBtnStyle();
 
 </script>
 
