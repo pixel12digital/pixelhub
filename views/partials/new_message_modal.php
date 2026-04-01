@@ -402,6 +402,10 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
     window.loadApprovedTemplates = function() {
         var templateSelect = document.getElementById('new-message-template');
         if (!templateSelect) return;
+
+        // Captura e limpa o template pendente definido por _applyWaPreconfig (preconfig WA)
+        var pendingSelectId = window._pendingPreconfigTemplateId || null;
+        window._pendingPreconfigTemplateId = null;
         
         templateSelect.innerHTML = '<option value="">Carregando templates...</option>';
         
@@ -418,6 +422,13 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                         option.dataset.variables = template.variables || '';
                         templateSelect.appendChild(option);
                     });
+                    // Auto-seleciona template da pré-configuração WA
+                    if (pendingSelectId) {
+                        templateSelect.value = pendingSelectId;
+                        if (String(templateSelect.value) === String(pendingSelectId) && typeof handleTemplateChange === 'function') {
+                            handleTemplateChange();
+                        }
+                    }
                 } else {
                     templateSelect.innerHTML = '<option value="">Nenhum template aprovado disponível</option>';
                 }

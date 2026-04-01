@@ -1688,17 +1688,28 @@ function _getWaPreconfig() {
 function _applyWaPreconfig() {
     var cfg = _getWaPreconfig();
     if (!cfg || !cfg.canal) return;
+
+    // Para whatsapp_api: armazena template_id pendente para loadApprovedTemplates selecionar após fetch
+    if (cfg.canal === 'whatsapp_api' && cfg.template_id) {
+        var tid = String(cfg.template_id);
+        // preconfig salva como "meta_42"; nova mensagem usa ID puro ("42")
+        if (tid.indexOf('meta_') === 0) tid = tid.substring(5);
+        if (tid) window._pendingPreconfigTemplateId = tid;
+    }
+
     var channelSel = document.getElementById('new-message-channel');
     if (!channelSel) return;
     channelSel.value = cfg.canal;
     channelSel.dispatchEvent(new Event('change'));
+
     if (cfg.canal === 'whatsapp' && cfg.session) {
         setTimeout(function() {
             var s = document.getElementById('new-message-session');
             if (s) s.value = cfg.session;
         }, 20);
     }
-    if (cfg.template_content) {
+    // Para whatsapp (gateway), preenche textarea com conteúdo do template
+    if (cfg.canal !== 'whatsapp_api' && cfg.template_content) {
         setTimeout(function() {
             var ta = document.getElementById('new-message-text');
             if (ta && !ta.disabled) ta.value = cfg.template_content;

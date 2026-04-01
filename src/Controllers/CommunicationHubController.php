@@ -7711,7 +7711,9 @@ class CommunicationHubController extends Controller
             $updateChannelId   = empty($conversation['channel_id']) ? $phoneNumberId : null;
             $stmt = $db->prepare("
                 UPDATE conversations
-                SET updated_at = NOW()
+                SET updated_at = NOW(),
+                    last_message_at = NOW(),
+                    last_message_direction = 'outbound'
                     " . ($updateContactName ? ", contact_name = ?" : "") . "
                     " . ($updateChannelId   ? ", channel_id = ?"   : "") . "
                 WHERE id = ?
@@ -7757,6 +7759,12 @@ class CommunicationHubController extends Controller
             $eventData = [
                 'event_type' => 'whatsapp.outbound.message',
                 'source_system' => 'meta_official',
+                'tenant_id' => $tenantIdForDb,
+                'metadata' => [
+                    'channel_id' => $phoneNumberId,
+                    'provider_type' => 'meta_official',
+                    'conversation_id' => $conversationId,
+                ],
                 'payload' => [
                     'message_id' => $messageId,
                     'to' => $normalizedPhone,
@@ -7770,9 +7778,20 @@ class CommunicationHubController extends Controller
                 'trace_id' => $requestId
             ];
             
-            EventIngestionService::ingest($eventData);
+            $ingestedEventId = EventIngestionService::ingest($eventData);
+
+            // Garante que o evento fica vinculado à conversa já criada (resolveConversation
+            // pode não encontrá-la se meta_official não tiver channel_account_id resolvido)
+            if ($ingestedEventId && $conversationId) {
+                try {
+                    $linkStmt = $db->prepare("UPDATE communication_events SET conversation_id = ? WHERE event_id = ? AND (conversation_id IS NULL OR conversation_id != ?)");
+                    $linkStmt->execute([$conversationId, $ingestedEventId, $conversationId]);
+                } catch (\Exception $le) {
+                    error_log("[CommunicationHub::sendViaMetaAPI] Erro ao forçar conversation_id no evento: " . $le->getMessage());
+                }
+            }
             
-            error_log("[CommunicationHub::sendViaMetaAPI] Evento registrado via EventIngestionService");
+            error_log("[CommunicationHub::sendViaMetaAPI] Evento registrado via EventIngestionService: {$ingestedEventId}");
         } catch (\Exception $e) {
             error_log("[CommunicationHub::sendViaMetaAPI] Erro ao registrar evento: " . $e->getMessage());
             // Não falha o envio se o registro falhar
@@ -7783,6 +7802,7 @@ class CommunicationHubController extends Controller
             'message' => 'Mensagem enviada com sucesso!',
             'message_id' => $messageId,
             'conversation_id' => $conversationId,
+            'thread_id' => 'whatsapp_' . $conversationId,
             'request_id' => $requestId
         ];
     }
