@@ -914,13 +914,19 @@ class ProspectingController extends Controller
         header('Content-Type: application/json');
 
         $configs = \PixelHub\Services\WhatsAppProviderFactory::getAllWhapiConfigs();
-        $sessions = array_map(fn($c) => [
-            'session_name' => $c['session_name'] ?? '',
-            'is_active'    => (bool)($c['is_active'] ?? false),
-            'has_token'    => (bool)($c['has_token'] ?? false),
-        ], array_filter($configs, fn($c) => !empty($c['session_name']) && $c['is_active'] && $c['has_token']));
+        $sessions = [];
+        foreach ($configs as $c) {
+            if (empty($c['session_name']) || !$c['is_active'] || !$c['has_token']) continue;
+            $meta = json_decode($c['config_metadata'] ?? '{}', true) ?: [];
+            $sessions[] = [
+                'session_name' => $c['session_name'],
+                'display_name' => $meta['display_name'] ?? ucwords(str_replace(['_', '-'], ' ', $c['session_name'])),
+                'is_active'    => true,
+                'has_token'    => true,
+            ];
+        }
 
-        $this->json(['success' => true, 'sessions' => array_values($sessions)]);
+        $this->json(['success' => true, 'sessions' => $sessions]);
     }
 
     /**

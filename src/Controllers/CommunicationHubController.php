@@ -1372,7 +1372,13 @@ class CommunicationHubController extends Controller
                 // PRIORIDADE 2: Se não é Meta, verifica se Whapi.Cloud é o provider padrão
                 if (!$useMetaAPI) {
                     try {
-                        $defaultProvider = WhatsAppProviderFactory::getProvider(null, $tenantId);
+                        // Se channel_id corresponde a um session_name Whapi, usa aquele canal específico
+                        if (!empty($channelId) && WhatsAppProviderFactory::getWhapiConfigBySession($channelId)) {
+                            $defaultProvider = WhatsAppProviderFactory::getWhapiProviderBySession($channelId);
+                            error_log("[CommunicationHub::send] Usando Whapi channel específico: {$channelId}");
+                        } else {
+                            $defaultProvider = WhatsAppProviderFactory::getProvider(null, $tenantId);
+                        }
                         if ($defaultProvider instanceof WhapiCloudProvider) {
                             $useWhapiAPI = true;
                             $whapiProvider = $defaultProvider;
@@ -2635,23 +2641,22 @@ class CommunicationHubController extends Controller
     {
         $sessions = [];
 
-        // 1. Whapi.Cloud — canais ativos em tenant_message_channels
+        // 1. Whapi.Cloud — canais ativos em whatsapp_provider_configs
         try {
             $stmt = $db->query("
-                SELECT channel_id, name, provider
-                FROM tenant_message_channels
-                WHERE provider = 'whapi'
-                  AND is_enabled = 1
-                ORDER BY channel_id
+                SELECT session_name, whapi_channel_id, config_metadata
+                FROM whatsapp_provider_configs
+                WHERE provider_type = 'whapi'
+                  AND is_active = 1
+                ORDER BY is_global DESC, id ASC
             ");
             foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
-                $id = $row['channel_id'];
-                if (!$id) continue;
-                $displayName = !empty($row['name'])
-                    ? $row['name']
-                    : ucwords(str_replace(['_', '-'], ' ', $id));
+                $sessionName = $row['session_name'] ?? '';
+                if (!$sessionName) continue;
+                $metadata    = json_decode($row['config_metadata'] ?? '{}', true) ?: [];
+                $displayName = $metadata['display_name'] ?? ucwords(str_replace(['_', '-'], ' ', $sessionName));
                 $sessions[] = [
-                    'id'     => $id,
+                    'id'     => $sessionName,
                     'name'   => $displayName,
                     'status' => 'connected',
                     'source' => 'whapi',
@@ -4700,32 +4705,18 @@ class CommunicationHubController extends Controller
 
         try {
             $stmt = $db->query("
-                SELECT DISTINCT channel_id
-                FROM conversations
-                WHERE channel_type = 'whatsapp'
-                  AND channel_id IS NOT NULL AND channel_id != ''
-                ORDER BY channel_id
+                SELECT session_name, whapi_channel_id, config_metadata
+                FROM whatsapp_provider_configs
+                WHERE provider_type = 'whapi'
+                  AND is_active = 1
+                ORDER BY is_global DESC, id ASC
             ");
-            foreach ($stmt->fetchAll() ?: [] as $row) {
-                $id = $row['channel_id'];
-                $sessions[] = ['id' => $id, 'name' => ucwords(str_replace(['_', '-'], ' ', $id))];
-            }
-
-            if (empty($sessions)) {
-                $stmt = $db->query("
-                    SELECT DISTINCT COALESCE(NULLIF(TRIM(session_id),''), channel_id) AS sid
-                    FROM tenant_message_channels
-                    WHERE provider = 'wpp_gateway'
-                      AND is_enabled = 1
-                      AND channel_id IS NOT NULL AND channel_id != ''
-                    ORDER BY sid
-                ");
-                foreach ($stmt->fetchAll() ?: [] as $row) {
-                    $id = trim($row['sid'] ?? '');
-                    if ($id) {
-                        $sessions[] = ['id' => $id, 'name' => ucwords(str_replace(['_', '-'], ' ', $id))];
-                    }
-                }
+            foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $row) {
+                $sessionName = $row['session_name'] ?? '';
+                if (!$sessionName) continue;
+                $metadata    = json_decode($row['config_metadata'] ?? '{}', true) ?: [];
+                $displayName = $metadata['display_name'] ?? ucwords(str_replace(['_', '-'], ' ', $sessionName));
+                $sessions[]  = ['id' => $sessionName, 'name' => $displayName];
             }
 
             $this->json(['success' => true, 'sessions' => $sessions]);

@@ -1283,7 +1283,7 @@ function _loadSdrSessions() {
             return;
         }
         sel.innerHTML = sessions.map(s =>
-            `<option value="${s.session_name}">${s.session_name}</option>`
+            `<option value="${s.session_name}">${s.display_name || s.session_name}</option>`
         ).join('');
     })
     .catch(() => {
