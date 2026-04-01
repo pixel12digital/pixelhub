@@ -6181,7 +6181,9 @@
                 return;
             }
             
+            // Usa variável separada para threads: serão CONCATENADAS antes das leads no HTML final
             let html = '';
+            let threadsHtml = '';
             
             // Seção "Conversas não vinculadas" (mesmo comportamento do Painel de Comunicação)
             if (incomingLeads.length > 0) {
@@ -6254,12 +6256,9 @@
                         </div>
                     `;
                 });
-                if (threads.length > 0) {
-                    html += '<div class="inbox-unlinked-separator"></div>';
-                }
             }
             
-            // Conversas vinculadas (threads normais) - mesma estrutura do Painel com menu ⋮
+            // Conversas vinculadas (threads normais) - aparecem NO TOPO da lista
             threads.forEach(conv => {
                 const isActive = InboxState.currentThreadId === conv.thread_id;
                 const unreadBadge = conv.unread_count > 0 && !isActive ? `<span class="conv-unread">${conv.unread_count}</span>` : '';
@@ -6304,7 +6303,7 @@
                 const unlinkBtn = tenantId
                     ? `<button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); inboxUnlinkConversation(${convId}, '${contactName}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>Desvincular</button>`
                     : (!leadId ? `<button type="button" class="conversation-menu-item" onclick="event.stopPropagation(); inboxUnlinkConversation(${convId}, '${contactName}'); closeConversationMenu(this);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Mover para não vinculados</button>` : '');
-                html += `
+                threadsHtml += `
                     <div class="inbox-drawer-conversation ${isActive ? 'active' : ''}" 
                          data-thread-id="${escapeInboxHtml(conv.thread_id || '')}" 
                          data-conversation-id="${convId}"
@@ -6337,7 +6336,9 @@
                 `;
             });
             
-            listScroll.innerHTML = html;
+            // Threads normais (conversas vinculadas) aparecem ANTES das leads não vinculadas
+            const separator = (threadsHtml && html) ? '<div class="inbox-unlinked-separator"></div>' : '';
+            listScroll.innerHTML = threadsHtml + separator + html;
         }
         
         // ===== RENDERIZAR LISTA DE EMAILS (FUNÇÃO SEPARADA - NÃO AFETA WHATSAPP) =====

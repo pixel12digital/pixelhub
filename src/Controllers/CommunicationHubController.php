@@ -7730,8 +7730,11 @@ class CommunicationHubController extends Controller
                     contact_name, contact_external_id,
                     channel_type, channel_id, provider_type,
                     source, status, is_incoming_lead,
+                    last_message_at, last_message_direction, message_count,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 'whatsapp', ?, 'meta_official', ?, 'active', ?, NOW(), NOW())
+                ) VALUES (?, ?, ?, ?, ?, 'whatsapp', ?, 'meta_official', ?, 'active', ?,
+                    NOW(), 'outbound', 1,
+                    NOW(), NOW())
             ");
             $isIncomingLead = $leadId ? 1 : 0;
             $stmt->execute([
