@@ -1533,9 +1533,13 @@ class CommunicationHubController extends Controller
                         if (empty($threadId)) {
                             $waValidation = \PixelHub\Services\SdrDispatchService::validatePhoneNumber($phoneNormalized, $targetChannelId);
                             if (!$waValidation['valid'] && ($waValidation['status'] ?? '') !== 'error') {
-                                $sendResults[] = ['channel_id' => $targetChannelId, 'success' => false, 'error' => 'Número sem WhatsApp', 'no_whatsapp' => true];
+                                $sendResults[] = ['channel_id' => $targetChannelId, 'success' => false, 'error' => 'Número sem WhatsApp', 'error_code' => 'NO_WHATSAPP', 'no_whatsapp' => true];
                                 $errors[] = "{$targetChannelId}: Número sem WhatsApp";
                                 continue;
+                            }
+                            // Usa número corrigido pelo fallback de 9º dígito (se houver)
+                            if (!empty($waValidation['phone_normalized'])) {
+                                $phoneNormalized = $waValidation['phone_normalized'];
                             }
                         }
                         // Whapi aceita base64 diretamente e auto-converte áudio para OGG/Opus
@@ -2308,6 +2312,8 @@ class CommunicationHubController extends Controller
                             $httpCode = 400; // Bad Request
                         } elseif ($singleResult['error_code'] === 'TIMEOUT') {
                             $httpCode = 504; // Gateway Timeout
+                        } elseif ($singleResult['error_code'] === 'NO_WHATSAPP') {
+                            $httpCode = 422; // Unprocessable Entity — número sem WhatsApp
                         }
                         
                         $payload = [

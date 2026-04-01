@@ -478,7 +478,21 @@ class SdrDispatchService
                 }
             }
         }
-        
+
+        // Falso-negativo para BR 9 dígitos (WhatsApp registrado no formato antigo sem o 9º dígito):
+        // Se inválido e número tem 13 dígitos (55+DDD+9+8 dígitos) e o 5º dígito é '9', tenta sem o 9.
+        if (!$result['valid'] && $result['status'] !== 'error') {
+            $digits = preg_replace('/[^0-9]/', '', $phone);
+            if (strlen($digits) === 13 && substr($digits, 0, 2) === '55' && substr($digits, 4, 1) === '9') {
+                // Remove o '9' após DDD: 55(2)+DDD(2)+subscriber(8) = 12 dígitos
+                $phoneWithout9 = substr($digits, 0, 4) . substr($digits, 5);
+                $resultWithout9 = self::callWhapiContacts($phoneWithout9, $token);
+                if ($resultWithout9['valid']) {
+                    return array_merge($resultWithout9, ['phone' => $phoneWithout9, 'phone_normalized' => $phoneWithout9]);
+                }
+            }
+        }
+
         return $result;
     }
 
