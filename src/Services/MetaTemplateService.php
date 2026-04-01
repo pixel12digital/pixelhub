@@ -440,6 +440,151 @@ class MetaTemplateService
     }
     
     /**
+     * Sincroniza status de todos os templates pendentes consultando a Meta Graph API.
+     *
+     * Busca todos os templates com meta_template_id definido e status != 'approved'/'rejected',
+     * consulta a API do Meta e atualiza o banco conforme o status atual.
+     *
+     * @return array ['updated' => int, 'unchanged' => int, 'errors' => int, 'details' => array]
+     */
+    public static function syncFromMeta(): array
+    {
+        $db = DB::getConnection();
+
+        // Busca config Meta global ativa
+        $stmt = $db->prepare("
+            SELECT meta_business_account_id, meta_access_token
+            FROM whatsapp_provider_configs
+            WHERE provider_type = 'meta_official'
+            AND is_active = 1
+            AND is_global = 1
+            LIMIT 1
+        ");
+        $stmt->execute();
+        $config = $stmt->fetch();
+
+        if (!$config || empty($config['meta_business_account_id']) || empty($config['meta_access_token'])) {
+            return ['success' => false, 'message' => 'Configuração Meta Official API não encontrada.'];
+        }
+
+        $accessToken = $config['meta_access_token'];
+        if (strpos($accessToken, 'encrypted:') === 0) {
+            $accessToken = \PixelHub\Core\CryptoHelper::decrypt(substr($accessToken, 10));
+        }
+
+        $wabaId = $config['meta_business_account_id'];
+
+        // Busca todos os templates que têm meta_template_id e não estão aprovados/rejeitados
+        $stmt = $db->prepare("
+            SELECT id, template_name, status, meta_template_id, language
+            FROM whatsapp_message_templates
+            WHERE meta_template_id IS NOT NULL
+            AND status NOT IN ('approved', 'rejected')
+        ");
+        $stmt->execute();
+        $templates = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $updated   = 0;
+        $unchanged = 0;
+        $errors    = 0;
+        $details   = [];
+
+        // Meta status → DB status (enum: draft, pending, approved, rejected)
+        $statusMap = [
+            'APPROVED' => 'approved',
+            'PENDING'  => 'pending',
+            'REJECTED' => 'rejected',
+            'DISABLED' => 'rejected',
+            'PAUSED'   => 'rejected',
+        ];
+
+        foreach ($templates as $template) {
+            $url = "https://graph.facebook.com/v18.0/{$wabaId}/message_templates"
+                 . "?name=" . urlencode($template['template_name'])
+                 . "&access_token=" . urlencode($accessToken);
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 15,
+            ]);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode !== 200 || !$response) {
+                $errors++;
+                $details[] = ['name' => $template['template_name'], 'error' => "HTTP {$httpCode}"];
+                continue;
+            }
+
+            $result = json_decode($response, true);
+
+            if (empty($result['data'])) {
+                $errors++;
+                $details[] = ['name' => $template['template_name'], 'error' => 'não encontrado na Meta API'];
+                continue;
+            }
+
+            // Localiza a entrada com o idioma correto
+            $metaTemplate = null;
+            foreach ($result['data'] as $tpl) {
+                if ($tpl['language'] === $template['language']) {
+                    $metaTemplate = $tpl;
+                    break;
+                }
+            }
+
+            if (!$metaTemplate) {
+                // Fallback: pega o primeiro resultado se idioma não casar
+                $metaTemplate = $result['data'][0];
+            }
+
+            $metaStatus = strtoupper($metaTemplate['status'] ?? '');
+            $newStatus  = $statusMap[$metaStatus] ?? null;
+
+            if (!$newStatus) {
+                $unchanged++;
+                $details[] = ['name' => $template['template_name'], 'status' => $template['status'], 'meta_status' => $metaStatus, 'action' => 'skipped'];
+                continue;
+            }
+
+            if ($template['status'] === $newStatus) {
+                $unchanged++;
+                $details[] = ['name' => $template['template_name'], 'status' => $newStatus, 'action' => 'unchanged'];
+                continue;
+            }
+
+            $approvedAt = ($newStatus === 'approved') ? ', approved_at = NOW()' : '';
+            $rejReason  = in_array($metaStatus, ['DISABLED', 'PAUSED'])
+                ? 'Template ' . strtolower($metaStatus) . ' pelo Meta'
+                : null;
+
+            $stmt = $db->prepare("
+                UPDATE whatsapp_message_templates
+                SET status = ?,
+                    meta_template_id = ?,
+                    rejection_reason = ?" . $approvedAt . ",
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$newStatus, $metaTemplate['id'], $rejReason, $template['id']]);
+
+            $updated++;
+            $details[] = ['name' => $template['template_name'], 'old_status' => $template['status'], 'new_status' => $newStatus, 'action' => 'updated'];
+        }
+
+        return [
+            'success'   => true,
+            'updated'   => $updated,
+            'unchanged' => $unchanged,
+            'errors'    => $errors,
+            'total'     => count($templates),
+            'details'   => $details,
+        ];
+    }
+
+    /**
      * Marca template como aprovado (usado após confirmação do Meta)
      * 
      * @param int $templateId ID do template

@@ -417,12 +417,81 @@ ob_start();
                 <h3 style="margin: 0;">Templates WhatsApp Business</h3>
                 <p style="color: #6c757d; margin: 4px 0 0 0;">Gerencie templates aprovados pelo Meta para envio em massa</p>
             </div>
-            <a href="<?= pixelhub_url('/whatsapp/templates/create') ?>" 
-               style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; white-space: nowrap;">
-                + Novo Template
-            </a>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button id="btn-sync-meta" onclick="syncTemplatesFromMeta()"
+                        style="background: #f8f9fa; color: #495057; padding: 10px 16px; border: 1px solid #ced4da; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 6px;">
+                    <span id="sync-icon">&#x21bb;</span> Sincronizar com Meta
+                </button>
+                <a href="<?= pixelhub_url('/whatsapp/templates/create') ?>" 
+                   style="background: #023A8D; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; white-space: nowrap;">
+                    + Novo Template
+                </a>
+            </div>
         </div>
     </div>
+
+    <div id="sync-result-banner" style="display:none; margin-bottom: 16px; padding: 12px 16px; border-radius: 4px; font-size: 14px;"></div>
+
+    <script>
+    function syncTemplatesFromMeta() {
+        var btn  = document.getElementById('btn-sync-meta');
+        var icon = document.getElementById('sync-icon');
+        var banner = document.getElementById('sync-result-banner');
+
+        btn.disabled = true;
+        icon.style.display = 'inline-block';
+        icon.style.animation = 'spin 1s linear infinite';
+        btn.style.opacity = '0.7';
+        banner.style.display = 'none';
+
+        // Adiciona keyframe de rotação dinamicamente uma vez
+        if (!document.getElementById('spin-style')) {
+            var s = document.createElement('style');
+            s.id = 'spin-style';
+            s.textContent = '@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
+            document.head.appendChild(s);
+        }
+
+        fetch('<?= pixelhub_url('/api/whatsapp/templates/sync-from-meta') ?>', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            icon.style.animation = '';
+            btn.style.opacity = '1';
+
+            if (data.success) {
+                var msg = 'Sincronização concluída: ' + data.updated + ' atualizado(s), ' + data.unchanged + ' sem alteração';
+                if (data.errors > 0) msg += ', ' + data.errors + ' erro(s)';
+                banner.style.background = data.updated > 0 ? '#d4edda' : '#d1ecf1';
+                banner.style.color      = data.updated > 0 ? '#155724' : '#0c5460';
+                banner.style.border     = '1px solid ' + (data.updated > 0 ? '#c3e6cb' : '#bee5eb');
+                banner.textContent = msg;
+                if (data.updated > 0) {
+                    setTimeout(function() { location.reload(); }, 1500);
+                }
+            } else {
+                banner.style.background = '#f8d7da';
+                banner.style.color      = '#721c24';
+                banner.style.border     = '1px solid #f5c6cb';
+                banner.textContent = 'Erro: ' + (data.message || 'falha desconhecida');
+            }
+            banner.style.display = 'block';
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+            icon.style.animation = '';
+            btn.style.opacity = '1';
+            banner.style.background = '#f8d7da';
+            banner.style.color      = '#721c24';
+            banner.style.border     = '1px solid #f5c6cb';
+            banner.textContent = 'Erro de conexão: ' + err.message;
+            banner.style.display = 'block';
+        });
+    }
+    </script>
 
     <?php if (empty($templates)): ?>
         <div class="card" style="text-align: center; padding: 60px 20px;">

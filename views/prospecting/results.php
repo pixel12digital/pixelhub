@@ -1731,6 +1731,10 @@ function preconfigChannelChange() {
     var ch = document.getElementById('preconfig-channel');
     var wrap = document.getElementById('preconfig-session-wrap');
     if (ch && wrap) wrap.style.display = ch.value === 'whatsapp' ? 'block' : 'none';
+    
+    // Recarrega templates filtrados pelo canal selecionado
+    var cfg = _getWaPreconfig();
+    _loadPreconfigTemplates(cfg.template_id || '');
 }
 
 function preconfigTemplateChange() {
@@ -1806,13 +1810,35 @@ function _loadPreconfigSessions(savedSession) {
 function _loadPreconfigTemplates(savedTemplateId) {
     var sel = document.getElementById('preconfig-template');
     if (!sel) return;
+    
+    // Verifica qual canal está selecionado
+    var chSel = document.getElementById('preconfig-channel');
+    var selectedChannel = chSel ? chSel.value : '';
+    
     sel.innerHTML = '<option value="">Carregando...</option>';
     fetch('<?= pixelhub_url('/settings/whatsapp-templates/quick-replies') ?>')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var templates = data.templates || [];
+            
+            // Filtra templates baseado no canal selecionado
+            var filteredTemplates = templates.filter(function(t) {
+                var isMetaTemplate = String(t.id).startsWith('meta_');
+                
+                if (selectedChannel === 'whatsapp_api') {
+                    // Canal API: mostra apenas templates Meta
+                    return isMetaTemplate;
+                } else if (selectedChannel === 'whatsapp') {
+                    // Canal WhatsApp: mostra apenas templates antigos
+                    return !isMetaTemplate;
+                } else {
+                    // Nenhum canal selecionado: mostra todos
+                    return true;
+                }
+            });
+            
             sel.innerHTML = '<option value="">Nenhum (sem mensagem pré-definida)</option>';
-            templates.forEach(function(t) {
+            filteredTemplates.forEach(function(t) {
                 var opt = document.createElement('option');
                 opt.value = t.id;
                 opt.textContent = t.title || t.name || ('Template #' + t.id);

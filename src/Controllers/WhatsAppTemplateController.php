@@ -339,6 +339,28 @@ class WhatsAppTemplateController
     }
     
     /**
+     * Sincroniza status dos templates com a Meta Graph API.
+     *
+     * POST /api/whatsapp/templates/sync-from-meta
+     */
+    public function syncFromMeta(): void
+    {
+        Auth::requireInternal();
+
+        header('Content-Type: application/json');
+
+        try {
+            $result = MetaTemplateService::syncFromMeta();
+            echo json_encode($result);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+
+        exit;
+    }
+
+    /**
      * Retorna dados do Template Inspector (API JSON)
      * 
      * GET /api/templates/{id}/inspector-data
