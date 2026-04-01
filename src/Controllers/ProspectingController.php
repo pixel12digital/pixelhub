@@ -946,11 +946,14 @@ class ProspectingController extends Controller
 
         try {
             $db = DB::getConnection();
+
+            // 1. Envios automáticos (SDR planner)
             $stmt = $db->prepare("
                 SELECT dq.id, dq.result_id, dq.session_name, dq.phone, dq.establishment_name,
                        dq.message, dq.scheduled_at, dq.status, dq.created_at,
                        dq.phone_validation_status, dq.error,
-                       pr.name as result_name
+                       pr.name as result_name,
+                       'auto' as source
                 FROM sdr_dispatch_queue dq
                 LEFT JOIN prospecting_results pr ON pr.id = dq.result_id
                 WHERE dq.recipe_id = ?
@@ -959,9 +962,51 @@ class ProspectingController extends Controller
             $stmt->execute([$recipeId]);
             $jobs = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
+            // 2. Envios manuais (botão WA individual, não registrados na fila SDR)
+            $stmtManual = $db->prepare("
+                SELECT NULL as id, pr.id as result_id, '' as session_name,
+                       COALESCE(
+                           CASE pr.source
+                               WHEN 'instagram'   THEN pr.phone_instagram
+                               WHEN 'google_maps' THEN pr.phone_google
+                               ELSE pr.phone_minhareceita
+                           END, ''
+                       ) as phone,
+                       pr.name as establishment_name,
+                       NULL as message,
+                       pr.whatsapp_sent_at as scheduled_at,
+                       'sent' as status,
+                       pr.whatsapp_sent_at as created_at,
+                       NULL as phone_validation_status,
+                       NULL as error,
+                       pr.name as result_name,
+                       'manual' as source
+                FROM prospecting_results pr
+                WHERE pr.recipe_id = ?
+                  AND pr.whatsapp_sent_at IS NOT NULL
+                  AND NOT EXISTS (
+                      SELECT 1 FROM sdr_dispatch_queue dq2 WHERE dq2.result_id = pr.id
+                  )
+                ORDER BY pr.whatsapp_sent_at DESC
+            ");
+            $stmtManual->execute([$recipeId]);
+            $manualJobs = $stmtManual->fetchAll(\PDO::FETCH_ASSOC);
+
+            $allJobs = array_merge($jobs, $manualJobs);
+
+            // Ordena: pendentes primeiro, depois enviados (por data desc)
+            usort($allJobs, function($a, $b) {
+                $order = ['queued' => 0, 'processing' => 1, 'sent' => 2, 'failed' => 3, 'cancelled' => 4];
+                $oa = $order[$a['status']] ?? 99;
+                $ob = $order[$b['status']] ?? 99;
+                if ($oa !== $ob) return $oa <=> $ob;
+                return strtotime($b['scheduled_at'] ?? '1970-01-01') <=> strtotime($a['scheduled_at'] ?? '1970-01-01');
+            });
+
             // Formata horários e adiciona status legível
-            foreach ($jobs as &$j) {
-                $j['scheduled_at_br'] = (new \DateTime($j['scheduled_at']))->format('d/m/Y H:i');
+            foreach ($allJobs as &$j) {
+                $dt = $j['scheduled_at'] ? (new \DateTime($j['scheduled_at']))->format('d/m/Y H:i') : '-';
+                $j['scheduled_at_br'] = $dt;
                 $isInvalidPhone = $j['status'] === 'failed'
                     && ($j['phone_validation_status'] === 'invalid'
                         || str_contains($j['error'] ?? '', 'Sem WhatsApp')
@@ -973,11 +1018,22 @@ class ProspectingController extends Controller
                     $j['status'] === 'processing' => 'Enviando',
                     $j['status'] === 'sent' => 'Enviado',
                     $j['status'] === 'failed' => 'Falhou',
+                    $j['status'] === 'cancelled' => 'Cancelado',
                     default => $j['status']
                 };
             }
 
-            $this->json(['success' => true, 'jobs' => $jobs]);
+            // Resumo de produção
+            $stats = [
+                'total'     => count($allJobs),
+                'queued'    => count(array_filter($allJobs, fn($j) => $j['status'] === 'queued')),
+                'sent'      => count(array_filter($allJobs, fn($j) => $j['status'] === 'sent')),
+                'failed'    => count(array_filter($allJobs, fn($j) => $j['no_whatsapp'] || $j['status'] === 'failed')),
+                'manual'    => count(array_filter($allJobs, fn($j) => $j['source'] === 'manual')),
+                'auto'      => count(array_filter($allJobs, fn($j) => $j['source'] === 'auto')),
+            ];
+
+            $this->json(['success' => true, 'jobs' => $allJobs, 'stats' => $stats]);
         } catch (\Exception $e) {
             error_log('[ProspectingController] sdrQueue error: ' . $e->getMessage());
             $this->json(['success' => false, 'error' => $e->getMessage()], 500);

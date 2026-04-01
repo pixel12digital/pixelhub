@@ -1456,16 +1456,50 @@ function _loadSdrQueue(recipeId) {
             list.innerHTML = '<div style="color:#dc2626;">Erro: ' + data.error + '</div>';
             return;
         }
+
+        // Resumo de produção
+        const s = data.stats || {};
+        const statsHtml = `
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+                <div style="flex:1;min-width:90px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;text-align:center;">
+                    <div style="font-size:22px;font-weight:700;color:#15803d;">${s.sent||0}</div>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px;">Enviados</div>
+                </div>
+                <div style="flex:1;min-width:90px;background:#dbeafe;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;text-align:center;">
+                    <div style="font-size:22px;font-weight:700;color:#1e40af;">${s.queued||0}</div>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px;">Na fila</div>
+                </div>
+                <div style="flex:1;min-width:90px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;text-align:center;">
+                    <div style="font-size:22px;font-weight:700;color:#dc2626;">${s.failed||0}</div>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px;">Falhou/Sem WA</div>
+                </div>
+                <div style="flex:1;min-width:90px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;text-align:center;">
+                    <div style="font-size:22px;font-weight:700;color:#64748b;">${s.manual||0}</div>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px;">Manual</div>
+                </div>
+                <div style="flex:1;min-width:90px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;text-align:center;">
+                    <div style="font-size:22px;font-weight:700;color:#374151;">${s.auto||0}</div>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px;">Auto SDR</div>
+                </div>
+            </div>`;
+
         if (!data.jobs.length) {
-            list.innerHTML = '<div style="color:#64748b;">Nenhum job na fila.</div>';
+            list.innerHTML = statsHtml + '<div style="color:#64748b;text-align:center;padding:20px;">Nenhum envio registrado.</div>';
             return;
         }
         const rows = data.jobs.map(job => `
             <tr style="border-bottom:1px solid #f1f5f9;">
                 <td style="padding:10px 12px;">${job.establishment_name || job.result_name || '-'}</td>
                 <td style="padding:10px 12px;">${job.phone || '-'}</td>
-                <td style="padding:10px 12px;">${job.session_name || '-'}</td>
-                <td style="padding:10px 12px;">${job.scheduled_at_br}</td>
+                <td style="padding:10px 12px;">
+                    <span style="padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;
+                        background:${job.source === 'manual' ? '#f3e8ff' : '#dbeafe'};
+                        color:${job.source === 'manual' ? '#7c3aed' : '#1e40af'};">
+                        ${job.source === 'manual' ? '✋ Manual' : '🤖 Auto'}
+                    </span>
+                </td>
+                <td style="padding:10px 12px;font-size:11px;color:#64748b;">${job.session_name || '-'}</td>
+                <td style="padding:10px 12px;font-size:11px;">${job.scheduled_at_br}</td>
                 <td style="padding:10px 12px;">
                     <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;
                         background:${job.no_whatsapp ? '#fff7ed' : job.status === 'queued' ? '#dbeafe' : job.status === 'sent' ? '#dcfce7' : job.status === 'failed' ? '#fef2f2' : '#f3f4f6'};
@@ -1474,19 +1508,20 @@ function _loadSdrQueue(recipeId) {
                     </span>
                 </td>
                 <td style="padding:10px 12px;">
-                    ${job.status === 'queued' ? `<button onclick="cancelSdrJob(${job.id}, this)" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;min-height:36px;white-space:nowrap;">Cancelar</button>` : '-'}
+                    ${job.status === 'queued' && job.id ? `<button onclick="cancelSdrJob(${job.id}, this)" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;min-height:36px;white-space:nowrap;">Cancelar</button>` : '-'}
                 </td>
             </tr>
         `).join('');
-        list.innerHTML = `
+        list.innerHTML = statsHtml + `
             <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-                <table style="width:100%;border-collapse:collapse;min-width:600px;">
+                <table style="width:100%;border-collapse:collapse;min-width:650px;">
                     <thead>
                         <tr style="background:#f8fafc;">
                             <th style="padding:10px 12px;text-align:left;font-weight:600;">Estabelecimento</th>
                             <th style="padding:10px 12px;text-align:left;font-weight:600;">Telefone</th>
+                            <th style="padding:10px 12px;text-align:left;font-weight:600;">Origem</th>
                             <th style="padding:10px 12px;text-align:left;font-weight:600;">Sessão</th>
-                            <th style="padding:10px 12px;text-align:left;font-weight:600;">Agendado</th>
+                            <th style="padding:10px 12px;text-align:left;font-weight:600;">Data</th>
                             <th style="padding:10px 12px;text-align:left;font-weight:600;">Status</th>
                             <th style="padding:10px 12px;text-align:left;font-weight:600;">Ações</th>
                         </tr>
