@@ -1225,13 +1225,24 @@ if ($totalPages > 1):
                 row.dataset.status  = status;
                 row.style.opacity   = status === 'discarded' ? '0.4' : '';
                 row.style.filter    = status === 'discarded' ? 'grayscale(0.5)' : '';
-                row.style.background = status === 'discarded' ? '#f8fafc' : '';
+                if (status === 'discarded') {
+                    row.style.background = '#f8fafc';
+                } else if (row.dataset.waSent !== '1') {
+                    row.style.background = '';
+                }
             }
         }
 
         if (badge && waSentAt && badge.style.display === 'none') {
             badge.style.display = 'flex';
             badge.title = 'WA enviado';
+        }
+        if (waSentAt && row && row.dataset.waSent !== '1') {
+            row.style.background = '#dbeafe';
+            row.dataset.waSent = '1';
+            var cb = document.querySelector('.sdr-row-check[data-id="' + id + '"]');
+            if (cb && !cb.disabled) cb.checked = true;
+            _sdrUpdateBtn();
         }
     }
 
@@ -1264,17 +1275,25 @@ function _loadQueuedIds() {
     .then(data => {
         if (!data.success) return;
         const queuedResultIds = new Set(data.jobs.map(j => j.result_id).filter(Boolean));
+        const sentResultIds   = new Set(data.jobs.filter(j => j.status === 'sent' && j.result_id).map(j => j.result_id));
         document.querySelectorAll('.sdr-row-check').forEach(cb => {
             const id = parseInt(cb.dataset.id);
             if (queuedResultIds.has(id)) {
                 cb.disabled = true;
-                cb.checked = true; // Marca o checkbox
+                cb.checked = true;
                 cb.style.cursor = 'not-allowed';
-                cb.style.accentColor = '#16a34a'; // Verde para indicar fila
+                cb.style.accentColor = '#16a34a';
                 cb.title = 'Já está na fila SDR';
                 cb.dataset.queued = '1';
-                // Impede que seja desmarcado
                 cb.addEventListener('click', e => e.preventDefault());
+            }
+            // Aplica fundo azul para enviados via SDR (auto-dispatch)
+            if (sentResultIds.has(id)) {
+                const row = document.getElementById('row-' + id);
+                if (row && row.dataset.waSent !== '1') {
+                    row.style.background = '#dbeafe';
+                    row.dataset.waSent = '1';
+                }
             }
         });
         _updateSelectAllState();
