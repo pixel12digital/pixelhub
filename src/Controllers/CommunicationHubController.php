@@ -7713,7 +7713,8 @@ class CommunicationHubController extends Controller
                 UPDATE conversations
                 SET updated_at = NOW(),
                     last_message_at = NOW(),
-                    last_message_direction = 'outbound'
+                    last_message_direction = 'outbound',
+                    is_incoming_lead = 0
                     " . ($updateContactName ? ", contact_name = ?" : "") . "
                     " . ($updateChannelId   ? ", channel_id = ?"   : "") . "
                 WHERE id = ?
