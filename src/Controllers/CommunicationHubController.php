@@ -7737,7 +7737,9 @@ class CommunicationHubController extends Controller
                     NOW(), 'outbound', 1,
                     NOW(), NOW())
             ");
-            $isIncomingLead = $leadId ? 1 : 0;
+            // Sempre 0: enviamos este template ativamente, deve aparecer no inbox (normalThreads).
+            // is_incoming_lead=1 seria correto apenas para contatos que nos escreveram primeiro.
+            $isIncomingLead = 0;
             $stmt->execute([
                 $conversationKey, $tenantIdForDb, $leadId,
                 $contactName ?: null, $normalizedPhone,
