@@ -3839,6 +3839,25 @@ class CommunicationHubController extends Controller
                         }
                     }
                 }
+                
+                // CASO 3: Variação com/sem 9º dígito BR (tel: vs tel:)
+                // Cobre: remote_key='tel:554797309525' (sem 9º dígito) vs evento to='5547997309525' (com 9º dígito)
+                // Ocorre quando Meta envia 'from' sem o 9º dígito no webhook de resposta do prospecto,
+                // atualizando o remote_key da conversa para a forma curta, enquanto o outbound template
+                // foi enviado com o número na forma longa (13 dígitos).
+                if (strpos($conversationRemoteKey, 'tel:') === 0) {
+                    $convPhoneNorm = self::normalizePhone(substr($conversationRemoteKey, 4));
+                    if (!$isFromThisContact && $eventFromKey && strpos($eventFromKey, 'tel:') === 0) {
+                        if (self::normalizePhone(substr($eventFromKey, 4)) === $convPhoneNorm) {
+                            $isFromThisContact = true;
+                        }
+                    }
+                    if (!$isToThisContact && $eventToKey && strpos($eventToKey, 'tel:') === 0) {
+                        if (self::normalizePhone(substr($eventToKey, 4)) === $convPhoneNorm) {
+                            $isToThisContact = true;
+                        }
+                    }
+                }
             }
             
             // Fallback: Se remote_key não está disponível, usa telefone normalizado (compatibilidade)

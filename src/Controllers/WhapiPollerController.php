@@ -225,6 +225,17 @@ class WhapiPollerController extends Controller
             return ['processed' => false, 'reason' => 'type_skipped'];
         }
 
+        // Ignora self-chat: mensagem outbound cujo destinatário é o próprio canal
+        // Ocorre quando o Whapi retorna um eco de mensagem enviada para nosso próprio número
+        if ($fromMe && $chatId && $from) {
+            $chatIdDigits = preg_replace('/[^0-9]/', '', $chatId);
+            $fromDigits   = preg_replace('/[^0-9]/', '', $from);
+            if ($fromDigits !== '' && $chatIdDigits !== '' && $fromDigits === $chatIdDigits) {
+                error_log("[WhapiPoller] Self-chat ignorado (eco próprio número): chatId={$chatId} from={$from}");
+                return ['processed' => false, 'reason' => 'self_chat'];
+            }
+        }
+
         // Deduplicação: verifica se já foi processado
         if ($messageId) {
             $dedup = $db->prepare("
