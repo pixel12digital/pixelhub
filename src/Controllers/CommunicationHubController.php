@@ -200,10 +200,6 @@ class CommunicationHubController extends Controller
             // Separa incoming leads
             foreach ($allThreads as $thread) {
                 if (!empty($thread['is_incoming_lead'])) {
-                    // Oculta prospecções sem resposta (source=prospecting + última mensagem outbound)
-                    if (($thread['source'] ?? '') === 'prospecting' && ($thread['last_message_direction'] ?? '') === 'outbound') {
-                        continue;
-                    }
                     $incomingLeads[] = $thread;
                 } else {
                     $normalThreads[] = $thread;
@@ -236,7 +232,6 @@ class CommunicationHubController extends Controller
                 WHERE c.channel_type = 'whatsapp'
                   AND c.is_incoming_lead = 1
                   AND (c.status IS NULL OR c.status NOT IN ('closed', 'archived', 'ignored'))
-                  AND NOT (COALESCE(c.source,'') = 'prospecting' AND COALESCE(c.last_message_direction,'') = 'outbound')
             ");
             $countStmt->execute();
             $countResult = $countStmt->fetch();
@@ -4594,10 +4589,6 @@ class CommunicationHubController extends Controller
                 // Separa incoming leads das conversas normais
                 foreach ($allThreads as $thread) {
                     if (!empty($thread['is_incoming_lead'])) {
-                        // Oculta prospecções sem resposta (source=prospecting + última mensagem outbound)
-                        if (($thread['source'] ?? '') === 'prospecting' && ($thread['last_message_direction'] ?? '') === 'outbound') {
-                            continue;
-                        }
                         $incomingLeads[] = $thread;
                     } else {
                         $normalThreads[] = $thread;
@@ -4615,7 +4606,6 @@ class CommunicationHubController extends Controller
                     WHERE c.channel_type = 'whatsapp'
                       AND c.is_incoming_lead = 1
                       AND (c.status IS NULL OR c.status NOT IN ('closed', 'archived', 'ignored'))
-                      AND NOT (COALESCE(c.source,'') = 'prospecting' AND COALESCE(c.last_message_direction,'') = 'outbound')
                 ");
                 $countStmt->execute();
                 $countResult = $countStmt->fetch();
