@@ -6844,7 +6844,15 @@
             initInboxMediaLazyLoad(container);
             requestAnimationFrame(function() {
                 requestAnimationFrame(function() {
-                    container.scrollTop = container.scrollHeight;
+                    // Se acabou de enviar uma mensagem (template/novo), rola para o TOPO
+                    // para que o template enviado fique visível (e não fique escondido abaixo
+                    // de respostas automáticas do chatbot que chegaram na mesma abertura).
+                    if (window._inboxScrollToSentMessage) {
+                        window._inboxScrollToSentMessage = false;
+                        container.scrollTop = 0;
+                    } else {
+                        container.scrollTop = container.scrollHeight;
+                    }
                 });
             });
         }

@@ -284,6 +284,19 @@ class MetaWebhookController extends Controller
 
         error_log('[MetaWebhook] Mensagem inbound: from=' . $from . ', id=' . $messageId . ', type=' . $messageType . ', phone_number_id=' . $phoneNumberId);
 
+        // Filtra echo: Meta reenvia mensagens enviadas por nós com from=nosso próprio número.
+        // Se o campo 'from' bate com o display_phone_number da conta (ex: +55 47 9647-4223),
+        // é um eco de mensagem outbound — deve ser ignorado para não criar conversa espúria.
+        $displayPhoneNumber = $value['metadata']['display_phone_number'] ?? null;
+        if ($from && $displayPhoneNumber) {
+            $normalizedDisplay = preg_replace('/[^0-9]/', '', $displayPhoneNumber);
+            $normalizedFrom    = preg_replace('/[^0-9]/', '', $from);
+            if ($normalizedDisplay !== '' && $normalizedFrom === $normalizedDisplay) {
+                error_log('[MetaWebhook] Echo ignorado: from=' . $from . ' é nosso próprio número (' . $displayPhoneNumber . ')');
+                return;
+            }
+        }
+
         // Tenta resolver tenant pelo phone_number_id, mas aceita NULL (configuração global)
         $tenantId = $this->resolveTenantByPhoneNumberId($phoneNumberId);
         

@@ -637,6 +637,8 @@ $whatsapp_sessions = $whatsapp_sessions ?? [];
                 // Nunca recarrega: mantém Inbox aberto, atualiza lista e abre a conversa
                 if (typeof loadInboxConversations === 'function') loadInboxConversations();
                 if (result.thread_id && typeof loadInboxConversation === 'function') {
+                    // Sinaliza que ao abrir a conversa deve rolar para o topo (mostra o template enviado)
+                    window._inboxScrollToSentMessage = true;
                     setTimeout(function() { loadInboxConversation(result.thread_id, 'whatsapp'); }, 400);
                 }
             } else {
