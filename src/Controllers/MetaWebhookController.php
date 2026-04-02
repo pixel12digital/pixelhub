@@ -285,26 +285,27 @@ class MetaWebhookController extends Controller
         error_log('[MetaWebhook] Mensagem inbound: from=' . $from . ', id=' . $messageId . ', type=' . $messageType . ', phone_number_id=' . $phoneNumberId);
 
         // ── Filtra ecos de mensagens enviadas por nós ──────────────────────────────
-        // 1) Tipo "hsm" (Highly Structured Message): eco de template enviado via API.
-        //    Clientes NUNCA enviam tipo "hsm"; só recebemos esse tipo como notificação
-        //    de retorno de templates que NÓS enviamos. Ignorar sempre.
-        if ($messageType === 'hsm') {
-            error_log('[MetaWebhook] Echo HSM ignorado (eco de template outbound): from=' . $from . ', id=' . $messageId);
+        // 1) Tipo "hsm" / "template": eco de template enviado via API.
+        //    Clientes NUNCA enviam esses tipos; são notificações de retorno dos templates
+        //    que NÓS enviamos. Ignorar sempre (comparação case-insensitive).
+        $messageTypeLower = strtolower($messageType);
+        if (in_array($messageTypeLower, ['hsm', 'template'])) {
+            error_log('[MetaWebhook] Echo ' . strtoupper($messageType) . ' ignorado (eco de template outbound): from=' . $from . ', id=' . $messageId);
             return;
         }
 
-        // 2) Fallback: compara 'from' com display_phone_number da conta (sufixo robusto).
-        //    Cobre casos onde Meta usa formato alternativo no campo 'from'.
+        // 2) Fallback: compara 'from' com display_phone_number da conta (sufixo bidirecional).
+        //    Cobre casos onde Meta usa formato alternativo no campo 'from' (com ou sem código de país).
         $displayPhoneNumber = $value['metadata']['display_phone_number'] ?? null;
         if ($from && $displayPhoneNumber) {
             $normalizedDisplay = preg_replace('/[^0-9]/', '', $displayPhoneNumber);
             $normalizedFrom    = preg_replace('/[^0-9]/', '', $from);
-            // Compara por sufixo (display pode omitir código de país ou 9º dígito)
-            if ($normalizedDisplay !== '' && strlen($normalizedDisplay) >= 8) {
-                $fromSuffix = strlen($normalizedFrom) >= strlen($normalizedDisplay)
-                    ? substr($normalizedFrom, -strlen($normalizedDisplay))
-                    : $normalizedFrom;
-                if ($fromSuffix === $normalizedDisplay || $normalizedFrom === $normalizedDisplay) {
+            if ($normalizedDisplay !== '' && strlen($normalizedDisplay) >= 8 && strlen($normalizedFrom) >= 8) {
+                // Compara sufixo com N = min(len(from), len(display)) para ser agnóstico ao código de país
+                $minLen = min(strlen($normalizedFrom), strlen($normalizedDisplay));
+                $fromSuffix    = substr($normalizedFrom,    -$minLen);
+                $displaySuffix = substr($normalizedDisplay, -$minLen);
+                if ($fromSuffix === $displaySuffix) {
                     error_log('[MetaWebhook] Echo ignorado (from bate com display_phone_number): from=' . $from . ' display=' . $displayPhoneNumber);
                     return;
                 }
