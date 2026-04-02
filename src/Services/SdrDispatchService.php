@@ -467,11 +467,29 @@ class SdrDispatchService
         
         // Falso-negativo para BR 8 dígitos (formato pré-2012):
         // Se inválido e número tem 12 dígitos (55+DDD+8 dígitos), tenta com 9º dígito.
-        // Exceção: DDD 47 não usa 9º dígito — não aplicar fallback.
+        // Exceção: A maioria dos DDDs brasileiros não usa 9º dígito no WhatsApp — não aplicar fallback.
         if (!$result['valid'] && $result['status'] !== 'error') {
             $digits = preg_replace('/[^0-9]/', '', $phone);
             $ddd = substr($digits, 2, 2);
-            $dddsSem9Digito = ['47'];
+            $dddsSem9Digito = [
+                '11', '12', '13', '14', '15', '16', '17', '18', '19', // São Paulo
+                '21', '22', '24', // Rio de Janeiro
+                '27', '28', // Espírito Santo
+                '31', '32', '33', '34', '35', '37', '38', // Minas Gerais
+                '41', '42', '43', '44', '45', '46', // Paraná
+                '47', '48', '49', // Santa Catarina
+                '51', '53', '54', '55', // Rio Grande do Sul
+                '61', // Distrito Federal
+                '62', '64', // Goiás
+                '63', // Tocantins
+                '65', '66', // Mato Grosso
+                '67', '68', // Mato Grosso do Sul
+                '69', // Rondônia
+                '71', '73', '74', '75', '77', // Bahia
+                '79', // Sergipe
+                '81', '82', '83', '84', '85', '86', '87', '88', '89', // Nordeste
+                '91', '92', '93', '94', '95', '96', '97', '98', '99', // Norte
+            ];
             if (!in_array($ddd, $dddsSem9Digito) && strlen($digits) === 12 && substr($digits, 0, 2) === '55') {
                 // Insere '9' após DDD: 55(2)+DDD(2)+9+subscriber(8) = 13 dígitos
                 $phoneWith9 = substr($digits, 0, 4) . '9' . substr($digits, 4);

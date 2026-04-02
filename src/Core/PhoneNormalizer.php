@@ -39,8 +39,27 @@ class PhoneNormalizer
 
         // DDDs que usam formato 8 dígitos (sem 9º dígito adicional)
         // Para estes DDDs: se tiver 9 extra (13 dígitos), remover
+        // IMPORTANTE: A maioria dos números WhatsApp no Brasil hoje entrega no formato de 10 dígitos (DDD + 8 dígitos)
         $dddProvisorio = substr($digits, 2, 2);
-        $eightDigitDDDs = ['47', '48', '49']; // Santa Catarina e região
+        $eightDigitDDDs = [
+            '11', '12', '13', '14', '15', '16', '17', '18', '19', // São Paulo
+            '21', '22', '24', // Rio de Janeiro
+            '27', '28', // Espírito Santo
+            '31', '32', '33', '34', '35', '37', '38', // Minas Gerais
+            '41', '42', '43', '44', '45', '46', // Paraná
+            '47', '48', '49', // Santa Catarina
+            '51', '53', '54', '55', // Rio Grande do Sul
+            '61', // Distrito Federal
+            '62', '64', // Goiás
+            '63', // Tocantins
+            '65', '66', // Mato Grosso
+            '67', '68', // Mato Grosso do Sul
+            '69', // Rondônia
+            '71', '73', '74', '75', '77', // Bahia
+            '79', // Sergipe
+            '81', '82', '83', '84', '85', '86', '87', '88', '89', // Nordeste
+            '91', '92', '93', '94', '95', '96', '97', '98', '99', // Norte
+        ];
 
         // Normalizar para o formato correto: 55 + DDD + telefone
         if (strlen($digits) === 12) {
@@ -49,8 +68,10 @@ class PhoneNormalizer
         } elseif (strlen($digits) === 13) {
             // 55 + DDD(2) + 9 + telefone(8)
             if (in_array($dddProvisorio, $eightDigitDDDs)) {
-                // DDD 47/48/49: tem 9 extra — remover o 9 após o DDD
+                // Todos os DDDs brasileiros: tem 9 extra — remover o 9 após o DDD
                 // Ex: 55 47 9 9634-5857 → 55 47 9634-5857
+                // Ex: 55 48 9 1234-5678 → 55 48 1234-5678
+                // Ex: 55 41 9 8765-4321 → 55 41 8765-4321
                 $digits = '55' . substr($digits, 2, 2) . substr($digits, 5);
             }
             // Outros DDDs: formato 13 dígitos correto para móvel

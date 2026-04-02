@@ -7711,12 +7711,14 @@ class CommunicationHubController extends Controller
             error_log("[CommunicationHub::sendViaMetaAPI] Conversa existente encontrada: {$conversationId}");
             $updateContactName = (!empty($contactName) && empty($conversation['contact_name'])) ? $contactName : null;
             $updateChannelId   = empty($conversation['channel_id']) ? $phoneNumberId : null;
+            // Só zera is_incoming_lead se houver lead_id vinculado; prospecting sem lead mantém o valor original
+            $resetIncomingLead = ($leadId !== null) ? ', is_incoming_lead = 0' : '';
             $stmt = $db->prepare("
                 UPDATE conversations
                 SET updated_at = NOW(),
                     last_message_at = NOW(),
-                    last_message_direction = 'outbound',
-                    is_incoming_lead = 0
+                    last_message_direction = 'outbound'
+                    {$resetIncomingLead}
                     " . ($updateContactName ? ", contact_name = ?" : "") . "
                     " . ($updateChannelId   ? ", channel_id = ?"   : "") . "
                 WHERE id = ?
@@ -7739,9 +7741,10 @@ class CommunicationHubController extends Controller
                     NOW(), 'outbound', 1,
                     NOW(), NOW())
             ");
-            // Sempre 0: enviamos este template ativamente, deve aparecer no inbox (normalThreads).
-            // is_incoming_lead=1 seria correto apenas para contatos que nos escreveram primeiro.
-            $isIncomingLead = 0;
+            // Prospecção sem lead vinculado: marca como não-vinculada (aparece em "Não Vinculadas" após resposta).
+            // A conversa fica oculta enquanto só há mensagem outbound (filtro source=prospecting+outbound).
+            // Quando o prospect responde, aparece automaticamente na seção "Conversas Não Vinculadas".
+            $isIncomingLead = ($leadId === null && $conversationSource === 'prospecting') ? 1 : 0;
             $stmt->execute([
                 $conversationKey, $tenantIdForDb, $leadId,
                 $contactName ?: null, $normalizedPhone,

@@ -1153,15 +1153,12 @@ class ConversationService
                             $conversationId, $contactExternalId, $resolvedLeadId
                         ));
                     } else {
-                        // Nenhum lead encontrado: marca como incoming_lead APENAS se não for
-                        // uma conversa Meta Official de prospecção ativa (essas foram enviadas
-                        // por nós e não devem ser transformadas em "não vinculadas" quando o
-                        // contato responde).
+                        // Nenhum lead encontrado: marca como incoming_lead para que apareça
+                        // na seção "Conversas Não Vinculadas" após o prospect responder.
                         $updateIncomingLeadStmt = $db->prepare("
                             UPDATE conversations 
                             SET is_incoming_lead = 1
                             WHERE id = ? AND tenant_id IS NULL AND lead_id IS NULL AND is_incoming_lead = 0
-                              AND NOT (provider_type = 'meta_official' AND source = 'prospecting')
                         ");
                         $updateIncomingLeadStmt->execute([$conversationId]);
                     }
