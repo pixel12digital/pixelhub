@@ -2764,7 +2764,9 @@ class CommunicationHubController extends Controller
         $params = [];
 
         if ($tenantId) {
-            $where[] = "c.tenant_id = ?";
+            // Inclui também conversas com tenant_id=NULL (configuração global Meta Official API)
+            // para que o admin veja templates Meta enviados mesmo sem vínculo de tenant específico
+            $where[] = "(c.tenant_id = ? OR c.tenant_id IS NULL)";
             $params[] = $tenantId;
         }
         
