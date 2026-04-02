@@ -2852,8 +2852,8 @@ class CommunicationHubController extends Controller
                 LEFT JOIN tenant_message_channels tmc ON c.channel_id = tmc.channel_id AND tmc.provider = 'whapi'
                 LEFT JOIN whatsapp_provider_configs wpc ON wpc.session_name = c.channel_id AND wpc.provider_type = 'whapi' AND wpc.is_active = 1
                 {$whereClause}
-                ORDER BY c.is_incoming_lead DESC, COALESCE(c.last_message_at, c.created_at) DESC, c.created_at DESC
-                LIMIT 100
+                ORDER BY COALESCE(c.last_message_at, c.created_at) DESC, c.created_at DESC
+                LIMIT 200
             ");
             $stmt->execute($params);
             $conversations = $stmt->fetchAll() ?: [];
