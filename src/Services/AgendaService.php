@@ -554,11 +554,16 @@ class AgendaService
         // Tipo de atividade (opcional, para atividades avulsas)
         $activityTypeId = isset($dados['activity_type_id']) && (int)$dados['activity_type_id'] > 0 ? (int)$dados['activity_type_id'] : null;
         
+        // Calcula sort_order: coloca o novo bloco ao final da lista do dia
+        $stmtMax = $db->prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM agenda_blocks WHERE data = ?");
+        $stmtMax->execute([$dataStr]);
+        $nextSortOrder = (int)$stmtMax->fetchColumn();
+
         // Insere o bloco (tenant_id, resumo, activity_type_id e ticket_id opcionais)
         $stmt = $db->prepare("
             INSERT INTO agenda_blocks 
-            (data, hora_inicio, hora_fim, tipo_id, projeto_foco_id, ticket_id, activity_type_id, tenant_id, resumo, status, duracao_planejada, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'planned', ?, NOW(), NOW())
+            (data, hora_inicio, hora_fim, tipo_id, projeto_foco_id, ticket_id, activity_type_id, tenant_id, resumo, status, duracao_planejada, sort_order, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'planned', ?, ?, NOW(), NOW())
         ");
         $stmt->execute([
             $dataStr,
@@ -571,6 +576,7 @@ class AgendaService
             $tenantId,
             $resumo,
             $duracaoMinutos,
+            $nextSortOrder,
         ]);
         
         return (int)$db->lastInsertId();

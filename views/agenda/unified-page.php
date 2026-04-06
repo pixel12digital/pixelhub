@@ -2405,17 +2405,26 @@ function initBlockSortable() {
     Sortable.create(tbody, {
         animation: 150,
         handle: '.drag-handle',
+        draggable: 'tr.block-row',
         ghostClass: 'sortable-ghost',
         chosenClass: 'sortable-chosen',
         dragClass: 'sortable-drag',
-        filter: '.block-expand',
         onStart: function() {
             document.querySelectorAll('.block-expand.show').forEach(function(el) {
                 el.classList.remove('show');
             });
         },
-        onEnd: function(evt) {
+        onEnd: function() {
             var rows = tbody.querySelectorAll('tr.block-row');
+            // Reattach each expand row immediately after its parent block-row
+            rows.forEach(function(row) {
+                var blockId = row.dataset.blockId;
+                var expandRow = document.getElementById('block-expand-' + blockId);
+                if (expandRow && row.nextSibling !== expandRow) {
+                    tbody.insertBefore(expandRow, row.nextSibling);
+                }
+            });
+            // Collect IDs in current DOM order and persist
             var ids = [];
             rows.forEach(function(row) {
                 var bid = row.dataset.blockId;
