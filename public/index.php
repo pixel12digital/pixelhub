@@ -976,6 +976,7 @@ $router->post('/hosting/backups/delete', 'HostingBackupController@delete');
     $router->get('/agenda/bloco/linked-tasks', 'AgendaController@getLinkedTasks');
     $router->post('/agenda/bloco/task-time', 'AgendaController@updateTaskTime');
     $router->post('/agenda/bloco/quick-status', 'AgendaController@quickStatus');
+    $router->post('/agenda/bloco/reorder', 'AgendaController@reorderBlocks');
     $router->post('/agenda/start', 'AgendaController@start');
     $router->get('/agenda/ongoing-block', 'AgendaController@getOngoingBlock');
     $router->post('/agenda/finish', 'AgendaController@finish');

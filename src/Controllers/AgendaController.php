@@ -1605,6 +1605,32 @@ class AgendaController extends Controller
     }
 
     /**
+     * Reordena blocos do dia salvando sort_order de cada bloco
+     */
+    public function reorderBlocks(): void
+    {
+        Auth::requireInternal();
+        $raw = file_get_contents('php://input');
+        $data = json_decode($raw, true);
+        $ids = $data['ids'] ?? [];
+        if (empty($ids) || !is_array($ids)) {
+            $this->json(['error' => 'Parâmetros inválidos'], 400);
+            return;
+        }
+        try {
+            $db = \PixelHub\Core\DB::getConnection();
+            $stmt = $db->prepare("UPDATE agenda_blocks SET sort_order = ?, updated_at = NOW() WHERE id = ?");
+            foreach ($ids as $order => $id) {
+                $stmt->execute([$order + 1, (int)$id]);
+            }
+            $this->json(['success' => true]);
+        } catch (\Exception $e) {
+            error_log("reorderBlocks error: " . $e->getMessage());
+            $this->json(['error' => 'Erro ao reordenar blocos'], 500);
+        }
+    }
+
+    /**
      * Agenda semanal — redireciona para Agenda Unificada (Quadro)
      */
     public function semana(): void

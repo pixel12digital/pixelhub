@@ -129,6 +129,14 @@ $highlightBlockId = $expandBlockId ?? 0;
 .block-status-badge.status-completed { background: #dcfce7; color: #15803d; }
 .block-status-badge.status-canceled  { background: #fee2e2; color: #b91c1c; }
 .block-time-hint { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+.drag-handle { cursor: grab; color: #cbd5e1; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 32px; flex-shrink: 0; border-radius: 4px; transition: color 0.15s; user-select: none; }
+.drag-handle:hover { color: #64748b; }
+.drag-handle:active { cursor: grabbing; }
+.block-row.sortable-ghost { opacity: 0.4; background: #e0f2fe !important; }
+.block-row.sortable-chosen { background: #f0f9ff !important; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+.block-row.sortable-drag { opacity: 0.9; box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
+.agenda-list-table th.col-drag { width: 32px; padding: 10px 4px; }
+.agenda-list-table td.col-drag { padding: 8px 4px; vertical-align: middle; }
 .inline-edit-tipo { cursor: pointer; transition: opacity 0.15s; }
 .inline-edit-tipo:hover { opacity: 0.8; filter: brightness(1.1); }
 .inline-edit-tipo-select { padding: 4px 8px; font-size: 12px; font-weight: 600; border: 2px solid #3b82f6; border-radius: 6px; background: white; cursor: pointer; min-width: 120px; }
@@ -527,6 +535,7 @@ if (!empty($dailyTasks)):
     <table class="agenda-list-table">
         <thead>
             <tr>
+                <th class="col-drag" title="Arraste para reordenar"></th>
                 <th class="col-item">Item</th>
                 <th class="col-cliente">Cliente</th>
                 <th class="col-tipo">Bloco</th>
@@ -582,6 +591,9 @@ if (!empty($dailyTasks)):
             ?>
             <?php $hasSubitems = true; ?>
             <tr class="block-row <?= $isCurrent ? 'current' : '' ?> <?= $blocoStatus === 'completed' ? 'block-completed' : '' ?>" data-block-id="<?= (int)$bloco['id'] ?>" data-projeto-foco-id="<?= (int)($bloco['projeto_foco_id'] ?? 0) ?>" data-tarefas-count="<?= (int)($bloco['tarefas_count'] ?? 0) ?>" data-hora-inicio="<?= htmlspecialchars($horaInicioFmt) ?>" data-hora-fim="<?= htmlspecialchars($horaFimFmt) ?>" data-status="<?= htmlspecialchars($blocoStatus) ?>">
+                <td class="col-drag" onclick="event.stopPropagation()">
+                    <span class="drag-handle" title="Arraste para reordenar">&#8942;&#8942;</span>
+                </td>
                 <td class="col-item" style="border-left: 4px solid <?= $corBorda ?>;">
                     <div class="block-item-cell">
                         <button type="button" class="block-expand-btn <?= $isExpanded ? 'expanded' : '' ?> <?= !$hasSubitems ? 'is-disabled' : '' ?>" onclick="toggleBlockExpand(<?= (int)$bloco['id'] ?>)" title="<?= $hasSubitems ? ($isExpanded ? 'Recolher' : 'Expandir registros') : 'Sem itens' ?>" aria-label="<?= $hasSubitems ? ($isExpanded ? 'Recolher' : 'Expandir') : 'Sem itens' ?>" <?= !$hasSubitems ? 'aria-disabled="true"' : '' ?>>
@@ -637,7 +649,7 @@ if (!empty($dailyTasks)):
                 </td>
             </tr>
             <tr class="block-expand <?= $isExpanded ? 'show' : '' ?>" id="block-expand-<?= (int)$bloco['id'] ?>" data-block-id="<?= (int)$bloco['id'] ?>" onclick="event.stopPropagation()">
-                <td colspan="5">
+                <td colspan="6">
                     <div class="block-expand-content"></div>
                 </td>
             </tr>
@@ -853,6 +865,7 @@ if (!empty($dailyTasks)):
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
 <script>
 const baseUrl = '<?= $baseUrl ?>';
 const dataStr = '<?= $dataStr ?>';
@@ -2055,6 +2068,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initInlineEditTime();
     initInlineEditTipo();
     initInlineEditAtividade();
+    initBlockSortable();
     const qaProject = document.getElementById('quick-add-project');
     const qaTaskSelect = document.getElementById('quick-add-task-select');
     const qaTaskId = document.getElementById('quick-add-task-id');
@@ -2383,6 +2397,44 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 <?php endif; ?>
+
+// ===== DRAG-AND-DROP REORDENAÇÃO DE BLOCOS =====
+function initBlockSortable() {
+    var tbody = document.querySelector('.agenda-list-table tbody');
+    if (!tbody || typeof Sortable === 'undefined') return;
+    Sortable.create(tbody, {
+        animation: 150,
+        handle: '.drag-handle',
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        dragClass: 'sortable-drag',
+        filter: '.block-expand',
+        onStart: function() {
+            document.querySelectorAll('.block-expand.show').forEach(function(el) {
+                el.classList.remove('show');
+            });
+        },
+        onEnd: function(evt) {
+            var rows = tbody.querySelectorAll('tr.block-row');
+            var ids = [];
+            rows.forEach(function(row) {
+                var bid = row.dataset.blockId;
+                if (bid) ids.push(parseInt(bid, 10));
+            });
+            if (!ids.length) return;
+            fetch('<?= pixelhub_url('/agenda/bloco/reorder') ?>', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ ids: ids })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) console.error('Erro ao salvar ordem dos blocos');
+            })
+            .catch(function() { console.error('Erro ao salvar ordem dos blocos'); });
+        }
+    });
+}
 
 // Marcar tarefa do dia como concluída
 function markDailyTaskComplete(event, taskId) {

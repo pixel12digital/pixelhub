@@ -1195,7 +1195,7 @@ class AgendaService
             LEFT JOIN tasks t_focus ON b.focus_task_id = t_focus.id
             LEFT JOIN tickets ticket ON b.ticket_id = ticket.id
             WHERE b.data = ?
-            ORDER BY (CASE WHEN b.hora_inicio IS NULL THEN 1 ELSE 0 END) ASC, b.hora_inicio ASC, b.created_at ASC
+            ORDER BY b.sort_order ASC, (CASE WHEN b.hora_inicio IS NULL THEN 1 ELSE 0 END) ASC, b.hora_inicio ASC, b.created_at ASC
         ";
         
         $stmt = $db->prepare($sql);
