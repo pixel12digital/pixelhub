@@ -2431,16 +2431,18 @@ function initBlockSortable() {
                 if (bid) ids.push(parseInt(bid, 10));
             });
             if (!ids.length) return;
+            var fd = new FormData();
+            fd.append('ids', JSON.stringify(ids));
             fetch('<?= pixelhub_url('/agenda/bloco/reorder') ?>', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                body: JSON.stringify({ ids: ids })
+                body: fd,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (!data.success) console.error('Erro ao salvar ordem dos blocos');
+                if (!data.success) console.error('Erro ao salvar ordem dos blocos', data);
             })
-            .catch(function() { console.error('Erro ao salvar ordem dos blocos'); });
+            .catch(function(e) { console.error('Erro ao salvar ordem dos blocos', e); });
         }
     });
 }

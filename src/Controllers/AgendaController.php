@@ -1610,9 +1610,8 @@ class AgendaController extends Controller
     public function reorderBlocks(): void
     {
         Auth::requireInternal();
-        $raw = file_get_contents('php://input');
-        $data = json_decode($raw, true);
-        $ids = $data['ids'] ?? [];
+        $idsJson = $_POST['ids'] ?? '[]';
+        $ids = json_decode($idsJson, true);
         if (empty($ids) || !is_array($ids)) {
             $this->json(['error' => 'Parâmetros inválidos'], 400);
             return;
