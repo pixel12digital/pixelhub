@@ -101,14 +101,48 @@ class BillingDispatchQueueService
             return [];
         }
 
-        // Recovery: jobs presos em 'processing' há mais de 15 min (worker morreu/travou) voltam para 'queued'
-        $db->exec("
-            UPDATE billing_dispatch_queue
-            SET status = 'queued', updated_at = NOW()
+        // Recovery: jobs presos em 'processing' há mais de 15 min (worker morreu/travou)
+        // ANTES de resetar para 'queued', verifica billing_dispatch_log para evitar reenvio duplicado
+        // (caso: mensagem foi enviada com sucesso mas MySQL morreu antes do markSent ser chamado)
+        $stuckJobs = $db->query("
+            SELECT id, tenant_id, invoice_ids, attempts, max_attempts
+            FROM billing_dispatch_queue
             WHERE status = 'processing'
               AND last_attempt_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)
-              AND attempts < max_attempts
-        ");
+        ")->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($stuckJobs as $stuck) {
+            $invoiceIds = json_decode($stuck['invoice_ids'], true) ?: [];
+            $alreadyLogged = false;
+
+            if (!empty($invoiceIds)) {
+                $placeholders = implode(',', array_fill(0, count($invoiceIds), '?'));
+                $checkStmt = $db->prepare("
+                    SELECT 1 FROM billing_dispatch_log
+                    WHERE tenant_id = ?
+                      AND invoice_id IN ({$placeholders})
+                      AND DATE(sent_at) = CURDATE()
+                    LIMIT 1
+                ");
+                $checkStmt->execute(array_merge([(int) $stuck['tenant_id']], $invoiceIds));
+                $alreadyLogged = (bool) $checkStmt->fetchColumn();
+            }
+
+            if ($alreadyLogged) {
+                // Mensagem já foi entregue na tentativa anterior — apenas finaliza o job sem reenviar
+                $db->prepare("UPDATE billing_dispatch_queue SET status = 'sent', updated_at = NOW() WHERE id = ?")
+                   ->execute([$stuck['id']]);
+                error_log("[BILLING_QUEUE] Recovery: job #{$stuck['id']} marcado como 'sent' (log já existe — evitando duplicata)");
+            } elseif ((int) $stuck['attempts'] < (int) $stuck['max_attempts']) {
+                // Não há log de envio — seguro para tentar novamente
+                $db->prepare("UPDATE billing_dispatch_queue SET status = 'queued', updated_at = NOW() WHERE id = ?")
+                   ->execute([$stuck['id']]);
+            } else {
+                // Esgotou tentativas sem log — marca como falho definitivo
+                $db->prepare("UPDATE billing_dispatch_queue SET status = 'failed', updated_at = NOW() WHERE id = ?")
+                   ->execute([$stuck['id']]);
+            }
+        }
 
         $stmt = $db->prepare("
             SELECT *
