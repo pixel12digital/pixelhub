@@ -359,6 +359,22 @@ class WhapiCloudProvider implements WhatsAppProviderInterface
 
         // Sucesso (2xx)
         if ($httpCode >= 200 && $httpCode < 300) {
+            // Whapi pode retornar HTTP 200 com sent=false para falhas silenciosas
+            // (número não registrado no WhatsApp, canal desconectado, rate limit, etc.)
+            // Só considera sucesso quando sent=true ou quando não há campo 'sent' (endpoints sem esse campo)
+            if (isset($responseData['sent']) && $responseData['sent'] !== true) {
+                $errMsg = $responseData['error']['message']
+                    ?? ($responseData['error']['details'] ?? ($responseData['message'] ?? 'Mensagem não enviada pelo Whapi (sent=false)'));
+                error_log("[WhapiCloudProvider] ⚠️ HTTP {$httpCode} mas sent=false: {$errMsg} | raw: " . substr($responseBody, 0, 300));
+                return [
+                    'success' => false,
+                    'error' => "Whapi.Cloud: {$errMsg}",
+                    'error_code' => 'WHAPI_SENT_FALSE',
+                    'status' => $httpCode,
+                    'raw' => $responseData
+                ];
+            }
+
             $messageId = null;
             
             // Extrai message_id da resposta

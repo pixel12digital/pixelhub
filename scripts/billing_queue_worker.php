@@ -132,7 +132,7 @@ foreach ($jobs as $job) {
 
     if ($result['success']) {
         try {
-            BillingDispatchQueueService::markSent($jobId);
+            BillingDispatchQueueService::markSent($jobId, $result['gateway_message_id'] ?? null);
         } catch (\Exception $markEx) {
             // markSent falhou (ex: coluna ausente, FK inválida, etc.)
             // Força status='sent' diretamente para NUNCA deixar o job em 'processing'
