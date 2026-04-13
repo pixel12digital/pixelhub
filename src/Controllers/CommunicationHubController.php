@@ -197,13 +197,9 @@ class CommunicationHubController extends Controller
                 $allThreads = array_values($allThreads); // Reindexa array
             }
             
-            // Separa incoming leads
+            // Todos os threads em ordem cronológica (sem separação por vínculo)
             foreach ($allThreads as $thread) {
-                if (!empty($thread['is_incoming_lead'])) {
-                    $incomingLeads[] = $thread;
-                } else {
-                    $normalThreads[] = $thread;
-                }
+                $normalThreads[] = $thread;
             }
         }
 
@@ -288,7 +284,7 @@ class CommunicationHubController extends Controller
 
         // Garante que threads é sempre um array válido
         $threadsList = is_array($normalThreads) ? $normalThreads : [];
-        $incomingLeadsList = is_array($incomingLeads) ? $incomingLeads : [];
+        $incomingLeadsList = [];
         
         // Thread selecionada (para não mostrar badge na conversa aberta)
         $selectedThreadId = $_GET['thread_id'] ?? null;
@@ -4605,13 +4601,9 @@ class CommunicationHubController extends Controller
                     });
                 }
                 
-                // Separa incoming leads das conversas normais
+                // Todos os threads em ordem cronológica (sem separação por vínculo)
                 foreach ($allThreads as $thread) {
-                    if (!empty($thread['is_incoming_lead'])) {
-                        $incomingLeads[] = $thread;
-                    } else {
-                        $normalThreads[] = $thread;
-                    }
+                    $normalThreads[] = $thread;
                 }
             }
 
@@ -4638,7 +4630,7 @@ class CommunicationHubController extends Controller
             $this->json([
                 'success' => true,
                 'threads' => $normalThreads ?? [],
-                'incoming_leads' => $incomingLeads ?? [],
+                'incoming_leads' => [],
                 'incoming_leads_count' => $incomingLeadsCount
             ]);
         } catch (\Exception $e) {

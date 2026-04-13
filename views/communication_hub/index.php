@@ -1763,6 +1763,13 @@ body.communication-hub-page {
                                     </div>
                                 </div>
                             </div>
+                            <?php if (!empty($thread['is_incoming_lead'])): ?>
+                            <div class="incoming-lead-actions">
+                                <button type="button" class="incoming-lead-btn-primary" onclick="event.stopPropagation(); openLinkTenantModal(<?= $conversationId ?>, '<?= $contactName ?>')">
+                                    Vincular
+                                </button>
+                            </div>
+                            <?php endif; ?>
                             <div style="display: flex; justify-content: flex-end; align-items: center; font-size: 11px; color: #667781;">
                                 <?php
                                 $lastActivity = $thread['last_activity'] ?? ($thread['created_at'] ?? null);
@@ -2317,7 +2324,16 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
         return;
     }
     
-    if (threads.length === 0 && (!incomingLeads || incomingLeads.length === 0)) {
+    // Mescla incoming leads com threads normais e ordena por data (como WhatsApp)
+    if (incomingLeads && incomingLeads.length > 0) {
+        threads = [...threads, ...incomingLeads].sort((a, b) => {
+            const timeA = new Date(a.last_activity || '1970-01-01').getTime();
+            const timeB = new Date(b.last_activity || '1970-01-01').getTime();
+            return timeB - timeA;
+        });
+    }
+
+    if (threads.length === 0) {
         listContainer.innerHTML = `
             <div style="padding: 40px; text-align: center; color: #667781;">
                 <p>Nenhuma conversa encontrada</p>
@@ -2337,119 +2353,6 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
     }
     
     let html = '';
-    
-    // Renderiza incoming leads primeiro (se houver)
-    if (incomingLeads && incomingLeads.length > 0) {
-        html += `
-            <div class="unlinked-conversations-section">
-                <div class="unlinked-conversations-header">
-                    <h4 class="unlinked-conversations-title">
-                        <svg class="unlinked-conversations-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                        </svg>
-                        Conversas não vinculadas
-                    </h4>
-                    <span class="unlinked-conversations-badge">
-                        ${incomingLeadsCount !== null ? incomingLeadsCount : incomingLeads.length}
-                    </span>
-                </div>
-                <p class="unlinked-conversations-description">
-                    Conversas ainda não associadas a um cliente. Revise e vincule ou crie um novo.
-                </p>
-            </div>
-        `;
-        
-        incomingLeads.forEach((lead) => {
-            const threadId = escapeHtml(lead.thread_id || '');
-            const contactName = escapeHtml(lead.contact_name || 'Contato Desconhecido');
-            const contact = escapeHtml(lead.contact || 'Número não identificado');
-            const conversationId = lead.conversation_id || 0;
-            const unreadCount = lead.unread_count || 0;
-            
-            // Formata data (usa função que garante fuso de Brasília)
-            const dateStr = formatDateBrasilia(lead.last_activity);
-            
-            const channel = lead.channel || 'whatsapp';
-            html += `
-                <div class="conversation-item incoming-lead-item" 
-                     onclick="handleConversationClick('${threadId}', '${channel}')"
-                     data-thread-id="${threadId}"
-                     data-conversation-id="${conversationId}"
-                     style="cursor: pointer;">
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="font-weight: 600; font-size: 14px; color: #111b21; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                ${contactName}
-                            </div>
-                            <div style="font-size: 12px; color: #667781; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 2px;">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                                </svg>
-                                <span>${contact}</span>
-                                ${lead.channel_id ? `<span style="opacity: 0.6; font-size: 11px;">• ${escapeHtml(lead.channel_id)}</span>` : ''}
-                            </div>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                            ${unreadCount > 0 ? `
-                                <span class="hub-unread-badge" style="background: #25d366; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600;">
-                                    ${unreadCount}
-                                </span>
-                            ` : ''}
-                            <div class="incoming-lead-menu">
-                                <button type="button" class="incoming-lead-menu-toggle" onclick="event.stopPropagation(); toggleIncomingLeadMenu(this)" aria-label="Mais opções">
-                                    ⋮
-                                </button>
-                                <div class="incoming-lead-menu-dropdown">
-                                    <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); openCreateTenantModal(${conversationId}, '${escapeHtml(contactName)}', '${escapeHtml(contact)}'); closeIncomingLeadMenu(this);">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-                                        Criar Cliente
-                                    </button>
-                                    <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); openCreateLeadModal(${conversationId}, '${escapeHtml(contactName)}', '${escapeHtml(contact)}'); closeIncomingLeadMenu(this);">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
-                                        Criar Lead
-                                    </button>
-                                    <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); openLinkLeadModal(${conversationId}, '${escapeHtml(contactName)}'); closeIncomingLeadMenu(this);">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                                        Vincular a Lead
-                                    </button>
-                                    <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); openEditContactNameModal(${conversationId}, '${escapeHtml(contactName)}'); closeIncomingLeadMenu(this);">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                        Editar nome
-                                    </button>
-                                    <?php if (($filters['status'] ?? '') !== 'ignored'): ?>
-                                    <button type="button" class="incoming-lead-menu-item" onclick="event.stopPropagation(); ignoreConversation(${conversationId}, '${escapeHtml(contactName)}'); closeIncomingLeadMenu(this);">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                                        Silenciar
-                                    </button>
-                                    <?php endif; ?>
-                                    <button type="button" class="incoming-lead-menu-item danger" onclick="event.stopPropagation(); deleteConversation(${conversationId}, '${escapeHtml(contactName)}'); closeIncomingLeadMenu(this);">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                                        Excluir
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="incoming-lead-actions">
-                        <button type="button" class="incoming-lead-btn-primary" onclick="event.stopPropagation(); openLinkTenantModal(${conversationId}, '${escapeHtml(contactName)}')">
-                            Vincular
-                        </button>
-                        <!-- Botões ocultos mantidos para compatibilidade com JS existente -->
-                        <button type="button" class="incoming-lead-hidden-btn" onclick="event.stopPropagation(); openCreateTenantModal(${conversationId}, '${escapeHtml(contactName)}', '${escapeHtml(contact)}')">Criar Cliente</button>
-                        <button type="button" class="incoming-lead-hidden-btn" onclick="event.stopPropagation(); rejectIncomingLead(${conversationId})">Ignorar</button>
-                    </div>
-                    <div style="font-size: 11px; color: #667781; margin-top: 6px;">
-                        ${dateStr}
-                    </div>
-                </div>
-            `;
-        });
-        
-        // Adiciona separador entre incoming leads e conversas normais
-        if (threads.length > 0) {
-            html += `<div style="height: 12px; border-bottom: 2px solid #e4e6eb; margin: 12px 0;"></div>`;
-        }
-    }
     
     threads.forEach((thread, index) => {
         const threadId = escapeHtml(thread.thread_id || '');
@@ -2581,6 +2484,13 @@ function renderConversationList(threads, incomingLeads = [], incomingLeadsCount 
                         </div>
                     </div>
                 </div>
+                ${thread.is_incoming_lead ? `
+                <div class="incoming-lead-actions">
+                    <button type="button" class="incoming-lead-btn-primary" onclick="event.stopPropagation(); openLinkTenantModal(${thread.conversation_id || 0}, '${escapeHtml(thread.contact_name || '')}')">
+                        Vincular
+                    </button>
+                </div>
+                ` : ''}
                 <div style="display: flex; justify-content: flex-end; align-items: center; font-size: 11px; color: #667781;">
                     <span>${dateStr}</span>
                 </div>
