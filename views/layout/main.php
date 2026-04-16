@@ -391,6 +391,7 @@
             z-index: 1000;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
             box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
             transition: right 0.3s ease, width 0.3s ease;
         }
@@ -767,6 +768,7 @@
         .inbox-drawer-messages {
             flex: 1;
             overflow-y: auto;
+            overflow-x: hidden;
             padding: 16px 20px;
         }
         /* Mensagens de email ocupam 100% da largura */
@@ -783,6 +785,8 @@
             margin-bottom: 8px;
             font-size: 14px;
             line-height: 1.4;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
         .inbox-drawer-messages .msg.inbound {
             background: white;
@@ -1271,6 +1275,54 @@
             font-style: italic;
         }
         
+        /* Notebooks e telas médias (769px – 1400px) */
+        @media (min-width: 769px) and (max-width: 1400px) {
+            .inbox-drawer {
+                width: 75vw;
+                max-width: 75vw;
+                right: -75vw;
+            }
+            .inbox-drawer.open {
+                right: 0;
+            }
+            .inbox-drawer-list {
+                width: 270px;
+                min-width: 270px;
+            }
+            .inbox-filters select {
+                min-width: 70px;
+                max-width: 130px;
+                font-size: 11px;
+            }
+            .inbox-filters #inboxFilterTenant {
+                max-width: 140px;
+            }
+        }
+        /* Telas pequenas / tablets landscape (769px – 1100px) */
+        @media (min-width: 769px) and (max-width: 1100px) {
+            .inbox-drawer {
+                width: 92vw;
+                max-width: 92vw;
+                right: -92vw;
+            }
+            .inbox-drawer-list {
+                width: 230px;
+                min-width: 230px;
+            }
+            .inbox-drawer-input {
+                padding: 8px 12px;
+                gap: 6px;
+            }
+            .inbox-drawer-input .inbox-media-btn {
+                padding: 7px;
+            }
+            .inbox-drawer-messages {
+                padding: 12px 14px;
+            }
+            .inbox-drawer-chat-header {
+                padding: 10px 14px;
+            }
+        }
         /* Mobile responsivo */
         @media (max-width: 768px) {
             .inbox-drawer {
