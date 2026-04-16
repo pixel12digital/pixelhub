@@ -7233,7 +7233,10 @@
                 let content = msg.content || msg.body || msg.text || '';
                 let renderedContent = '';
                 
-                if (media && media.url) {
+                if (media && media.media_failed) {
+                    const typeLabel = (media.media_type || 'arquivo') === 'audio' ? 'Áudio' : ((media.media_type || '') === 'image' ? 'Imagem' : 'Mídia');
+                    renderedContent = `<em style="color:#999;">${typeLabel} não disponível</em>`;
+                } else if (media && media.url) {
                     const mediaType = (media.media_type || media.type || '').toLowerCase();
                     const safeUrl = escapeInboxHtml(media.url);
                     if (mediaType === 'image' || mediaType === 'sticker') {

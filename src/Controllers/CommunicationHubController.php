@@ -3907,19 +3907,20 @@ class CommunicationHubController extends Controller
             $mediaInfo = $mediaCache[$event['event_id']] ?? null;
             
             // Se mídia não está no cache mas evento indica que TEM mídia, processa sob demanda
-            $payloadType = $payload['type'] ?? $payload['raw']['payload']['type'] ?? null;
-            $hasMediaIndicator = $payloadType && in_array($payloadType, ['audio', 'ptt', 'image', 'video', 'document', 'sticker']);
+            $payloadType = $payload['type'] ?? $payload['message']['type'] ?? $payload['raw']['payload']['type'] ?? null;
+            $hasMediaIndicator = $payloadType && in_array($payloadType, ['audio', 'ptt', 'voice', 'image', 'video', 'document', 'sticker']);
 
             if (!$mediaInfo && $hasMediaIndicator) {
                 // CORREÇÃO: Verifica se mediaUrl já existe no payload antes de tentar processar
-                $mediaUrl = $payload['message']['mediaUrl'] ?? null;
-                $mediaData = $payload['message']['media'] ?? [];
+                $mediaUrl = $payload['message']['mediaUrl'] ?? $payload['media']['link'] ?? null;
+                $mediaData = $payload['message']['media'] ?? $payload['media'] ?? [];
                 
                 if ($mediaUrl) {
+                    $isVoiceOrPtt = $payloadType === 'ptt' || $payloadType === 'voice' || $payloadType === 'audio';
                     $mediaInfo = [
                         'url' => $mediaUrl,
-                        'media_type' => $payloadType === 'ptt' ? 'audio' : ($mediaData['type'] ?? $payloadType),
-                        'mime_type' => $mediaData['mimetype'] ?? ($payloadType === 'ptt' || $payloadType === 'audio' ? 'audio/ogg' : null),
+                        'media_type' => $isVoiceOrPtt ? 'audio' : ($mediaData['type'] ?? $payloadType),
+                        'mime_type' => $mediaData['mimetype'] ?? ($isVoiceOrPtt ? 'audio/ogg' : null),
                         'file_size' => $mediaData['size'] ?? null,
                     ];
                 } else {
@@ -4105,12 +4106,13 @@ class CommunicationHubController extends Controller
             }
 
             $payloadType = $payload['type'] ?? $payload['message']['type'] ?? $payload['raw']['payload']['type'] ?? null;
-            $hasMediaIndicator = $payloadType && in_array($payloadType, ['audio', 'ptt', 'image', 'video', 'document', 'sticker']);
+            $hasMediaIndicator = $payloadType && in_array($payloadType, ['audio', 'ptt', 'voice', 'image', 'video', 'document', 'sticker']);
             if (!$mediaInfo && $hasMediaIndicator) {
+                $isVoiceOrPtt = $payloadType === 'ptt' || $payloadType === 'voice' || $payloadType === 'audio';
                 $mediaInfo = [
                     'media_failed' => true,
-                    'media_type' => $payloadType === 'ptt' ? 'audio' : $payloadType,
-                    'mime_type' => $payloadType === 'ptt' || $payloadType === 'audio' ? 'audio/ogg' : ($payloadType === 'image' ? 'image/jpeg' : null),
+                    'media_type' => $isVoiceOrPtt ? 'audio' : $payloadType,
+                    'mime_type' => $isVoiceOrPtt ? 'audio/ogg' : ($payloadType === 'image' ? 'image/jpeg' : null),
                 ];
             }
             
@@ -5385,12 +5387,13 @@ class CommunicationHubController extends Controller
             }
 
             $payloadType = $payload['type'] ?? $payload['message']['type'] ?? $payload['raw']['payload']['type'] ?? null;
-            $hasMediaIndicator = $payloadType && in_array($payloadType, ['audio', 'ptt', 'image', 'video', 'document', 'sticker']);
+            $hasMediaIndicator = $payloadType && in_array($payloadType, ['audio', 'ptt', 'voice', 'image', 'video', 'document', 'sticker']);
             if (!$mediaInfo && $hasMediaIndicator) {
+                $isVoiceOrPtt = $payloadType === 'ptt' || $payloadType === 'voice' || $payloadType === 'audio';
                 $mediaInfo = [
                     'media_failed' => true,
-                    'media_type' => $payloadType === 'ptt' ? 'audio' : $payloadType,
-                    'mime_type' => $payloadType === 'ptt' || $payloadType === 'audio' ? 'audio/ogg' : ($payloadType === 'image' ? 'image/jpeg' : null),
+                    'media_type' => $isVoiceOrPtt ? 'audio' : $payloadType,
+                    'mime_type' => $isVoiceOrPtt ? 'audio/ogg' : ($payloadType === 'image' ? 'image/jpeg' : null),
                 ];
             }
             
