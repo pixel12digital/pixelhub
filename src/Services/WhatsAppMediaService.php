@@ -73,8 +73,8 @@ class WhatsAppMediaService
         if ($rawPayload && isset($rawPayload['type'])) {
             $rawType = $rawPayload['type'];
             // WPP Connect usa: ptt (voice), audio, image, video, document, sticker
-            if (in_array($rawType, ['ptt', 'audio', 'image', 'video', 'document', 'sticker'])) {
-                $wppConnectMediaType = $rawType === 'ptt' ? 'audio' : $rawType; // Normaliza ptt para audio
+            if (in_array($rawType, ['ptt', 'audio', 'voice', 'image', 'video', 'document', 'sticker'])) {
+                $wppConnectMediaType = ($rawType === 'ptt' || $rawType === 'voice') ? 'audio' : $rawType; // Normaliza ptt/voice para audio
                 $wppConnectMediaData = $rawPayload;
                 error_log("[WhatsAppMediaService] WPP Connect: Detectado tipo '{$rawType}' em raw.payload, normalizado para '{$wppConnectMediaType}'");
             }
@@ -134,7 +134,7 @@ class WhatsAppMediaService
         // quando o fallback genérico captura $payload['id'] (message ID) como mediaId
         if (!$base64AudioData && !$base64ImageData && !$wppConnectMediaType && !$baileysMediaType) {
             $rawType = $rawPayload['type'] ?? $payload['type'] ?? $payload['message']['type'] ?? null;
-            if (!$rawType || !in_array($rawType, ['audio', 'ptt', 'image', 'video', 'document', 'sticker'])) {
+            if (!$rawType || !in_array($rawType, ['audio', 'ptt', 'voice', 'image', 'video', 'document', 'sticker'])) {
                 return null;
             }
         }
@@ -185,7 +185,7 @@ class WhatsAppMediaService
                 ?? $payload['message']['type'] 
                 ?? $payload['raw']['payload']['type']  // NOVO: fallback para raw.payload.type
                 ?? null;
-            if (in_array($typeCheck, ['audio', 'ptt', 'image', 'video', 'document', 'sticker'])) {
+            if (in_array($typeCheck, ['audio', 'ptt', 'voice', 'image', 'video', 'document', 'sticker'])) {
                 // É mídia, mas sem mediaId - pode ser que o gateway forneça URL direta
                 // Usa ID da mensagem como fallback
                 $mediaId = $payload['id'] 
@@ -250,8 +250,8 @@ class WhatsAppMediaService
             ?? ($baileysMediaData ? 'media' : null)
             ?? 'unknown';
         
-        // Normaliza tipo ptt para audio
-        if ($mediaType === 'ptt') {
+        // Normaliza tipo ptt/voice para audio
+        if ($mediaType === 'ptt' || $mediaType === 'voice') {
             $mediaType = 'audio';
         }
         
@@ -288,8 +288,27 @@ class WhatsAppMediaService
         $mediaUrl = $payload['media']['link'] ?? $payload['mediaUrl'] ?? $payload['message']['mediaUrl'] ?? null;
         $isWhapi  = ($event['source_system'] ?? null) === 'whapi_cloud';
 
-        if (!$channelId && !($isWhapi && $mediaUrl)) {
-            error_log("[WhatsAppMediaService] Channel ID não encontrado e sem URL Whapi para evento {$event['event_id']}. metadata=" . substr($event['metadata'] ?? '{}', 0, 150));
+        // Para Whapi: tenta extrair media ID do whapi_original quando media.id não disponível
+        // Necessário para mensagens recebidas sem link (ex: antes de Auto Download ser ativado)
+        if ($isWhapi && !$mediaUrl) {
+            $whapiOrig = $payload['whapi_original'] ?? null;
+            if ($whapiOrig && is_array($whapiOrig)) {
+                $origType  = $whapiOrig['type'] ?? null;
+                $mediaData = $origType ? ($whapiOrig[$origType] ?? null) : null;
+                if (!$mediaId && $mediaData && !empty($mediaData['id'])) {
+                    $mediaId = $mediaData['id'];
+                    error_log("[WhatsAppMediaService] Whapi: media ID extraído de whapi_original.{$origType}.id = {$mediaId}");
+                }
+                if (!$mimeType && $mediaData && !empty($mediaData['mime_type'])) {
+                    $mimeType = $mediaData['mime_type'];
+                }
+            }
+        }
+
+        $whapiMediaId = $isWhapi ? ($payload['media']['id'] ?? ($payload['whapi_original'][$payload['whapi_original']['type'] ?? '']['id'] ?? null) ?? $mediaId) : null;
+
+        if (!$channelId && !($isWhapi && ($mediaUrl || $whapiMediaId))) {
+            error_log("[WhatsAppMediaService] Channel ID não encontrado e sem URL/ID Whapi para evento {$event['event_id']}. metadata=" . substr($event['metadata'] ?? '{}', 0, 150));
             return self::saveMediaRecord($event['event_id'], $mediaId, $mediaType, $mimeType, null, null, null);
         }
         
@@ -299,9 +318,13 @@ class WhatsAppMediaService
             $mediaUrl = $payload['media']['link'] ?? $payload['mediaUrl'] ?? $payload['message']['mediaUrl'] ?? null;
 
             if ($sourceSystem === 'whapi_cloud' && $mediaUrl) {
-                // Whapi.Cloud: baixa via URL com Bearer token
+                // Whapi.Cloud: baixa via URL direta (Auto Download ativo)
                 error_log("[WhatsAppMediaService] Whapi: baixando mídia via URL: " . substr($mediaUrl, 0, 80));
                 $downloadResult = self::downloadWhapiMedia($mediaUrl);
+            } elseif ($sourceSystem === 'whapi_cloud' && $whapiMediaId) {
+                // Whapi.Cloud: baixa via GET /media/{id} (fallback quando link ausente)
+                error_log("[WhatsAppMediaService] Whapi: baixando mídia via media ID: {$whapiMediaId}");
+                $downloadResult = self::downloadWhapiMediaById($whapiMediaId);
             } else {
                 // Sem URL disponível para baixar
                 error_log("[WhatsAppMediaService] Sem URL de mídia disponível para source={$sourceSystem}, event={$event['event_id']}");
@@ -401,6 +424,20 @@ class WhatsAppMediaService
 
         $channelId = $channelId !== null && $channelId !== '' ? (string) $channelId : null;
         return $channelId ?: null;
+    }
+
+    /**
+     * Baixa mídia do Whapi.Cloud via Media ID (GET /media/{id})
+     * Usado como fallback quando o campo 'link' não está presente no webhook
+     * 
+     * @param string $mediaId ID da mídia (ex: oga-2aa8679b2542384746a9-...)
+     * @return array ['success' => bool, 'data' => string|null, 'mime_type' => string|null, 'error' => string|null]
+     */
+    private static function downloadWhapiMediaById(string $mediaId): array
+    {
+        $url = 'https://gate.whapi.cloud/media/' . rawurlencode($mediaId);
+        error_log("[WhatsAppMediaService] Whapi GET /media/{$mediaId}");
+        return self::downloadWhapiMedia($url);
     }
 
     /**
